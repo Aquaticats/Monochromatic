@@ -247,7 +247,8 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
 13. Late `git switch` watch, "A measured span, then stop (Recommended)" (same date and recording, revision 13 question
     7): provisional: framing corrected in revision 14. The question claimed the cleanup never undoes a later
     intentional change, which the thirteenth review disproved. It is asked again as three questions (revision 14,
-    questions 7a, 7b and 7c). Decisions 11 to 13 were recorded by commit RECORD2_COMMIT, whose time is RECORD2_TIME.
+    questions 7a, 7b and 7c). Decisions 11 to 13 were recorded by commit 1734105e9a, whose time is
+    2026-11-03T21:47:28-05:00.
 
 
 Amendments by 4 to 6 (the newest owner answers govern): decision 1's set-aside-as-pending of a commit behind a person's hook, the earlier answer "Save on a
@@ -268,9 +269,10 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 13, first committed 2026-11-03T20:22:09-05:00 in 4a7bea95a2)
+### Normative state machine (revision 14, first committed REV14_TIME)
 
-Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea.
+Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea, and revision 13 at
+2026-11-03T20:22:09-05:00 in 4a7bea95a2.
 
 This is the one operative statement of the protocol. The narrative subsections that follow explain it and add rationale and test
 requirements; where one of them reads differently, this section governs. Every transition names its preconditions (Pre), its durable
@@ -284,10 +286,11 @@ Named entities. A worktree has one lane. The lane has an owner, an incarnation, 
 `$GIT_COMMON_DIR/cli-git/` holds one ledger per lane (`ledgers/<instance>/ledger`, appended only by that lane's
 owner), the release intents `releases/`, and the maintenance registry `maintenance/` (the identity bindings `ids/` of
 revision 11 are removed by rule V: an identity is the content hash of the request plus the lane instance). The lane
-also has the withdrawal marks `lane/decision/<id>`, the client locks `lane/client/<id>`, the attempt directories
-`lane/p2/`, and its state document is carried by the hash-chained state log `lane/state.log` (rule S, rule V; the text
-says `lane/state` for the newest valid record). Nothing in the common directory has more than one appender: a
-registry entry is a file created once by `link`, and a ledger is appended by exactly one lane.
+also has the withdrawal marks (empty files `lane/decision/<id>.withdraw` and
+`lane/decision/<id>.withdraw-unresolved`), the receipts `lane/receipt/<id>`, the client locks `lane/client/<id>`, the
+attempt directories `lane/p2/`, and its state document is carried by the hash-chained state log `lane/state.log` (rule
+S, rule V; the text says `lane/state` for the newest valid record). Nothing in the common directory has more than one
+appender: a registry entry is a file created once by `link`, and a ledger is appended by exactly one lane.
 
 Request states: `drafted` (client only) -> `bound` -> `accepted` -> `adopted` -> (`held` | `ready`) -> `publishing` -> (`published` |
 `pending` | `landing` | `rewritten-away`) -> (`materialized` | `voided`) -> `retired`; a hook may end a request as `refused`; an obsolete
@@ -322,83 +325,121 @@ T1 retire changes no capture-visible state.
 Bound on the cost of a replacement (revision 10): `lane/state` holds only requests that are not terminal, the entries of the consumption map
 that still have an effect, and the logical tail; a request with a final client-visible outcome leaves the document only after T0 has published that outcome to the lane's ledger, and its
 history then lives only in the ledger. The document therefore grows with the work in flight and the unresolved suppressions, never with the
-lane's history, and a replacement costs the write and fsync of that bounded document. `lane/order` is append-only history, but no transition
+lane's history, and a replacement costs the append of that bounded document to the page cache (V; the syncer forces it
+later, rule V). `lane/order` is append-only history, but no transition
 reads it past the adopt line of a request being resumed (the document names each request's position), and it is compacted at a ledger boundary by a
 rotation (a new file started after the document records the old file as closed), so recovery reads one bounded file. The measurement gate: commit cost is
 flat against ledger length (step 1, "state document size independent of history").
 
-Rule V, durability levels and the syncs a person waits for (revision 12; repaired in revision 13, R12-4, R12-5,
-R12-7). Owner rules: "commits vs native git should not take 5s longer.", "Disk pressure being high is not an excuse."
-and "sometimes the work itself can be optimized. And we control every part of the wrapper, including everything it
-embeds." Input: the fourth review of the pure components counted `2n + 20` sync calls to acceptance (22 for a one-path
-commit) and `2n + 27` (29) through retirement, 17 of them directory syncs, and each sync can take seconds on this disk
-under pressure. Owner decision 10, "Force at leaving, else background (Recommended)", chose when the forcing happens.
-Two levels are kept apart. V, visible: the bytes are in the page cache and named, so they survive the death of any
-process (a kill, the OOM killer, a crash of the owner or the client), which is what the lane's crash recovery needs.
-D, durable: the bytes survive power loss or a kernel crash, which only a sync provides. A record is written V by its
-transition with no sync. The rules for D:
-- Departure barrier (every exit that promises saved work, not only W1). Before a command leaves while its request is
-  not published, or with a request it promises as saved, the D-set of that exit is D, in the dependency order below.
-  The D-set by exit: W1 withdrawn, the unresolved COMMITTING exit and an interrupt: the request file, `inbox/`, the
-  lane log through the record that names the saved item, the mark file and `lane/decision/`, and the objects of any
-  built commit the exit names (the pack or loose files the lane wrote for it, which the lane records); a request left
-  with the service (no client, or a `handed over` followed by exit): the request file, `inbox/` and the lane log
-  through its `adopt`; `conflicted` and `rewritten-away`: the saved inputs or commit, the log record that names them,
-  and the ledger line; W1 that finds a terminal outcome: that outcome's ledger line. A command that waits for its
-  request until it is published has no departure before publication, so it waits for no sync of ours.
+Rule V, durability levels and the syncs a person waits for (revision 12; repaired in revisions 13 and 14, R12-4,
+R12-5, R12-7, R13-2, R13-4 to R13-6). Owner rules: "commits vs native git should not take 5s longer.", "Disk pressure
+being high is not an excuse." and "sometimes the work itself can be optimized. And we control every part of the
+wrapper, including everything it embeds." Input: the fourth review of the pure components counted `2n + 20` sync calls
+to acceptance (22 for a one-path commit) and `2n + 27` (29) through retirement; the latency branch then measured, on
+the 0.5.28 base, 0 syncs waited by the wrapper on a publishing landing (Git's own pack sync on the unsigned
+`fast-import` route remains), in `doc/planning/cli-git-commit-latency-under-disk-pressure.md`. Owner decision 10,
+"Force at leaving, else background (Recommended)", chose when forcing happens. Two levels are kept apart. V, visible:
+the bytes are in the page cache and named, so they survive the death of any process (a kill, the OOM killer, a crash
+of the owner or the client), which is what the lane's crash recovery needs. D, durable: the bytes survive power loss
+or a kernel crash, which only a sync provides. A record is written V by its transition with no sync. The rules for D
+(revision 14 splits what a departure must make D into three things with different urgency, because the thirteenth
+review showed that one timed flush of all of them can lose the fact that publication is forbidden, not only the saved
+copy):
+- Stop receipt (R13-2). The withdrawal mark is a tiny empty file whose name carries its kind,
+  `lane/decision/<id>.withdraw` or `lane/decision/<id>.withdraw-unresolved` (the attempt in flight is the one the
+  owner has recorded), created with `O_CREAT | O_EXCL`; it has no content to flush. A departing command makes it D
+  first, before anything else it forces: `fsync` of the file and then of `lane/decision/` (2 syncs), within
+  `WAIT_STOP` (a named constant that must be measured). Recovery reads the marks before it decides anything, so a D
+  mark is what keeps a request from publishing after the error, plain or after attempt `a`. If the stop receipt is not
+  D when the command must leave, owner question 6a asks what the command may do; the design offers no fail-closed
+  alternative, because after a power loss no process can tell a departed client from a killed one.
+- Saved-content set (R12-5C, R13-6). What the exit promises as saved, forced after the stop receipt within
+  `WAIT_DEPART` (named, to be measured), in dependency order. The set by exit: W1 withdrawn and an interrupt: the
+  request file, `inbox/`, the lane log files through the record that names the saved item; the unresolved COMMITTING
+  exit: the same; a request left with the service (no client, or a `handed over` followed by exit): the request file,
+  `inbox/` and the log through its `adopt`; `conflicted` and `rewritten-away`: the saved inputs or commit, the log
+  record that names them, and the ledger line. What is promised depends on what is preserved. Three things are told
+  apart: the captured intent (the immutable request, enough for another replay); the exact built commit; and that
+  commit's parent, tree and blob closure. Naming a built commit as saved requires its closure: the lane records the
+  objects it wrote, forces those files and their directory entries, creates the side ref
+  `refs/cli-git/<instance>/withdrawn/<id>` and reads it back; the closure of a parent that another writer published is
+  protected by that writer's branch, and the side ref keeps it from ordinary collection. If the side ref or the
+  objects cannot be confirmed within the bound, the exit promises the captured intent only and says so; a request held
+  by a hook, or one whose build had not finished, has no commit and the message names the retained inputs. A command
+  that waits for its request until it is published has no departure before publication.
+- Terminal answer. A command that leaves with a final outcome forces the ledger line of that outcome as part of its
+  set; a successful return forces nothing of ours.
 - Reclamation barrier (R12-5A). Nothing a request's recovery or its identity depends on is released until the syncer
-  has made D the terminal ledger line (and the ledger's directory entry) and the log record that removes the request
-  from the state; T1 has this in its Pre. It is background work: it adds no sync to a command's waiting path, and a
-  power loss before it only delays reclamation.
+  has made D the terminal ledger line and its directory entry and the log record that removes the request, up to a
+  confirmed watermark (below). T1 has this in its Pre. It is background work.
 - Preservation barrier (R12-5B). Before the recovery authority of a version that only the person had is replaced (the
   staged-only blob saved by MG3, a displaced inode of the carry-forward protocol, the pre-merge file `N`), the
   preserving file, its directory entry and the log record that names it are D. The carry-forward protocol's own
-  explicit persistence ordering stands and is exempt from rule V's default of "no sync". These barriers occur only
-  when the person has an edit or a staged-only version to preserve, never in a plain commit.
+  explicit persistence ordering stands and is exempt from rule V's default. These barriers occur only when the person
+  has an edit or a staged-only version to preserve, never in a plain commit.
 - Background syncer. A thread or process separate from the owner's event loop (a `fsync` never blocks admission, the
   owner or another command) brings every V record to D within `SYNC_LAG` (a shipped constant, unmeasured; its
   measurement is the longest healthy interval between a request's acceptance and its publication), syncing each
-  distinct file once per pass however many requests share the pass, and each directory once per pass.
-- Deadlines (R12-7). The bound of a command is the deadline to start departing. Forcing the D-set is charged to
-  `WAIT_DEPART` (a named constant, which must be measured: the longest healthy time to force a D-set on the owner's
-  hosts). A departing command that cannot confirm D within it exits anyway, non-zero, saying the work is saved and
-  that durability is not yet confirmed, and the syncer finishes it (owner question 6). What lets V stand in for D
-  between a write and its sync, so that a power loss after a partial write is recovered and not trusted (revision 13):
+  distinct file once per pass and each directory once per pass. Durable prefix watermark (R13-5): before it issues a
+  sync the syncer reads the owner's published append offset and chain hash of the file; a completed sync makes D that
+  captured prefix and nothing appended during the sync; every claim "this is D" in reclamation, rotation and T1 rests
+  on such a watermark and never on a per-file durable flag.
+- Deadlines (R12-7). The bound of a command is the deadline to start departing. Departure then spends, in order,
+  `WAIT_WITHDRAW`, `WAIT_STOP` and `WAIT_DEPART`; a command that cannot confirm D within `WAIT_DEPART` exits non-zero
+  saying the saved set is not yet confirmed, and the syncer finishes it (owner question 6b). What lets V stand in for
+  D between a write and its sync, so that a power loss after a partial write is recovered and not trusted (revisions
+  13 and 14):
 - A checksum proves a record's integrity and nothing about its causes, because unsynced write-back can persist a later
   record while an earlier one is missing. So every append-only file of the lane (the journal, the order file, the
-  state log, each ledger) is **hash-chained**: each record carries the hash of its predecessor, and recovery takes the
-  longest prefix that validates and ignores every record after the first that does not, however valid it looks. A
-  record that depends on a record of another file carries that record's file, offset and chain hash; recovery drops
-  it, and everything after it in its own file, when the reference does not validate. T0's removal record names its
-  ledger line; an `adopt` line names its request file; a record that names a saved item names the item.
-- The state is not a pair of files that overwrite each other (two unsynced overwrites can tear both generations,
-  R12-4). The state document is carried by the **state log** `lane/state.log`: S1 appends a record that holds the
-  whole document (generation `g`, bounded as before). A log is never overwritten in place. A checkpoint starts a new
-  log file `lane/state.log.<k+1>` whose first record is a full document and names the file it follows; the syncer
-  makes the new file and its directory entry D, and only then may the old file be removed. Recovery uses the
-  highest-numbered file whose first record validates and whose chain is the longest valid prefix; if the newest file
-  does not validate it falls back to the previous one, which still exists because it is removed only after the new one
-  is D.
+  state log, each ledger) is hash-chained: each record carries the hash of its predecessor, and recovery takes the
+  longest prefix that validates and ignores every record after the first that does not.
+- Dependencies are of two kinds and are discharged (R13-4). A hash commitment is historical: it says what the record
+  followed and is checked only while the predecessor is present in the chain being read. A live dependency names a
+  file the record needs to exist (an `adopt` record names its request file; a record that names a saved item names the
+  item). A live dependency is **discharged** when the thing it needs has a recorded successor that supersedes it: a
+  request file by a terminal `outcome` line for its identity in the ledger (which is never deleted and is validated
+  first), a saved item by a `disposed` record, and every dependency older than a checkpoint by the checkpoint itself,
+  which is self-contained. Recovery validates a live dependency only for a record after the last valid checkpoint and
+  only while it is undischarged; an undischarged dependency that fails drops that record and everything after it in
+  its own file. T1 and rotation delete only what the discharging record already covers and has made D (the reclamation
+  barrier).
+- Validation order for cross-file dependencies (R13-4). The files others depend on are validated first, so that every
+  recovery computes the same prefixes: the ledgers (each is a root), then the order file, then the request files it
+  names, then the journal, then the state log, whose T0 removal record depends on a ledger line. A state record that
+  names a ledger line the ledger does not hold is dropped with its suffix, and the request is still live in the
+  recovered state; L4 completes T0 from what the earlier records say.
+- The state is carried by the state log `lane/state.log.<k>`; a log is never overwritten in place. S1 appends a record
+  that holds the whole document (generation `g`, bounded). Checkpoint cutover (R13-5), a serialized owner-side
+  protocol because the owner is the only appender: (1) the owner decides to rotate; (2) it appends a `seal` record to
+  segment `k` naming segment `k + 1` and the final chain hash, and appends nothing else to `k` afterwards; (3) it
+  creates segment `k + 1` whose first record is a checkpoint holding the full document after the seal, the ledger and
+  order positions and hashes, and the lineage back-reference (immutable once written; no S1 can interleave between the
+  seal and the checkpoint, because the same thread does both); (4) from then on S1 appends go to `k + 1`; (5) the
+  syncer captures the watermark of `k + 1` through its checkpoint record, syncs the file and `lane/`, and only then
+  may segment `k` be removed. Recovery selects the highest-numbered segment whose first record is a valid checkpoint
+  and whose lineage back-reference names a sealed predecessor or none, then the longest valid chain after the
+  checkpoint; if the newest segment has no valid checkpoint it falls back to `k`, which still exists and is sealed, so
+  no S1 is lost to a half-made cutover.
 - A request is one file, `inbox/<id>`: its record, its manifest, every captured side and a fresh invocation nonce
   (R12-11), with one checksum, written under a temporary name in `inbox/tmp/` and published by a no-replace `link`.
   The identity `<id>` is the content hash of that request, nonce included, plus the lane instance. Two identical
   operations by different invocations carry different nonces and so different identities; a resend of one invocation
-  carries its retained bytes and nonce and so the same identity. The binding file `ids/<xx>/<id>` of revision 11 is
-  removed: its only job was to reject one identity with two contents, and an identity can now name only one content.
-  Directories (`inbox/`, `inbox/tmp/`, `lane/`, `queue/`, the ledger directory, `lane/p2/`) are created once, when the
-  lane is initialized, and synced then; no per-commit transition creates one or syncs an ancestor. The dependency
-  chain for D, in the order the syncer and a departure barrier follow it: the request file, then `inbox/`; then the
-  `adopt` record; then the state log through the record in question; then, for a terminal outcome, the ledger line. A
-  power loss may persist any subset of unsynced writes, so the chain is enforced by the references above and not by
-  write order. Object writes (`fast-import`, the embedded writer) and the ref write follow the person's `core.fsync`
+  carries its retained bytes and nonce and so the same identity. Directories (`inbox/`, `inbox/tmp/`, `lane/`,
+  `queue/`, `lane/decision/`, `lane/receipt/`, `lane/client/`, `lane/p2/`, the ledger directory) are created once,
+  when the lane is initialized, and synced then; no per-commit transition creates one or syncs an ancestor. The
+  dependency chain for D, in the order the syncer and a barrier follow it: the stop receipt first, then the request
+  file, `inbox/`, the `adopt` record, the state log through the record in question, and for a terminal outcome the
+  ledger line. Object writes (`fast-import`, the embedded writer) and the ref write follow the person's `core.fsync`
   exactly as native Git does, so they add no wait beyond native; the index installed by M1 follows the same setting.
-  The count of syncs a person waits for, per transition, is in "Cost of the durable steps". Rule D, durable before
-  reliance (revision 10; narrowed by rule V in revision 12). A name that a process created and has not yet made
-  durable is visible to other processes, so the creator's own sync is not a promise to an observer. Under rule V this
-  matters only at a departure barrier, at a reclamation or preservation barrier, and at the answer of a resend that
-  the asker will rely on across a power loss: whoever relies on a name it did not itself make D, at such a point,
-  makes it D first (the file, then the directory that contains it), following the dependency chain of rule V. The cost
-  is paid only by a resend or a departure, which is rare, and a sync of an already durable directory is cheap.
+  The count of syncs a person waits for, per transition, is in "Cost of the durable steps".
+
+Rule D, durable before reliance (revision 10; narrowed by rule V in revision 12). A name that a process created and
+has not yet made durable is visible to other processes, so the creator's own sync is not a promise to an observer.
+Under rule V this matters only at a departure barrier, at a reclamation or preservation barrier, and at the answer of
+a resend that the asker will rely on across a power loss: whoever relies on a name it did not itself make D, at such a
+point, makes it D first (the file, then the directory that contains it), following the dependency chain of rule V. The
+cost is paid only by a resend or a departure, which is rare, and a sync of an already durable directory is cheap.
+
 Rule N, names the lane may remove (revision 10; R9-3). Linux offers no unlink or rename that is conditional on the identity of the file at a
 pathname: a check of the inode followed by `unlink`, a `rename` into a private directory and a `RENAME_EXCHANGE` each leave an instant in which a
 replacement file that a foreign program created at that pathname is removed, displaced or substituted, and a journaled `(device, inode)` pair
@@ -485,15 +526,22 @@ The register (waiting process; condition; bound and its basis; action at the bou
   capture no longer sees withdrawn work; `WAIT_WITHDRAW`, starting from `STOP_GRACE` (5 s, unmeasured); at the bound
   the command goes on to its departure barrier, and C1 keeps refusing to capture while the lane has not applied the
   withdrawal.
+- STOP (revision 14): a departing command forcing its stop receipt (the mark and `lane/decision/`, 2 syncs) to disk;
+  `WAIT_STOP`, a named constant that must be measured; at the bound the command exits non-zero saying the stop is not
+  confirmed on disk (owner question 6a).
+- MATERIALIZE (revision 14): a command that published waiting for the single attempt at M1 or MG3; `WAIT_MATERIALIZE`,
+  starting from `STOP_GRACE` (unmeasured); at the bound, or when a foreign `index.lock` defers the install, the
+  command exits 0 `published` saying the index and files follow, and the service finishes the install.
 - DEPART (revision 13): a departing command forcing its D-set to disk (rule V); `WAIT_DEPART`, a named constant that
   must be measured; at the bound the command exits non-zero saying the work is saved and durability is not yet
-  confirmed, and the syncer finishes it (owner question 6).
+  confirmed, and the syncer finishes it (owner question 6a and 6b).
 - STALL: the owner supervising a child; the measured stall interval ("Measured stall interval"), then `STOP_GRACE` (shipped, 5 s). The owner never
   blocks its event loop on a child; the blocked process is the client (FOREGROUND).
 - PREPARED-HOLD (revision 12): the owner holding a prepared reference transaction while no closing line has been
   written; `PREPARED_HOLD`, starting from `STOP_GRACE` (5 s, unmeasured), counted from `prepare: ok`; at the bound the
-  owner writes `abort` to the pipe (P2b), which releases the branch lock whatever else holds the pipe open. It exists
-  so a stopped or suspended client cannot hold the branch lock for long.
+  owner attempts to enqueue `abort` (P2b); enqueuing, execution and the release of the branch lock belong to Git and
+  the scheduler and are not guaranteed. It exists so a stopped or suspended client cannot hold the branch lock for
+  long.
 - PUSH: the service's or a command's push; the shipped no-progress deadline `DEFAULT_PUSH_DEADLINE` (30 s) and ceiling `DEFAULT_PUSH_CEILING`
   (1800 s), unmeasured, measured from the end of any `pre-push` hook (revision 12); at the bound the push child is
   ended, only when its exact invocation cannot run a protected program (X1; a push with a `pre-push` hook ends at
@@ -573,50 +621,53 @@ kept apart.
 - Hooks that the client runs in its own build before handover (the person's `pre-commit`, `commit-msg`) are the
   person's foreground programs, not the lane's (see the register: the person's own programs).
 
-Withdrawal (revision 13)
-- W1 withdraw (client). Pre: the request is `bound` or later, and the command's foreground wait reached its bound, or
-  the person interrupted the command, or an inline owner is about to exit (exit rule), or the COMMITTING bound passed.
-  The client has no attempt that it submitted and that is not yet closed (below). Do, in this order: (1) look the
-  identity up by the terminal route of C3; an `outcome` line there is the answer (published, refused, conflicted,
-  already, withdrawn, rewritten-away, unresolved) and W1 stops after the barrier for that outcome (rule V), because a
-  final request is never withdrawn and nothing is promised about a side ref; (2) create the withdrawal mark
-  `lane/decision/<id>` by the link method of C3. Its content is `withdraw`, or `withdraw-unresolved <attempt>` when
-  the client leaves with an attempt it submitted and has not seen close (the COMMITTING exit); `EEXIST` is the same
-  outcome. The mark means: no new attempt of this request may start, ever. (3) if a P2 attempt of this request is
-  open, write `abort` on its pipe (an open attempt that the client did not submit; the client never writes `abort`
-  after it wrote `commit`); (4) for a plain `withdraw`, wait for W2 to record the withdrawal in the state, at most
-  `WAIT_WITHDRAW` (starting from `STOP_GRACE`), so the capture-visible state no longer holds the request (the
-  unresolved exit waits for nothing here: its request stays pending until its attempt resolves, and goes straight to
-  step (5));
-  (5) force the D-set of this exit (rule V, departure barrier) within `WAIT_DEPART`; (6) look the identity up again:
-  an `outcome` line that became durable meanwhile is reported, otherwise print the refusal naming the blocker, what is
-  kept and the command to run again, and exit non-zero. Crash: the mark is the only fact; a client killed before (2)
-  leaves the request live (the outside-cause rule: a request with no client lands later). Attempt scope (R12-1). "The
-  client has submitted" is a fact about one attempt `a`. It ends only when the owner has recorded `closed a` after a
-  positively established failure that did not publish (E1 class F); the client then returns to FOREGROUND and W1 is
-  available again. An attempt whose result is unresolved (E1 class U) never ends that way: the client stays in
-  COMMITTING and leaves through the unresolved exit. The unresolved exit (COMMITTING bound passed). The mark
-  `withdraw-unresolved a` forbids every attempt after `a`, replay, retry or rebuild included. The owner keeps
-  observing attempt `a` only: if it lands later, the outcome is `published` (the exception the owner approved in
+Withdrawal (revision 14)
+- W1 withdraw (client), in two forms with separate preconditions (R13-10). Plain withdrawal. Pre: the request is
+  `bound` (C2) or later; the client has no `commit` that it submitted and that is still open; and one of: the
+  command's foreground wait reached its bound; the person interrupted the command; an inline owner is about to exit
+  (exit rule); START or setup failed after the request was exposed; the command's exit guard caught an internal error
+  after the request was exposed. Unresolved withdrawal. Pre: the client submitted `commit` for attempt `a`, and when
+  the COMMITTING bound passed neither landing evidence nor a positive close of `a` had been seen. Do, in this order:
+  (1) look the identity up by the terminal route of C3; an `outcome` line there is the answer (published, refused,
+  conflicted, already, withdrawn, rewritten-away, unresolved) and W1 stops after the barrier for that outcome (rule
+  V), because a final request is never withdrawn and nothing is promised about a side ref; (2) create the withdrawal
+  mark, an empty file `lane/decision/<id>.withdraw` (plain) or `lane/decision/<id>.withdraw-unresolved`
+  (unresolved) with `O_CREAT | O_EXCL`; `EEXIST` is the same outcome. The mark means: no new attempt of this request
+  may start, ever; (3) force the stop receipt (the mark's file, then `lane/decision/`) within `WAIT_STOP`, before
+  anything else is forced (rule V); (4) plain form only: if an attempt of this request is open, write `abort` on its
+  pipe (the client never writes `abort` after it wrote `commit`); (5) plain form only: wait for W2 to record the
+  withdrawal in the state, at most `WAIT_WITHDRAW` (starting from `STOP_GRACE`), so the capture-visible state no
+  longer holds the request (the unresolved form waits for nothing here: its request stays pending until its attempt
+  resolves); (6) force the saved-content set of this exit within `WAIT_DEPART` (rule V); (7) look the identity up
+  again: an `outcome` line that became durable meanwhile is reported, otherwise print the refusal naming the blocker,
+  what is kept and the command to run again, and exit non-zero. Crash: the mark is the only fact; a client killed
+  before (2) leaves the request live (the outside-cause rule: a request with no client lands later). Attempt scope
+  (R12-1). "The client has submitted" is a fact about one attempt `a`. It ends only when the owner has recorded
+  `closed a` after a positively established failure that did not publish (E1 class F); the client then returns to
+  FOREGROUND and plain W1 is available again. An attempt whose result is unresolved (E1 class U) never ends that way:
+  the client stays in COMMITTING and leaves through the unresolved form. The unresolved form (COMMITTING bound
+  passed). The mark forbids every attempt after the one in flight, replay, retry or rebuild included. The owner keeps
+  observing that attempt only: if it lands later, the outcome is `published` (the exception the owner approved in
   decision 7, stated in the error); if its child ends with no landing and no positive evidence, the outcome is
   `unresolved` (saved, not replayed; the message names the commit and the command to drop it); evidence of a rewrite
-  gives `rewritten-away`. Why no attempt can land after W1 (R11-1). Only one party at a time decides a prepared
-  transaction (P2b), and while the client lives that party is the client; W1 is the client's own step, so the client
-  has either submitted `commit` (and does not withdraw before the attempt closes) or never will. The owner does not
-  decide while the client lock is held, and checks the mark after the client lock is gone.
+  gives `rewritten-away`; a late positive failure (class F) gives the outcome `withdrawn`, with the same W2 steps as a
+  plain withdrawal including the re-basing of descendants. Why no attempt can land after W1 (R11-1). Only one party at
+  a time decides a prepared transaction (P2b), and while the client lives that party is the client; W1 is the client's
+  own step, so the client has either submitted `commit` (and does not withdraw before the attempt closes) or never
+  will. The owner does not decide while the client lock is held, and checks the mark after the client lock is gone.
+  After a power loss the stop receipt is what recovery honors, which is why it is made D first and separately.
 - W2 withdrawn (lane). Pre: the mark exists; checked at C5, B1's end, P1's pre, P2a's pre and again once the pipe's
   reader exists, MG1, Q1, every held-hook completion and L4, so no step starts work for a withdrawn request. Do, in
-  this order (T0): (1) append `outcome <id> withdrawn` (or the outcome of the unresolved exit when its attempt ends)
+  this order (T0): (1) append `outcome <id> withdrawn` (or the outcome of the unresolved form when its attempt ends)
   to the lane's ledger unless the ledger already holds an `outcome` line for the identity (the first line wins; a
-  later one is ignored by every reader); (2) one S1 replacement making the request `withdrawn` (for
-  `withdraw-unresolved` this step and step (3) run only when E1 resolves the attempt: `published` goes the M1 way, and
-  `unresolved` or `rewritten-away` removes the request with the re-basing below), dropping its consumption entries,
+  later one is ignored by every reader); (2) one S1 replacement making the request `withdrawn` (for the unresolved
+  form this step and step (3) run only when E1 resolves the attempt: `published` goes the M1 way, and `unresolved`,
+  `rewritten-away` or a late F remove the request with the re-basing below), dropping its consumption entries,
   removing it from the logical tail, and sending every request whose built commit has the withdrawn commit as an
   ancestor in the tail back to `resume = B1` (its `ready` record is discarded; it is replayed on the new tail), so the
   capture-visible head and tail no longer contain withdrawn work (R12-6); (3) keep the built commit on
   `refs/cli-git/<instance>/withdrawn/<id>` best effort (the spool is the guarantee). A held hook is not ended (its
-  completion is discarded as in B3). A P2 attempt needs no action here beyond the abort of an open one. Crash:
-  repeated; L4 reads the marks first.
+  completion is discarded as in B3). Crash: repeated; L4 reads the marks first.
 
 Capture and acceptance (client)
 - C0 ensure the lane. Pre: C1 finds the marker set, or an open recovery journal (defined next), or no owner and a state document that does not
@@ -636,48 +687,55 @@ Capture and acceptance (client)
   previous incarnation that is dead and a scope that is empty, which is exactly the proof of L1 to L3; no
   relinquishment exists, and no step ever unlocks `lane/owner`. Crash: the helper's death releases the lock, and the
   next acquirer (L1 to L4) repeats the repair.
-- C1 capture. Pre: C0 passed, and the publication target is determined (target rule below). Do: read the newest valid
-  record of `lane/state.log` once (taking `g`, the marker, the logical head, the logical tail, the consumption map);
-  for every request in the tail and the map `stat` `lane/decision/<id>`. A request that has a plain `withdraw` mark
-  and is still in the document means the lane has not yet applied W2, so the logical head and tail still contain
-  withdrawn work and a capture against them would omit its staging (R12-6): the capture does not proceed, the client
-  waits for the document to change within CAPTURE, and CAPTURE ends it with the busy error and no request. A request
-  with a `withdraw-unresolved` mark is different: its attempt may still land, so it stays pending in the tail with its
-  entries live (the accepted consumed-entry limitation while a request is pending), C1 does not refuse for it, and a
-  wedged Git child therefore never freezes the lane's later commits. This is the whole repair: the consumption entries
-  and the base are never interpreted around a mark, because W1 returns only after W2 has recorded the withdrawal (W1
-  step (4)) or after `WAIT_WITHDRAW`, and until then C1 refuses. The cost is one `stat` per in-flight request and no
-  sync. Read the branch tip `B` and the base closure from the immutable objects `B` names; read the real index file
-  once (it is replaced by rename, so one read is a consistent snapshot) and the worktree files into the spool; an
-  index entry that equals, in every field, the `E` of a live consumption entry of either kind for its path is not
-  staging, and any other index entry for that path is staging (a `merge-install` path has its own rule, MG2); read the
-  document again and accept only an unchanged `g` with the marker `none`, else repeat, within CAPTURE. The tip is not
-  re-read to validate: a tip that moved during capture does not invalidate the capture, because the delta is relative
-  to the logical head and is replayed on the actual tip at adoption. Foreign changes to the index or the worktree
-  after the single reads are later staging, not an inconsistency, and cause no retry. Crash: nothing durable.
-  Starvation, stated: C1 repeats only when the lane's own state changed between its two reads, so a lane that never
-  stops changing delays it, and CAPTURE ends that delay with an error and no request; it never waits on a foreign
-  program.
-- C2 spool and request (revision 12: one file). Pre: C1. Do: build the whole request in memory (record, manifest,
-  every captured side), draw a fresh invocation nonce for this invocation, compute its checksum and its identity (the
-  content hash, nonce included, plus the lane instance; rule V), write
-  it to one file under a unique name in `inbox/tmp/`, and publish it with a no-replace `link` to `inbox/<id>`;
-  `EEXIST` means the same content already arrived (a resend), so check the existing file's checksum and use it. No
-  sync, no directory creation, no binding: the request is V (rule V). Client resend rule: after a lost answer a client
-  resends the retained bytes of the request it already built, nonce included, and never builds the request again from
-  the worktree; a new invocation of the same operation draws a new nonce and is a new request, even when everything
-  else is identical (R12-11). Crash: a
-  temporary with no `inbox/` link belongs to a dead client and is removed by the lane after the client's identity is
-  gone; an `inbox/` entry with a failing checksum is not accepted and is kept while its client could be alive.
+- C1 capture. Pre: C0 passed, and the publication target is determined (target rule below). Do: sample the marks (a
+  `stat` of `lane/decision/<id>.withdraw` for every request in the document's tail and consumption map), then read the
+  newest valid record of `lane/state.log` once (taking `g`, the marker, the logical head, the logical tail, the
+  consumption map); read the branch tip `B` and the base closure from the immutable objects `B` names; read the real
+  index file once (it is replaced by rename, so one read is a consistent snapshot) and the worktree files into the
+  spool; an index entry that equals, in every field, the `E` of a live consumption entry of either kind for its path
+  is not staging, and any other index entry for that path is staging (a `merge-install` path has its own rule, MG2);
+  then read the document again and sample the marks again. Accept only an unchanged `g` with the marker `none`, and
+  only if no request that is still in the document has a plain `withdraw` mark in the second sample (R13-7). A plain
+  mark on a request still in the document means the lane has not yet applied W2, so the logical head and tail still
+  contain withdrawn work and a capture against them would omit its staging; the capture is repeated within CAPTURE and
+  ends there with the busy error and no request. Why the second sample is enough: a mark exists before W1 returns, and
+  the person's staging that follows W1's return is read after it, so a capture whose index read could include that
+  staging is followed by a second sample that sees the mark; a mark created after the second sample is created before
+  W1 returns, which is after every read of this capture, so the capture treats the request as pending (the accepted
+  consumed-entry limitation while a request is pending). A request with a `withdraw-unresolved` mark is different: its
+  attempt may still land, so it stays pending in the tail with its entries live, C1 does not refuse for it, and a
+  wedged Git child therefore never freezes the lane's later commits. The cost is two sets of `stat` calls over the
+  in-flight requests and no sync. The tip is not re-read to validate: a tip that moved during capture does not
+  invalidate the capture, because the delta is relative to the logical head and is replayed on the actual tip at
+  adoption. Foreign changes to the index or the worktree after the single reads are later staging, not an
+  inconsistency, and cause no retry. Crash: nothing durable. Starvation, stated: C1 repeats only when the lane's own
+  state changed between its two reads or a mark appeared, and CAPTURE ends that delay with an error and no request; it
+  never waits on a foreign program.
+- C2 expose the request and bind (revision 14; R13-1). Pre: C1. Do, in this order: (1) draw a fresh invocation nonce
+  for this invocation, build the whole request in memory (record, manifest, every captured side), compute its checksum
+  and its identity (the content hash, nonce included, plus the lane instance; rule V); (2) create and `flock` the
+  client lock `lane/client/<id>`, which the command holds for its whole life; (3) write the request to one file under
+  a unique name in `inbox/tmp/` and publish it with a no-replace `link` to `inbox/<id>`; `EEXIST` means the same
+  content already arrived (a resend), so check the existing file's checksum and use it. The request is `bound` at the
+  link in (3), and not before: FOREGROUND starts there, and because (2) precedes (3) no owner can observe a request
+  whose client lock is not held; a request seen with a free client lock and neither mark nor receipt is a request
+  whose client was killed from outside. No sync, no directory creation, no binding: the request is V (rule V). Client
+  resend rule: after a lost answer a client resends the retained bytes of the request it already built, nonce
+  included, and never builds the request again from the worktree; a new invocation of the same operation draws a new
+  nonce and is a new request, even when everything else is identical (R12-11). Crash: a temporary with no `inbox/`
+  link belongs to a dead client and is removed by the lane after the client's identity is gone; an `inbox/` entry with
+  a failing checksum is not accepted and is kept while its client could be alive. Exits before (3) have no request and
+  need no withdrawal; an exit after (3) is W1.
 - C3 look up an identity (revision 12). Pre: an identity (a resend, W1, or a query). Do: route by the most advanced
   state of the identity, in this order, whatever names the inbox and the queue still hold: terminal (an `outcome` line
   in the named lane's ledger, published by T0: answer the recorded outcome; a `superseded` line is followed to the
-  request that replaced it, see B3), marked (a withdrawal mark without an `outcome` line: answer `withdrawn`), adopted
-  (an `adopt` line in the order file, or the record in `queue/`), accepted (the file in `inbox/`), unknown. The
-  terminal route reads the ledger only; it never opens the request file, because T1 may have released it. A lookup
-  that chose a route which opens the request file and finds it gone restarts from the terminal route; it neither fails
-  nor accepts again. Rule D applies to the line or name the answer relies on only when the asker departs on it (rule
-  V). Crash: nothing durable is written by a lookup.
+  request that replaced it, see B3), marked (a plain `withdraw` mark without an `outcome` line: answer `withdrawn`; a
+  `withdraw-unresolved` mark: answer that the original attempt may still complete and to check `git log`, never that
+  nothing can land), adopted (an `adopt` line in the order file, or the record in `queue/`), accepted (the file in
+  `inbox/`), unknown. The terminal route reads the ledger only; it never opens the request file, because T1 may have
+  released it. A lookup that chose a route which opens the request file and finds it gone restarts from the terminal
+  route; it neither fails nor accepts again. Rule D applies to the line or name the answer relies on only when the
+  asker departs on it (rule V). Crash: nothing durable is written by a lookup.
 - C4 handed over. Pre: C2. Do: answer `handed over` as soon as the request is V; the answer promises survival of a
   process kill, and D follows by the syncer or by the departure barrier (rule V). Crash: a client that dies before the
   answer leaves a V request that the lane adopts and the outside-cause rule finishes.
@@ -705,13 +763,13 @@ place of the branch name. A repository state that has no such target (a bare wor
 
 Client result (revision 12; three facts and the owner's bound answers). `handed over` is the acknowledgement of C4
 (the request is V; rule V), printed as soon as it is true; it is not an exit. The command's exit is the foreground
-outcome: `published` (exit 0, the commit named, printed when the landing evidence of P2c is seen, without waiting for
-P3, T0 or any sync); `withdrawn` by W1 at a bound or by the person's interrupt (non-zero, naming the blocker, what is
-kept and the command to run again; nothing lands later by itself); `refused` by a person's hook, a failing required
-filter or a policy error; `conflicted`; a signer failure (non-zero; the work stays on disk and a signer failure is on
-the owner's outside list); the unresolved COMMITTING exit (non-zero, result not known, owner decision 7). `queued` is
-the
-exit-0 answer of a push only. `retired` is eventual, recorded in the ledger, and never awaited by the command.
+outcome: `published` (exit 0, the commit named, printed after the receipt of P2c and after the single attempt at
+materialization within `WAIT_MATERIALIZE`; it does not wait for P3, T0 or any sync); `withdrawn` by W1 at a bound or
+by the person's interrupt (non-zero, naming the blocker, what is kept and the command to run again; nothing lands
+later by itself); `refused` by a person's hook, a failing required filter or a policy error; `conflicted`; a signer
+failure (B1 (iii), then W1; non-zero; the work stays on disk and a signer failure is on the owner's outside list); the
+unresolved COMMITTING exit (non-zero, result not known, owner decision 7). `queued` is the exit-0 answer of a push
+only. `retired` is eventual, recorded in the ledger, and never awaited by the command.
 
 Build and publication (lane)
 - B1 build. Pre: adopted (or Q1 resumed with `resume = B1`). Do: build the commit by replaying the captured delta on the logical tail (an object
@@ -747,21 +805,29 @@ Build and publication (lane)
 - P2 swap (revision 12: the party that waits for the publication decides it; revision 13 states what the pipe does and
   does not decide; R11-1, R12-1, R12-2). Pre: P1, L6 held for the ref-transaction child, and no withdrawal mark. A
   durable `commit` decision is not used: revision 11's decision file selected permission to publish and not the
-  publication. P2a prepare. Create the attempt directory `lane/p2/<id>.<attempt>/` (scratch: V only, never read by
-  recovery, and a path is never reused, because a late writer must not be able to address a later attempt) with a
-  named pipe `in`, a file `out` for standard output, a file `result` and a file for Git's trace events (E1). Pipe
-  bootstrap, as a specification to check by experiment: open the read end `O_RDONLY | O_NONBLOCK` (it succeeds with no
-  writer), open a write end `O_WRONLY` (it succeeds because a reader exists; every later writer opens with
-  `O_WRONLY | O_NONBLOCK`, so a dead reader gives `ENXIO` and not a blocked open), clear `O_NONBLOCK` on the read end,
-  pass it as the child's standard input, and close the owner's copy of the read end after the spawn; every other
-  descriptor is close-on-exec. Start `update-ref --stdin` (never `--no-deref`; a detached target names `HEAD`) with
-  `LC_ALL=C` and `out` as standard output; check for the mark once more now that the reader exists (a mark found
-  closes the write end and ends the attempt as W2); write `start`, `update <ref> <new> <old>` and `prepare`. Pipe
-  discipline: every line is one `write` of at most `PIPE_BUF` bytes, repeated on `EINTR`, with a short write or
-  `EPIPE` treated as failure of that writer; a writer holds a write end only for its one write, never idle.
-  `update-ref` reads one line at a time and finishes each command before it reads the next
-  (`builtin/update-ref.c:712-770`), so a line written while a hook runs waits in the pipe; stdio may read ahead into
-  its buffer, but dispatch is still in order. `prepare` takes the ref lock and runs the person's
+  publication. P2a prepare. Create the attempt directory `lane/p2/<id>.<attempt>/` (V only; recovery reads it as
+  evidence of the attempts, E1, and removes it only after T0; a path is never reused, because a late writer must not
+  be able to address a later attempt) with a named pipe `in`, a file `out` for standard output, a file `result` and a
+  file for Git's trace events (E1). Pipe bootstrap, as a specification to check by experiment: open the read end
+  `O_RDONLY | O_NONBLOCK` (it succeeds with no writer), open a write end `O_WRONLY` (it succeeds because a reader
+  exists), which is the owner's keeper (below); every later writer opens with `O_WRONLY | O_NONBLOCK`, so a dead
+  reader gives `ENXIO` and not a blocked open, clear `O_NONBLOCK` on the read end, pass it as the child's standard
+  input, and close the owner's copy of the read end after the spawn; every other descriptor is close-on-exec. Start
+  `update-ref --stdin` (never `--no-deref`; a detached target names `HEAD`) with `LC_ALL=C` and `out` as standard
+  output; check for the mark once more now that the reader exists (a mark found closes the write end and ends the
+  attempt as W2); write `start`, `update <ref> <new> <old>` and `prepare`. Pipe discipline (R13-3): the pipe must
+  never read end of input between instructions, so the owner holds the keeper write end for the whole attempt, and
+  closing it is a protocol action: the owner closes it only after the closing line has been executed (landing evidence
+  or `abort: ok`) or the child has ended, and its death closes it (end of input aborts a prepared transaction when no
+  other writer is open and the buffer is empty). Every other writer (the client) opens `O_WRONLY | O_NONBLOCK`, writes
+  one line, and closes at once, so the client never keeps the pipe open idle. Every line is one `write` of at most
+  `PIPE_BUF` bytes, so it is all or nothing; `EINTR` is repeated, `EAGAIN` (a full pipe) is retried as a whole line
+  within `STOP_GRACE`, `SIGPIPE` is ignored in the client and the owner and `EPIPE` is handled, and a line counts as
+  submitted only when `write` returned its full length (so a failed `commit` write means the client has not submitted,
+  and W1 is plain). If the owner cannot enqueue `abort` within `STOP_GRACE` it closes the keeper, which ends the
+  transaction when Git reads end of input. `update-ref` reads one line at a time and finishes each command before it
+  reads the next (`builtin/update-ref.c:712-770`), so a line written while a hook runs waits in the pipe; stdio may
+  read ahead into its buffer, but dispatch is still in order. `prepare` takes the ref lock and runs the person's
   `reference-transaction` hook in `preparing` before the locks and in `prepared` after them (`refs.c:2713-2726`); it
   prints `prepare: ok` (`update-ref.c:621-631`) to `out`. While prepared, any line but `abort` or `commit` makes
   `update-ref` die (`update-ref.c:760-763`). P2b decide. The pipe orders instructions; it does not make an
@@ -784,25 +850,28 @@ Build and publication (lane)
   the register states the residue and no process of ours waits on it: the client has already left, and other programs'
   wait on the branch lock is theirs. P2c commit. `update-ref` executes `commit` (the backend writes the ref, then runs
   the `committed` hook, `refs.c:2783-2785`), so the ref can be written before `commit: ok` is printed. The landing
-  evidence is `commit: ok` on `out`, or the tip equal to `new` or having it as an ancestor (R2); the client prints
-  `published` on the first of them. The owner records the end of the child in `result` and then `closed a` or
-  `unresolved a` (E1). `commit` failing makes `update-ref` die on standard error with no line on standard output
-  (`update-ref.c:645-658`). The exception the owner approved (decision 7): the client has submitted `commit` and
-  neither the landing evidence nor a positive close has been seen when its COMMITTING bound passes. That is an
-  instruction already submitted, whether Git has read it or not, and not only a disk write already begun. The client
-  leaves by the unresolved exit of W1. The extra wait `WAIT_COMMITTING` improves the observed outcome of a slow write;
-  it is not a correctness bound. Owner death: the child is ended by the parent-death signal that L5 sets and is reaped
-  by L2; Git removes its own lock files when it ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`), a
-  backend obligation to check for the signal L5 sets; a lock stranded by an uncatchable kill is the residue of choice
-  R (the lane never removes a ref lock). End of input aborts a prepared transaction only when every write end is
-  closed and the buffered input is consumed, and a `commit` already in the buffer is not cancelled by later end of
+  evidence is `commit: ok` on `out`, or the tip equal to `new` or having it as an ancestor (R2); the client creates
+  the receipt `lane/receipt/<id>` (an empty file, `O_CREAT | O_EXCL`, V) on the first of them and only then prints
+  `published`; recovery treats a receipt as published (R1), so a successful return cannot be followed by a fresh
+  attempt after a process crash (R13-1). After a power loss a lost receipt is the weaker durability of decision 10 for
+  a published exit, and the landing evidence of the tip decides. The owner records the end of the child in `result`
+  and then `closed a` or `unresolved a` (E1). `commit` failing makes `update-ref` die on standard error with no line
+  on standard output (`update-ref.c:645-658`). The exception the owner approved (decision 7): the client has submitted
+  `commit` and neither the landing evidence nor a positive close has been seen when its COMMITTING bound passes. That
+  is an instruction already submitted, whether Git has read it or not, and not only a disk write already begun. The
+  client leaves by the unresolved exit of W1. The extra wait `WAIT_COMMITTING` improves the observed outcome of a slow
+  write; it is not a correctness bound. Owner death: the child is ended by the parent-death signal that L5 sets and is
+  reaped by L2; Git removes its own lock files when it ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`),
+  a backend obligation to check for the signal L5 sets; a lock stranded by an uncatchable kill is the residue of
+  choice R (the lane never removes a ref lock). End of input aborts a prepared transaction only when every write end
+  is closed and the buffered input is consumed, and a `commit` already in the buffer is not cancelled by later end of
   input. After `commit` was written, `update-ref` finishes on its own; recovery classes R1 to R5 decide what happened,
   and the mark rule above forbids a new attempt after a normal exit. Nothing but L6 and the lifetime owner lock
   `lane/owner` is held across P2. Crash: the recovery classes apply; a request with an attached client waits as in
   FOREGROUND for the next attempt (Q1) only when its last attempt closed by class F, and W1 stays available.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
-- P4 swap-failed. Pre: P2a failed or `commit` failed, and E1 classified it `store-failure`, or the attempt was closed
-  without landing (owner death, `PREPARED_HOLD`). Do: in one S1 replacement record
+- P4 swap-failed. Pre: E1 classified the attempt as class F (positive evidence only: owner death and an enqueued
+  `abort` do not establish it), for example `store-failure`. Do: in one S1 replacement record
   `swap-failed <id> <attempt> <class>`, keep the request live with `resume = B1` (`MG1` for a merge) and write the
   pending side ref best effort; the foreground command keeps waiting (FOREGROUND) and a later attempt is made by Q1 on
   a trigger, one at a time, each a full B1, P1 to P3 cycle with a higher attempt number. When the command reaches the
@@ -858,7 +927,8 @@ Build and publication (lane)
   end-of-input abort versus the implicit transaction, the hook phases and the lock lifetime behave as stated on the
   files and reftable backends. The cited lines are from the 2.56.0 source read by the author; the review that follows
   has not inspected them, so they remain gates.
-- Recovery classes for an attempt, in this order. R1 a durable `published`: published. R2 the new commit is the tip or an ancestor of it:
+- Recovery classes for an attempt, in this order. R1 a receipt, a recorded `published`, or `commit: ok` in the
+  attempt's `out` file: published. R2 the new commit is the tip or an ancestor of it:
   published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not republished); this
   is checked before any `swap-failed`, because a failed invocation does not say the request was never satisfied. R4 is withdrawn (revision 11; R10-8): a
   `swap-failed` recorded by an owner that has since died proves only that this invocation wrote no ref, not that no other writer satisfied the request and
@@ -917,17 +987,18 @@ Materialization and retirement
   identity" is not enough and a resend of `id` is answered as superseded by `id2`. Crash: repeated; the ledger line is idempotent per `id`.
 - T0 publish a terminal outcome (revision 12; R10-7, R11-10). Pre: a request reaches a final client-visible outcome:
   `published` (P3), `refused`, `conflicted`, `withdrawn` (W2), `already` (a merge that a foreign successor made a
-  no-op), `rewritten-away`, `superseded by` (B3). Every transition that ends a request this way uses T0 and no other
-  order. Do, in this order: (1) append `outcome <id> <kind> <detail>` to this lane's ledger unless the ledger already
-  holds an `outcome` line for the identity; the first line for an identity is the outcome and any later line is
-  ignored by every reader, so outcomes are absorbing and idempotent; (2) the S1 replacement that records the outcome
-  and removes the request from `lane/state` (a published request stays in the document until M1 or M2 has finished
-  with its consumption entries, and a published merge until its `attach-watch` entry settles, but its outcome line is
-  already in the ledger). The outcome line is the lookup route of C3: reporting an outcome does not depend on being
-  eligible to release the recovery data, which is T1's separate and later operation (`retired <id>`). Crash: the
-  ledger line without the replacement is completed by L4; a replacement without the ledger line cannot occur because
-  the line comes first. The ledger append needs no rescan: the owner keeps the end offset and the last valid line of
-  its own ledger from L4's single read (revision 12, performance).
+  no-op), `rewritten-away`, `unresolved` (terminal, non-zero, saved: its spool and commit are kept until the person
+  disposes of them), `superseded by` (B3). Every transition that ends a request this way uses T0 and no other order.
+  Do, in this order: (1) append `outcome <id> <kind> <detail>` to this lane's ledger unless the ledger already holds
+  an `outcome` line for the identity; the first line for an identity is the outcome and any later line is ignored by
+  every reader, so outcomes are absorbing and idempotent; (2) the S1 replacement that records the outcome and removes
+  the request from `lane/state` (a published request stays in the document until M1 or M2 has finished with its
+  consumption entries, and a published merge until its `attach-watch` entry settles, but its outcome line is already
+  in the ledger). The outcome line is the lookup route of C3: reporting an outcome does not depend on being eligible
+  to release the recovery data, which is T1's separate and later operation (`retired <id>`). Crash: the ledger line
+  without the replacement is completed by L4; a replacement without the ledger line cannot occur because the line
+  comes first. The ledger append needs no rescan: the owner keeps the end offset and the last valid line of its own
+  ledger from L4's single read (revision 12, performance).
 - T1 retire (revision 12; R11-3). Pre: the request has a terminal outcome already published to the ledger (T0), its
   terminal ledger line and the log record that removes it from the state are D (rule V, reclamation barrier), and the
   maintenance registry, listed once as `L0` (the names in `maintenance/`) together with the highest reservation number
@@ -997,78 +1068,110 @@ is a FOREGROUND wait with `resume = MG1`; at its bound it is W1, which changes n
   "Merge anyway, unstage x", is applied by MG3. A waiting merge does not block later requests. Crash: repeated.
 - MG2 publish. Pre: MG1 done. Do: P1 to P3 for `M` with `old = base` (`M` enters the logical tail in P1's replacement
   as for a commit). The P1 replacement also reads the real index once (a plain read, as C1 does) and records, for
-  every path in `P`, a consumption entry of kind `merge-install` holding `E` (the index entry at publication), `O`
-  (the pre-merge tip's blob) and `M`'s entry. `E` is authoritative for MG3 (R12-8): an entry that equals `E` at the
-  install is the staging the person had when the merge published, and an entry that differs is staging made after. A
-  lost swap or a held ref lock: P4 with `resume = MG1` (the merge is computed again on the new tip; nothing was
-  written, so no checkout state needs reconciling). Refused by a hook: `refused`, nothing changed. The window between
-  the publication and the install (decision 8, "Branch first, files after") is stated: the branch holds `M` and the
-  index and worktree still hold the old tip until MG3 runs. For the wrapper's own captures C1 uses these rules for a
-  `merge-install` path, by request kind (R12-13): a plain commit ignores an index entry equal to `E` and captures any
-  other entry as staging; `commit -a` and a named path capture the person's edit as the delta `O` to the worktree file
-  `W` replayed on `M` (the three-way merge of `O`, `W`, `M`, computed in memory), and capture nothing for the path
-  when `W` equals `O`, so a lagging file is never read as a reversal of the merge and an edit to another line cannot
-  revert a line the merge changed; `W` equals `O` is decided from the stat data of `E` and, when they differ, by
-  hashing against `O`. A later published request that consumes the path ends its `merge-install` entry (M3 rule (b)),
-  so MG3 does not write that path again. A native `/usr/bin/git commit -a` run outside the wrapper in the window
-  commits the reversal of the merge on top of it; the history keeps both. The command waits for MG3's single attempt
-  before it reports (so the files are in place when it returns unless a foreign `index.lock` defers them, and then it
-  says so).
+  every path in `P`, a consumption entry of kind `merge-install` holding `E`, the attempt's installation pre-entry
+  (the index entry read at P1; it is a value guard, not proof of what was staged when the ref was written), `O` (the
+  pre-merge tip's blob) and `M`'s entry. A lost swap or a held ref lock: P4 with `resume = MG1` (the merge is computed
+  again on the new tip; nothing was written, so no checkout state needs reconciling). Refused by a hook: `refused`,
+  nothing changed. The window between the publication and the install (decision 8, "Branch first, files after") is
+  stated: the branch holds `M` and the index and worktree still hold the old tip until MG3 runs. The wrapper's own
+  captures use these rules for a `merge-install` path, by request kind (R12-13, R13-8), and in every case the capture
+  is the person's edit replayed on `M` and never a complete replacement of the file:
+  - plain commit: an index entry equal to `E` is not staging; an entry `S` that differs is the person's staged edit,
+    captured as the three-way merge of the content of `E` (the base of what they staged), `S` and `M`, so staging
+    `b = 1` in a lagging file where the merge changed `a` commits both and cannot revert `a`;
+  - `commit -a` and a named path: the person's edit is the delta from `O` to the worktree file `W`, replayed on `M`
+    (the three-way merge of `O`, `W`, `M`), and nothing is captured for the path when `W` equals `O`;
+  - `W` equals `O` is decided from stat data only when `E`'s blob equals `O`'s blob and the entry is not racily clean
+    by Git's rule and the path needs no conversion; otherwise by hashing `W` (after the repository's conversions,
+    through the same eligibility gate as the in-process add) and comparing with `O`'s blob; a stat match against an
+    `E` that differs from `O` proves only that `W` matches `E`. A later published request that consumes the path ends
+    its `merge-install` entry (M3 rule (b)), so MG3 does not write that path again. A native `/usr/bin/git commit -a`
+    run outside the wrapper in the window commits the reversal of the merge on top of it; the history keeps both.
+    Foreground contract (R13-9): the command waits for materialization under `WAIT_MATERIALIZE` (register), because a
+    script that runs `git merge && make` must see the files; at its bound, or when a foreign `index.lock` defers MG3,
+    it exits 0 with `published, files and index will follow`, the install continues under the service (the
+    `merge-install` entries and `resume = MG3` are its recovery authority), and the exit says so.
 - MG3 install (derived data after a published merge, with a real obligation to preserve). Pre: `published` (P3, or the
   evidence R1 or R2) and an outstanding `merge-install` entry. Do: a single try of `index.lock` (`EEXIST`:
   `resume = MG3`, tried again by Q1 on a trigger). With the lock held read `HEAD`, the real index and `HEAD`; if
   authority to do fails, release the lock by the normal abort of rule N, write nothing, turn the entries into
   `suppress`, and tell the person the merge is on `<ref>` only and the worktree was not touched. Else plan every path
   of `P` from the versions read under the lock, the target being the entry of the path in the current tip's tree (the
-  rule of M1, so a foreign successor is respected): `O`, `S` the real index entry (all fields, stage included), `W`
-  the worktree file, `M` the target. Composition of the person's versions (R12-8), per path, by cases; it applies
-  decision P ("Merge anyway, unstage x") and is put to the owner as question 5 where it goes beyond what the owner
-  saw:
-  - `S` differs from `E` (staging made after the merge published): the index entry is left as `S`, the worktree takes
-    the merge of `O`, `W`, `M`, and the path is reported. The ordinary M1 guard applies: later staging is not
-    replaced.
-  - `S` equals `E`, `W` equals `O`, and `E` equals `O`: write `M`'s content, the index entry is `M`'s.
-  - `S` equals `E`, `W` differs from `O` (an unsaved edit): the worktree takes the three-way merge of `O`, `W`, `M`
-    (the carry-forward protocol, including a write through an open descriptor); the index entry is `M`'s, so the edit
-    is an ordinary unstaged edit.
-  - `S` equals `E` and differs from `O` (staged at publication; decision P): the person's local change to the file is
-    `O` to `W`, the same carried edit as above, and the index entry becomes `M`'s ("unstage x"). When `S`'s content is
-    not `W`'s content (a staged-only version, for example `O = A`, `S = B`, `W = A`, `M = C`) it is not part of the
-    file the person sees, so it is not merged into the worktree; the blob `S` names is saved to
-    `saved/<path-id>.staged` with its mode, and the preservation barrier of rule V makes the file, its directory entry
-    and the log record D before the index entry is replaced. When `S`'s content is `W`'s, it is already the carried
-    edit.
-  - Not carried, the person's version stays at its path and the merged version is written beside it (the earlier
-    decision "Carry edits forward", adopted here for these cases; veto open): a mode or type change, a staged
-    deletion, a symlink, a non-text file, an unmerged entry (any stage) at the path, a directory in the way. Then one
-    S1 replacement sets the marker `materializing` and records the plan (`S`, `W` digests, the pins `N` for the
-    displaced pre-merge file and `R` for the installed file, `S` as read), the paths are written by the carry-forward
-    protocol with its own persistence ordering, the new index (only the entries of `P` replaced, every other entry
-    carried with its stat data) is written into the lock file and renamed over the index (its sync as `core.fsync`
-    makes native Git do), and a closing replacement clears the marker, records each path's outcome (`installed`,
-    `carried`, `saved-staged`, `kept`, `later-staging`, `declined`) and changes the entries to `attach-watch`.
-    Post-check: read `HEAD`; if authority to do no longer holds, MG6c. Crash: L4 re-evaluates every path from the
-    journal and the pins by the rule of M1 (observable file and index contents, not inference).
-- MG6c cleanup after a late switch (R11-7, R12-9). Pre: an `attach-watch` entry inside its span (below), `HEAD` no
-  longer naming the target. It never publishes: the merge is already on its ref. A path is a leftover only when the
-  index entry equals `M`'s entry, the file is still the installed `R`, and the entry of the path in the tree `HEAD`
-  now names is not `M`'s entry; otherwise Git or the person has made the state their own and the path is left alone.
-  Do: the single try of `index.lock` (`EEXIST`: `resume = MG6c`); with authority to undo, for each leftover restore
-  from the saved pre-state, not by a reverse three-way merge: exchange `R` back with the pinned `N`, and set the index
-  entry back to the entry `S` that MG3 read under its lock (that is what a switch that had already written its index
-  left; a switch that starts after the install rewrites the entries itself and leaves nothing that matches). A path
-  written since keeps the person's file and is reported with the saved files. The closing replacement drops the
-  entries and records `restored`. Triggers: every lane event, a watch on the worktree's `HEAD` file while any
-  `attach-watch` entry exists (the service), and one re-check at the end of the span. Span: `ATTACH_WATCH_SPAN`, a
-  named constant that must be measured (the longest healthy duration of a `git switch` on the owner's hosts with a
-  margin the owner approves). A timer is not evidence that no switch is still in progress, so the entry is retained
-  for the whole span and ends at the first check at or after its end that finds `HEAD` attached to the target; a
-  switch that completes later than that leaves the merge's files in the new branch's worktree. Owner question 7 asks
-  the owner to approve that weaker residue in these words. Conditional liveness: the restoration happens at a lane
-  event or while the service runs, inside the span; nothing is promised otherwise.
+  rule of M1): `O`, `S` the real index entry (all fields, stage included), `W` the worktree file, `M` the target.
+  Three independent steps per path, so the cases cannot overlap (R13-8C); the composition applies decision P ("Merge
+  anyway, unstage x") and decision 11 ("Carry the file, save staged"):
+  1. Carry. The worktree takes the three-way merge of `O`, `W`, `M` by the carry-forward protocol (including a write
+     through an open descriptor); when `W` equals `O` it takes `M`'s content. The person's edit is `O` to `W`,
+     whatever the index holds.
+  2. Index. If `S` differs from `E` (staging made after the attempt's pre-entry was read) the index entry stays `S`,
+     the path is reported as `later-staging`, and step 3 does not apply to it; otherwise the index entry becomes `M`'s
+     ("unstage x").
+  3. Preserve (mandatory whenever an index entry is replaced). If the replaced `S` carries content that no other
+     retained version holds, that is its blob differs from `W`'s content, from `O`'s blob and from `M`'s, it is
+     written to `saved/<path-id>.staged` with its mode, and the preservation barrier of rule V makes the file, its
+     directory entry and the log record that names it D before the index entry is replaced. Not carried, the person's
+     version stays at its path and the merged version is written beside it (the earlier decision "Carry edits
+     forward", adopted here for these cases; veto open): a mode or type change, a staged deletion, a symlink, a
+     non-text file, an unmerged entry (any stage) at the path, a directory in the way. Then one S1 replacement sets
+     the marker `materializing` and records the plan (`S`, `W` digests, the pins `N` for the displaced pre-merge file
+     and `R` for the installed file, `S` as read), the paths are written by the carry-forward protocol with its own
+     persistence ordering, the new index (only the entries of `P` replaced, every other entry carried with its stat
+     data) is written into the lock file and renamed over the index (its sync as `core.fsync` makes native Git do);
+     the closing replacement clears the marker, records each path's outcome (`installed`, `carried`, `saved-staged`,
+     `kept`, `later-staging`) and the identity of the index file just installed (its size and trailing checksum), and
+     changes the entries to `attach-watch`. Post-check: read `HEAD`; if authority to do no longer holds, MG6c. Crash:
+     L4 re-evaluates every path from the journal and the pins by the rule of M1 (observable file and index contents,
+     not inference).
+- MG6c cleanup after a late switch (R11-7, R12-9, R13-8D). Pre: an `attach-watch` entry inside its span (below),
+  `HEAD` no longer naming the target. It never publishes: the merge is already on its ref. A path is a leftover only
+  when all of these hold: the index file is still the one MG3 installed (its size and trailing checksum equal the
+  recorded identity, so no one has written the index since, a `git add`, a refresh or a switch that rewrote it
+  included), the index entry equals `M`'s entry, the file is still the installed `R`, and the entry of the path in the
+  tree `HEAD` now names is not `M`'s entry. The identity check makes the cleanup fail safe, because any later index
+  write defeats it, and it does not remove the ambiguity: a `git reset --soft` followed by a switch that carries the
+  staged content without rewriting the index leaves all four facts true while the state is the person's own. That
+  residue is an undo-authority concession and is put to the owner (questions 7a to 7c); a by-value predicate is not
+  proof of provenance. Do: the single try of `index.lock` (`EEXIST`: `resume = MG6c`); with authority to undo, for
+  each leftover restore from the saved pre-state, not by a reverse three-way merge: exchange `R` back with the pinned
+  `N`, and set the index entry back to the entry `S` that MG3 read under its lock. A path written since keeps the
+  person's file and is reported with the saved files. The closing replacement drops the entries and records
+  `restored`. Triggers: every lane event, a watch on the worktree's `HEAD` file while any `attach-watch` entry exists
+  (the service), and one re-check at the end of the span. Span: `ATTACH_WATCH_SPAN`, a named constant that must be
+  measured (the longest healthy duration of a `git switch` on the owner's hosts with a margin the owner approves). A
+  timer is not evidence that no switch is still in progress, so the entry is retained for the whole span and ends at
+  the first check at or after its end that finds `HEAD` attached to the target; what happens to a leftover after the
+  span is owner question 7c. Conditional liveness: the restoration happens at a lane event or while the service runs,
+  inside the span.
 - MG-A, the checkout-first order, is retired: the owner chose "Branch first, files after" (decision 8), and its text
   is in the history record.
 
+
+Exit audit (revision 14; the thirteenth review's list, with the transition that governs each; a Rust return-path
+inventory is a step-1 gate that this document cannot supply). Command exits: validation, empty message, policy
+refusal, nothing to commit, or a failure before the request is exposed (C2 step (3)): safe, no request. CAPTURE expiry
+and START expiry before exposure: no request, nothing changed. START or setup failure, an internal error, a signer
+failure or a hook or filter refusal after exposure: the command's exit guard runs W1 (plain) or the terminal route
+records the absorbing outcome first, so no exposed request is left clientless and publishable; signer failure is B1
+(iii) then W1. Plain W1 (deadline, Ctrl-C, inline-owner planned exit, ACQUIRE or REAP exit): the stop receipt is D
+before the command returns, so the request cannot publish after the error, and the index and worktree are unchanged
+because nothing was written before publication. The unresolved COMMITTING exit: only the attempt in flight may
+complete, and its message does not say that staging is unchanged, because the attempt may publish and its follow-up
+may run. `published`: the receipt forbids a fresh attempt; the follow-up is materialized under `WAIT_MATERIALIZE` or
+explicitly continuing. `conflicted`, `rewritten-away`, `unresolved`: the D-set of rule V; "staging as it was" is said
+only for unpublished withdrawal and refusal, and a rewritten-away request is reported with what was materialized.
+`already` and a superseded client: terminal, following the successor without renewing the deadline. Query and resend:
+C3 answers `withdrawn` only for a plain mark and says for `withdraw-unresolved` that the original attempt may still
+complete. A push that returns `queued`: the approved exception. The person's own foreground programs: decision 9.
+Outside kill, OOM or power loss: the outside-cause rule, with the stop receipt and the client lock deciding whether a
+fresh attempt is authorized. Owner and helper exits: a failed recovery-helper acquisition mutates nothing and the
+caller re-evaluates within CAPTURE; a helper that finishes L4 dispatches nothing; SERVICE-ACQUIRE and REAP expiry
+mutate nothing; an L6 gate failure admits nothing; an L7 restarter that cannot take the gate or finds a changed
+incarnation aborts. Planned service shutdown (revision 14, previously unspecified): the service stops admitting; for
+an attempt that is prepared with no closing line it writes `abort` only if the request has no client (it never decides
+for a client that holds the lock); it records `clean-shutdown` in the log, writes nothing else, and exits; a protected
+execution it owns is an owner-death exception stated for shutdown (the next incarnation's L2 reaps it), and a request
+with an attached client is withdrawn by that client at its bound as usual. An internal error in the owner after a
+request is exposed is an owner death, not a normal exit, so recovery and the client lock decide.
 
 Cancellation
 - X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its exact invocation (the subcommand, its options and the
@@ -1116,7 +1219,7 @@ ended. L1 can wait for a child between fork and exec, within ACQUIRE and REAP. G
 behind a person's `reference-transaction` hook is the person's, and the command's share of it ends at FOREGROUND with a refusal, never with a landing
 later. The owner's choice that a command may end with an error at a bound touches "Commits should never fail." and is recorded as the owner's.
 
-### Cost of the durable steps (revision 13)
+### Cost of the durable steps (revision 14)
 
 Owner rules: "commits vs native git should not take 5s longer."; "Disk pressure being high is not an excuse."; "Host
 pressure might sometimes be the cause but it's never an excuse."; "sometimes the work itself can be optimized. And we
@@ -1129,15 +1232,19 @@ chains synced twice. The counts below are counts of sync calls from the transiti
 physical flushes; one sync costs what the disk charges, which is why the design counts the syncs a person waits for.
 
 Three promises are kept apart (R12-7): when a command starts to leave (its bound), when it exits (the bound plus
-`WAIT_WITHDRAW` and `WAIT_DEPART`, each named and each to be measured), and what is durable at exit (the D-set of that
-exit, rule V). Zero fsync calls on one path is a count, not a latency proof; the latency claim rests on the step-1
-measurements named below.
+`WAIT_WITHDRAW`, `WAIT_STOP` and `WAIT_DEPART`, each named and each to be measured), and what is durable at exit (the
+D-set of that exit, rule V). Zero fsync calls on one path is a count, not a latency proof; the latency claim rests on
+the step-1 measurements named below.
 
 Waited-for syncs of the wrapper's own durable steps, per plain commit with an attached client, a successful
-publication, an initialized lane and no hook (the common case): **0**. The person still waits for what native Git
-waits for, because object writes, the ref write and the index install follow the person's `core.fsync` exactly. By
-transition ("waited": the command is blocked on it; "background": the syncer issues it after the answer, in a thread
-or process that never runs in the owner's event loop):
+publication, an initialized lane and no hook (the common case): **0**. Measured, in today's code on the 0.5.28 base,
+by the latency branch (`doc/planning/cli-git-commit-latency-under-disk-pressure.md`): the person waits for 0 syncs of
+the wrapper's own records in a landing that publishes (36 syncs over five signed landings, all made by the background
+thread), plus 1 of Git's own pack sync on the unsigned `fast-import` route only; with `core.fsync=added` in the
+repository, 1 (the index, as native Git flushes it). The design keeps that number. The person still waits for what
+native Git waits for, because object writes, the ref write and the index install follow the person's `core.fsync`
+exactly. By transition ("waited": the command is blocked on it; "background": the syncer issues it after the answer,
+in a thread or process that never runs in the owner's event loop):
 - C1 capture: waited 0 (reads, and one `stat` per in-flight request for the withdrawal marks).
 - C2, C3, C4 (one request file, one `link`, no binding, no directory created): waited 0; background 1 for the request
   file and 1 for `inbox/`.
@@ -1148,10 +1255,11 @@ or process that never runs in the owner's event loop):
   is Git's.
 - P3, T0: waited 0 (the client prints `published` on the landing evidence and does not wait for P3 or the ledger
   line); background 1 for the ledger.
-- M1 and the MG3 install: the command waits for this one attempt (a script that runs `git commit && git status` must
-  see the index, and `git merge && make` the files), so the sync of the index follows `core.fsync` as native Git does;
-  the preservation barrier of rule V applies only when a staged-only version or an edit has to be preserved (the saved
-  file, its directory entry and its log record: 3 syncs, in the install, before the index entry is replaced).
+- M1 and the MG3 install: the command waits for this one attempt, within `WAIT_MATERIALIZE` (R13-9) (a script that
+  runs `git commit && git status` must see the index, and `git merge && make` the files), so the sync of the index
+  follows `core.fsync` as native Git does; the preservation barrier of rule V applies only when a staged-only version
+  or an edit has to be preserved (the saved file, its directory entry and its log record: 3 syncs, in the install,
+  before the index entry is replaced).
 - B1 with a person's hook: the runner's result file is forced before the owner reads it (1 sync, on a path that
   already waits for the hook).
 - T1 retire: waited 0 (the command has returned); it needs the terminal ledger line and the removal record D first
@@ -1159,11 +1267,15 @@ or process that never runs in the owner's event loop):
 - Whole lifecycle in the background for an isolated commit: 6 syncs (request file, `inbox/`, order file, journal,
   state log, ledger), and `N + 5` for `N` requests sharing a pass. Lane initialization and checkpoint rotation sync
   once each and are not per commit.
-- Departure barrier (rule V; the command waits, but only when it leaves without a published commit or with saved work,
-  and within `WAIT_DEPART`): the request file, `inbox/`, the order file, the journal, the state log, the mark file and
-  `lane/decision/` (7), plus the pack or loose files of a built commit the exit names, plus the ledger for a terminal
-  exit. A request left with the service, or a `handed over` followed by exit, forces the request file, `inbox/` and
-  the log files through its `adopt` (5).
+- Stop receipt (R13-2; the command waits, but only when it leaves without a published commit or with saved work,
+  within `WAIT_STOP`): 2 syncs, the empty mark file and `lane/decision/`. It is forced first and alone, so the promise
+  "nothing lands later" never waits for the larger set.
+- Saved-content set (within `WAIT_DEPART`, after the stop receipt): the request file, `inbox/`, the order file, the
+  journal, the state log (5), plus, only when the exit names a built commit, the pack or loose files the lane wrote
+  for it, their directory entries and the side ref read back, plus the ledger for a terminal exit. A request left with
+  the service, or a `handed over` followed by exit, forces the request file, `inbox/` and the log files through its
+  `adopt` (5).
+- Success: the receipt (an empty file, V) and the single materialization attempt; no sync of ours.
 - Other Git work that is not native-equal: the pending and withdrawn side refs and the hold refs are ref transactions
   that Git performs under `core.fsync`; they are written off the waiting path, batched in one `update-ref --stdin` per
   owner wake-up (zero spawns once the ref writer is embedded), and a hold ref exists only for a request that waits
@@ -1200,68 +1312,62 @@ or process that never runs in the owner's event loop):
   counts a departure barrier's against its D-set, and an instrument on the lane's descriptors confirms that no sync
   call is made on the owner's event loop.
 
-### Revision 13 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+### Revision 14 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
 
-Naming. New names: the unresolved exit and the mark content `withdraw-unresolved <attempt>`, `submitted a` and
-`closed a` (attempt scope), E1 classes P, F and U, the state log `lane/state.log` with hash-chained records and
-checkpoints, the departure, reclamation and preservation barriers, `WAIT_WITHDRAW`, `WAIT_DEPART`,
-`ATTACH_WATCH_SPAN`, the invocation nonce, numbered registry names with the probe of the next number, the register
-entries WITHDRAW and DEPART. Removed: the state pair, the `declined` request-side effect on a `merge-install` path,
-MG-A (to the history record), `ATTACH_RECHECK`. Each schedule goes red under revision 12 and green under revision 13;
-a model marked "new" is added to step 1; the models branch is not edited by this document.
-- W1, mark, P4, Q1, E1 (R12-1, R12-3; models new "normal exit then retry", "unresolved attempt never replayed", "ended
-  child, reset branch, no report"). Schedule: the client submits `commit`, the child stalls, COMMITTING expires, the
-  client exits with no mark, the child ends without landing, P4 retries and lands: red under 12 (a fresh attempt after
-  a normal exit); green under 13 (the exit creates `withdraw-unresolved a`; no attempt after `a` can start; the
-  outcome is `unresolved` or `published` for `a` only). Schedule: Git writes `new`, another writer resets the branch
-  away, Git dies before `commit: ok`: red (E1 says the attempt did not land and retries); green (class U, never
-  retried; R3 gives `rewritten-away` when the reflog shows it).
-- P2 (R12-2; models new "pipe bootstrap and descriptors", "buffered commit before end of input", "abort enqueued to a
-  child that never reads"). Schedules: a retained write end prevents end of input; a short write; `EPIPE`; the read
-  end retained by the parent hides the failure: red under 12 (unspecified); green (the bootstrap and the discipline
-  are specified and each failure is a failure of that writer). PREPARED-HOLD against a child that never reads again:
-  red (the text claimed lock release); green (the claim is the enqueue only, and the residue is stated).
-- Rule V, state log, ledger, order file, journal (R12-4; models new "two unsynced overwrites tear both slots", "later
-  record persists without its dependency", "checkpoint rotation racing the syncer"). Schedules: the alternating pair
-  `g0` durable, `g1` and `g2` unsynced, power loss: red (both torn, `g0` gone); green (an append-only chain keeps the
-  longest valid prefix, and the old file is removed only after the new one is D). A valid ledger line with its
-  predecessor missing: red (believed); green (the chain breaks and the reference to the removal record fails).
-- T0, T1, rule V reclamation barrier (R12-5A; model new "terminal V then reclaimed then power loss"). Schedule:
-  `published`, outcome V, `retired` V, spool released, the ledger tail lost, a resend: red (no request and no
-  outcome); green (T1's Pre requires the outcome line and the removal record D).
-- MG3, rule V preservation barrier (R12-5B; models new "staged-only version, index replaced, saved file lost",
-  "carry-forward power loss under rule V"). Schedule: `S` read at install, the index entry replaced, power loss loses
-  the saved file and its record: red; green (the barrier makes them D first).
-- Departure barrier by exit kind (R12-5C; model new "every saving exit at every durability boundary"). Schedules:
-  `conflicted`, `rewritten-away`, W1 finding a terminal outcome, and the unresolved exit, each at power loss right
-  after the answer: red (no D-set); green (the D-set of that exit).
-- W1 step (4), W2 step (2), C1 (R12-6; model new "capture against a withdrawn logical base"). Schedule: R1 pending
-  with the index at `x=1`, W1, the person stages `y`, R2 captures: red under 12 (the base still contains R1, so `x` is
-  omitted); green (W1 waits for W2, W2 re-bases the descendants, and C1 refuses to capture while a marked request is
-  still in the document).
-- Rule V, W1, the register (R12-7; models new "departure time after the bound", "syncer blocking the owner").
-  Schedule: the bound passes, six syncs run, the command returns late: red; green (`WAIT_WITHDRAW` and `WAIT_DEPART`
-  are named bounds, and a departure that cannot confirm exits with the not-yet-confirmed message).
-- MG3 composition and authority (R12-8; models new "later staging during the lag", "S differs from W"). Schedule: the
-  merge returns with the install deferred, the person stages `z`, MG3 runs: red (`z` replaced by `M`); green (`E`
-  recorded at publication; an entry that differs is left, reported as `later-staging`).
-- MG6c, `attach-watch` (R12-9; models new "switch paused longer than the span", "switch begins after the install",
-  "leftover test"). Schedules: the switch finishes after the span: red under 12 (a timer dropped the obligation and
-  the text promised a next check); green (the residue is the one in owner question 7, stated). A switch that begins
-  after the install: red (MG6c restores `N` over Git's own result); green (a path is a leftover only when the index
-  equals `M`, the file is `R`, and the new `HEAD`'s tree entry is not `M`'s).
-- MG2 capture rules (R12-13; models new "edit to another line during the lag", "commit -a and named path during the
-  lag"). Schedule: `M` changes line a, the lagging file still has `O`, the person edits line b, `commit -a`: red (the
-  full-file capture reverts a); green (the three-way merge of `O`, `W`, `M` is captured).
-- T1, G1 (R12-10; models new "T1 recovery without its original L0", "registry probe", "compaction with a predating
-  release intent"). Schedules: crash after step (2), restart at step (2) with a lost baseline: red; green (restart
-  from the Pre with a fresh `L0`). A reservation linked after `L0` and before the probe: green (the probe or `L1`
-  finds it).
-- C2, C3, nonce (R12-11; model new "identical operation after a reset"). Schedule: publish, reset to the base, repeat
-  the same operation: red (answered with the old outcome); green (a new nonce makes a new identity; a resend keeps its
-  nonce).
-- B3, MG-A, the rationale and summary texts (R12-12). B3 appends the ledger line first and uses the
-  `outcome ... superseded by` form; MG-A is retired to the history record; the remaining contradictions are edited.
+Naming. New names: the receipt `lane/receipt/<id>`, the stop receipt and the saved-content set, empty mark files named
+by kind, `WAIT_STOP`, `WAIT_MATERIALIZE`, the keeper write end, the durable prefix watermark, discharge of a live
+dependency, the seal record and checkpoint cutover, the unresolved and plain forms of W1, C2's `bound` step with the
+client lock before the link, the register entries STOP and MATERIALIZE, the exit audit. Removed: attempt number in the
+mark name, the idle-writer rule, the per-file durable flag. Each schedule goes red under revision 13 and green under
+revision 14; a model marked "new" is added to step 1; the models branch is not edited by this document.
+- P2c, Client result, recovery R1 (R13-1; models new "success then owner death then reset", "attempt directory read by
+  recovery"). Schedule: the client sees `commit: ok`, returns success, the owner dies before P3 and T0, another writer
+  resets the branch away and the reflog is erased: red under 13 (R5 authorizes a fresh publication); green under 14
+  (the receipt, or `commit: ok` in the attempt's `out`, is read by recovery as published).
+- C2 (R13-1; models new "exposure before the client lock", "exit on each side of bound"). Schedule: the request is
+  linked in `inbox/` before the client lock is held: red (the owner sees no client); green (the lock is taken first,
+  `bound` is the link, and an exit before the link has no request).
+- Rule V stop receipt, W1 (R13-2; models new "departure timeout loses only the mark", "same for the unresolved form").
+  Schedule: the request and its adoption are D, W1 creates the mark, `WAIT_DEPART` expires before the mark is D, power
+  loss: red under 13 (recovery sees a clientless live request and publishes, or makes an attempt after `a`); green
+  (the stop receipt is two syncs, forced first within `WAIT_STOP`; the residue of a timeout is stated in question 6a).
+- P2a pipe (R13-3; models new "no writer between instructions", "EAGAIN, SIGPIPE, failed closing write", "abort cannot
+  be enqueued"). Schedule: the owner writes `prepare` and closes, Git prepares, the client has not yet opened a
+  writer: red (end of input aborts the transaction); green (the owner's keeper stays open until the closing line has
+  run or the child has ended). PREPARED-HOLD: red (the register said the lock is released); green (the register says
+  the enqueue is attempted).
+- Rule V dependency discharge (R13-4; models new "reclaimed request then restart", "old segment deleted then
+  checkpoint predecessor", "valid checkpoint with an absent transitive dependency"). Schedule: R1 and R2 adopted in
+  one chain, R1 retired and its request deleted, restart: red (R1's adopt cannot validate and R2 is dropped); green
+  (the terminal outcome discharges R1's dependency).
+- Rule V checkpoint cutover and watermark (R13-5; models new "append racing snapshot", "sync completes while another
+  append happens"). Schedule: snapshot at g10, S1 appends g11 to the old segment, the old segment is removed: red;
+  green (the owner seals the old segment, writes the checkpoint after the seal on the same thread, and the syncer
+  claims only a captured prefix).
+- Rule V saved-content set (R13-6; model new "named built commit with a parent absent from the request"). Schedule:
+  another writer publishes `C`, B1 builds `D` on `C`, the exit names `D`, power loss or maintenance removes content
+  only `C` held: red (the barrier forced the request and lane-written files only); green (the closure is forced and
+  the side ref is read back, or the exit promises the captured intent only).
+- C1 two-sample marks (R13-7; model new "mark appears between the samples"). Schedule: R2 reads g with no mark, R1's
+  W1 creates the mark, the person stages `y`, R2 reads the index and accepts: red under 13; green (the second sample
+  sees the mark and the capture is repeated). A late class F after the unresolved form: the outcome `withdrawn` and
+  the same descendant re-basing.
+- MG2 capture and MG3 steps (R13-8A to R13-8C; models new "plain staged commit of an old-based edit during the lag",
+  "E names B, O names A, stat matches E", "S equals E, differs from O, W differs from both"). Schedule: `O: a=0 b=0`,
+  `M: a=1`, the person edits and stages `b=1`, a plain commit: red (it reverses `a`); green (the staged edit is
+  replayed on `M`). MG3's three steps replace the overlapping cases.
+- MG6c identity (R13-8D; model new "reset --soft then a switch that keeps the staged content"). Schedule: red under 13
+  (all three tests pass and the deliberate state is undone); green for every schedule that rewrites the index; the
+  schedule that does not is the stated concession of question 7a.
+- Client result, MG2, register MATERIALIZE (R13-9; model new "slow preservation after publication"). Schedule:
+  publication, then MG3 with a preservation barrier: red (the exit waited with no bound); green (`WAIT_MATERIALIZE`,
+  then exit 0 `published` with the install continuing under the service).
+- W1 preconditions, C3, T0, P4, the register, the rationale texts (R13-10). Plain and unresolved forms have separate
+  preconditions; C3 answers a `withdraw-unresolved` mark with "the original attempt may still complete"; T0 lists
+  `unresolved`; P4's only retry precondition is class F; PREPARED-HOLD no longer guarantees release; the capture
+  rationale and the R4 mention are corrected.
+- Exit audit (the review's section 6; models new "planned service shutdown with a protected execution and a prepared
+  transaction", "internal error after exposure"). New text.
 
 ### Revision 9 and revision 10 changelogs
 
@@ -1339,8 +1445,8 @@ during P2, a disjoint request must still be accepted.
 Capture consistency: C1 and rule S of the state machine (revision 9 replaces the seqlock). All capture-visible lane state is one document
 replaced atomically; the marker, not the parity of a generation, is set only around an effect outside the document (the index replacement of M1, the
 recovery of L4); an interrupted writer is completed or rolled back by L4, and C0 routes a client out of a dead marker. Foreign writers of refs and the
-index do not take part, so C1 re-reads the tip and the index entries it used; a foreign change that leaves them as read is undetectable and
-is not claimed.
+index do not take part, so C1 reads the tip and the index once and does not re-read them to validate (C1); a foreign
+change that leaves them as read is undetectable and is not claimed.
 
 Capture against the logical head.
 A request records the logical head it was captured against (the newest published-or-pending, non-held commit, or the branch tip when
@@ -1633,7 +1739,7 @@ with base `B`, ours `C`, theirs `T` (`git merge-tree --write-tree --merge-base=B
 A conflict is an allowed outcome: the replay stops with the conflict recorded and the captured inputs kept. The commit's parents
 are `C` (and `T`'s other parent for a conclusion).
 
-## What is guaranteed to complete, and what may wait (revision 13)
+## What is guaranteed to complete, and what may wait (revision 14)
 
 No wait below is called designed out, and every wait of a command ends at a bound of the register in rule B.
 
@@ -1680,8 +1786,8 @@ Hooks and owner death.
 When a `reference-transaction` hook is configured the lane writes `hook-dispatch <id> <attempt>` (fsync) before it invokes
 `update-ref`. It is conservative evidence that a hook may have run; it is not an admission interlock (the gate is) and it does not give
 exactly-once effects. After an owner death with no durable `published`, recovery runs the evidence rules first and invokes `update-ref`
-again only if the recovery classes say to publish (R4 a recorded `swap-failed` of class `lock-held` that the live owner observed, or R5 unclear, which owner
-decision 3 lands, and which includes every attempt found after an owner's death without positive evidence). Git's contract allows the
+again only if the recovery classes say to publish (R5 unclear, which owner decision 3 lands; R4 is withdrawn, and
+which includes every attempt found after an owner's death without positive evidence). Git's contract allows the
 repetition: the hook "executes whenever a reference transaction is preparing, prepared, committed or aborted and may thus get called
 multiple times" (`Documentation/githooks.adoc:486-488`). The concession is stated directly (question 3, picked A): an external effect of
 a hook on "prepared" may happen again after an interrupted attempt, and neither the journal nor the transaction state proves
@@ -2000,51 +2106,46 @@ and a mechanism that file names as withdrawn stays withdrawn).
 Moved to `doc/planning/cli-git-commits-never-fail-review-history.md` with the revision 9 and 10 changelogs; the
 eleventh review's answers and the revision 11 and 12 changelogs are there too.
 
-## Answers to the twelfth review
+## Answers to the thirteenth review
 
-Each finding of `~/temp/agent/reviews/commits-never-fail-sol-12.txt`, with a closure line: closed (a transition
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-13.txt`, with a closure line: closed (a transition
 answers the schedule; a model is owed), or owner question (closing it needs a contract the owner has not approved).
 The verdict was: continued model work only. This revision builds nothing. The review did not inspect the cited Git
 source lines; they stay gates in E1 and P2.
 
-- R12-1 (P1), a normal COMMITTING exit authorizes fresh attempts: accepted. Every normal exit creates the withdrawal
-  mark first; the unresolved exit writes `withdraw-unresolved a`, which forbids any attempt after `a`; the owner
-  observes `a` only. "Submitted" is attempt-scoped and ends only on a positively established close (class F). Closed.
-- R12-2 (P2), the pipe is not a publication decision with the claimed bounds: accepted. The text says the pipe orders
-  instructions; PREPARED-HOLD bounds the enqueue and not the lock release (the residue is stated); the bootstrap, the
-  single-write discipline, descriptor handling and the buffered-input facts are written; the source facts are labelled
-  gates. Closed as specification; backend gates remain.
-- R12-3 (P1), an ended child and an absent tip do not prove nothing was published: accepted. E1 has three kinds, P, F
-  and U; only F allows a retry; U is never retried and N-silent covers F only. Closed.
-- R12-4 (P1), the unsynced pair can lose both generations: accepted. The state is a hash-chained append-only log with
-  checkpoint files removed only after the new one is D; recovery takes the longest valid prefix; cross-file references
-  are validated. Closed.
-- R12-5 (P1), rule V removed barriers needed for reclamation and preservation: accepted. A reclamation barrier (T1's
-  Pre), a preservation barrier (before a unique version's recovery authority is replaced; the carry-forward ordering
-  stands) and a D-set for every saving exit. Closed; the cost is only on the paths that need them.
-- R12-6 (P1), marks do not remove withdrawn work from the capture base: accepted. W1 waits for W2, W2 re-bases the
-  descendants, and C1 refuses to capture while a marked request is still in the document. Closed.
-- R12-7 (P2), zero waited-for syncs is a narrow target: accepted. The three promises (start, exit, durable at exit)
-  are separated with named bounds `WAIT_WITHDRAW` and `WAIT_DEPART`; the counts are corrected (`N + 5`, the journal,
-  the hook runner); the syncer is never in the owner's event loop. Owner question 6 for the slow-departure message.
-- R12-8 (P2), P-carry composition and later staging: accepted. MG3 states the composition by case, uses the
-  publication-time entry `E` to leave later staging alone, and saves a staged-only version. Owner question 5, because
-  the owner saw only the common case.
-- R12-9 (P2), `attach-watch` can settle early: accepted in part. No timer is evidence that a switch has finished, so
-  the obligation is retained for a named, measured span and MG6c's leftover test and undo target are defined; the
-  weaker residue is stated and put to the owner as question 7.
-- R12-10 (P2), the listing contract and the T1 recovery baseline: accepted. Numbered reservations and a probe of the
-  next number give an exact test for "no reservation after `L0`"; compaction keeps the retention condition; T1
-  recovery restarts from its Pre. Closed; the probe is a backend gate.
-- R12-11 (P2), identical operation versus resend: accepted. A fresh invocation nonce is part of the hashed request.
-  Closed.
-- R12-12 (P2/P3), remaining contradictions: accepted and edited (B3 order and line form, MG-A retired, locks,
-  cancellation, merge-order narrative, retention, N-silent).
-- Publish-first capture algorithm: accepted. MG2 gives the rules by request kind; a `merge-install` path is captured
-  as the three-way merge of `O`, `W`, `M`.
-- The four owner questions: answered as decisions 7 to 10; the review's framing corrections are stated in "Owner
-  questions for revision 12 (answered)". Forwarded `gc` is covered by decision 9 as the owner saw it; the register
-  lists it on its own line. The chosen merge order is option A of the revision 12 question 2.
+- R13-1 (P1), normal success has no no-replay boundary and the admission boundary is undefined: accepted. The client
+  creates the receipt before it prints `published`, recovery reads the receipt and the attempt directory as evidence
+  (R1), C2 takes the client lock before the link and defines `bound` as the link. Closed for process crashes; a lost
+  receipt after a power loss is the weaker durability of decision 10 for a published exit, stated in P2c.
+- R13-2 (P1), timed departure can resurrect a withdrawn request: accepted. The stop receipt is separated from the
+  saved content, made D first and alone, within `WAIT_STOP` (2 syncs of a few bytes); the larger set is charged to
+  `WAIT_DEPART`. A power loss inside the stop receipt's own window is the residue of question 6a, because no
+  fail-closed rule is implementable (after a power loss a departed client and a killed one cannot be told apart).
+- R13-3 (P2), the no-idle-writer rule permits end of input: accepted. The owner's keeper write end stays open for the
+  whole attempt and its closing is a protocol action; `EAGAIN`, `SIGPIPE`, short writes and a failed enqueue are
+  specified; the register no longer guarantees lock release. Closed as specification; backend gates remain.
+- R13-4 (P1), dependency validation versus reclamation: accepted. Hash commitments are told apart from live
+  dependencies, which a terminal outcome, a `disposed` record or a checkpoint discharges; validation order is fixed
+  (ledgers first). Closed.
+- R13-5 (P1), checkpoint rotation lacks a handoff: accepted. The owner seals, checkpoints on the same thread, switches
+  appends, and the syncer claims only a captured prefix watermark before the old segment is removed. Closed.
+- R13-6 (P1), D-sets do not preserve a named built commit: accepted. Captured intent, exact commit and closure are
+  told apart; naming a commit requires its forced objects and a side ref read back, otherwise the exit promises the
+  captured intent only. Closed.
+- R13-7 (P1), C1's marks are not one coherent view: accepted. C1 samples the marks before the state read and again
+  after the index read and refuses a plain mark in the second sample; the late class F of an unresolved form has its
+  outcome and re-basing. Closed.
+- R13-8 (P2), merge capture and cleanup: accepted. Plain staged capture replays the staged edit on `M`; the stat
+  shortcut needs `E` equal to `O`; MG3 is three independent steps with mandatory preservation; the cleanup requires
+  the index file unchanged since the install, which makes it fail safe but not provenance-exact. Questions 7a to 7c
+  carry what remains, question 5 the composition.
+- R13-9 (P2), successful return has incompatible rules: accepted. One contract: the command waits for the single
+  materialization attempt under `WAIT_MATERIALIZE`, then exits 0 `published` with the install continuing under the
+  service. Closed.
+- R13-10 (P2/P3), remaining contradictions: accepted and edited (W1 forms, C3, T0, P4, PREPARED-HOLD, rationale texts).
+- Exit audit and planned shutdown: added as the "Exit audit" paragraph of the state machine.
+- Questions 5 to 7: the owner's answers are recorded (decisions 11 to 13); 6 and 7 are provisional and are asked again
+  with corrected framing, 5 with the added options.
 - Not a defect: none of the findings was rejected.
 
 ## Exits that stay nonzero
@@ -2068,250 +2169,46 @@ source lines; they stay gates in E1 and P2.
   publication does not fail or delay anything: the commit is on the branch, the command says the index will catch up
   when the lock is free, and M1 or MG3 finishes it.
 
-## Questions for the owner
+## Questions for the owner (picks in force)
 
-Answered on 2026-11-03: stuck step, "End Git, hold hooks (Recommended)"; deferred staging, "Update the index (Recommended)"; unclear
-publication, "Land it (Recommended)"; earlier, a branch a foreign program keeps moving, "Save on the side ref (Recommended)"; a
-`--mirror` push, "Leave out wrapper refs (Recommended)"; an amend while commits are pending, "Amend the pending commit (Recommended)".
-Adopted from standing rules, not asked: the embedded path for a deterministic Git hang, background re-signing, saved copies kept until
-disposal, corruption by another tool after release on the outside list, whole-lifetime maintenance coordination.
-
-Four decisions no standing rule settles were picked at 2026-11-03T09:45:54-05:00 by the coordinator, under the owner's delegation:
-"Pick options as if I had picked them and invite veto when I say I'm back."
-Clarified by the owner: "\"As if I had chosen\" means what I would have picked most likely if I'm always here."
-Each pick stays open to the owner's veto; its reason follows the question's options.
-
-1. Staging a path back to its consumed entry while commits are pending.
-   Case: request `R1` (a plain commit) consumed `x=1` and is pending; named-path request `R2` set `x=2` and is pending; the real index
-   still holds `x=1`. The person now wants to undo `R2` and runs `git add x` after putting `x=1` back in the file, then `git commit`.
-   - Option A, as designed: the plain commit sees `x=1` equal to the entry already consumed and does not include `x`; `R2` stays.
-     Visible: after both land, `x` is `2`; the person undoes `R2` with a named-path commit of `x`, and a notice on a plain commit with
-     pending requests says staged paths equal to a pending request's old entry are not captured.
-   - Option B, any plain commit with pending requests captures every staged entry that differs from the logical tail's content, stale
-     ones included. Visible: the reviewer's earlier case (`R1` staged `x=1`, `R2` made `x=2`, the person stages only `y`) commits
-     `y` and also reverts `R2` to `x=1`, which the person did not ask for.
-   - Option C, a plain commit refuses to guess while requests are pending whose paths are staged: it is set aside as pending with a
-     notice that asks the person to name the paths. Visible: no wrong commit, and an extra step for the person.
-   - Picked: A. The commit lands and nothing is lost: `x=1` stays in `R1`'s commit and in the file.
-     B commits a revert the person did not ask for; C makes a commit wait on the person, against "You should (almost) never be
-     waiting". A differs from native Git in this case, which would commit `x=1`.
-     The sixth review judged the coordinator's candidate (record the paths the person restaged through the wrapper) not adoptable as a
-     bare path set; it is withdrawn. A is kept as the documented fallback, and versioned restaging events are recorded in "Adoption
-     order" as an optional later improvement with the review's cases as requirements.
-2. A quiet owner of our own making.
-   Case: the service owner holds adopted request `R`, and for the measured quiet interval shows no processor time, disk activity or
-   output, and no person's hook is running in its tree. A waiting command (the person's own `git commit`) sees it.
-   - Option A, the waiting command asks the manager to restart the unit, using the same measured interval as owner decision 1; the
-     steps are journaled and redone. Visible: after the interval the person's command prints that it restarted the service, and the
-     commit lands. Risk: a healthy owner that is only slow is ended, and its step is redone.
-   - Option B, never restart automatically; the command prints how to restart the unit and waits. Visible: the command waits until the
-     person acts. This conflicts with "never stuck" if a silent wedge is possible.
-   - Picked: A, with the gate, the pidfd incarnation check and the in-flight ref-transaction exclusion of "One owner per worktree", and
-     shipped only once the interval is measured as "Measured stall interval" plans, since a shipped limit cites a
-     workload measurement or an owner decision beside its value. Owner decision 1 already ends our own stalled Git work and redoes
-     the step, and the case excludes a person's hook, which is never ended; B leaves a command waiting on the person.
-3. A hook with an external effect on "prepared", after an owner death.
-   Case: the person's `reference-transaction` hook posts a chat message when it sees "prepared"; the owner is killed after the post
-   and before the swap; recovery finds the swap did not complete.
-   - Option A, run `update-ref` again: the hook runs again and posts again; Git's contract allows this ("may thus get called
-     multiple times"). Visible: two chat messages, one commit.
-   - Option B, do not run it again: the request is set aside as pending with a notice naming the hook, until the person confirms.
-     Visible: no second message, and the commit waits for the person.
-   - Picked: A. Git's contract allows the repeat, and a person who reruns a native `git commit` after the same kill starts a new
-     transaction whose hook sees "prepared" again; B makes the commit wait on the person.
-4. The instant inside Git's own `checkout` where the index is written before `HEAD` changes.
-   Case: the person ran `git switch topic` with edits carried across, and in the instant after Git wrote `topic`'s index and before it
-   updated `HEAD`, the lane applied a deferred follow-up for a commit made on `main`.
-   - Option A, accept the residue: the carried change appears staged on `topic`; nothing is lost; `git restore --staged` undoes it.
-     Visible: a rare staged change on the new branch, which is also what a native `git commit` racing the switch would do.
-   - Option B, decline every deferred follow-up whenever the index file was written by anyone since the commit was captured. Visible: the
-     index lags more often (any foreign `git add` makes the follow-up wait for the person), and a notice says so.
-   - Picked: A. Nothing is lost and `git restore --staged` undoes the residue; the owner's "Update the index (Recommended)" chose a
-     current index over a lagging one, and B makes the index lag after any foreign write.
-
-Two decisions the seventh review leaves to the owner, picked by the coordinator under the owner's delegation (reasons beside each).
-
-A. A Git child that ignores the terminate signal and holds a ref lock.
-   Case: the service runs `update-ref` for `main`; it creates `.git/refs/heads/main.lock`, then stalls and ignores the terminate signal; the person
-   has no reference-transaction hook.
-   - Option A-keep, never kill it: the request stays pending with a notice naming the child and saying it ignored the signal; nothing is manufactured.
-     Visible: the commit is saved and the command exits 0, `main` does not show it, and later requests behind it are pending too until the child
-     ends or the person ends it. The default of revision 8 (revision 9 follows the pick: A-kill).
-   - Option A-kill, kill it and leave its lock for the person to clear: the child ends; `main.lock` stays (the wrapper never removes a ref lock); the request
-     and the requests behind it are pending behind a lock with no live holder, and the notice names the file and says to remove it if no Git runs.
-     Visible: the same pending state, now with a lock file that needs a person's action, and the stuck child gone.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): A-kill. The owner's "End Git, hold hooks (Recommended)" ends our
-     own stalled Git and redoes the step; A-keep keeps a child the owner chose to end, with every later request behind it.
-     The lock it leaves is then judged by the rule already shipped since 0.5.26 (`package/git-policy/cli/SPEC.md`, "Reference locks left by a Git
-     that was killed"; `src/native/stale_ref_lock_judge.rs` and its siblings), which removes a lock only when its holder is proven gone and
-     otherwise prints what it found and the command that clears it. That rule contradicts this revision's "the wrapper never removes a ref lock";
-     the eighth review is asked whether the shipped proof survives the seventh review's foreign-lock schedule. If it does not, A-kill stands as
-     written (the notice names the file for the person), and the shipped rule is reopened too.
-     Outcome of the eighth review (2026-11-03T11:33:50-05:00): the shipped rule does not survive (S-1, S-2; fixed separately on
-     `fix/git-policy-cli-never-removes-a-live-lock`), so A-kill stands as an explicitly accepted narrowing: ending a stalled Git child that
-     ignores the terminate signal can leave a lock that only the person clears, and the request behind it stays pending, with the notice
-     naming the file. This does not remove that exit by construction; it trades a stuck child for a named lock.
-C-class. Which commands may the stall rule cancel (new in revision 9; for the coordinator to pick).
-   Case: the service runs `update-ref` for `main`; no `reference-transaction` hook is configured when it starts; it stalls; before the wrapper
-   signals it, another program installs a `reference-transaction` hook; Git has not yet reached its dispatch point.
-   - Option C-kind, classify by the kind of command and exempt `update-ref`, `commit` and every command that can dispatch a protected program,
-     whatever is configured. Pros: no race can end a hook; consistent with "End Git, hold hooks". Cons: a stalled `update-ref` (a Git bug) with
-     no hook cannot be ended, the request behind it stays pending, and A-kill has no object until a writer is embedded.
-   - Option C-freeze, run `update-ref` with its dispatch inputs frozen (a hooks-path snapshot and configuration overrides) so the set of
-     programs it can launch cannot change after classification, and allow X1. Pros: a stalled `update-ref` can be ended, A-kill applies.
-     Cons: a hook installed during the attempt is not run for it; the freeze must be verified for each retained Git version and for filters,
-     signers and helpers as well; more machinery.
-   - Option C-sample, re-read the configuration at cancellation time. Pros: simple. Cons: the race remains and can end a person's hook,
-     which the owner's decision forbids.
-   - Ranking: C-kind > C-freeze > C-sample. C-kind beats C-freeze because it keeps the hook guarantee without new machinery, at the cost
-     of leaving an internal wedge to the person; C-freeze beats C-sample because it removes the race by construction instead of narrowing
-     its window.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): C-kind, the machine's default. The owner's
-     "End Git, hold hooks (Recommended)" puts the person's hook first; the wedge it leaves needs a Git bug and stays named and durable.
-H. Hook runs when a held request is replayed (new in revision 9; for the coordinator to pick).
-   Case: a configured pre-commit hook takes minutes; it succeeds for the captured content; meanwhile the branch moves, so the commit must be
-   built again on the new tip.
-   - Option H-version, the hook runs once per version of the request; a success is recorded and a replay on a moved tip does not run it again.
-     Pros: no held, success, replay, held loop; the person's slow program is not re-run by a foreign writer's activity. Cons: the hook saw
-     the captured content, not the new tip's combination; a hook that checks the combination does not see it.
-   - Option H-build, the hook runs once per build, so it sees every combination. Pros: the hook judges what is published. Cons: on a branch that
-     keeps moving the hook may never finish before the tip moves, so the request may stay held for ever; each foreign commit re-runs the
-     person's program.
-   - Ranking: H-version > H-build. H-version beats H-build because the owner's rules are that nothing is waited for without end and a
-     person's program is not repeated, and the loss (a combination check by the hook) is the same loss every ordinary Git commit has when
-     a pre-commit hook ran before a later merge.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): H-version, the machine's default, for the ranking's reason
-     and the owner's "You should (almost) never be waiting."
-M. Merge order (new in revision 9, restated in revision 10; for the coordinator to pick).
-   Case: a merge whose hook refuses after the files were already written, while an editor keeps saving one of the merged files.
-   - Option M-A, check out first, swap second, with restoration from pinned pre-merge files (MG6) and retargeting (MG5). Pros: `M` enters the
-     logical tail in the same atomic replacement as the checkout, so a capture in the interval takes nothing of the merge; a refusal restores the
-     unedited paths exactly. Cons: the worktree and the branch are apart in `checked-out` and while the swap is pending (revision 9 wrongly
-     claimed otherwise); more machinery; a refusal with a concurrent editor leaves the edited path as the person has it, with saved files.
-   - Option M-B, swap first, then install by the per-path rule (the ninth review's reading of the first review's objection answered by a
-     worktree-side suppression: a consumption entry would carry the digest of the pre-merge file, and C1 would treat a worktree file equal to it
-     as no edit, and a request that names a path whose worktree differs would wait for the install). Pros: a refusal changes nothing because nothing was
-     written; there is no reverse path. Cons: until the install, the branch is the merge and the worktree is the old head, so a
-     native `/usr/bin/git commit -a` (outside the wrapper) commits a reversal of the merge, and a wrapper request that names an edited merge
-     path must wait for the install, which can wait on a foreign `index.lock`; C1 gains a rule and the models gain a class of schedules.
-   - Ranking: M-A > M-B. M-A beats M-B because M-A's open residues are bounded and recoverable (saved files, a restoration report), while
-     M-B's native-git window can silently lose the merge's content, which "never discard user data" excludes, and it adds a waiting state.
-   - Revision 12: the bound answers change the cost of this order (a withdrawal after the files were written must
-     restore them through a lock a foreign program may hold), so the order was put to the owner again, who chose
-     publish first (decision 8).
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): M-A, the machine's default. Revision 10 keeps it, repaired for
-     the ninth review (delta install, attachment authority, atomic capture representation, restore from pins). Confirmed after revision 10
-     (coordinator, same delegation): M-A stays, because M-B's window lets a native commit record the merge's reversal.
-R. A stranded `index.lock` made by the lane's own dead incarnation (new in revision 10; for the coordinator to pick).
-   Case: the service is killed by an outside kill between creating `index.lock` and renaming it; the next commit's follow-up finds the lock.
-   - Option R-never, the lane never removes `index.lock` (rule N); it reports which incarnation made it and defers M1 and merges.
-     Pros: no schedule can remove a foreign program's live lock; one rule for every shared pathname. Cons: the person clears the lock by
-     hand, so a lane crash inside this short window leaves a manual step (the same step Git itself needs after its own kill).
-   - Option R-pin-and-unlink, keep a hard-link pin under `lane/` so the inode cannot be reused, compare the identity, then unlink the
-     pathname. Pros: self-heals in the common case. Cons: the pin fixes inode reuse only; the compare-then-unlink race remains (a cleaner
-     removes our lock, a foreign program creates a new one, the unlink removes it), and this is the flaw of the shipped sweeper again.
-   - Ranking: R-never > R-pin-and-unlink. R-never beats R-pin-and-unlink because the pin leaves the pathname race standing, and that race
-     can break a mutual exclusion that the owner's "never discard user data" and Git's own protocol depend on, while R-never costs one manual
-     step in a rare window.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): R-never, for the ranking's reason; it matches the shipped
-     wait on an unproven `index.lock` owner, which names the file and waits.
-P. A merge that touches a path the person has staged (restated in revision 11 under the owner's bound rule; for the coordinator to pick).
-   Case: `x` and `y` are staged, the merge changes `x`; Git itself would refuse (local changes would be overwritten). Under the owner's answers a merge
-   that waits ends with an error at its bound and nothing lands later by itself.
-   - Option P-carry, treat the staged content of `x` like an unsaved edit: three-way merge it onto the merged result and leave it unstaged. Pros: the
-     merge never waits and never fails ("Manual merge should never fail too."), nothing is lost. Cons: the person's staging of `x` becomes an unstaged
-     edit they did not ask for, and the three-way merge on an index entry needs its own differential controls.
-   - Option P-refuse, withdraw at once: the merge changes nothing, exits non-zero naming `x` and the command to run again after `x` is committed or
-     unstaged. Pros: nothing reshaped. Cons: the merge fails on the person's staging although only they can resolve it, which is against the
-     never-fail rules the owner has not waived for this case.
-   - Option P-wait, wait up to FOREGROUND, then withdraw as in P-refuse. Pros: a commit of `x` made in another terminal resolves it. Cons: the same
-     failure as P-refuse after a pointless wait, because the person is at the blocked terminal.
-   - Ranking: P-carry > P-refuse > P-wait. P-carry beats P-refuse because it is the only option that neither fails nor waits, at the price of reshaping
-     staging without loss; P-refuse beats P-wait because it reaches the same end without the wait the owner wants
-     gone. The coordinator's earlier pick, P-wait, was replaced by the owner's decision below; revision 12's MG1 and
-     MG3 implement P-carry.
-   - Earlier pick (coordinator, 2026-11-03, before the bound rule, veto open): P-wait, because of "never discard user data"; the wait was on a decision only the
-     person can make, and Git itself refuses this merge. Re-opened by the bound rule.
-   - Owner's decision (question tool, 2026-11-03, answered before the 12:56:51-05:00 commit that records it): "Merge anyway, unstage x", that is P-carry. The option read: "Your staged x becomes an
-     unstaged edit merged onto the result, so nothing is lost and the merge completes." It needs its own differential controls against Git; MG1 changes
-     from P-wait to P-carry.
-W. The attachment concession for merge file writes (restated in revision 11; for the coordinator to pick).
-   Case: `git switch topic` finishes its index write and has not yet updated `HEAD` (`builtin/checkout.c:927` commits the index, `:1261` updates the refs
-   after); the lane's merge for `main` takes `index.lock` in that instant, reads `HEAD` as `main` and installs files; or the switch resumes after
-   every check the lane made.
-   - Option W-detect, authority to do before the writes, a check again before the swap and at every lane event, and restoration by authority to undo
-     (MG6) from pinned files. Pros: the merge never waits for the person's switch; nothing is lost. Cons: it is not a fence; a switch finishing after the
-     last check leaves the merge's files visible as local modifications in the new branch's worktree until the next check, which is a persistent wrong-attachment
-     effect and not a momentary write; the owner approved that residue (the owner's decision below).
-   - Option W-stop, never write worktree files for a merge unless the person asks (the merge is computed and kept, the error gives the finishing command).
-     Pros: no wrong-attachment residue at all. Cons: "Auto merging should never fail." is met by saving, but the merge does not complete by itself, and it is an
-     error exit under the bound answers.
-   - Ranking: W-detect > W-stop. W-detect beats W-stop because it completes the merge as the owner asked and loses nothing, while W-stop returns the work to the
-     person; the residue of W-detect is why this is an approval question and not a technical one.
-   - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): W-detect, because of "Auto merging should never fail." The tenth review does not
-     approve W-detect as specified in revision 10; revision 11 repaired it and the owner then approved the residue
-     (the owner's decision below); revision 12 keeps it in MG6c and moves its trigger to a retained `attach-watch`
-     entry.
-   - Owner's decision (question tool, 2026-11-03, answered before the 12:56:51-05:00 commit that records it): "Allow the rare leftover", that is W-detect with the residue approved. The option read:
-     "Merges keep completing by themselves; in the rare instant above, the merge's files can show up as changes in your new branch until the wrapper's next
-     check restores them from saved copies." The option also named the cost: "a `git commit -a` in that window could commit them to the wrong branch."
-G. Retention against late maintenance (restated in revision 11; for the coordinator to pick).
-   Case: T1 sees no open maintenance run; a run is admitted and takes its reachability view while the branch is temporarily elsewhere; the branch moves
-   back; T1 releases the recovery copy; the run deletes by its earlier view. The tenth review showed that a hold root created at adoption does not cover
-   later builds, that a root can be deleted by a person, and that a mixed-time view is possible, so a root cannot be the proof.
-   - Option G-order, T1 re-reads the maintenance registry after the connectivity check and before any release; the hold ref stays as extra protection. Pros: no
-     wrapper-owned ref is load-bearing, no deletion contract, no reliance on how a prune reads refs; the proof is an order of two durable facts. Cons: a
-     retirement can be deferred for as long as a run is open (disk, not a wait); the residue (a person rewriting the branch after the check) remains.
-   - Option G-root, keep the root as the invariant and maintain it through every build, replay and retarget, with a contract that deleting a recovery ref
-     revokes the guarantee. Pros: protects a view taken at any time while the root exists. Cons: the invariant must be maintained at every transition and
-     a person's deletion is undetectable after the fact; a root that cannot be written constrains retirement; it relies on a verified prune behaviour.
-   - Option G-handshake, G1 reads release intents after its reservation and defers on an intent whose lane has a live owner. Pros: no reliance on refs.
-     Cons: a maintenance run waits on a live lane, which the owner's bound rule makes a registered wait with an error at the bound, and a wedged owner blocks a
-     person's `git gc`.
-   - Ranking: G-order > G-root > G-handshake. G-order beats G-root because it needs no invariant over wrapper-owned refs and no contract with the
-     person; G-root beats G-handshake because it adds no wait to maintenance.
-   - Earlier pick (coordinator, 2026-11-03, before the tenth review, veto open): G-root, because of "You should (almost) never be waiting."; the machine now
-     carries G-order with the root as extra protection, and the pick is for the coordinator to re-make.
-   - Picked (coordinator, 2026-11-03, after the tenth review, under the owner's delegation, veto open): G-order, for the ranking's reason; it adds no wait.
-N. The retry of a live owner after a proven store failure (new in revision 11; for the coordinator to pick).
-   Case: P2a failed because a branch lock is held; the live owner records it and retries on the trigger; meanwhile another writer could in principle have
-   installed the abandoned commit by its id and removed it again, and the erased reflog would show nothing. The tenth review (R10-8) asks that this
-   ambiguity be handled as unclear publication or explicitly conceded.
-   - Option N-silent, the live owner retries with a newly built commit and says nothing. Pros: the common benign case (a held lock) has no extra notice;
-     the abandoned object is usually unreferenced; a best-effort hold or pending ref may name it. Cons: in the
-     far-fetched history above the deliberately removed change returns without the
-     unclear-publication notice; this is a concession.
-   - Option N-notice, every retry after a store failure carries the unclear-publication notice of decision 3. Pros: no silent concession. Cons: the notice
-     appears on every ordinary held-lock retry, which teaches the person to ignore it.
-   - Ranking: N-silent > N-notice. N-silent beats N-notice because the far-fetched history needs another program to
-     find an unreferenced or hold-ref-named object and install it by id,
-     while the notice would be noise in the common case.
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): N-silent, for the ranking's reason; it is recorded as a concession.
-H2. Reruns of a hook after owner deaths (new in revision 11, refines H; for the coordinator to pick).
-   Case: a hook performs an external effect, the owner dies before a durable result exists, the next owner runs the hook again, and dies again before a durable result.
-   - Option H-episode, one new invocation for each recovery episode that lacks a durable result, with a notice each time. Pros: the request still completes
-     after repeated outside kills. Cons: the hook's external effect may repeat once per such death; there is no total bound of one.
-   - Option H-total, after one rerun the request stops running the hook: it ends with an error (W1, naming the hook and that its result is unknown) and the
-     commit is kept for a retry. Pros: at most one repeat of an external effect. Cons: a second outside kill makes the commit fail with an error.
-   - Ranking: H-episode > H-total. H-episode beats H-total because "Commits should never fail." and the outside-cause rule treat a kill as the outside's act,
-     and a hook that is not idempotent is already covered by Git's own contract that a hook "may thus get called multiple times".
-   - Picked (coordinator, 2026-11-03, under the owner's delegation, veto open): H-episode, for the ranking's reason.
-B. A quiet owner that holds the gate with no person's program running.
-   Case: the service owner took the shared gate for a ref transaction, wedged in our own code before launching the child (or after the child exited,
-   before releasing the gate); no hook runs; a waiting `git commit` sees the quiet interval pass.
-   - Option B-hand, do nothing automatic: the command prints how to restart the unit and waits; the request is durable. Visible: the command waits until
-     the person restarts the service; this conflicts with "never stuck" if such a wedge occurs. Revision 11: the wait ends at the FOREGROUND bound with an error that
-     names the unit and the restart command, the request is withdrawn and never lands later, and the commit is kept on a side ref (the owner's bound answers).
-   - Option B-restart, restart anyway: the waiting command ends the owner without the gate and the manager restarts the service. Visible: the commit lands after
-     the restart, but if the owner was inside a ref transaction with a child, ending it can leave `main.lock` that the wrapper will not remove, with
-     the pending state of A-kill.
-   - Picked first (coordinator, 2026-11-03, under the owner's delegation): B-restart, withdrawn after the eighth review.
-     The eighth review (R8-1) showed B-restart can end a person's hook: the restarter's correct "no program running" observation is followed by the
-     owner dispatching a ref transaction whose hook starts, and the restart then reaps it. That breaks the owner's explicit
-     "End Git, hold hooks (Recommended)" (a hook is never ended), which outranks the general "never leak internal things".
-   - Picked now (coordinator, under the delegation, veto open): B-hand. L7 keeps its gate requirement; a wedge of our own code inside the shared
-     gate is reported with how to restart the unit, and the request stays durable. A different admission and cancellation interlock that
-     can end such a wedge without ending a hook is open design work for revision 9.
+The full text of this section, as it stood in revision 13, is in
+`doc/planning/cli-git-commits-never-fail-review-history.md` under "Questions for the owner, full text". What stands,
+with each pick open to the owner's veto where it was delegated ("Pick options as if I had picked them and invite veto
+when I say I'm back."; clarified: "\"As if I had chosen\" means what I would have picked most likely if I'm always
+here."):
+- Answered by the owner on 2026-11-03: stuck step, "End Git, hold hooks (Recommended)"; deferred staging, "Update the
+  index (Recommended)"; unclear publication, "Land it (Recommended)"; a branch a foreign program keeps moving, "Save
+  on the side ref (Recommended)"; a `--mirror` push, "Leave out wrapper refs (Recommended)"; an amend while commits
+  are pending, "Amend the pending commit (Recommended)".
+- Adopted from standing rules, not asked: the embedded path for a deterministic Git hang, background re-signing, saved
+  copies kept until disposal, corruption by another tool after release on the outside list, whole-lifetime maintenance
+  coordination.
+- Question 1 (staging a path back to its consumed entry while commits are pending): picked A, the plain commit does
+  not capture an entry equal to the consumed one; a notice says so; versioned restaging events are an optional later
+  improvement with the sixth review's cases as requirements.
+- Question 2 (a quiet owner of our own making): the pick of automatic restart was replaced by B-hand: nothing restarts
+  automatically, the error names the unit and the restart command.
+- Question 3 (a hook with an external effect on "prepared" after an owner death): picked A, `update-ref` runs again;
+  Git's contract allows the repeat.
+- Question 4 (the instant inside `checkout` where the index is written before `HEAD`): picked A, the residue is
+  accepted; `git restore --staged` undoes it.
+- A (a Git child that ignores the terminate signal and holds a ref lock): picked A-kill, an explicitly accepted
+  narrowing: a lock may be left that only the person clears.
+- C-class (which commands the stall rule may cancel): picked C-kind; `update-ref` and every command that can dispatch
+  a protected program are exempt by kind.
+- H (hook runs when a held request is replayed): picked H-version, once per version, with the stated crash exception;
+  H2: picked H-episode, one new invocation per recovery episode that lacks a durable result.
+- M (merge order): now owner decision 8, "Branch first, files after".
+- R (a stranded `index.lock` of the lane's own dead incarnation): picked R-never; the lane never removes it and
+  reports it.
+- P (a merge touching a path the person has staged): owner decision, "Merge anyway, unstage x" (P-carry); composition
+  in MG3 and decision 11.
+- W (the attachment concession for merge file writes): owner decision, "Allow the rare leftover" (W-detect); its
+  cleanup is MG6c, with questions 7a to 7c open.
+- G (retention against late maintenance): picked G-order; the proof is the two registry listings and the probe of T1.
+- N (retry of a live owner after a proven store failure): picked N-silent, a recorded concession that covers a proven
+  failure (class F) only.
+- B (a quiet owner that holds the gate with no person's program running): picked B-hand.
 
 ## Owner questions for revision 12 (answered)
 
@@ -2340,74 +2237,134 @@ Adopted without a question (the coordinator may veto; each follows from a rule t
 - An invocation nonce is part of every request ("one operation, one identity"), so a repeated identical operation is a
   new request and a resend is the same one.
 
-## Owner questions for revision 13
+## Owner questions for revision 14
 
-Three contracts that the twelfth review shows no mechanism can settle for the owner. The mechanisms for everything
-else are in the state machine. The recommended option is marked and the ranking gives a reason for each adjacent pair.
-None is decided here.
+Why these are asked again. The owner answered revision 13's questions 5 to 7 (decisions 11 to 13). The thirteenth
+review showed that questions 6 and 7 were framed inaccurately, so decisions 12 and 13 are provisional, and that
+question 5 lacked an option. This section asks them again, split where the review found separable decisions. Where a
+mechanism meets the owner's contract it is in the state machine and not asked here: the stop disposition is now a tiny
+separate receipt made durable first, so "nothing lands later" no longer waits for the larger flush; the cleanup now
+also requires that the index file is unchanged since the install. Each question states its risk plainly. The
+recommended option is marked and the ranking gives a reason for each adjacent pair. None is decided here.
 
-### Question 5: when what you staged is not what is in the file
+### Question 5, asked again: when what you staged is not what is in the file
 
-Plain context. You chose "Merge anyway, unstage x": when a merge changes a file you have staged, your staged content
-becomes an unstaged edit merged onto the result. That is clear when the staged content and the file are the same. This
-question is about the other case, where they differ, for example because you staged a change and then put the file
-back. Example: `x.txt` is `A` at the branch tip; you stage a change so the index holds `B`; you then edit the file
-back to `A`; the merge makes `x.txt` `C`.
-- Option A, the file you see is the edit that is carried; the staged-only version is saved aside (Recommended).
-  Visible here: `x.txt` becomes `C` (your file had no change to carry), the index holds `C`, `git status` shows
-  `x.txt` clean, and a line says your staged `B` is saved in `saved/x.txt.staged`. Pros: no confusing markers from
-  content you cannot see in the file; nothing is lost. Cons: a staged change you meant to keep must be taken from the
-  saved file by hand.
-- Option B, merge both: first the staged `B` onto the result, then the later change from `B` to your file. Visible
-  here: `x.txt` holds conflict markers between `B` and `C` (both changed `A`), and your later revert is applied on top
-  of those markers, so the markers can nest. Pros: your staged intent is carried into the file and nothing needs
-  saving. Cons: nested markers are hard to read, and the revert you made on purpose is mixed into them.
-- Option C, stop with an error and change nothing. Visible here: the command exits non-zero naming `x.txt`, and the
-  merge is kept for a retry. Pros: nothing decided for you. Cons: it is not "merge anyway", which you chose.
-- Ranking: A > B > C. A beats B because it keeps the file readable and loses nothing, where B mixes content you can no
-  longer see into markers; B beats C because B still completes the merge as you asked and C returns the work to you.
+Plain context. You chose "Merge anyway, unstage x" and then "Carry the file, save staged". The review found an option
+missing and an unsupported claim in the old text. Example: `x.txt` is `A` at the branch tip; you stage a change so the
+index holds `B`; you then edit the file to `D`; the merge makes `x.txt` `C`. "Stop" can only apply before the branch
+moves; a path that you stage after the branch has moved is first seen too late to stop and is left alone as later
+staging.
+- Option A, carry the file you see; save the staged-only version aside (Recommended; your earlier answer). Visible
+  here: `x.txt` becomes the merge of your change `A` to `D` onto `C` (with the usual markers if they collide), the
+  index holds `C`, and a line says your staged `B` is saved in `saved/x.txt.staged`. Pros: the file stays readable;
+  nothing is lost. Cons: a staged change you meant to keep is not in the file, so it must be taken from the saved file
+  by hand.
+- Option B, carry the staged version onto the result and save your file aside. Visible here: `x.txt` becomes the merge
+  of `B` onto `C` (markers where they collide), the index holds `C`, and your later file `D` is saved in
+  `saved/x.txt.worktree`. Pros: it is the most literal reading of "your staged x becomes an unstaged edit". Cons: the
+  version you last worked on is the one that is not in the file.
+- Option C, show all of it as an explicit conflict. Visible here: `x.txt` holds a conflict in the three-version form
+  (your staged `B`, your file `D`, the merge `C`), the index holds `C`, and nothing is saved aside. Pros: nothing is
+  hidden or archived. Cons: it needs a defined format, it can be long, and it asks you to resolve what you did not ask
+  to resolve.
+- Option D, stop before the branch moves. Visible here: when the merge is computed, if a path you changed has a staged
+  version that differs from the file, the command exits non-zero naming the path and changes nothing; you commit or
+  unstage and run it again. Pros: nothing is decided for you. Cons: it is not "merge anyway", and it cannot apply to
+  staging made after the branch moved.
+- Ranking: A > B > C > D. A beats B because it keeps the version you last worked on visible; B beats C because B
+  leaves one readable file where C leaves a three-way conflict; C beats D because C completes the merge as you asked
+  and D returns the work to you.
 
-### Question 6: a command that leaves while saving to disk is slow
+### Question 6a: forcing the stop mark to disk when the disk is slow
 
-Plain context. You chose "Force at leaving, else background": a command that leaves with saved work first forces that
-work to disk. Forcing can take seconds when the disk is busy, and your rule is that the command returns at its time
-limit. Example: a commit waits 600 s behind a slow hook and is withdrawn; forcing its saved copy takes 40 s because
-the disk is saturated.
-- Option A, wait for the force up to a short named limit, then leave and say it is not yet confirmed (Recommended).
-  Visible here: after the limit the command exits non-zero: "withdrawn; your commit is saved on
-  refs/cli-git/<instance>/withdrawn/<id>; it is not yet confirmed on disk and the wrapper keeps forcing it". Pros: the
-  command always returns; the saved copy is on disk within moments in every ordinary case. Cons: a power cut inside
-  that gap can lose the saved copy.
-- Option B, wait for the force without a limit. Visible here: the command stays 40 s past its limit, exits with the
-  exact promise, and stays longer on a worse disk. Pros: the promise made when it leaves is always exact. Cons: it
-  breaks "nothing should ever wait forever or indefinitely" for a saturated disk.
-- Option C, do not force at leaving; background only. Visible here: the command leaves at its limit and the saved copy
-  reaches the disk later. Pros: nothing is waited for. Cons: it undoes decision 10 and can lose a copy the command
-  just said was saved.
-- Ranking: A > B > C. A beats B because it always returns and gives the true state of the copy; B beats C because B
-  keeps your decision to force at leaving and C drops it.
+Plain context. When a command stops waiting, the wrapper records a tiny mark that says this commit must never be
+published later. Revision 14 makes that mark the first thing forced to disk (two forced writes, a few bytes). Your
+decision "Force at leaving" and your rule that commands return at their limit meet here. Example: you press Ctrl-C
+while the disk is saturated and forcing the mark would take 30 s.
+- Option A, wait up to a short named limit, then leave and say the stop is not confirmed on disk (Recommended).
+  Visible here: after the limit the command exits non-zero: "stopped; the stop mark is not yet confirmed on disk".
+  Risk, stated plainly: if the power fails inside that window, the mark can be lost, and after the reboot the wrapper
+  can finish the commit (or, if the stop came after a submitted `commit`, make a further attempt) although the command
+  reported an error. Pros: the command always returns, and in every ordinary case the mark is on disk in moments.
+  Cons: that power-cut window.
+- Option B, wait for the mark without a limit. Visible here: the command stays until the disk answers, 30 s here and
+  longer on a worse disk. Pros: "nothing lands later" is exact even across a power cut. Cons: it breaks "nothing
+  should ever wait forever or indefinitely" for a saturated disk.
+- Option C, do not force the mark at leaving; the background forces it. Visible here: the command leaves at once.
+  Pros: nothing is waited for. Cons: it gives up the power-cut protection of the stop, which your decision "Force at
+  leaving" asked for.
+- Ranking: A > B > C. A beats B because it always returns and states the one window honestly; B beats C because B
+  keeps the promise exact, while C drops the forcing that you chose.
 
-### Question 7: how long the wrapper watches for a late `git switch` after a merge
+### Question 6b: forcing the saved copy to disk when the disk is slow
 
-Plain context. You accepted a rare leftover: if a `git switch` finishes just after the wrapper wrote a merge's files,
-those files can show up as changes in your new branch until the wrapper's next check restores them. The wrapper cannot
-tell when a paused switch will finish, so "until the next check" cannot be kept for ever without risk. Example: in one
-terminal `git merge topic`; in another a `git switch other` is paused for 30 s after writing its index and before
-updating `HEAD`; the merge's files are written in that gap.
-- Option A, watch for a measured span after the merge and then stop (Recommended). Visible here: if the switch
-  finishes inside the span (a constant that must be measured from real switch durations, with a margin you approve),
-  the wrapper restores the files from its saved copies; if it finishes after the span, the merge's files stay as
-  changes in the new branch, nothing is lost, and the line printed by the merge names how to undo them. Pros: it never
-  undoes anything you did later on purpose. Cons: a switch slower than the span leaves the files in place.
-- Option B, watch until the files change. Visible here: the wrapper restores the files whenever it next sees the
-  leftover, however long after. Pros: no span to outlast. Cons: days later it may undo a state you made on purpose
-  (for example you staged the same file deliberately), which is worse than the rare leftover.
-- Option C, stop the late switch by holding `HEAD.lock` while the files are written. Visible here: the other
-  terminal's `git switch` fails at its last step with a lock error, after it has already changed its index and files.
-  Pros: the leftover cannot happen. Cons: it makes a native Git command fail halfway and it is a lock held against a
-  program the wrapper does not own.
-- Ranking: A > B > C. A beats B because it bounds the chance of undoing a deliberate change, which B does not; B beats
-  C because C breaks a native command midway, and B at worst restores a leftover late.
+Plain context. After the stop mark, the command forces the saved copy: the request, the log, and a built commit's
+files with its side ref. Two examples. First, a commit waits 600 s behind a held branch lock and is withdrawn; its
+built commit is saved on `refs/cli-git/<instance>/withdrawn/<id>`, and forcing it takes 40 s. Second, a commit is held
+by your `pre-commit` hook run by the service and is withdrawn; no commit exists yet, so only the request inputs are
+saved and the message names them, not a side ref.
+- Option A, wait up to a named limit, then leave and say the saved copy is not yet confirmed on disk (Recommended).
+  Visible here: the stop mark is confirmed; the message says "the commit is kept; it is not yet confirmed on disk and
+  the wrapper keeps forcing it". Risk: a power cut in the window can lose the saved copy. Your staged changes and
+  files are untouched, because nothing was written before the branch moved. Pros: always returns; the stop promise is
+  already exact. Cons: that window for the copy.
+- Option B, wait without a limit. Visible here: the command stays 40 s or more past its limit. Pros: the promise made
+  at leaving is exact. Cons: breaks "nothing should ever wait forever or indefinitely".
+- Option C, background only. Visible here: the command leaves at its limit. Pros: no wait. Cons: it undoes "Force at
+  leaving, else background" for saved work.
+- Ranking: A > B > C. A beats B because it returns and gives the true state of the copy; B beats C because B keeps
+  your decision and C drops it.
+
+### Question 7a: may the late-switch cleanup act on a by-value test?
+
+Plain context. After a merge writes files, a `git switch` that was paused can finish and leave the merge's files in
+your new branch. The wrapper can restore the old files, but it cannot prove the state is a leftover and not something
+you did on purpose; it can only test values (the index file is unchanged since the wrapper wrote it, the entry and
+file still equal the merge's, and the new branch's version differs). Example: you merge; then you run
+`git reset --soft` to an earlier commit and switch to a branch whose version of the file is the same as that commit's,
+keeping the merge's content staged on purpose without Git rewriting the index. Every value test passes, and the
+cleanup would restore the old file and entry, undoing your deliberate staged change (the merge's content stays in the
+merge commit).
+- Option A, yes, with the index-unchanged test and the span of question 7b (Recommended). Visible here: in the rare
+  example above your staged change is undone and a line says what was restored from which saved copy; in the ordinary
+  late switch the leftover is cleaned. Pros: the leftover you accepted is cleaned automatically. Cons: a deliberate
+  sequence like the example can be mistaken for a leftover inside the span.
+- Option B, yes, but ask first: the next wrapper command in that worktree prints the leftover and the exact command
+  that restores it, and restores nothing by itself. Visible here: nothing is undone; the line stays until you act or
+  dismiss it. Pros: no deliberate change is ever undone. Cons: the leftover stays until you act.
+- Option C, no cleanup at all; the leftover is reported once. Visible here: one line naming the files and how to undo
+  them by hand. Pros: simplest. Cons: the rare leftover is always yours to fix.
+- Ranking: A > B > C. A beats B because it restores the leftover you accepted without a step from you, at a small
+  stated risk; B beats C because B keeps the restore one command away.
+
+### Question 7b: how long may that cleanup authority last?
+
+Plain context. Only matters if you answered 7a with A. Example: a late switch finishes 5 s after the merge, or 5
+minutes.
+- Option A, a measured span after the merge, then stop (Recommended). Visible here: a switch that finishes inside the
+  span is cleaned; after it the files stay. Pros: bounds the chance of mistaking your own later action for a leftover.
+  Cons: a slower switch leaves the files.
+- Option B, until the next wrapper command in that worktree finds the branch still the merge's, then stop. Visible
+  here: the first command after the merge decides. Pros: no clock. Cons: a switch that finishes after that command is
+  not cleaned, and a long idle gap lets the window last as long as you are away.
+- Option C, until the files change. Visible here: cleaned whenever the leftover is next seen, however late. Pros: no
+  span to outlast. Cons: days later it can mistake your own state for a leftover, which is the risk of 7a made
+  unbounded.
+- Ranking: A > B > C. A beats B because its window is bounded in time and not by when you happen to run a command; B
+  beats C because C has no end at all.
+
+### Question 7c: after the watch ends, is a permanent leftover accepted?
+
+Plain context. A paused switch has no finite completion time, so after the watch ends a late switch can still leave
+the merge's files in your branch. Example: the switch finishes an hour after the merge.
+- Option A, accept it and print one line at the merge naming how to undo it by hand. Visible here: nothing happens at
+  the hour mark. Pros: simple; no standing obligation. Cons: you may never notice the files.
+- Option B, keep a reminder (Recommended): the wrapper keeps a small record of the merge's saved copies and its next
+  command in that worktree prints a line when the branch no longer names the merge's branch and the files match, until
+  you dismiss it. Visible here: the next command after the hour prints the line and the restore command. Pros: you are
+  told; nothing is undone. Cons: a standing record and a line you must dismiss.
+- Ranking: B > A. B beats A because it tells you about the leftover without undoing anything, at the price of a record
+  to keep.
 
 ## Verification plan and build order
 
@@ -2441,102 +2398,44 @@ The models must not assume: an observable `reflog_intact` boolean with no implem
 identity-check-and-pathname-removal (none exists on Linux); that a quiet owner must be unhealthy; that all protected-program capabilities are already
 classified correctly (the eligibility table is verified per exact invocation, including merge drivers, conversions, signing and helpers).
 
-Models added from the tenth review (each starts as a failing control with the revision 11 changelog's schedule; observations, not completed logical operations): (1) M1 death after the intent and before lock creation; (2)
-a present foreign lock after an unfulfilled intent; (3) every normal abort after a successful `index.lock` creation; (4) a detected switch followed by MG6; (5) a switch completing after MG3's post-check; (6) retargeting when the
-lane's own checkout entries meet a pre-scan; (7) retargeting to a no-op with the old checkout still in place; (8) a hold ref that covers the captured inputs and not the replay, its write failure, its deletion, and
-retirement racing a reachability scan with a mixed-time view; (9) a recovery helper that loses acquisition to an owner running a hook that never returns; (10) resend after candidate release and terminal lookup before retirement
-is eligible; (11) a live lock-held followed by external satisfaction, removal and suffix erasure; (12) hook-descendant output after Git's final diagnostic; (13) repeated owner deaths before a durable hook result; (14) a
-detached-to-symbolic change between the check and P2; and, from the owner's rule, (15) every register entry at its bound, W1 against the commit decision in both orders, a crash at each point of W1 and W2, and a prepared
-transaction whose owner dies. "Root exists", "rename happened", "hook result is durable" and "terminal outcome is discoverable" are modelled by implementable evidence only (a file, an index content, a ledger line), never
-by a boolean the protocol cannot read. Performance gates added: ordinary acceptance and publication fsync costs, large in-flight state, unresolved suppressions, and hold-ref management overhead, each against the owner's native-Git latency
-requirement ("commits vs native git should not take 5s longer.").
+Models added from the tenth, eleventh and twelfth reviews: moved to
+`doc/planning/cli-git-commits-never-fail-review-history.md` (the thirteenth review's list below restates what is still
+open).
 
-
-Models added from the eleventh review (revision 12; each starts as a failing control with the revision 12 changelog's
-schedule; each model represents observations, never the completed logical operation). The review's fifteen controls,
-keyed to the transition that answers each:
-1. A `commit` decision durable, the owner wedged: P2b (the client is the decider; no durable `commit` decision
-   exists). Control: the owner stops after `prepare: ok` at every step; the client either wrote `commit` (and the
-   commit lands before the command returns) or `abort`; the client is never an idle holder of the pipe's write end.
-2. Owner death after the decision with an attached client at its deadline: P2 owner death, W1 step (3). Control: the
-   owner dies before and after `commit` is written.
-3. P2c failure and uncertainty after the decision: E1(c) and E1(d), P4, COMMITTING. Control: `update-ref` exits
-   non-zero with no `commit: ok`; `update-ref` still running at the bound; a surplus line making it die after
-   `commit: ok`.
-4. Merge withdrawal while MG6 is blocked by a foreign `index.lock`: MG2 (nothing written before publication). Control:
-   the MG-A variant is retired (decision 8); its red schedule is kept in the history record only.
-5. W1 between MG2's check and MG3's effects: W1 against P1 and P2a (the mark checked after the reader exists).
-   Control: W1 at every step before P2b.
-6. Capture after W1 returns and before W2: C1 reads the marks.
-7. Inline timeout exit with a protected execution alive: execution ownership. Control: a hook installed after the
-   eligibility check; the frozen hook path.
-8. Inline REAP expiry without withdrawal: exit rule, REAP.
-9. Maintenance deleting after the connectivity check and terminal before the reread: T1 with `L0` and `L1`; the
-   observation boundary of a listing.
-10. P-carry with `O`, `S`, `W`, `M` distinct, a staged-only version absent from the worktree: MG3. Control: modes,
-    deletions, type changes, unmerged entries.
-11. Refusal and withdrawal restoring the pre-merge index after P-carry: publish-first has no restoration before
-    publication (control: assert it); (MG-A is retired;) MG6c restores the worktree side after a switch.
-12. A switch completing after publication and removal from the active state: MG6c with `attach-watch`, its triggers
-    and its settle rule.
-13. Retarget with unchanged index and edited worktree, repeated retargets, no-checkout publication failure: MG1 on a
-    lost swap (nothing to reconcile); (the MG-A amendments are retired with MG-A.)
-14. A terminal outcome racing W1, the C3 lookup and candidate reclamation: T0, W1 steps (1) and (4), C3 precedence.
-15. Continuous capture invalidation and repeated recovery re-evaluation against one deadline: CAPTURE and the budget
-rule. New controls beyond the review's list: two closing lines written to the pipe, the first wins and the late writer
-sees "transaction is closed" (`commit` then `abort` lands and exits non-zero; `abort` then `commit` lands nothing); a
-client stopped while it holds no write end; the client lock released by a kill versus by W1 (the owner checks the mark
-after the lock); `PREPARED_HOLD` against a late `commit`; power loss at each write of the request file, the state pair
-and the order file; a request file whose checksum fails; the sync count on the waiting path (0) and the syncer's count
-per pass; two registry listings with a run admitted between them; `merge-install` suppression for a plain commit, a
-`commit -a` and a named-path commit between publication and install. Do not substitute these model conveniences (the
-review's list, kept): `decision = commit` means the ref was published; `terminal at the final registry read` means
-deletion preceded the connectivity check; `withdraw recorded` means restoration finished; `protected child exists`
-means an inline owner may exit harmlessly; `terminal outcome exists` means every lookup can already discover it. Add:
-`V` means durable; `request file linked` means its content reached the disk.
-
-Models added from the twelfth review (revision 13; each starts as a failing control with the revision 13 changelog's
-schedule; observations, never the completed logical operation). The review's twenty controls, keyed to the transition
-that answers each:
-1. Normal COMMITTING exit, original attempt fails, Q1 tries again; assert no fresh publication: W1 unresolved exit,
-   the mark, Q1 and P1's pre.
-2. `commit` written, client killed before it recorded `submitted`, duplicate owner closing line: P2b (the second
-   closing line is not executed).
-3. Git dies before reading the closing line, after reading it, and after writing the ref but before reporting: E1
-   classes F, P and U.
-4. Publication followed by a deliberate reset before the child exits, with and without reflog evidence: E1 class U and
-   R3.
-5. PREPARED-HOLD writes `abort` to a transaction process that never reads again: P2b (the enqueue is bounded, the lock
-   release is not).
-6. FIFO bootstrap, single-write atomicity, inherited descriptors, `EPIPE`, buffered commands before end of input: P2a
-   pipe discipline.
-7. Two alternating state writes without a durable checkpoint, both torn: the state log and its checkpoint rotation.
-8. A valid later state or ledger record with its earlier dependency missing, and the syncer racing a checkpoint: hash
-   chains and cross-file references.
-9. A V terminal outcome, persistent reclamation and a lost ledger tail, then a same-identity resend: T1's Pre
-   (reclamation barrier).
-10. `conflicted`, `rewritten-away` and the unresolved exit at every durability boundary: the departure barrier's D-sets.
-11. A staged-only `S` created after capture, the index replacement persisting without the saved file: MG3 and the
-    preservation barrier.
-12. Carry-forward power loss with the real filesystem ordering, not atomic "saved" booleans: the carry-forward
-    protocol under rule V's exemption.
-13. W1 returns before W2, R2 captures against the withdrawn logical base, replay after the removal: W1 step (4), W2
-    step (2), C1's refusal.
-14. A lagging merge install followed by new staging; `commit -a` and a plain commit with an edit to another line of an
-    affected file: MG2 and MG3.
-15. A native switch paused longer than the span, then completing: `attach-watch`, owner question 7 (control the stated
-    residue).
-16. A switch beginning after the install, testing what MG6c restores: the leftover test.
-17. T1 recovery without its original `L0`; registry enumeration with a reservation between the probe and the listing;
-    compaction with a predating release intent.
-18. A new identical invocation versus a resend that keeps its nonce: C2 and C3.
-19. Departure barriers consuming time after the bound; foreground progress while the syncer flushes: `WAIT_DEPART` and
-    the syncer's separation from the owner's loop.
-20. A terminal lookup and reclamation race inside W1's departure barrier, not only inside C3: W1 steps (1), (5) and
-(6). Do not make these models pass by assuming: a successful pipe write means Git began the ref write; an ended child
-and an absent tip prove no earlier publication; one of two unsynced state slots must survive; checksums enforce
-dependency order; "background" means the foreground cannot wait indirectly; a finite recheck proves that a native
-switch has finished; ignoring a withdrawn consumption entry also removes its effects from the capture base.
+Models added from the thirteenth review (revision 14; each starts as a failing control with the revision 14
+changelog's schedule; observations, never the completed logical operation). The review's twenty-two controls, keyed to
+the transition that answers each:
+1. Successful normal exit before P3 and T0, owner death, deliberate reset and erased reflog: assert no fresh attempt:
+   P2c receipt, R1.
+2. C2 exposure before client-lock acquisition: C2 step (2) before (3).
+3. Define `bound`; inject an exit on both sides of the link: C2 step (3).
+4. Departure timeout loses only the mark or the outcome while the request stays D: the stop receipt and `WAIT_STOP`.
+5. The same schedule for the unresolved form; assert no attempt after the one in flight: the stop receipt and the
+   unresolved mark.
+6. No FIFO writer between the initialization lines and between `prepare: ok` and the client's open: the keeper.
+7. `EAGAIN`, `SIGPIPE`, failed closing writes and an `abort` that cannot be enqueued: the pipe discipline.
+8. Request reclamation followed by validation of its historical adoption dependency: discharge by the terminal outcome.
+9. Old-segment deletion followed by validation of a checkpoint's predecessor reference: the checkpoint is
+   self-contained.
+10. S1 append racing checkpoint snapshot, seal, publication and old-segment deletion: the cutover.
+11. A sync completing while another append occurs; only the captured prefix becomes D: the watermark.
+12. A syntactically valid checkpoint whose transitive dependency is absent: validation order and discharge.
+13. C1 observes no mark, W1 returns without W2, later staging appears, C1 accepts an unchanged `g`: the two-sample
+    marks.
+14. Late positive F after an unresolved exit, with every descendant transition: W1's unresolved form and W2.
+15. Plain staged commit of an old-based edit during the merge-install lag: MG2's plain-commit rule.
+16. `E` names `B`, `O` names `A`, and `W`'s stat data matches `E`: MG2's stat condition.
+17. MG3's overlapping `S = E != O`, `W != S`, `W != O` cases: the three independent steps.
+18. `reset --soft` followed by a switch that carries staged `M` while `R` keeps its inode: MG6c (the stated
+    concession, question 7a).
+19. Successful publication followed by slow MG3 preservation; check the actual command-exit deadline:
+    `WAIT_MATERIALIZE`.
+20. Planned service shutdown with a protected execution and a prepared transaction: the exit audit.
+21. A saved built commit whose replay parent holds content absent from the immutable request: the saved-content set.
+22. Queries and resends during `withdraw-unresolved`; never report unconditional "nothing can land": C3. Do not make
+these pass using atomic abstractions for "checkpoint", "durable file", "client attached", "withdrawn view" or
+"leftover". Each needs the observations and ordered effects the implementation will have. Models must not label
+questions 5 to 7 green by adopting the recommended answers.
 
 Properties to check at minimum (revision 11 restates the second and the third; revision 10 corrected the second: a perfect health classifier is not assumed, because the approved quiet-interval
 heuristic can target healthy but unusually quiet work, so the checkable properties concern incarnation identity, gate admission and protected
