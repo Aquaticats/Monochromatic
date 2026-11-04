@@ -902,46 +902,73 @@ fn the_system_configuration_is_the_file_the_answering_git_reports() {
 /// The answer is cached by the identity of the Git program,
 /// so the question is asked once,
 /// not on every call.
+/// Round 6 (5a F5): a compiled Git program is asked once; its identity (file, size, times, relevant environment) is the key.
 #[test]
-fn the_reported_system_configuration_is_asked_once_per_git_program() {
+fn the_reported_system_configuration_of_a_compiled_git_is_asked_once() {
     let fixture = fixture("topic");
-    // Borrow `&fixture`: lends the value without copying or giving it away.
     write_config(&fixture, "");
     let directory = scratch();
-    // Typed binding: `asked: PathBuf`.
-    let asked: PathBuf = directory.path().join("asked");
-    // Typed binding: `reported: PathBuf`.
-    let reported: PathBuf = fixture.root.path().join("elsewhere-gitconfig");
-    // Borrow `&reported`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::write(&reported, "").expect("the reported system configuration");
-    // Borrow `&fixture`: lends the value without copying or giving it away.
-    // `let mut`: a binding that may change.
-    // Typed binding: `environment: NativeEnvironment`.
+    let copy: PathBuf = directory.path().join("git");
+    fs::copy(SYSTEM_GIT, &copy).expect("a copy of the compiled Git");
     let mut environment: NativeEnvironment = controlled(&fixture);
-    // `None`: the present or the absent value of an `Option`.
     environment.system_config = None;
-    // Borrow `&reported`: lends the value without copying or giving it away.
-    environment.git.program = git_that_reports_its_system_config(directory.path(), &reported, &asked);
+    environment.git.program = copy;
+    // The controlled environment sets GIT_CONFIG_NOSYSTEM, under which Git reports no system configuration at all.
+    environment.git.environment.retain(|(name, _)| { return name != "GIT_CONFIG_NOSYSTEM"; });
 
-    // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let first = crate::git_native::native_base(&fixture.work, false, &environment).expect("first");
-    // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let second = crate::git_native::native_base(&fixture.work, false, &environment).expect("second");
 
-    // Borrow `&asked`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(&asked).expect("the question log").lines().count(), 1);
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(first.git_starts, 1, "the question is a Git start and is counted");
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(second.git_starts, 0, "the cached answer costs no start");
 }
 
-/// A Git that cannot say where its system configuration is leaves the answer to the fallback.
+/// Round 6 (5a F5): an executable that is not a compiled program may forward to any Git, so its answer is never reused.
+#[test]
+fn a_wrapper_script_is_asked_every_time() {
+    let fixture = fixture("topic");
+    write_config(&fixture, "");
+    let directory = scratch();
+    let asked: PathBuf = directory.path().join("asked");
+    let reported: PathBuf = fixture.root.path().join("elsewhere-gitconfig");
+    fs::write(&reported, "").expect("the reported system configuration");
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.system_config = None;
+    environment.git.program = git_that_reports_its_system_config(directory.path(), &reported, &asked);
+
+    let _first = crate::git_native::native_base(&fixture.work, false, &environment).expect("first");
+    let _second = crate::git_native::native_base(&fixture.work, false, &environment).expect("second");
+
+    assert_eq!(fs::read_to_string(&asked).expect("the question log").lines().count(), 2, "a wrapper's earlier answer was reused");
+}
+
+/// Round 6 (5a F5): the first executable on the search path is the one that is asked, as `execvp` would choose it.
+#[test]
+fn a_file_that_is_not_executable_does_not_hide_the_git_after_it_on_the_search_path() {
+    let fixture = fixture("topic");
+    write_config(&fixture, "");
+    let directory = scratch();
+    let blocked = directory.path().join("blocked");
+    let usable = directory.path().join("usable");
+    fs::create_dir_all(&blocked).expect("dir");
+    fs::create_dir_all(&usable).expect("dir");
+    fs::write(blocked.join("git"), "not executable\n").expect("a file named git that cannot run");
+    let asked: PathBuf = directory.path().join("asked");
+    let reported: PathBuf = fixture.root.path().join("elsewhere-gitconfig");
+    fs::write(&reported, "").expect("the reported system configuration");
+    let chosen = git_that_reports_its_system_config(&usable, &reported, &asked);
+    fs::rename(&chosen, usable.join("git")).expect("rename");
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.system_config = None;
+    environment.git.program = PathBuf::from("git");
+    environment.git.environment = vec![("PATH".to_string(), format!("{}:{}", blocked.display(), usable.display()))];
+
+    let answered = crate::git_native::native_base(&fixture.work, false, &environment);
+
+    assert!(answered.is_ok(), "{answered:?}");
+    assert_eq!(fs::read_to_string(&asked).expect("the question log").lines().count(), 1, "the usable Git was not asked");
+}
+
 #[test]
 fn a_git_that_cannot_report_its_system_configuration_is_not_assumed() {
     let fixture = fixture("topic");
@@ -1016,4 +1043,31 @@ fn a_quiet_negative_answer_still_lets_the_next_candidate_be_tried() {
     let base = resolve_trust_base_with(&fixture.work, false, None, &environment);
 
     assert!(base.commit.is_ok(), "{base:?}");
+}
+
+/// A Git that logs every start and answers the system-configuration question with an empty file; all else goes to the real Git.
+fn git_that_logs_every_start(directory: &Path, reported: &Path, log: &Path) -> PathBuf {
+    let body = format!("echo x >> {log}\nif [ \"$1\" = var ]; then echo {reported}; exit 0; fi\nexec {SYSTEM_GIT} \"$@\"", log = log.display(), reported = reported.display());
+    return script(directory, "logging-git", &body);
+}
+
+/// Round 6 (5a F6): the Git starts of an unsuccessful native attempt are counted with the starts of the fallback.
+#[test]
+fn a_declined_choice_counts_the_start_that_asked_for_the_system_configuration() {
+    let fixture = fixture("topic");
+    base_branch_at_first(&fixture);
+    write_config(&fixture, &format!("{TOPIC_TRACKS_BASE}[branch \"other\"]\n\tremote\n"));
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("starts");
+    let reported: PathBuf = fixture.root.path().join("empty-system-gitconfig");
+    fs::write(&reported, "").expect("the reported system configuration");
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.system_config = None;
+    environment.git.program = git_that_logs_every_start(directory.path(), &reported, &log);
+
+    let base = resolve_trust_base_with(&fixture.work, false, None, &environment);
+
+    let started: usize = fs::read_to_string(&log).expect("the start log").lines().count();
+    assert!(base.commit.is_ok(), "{base:?}");
+    assert_eq!(usize::try_from(base.git_starts).expect("count"), started, "reported {} starts, Git was started {started} times", base.git_starts);
 }
