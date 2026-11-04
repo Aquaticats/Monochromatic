@@ -37,6 +37,7 @@ import {
   startQueued,
 } from './scenario-queue-fixture.ts';
 import { planFaultOffset, } from './seeded-schedule-fixture.ts';
+import { waitForServiceWork, } from './service-settle-fixture.ts';
 import { waitForPushRecord, } from './work-record-fixture.ts';
 import {
   startAttempt,
@@ -58,6 +59,29 @@ const SERVICE_KILL_WINDOW = {
  Agents committing in the external-kill scenario.
  */
 const KILLED_SERVICE_AGENTS = 6;
+
+/**
+ How long a claim of a killed service stays out of reach of every other instance, in milliseconds:
+ the service's `CLAIM_LEASE` (`src/native/landing/service_work.rs`),
+ which `service-kill-lease.unit.test.ts` reads from that file so a change of the lease fails there with its reason.
+ A restarted service leaves a claim alone until its lease runs out,
+ because a service that is still running renews it and the claim's holder is never told apart by process ID.
+ */
+export const CLAIM_LEASE_MS = 120_000;
+
+/**
+ What the recovery of a killed service's claims may take beyond the lease, in milliseconds:
+ the service looks at the repository again when the lease is over (`work_loop` in `src/native/service/service_server.rs`),
+ requeues the claims, and then runs the push and the upkeep.
+ A passing run took one second beyond the lease (2026-11-04, seed 1, container of two CPUs).
+ */
+export const CLAIM_RECOVERY_MARGIN_MS = 30_000;
+
+/**
+ The longest the scenario waits for the claims of the killed service to be run, in milliseconds.
+ Together with the rest of the workload it stays under the scenario timeout (`SCENARIO_TIMEOUT_MS`).
+ */
+export const CLAIM_RECOVERY_BUDGET_MS: number = CLAIM_LEASE_MS + CLAIM_RECOVERY_MARGIN_MS;
 
 //endregion Constants
 
@@ -195,9 +219,24 @@ async function killServiceDuringWork(context: ScenarioContext,): Promise<Expecta
   await context.repository
     .service
     .kill();
+  /**
+   When the service died, with its claim on the landed commit's records.
+   */
+  const killedAt = Date.now();
   await context.repository
     .service
     .restart();
+  /**
+   The follow-up commit wakes the restarted service, which finds the dead service's claims held and looks again when their lease is over.
+   */
+  const recovered = await recoverAndCommit(context,);
+  /**
+   Records still waiting after the lease and the margin.
+   */
+  const unfinished = await waitForServiceWork({
+    gitDir: context.repository.gitDir,
+    deadlineMilliseconds: CLAIM_RECOVERY_BUDGET_MS - (Date.now() - killedAt),
+  },);
   return [
     {
       name: 'service-killed-with-work-claimed',
@@ -208,7 +247,13 @@ async function killServiceDuringWork(context: ScenarioContext,): Promise<Expecta
       name: 'agent-succeeds',
       attempts: [await victim.finished,],
     },),
-    ...await recoverAndCommit(context,),
+    ...recovered,
+    {
+      name: 'killed-service-claims-recovered-within-lease',
+      holds: unfinished.length === 0,
+      detail: `${unfinished.join(', ',)} still unfinished ${String(Date.now() - killedAt,)} ms after the kill, `
+        + `a lease of ${String(CLAIM_LEASE_MS,)} ms and ${String(CLAIM_RECOVERY_MARGIN_MS,)} ms of margin`,
+    },
   ];
 }
 
@@ -245,7 +290,7 @@ const serviceDuringWork: ScenarioDefinition = {
   name: 'sigkill-service-during-work',
   group: 'concurrency',
   replayPlumbing: 'unused',
-  summary: 'SIGKILL the commit service once it claimed a landed commit\'s push record, restart it, recover',
+  summary: 'SIGKILL the commit service once it claimed a landed commit\'s push record, restart it, recover, and wait out the claim\'s lease',
   repository(random,) {
     return repositoryOptions({
       seedFiles: seedTexts({

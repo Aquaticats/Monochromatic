@@ -421,6 +421,16 @@ Design scenarios exercise the accepted concurrent-commit design:
   `service-killed-with-agents-waiting` fails when every agent had its answer before the kill.
 - `sigkill-service-during-work`:
   the service is killed once it claimed the landed commit's push record, then restarted.
+  The dead service's claims stay out of reach until their lease (`CLAIM_LEASE`, 120 s,
+  `src/native/landing/service_work.rs`) runs out, because a service that is still running renews its claims
+  and a claim's holder is never told by process ID.
+  The restarted service looks at the repository again when the lease is over (`work_loop`,
+  `src/native/service/service_server.rs`), requeues the claims and runs them.
+  The scenario therefore waits the lease plus a margin (`CLAIM_RECOVERY_BUDGET_MS`) for the records to settle,
+  and `killed-service-claims-recovered-within-lease` fails when they do not;
+  the generic 30 s settle wait of the observation is shorter than the lease and would report the claims as unfinished.
+  `service-kill-lease.unit.test.ts` reads the lease from the Rust source and fails when the fixture's value drifts.
+  The scenario runs just over the lease, 121 s on 2026-11-04 (seed 1).
 - `replay-unavailable-fails-fast`,
   on 2.39.5 only:
   a commit held in its editor while another lands must exit `1`
