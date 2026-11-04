@@ -434,9 +434,10 @@ Design scenarios exercise the accepted concurrent-commit design:
   `service-kill-lease.unit.test.ts` reads the lease from the Rust source and fails when the fixture's value drifts.
   The scenario runs just over the lease, 121 s on 2026-11-04 (seed 1).
   Execution evidence, not remote state:
-  `service-killed-holding-every-claim` requires the push and the upkeep record of the landed commit to be in `claimed`
-  right after the kill,
-  and `claimed-work-settled-once-by-the-successor` requires each to be a single file in `done` whose `tries` is one or more.
+  `service-killed-holding-the-push-claim` requires the push record of the landed commit to be in `claimed`
+  right after the kill (the upkeep record may still be pending, because the service claims its items one after another),
+  and `claimed-work-settled-once-by-the-successor` requires each item to be a single file in `done`,
+  and for each item that was claimed at the kill a `tries` of one or more.
   The service writes `tries` into an item each time it takes the item back from a holder that did not renew it,
   so the count shows that the dead service's claim was recovered and run by the successor.
   Neither the empty work directories nor a remote that holds the commit show that,
@@ -452,6 +453,8 @@ Design scenarios exercise the accepted concurrent-commit design:
   It answers the objection that the recovery of `sigkill-service-during-work` might depend on the follow-up commit's wake,
   and it fails with the claims left in `claimed` on a service without that look (2026-11-04).
   It runs just over the lease, like the scenario above, and both stay under the 180 s limit of a scenario's workload.
+  That limit bounds the workload (`run`) only: the observation that follows it, with its own 30 s settle wait, is outside it,
+  so a failing run of these scenarios takes the budget plus that wait, about 180 s (measured 180585 ms on 2026-11-04).
 - `replay-unavailable-fails-fast`,
   on 2.39.5 only:
   a commit held in its editor while another lands must exit `1`

@@ -634,6 +634,13 @@ runs what is pending, takes back what has run out its lease, and says when the f
 schedule waits for; the service counts itself busy while the schedule is not empty, so it does not exit idle before then. A
 directory with no work directory any more has its file removed at the start. The bound after a kill is therefore the lease plus
 one pass, with no commit needed, and the lease still decides that a holder is dead: a claim renewed a moment ago is left alone.
+In production the manager starts the service again by itself after a kill: the instance unit sets `Restart=on-failure`
+(`service_units/cli-git@.service`), a signal ending counts as a failure, and `RestartSec=` defaults to 100 ms (`systemd.service(5)`,
+systemd 262 on the owner's host, read with `systemctl --user show -p DefaultRestartUSec`). The wait after a SIGKILL with nobody
+committing is then that restart, the schedule's one second of slack for the first look, and the lease. A service the manager
+gives up on (its start limit, five starts in ten seconds by default, is for a crash loop) is started by the next connection, as
+before. The service exits idle only after three hours without work (`IDLE_EXIT`) and counts itself busy while the schedule holds
+a repository, so it is not gone when the lease runs out.
 
 How a claim is held (2026-11-01, the service queue fix). A claim is one file in `claimed/` named
 `<id>~<generation>~<boot id>~<monotonic ms>~<wall s>`: the generation is unique to one acquisition and the last two parts are

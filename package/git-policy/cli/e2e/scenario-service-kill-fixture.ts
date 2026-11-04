@@ -16,7 +16,7 @@ import { synthesizeText, } from './content-fixture.ts';
 import type { SeededRandom, } from './seeded-random-fixture.ts';
 import type { RepositoryOptions, } from './repository-model-fixture.ts';
 import {
-  claimsHeldExpectation,
+  claimsAtKill,
   claimsRunExpectation,
 } from './scenario-claim-recovery-fixture.ts';
 import {
@@ -255,7 +255,7 @@ async function killServiceDuringWork({
   /**
    What the dead service held.
    */
-  const held = await claimsHeldExpectation({
+  const held = await claimsAtKill({
     repository: context.repository,
     commit,
   },);
@@ -286,7 +286,7 @@ async function killServiceDuringWork({
       holds: arrival === 'record',
       detail: `the agent ${arrival} before the service claimed its record`,
     },
-    held,
+    held.expectation,
     allSucceeded({
       name: 'agent-succeeds',
       attempts: [await victim.finished,],
@@ -301,6 +301,7 @@ async function killServiceDuringWork({
     await claimsRunExpectation({
       repository: context.repository,
       commit,
+      claimed: held.claimed,
     },),
   ];
 }

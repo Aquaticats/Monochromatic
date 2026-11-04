@@ -88,27 +88,43 @@ async function itemsOf({
 }
 
 /**
- Expectation that the service held a claim on every item of a landed commit when it was killed,
- so the scenario tests the recovery of a claim and not a kill that came after the work.
+ What the killed service held on the items of a landed commit.
+ */
+export type ClaimsAtKill = Readonly<{
+  /**
+   Expectation that the push was claimed when the service died,
+   so the scenario tests the recovery of a claim and not a kill that came after the work.
+   */
+  expectation: Expectations[number];
+  /**
+   Ids of the items that were in `claimed`.
+   The service claims its pending items one after another, so the kill can come between the push and the upkeep:
+   an item still pending at the kill is run by the successor without having been taken back.
+   */
+  claimed: readonly string[];
+}>;
+
+/**
+ Looks at what the dead service held on the items of a landed commit.
 
  @param repository - scenario repository
 
  @param commit - the landed commit
 
- @returns the expectation record
+ @returns the expectation and the ids of the claimed items
 
  @example
  ```ts
- await claimsHeldExpectation({ repository, commit });
+ await claimsAtKill({ repository, commit });
  ```
  */
-export async function claimsHeldExpectation({
+export async function claimsAtKill({
   repository,
   commit,
 }: Readonly<{
   repository: ScenarioRepository;
   commit: string;
-}>,): Promise<Expectations[number]> {
+}>,): Promise<ClaimsAtKill> {
   /**
    Files of each item, by item.
    */
@@ -116,38 +132,53 @@ export async function claimsHeldExpectation({
     repository,
     commit,
   },);
+  /**
+   Ids of the items found in `claimed`, once each.
+   */
+  const claimed = items.filter(function isClaimed(item,) {
+    return (item.placements.length === 1) && (item.placements[0]?.state === 'claimed');
+  },)
+    .map(function idOf(item,) {
+      return item.id;
+    },);
   return {
-    name: 'service-killed-holding-every-claim',
-    holds: items.every(function claimedOnce(item,) {
-      return (item.placements.length === 1) && (item.placements[0]?.state === 'claimed');
-    },),
-    detail: items.map(function describe(item,) {
-      return `${item.id}: ${describePlacements(item.placements,)}`;
-    },)
-      .join('; ',),
+    claimed,
+    expectation: {
+      name: 'service-killed-holding-the-push-claim',
+      holds: claimed.includes(`push-${commit}`,),
+      detail: items.map(function describe(item,) {
+        return `${item.id}: ${describePlacements(item.placements,)}`;
+      },)
+        .join('; ',),
+    },
   };
 }
 
 /**
- Expectation that every item the dead service claimed was taken back and settled exactly once.
+ Expectation that every item of the landed commit was settled exactly once,
+ and that each one the dead service had claimed was taken back from it on the way.
 
  @param repository - scenario repository
 
  @param commit - the landed commit
 
+ @param claimed - ids of the items the dead service held, from {@link claimsAtKill}
+
  @returns the expectation record
 
  @example
  ```ts
- await claimsRunExpectation({ repository, commit });
+ await claimsRunExpectation({ repository, commit, claimed });
  ```
  */
 export async function claimsRunExpectation({
   repository,
   commit,
+  claimed,
 }: Readonly<{
   repository: ScenarioRepository;
   commit: string;
+  claimed: readonly string[];
 }>,): Promise<Expectations[number]> {
   /**
    Files of each item, by item.
@@ -160,7 +191,7 @@ export async function claimsRunExpectation({
     name: 'claimed-work-settled-once-by-the-successor',
     holds: items.every(function settledOnce(item,) {
       return (item.placements.length === 1) && (item.placements[0]?.state === DONE)
-        && ((item.placements[0]?.tries ?? 0) >= 1);
+        && (claimed.includes(item.id,) ? (item.placements[0]?.tries ?? 0) >= 1 : true);
     },),
     detail: items.map(function describe(item,) {
       return `${item.id}: ${describePlacements(item.placements,)}`;
