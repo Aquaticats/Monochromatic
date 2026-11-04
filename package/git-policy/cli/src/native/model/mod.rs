@@ -203,6 +203,14 @@ mod model_support_r18;
 #[path = "model_support_r18_tests.rs"]
 mod model_support_r18_tests;
 
+/// Revision 18's receipt responsibility: the receipt directory as registration, the seal, the final sweep and the one-shot flusher.
+#[path = "model_receipt_r18.rs"]
+mod model_receipt_r18;
+
+/// The controls of revision 18's receipt responsibility.
+#[path = "model_receipt_r18_tests.rs"]
+mod model_receipt_r18_tests;
+
 /// Rule V's barriers (departure, reclamation, preservation) at the filesystem's level of detail.
 #[path = "model_barrier_r13.rs"]
 mod model_barrier_r13;
