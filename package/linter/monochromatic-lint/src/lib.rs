@@ -448,3 +448,7 @@ mod processors_workflow;
 /// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;
+
+/// Disposable Cargo packages and tree builders for the layout tests.
+#[cfg(test)]
+mod layout_test_support;

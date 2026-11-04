@@ -98,6 +98,7 @@ fn token_kind(token: &SyntaxToken) -> TokenKind {
         SyntaxKind::SELF_KW => TokenKind::SelfKeyword,
         SyntaxKind::IDENT => TokenKind::Identifier,
         SyntaxKind::COLON2 => TokenKind::PathSeparator,
+        SyntaxKind::COLON => TokenKind::Colon,
         SyntaxKind::L_CURLY => TokenKind::OpenBrace,
         SyntaxKind::R_CURLY => TokenKind::CloseBrace,
         SyntaxKind::COMMA => TokenKind::Comma,
@@ -188,10 +189,22 @@ pub fn collect_body_facts(body: &SyntaxNode) -> BodyFacts {
                 if token.kind() == SyntaxKind::WHITESPACE || token.kind() == SyntaxKind::COMMENT {
                     continue;
                 }
+                let kind: TokenKind = token_kind(&token);
+                let offset: usize = usize::from(token.text_range().start());
+                // Inside a macro call `::` arrives as two touching colons; join them.
+                if kind == TokenKind::Colon
+                    && let Some(last) = tokens.last_mut()
+                    && last.kind == TokenKind::Colon
+                    && last.offset + 1 == offset
+                {
+                    last.kind = TokenKind::PathSeparator;
+                    last.text = String::from("::");
+                    continue;
+                }
                 tokens.push(Token {
-                    kind: token_kind(&token),
+                    kind,
                     text: plain_name(token.text()),
-                    offset: usize::from(token.text_range().start()),
+                    offset,
                 });
             }
             WalkEvent::Enter(NodeOrToken::Node(node)) => {

@@ -1,0 +1,145 @@
+//! What:
+//!  Controls of the module-path reader.
+//! Why:
+//!  The reader decides which modules a file uses;
+//!  a missed path hides a dependency and an invented one blames innocent code.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! test('groups name every leaf', () => expect(referencesOf('use crate::{a, b::{c, d}};')).toEqual([...]));
+//! ```
+
+use crate::layout_test_support::references_of;
+
+/// A plain path is one reference with every segment.
+#[test]
+fn a_plain_crate_path_is_one_reference() {
+    assert_eq!(
+        references_of("fn f() { crate::a::b::run(); }"),
+        ["crate::a::b::run"]
+    );
+}
+
+/// Groups, nested groups and `self` name every leaf with its whole path.
+#[test]
+fn groups_name_every_leaf_with_its_whole_path() {
+    assert_eq!(
+        references_of("use crate::{a, b::{c, d::{self, e}}};"),
+        ["crate::a", "crate::b::c", "crate::b::d", "crate::b::d::e"]
+    );
+}
+
+/// A rename gives a new binding, which is not a module path.
+#[test]
+fn a_rename_is_not_a_path() {
+    assert_eq!(
+        references_of("use crate::a::{b as c, d};\nuse super::x as y;"),
+        ["crate::a::b", "crate::a::d", "super::x"]
+    );
+}
+
+/// A glob keeps its prefix and is marked.
+#[test]
+fn a_glob_keeps_its_prefix_and_is_marked() {
+    assert_eq!(
+        references_of("use crate::a::*;\nuse super::super::*;"),
+        ["crate::a::*", "super::super::*"]
+    );
+}
+
+/// A `pub use` of any visibility marks its references as re-exports,
+/// and a private `use` does not.
+#[test]
+fn only_public_uses_are_reexports() {
+    assert_eq!(
+        references_of("pub use crate::a::*;\nuse crate::b::*;\npub(crate) use crate::c::D;\npub(super) use super::e::{F, G};"),
+        [
+            "pub crate::a::*",
+            "crate::b::*",
+            "pub crate::c::D",
+            "pub super::e::F",
+            "pub super::e::G"
+        ]
+    );
+}
+
+/// Comments, doc comments, strings of every kind and character literals hold no code;
+/// a double quote character literal must not swallow the code after it.
+#[test]
+fn comments_strings_and_character_literals_are_not_code() {
+    let source: &str = r##"
+// crate::in_line_comment::X
+/// crate::in_doc_comment::X
+/* crate::in_block_comment::X /* crate::nested::X */ */
+const A: &str = "crate::in_string::X";
+const B: &str = r#"crate::in_raw_string::X "quoted""#;
+const C: &[u8] = b"crate::in_byte_string::X";
+const D: &[u8] = br#"crate::in_raw_byte_string::X"#;
+const E: char = '"';
+const F: char = '\'';
+fn real() { crate::real::run(); }
+const G: &str = "after the quote characters";
+#[doc = "crate::in_attribute::X"]
+fn documented() {}
+"##;
+    assert_eq!(references_of(source), ["crate::real::run"]);
+}
+
+/// Paths inside a macro call's tokens are read,
+/// and `$crate` of a macro definition is not a path of the file.
+#[test]
+fn paths_inside_macro_calls_count_and_macro_variables_do_not() {
+    let source: &str = "
+fn f() { println!(\"{}\", crate::inside::value()); assert!(super::other::ready()); }
+macro_rules! m { () => { $crate::defined::x() }; }
+";
+    assert_eq!(references_of(source), ["crate::inside::value", "super::other::ready"]);
+}
+
+/// A raw identifier names the module without its prefix.
+#[test]
+fn raw_identifiers_lose_their_prefix() {
+    assert_eq!(
+        references_of("fn f() { crate::r#type::run(); }"),
+        ["crate::type::run"]
+    );
+}
+
+/// A visibility path, a method turbofish and a field access are not module paths.
+#[test]
+fn visibility_restrictions_and_member_accesses_are_not_paths() {
+    let source: &str = "
+pub(in crate::restricted) fn f() {}
+fn g(value: Wrapper) { value.process::<u8>(); value.field.nested::<u8>(); }
+";
+    assert_eq!(references_of(source), Vec::<String>::new());
+}
+
+/// Code marked for test builds is skipped with everything inside it,
+/// and the negated form is production code.
+#[test]
+fn test_only_code_is_skipped() {
+    let source: &str = "
+#[cfg(test)]
+mod tests { use crate::in_inline_test_module::X; }
+#[cfg(test)]
+use crate::in_test_use::Y;
+#[test]
+fn a_test() { crate::in_test_function::run(); }
+#[cfg(all(test, unix))]
+fn helper() { crate::in_cfg_all::run(); }
+#[cfg(not(test))]
+use crate::production::Z;
+";
+    assert_eq!(references_of(source), ["crate::production::Z"]);
+}
+
+/// A plain name followed by `::` is read as a possible module,
+/// and a path continued from an earlier `::` is not a second path.
+#[test]
+fn a_leading_name_is_kept_and_a_continued_path_is_not_split() {
+    assert_eq!(
+        references_of("use child::Thing;\nfn f() { std::mem::swap(a, b); <T as crate::tr::Tr>::run(); }"),
+        ["child::Thing", "std::mem::swap", "crate::tr::Tr"]
+    );
+}

@@ -60,6 +60,14 @@ run = "cargo fmt --check"
 description = "Run native unit and conformance tests"
 run = "cargo nextest run --all-targets"
 
+[tasks."test:layout"]
+description = "Run only the layout rule tests (the folder `uses` links and the file order) in this checkout, with the library's own tests"
+run = "cargo nextest run --lib layout_"
+
+[tasks."test:layout:container"]
+description = "Run only the layout rule tests in the mount-free, network-disabled 2 GiB / 2 CPU container"
+run = "node bin/test-container.ts layout_"
+
 [tasks."test:host"]
 description = "Run the host-only real run of the closure check over package/wg/cli-quicker-exempt (needs cargo-dylint, the rustc-dev nightly and a warm cargo cache; the container tests use a stub cargo instead)"
 run = "cargo nextest run --test closure_binary --run-ignored only"

@@ -35,7 +35,7 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type TokenKind = 'crate' | 'super' | 'self' | 'name' | '::' | '{' | '}' | ',' | '*' | 'as' | '$' | '.' | 'in' | 'other';
+/// type TokenKind = 'crate' | 'super' | 'self' | 'name' | '::' | ':' | '{' | '}' | ',' | '*' | 'as' | '$' | '.' | 'in' | 'other';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TokenKind {
@@ -50,6 +50,10 @@ pub enum TokenKind {
     Identifier,
     /// The `::` separator.
     PathSeparator,
+    /// A single `:`.
+    ///  Inside a macro call the parser keeps `::` as two of these side by side,
+    ///  and the collector joins them into a separator.
+    Colon,
     /// An opening brace.
     OpenBrace,
     /// A closing brace.
