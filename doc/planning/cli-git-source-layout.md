@@ -61,6 +61,28 @@ Question tool answers, 2026-11-04:
     the system settings path passed to the reader, "finished" results for commands that only finish):
     "Make all four (Recommended)".
 
+## Splitting into crates (owner, 2026-11-04)
+
+The owner: "I just realized something. We should not put everything in one crate."
+Asked how fine the split should be (A: one crate per top-level folder; B: a few layer crates;
+C: only the reusable parts), the owner picked C with the note:
+"What do you mean? Crates obviously have to be reusable, otherwise there's no point.
+Also I refuse to believe C means splitting into fewer crates."
+So every crate is a reusable unit (something another program could depend on for one job),
+and the number of crates follows from how many such units the code holds, not from a target count;
+option C's sketch of four crates beside one large `cli` was wrong to suggest few.
+Where they live: "A, and did you miss how we can't really use cargo workspace?":
+each crate is its own package `package/git-policy/<name>` (crate `monochromatic-git-policy-<name>`),
+its own Cargo workspace root (`doc/decision/rust-dependency-catalog.md`: "Every Rust crate is its own Cargo workspace
+root"; `.out-of-scope/cargo-workspace.md`: profiles belong to each package),
+depending on the others by path with an exact version pin, as `package/file-enforcer/cli` depends on
+`../core-rust` with `version = "=0.1.1"`.
+The `uses/` links: "A: Cargo.toml between crates, uses/ inside (Recommended)":
+between crates a crate's `Cargo.toml` dependencies are its list (cargo refuses loops between crates);
+folders inside a crate keep `uses/` links and the check.
+Every crate the installed program depends on is published to crates.io, because the program installs through
+cargo-binstall from crates.io (`toolchain.lock.json`: `cargo:monochromatic-git-policy-cli@latest`).
+
 ## What the code looks like now
 
 Measured on main at `2d82a3beb4`

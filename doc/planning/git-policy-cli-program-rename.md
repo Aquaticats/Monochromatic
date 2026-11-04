@@ -41,13 +41,33 @@ named the program `cli-git-native` as a vague name:
   program as `git` under `.cache/cli-git-bin`): only after the release that carries the new name is published,
   because the lock must name a file the archive holds.
 
-## What stays
+## The settings file and the data the wrapper keeps
 
 The word `cli-git` also names the settings file (`cli-git.config.jsonc`), data folders (`cli-git/discarded`,
 `cli-git/notices`), log files (`cli-git-audit.jsonl`), the link folder `.cache/cli-git-bin`, the service units and the
 `cli-git:` prefix of messages: 162 string literals in 65 files.
-None was part of the decision; renaming the settings file or the data folders would also strand existing files.
-They stay unless the owner says otherwise.
+Told that renaming the settings file or the data folders would leave existing ones behind, the owner answered,
+2026-11-04: "rename them."
+
+Proposed handling, following the owner's choice for the command word (the old spelling keeps working with a notice);
+open to veto:
+
+- The settings file becomes `monochromatic-git-policy-cli.config.jsonc`.
+  In this repository the committed file is renamed in the same change.
+  In a repository that still has only the old file, the wrapper reads it and prints one line naming the new name;
+  it never renames a committed file by itself.
+  When both exist, the new one is read and the line names the old one as ignored.
+- The data folders and files the wrapper keeps inside the Git directory (saved copies, notices, logs, records)
+  take the new name.
+  The first time the wrapper needs one and finds only the old name, it renames it in place (one atomic rename in the
+  same folder), so nothing is copied and nothing is left behind.
+  When both exist, the new one is used and the old one is left untouched and reported, never deleted
+  (owner: "never discard user data").
+
+Asked about the link folder `.cache/cli-git-bin`, the service unit names and the `cli-git:` message prefix,
+the owner picked "A: rename them too (Recommended)".
+The new units replace the old ones when the old helper is replaced; a helper still running under an old unit keeps
+landing commits until then.
 
 ## Order
 
