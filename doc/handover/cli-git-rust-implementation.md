@@ -214,6 +214,10 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   put the `cargo` link back,
   then the fifth certification pass (bundles `~/temp/agent/reviews/cargo-shadow-cert5-*.txt`,
   15 groups).
+  0.1.2 dispatched 2026-11-04T16:31-05:00 as run 41915068040 (`release:wait` following);
+  the fifth pass is running (`run-cert5-reviews.ts`,
+  groups read from the manifest,
+  outputs `cargo-shadow-cert5-sol-<n>.txt`).
 
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,
