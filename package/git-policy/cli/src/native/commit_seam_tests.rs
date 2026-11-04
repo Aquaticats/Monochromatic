@@ -11,12 +11,12 @@
 //! ```
 #![cfg(feature = "test-seams")]
 
-use crate::model_fixture::scratch;
+use crate::model_fixture::{owned_append, owned_repair, scratch};
 use git_policy_cli::commit_identity::{
     Bound, bind, binding_path, create_dir_all_durable, init_root, set_fault_point, start_events, take_events,
 };
 use git_policy_cli::commit_integrity::sha256_hex;
-use git_policy_cli::commit_ledger::{LedgerEntry, append, repair_tail};
+use git_policy_cli::commit_ledger::LedgerEntry;
 use git_policy_cli::commit_request::{Change, Operation, Published, Request, RequestError, decode, publish};
 use std::path::{Path, PathBuf};
 
@@ -100,9 +100,9 @@ fn a_resend_that_finds_the_name_syncs_the_directory_chain_itself() {
     let synced_record: Vec<PathBuf> = directories(&take_events());
     assert_eq!(synced_record[synced_record.len() - 2..], [inbox.clone(), root.clone()]);
     let ledger: PathBuf = root.join("ledger");
-    append(&root, &ledger, &entry('3')).expect("append");
+    owned_append(&root, &ledger, &entry('3')).expect("append");
     start_events();
-    append(&root, &ledger, &entry('4')).expect("append");
+    owned_append(&root, &ledger, &entry('4')).expect("append");
     assert_eq!(directories(&take_events()).last(), Some(&root));
 }
 
@@ -111,17 +111,19 @@ fn a_resend_that_finds_the_name_syncs_the_directory_chain_itself() {
 fn a_repair_syncs_the_saved_tail_and_its_directory_before_it_truncates() {
     let directory: PathBuf = scratch("seam-repair");
     let ledger: PathBuf = directory.join("ledger");
-    append(&directory, &ledger, &entry('1')).expect("append");
+    owned_append(&directory, &ledger, &entry('1')).expect("append");
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
     bytes.extend_from_slice(b"abc");
     std::fs::write(&ledger, &bytes).expect("torn");
     start_events();
-    repair_tail(&ledger).expect("repair");
+    owned_repair(ledger.parent().expect("parent"), &ledger).expect("repair");
     let events: Vec<String> = take_events().into_iter().filter(|event| { return !event.starts_with("read-bytes:"); }).collect();
     let torn: String = format!("file-sync:{}", directory.join("ledger.torn").display());
     let parent: String = format!("dir:{}", directory.display());
     let truncate: String = format!("truncate:{}", ledger.display());
-    assert_eq!(events[..3], [torn, parent, truncate]);
+    // The parent chain through the anchor is made durable first (owner repair); from the saved tail's sync on, the order is fixed.
+    let from: usize = events.iter().position(|event| { return *event == torn; }).expect("the saved tail is synced");
+    assert_eq!(events[from..from + 3], [torn, parent, truncate]);
 }
 
 /// Review 3: with a fault point at the truncation, the saved bytes are already on disk when the writer stops there.
@@ -137,14 +139,14 @@ fn a_writer_stopped_before_the_truncation_has_already_saved_the_tail() {
     }
     let directory: PathBuf = scratch("seam-truncate");
     let ledger: PathBuf = directory.join("ledger");
-    append(&directory, &ledger, &entry('1')).expect("append");
+    owned_append(&directory, &ledger, &entry('1')).expect("append");
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
     bytes.extend_from_slice(b"abc");
     std::fs::write(&ledger, &bytes).expect("torn");
     let ledger_clone: PathBuf = ledger.clone();
     let writer = std::thread::spawn(move || {
         set_fault_point(Some(pause));
-        return repair_tail(&ledger_clone).expect("repair");
+        return owned_repair(ledger_clone.parent().expect("parent"), &ledger_clone).expect("repair");
     });
     AT_TRUNCATION.wait();
     assert_eq!(std::fs::read(directory.join("ledger.torn")).expect("saved"), b"abc".to_vec());
@@ -161,11 +163,11 @@ fn a_bare_relative_ledger_name_repairs_and_appends() {
     let previous: PathBuf = std::env::current_dir().expect("cwd");
     std::env::set_current_dir(&directory).expect("chdir");
     let outcome = (|| -> Result<(), String> {
-        append(Path::new("."), Path::new("ledger"), &entry('1')).map_err(|e| { return format!("{:?}", e); })?;
+        owned_append(Path::new("."), Path::new("ledger"), &entry('1')).map_err(|e| { return format!("{:?}", e); })?;
         let mut bytes: Vec<u8> = std::fs::read("ledger").map_err(|e| { return e.to_string(); })?;
         bytes.extend_from_slice(b"abc");
         std::fs::write("ledger", &bytes).map_err(|e| { return e.to_string(); })?;
-        append(Path::new("."), Path::new("ledger"), &entry('2')).map_err(|e| { return format!("{:?}", e); })?;
+        owned_append(Path::new("."), Path::new("ledger"), &entry('2')).map_err(|e| { return format!("{:?}", e); })?;
         return Ok(());
     })();
     std::env::set_current_dir(previous).expect("chdir back");
@@ -272,11 +274,11 @@ fn an_append_to_a_clean_ledger_reads_only_the_tail() {
     let ledger: PathBuf = directory.join("ledger");
     for number in 0..200 {
         let digit: char = char::from_digit(number % 10, 10).expect("digit");
-        append(&directory, &ledger, &entry(digit)).expect("append");
+        owned_append(&directory, &ledger, &entry(digit)).expect("append");
     }
     let size: usize = std::fs::metadata(&ledger).expect("size").len() as usize;
     start_events();
-    append(&directory, &ledger, &entry('9')).expect("append");
+    owned_append(&directory, &ledger, &entry('9')).expect("append");
     let events: Vec<String> = take_events();
     let reads: Vec<usize> =
         events.iter().filter_map(|event| { return event.strip_prefix("read-bytes:").and_then(|n| { return n.parse::<usize>().ok(); }); }).collect();

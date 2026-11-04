@@ -11,10 +11,10 @@
 //! // test('torn tail at every byte is repaired', ...);
 //! ```
 
-use crate::model_fixture::scratch;
+use crate::model_fixture::{owned_append, owned_repair, scratch};
 use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable};
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
-use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, LedgerOwner, append, encode_line, lane_ledger_path, lookup, parse_line, repair_tail};
+use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, LedgerOwner, encode_line, lane_ledger_path, lookup, parse_line};
 use git_policy_cli::commit_request::{Change, Eligibility, Operation, Published, Request, RequestError, content_hash, decode, eligibility, encode, publish};
 use git_policy_cli::commit_spool::{SpoolError, read_closure, verify_against_request, verify_spool, write_spool};
 use std::path::{Path, PathBuf};
@@ -85,9 +85,9 @@ fn ledger_lines_round_trip_and_refuse_bad_fields() {
 #[test]
 fn ledger_lookup_answers_from_the_first_line() {
     let ledger: PathBuf = scratch("ledger-first").join("ledger");
-    append(ledger.parent().expect("parent"), &ledger, &entry('1', "published")).expect("append");
-    append(ledger.parent().expect("parent"), &ledger, &entry('2', "saved")).expect("append");
-    append(ledger.parent().expect("parent"), &ledger, &entry('1', "landed")).expect("append");
+    owned_append(ledger.parent().expect("parent"), &ledger, &entry('1', "published")).expect("append");
+    owned_append(ledger.parent().expect("parent"), &ledger, &entry('2', "saved")).expect("append");
+    owned_append(ledger.parent().expect("parent"), &ledger, &entry('1', "landed")).expect("append");
     assert_eq!(lookup(&ledger, &identity('1')).expect("lookup").expect("entry").outcome, "published");
     assert_eq!(lookup(&ledger, &identity('3')).expect("lookup"), None);
 }
@@ -104,14 +104,14 @@ fn ledger_torn_tail_is_repaired_at_every_byte() {
         let mut bytes: Vec<u8> = first.clone();
         bytes.extend_from_slice(&second[..cut]);
         std::fs::write(&ledger, &bytes).expect("write torn ledger");
-        let repair = repair_tail(&ledger).expect("repair");
+        let repair = owned_repair(ledger.parent().expect("parent"), &ledger).expect("repair");
         assert_eq!(repair.kept as usize, first.len(), "cut {}", cut);
         assert_eq!(repair.cut as usize, cut, "cut {}", cut);
         assert_eq!(std::fs::read(&ledger).expect("read"), first);
         if cut > 0 {
             assert_eq!(std::fs::read(directory.join("ledger.torn")).expect("saved tail"), second[..cut].to_vec());
         }
-        append(ledger.parent().expect("parent"), &ledger, &entry('3', "landed")).expect("append after repair");
+        owned_append(ledger.parent().expect("parent"), &ledger, &entry('3', "landed")).expect("append after repair");
         assert!(lookup(&ledger, &identity('1')).expect("lookup").is_some());
         assert!(lookup(&ledger, &identity('3')).expect("lookup").is_some());
     }
@@ -122,13 +122,13 @@ fn ledger_torn_tail_is_repaired_at_every_byte() {
 fn ledger_damaged_middle_is_reported_and_kept() {
     let ledger: PathBuf = scratch("ledger-middle").join("ledger");
     for digit in ['1', '2', '3'] {
-        append(ledger.parent().expect("parent"), &ledger, &entry(digit, "published")).expect("append");
+        owned_append(ledger.parent().expect("parent"), &ledger, &entry(digit, "published")).expect("append");
     }
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
     let line: usize = encode_line(&entry('1', "published")).expect("encode").len();
     bytes[line + 12] ^= 1;
     std::fs::write(&ledger, &bytes).expect("damage");
-    assert!(matches!(repair_tail(&ledger), Err(LedgerError::DamagedLine(1))));
+    assert!(matches!(owned_repair(ledger.parent().expect("parent"), &ledger), Err(LedgerError::DamagedLine(1))));
     assert!(matches!(lookup(&ledger, &identity('3')), Err(LedgerError::DamagedLine(1))));
     assert_eq!(std::fs::read(&ledger).expect("read"), bytes);
 }
@@ -361,7 +361,7 @@ fn a_reader_never_repairs_another_lanes_ledger() {
     let ledger: PathBuf = lane_ledger_path(&common, &identity('a')).expect("path");
     assert_eq!(ledger, common.join("ledgers").join(identity('a')).join("ledger"));
     assert_ne!(ledger, lane_ledger_path(&common, &identity('b')).expect("path"));
-    append(&common, &ledger, &entry('1', "published")).expect("append");
+    owned_append(&common, &ledger, &entry('1', "published")).expect("append");
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
     bytes.extend_from_slice(b"deadbeef partial line without a newline");
     std::fs::write(&ledger, &bytes).expect("torn tail of an append in progress");

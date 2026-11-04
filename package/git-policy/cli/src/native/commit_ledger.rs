@@ -224,7 +224,7 @@ fn torn_path(ledger: &Path) -> PathBuf {
 /// ```ts
 /// function repairTail(path: string): Repair;
 /// ```
-pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
+pub(crate) fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
     let mut bytes: Vec<u8> = Vec::new();
     match File::open(ledger) {
         Ok(mut file) => {
@@ -335,7 +335,7 @@ pub fn lane_ledger_path(common_dir: &Path, instance: &str) -> Result<PathBuf, Le
 /// ```ts
 /// function append(path: string, entry: LedgerEntry): void;
 /// ```
-pub fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
+pub(crate) fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
     let line: Vec<u8> = encode_line(entry)?;
     // The parent chain through the anchor is made durable before a repair can destroy anything: the saved tail must not sit under a
     // directory name that a power loss could remove. A bare relative file name has the current directory as its parent.
