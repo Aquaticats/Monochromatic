@@ -2442,6 +2442,12 @@ and nothing in the plan decides it.
   "reap mid-sync" (the real reap by the service), "worker error", and "hook outlasting an upgrade caller, the caller returns within
   its bound" (the `WAIT_DRAIN` register entry and its bound check).
 - Depends on: step 1 for the state the call sites write.
+- Status (2026-11-04, after decisions 22 and 24 and the step 1 review): built on `feat/git-policy-cli-commit-protocol-models` as callables
+  that nothing in the shipped commit path calls (the cutover is step 3): the client step, the syncer pass with the retry of recorded errors,
+  the startup sweep, the planned-shutdown seal, the manager route (`systemd-run --user`, not a D-Bus call) with the fork fallback, the
+  departure's acknowledgment with its retry, the disposal procedure and the drain bound. Not yet: the spool and attempt data that
+  recomputation needs, a real ring, the service scheduling the syncer, the `WAIT_DRAIN` constant (unmeasured), I/O-error injection at the
+  departure's forcing. Details: the handover section "Round 24".
 - Question 2 (owner), answered 2026-11-04 (question tool): "Systemd unit + fallback (Recommended)", option A, recorded
   as decision 22; option B is not picked. Meaning as asked: a transient systemd user unit as the primary route, the
   double fork as the fallback where no manager is present; this lifts the earlier "manager-started route, until built"
