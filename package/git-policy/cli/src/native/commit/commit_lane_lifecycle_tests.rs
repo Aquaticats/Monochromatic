@@ -150,11 +150,11 @@ fn the_syncer_retries_recorded_errors_and_clears_the_record_only_when_forced() {
     fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
     let dangling: PathBuf = lane.join(RECEIPT_DIR).join("r1");
     std::os::unix::fs::symlink(lane.join("nowhere"), &dangling).expect("a receipt that cannot be forced");
-    fs::write(lane.join(RECEIPT_ERRORS), "r1\tinjected\n").expect("a recorded error");
+    fs::write(lane.join(RECEIPT_ERRORS), "r1\tinjected\nr9\tfor a receipt that is no longer in the directory\n").expect("a recorded error");
     let failed = syncer_pass(&lane);
     assert!(matches!(failed, Err(FlushError::Forcing(_))), "{:?}", failed.map(|pass| { return pass.forced; }));
     let kept: String = fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the record");
-    assert!(kept.contains("r1"), "the record still names the receipt: {}", kept);
+    assert!(kept.contains("r1") && kept.contains("r9"), "the record still names every receipt it named: {}", kept);
     assert!(!lane.join(RETRYING).exists(), "the in-flight copy is merged back, not left behind");
     fs::remove_file(&dangling).expect("the cause is gone");
     fs::write(&dangling, b"receipt").expect("a receipt that can be forced");
@@ -379,8 +379,16 @@ fn a_departure_whose_captured_segment_is_unlinked_by_the_seal_selects_again() {
     set_fault_point(None);
     assert!(matches!(&first, Err(error) if error.kind() == io::ErrorKind::NotFound), "the open of the unlinked path fails with ENOENT: {:?}", first.map(|prefix| { return prefix.number; }));
     assert!(!state.join("state.log.1").exists(), "the seal removed the segment the departure had captured");
-    let prefix = departure_acknowledge(&state, 3).expect("the departure selects again");
+    let (lane, state, _id) = lane_with_everything("life-race-seal-retry");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible");
+    StateWriter::acquire(&state).expect("writer").append_with(1, &document.encode(), &closure).expect("the record to acknowledge");
+    RACE.with(|cell| { *cell.borrow_mut() = Some((lane.clone(), state.clone(), Race::Seal)); });
+    set_fault_point(Some(race_at_capture));
+    let prefix = departure_acknowledge(&state, 3).expect("the departure selects again after the open of the unlinked path fails");
+    set_fault_point(None);
     assert!(state_covers(&state, &prefix).expect("readable"));
+    assert_eq!(prefix.generation, 2, "the acknowledged root is the seal's checkpoint");
 }
 
 /// The same window with an unrelated higher-generation checkpoint: the segment stays, the forcing succeeds, and `state_covers` is false for
