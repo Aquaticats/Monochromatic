@@ -40,14 +40,16 @@ The TypeScript wrapper that this suite first verified is retired;
    the only wrapper) names the directory whose `git` shadows the real Git
   (`wrapper-selection-fixture.ts`);
   the consumer checks that this `git` is an ELF executable and prints the result first.
-- `test:e2e:concurrent:native:image` compiles the release `cli-git-native` in `rust:1.97-bookworm`
-  and links it as `/opt/native/bin/git` in a copy of the `cli-git-concurrent-e2e` base image.
+- `test:e2e:concurrent:native:image` compiles the release `cli-git-native` in the gate's base image
+  (CachyOS with Rust, `native-test-base.Containerfile`)
+  and links it as `/opt/native/bin/git` in a copy of the `cli-git-concurrent-e2e` base image,
+  which starts from the same CachyOS image.
   `GIT_POLICY_NATIVE_IMAGE_TAG` names the native image's tag, so concurrent worktrees never share one.
-- `test:e2e:concurrent:image` builds the base image alone (Node,
-   the three Git builds,
-   `ssh-keygen`);
-  `GIT_POLICY_E2E_BASE_TAG` names a tag other than `latest`,
-   so a trial build never replaces the image other runs use.
+- `test:e2e:concurrent:image` builds the base image alone (CachyOS, Node,
+   the Git build,
+   `ssh-keygen`).
+  It pulls the CachyOS `latest` tag and names the image after that pull and the Containerfile,
+   so a new CachyOS image builds a new base and a trial build never replaces the image other runs use.
 
 Regenerate the committed trace with real Git on the host.
 It mines this checkout by default;

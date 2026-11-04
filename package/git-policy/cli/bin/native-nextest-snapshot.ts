@@ -43,7 +43,7 @@ const nextestUrl = `https://github.com/nextest-rs/nextest/releases/download/carg
 const contextFileName = 'cargo-nextest';
 
 /**
- Containerfile lines that install the runner next to `cargo`, so `cargo nextest` resolves it.
+ Containerfile lines that install the runner on `PATH`, where `cargo nextest` resolves it.
 
  @returns lines to place after the base image is chosen, then check that the runner starts
 
@@ -54,7 +54,7 @@ const contextFileName = 'cargo-nextest';
  */
 export function nextestCopyLines(): string[] {
   return [
-    `COPY ${contextFileName} /usr/local/cargo/bin/cargo-nextest`,
+    `COPY ${contextFileName} /usr/local/bin/cargo-nextest`,
     'RUN ["cargo", "nextest", "--version"]',
   ];
 }

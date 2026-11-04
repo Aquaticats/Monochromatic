@@ -63,3 +63,39 @@ A podman container sets none. Fix: a private tmpfs at `/run/user/0` and `--env X
 `Containerfile`, so the base image is not its cause.
 Installing `noto-fonts` or `ttf-dejavu` in the CachyOS image did not change the result.
 The cause was not investigated.
+
+## The Git wrapper's gate and end-to-end images (observed 2026-11-04)
+
+Moving `package/git-policy/cli` from Debian images to `docker.io/cachyos/cachyos-v4` (see
+[git-policy-cli-cachyos-test-containers](../planning/git-policy-cli-cachyos-test-containers.md)) showed three differences.
+
+### The CachyOS image already carries a Git
+
+`podman run docker.io/cachyos/cachyos-v4:latest pacman --query git` printed `git 2.56.0-1.1`, and `/usr/bin/git` exists.
+The end-to-end image must have no `/usr/bin/git` (each scenario selects its Git by `PATH` order), and the gate's
+tests name `/usr/bin/git` as the audited release built from source.
+Fix: `pacman --remove --nodeps --nodeps --noconfirm git` before the source build
+(`--nodeps` given twice skips every dependency check, including the ones
+that other installed packages declare on `git`).
+
+### strace 6.13 does not build on the newest compiler and kernel headers
+
+The static `strace` build in the gate image stopped twice:
+
+```text
+macros.h:141:9: error: static assertion failed: "Unexpected size of arg.resv (sizeof(uint64_t) * 3 expected).  --enabled-bundled=yes configure option may be used to work around that."
+ioctl.c:52:13: error: assignment discards 'const' qualifier from pointer target type [-Werror=discarded-qualifiers]
+```
+
+The first comes from the newest `linux-api-headers`; the second from the newest compiler and C library under strace's
+default `-Werror`.
+Fix: `./configure --enable-bundled=yes --disable-gcc-Werror` (`bin/native-strace-snapshot.ts`).
+Both options exist in the 6.13 `configure`.
+
+### A test read Git's documentation from the Debian image's source tree
+
+`invocation::hooks_off::tests::every_documented_hook_event_is_listed` panicked with
+`no copy of the githooks documentation is installed (looked for githooks.adoc under /usr/share/doc/git and a rendered page
+through man githooks)`.
+The Debian gate image kept the Git source tree at `/work/git-source`, which the test reads first.
+Fix: the base image extracts the Git release there and keeps it after `make clean`.
