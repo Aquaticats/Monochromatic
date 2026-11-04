@@ -254,3 +254,11 @@ mod model_bound_r14;
 /// The controls of C2's `bound`.
 #[path = "model_bound_r14_tests.rs"]
 mod model_bound_r14_tests;
+
+/// Revision 14: MG2's plain staged capture during the lag, the stat condition and MG3's overlapping versions.
+#[path = "model_merge_r14.rs"]
+mod model_merge_r14;
+
+/// The controls of MG2 and MG3.
+#[path = "model_merge_r14_tests.rs"]
+mod model_merge_r14_tests;

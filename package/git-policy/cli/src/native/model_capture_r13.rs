@@ -23,10 +23,12 @@ use crate::model_explore::{Limits, Report, explore, push_step};
 /// The rule under test.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
-    /// Revision 12.
+    /// Revision 12 (a broken variant of the mark rule: the mark is read once, with the base).
     Twelve,
-    /// Revision 13.
+    /// Revision 13 (C1 validates the document generation only).
     Thirteen,
+    /// Revision 14 (C1 reads the marks twice: a mark that appeared between the samples repeats the capture).
+    Fourteen,
 }
 
 /// The path `x` that the withdrawn request had consumed.
@@ -244,7 +246,7 @@ pub fn lines_steps(state: &Lines) -> Vec<(String, Lines)> {
             // Revision 12: the whole worktree file, which still has `O` on line a.
             Rules::Twelve => (false, state.person_edited_b),
             // Revision 13: the three-way merge of O, W and M.
-            Rules::Thirteen => (true, state.person_edited_b),
+            Rules::Thirteen | Rules::Fourteen => (true, state.person_edited_b),
         });
         push_step(&mut found, "client: commit -a captures the file", after);
     }
@@ -326,4 +328,123 @@ pub fn consumption_invariant(state: &Consumption) -> Option<String> {
 /// Explores the consumption model.
 pub fn check_consumption(rules: Rules) -> Report {
     return explore(vec![consumption_initial(rules)], consumption_steps, consumption_invariant, |_| { return None; }, limits());
+}
+
+/// What C1 has observed so far (revision 14, R13-7): the document and the marks first, the index second, then the validation.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Phase {
+    /// Nothing observed.
+    Idle,
+    /// Sample one taken: whether the base held R1 and whether R1's mark existed.
+    Sampled { base_has_r1: bool, mark_seen: bool },
+    /// The index was read too; the delta omits `x` when the base held R1.
+    Read { base_has_r1: bool, mark_seen: bool },
+    /// The capture was accepted with the paths it holds.
+    Accepted { holds_x: bool },
+}
+
+/// C1 with its constituent observations.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Sampled {
+    /// The rule under test.
+    pub rules: Rules,
+    /// R1 is in the lane's document (the generation `g` is unchanged until W2 removes it).
+    pub r1_in_document: bool,
+    /// R1's withdrawal mark exists.
+    pub marked: bool,
+    /// R1's command returned (after `WAIT_WITHDRAW` expired, without W2).
+    pub w1_returned: bool,
+    /// The person staged `y` (the index changes without the document's generation changing).
+    pub y_staged: bool,
+    /// C1's progress.
+    pub phase: Phase,
+    /// Ghost: the capture was accepted after R1's command had returned.
+    pub accepted_after_return: bool,
+}
+
+/// The start state: R1 pending with `x` consumed; the index holds `x`.
+pub fn sampled_initial(rules: Rules) -> Sampled {
+    return Sampled { rules, r1_in_document: true, marked: false, w1_returned: false, y_staged: false, phase: Phase::Idle, accepted_after_return: false };
+}
+
+/// Every step enabled.
+pub fn sampled_steps(state: &Sampled) -> Vec<(String, Sampled)> {
+    let mut found: Vec<(String, Sampled)> = Vec::new();
+    if !state.marked {
+        let mut after: Sampled = state.clone();
+        after.marked = true;
+        push_step(&mut found, "W1: creates the withdrawal mark of R1", after);
+    }
+    if state.marked && !state.w1_returned {
+        let mut after: Sampled = state.clone();
+        after.w1_returned = true;
+        push_step(&mut found, "W1: WAIT_WITHDRAW expires and R1's command returns without W2", after);
+    }
+    if state.marked && state.r1_in_document {
+        let mut after: Sampled = state.clone();
+        after.r1_in_document = false;
+        push_step(&mut found, "owner: W2 removes R1 from the document", after);
+    }
+    if !state.y_staged {
+        let mut after: Sampled = state.clone();
+        after.y_staged = true;
+        push_step(&mut found, "environment: the person stages y", after);
+    }
+    match state.phase {
+        Phase::Idle => {
+            if state.rules != Rules::Twelve && state.marked && state.r1_in_document {
+                // C1 refuses a base that still holds a marked request and waits for W2 (revisions 13 and 14).
+                push_step(&mut found, "client: C1 refuses a base that still holds a marked request", state.clone());
+            } else {
+                let mut after: Sampled = state.clone();
+                after.phase = Phase::Sampled { base_has_r1: state.r1_in_document, mark_seen: state.marked };
+                push_step(&mut found, "client: C1 reads the document generation and the marks (sample one)", after);
+            }
+        }
+        Phase::Sampled { base_has_r1, mark_seen } => {
+            let mut after: Sampled = state.clone();
+            after.phase = Phase::Read { base_has_r1, mark_seen };
+            push_step(&mut found, "client: C1 reads the index", after);
+        }
+        Phase::Read { base_has_r1, mark_seen } => {
+            // The generation is unchanged while W2 has not run, whatever happened to the marks and the index.
+            let generation_unchanged: bool = state.r1_in_document == base_has_r1;
+            if generation_unchanged {
+                // Revision 14's second sample of the marks; revisions 12 and 13 validate the generation only.
+                let mark_appeared: bool = state.marked && !mark_seen;
+                if state.rules != Rules::Fourteen || !mark_appeared {
+                    let mut after: Sampled = state.clone();
+                    after.phase = Phase::Accepted { holds_x: !base_has_r1 };
+                    after.accepted_after_return = state.w1_returned;
+                    push_step(&mut found, "client: C1 validates the generation and accepts", after);
+                } else {
+                    let mut after: Sampled = state.clone();
+                    after.phase = Phase::Idle;
+                    push_step(&mut found, "client: C1 samples the marks again, sees a mark that appeared, and repeats the capture", after);
+                }
+            } else {
+                let mut after: Sampled = state.clone();
+                after.phase = Phase::Idle;
+                push_step(&mut found, "client: C1 sees the generation change and repeats the capture", after);
+            }
+        }
+        Phase::Accepted { .. } => {}
+    }
+    return found;
+}
+
+/// An accepted capture taken after R1's command returned, against a base that held R1, omits the path nobody else will now commit.
+pub fn sampled_invariant(state: &Sampled) -> Option<String> {
+    if let Phase::Accepted { holds_x: false } = state.phase
+        && state.marked
+        && state.accepted_after_return
+    {
+        return Some("R2's accepted capture omits x although R1 was withdrawn and its command had returned".to_string());
+    }
+    return None;
+}
+
+/// Explores C1's observations.
+pub fn check_sampled(rules: Rules) -> Report {
+    return explore(vec![sampled_initial(rules)], sampled_steps, sampled_invariant, |_| { return None; }, limits());
 }

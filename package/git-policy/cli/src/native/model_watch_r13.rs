@@ -19,17 +19,61 @@
 
 use crate::model_explore::{Limits, Report, explore, push_step};
 
+/// The span of the watch, in ticks (a model unit; the shipped constant `ATTACH_WATCH_SPAN` is measured, owner question 7b).
+pub const SPAN: u8 = 2;
+
+/// The owner's answer to question 7a: may the cleanup act on a by-value test.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Authority {
+    /// Option A: yes, with the index-unchanged test and the span.
+    ByValueWithIndexTest,
+    /// Option B: report the leftover and the command that restores it; restore nothing.
+    AskFirst,
+    /// Option C: no cleanup; the leftover is reported once.
+    ReportOnly,
+}
+
+/// The owner's answer to question 7b: how long the cleanup authority lasts.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Span {
+    /// Option A: a measured span after the merge.
+    Measured,
+    /// Option B: until the next wrapper command in the worktree finds the branch still the merge's.
+    UntilNextCommand,
+    /// Option C: until the files change.
+    UntilFilesChange,
+}
+
+/// The owner's answer to question 7c: what happens after the watch ends.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Residue {
+    /// Option A: accept the leftover and print one line at the merge.
+    PrintOnce,
+    /// Option B: keep a reminder record that the next command prints.
+    Reminder,
+}
+
+/// The three answers, each a parameter.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Policy {
+    /// Question 7a.
+    pub authority: Authority,
+    /// Question 7b.
+    pub span: Span,
+    /// Question 7c.
+    pub residue: Residue,
+}
+
 /// The rule under test.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
     /// Revision 12.
     Twelve,
-    /// Revision 13.
+    /// Revision 13: the leftover test is by value (the file is still the installed one); no index-unchanged test.
     Thirteen,
+    /// Revision 14, with the owner's answers to questions 7a, 7b and 7c as the parameter (they are not yet answered).
+    Fourteen(Policy),
 }
-
-/// The span of the watch, in ticks (a model unit; the shipped constant `ATTACH_WATCH_SPAN` is measured, owner question 7).
-pub const SPAN: u8 = 2;
 
 /// Where `HEAD` is.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -85,6 +129,16 @@ pub struct Watch {
     pub git_result_overwritten: bool,
     /// A leftover remained after the obligation ended (the residue revision 13 states).
     pub residue: bool,
+    /// A command wrote the index between the merge and the late switch (`git add`, a refresh).
+    pub index_rewritten: bool,
+    /// The person kept the merge's content staged on purpose: `reset --soft`, then a switch that carries it without rewriting the file.
+    pub deliberate: bool,
+    /// MG6c restored a state the person kept on purpose (ghost).
+    pub undone_deliberate: bool,
+    /// A reminder record is kept for the leftover (question 7c option B).
+    pub reminder: bool,
+    /// The leftover was reported to the person (question 7a options B and C).
+    pub reported: bool,
 }
 
 /// The start state: the merge is published.
@@ -100,12 +154,25 @@ pub fn watch_initial(rules: Rules) -> Watch {
         promises_next_check: false,
         git_result_overwritten: false,
         residue: false,
+        index_rewritten: false,
+        deliberate: false,
+        undone_deliberate: false,
+        reminder: false,
+        reported: false,
+    };
+}
+
+fn policy_of(rules: Rules) -> Option<Policy> {
+    return match rules {
+        Rules::Fourteen(policy) => Some(policy),
+        Rules::Twelve | Rules::Thirteen => None,
     };
 }
 
 /// Every step enabled in a watch state.
 pub fn watch_steps(state: &Watch) -> Vec<(String, Watch)> {
     let mut found: Vec<(String, Watch)> = Vec::new();
+    let policy: Option<Policy> = policy_of(state.rules);
     if !state.installed {
         let mut after: Watch = state.clone();
         after.installed = true;
@@ -131,27 +198,61 @@ pub fn watch_steps(state: &Watch) -> Vec<(String, Watch)> {
         after.head = Head::Elsewhere;
         after.file = File::Git;
         push_step(&mut found, "environment: a switch that began after the install rewrites the file itself", after);
+        let mut kept: Watch = state.clone();
+        kept.switch = Switch::Done;
+        kept.head = Head::Elsewhere;
+        kept.deliberate = true;
+        push_step(&mut found, "environment: reset --soft, then a switch that carries the staged merge content and leaves the file alone", kept);
     }
-    if state.watching && state.clock < SPAN + 1 {
+    if state.installed && !state.index_rewritten {
+        let mut after: Watch = state.clone();
+        after.index_rewritten = true;
+        push_step(&mut found, "environment: a command writes the index (git add or a refresh)", after);
+    }
+    let span_ticks: bool = !matches!(policy.map(|chosen| { return chosen.span; }), Some(Span::UntilFilesChange | Span::UntilNextCommand));
+    if state.watching && state.clock < SPAN + 1 && span_ticks {
         let mut after: Watch = state.clone();
         after.clock = state.clock + 1;
         push_step(&mut found, "timer: one tick of the span", after);
     }
     if state.watching && state.head == Head::Elsewhere {
         let mut after: Watch = state.clone();
-        let leftover: bool = state.file == File::Merged;
-        if state.rules == Rules::Twelve || leftover {
+        let by_value: bool = state.file == File::Merged;
+        let index_test: bool = match policy {
+            Some(chosen) => chosen.authority == Authority::ByValueWithIndexTest && !state.index_rewritten,
+            None => true,
+        };
+        let acts: bool = match state.rules {
+            Rules::Twelve => true,
+            Rules::Thirteen => by_value,
+            Rules::Fourteen(_) => by_value && index_test,
+        };
+        if acts {
             after.git_result_overwritten = state.file == File::Git;
+            after.undone_deliberate = state.deliberate;
             after.file = File::Original;
+        } else if by_value {
+            // Question 7a options B and C, or the index changed: the leftover is named, nothing is restored.
+            after.reported = true;
         }
         after.watching = false;
         push_step(&mut found, "owner: MG6c cleans up after the late switch", after);
     }
-    if state.watching && state.clock > SPAN {
+    // The end of the authority is observed, not assumed: a check that finds HEAD elsewhere dispatches the cleanup above and never ends
+    // the watch silently. Only a check that finds HEAD still attached to the target may end it.
+    let expires: bool = match policy.map(|chosen| { return chosen.span; }) {
+        Some(Span::UntilFilesChange) => false,
+        Some(Span::UntilNextCommand) => state.watching,
+        _ => state.clock > SPAN,
+    };
+    if state.watching && expires && state.head == Head::Target {
         let mut after: Watch = state.clone();
         after.watching = false;
-        after.residue = state.head == Head::Target && state.switch == Switch::Paused;
-        push_step(&mut found, "owner: the span ended and the check found HEAD still attached to the target", after);
+        after.residue = state.switch == Switch::Paused;
+        if after.residue && policy.is_some_and(|chosen| { return chosen.residue == Residue::Reminder; }) {
+            after.reminder = true;
+        }
+        push_step(&mut found, "owner: the end of the authority and the check found HEAD still attached to the target", after);
     }
     if !state.watching && state.installed && state.switch == Switch::Paused && state.head == Head::Target {
         let mut after: Watch = state.clone();
@@ -163,13 +264,21 @@ pub fn watch_steps(state: &Watch) -> Vec<(String, Watch)> {
     return found;
 }
 
-/// Git's own result is never overwritten, and a residue is never promised a next check.
+/// Git's own result is never overwritten, a residue is never promised a next check, an unrecorded residue is not accepted under the
+/// reminder answer, and (the property that depends on the answer to 7a and 7b) a state the person kept on purpose is not undone.
 pub fn watch_invariant(state: &Watch) -> Option<String> {
     if state.git_result_overwritten {
         return Some("MG6c restored the original over the file a native switch had written".to_string());
     }
     if state.residue && state.promises_next_check {
         return Some("a leftover remained after the watch ended and the message promised a next check".to_string());
+    }
+    if state.undone_deliberate {
+        return Some("MG6c undid a state the person kept on purpose".to_string());
+    }
+    let wants_reminder: bool = policy_of(state.rules).is_some_and(|chosen| { return chosen.residue == Residue::Reminder; });
+    if wants_reminder && state.residue && state.head == Head::Elsewhere && state.file == File::Merged && !state.watching && !state.reminder {
+        return Some("a leftover remained after the watch ended and no reminder record is kept".to_string());
     }
     return None;
 }
@@ -250,7 +359,7 @@ pub fn retire_steps(state: &Retire) -> Vec<(String, Retire)> {
         }
         push_step(&mut found, "environment: the owner dies after the check and restarts", after);
     }
-    if state.step == Step::Checked && state.rules == Rules::Thirteen {
+    if state.step == Step::Checked && state.rules != Rules::Twelve {
         // The probe of the next number is an exact test; `L1` is read too and both are compared with the fresh baseline.
         let extra: bool = state.reservations > state.l0.unwrap_or(0);
         let mut after: Retire = state.clone();

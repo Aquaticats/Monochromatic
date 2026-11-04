@@ -11,7 +11,9 @@
 //! ```
 
 use crate::model_explore::{Report, replay};
-use crate::model_pipe_r13::{Child, Rules, check_end_of_input, check_loop, check_pipe, initials, pipe_invariant, pipe_steps};
+use crate::model_pipe_r13::{
+    Child, GapRules, Rules, check_end_of_input, check_gap, check_loop, check_pipe, gap_initial, gap_invariant, gap_steps, initials, pipe_invariant, pipe_steps,
+};
 
 /// Revision 12 (red): the unspecified bootstrap reaches a hidden failure and an interleaved line; revision 13 (green) reaches neither.
 #[test]
@@ -82,4 +84,67 @@ fn a_stalled_syncer_must_not_stop_the_owner_from_admitting_work() {
     assert!(check_loop(true).violation.is_some());
     let separate: Report = check_loop(false);
     assert!(separate.violation.is_none() && separate.exhausted);
+}
+
+/// Controls 6 and 7 (R13-3): the owner writes `prepare`, closes its write end, Git consumes it and prepares, and the client has not yet
+/// opened its write end. Git finds no writer and no buffered byte, and end of input aborts the transaction (red under the idle-writer
+/// rule). The same gap exists between the initialization lines. Revision 14's keeper write end closes it (green over every schedule).
+#[test]
+fn no_writer_between_instructions_aborts_the_transaction_unless_the_owner_keeps_the_end() {
+    let thirteen = replay(
+        gap_initial(GapRules::Thirteen),
+        gap_steps,
+        &[
+            "owner: writes the next instruction line",
+            "git: reads the next instruction line",
+            "git: end of input reaches update-ref and it aborts",
+        ],
+    );
+    assert_eq!(gap_invariant(&thirteen), Some("end of input aborted a transaction while its owner lived and no closing line was queued".to_string()), "between the initialization lines");
+    let prepared = replay(
+        gap_initial(GapRules::Thirteen),
+        gap_steps,
+        &[
+            "owner: writes the next instruction line",
+            "owner: opens its write end for the next line",
+            "owner: writes the next instruction line",
+            "owner: opens its write end for the next line",
+            "owner: writes the next instruction line",
+            "git: reads the next instruction line",
+            "git: reads the next instruction line",
+            "git: reads the next instruction line",
+            "git: end of input reaches update-ref and it aborts",
+        ],
+    );
+    assert!(prepared.prepared && prepared.eof_abort, "after prepare: ok and before the client opens its end");
+    assert!(check_gap(GapRules::Thirteen).violation.is_some());
+    let fourteen: Report = check_gap(GapRules::Fourteen);
+    assert!(fourteen.violation.is_none() && fourteen.exhausted, "{:?}", fourteen.violation.map(|found| { return found.trace; }));
+}
+
+/// Control 7: a closing write that fails queues nothing, and the client never believes it did; PREPARED-HOLD's `abort` can fail to
+/// enqueue, and that failure is a reachable state (the register claims the enqueue is attempted, not that the lock is released).
+#[test]
+fn failed_closing_writes_queue_nothing_and_an_abort_may_not_be_enqueued() {
+    let failed = replay(
+        gap_initial(GapRules::Fourteen),
+        gap_steps,
+        &[
+            "owner: writes the next instruction line",
+            "owner: writes the next instruction line",
+            "owner: writes the next instruction line",
+            "git: reads the next instruction line",
+            "git: reads the next instruction line",
+            "git: reads the next instruction line",
+            "owner: PREPARED-HOLD attempts abort and the write fails, nothing is queued",
+        ],
+    );
+    assert!(failed.abort_enqueue_failed && failed.closing == 0);
+    let client_failed = replay(
+        failed,
+        gap_steps,
+        &["client: opens a write end after prepare: ok", "client: the commit write fails (EAGAIN after the bounded retry, or SIGPIPE) and nothing is queued"],
+    );
+    assert!(!client_failed.client_believes_queued);
+    assert_eq!(gap_invariant(&client_failed), None);
 }

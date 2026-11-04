@@ -234,3 +234,166 @@ pub fn check_loop(owner_waits_on_syncer: bool) -> Report {
     let start: Loop = Loop { owner_waits_on_syncer, syncer_stalled: false, admitted: false };
     return explore_eventually(vec![start], loop_steps, loop_goal, limits());
 }
+
+/// The rule of the descriptor model.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum GapRules {
+    /// Revision 13: a writer holds its write end only for its one write, never idle (the idle-writer rule).
+    Thirteen,
+    /// Revision 14: the owner holds a keeper write end from before the first instruction until the closing line has run or the child
+    /// has ended; other writers still hold theirs only for one write.
+    Fourteen,
+}
+
+/// What:
+///  The writer-lifetime state of one transaction's pipe: how many instruction lines the owner has written (`start`, `update`, `prepare`),
+///  which write ends are open, what Git has read, and what end of input did. Descriptor acquisition and closure are separate from
+///  process life, so the intervals between instructions exist.
+/// Why:
+///  The previous pipe model made every live process a continuous writer, so end of input was possible only after both exited. The
+///  intervals are where revision 13 failed: the owner writes a line and closes, Git consumes it and finds no writer and no buffered byte,
+///  and end of input aborts a transaction that the protocol meant to close itself (R13-3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Gap = { rules; owner_lines: number; owner_end_open; client_end_open; git_read: number; prepared; closing: 'none'|'commit'|'abort'; eof_abort; ... };
+/// ```
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Gap {
+    /// The rule under test.
+    pub rules: GapRules,
+    /// Instruction lines the owner has written: 0 to 3 (`start`, `update`, `prepare`).
+    pub owner_lines: u8,
+    /// The owner's (keeper or per-line) write end is open.
+    pub owner_end_open: bool,
+    /// The client's write end is open (only for its one write).
+    pub client_end_open: bool,
+    /// Lines Git has consumed.
+    pub git_read: u8,
+    /// `prepare: ok` printed.
+    pub prepared: bool,
+    /// 0 none, 1 `commit` queued first, 2 `abort` queued first.
+    pub closing: u8,
+    /// The closing line ran (Git executed it).
+    pub closing_ran: bool,
+    /// End of input aborted the transaction while the owner lives and no closing line was queued.
+    pub eof_abort: bool,
+    /// The owner lives.
+    pub owner_alive: bool,
+    /// The client believes its `commit` is queued.
+    pub client_believes_queued: bool,
+    /// The owner's `abort` write failed with nothing queued (`EAGAIN` after the bounded retry, or the reader is gone).
+    pub abort_enqueue_failed: bool,
+    /// The child ended.
+    pub child_ended: bool,
+}
+
+/// The start state: the owner opened the pipe and holds its end.
+pub fn gap_initial(rules: GapRules) -> Gap {
+    return Gap {
+        rules,
+        owner_lines: 0,
+        owner_end_open: true,
+        client_end_open: false,
+        git_read: 0,
+        prepared: false,
+        closing: 0,
+        closing_ran: false,
+        eof_abort: false,
+        owner_alive: true,
+        client_believes_queued: false,
+        abort_enqueue_failed: false,
+        child_ended: false,
+    };
+}
+
+/// Every step of the descriptor model.
+pub fn gap_steps(state: &Gap) -> Vec<(String, Gap)> {
+    let mut found: Vec<(String, Gap)> = Vec::new();
+    if state.child_ended {
+        return found;
+    }
+    if state.owner_alive && state.owner_lines < 3 && state.owner_end_open {
+        let mut after: Gap = state.clone();
+        after.owner_lines = state.owner_lines + 1;
+        // Revision 13 closes the write end after each line; revision 14's keeper stays open.
+        if state.rules == GapRules::Thirteen {
+            after.owner_end_open = false;
+        }
+        push_step(&mut found, "owner: writes the next instruction line", after);
+    }
+    if state.owner_alive && state.owner_lines < 3 && !state.owner_end_open {
+        let mut after: Gap = state.clone();
+        after.owner_end_open = true;
+        push_step(&mut found, "owner: opens its write end for the next line", after);
+    }
+    if state.git_read < state.owner_lines {
+        let mut after: Gap = state.clone();
+        after.git_read = state.git_read + 1;
+        after.prepared = after.git_read == 3;
+        push_step(&mut found, "git: reads the next instruction line", after);
+    }
+    if state.prepared && state.closing == 0 && !state.client_end_open {
+        let mut after: Gap = state.clone();
+        after.client_end_open = true;
+        push_step(&mut found, "client: opens a write end after prepare: ok", after);
+    }
+    if state.client_end_open && state.closing == 0 {
+        let mut queued: Gap = state.clone();
+        queued.closing = 1;
+        queued.client_end_open = false;
+        queued.client_believes_queued = true;
+        push_step(&mut found, "client: writes commit and closes its write end", queued);
+        let mut failed: Gap = state.clone();
+        failed.client_end_open = false;
+        push_step(&mut found, "client: the commit write fails (EAGAIN after the bounded retry, or SIGPIPE) and nothing is queued", failed);
+    }
+    if state.prepared && state.closing == 0 && state.owner_alive && state.owner_end_open {
+        let mut queued: Gap = state.clone();
+        queued.closing = 2;
+        push_step(&mut found, "owner: PREPARED-HOLD writes abort", queued);
+        let mut failed: Gap = state.clone();
+        failed.abort_enqueue_failed = true;
+        push_step(&mut found, "owner: PREPARED-HOLD attempts abort and the write fails, nothing is queued", failed);
+    }
+    if state.prepared && state.closing != 0 && !state.closing_ran {
+        let mut after: Gap = state.clone();
+        after.closing_ran = true;
+        // Revision 14's keeper is released once the closing line has run.
+        after.owner_end_open = state.owner_end_open && state.rules == GapRules::Thirteen;
+        push_step(&mut found, "git: executes the closing line", after);
+    }
+    if state.owner_alive {
+        let mut after: Gap = state.clone();
+        after.owner_alive = false;
+        after.owner_end_open = false;
+        push_step(&mut found, "environment: the owner dies and its write end closes", after);
+    }
+    // End of input: Git has consumed everything written, no write end is open, and nothing closes the transaction.
+    let no_writer: bool = !state.owner_end_open && !state.client_end_open;
+    let consumed: bool = state.git_read == state.owner_lines;
+    let unfinished: bool = !state.closing_ran && state.closing == 0;
+    if no_writer && consumed && unfinished && state.git_read > 0 {
+        let mut after: Gap = state.clone();
+        after.child_ended = true;
+        after.eof_abort = state.owner_alive;
+        push_step(&mut found, "git: end of input reaches update-ref and it aborts", after);
+    }
+    return found;
+}
+
+/// End of input never aborts a transaction the live owner meant to close itself, and a client never believes a failed write queued.
+pub fn gap_invariant(state: &Gap) -> Option<String> {
+    if state.eof_abort {
+        return Some("end of input aborted a transaction while its owner lived and no closing line was queued".to_string());
+    }
+    if state.client_believes_queued && state.closing != 1 {
+        return Some("the client believes its commit is queued and the first closing line is not commit".to_string());
+    }
+    return None;
+}
+
+/// Explores the descriptor model.
+pub fn check_gap(rules: GapRules) -> Report {
+    return explore(vec![gap_initial(rules)], gap_steps, gap_invariant, |_| { return None; }, limits());
+}

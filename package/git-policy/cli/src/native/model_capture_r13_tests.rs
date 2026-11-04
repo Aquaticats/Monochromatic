@@ -10,7 +10,7 @@
 //! ```
 
 use crate::model_capture_r13::{
-    Rules, X, base_initial, check_consumption, consumption_initial, consumption_invariant, consumption_steps, base_invariant, base_steps, check_base, check_install, check_lines, lines_initial, lines_invariant, lines_steps,
+    Rules, X, base_initial, check_sampled, sampled_initial, sampled_invariant, sampled_steps, check_consumption, consumption_initial, consumption_invariant, consumption_steps, base_invariant, base_steps, check_base, check_install, check_lines, lines_initial, lines_invariant, lines_steps,
 };
 use crate::model_explore::{Report, replay};
 
@@ -62,4 +62,28 @@ fn a_capture_after_a_refusal_sees_the_staging_the_refused_request_had_consumed()
     assert!(check_consumption(Rules::Twelve).violation.is_some());
     let atomic: Report = check_consumption(Rules::Thirteen);
     assert!(atomic.violation.is_none() && atomic.exhausted);
+}
+
+/// R13-7, control 13: R2 reads the generation `g` and the marks with no mark, R1's W1 creates the mark, the bounded wait expires and R1's
+/// command returns without W2, the person stages `y`, R2 reads the index and validates the unchanged `g`. The base held R1, so the delta
+/// omits `x`, which nobody will now commit. Revision 13 validates the generation only (red); revision 14 samples the marks again, sees the
+/// mark that appeared, repeats the capture, refuses the base that still holds the marked request, and captures after W2 (green).
+#[test]
+fn a_mark_that_appears_between_the_samples_repeats_the_capture() {
+    let overlap = &[
+        "client: C1 reads the document generation and the marks (sample one)",
+        "W1: creates the withdrawal mark of R1",
+        "W1: WAIT_WITHDRAW expires and R1's command returns without W2",
+        "environment: the person stages y",
+        "client: C1 reads the index",
+    ];
+    let thirteen = replay(sampled_initial(Rules::Thirteen), sampled_steps, overlap);
+    let accepted = replay(thirteen, sampled_steps, &["client: C1 validates the generation and accepts"]);
+    assert_eq!(sampled_invariant(&accepted), Some("R2's accepted capture omits x although R1 was withdrawn and its command had returned".to_string()));
+    assert!(check_sampled(Rules::Thirteen).violation.is_some());
+    let fourteen = replay(sampled_initial(Rules::Fourteen), sampled_steps, overlap);
+    let repeated = replay(fourteen, sampled_steps, &["client: C1 samples the marks again, sees a mark that appeared, and repeats the capture"]);
+    assert!(sampled_steps(&repeated).iter().any(|step| { return step.0 == "client: C1 refuses a base that still holds a marked request"; }));
+    let green: Report = check_sampled(Rules::Fourteen);
+    assert!(green.violation.is_none() && green.exhausted, "{:?}", green.violation.map(|found| { return found.trace; }));
 }
