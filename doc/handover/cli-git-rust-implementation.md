@@ -562,10 +562,23 @@ in order:
   R16a-10)
   and review 16b when it is in.
   Question 8 is asked only after revision 17 settles what it depends on.
-- Models round 12 with reviews 16a and 16b,
-  revision 17,
-  and the round-11 reviews (components 8,
-  models 6a and 6b).
+- Models round 13 after revision 18 lands,
+  building to its "Acceptance target" section,
+  with the round-12 reviews:
+  `commit-components-sol-9.txt` "not closed" (the replacement authority is still caller-asserted;
+  later appends escape its dependency check;
+  completion can delete a dependency it just validated and forced;
+  full-file identities lack a lifetime contract for mutable dependencies;
+  departure validates argument presence,
+  not the disposition's promise)
+  and `commit-models-sol-7.txt` "P1 set:
+  not closed" (one P1:
+  ordinary successful completion still bypasses the register's final-save obligation;
+  P2s on the shutdown green's monitor and `FifteenDropsLive` also removing R2's guard).
+  Models round 12 tip `99bdd7f48b`,
+  333 of 333.
+  Its reviews then judge against the acceptance target,
+  not a new open search.
 - Lint task 88 once the open branches of this package merge.
 - Native-layer removal (#6261 option A,
   veto open).
