@@ -665,3 +665,66 @@ fn r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its
     append(&other_state, 5, b"a substitute at a newer generation with nothing retained").expect("append");
     assert!(!git_policy_cli::commit_state_log::state_covers(&other_state, &promised).expect("readable"), "a substitute that drops the support is not coverage");
 }
+
+/// The ledger line `outcome` for `id`, as the ledger encodes it.
+fn ledger_line_of(id: &str, outcome: &str) -> Vec<u8> {
+    return git_policy_cli::commit_ledger::encode_line(&git_policy_cli::commit_ledger::LedgerEntry {
+        id: id.to_string(),
+        outcome: outcome.to_string(),
+        commit: "-".to_string(),
+        time: "2026-01-01T00:00:00+00:00".to_string(),
+    })
+    .expect("line");
+}
+
+/// The name under which saved content is discharged: the first characters of its checksum name.
+fn discharge_name(saved: &std::path::Path) -> String {
+    return saved.file_name().expect("name").to_string_lossy().chars().take(32).collect();
+}
+
+/// Review 9a section 2C (second half): a syntactically valid `disposed` line in an unrelated append-only file is not the lane's discharge
+/// evidence. Only the lane's own ledger can discharge a retained item.
+#[test]
+fn r15_a_disposal_line_in_an_unrelated_prefix_file_does_not_discharge_saved_content() {
+    let (lane, state, envelope) = lane_with_envelope("r15-unrelated-ledger");
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
+    let saved: PathBuf = saved_content(&lane, b"objects of b");
+    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.checkpoint(2, b"adopts a and s", &[request.clone(), content]).expect("checkpoint");
+    let name: String = discharge_name(&saved);
+    let notes: PathBuf = lane.join("notes");
+    std::fs::write(&notes, ledger_line_of(&name, "disposed")).expect("a valid-looking line in a file that is not the ledger");
+    let unrelated: ClosureEntry = ClosureEntry::capture(&lane, &notes, EntryKind::AppendPrefix).expect("capture notes");
+    assert!(writer.append_retiring(3, b"disposes s", &[request.clone(), unrelated], std::slice::from_ref(&name)).is_err(), "an unrelated file discharged saved content");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, ledger_line_of(&name, "disposed")).expect("the lane's ledger");
+    let proof: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger");
+    writer.append_retiring(3, b"disposes s", &[request, proof], std::slice::from_ref(&name)).expect("the lane's ledger discharges it");
+}
+
+/// Review 9a section 2C (first half): after a checkpoint retained S, a retirement record replaced S with its `disposed` ledger prefix, the
+/// proof and the state were forced and S was disposed of. The predecessor segment is gone, and recovery reaches the independently supported
+/// retirement record instead of stopping at the checkpoint whose item S is gone and reporting damage.
+#[test]
+fn r15_recovery_reaches_a_retirement_record_after_the_disposal_removed_the_content() {
+    let (lane, state, _envelope) = lane_with_envelope("r15-retirement-recovery");
+    append(&state, 1, b"first").expect("append");
+    let saved: PathBuf = saved_content(&lane, b"objects of b");
+    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.checkpoint(2, b"retains s", std::slice::from_ref(&content)).expect("checkpoint");
+    let name: String = discharge_name(&saved);
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, ledger_line_of(&name, "disposed")).expect("the disposal line");
+    let proof: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger");
+    writer.append_retiring(3, b"s is disposed", std::slice::from_ref(&proof), std::slice::from_ref(&name)).expect("retire s");
+    git_policy_cli::commit_state_log::force_items(&lane, std::slice::from_ref(&proof)).expect("force the proof");
+    sync_prefix(&state).expect("force the state");
+    let mut mode = std::fs::metadata(&saved).expect("metadata").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o600);
+    std::fs::set_permissions(&saved, mode).expect("the disposal may remove it");
+    std::fs::remove_file(&saved).expect("the disposal removes the content");
+    assert_eq!(read(&state).expect("recovery reaches the retirement record").expect("state"), (3, b"s is disposed".to_vec()));
+}
