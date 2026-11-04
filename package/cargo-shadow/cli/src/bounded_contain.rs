@@ -31,7 +31,7 @@ use std::fs;
 use std::io;
 
 /// Imports `std::sync::{Mutex, MutexGuard, PoisonError}` for this file.
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard, TryLockError};
 
 /// Imports `std::thread` for this file.
 use std::thread;
@@ -43,11 +43,14 @@ use std::time::{Duration, Instant};
 use rustix::process::{Pid, Signal, WaitOptions, getpid, kill_process, set_child_subreaper, waitpid};
 
 /// How often the process tree is scanned while it is being stopped.
-/// Delegated pick of round 6,
+/// Round 6 pick,
 /// open to veto:
-/// the interval of the group polling it replaces (10 ms),
-/// which round 5 measured
-/// against the time a killed process takes to disappear (milliseconds).
+/// the interval of the group polling it replaces (10 ms).
+/// One scan of `/proc` took 7.9 ms to 14.6 ms with 894 processes on 2026-11-04 (node,
+/// load average 6.7),
+/// so a run costs at least two
+/// scans,
+/// and the interval is about the cost of one.
 const SCAN_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Whoever is stopping descendants is the only one in this process:
@@ -138,10 +141,16 @@ impl Containment {
     /// static begin(): Containment  // throws when the process cannot become a subreaper
     /// ```
     pub(crate) fn begin() -> io::Result<Containment> {
-        let guard: MutexGuard<'static, ()> = ONE_RUN.lock().unwrap_or_else(PoisonError::into_inner);
+        // Never waits: a second run in the same process cannot be told apart from the first by adoption, so it is refused at once.
+        let guard: MutexGuard<'static, ()> = match ONE_RUN.try_lock() {
+            Ok(held) => held,
+            Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+            Err(TryLockError::WouldBlock) => return Err(io::Error::other("another bounded run is in flight in this process")),
+        };
         let me: Pid = getpid();
-        set_child_subreaper(Some(me)).map_err(io::Error::from)?;
+        // The scan comes before the attribute is set, so a failed scan leaves nothing to undo.
         let preexisting: HashSet<i32> = processes()?.into_iter().filter(|process| { return process.parent == me.as_raw_nonzero().get(); }).map(|process| { return process.pid; }).collect();
+        set_child_subreaper(Some(me)).map_err(io::Error::from)?;
         return Ok(Containment { _one_run: guard, me: me.as_raw_nonzero().get(), preexisting });
     }
 

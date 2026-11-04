@@ -518,9 +518,25 @@ Fixed, each with a red test committed before the fix:
 
 Open picks, for the owner's veto:
 
-- Containment by the process tree and `PR_SET_CHILD_SUBREAPER` instead of a control group; the cost is that a descendant that outlives a
-  killed wrapper is found only through its recorded group.
-- One bounded run in flight per process.
+- Containment by the process tree and `PR_SET_CHILD_SUBREAPER` instead of a control group (probed available in the session that built
+  this and not built); the cost is that a descendant that outlives a killed wrapper is found only through its recorded group.
+- One bounded run in flight per process; a second run in the same process is refused at once, never waited for.
 - The runner constants and the name-search ceilings are delegated picks, cited beside each value, not measurements.
 - The "else background" half of "Force at leaving, else background" is still not built.
 - A scan of `/proc` per run: 7.9 ms to 14.6 ms for 894 processes on 2026-11-04 (node, load average 6.7), twice per run at least.
+
+Not done in round 6, so a later review does not read them as addressed:
+
+- Cancellable pipe I/O has no test that fails without it; the one test written for it passed before the change, because the cancel path
+  only matters when containment fails, which a test cannot provoke.
+- Zombie handling under a PID 1 that does not reap is by design (the scan counts zombies as gone and reaps the adopted ones) and untested.
+- The hard-link fault matrix (`EMLINK`, `ENOSPC`, `EXDEV`), a power-loss model, concurrent publication of a kept directory, and the
+  three-writer undo.
+- The kept-folder notice counts the kept folder only; names kept beside their target and stranded temporaries are not counted.
+- A journal published between the listing and the lock, a wrapper killed while cargo writes, locks on network file systems, old and
+  new binaries side by side, and the `add_manifests` lifecycle.
+- The "else background" half of the durability answer; a test of the refused version already present in the initial lockfile.
+- An oracle run of pnpm for an unrelated refused package during a targeted update; network tests for trickling, stalled and
+  oversized bodies; add and remove dispatch tests.
+- Per-line concept annotations of the new code (the tool that wrote them is a Python script, which the repository's script rules
+  forbid, and it was not ported).

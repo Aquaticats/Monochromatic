@@ -692,12 +692,13 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
 }
 
 /// The most names tried to take the stand-in under.
-/// Delegated pick,
-/// open to veto:
-/// the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// Implementer's pick,
+/// open to veto,
+/// made under the owner's delegation of 2026-11-03 ("Pick options as if I had picked them and invite
 /// veto when I say I'm back.";
-/// doc/planning/cargo-shadow-update.md,
-/// "Delegated picks of 2026-11-03").
+/// doc/planning/cargo-shadow-update.md),
+/// which may not reach a later round;
+/// not a measurement.
 /// Like the other name searches:
 /// one try is the normal case and the collision count was not counted.
 const MAX_TAKEN_NAMES: u32 = 100;

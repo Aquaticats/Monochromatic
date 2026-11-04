@@ -649,9 +649,14 @@ and an HTTP 429 is retried after its `Retry-After`.
   or holds a group record that cannot be read or understood (it names the journal and the record to remove once you are sure).
   Only the groups are recorded:
   a descendant that left its group and outlived a killed wrapper is not found by a recovery.
-  The Linux feature that would find it (a control group per run) needs delegation that an ordinary login session does not have,
-  so it is not used;
-  this limit is a pick open to the owner's veto.
+  A control group per run would find it.
+  It was probed as available in the session that built this (a child group could be created,
+  and `cgroup.kill` and `cgroup.events`
+  were present),
+  but it is not built,
+  and it needs a writable control group that a login session may not offer.
+  The subreaper and process-tree containment was chosen instead;
+  this is a pick open to the owner's veto.
   Every run keeps a journal under `.cache/cargo-shadow/journal/<unique name>/`,
   created exclusively (a journal is never reused or truncated),
   with the snapshots synced and a `ready` record written last that lists every file with its length;

@@ -86,14 +86,14 @@ use crate::bounded_contain::Containment;
 use crate::bounded_io::{collect, feed};
 
 /// How often the child is asked whether it has ended.
-/// Delegated pick of round 6,
+/// Round 6 pick,
 /// open to veto:
 /// 10 ms keeps the latency of a finished command far under any human-visible delay
 /// while costing one `wait` system call per interval.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// How long the direct child is given to be reaped after it was killed.
-/// Delegated pick of round 6,
+/// Round 6 pick,
 /// open to veto:
 /// a killed process is reaped within milliseconds unless it is in an uninterruptible
 /// wait,
@@ -103,13 +103,13 @@ const POLL_INTERVAL: Duration = Duration::from_millis(10);
 const REAP_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the descendants are given to disappear after they were killed.
-/// Delegated pick of round 6,
+/// Round 6 pick,
 /// open to veto,
 /// for the same reason as `REAP_BOUND`.
 const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the output workers are given to report once every writer is gone.
-/// Delegated pick of round 6,
+/// Round 6 pick,
 /// open to veto:
 /// with every writer gone the pipes are at their end at once,
 /// so this only needs to

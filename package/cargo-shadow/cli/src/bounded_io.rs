@@ -41,7 +41,7 @@ use rustix::fs::{OFlags, fcntl_setfl};
 use rustix::io::Errno;
 
 /// How long a worker waits before it asks a pipe again.
-/// Delegated pick of round 6,
+/// Round 6 pick,
 /// open to veto:
 /// short against the 10 ms process polling of the runner,
 /// so a cancelled worker ends
@@ -49,7 +49,7 @@ use rustix::io::Errno;
 const RETRY_INTERVAL: Duration = Duration::from_millis(5);
 
 /// The size of one read.
-/// Delegated pick of round 6,
+/// Round 6 pick,
 /// open to veto:
 /// the default pipe capacity of Linux (64 KiB).
 const CHUNK_BYTES: usize = 64 * 1024;

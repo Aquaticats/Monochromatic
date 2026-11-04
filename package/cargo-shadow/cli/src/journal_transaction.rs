@@ -86,12 +86,13 @@ use crate::manifest_edit::ManifestEdit;
 use crate::journal_finish::FinishError;
 
 /// The most journal names tried when one exists already.
-/// Delegated pick,
-/// open to veto:
-/// the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// Implementer's pick,
+/// open to veto,
+/// made under the owner's delegation of 2026-11-03 ("Pick options as if I had picked them and invite
 /// veto when I say I'm back.";
-/// doc/planning/cargo-shadow-update.md,
-/// "Delegated picks of 2026-11-03").
+/// doc/planning/cargo-shadow-update.md),
+/// which may not reach a later round;
+/// not a measurement.
 /// The names carry a clock,
 /// a process id and a counter,
 /// so a second try is the exception;

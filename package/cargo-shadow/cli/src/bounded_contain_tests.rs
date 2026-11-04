@@ -143,7 +143,9 @@ fn a_timeout_returns_promptly_even_when_the_child_ignores_its_input() {
     assert!(started.elapsed() < Duration::from_secs(8), "{:?}", started.elapsed());
 }
 
-/// Round 6 (advisor, owner rule "nothing should ever wait forever or indefinitely"): a second run in the same process is refused
+/// Round 6 (advisor,
+/// owner rule "nothing should ever wait forever or indefinitely"):
+/// a second run in the same process is refused
 /// at once instead of waiting for the first.
 #[test]
 fn a_second_run_in_one_process_is_refused_instead_of_waiting() {
