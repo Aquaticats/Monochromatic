@@ -132,7 +132,37 @@ Owner action open:
 revoke the `cargo login` token,
 then `cargo logout`.
 
-cargo-shadow as `cargo` for every session is not live.
+Update 2026-11-04T15:35:00-05:00:
+cargo-shadow 0.1.1 is live as `cargo` for every session of this checkout
+(lock `cac4766b11`,
+link `.cache/cargo-shadow-bin/cargo` to the toolchain launcher).
+Traced in the repository's own mise environment from a throwaway worktree:
+`cargo --version` ran the link,
+the shadow and the real cargo once each;
+`cargo metadata` ran the shadow once and the real cargo three times;
+the worktree stayed clean.
+cargo-shadow round 18 merged to main (`22a3c5b812`;
+hard-link identity skip,
+`.done` completion barrier counted as mandatory,
+`u128` kept-size sum);
+its release gate on main failed:
+`a_killed_wrapper_with_an_escaped_writer_stops_the_recovery` (fixture `ready` did not appear in 30 s)
+and `a_descendant_is_stopped_with_its_parent_at_the_bound` (`pid never held a process id`),
+both passing alone in 0.1 s and 0.5 s;
+not attributed to load (owner:
+"I don't see any load, and once again, load is not an excuse.");
+the cargo-shadow agent is diagnosing the block;
+0.1.2 waits for a green gate on main.
+Fourth certification pass (eleven groups) running.
+Branch-write round 3 merged (`e75a2549c9`) and released as 0.5.34 (run 41905476029);
+its review returned four P1s (pruning withdrawal confirmations,
+existing reflogs,
+foreign refusal after mutations,
+an unbounded receive on the review timeout path),
+sent as round 4.
+
+Before that:
+cargo-shadow as `cargo` for every session was not live.
 It was locked (`efe10d9745`) and installed,
 then reverted (`65f5733aec`) and its link `.cache/cargo-shadow-bin/cargo` removed the same minute:
 the install links `cargo` to the toolchain launcher (`.cache/toolchain-launchers/cargo-shadow`),
