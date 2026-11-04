@@ -1046,3 +1046,42 @@ fn r18_a_checked_document_that_names_a_dependency_the_set_lacks_is_neither_admit
     std::fs::remove_file(state.join("state.log.1")).expect("start again");
     writer.append_with(1, &document, std::slice::from_ref(&request)).expect("with R in the set it is admitted");
 }
+
+/// The establishment record (plan step 1 row "damaged established roots fail closed", built with step 2's first caller of recovery): a
+/// checkpoint that completed is established, and recovery never falls back past it. Here the older segment stays (an opaque checkpoint
+/// reclaims nothing), the established root then loses a dependency, and recovery without the record would silently select the older
+/// state; with it, the state is reported damaged and every byte is kept.
+#[test]
+fn r24_an_established_root_that_is_damaged_does_not_fall_back_to_an_older_segment() {
+    let (lane, state, envelope) = lane_with_envelope("r24-established-fallback");
+    append(&state, 1, &empty_document()).expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"an opaque document that retains the request", std::slice::from_ref(&entry)).expect("checkpoint");
+    assert!(state.join("state.log.1").exists(), "the older segment is still there: an opaque checkpoint reclaims nothing");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+    std::fs::remove_file(&envelope).expect("the established root loses a dependency");
+    assert!(matches!(read(&state), Err(StateError::Damaged)), "recovery fell back to the older segment instead of failing closed");
+    assert!(state.join("state.log.1").exists() && state.join("state.log.2").exists(), "every byte is kept");
+}
+
+/// A candidate that never completed is not established: when its dependency is lost, recovery uses its predecessor, as before.
+#[test]
+fn r24_a_candidate_that_never_completed_is_not_established_and_falls_back() {
+    let (lane, state, envelope) = lane_with_envelope("r24-candidate-fallback");
+    append(&state, 1, &empty_document()).expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.begin_checkpoint(2, b"a candidate document", std::slice::from_ref(&entry)).expect("begin only");
+    std::fs::remove_file(&envelope).expect("its dependency is lost before completion");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 1, "the predecessor is the root");
+}
+
+/// An establishment record that does not parse is not read as no record: recovery fails closed.
+#[test]
+fn r24_a_torn_establishment_record_fails_closed() {
+    let (_lane, state, _envelope) = lane_with_envelope("r24-established-torn");
+    append(&state, 1, &empty_document()).expect("append");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, &empty_document(), &[]).expect("checkpoint");
+    std::fs::write(state.join("state.established"), b"cli-git-established 2 ").expect("a torn record");
+    assert!(matches!(read(&state), Err(StateError::Damaged)));
+}
