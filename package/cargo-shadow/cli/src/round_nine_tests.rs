@@ -138,6 +138,34 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
     drop(transaction);
 }
 
+/// Acceptance rows A1, V3 (certification, third pass): the settled-only branch of verified absence.
+/// A run that recorded its end and whose scope was collected is read as ended even when no launcher record remains to prove that the
+/// launcher is gone: the `settled` line is the proof, so the real recovery removes the journal without an acknowledgement.
+/// The first test of this pair keeps the launcher line and so could pass through the gone launcher; this one removes it.
+#[test]
+fn a_settled_run_whose_scope_was_collected_is_read_as_ended_without_any_launcher_record() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
+    output_within(&mut Command::new("true"), None, &bound()).expect("runs");
+    let groups: PathBuf = journal.join("groups");
+    let scope: PathBuf = scope_directory_of(&groups.display().to_string());
+    wait_until("the manager to collect the scope", &|| { return !scope.exists(); });
+    let record: String = fs::read_to_string(&groups).expect("the record");
+    assert!(record.lines().any(|line| { return line.starts_with("launcher "); }), "the run recorded no launcher, so the removal below proves nothing: {record:?}");
+    let without_launcher: String = record.lines().filter(|line| { return !line.starts_with("launcher "); }).map(|line| { return format!("{line}\n"); }).collect();
+    assert!(without_launcher.lines().any(|line| { return line.starts_with("settled "); }), "{without_launcher:?}");
+    fs::write(&groups, without_launcher).expect("remove the launcher proof");
+    drop(transaction);
+
+    assert_eq!(survivor_note(&journal), None, "a settled run with a collected scope was held back for want of a launcher record");
+    let messages = crate::journal::recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+    assert!(journal_dirs(root.path()).is_empty(), "the journal of a settled, collected run was not recovered without an acknowledgement: {messages:?}");
+}
+
 /// Acceptance row V6 (8a F2):
 /// a discovery program whose descendant keeps its pipes open after it exited is still answered by the deadline,
 /// not after the descendant ends.
