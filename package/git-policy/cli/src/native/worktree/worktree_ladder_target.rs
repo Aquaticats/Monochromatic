@@ -185,6 +185,19 @@ const LFS_FILTER: [(&str, &str); 4] = [
 ];
 
 /// What:
+///  Bytes as text, with anything that is not UTF-8 replaced.
+/// Why:
+///   Configuration values are compared as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new TextDecoder().decode(bytes)
+/// ```
+fn lossy_text(bytes: &[u8]) -> String {
+    return String::from_utf8_lossy(bytes).into_owned();
+}
+
+/// What:
 ///  Refuse a conversion that equal settings do not prove equal: an attribute that selects a filter other than the standard
 ///  Git LFS one, an attributes file named by a relative path, or LFS configured beyond its standard definition.
 /// Why:
@@ -208,10 +221,7 @@ const LFS_FILTER: [(&str, &str); 4] = [
 fn last_value_of(entries: &[ConfigEntry], key: &str) -> Option<String> {
     for entry in entries.iter().rev() {
         if entry.key == key {
-            return match entry.value.as_deref() {
-                Some(bytes) => Some(String::from_utf8_lossy(bytes).into_owned()),
-                None => None,
-            };
+            return entry.value.as_deref().map(lossy_text);
         }
     }
     return None;

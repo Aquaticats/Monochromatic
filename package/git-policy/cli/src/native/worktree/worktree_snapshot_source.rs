@@ -117,6 +117,19 @@ fn is_nul_byte(byte: &u8) -> bool {
 }
 
 /// What:
+///  A changed path as printable text, with control characters shown as `?`.
+/// Why:
+///   The first changed path goes into a log line and must not carry a terminal escape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plain(path.toString())
+/// ```
+fn plain_path_text(path: &&[u8]) -> String {
+    return plain(String::from_utf8_lossy(path).as_ref());
+}
+
+/// What:
 ///  Run Git with `arguments` in `root` and give its standard output; the error says what Git said or why it did not start.
 /// Why:
 ///   Both listings of the changed paths ask the same way and word a failure the same way.
@@ -181,10 +194,7 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, 
         }
     }
     let attributes_changed: bool = !untracked_attributes.is_empty() || names_attributes;
-    let first: Option<String> = match paths.first() {
-        Some(path) => Some(plain(String::from_utf8_lossy(path).as_ref())),
-        None => None,
-    };
+    let first: Option<String> = paths.first().map(plain_path_text);
     return Ok(ChangedPaths { count: paths.len(), first, attributes_changed });
 }
 
@@ -570,6 +580,19 @@ pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Resul
 }
 
 /// What:
+///  The reason a nested worktree that is an ordinary directory blocks the snapshot.
+/// Why:
+///   The person is told which worktree to convert and with what.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the worktree ${path} inside the source is an ordinary directory; ...`
+/// ```
+fn ordinary_worktree_reason(path: PathBuf) -> String {
+    return format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display());
+}
+
+/// What:
 ///  The registered worktree inside the source that would be carried into a snapshot with all its files, if any.
 /// Why:
 ///   Only the snapshot rung cares: a nested worktree that is a subvolume is an empty stub in a snapshot.
@@ -586,10 +609,7 @@ pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
     if source.git_dir == source.common_dir {
         return None;
     }
-    return match nested_ordinary_worktree(source.nested.as_slice()) {
-        Some(path) => Some(format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display())),
-        None => None,
-    };
+    return nested_ordinary_worktree(source.nested.as_slice()).map(ordinary_worktree_reason);
 }
 
 /// What:
