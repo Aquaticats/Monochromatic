@@ -18,6 +18,9 @@ pub mod quiet_ledger;
 /// Whether a thread of this process is at work, and the clock that says when it has been quiet for a window.
 pub mod thread_quiet;
 
+/// Output of a child captured into anonymous files, so that the child outlives the command that started it.
+pub mod output_capture;
+
 /// The PID namespace an owner record names, and the rule for owners of another one.
 pub mod pid_namespace;
 

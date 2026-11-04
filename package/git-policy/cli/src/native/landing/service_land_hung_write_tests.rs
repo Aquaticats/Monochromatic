@@ -66,11 +66,16 @@ struct Serving {
 
 /// Start the service of `context` with the stuck threshold of the controls.
 fn serve_on_a_thread(context: LandContext, name: &str) -> Serving {
+    return serve_on_a_thread_stuck_after(context, name, STUCK_AFTER);
+}
+
+/// Start the service of `context` with the given threshold after which a write counts as stuck.
+fn serve_on_a_thread_stuck_after(context: LandContext, name: &str, stuck_after: Duration) -> Serving {
     let directory: PathBuf = short_directory(name);
     let socket: PathBuf = directory.join("s");
     let listener: UnixListener = UnixListener::bind(&socket).expect("bind");
     let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
-    settings.stuck_after = STUCK_AFTER;
+    settings.stuck_after = stuck_after;
     std::thread::spawn(move || { serve(listener, &context, &settings); });
     return Serving { directory, socket };
 }
@@ -96,13 +101,29 @@ fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_
     };
 }
 
-/// A client that submits `request` on a thread of its own and returns what it ended with and printed.
-fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String)> {
-    return std::thread::spawn(move || {
+/// A client running on a thread of its own, which is waited for no longer than `PATIENCE`, so a regression that waits for ever
+/// fails the control and does not hang it.
+struct Submitting {
+    /// Where the client sends what it ended with and printed.
+    ended: std::sync::mpsc::Receiver<(Result<Submitted, ClientFailure>, String)>,
+}
+
+impl Submitting {
+    /// What the client ended with and printed, or an error when it was still waiting after `PATIENCE`.
+    fn join(self) -> Result<(Result<Submitted, ClientFailure>, String), String> {
+        return self.ended.recv_timeout(PATIENCE).map_err(|_| { return String::from("the client was still waiting after the longest a control waits"); });
+    }
+}
+
+/// A client that submits `request` on a thread of its own.
+fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> Submitting {
+    let (sender, ended) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
         let mut notices: Vec<u8> = Vec::new();
         let answered = submit(&config, &request, &mut notices);
-        return (answered, String::from_utf8(notices).expect("UTF-8"));
+        let _sent = sender.send((answered, String::from_utf8(notices).expect("UTF-8")));
     });
+    return Submitting { ended };
 }
 
 /// Waits until `path` exists.
@@ -122,7 +143,10 @@ fn wait_until_settled(world: &World) {
     loop {
         let open: usize = crate::service_journal::list_intents(world.context.journal.as_path(), crate::service_journal::OPEN_EXTENSION).len();
         // The landing thread removes the markers of its group after it has answered.
-        let marked: bool = std::fs::read_dir(world.context.journal.join("busy")).is_ok_and(|mut entries| { return entries.next().is_some(); });
+        // A withdrawal's tombstone stays by design; what must be gone is a request still marked as the landing thread's, and the step.
+        let marked: bool = std::fs::read_dir(world.context.journal.join("busy")).is_ok_and(|entries| {
+            return entries.flatten().any(|entry| { return entry.file_name() == "step" || std::fs::read_to_string(entry.path()).is_ok_and(|content| { return content == "landing"; }); });
+        });
         if open == 0 && !marked && !world.repo.join(".git/index.lock").exists() {
             break;
         }
@@ -230,10 +254,32 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
     land_with_failed_index(&world, 1, &[landed]);
     let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
     crate::service_busy::use_on_this_thread(std::sync::Arc::clone(&board));
-    assert!(board.begin_group(&[String::from("stuck")]).is_empty());
+    assert_eq!(board.begin_group(&[String::from("stuck")]), crate::service_busy::GroupAdmission::default());
     let _step = crate::service_busy::enter_step(String::from("git update-ref --stdin in /repo"));
     std::thread::sleep(Duration::from_millis(20));
     assert_eq!(board.withdraw_early("landed"), crate::service_busy::EarlyAnswer::Queued, "its commit is on the branch");
     assert!(matches!(board.withdraw_early("never-seen"), crate::service_busy::EarlyAnswer::Withdrawn(_)), "a request no batch names is withdrawn");
+    remove(world.root.as_path());
+}
+
+/// The client whose request is inside the write is told so when the write starts, not after the write has been stuck for the
+/// service's threshold (sol-1: the seven-second path was missed when the write began near the ceiling): the control makes that
+/// threshold an hour, and the client still ends at its ceiling plus the extra wait.
+#[test]
+fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
+    let world: World = world("service-hung-write-told-at-start");
+    let (hanging, entered, release) = git_that_holds_the_branch_write(&world);
+    let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    context.git.real_git = hanging;
+    let serving: Serving = serve_on_a_thread_stuck_after(context, "told-at-start", Duration::from_secs(3600));
+    let extra_wait: Duration = Duration::from_secs(1);
+    let only = submit_on_a_thread(client_with_extra_wait(&serving, Duration::from_secs(4), SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
+    wait_for(entered.as_path());
+    let (answer, notices) = only.join().expect("client");
+    assert!(matches!(answer, Err(ClientFailure::WithdrawalUnconfirmed { .. })), "{answer:?} {notices}");
+    assert!(notices.contains("this commit is inside a write of the commit service"), "{notices}");
+    std::fs::write(&release, b"").expect("let the write go");
+    wait_until_settled(&world);
+    remove(serving.directory.as_path());
     remove(world.root.as_path());
 }

@@ -391,8 +391,9 @@ Also carried out, from the follow-up of pick 7 of the audit that was recorded an
 ### What changed for the branch write
 
 `REFERENCE_STEP_CEILING` (60 seconds) is deleted.
-`src/native/transaction/transaction_git.rs` `step_bound` gives a step no ceiling exactly when `cannot_run_twice` says so;
-which forms those are was decided by experiment (next section), not by reading.
+`src/native/transaction/transaction_git.rs` `step_bound` gives a step a ceiling only when `may_be_ended` says so (it can be run twice
+by `may_be_rerun`, it only reads or writes unreferenced objects, or it is one of the exact forms the experiment proved);
+which forms those are was decided by experiment (next section), not by reading, and every other form has no ceiling.
 The first build of this branch (`a8b7473fc7`) had instead a list of subcommands, `WRITES_IN_PLACE`, chosen by reading;
 the coordinator's follow-up of 2026-11-04 replaced it with the experiment.
 The landing's branch move no longer reads the branch after an ended update:
@@ -406,20 +407,32 @@ What the clients are told, because the single landing thread also answers every 
 - After `NEVER_ENDED_STEP_SLOW_AFTER` (60 seconds, 17 times the longest of 2,093 reference updates, `ref_ms` 3,438 ms) the thread
   that reads each connection sends a `waiting` message naming the write, again whenever the whole-minute count changes.
   The client prints it, and keeps it as the blocker its error names (`StillWithService`, and now `WithdrawalUnconfirmed`).
+  A client whose own request is the landing thread's is told at once, when the write starts, with the `inside_write` line
+  (see "The short extra wait"), on the commit connection and on the connection it opens to withdraw.
 - A `withdraw` for a request that is not in the group being landed is answered by the connection thread
   (`withdrawn`, or `landed` when a finished batch of the journal names it) while the record shows a stuck write;
   a request that a batch still open names is left to the landing thread, because that batch may hold its commit on the branch
   already (`a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_early`, found in review of this branch;
   red before the fix);
-  the request is remembered and dropped when its group would begin. The record holds no lock (the first build used a mutex and the
+  the request is remembered as a tombstone and dropped whenever a copy of it reaches a group (the review of 2026-11-04 found that the
+  first build consumed it with the first copy). The record holds no lock (the first build used a mutex and the
   gate's lock inventory refused it, `source_guard/service_lock_inventory_tests.rs`, in keeping with "Use as few locks as
-  possible."): exclusive creation of a `.flight` marker by the landing thread and a `.withdrawn` marker by a connection thread,
-  each created before the other's is looked for, in `busy` under the journal.
+  possible."): admission and cancellation are one decision per request, the file `<id>.decision` in `busy` under the journal,
+  made by `link(2)` of a whole file, which exactly one side can create: `landing` by the landing thread before it lands the request,
+  `withdrawn` by a connection thread before it answers. The loser reads the winner's content. A `landing` file is removed when its
+  group is done, after the batch is in the journal; a withdrawal that wins after that asks the journal again and answers `landed`
+  for a request the journal names. Anything that cannot be established (a file that cannot be made or read, a journal that cannot be
+  read whole) is never evidence of a cancellation: the withdrawal is left to the landing thread, and a request that cannot be
+  admitted is answered with a failure and not landed. Tombstones are kept up to the number of finished batches the journal
+  keeps (`DONE_RETAINED`), oldest first out, like the service's memory of normal withdrawals, and are cleared when the service
+  starts, as that memory is.
   So a later commit ends at its own `ANSWER_CEILING` (20 minutes), not 10 minutes after it, and the error names the write.
 - The request inside the stuck write is not withdrawn that way:
   its commit may be made by the write.
-  Its client waits `WITHDRAW_CEILING` (10 minutes) for the landing, then ends with the failure that says it is not known
-  whether the commit was made, names the write and the scratch ref, and gives `git log -1` and `git status`.
+  Its client is told that, and at its `ANSWER_CEILING` waits `SHORT_EXTRA_WAIT` (7 seconds, "The short extra wait" below) and then
+  ends with the failure that says it is not known whether the commit was made, names the write and the scratch ref, and gives
+  `git log -1` and `git status`. (The first build of this section had the client wait `WITHDRAW_CEILING`, 10 minutes, for the landing;
+  that is the older path, taken only when the client was not told in time, and it is what the later section replaced.)
 - Protocol messages and the protocol version are unchanged.
 
 Tests (red first where the behavior existed):
@@ -551,7 +564,7 @@ Results (cuts are the cut points times two signals):
   The experiment ran `checkout` and `switch` although the wrapper never starts them for itself (they are the person's own commands,
   forwarded, never watched), so they matter only as evidence about the class.
 
-`step_bound` in `src/native/transaction/transaction_git.rs` encodes the table;
+`step_bound` in `src/native/transaction/transaction_git.rs` encodes the table as a whitelist of the exact forms (`may_be_ended`);
 `a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state` pins it
 (red at the commit before it, against the wide list).
 The experiment shows the first build's list was wider than the criterion:
@@ -569,7 +582,7 @@ and `stash list` (a read) had lost its by being counted as a `stash`.
   The step is left running and a thread reaps it when it ends.
   This is `StepBound::LeaveRunning` in `src/native/push/child_watch.rs`.
   The coordinator wrote that a command returns "at its own bound"; a person's `git merge` has no bound of its own,
-  so the class ceiling of the step is the bound used here, and the choice is open to the owner's veto.
+  so the class ceiling of the step is the bound used here. The owner chose it: "Class ceiling + 7 s (Recommended)" (below).
 - The auto-push work thread runs its reconcile merge through the push machinery's own runner (`auto_push_reconcile.rs`,
   `run_query`), judged by the push's stall window and not through `run_git`; it is not a person's command and is unchanged.
 
@@ -600,8 +613,13 @@ How the client learns that its request is inside the write, and why an older cli
   Test: `the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_known_and_lands_when_the_write_returns`
   (red before: it waited the 45 seconds of the control's withdrawal ceiling; green: it returns in about the control's ceiling plus the
   extra wait).
-- The service tells a client only after the write has run `NEVER_ENDED_STEP_SLOW_AFTER` (60 seconds);
-  a client whose own bound falls inside that minute takes the older path (withdraw, wait `WITHDRAW_CEILING`).
+- The service tells the client whose request is the landing thread's when the write starts (the review of 2026-11-04 found that
+  telling it only after `NEVER_ENDED_STEP_SLOW_AFTER` missed a write that began within a minute of the ceiling), and the connection
+  the client opens to withdraw keeps the request's identity, so a client that withdrew before it was told hears it there. In both
+  places the wait ends at the original answer deadline plus `SHORT_EXTRA_WAIT`, not at the moment a loop first notices it.
+  Only a service that does not send the field leaves a client on the older path (withdraw, wait `WITHDRAW_CEILING`).
+  Tests: `a_client_is_told_it_is_inside_the_write_when_the_write_starts` (the threshold is an hour in the control) and
+  `a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answer_ceiling_plus_the_extra_wait` (red first).
 
 ### The factor of five, and the cold stores
 
@@ -611,12 +629,18 @@ Cold-store timing (`cold-measure.ts`, a copy of this repository's sources withou
 eight GiB of memory and an IO weight of 10; the output is kept in `/var/home/user/temp/agent/ceiling-measure/cold-measure.kept.out`):
 
 - `pnpm install --frozen-lockfile` with an empty store directory and the network: 20.9 s.
-  (The repair itself runs `pnpm install --offline --frozen-lockfile`, so a cold store makes it fail fast and not run long;
-  the online figure is the longest a first install of this repository can take.)
+  This is the measured cold-install duration on this host, one run, and not an upper bound of what a cold install can take.
+  (The repair itself runs `pnpm install --offline --frozen-lockfile`, so a cold store makes it fail fast and not run long.)
 - `cargo metadata --locked --offline --no-deps` in all 34 Cargo workspaces with no target directories: 1.7 s in all, 1.3 s the longest.
 - `cargo fetch --locked` with an empty `CARGO_HOME` in `package/git-policy/cli`: 7.6 s.
-- All three are shorter than the warm-store maxima (53.1 s and 211.2 s), so the longest run is unchanged and the ceilings stay
-  18 minutes, 4 minutes, 1 minute and 2 minutes.
+- `mpm-shadow install --frozen-lockfile` has a cold case, because it downloads the tools the worktree's lock names that are not
+  installed yet (`SPEC.md`, the repair section). It was not measured cold: running it would install into, and could retire copies in,
+  the shared tool directories of this host. Its warm figure is the 30.0 s longest of the add log, and the ceiling it is under is the
+  one all repair tools share. A cold download of large tool archives is the case the ceiling is most likely to end.
+- `cargo fetch` is not `cargo clean` or the clone of a build directory, so the Cargo cold case is partial (the registry and the
+  workspaces, not the build state).
+- All three measured runs are shorter than the warm-store maxima (53.1 s and 211.2 s), so the longest run is unchanged and the
+  ceilings stay 18 minutes, 4 minutes, 1 minute and 2 minutes.
 - Limits: the page cache cannot be dropped without privileges, so "cold" is a cold store and a cold registry, not a cold disk;
   the clone of real build directories, which dominates the Cargo stage, needs real target directories and is in the 69 add records
   (`cargoCloneTree`, up to 46 s per workspace); the host load average was 3.7 to 5.9 of 28.
@@ -626,3 +650,120 @@ eight GiB of memory and an IO weight of 10; the output is kept in `/var/home/use
 A service stuck in a write never restarts itself.
 The owner's answers behind it: "Never cut a branch write (Recommended)" and "never discard user data" (a restart ends the write in the
 middle, which the first answer declines).
+
+### A person's command inside a step that cannot run twice
+
+The owner, 2026-11-04, "Class ceiling + 7 s (Recommended)": a person's command inside a step that cannot run twice stops waiting at
+the step's class bound plus 7 seconds with a not-known error, and the step is left running.
+That is `StepBound::LeaveRunning { after: <class ceiling>, extra: SHORT_EXTRA_WAIT }`, and it settles the open item of the earlier
+section ("a person's `git merge` has no bound of its own").
+
+### Review of 2026-11-04 (sol-1 and sol-2), and what was done about each finding
+
+Both verdicts were "merge after the named fixes". Files: `/var/home/user/temp/agent/reviews/branch-write-sol-1.txt` and
+`branch-write-sol-2.txt`.
+
+- Withdrawal race (sol-1 P1): a landing that completes between the withdrawal's checks was answered `withdrawn`.
+  Fixed by making admission and cancellation one decision (the `.decision` file, above).
+  Tests: `admission_and_early_withdrawal_never_both_succeed` (two threads behind a barrier, 200 rounds),
+  `a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_early`, and the journal-after-the-win check.
+- Fail closed (sol-1 P1): `a_record_that_cannot_be_written_never_answers_withdrawn` (red first: the directory made read-only),
+  the journal read is strict (`Naming::Unknown` for anything that cannot be read whole).
+- Tombstone (sol-1 P1): `every_copy_of_a_withdrawn_request_is_dropped_not_only_the_first` (red first).
+- Left running must survive the exit (sol-1 P1): a step that is never ended writes into anonymous files (`memfd`,
+  `process/output_capture.rs`) and not into pipes the command holds; the step is a child of the command, and when the command
+  exits it is reparented to the system's init or subreaper, which reaps it; while the command lives a thread reaps it.
+  Test: `a_step_left_running_survives_the_exit_of_the_command_that_left_it` runs the command as a separate process that exits
+  (red first: the step died of SIGPIPE at its next write).
+  Only Linux has `memfd_create`; elsewhere the files cannot be made and the step does not start (macOS is out of scope for now).
+- Fail-open classifier (sol-1): `may_be_ended` is a whitelist of the exact forms the experiment ran, parsed by their options and
+  words; it rejects `config --add`, `stash -m list`, `update-ref --create-reflog` and `-m`, a ref outside the two numbered side-ref
+  shapes, `add --intent-to-add`, and every step nobody listed.
+  Test: `a_form_the_cut_experiment_did_not_run_has_no_ceiling` (red first).
+  The assumptions the classification rests on are written beside `is_side_ref`: the wrapper's side refs are plain refs, no reflog is
+  configured for them, and the number is all digits.
+  Not covered by the experiment and left as they were: the existing allow-list `RERUNNABLE`, which names `symbolic-ref` and `init` in
+  every form.
+- Seven-second path missed (sol-1): see "The short extra wait".
+- Tests (sol-1): barrier-driven race, storage-failure injection, replay after consumption, late notice, and a deadline around the
+  joins of the hung-write controls (`Submitting::join` waits at most the longest a control waits).
+  The delayed-write control now runs on the landing thread and outlasts the bound plus the extra wait (6 s against 3 s and 1 s).
+  Power loss is not modelled (the experiment ran with `core.fsync=none`), and hooks and concurrent writers were off or absent; the
+  experiment's limits are stated in "The cut experiment".
+- Output draining (sol-2 A): `run_tool` writes the tool's output to anonymous files, so the ceiling covers the draining of the
+  output too and no reader thread waits for a stream to close.
+  A helper that keeps an inherited stream open after the leader has exited, or that left the process group while holding it, holds
+  nothing up; at the window or the ceiling the whole process group is still stopped, while the leader is not yet reaped, so the group
+  number is still the leader's. A helper still running when the leader has exited is left alone (a tool may start one on purpose).
+  Tests: `a_helper_that_keeps_the_output_open_after_the_leader_exits_does_not_hold_the_run` and
+  `a_helper_outside_the_process_group_that_holds_the_output_does_not_hold_the_ceiling` (red first).
+- Review log ownership (sol-2 B): `run_contained` counts a review it stopped waiting for as outstanding until its thread ends and
+  starts no other review meanwhile (`Contained::Busy`); the refused item fails with the command that reviews it again.
+  Tests: `no_second_job_starts_while_a_job_the_runner_stopped_waiting_for_is_still_running`,
+  `a_job_that_ends_as_the_runner_gives_up_leaves_nothing_outstanding`, and a service-level control with a stalled log (a named
+  pipe nobody reads) in `service_review_tests.rs`, which refuses the second item without a thread and reviews the first again after
+  the stall ends. A mutation that removes the refusal fails both.
+- Repair test helper (sol-2): the helper process number is recorded with `$!`, and a helper with redirected output is added; zombies
+  are not counted as running.
+- Documentation (sol-2): the `/proc` paragraph of `SPEC.md` no longer says an unreadable counter means a run is never ended; the two
+  descriptions of the inside-write client are one; the cold-install figure is called a measured duration.
+
+### Foreign-owner patience: what its expiry authorizes (sol-2 C), options not yet chosen
+
+`FOREIGN_OWNER_PATIENCE` (20 minutes, twice `LOCK_CEILING`) is the age after which a record written by an owner in another PID
+namespace stops counting as alive. The reviewer's point holds: the number was derived from the longest lock wait, and
+a step that cannot be run twice may now legitimately run past any number, so an old record is not proof of a dead owner.
+Nothing was changed. What the expiry authorizes today, from the code:
+
+- Merge intent records (`merge_isolation_recovery.rs`, through `classify_transaction_owner_record`): a record judged dead is
+  recovered by the next wrapper command in that worktree: `recover_interrupted_merges` decides whether the merge landed and
+  completes it or discards it (it moves the branch, resets the index and the worktree it finds). A live foreign merge past 20
+  minutes would be completed or discarded under its own feet.
+- Claim files (`single_owner_claim.rs`, `live_owner`): a claim judged not alive is replaced by a newer generation, and the taker
+  runs the conversion or migration it guards. A live foreign owner past 20 minutes would have a second command run beside it on the
+  same item.
+- Worktree-add journals and stage claims (`worktree_copy_owner.rs`, `token_owner_is_dead`): a journal judged dead is taken over by
+  renaming it and the copy is finished or undone, the temporary files of a dead writer are removed, and the claim of a dead owner
+  lets the stage be reported (a stage of an add is reported and never removed, a stage of a copy may be). A live foreign copy past
+  20 minutes would be installed twice.
+- The transaction owner records of the earlier release (`transaction_owner.rs`) use the same rule; this release no longer reads
+  them for anything else than the merge intent above.
+- Not authorized by it: a lock (`index.lock`) is judged by its marker's namespace and boot and by the lock holder
+  (`service_index_lock.rs`), not by this age; commits never wait for it.
+
+Options (none is built), each with its schedule and what a person sees:
+
+- A. Keep the derived value and its behavior.
+  Schedule: a container's merge holds its record 21 minutes; another namespace's wrapper command in the same worktree finds it
+  expired, recovers it, and the branch or worktree is changed under the live merge.
+  The person sees a notice that an interrupted merge was settled, or a corrupted checkout.
+  Needs nothing; leaves the hazard.
+- B. Expiry refuses and names the record.
+  Schedule: the same record is 21 minutes old; the command that finds it stops with an error that names the record file, its owner's
+  process number and namespace, its age, that the owner may be a live command in another container, and the exact `rm` to run if no
+  cli-git command is running on the repository in any container; it changes nothing.
+  The person sees one error per such command until the record is removed or its owner ends (a live owner removes its own record at
+  the end). Never reclaims a live owner's record; the cost is a manual step after a crashed container, and the commands that need
+  the item fail until then (a merge, a conversion, a copy), which is a failure the owner has said commits should not suffer, so the
+  commit path is not among them.
+- C. Expiry reclaims only with independent liveness.
+  Schedule: the owner renews its record while it works (a touch every half of a short interval, on the same file), so the age is
+  the time since the last renewal and a live owner is never old; a record that has not been renewed for the interval times a margin
+  is reclaimed. The patience then measures silence, not length, and its value is a multiple of the renewal interval, not of a lock
+  wait.
+  The person sees nothing in the normal case and the old reclaim after a crashed owner is found silent.
+  Costs: every writer of the three record kinds needs a renewal (a thread or a call in its wait loops), the renewal of a process that
+  is stopped but not dead keeps it alive, and a filesystem that does not show the touch to the other namespace defeats it.
+  Fencing (the owner re-reads its record before each destructive step and stops if it was replaced) would be needed beside it for the
+  steps the wrapper does not control, a Git command, so it does not close the merge case alone.
+- D. Put the value back to an hour.
+  Schedule: the same record is 61 minutes old instead of 21. Shrinks the window; the hazard is unchanged for a write that runs
+  longer.
+  The person sees what A shows, later.
+
+Ranking: B > C > D > A.
+B over C because B never reclaims a live owner's record and needs a change only where the expiry is judged, while C changes every
+writer and still cannot fence a Git command;
+C over D because C removes the dependence on a length that no measurement bounds, where D only moves the number;
+D over A because an hour is less likely to be crossed by a write than 20 minutes, and costs a revert of the derivation the owner asked for.
+The choice is the owner's.
