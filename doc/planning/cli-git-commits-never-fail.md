@@ -2407,6 +2407,10 @@ and nothing in the plan decides it.
   line durable before the content is deleted), "held-version completion cannot affect its successor", and "retained bytes suffice
   for recomputation".
 - Depends on: nothing. Later steps depend on it.
+- Status (2026-11-04, after decision 21): the representation is built on `feat/git-policy-cli-commit-protocol-models` (commit
+  `3c614f926e` and those before it): decision marks and the adoption order extent are references the closure retains; the marker,
+  head, tail, request states and consumption map are canonical state that does not stop reclamation. Not yet: a caller at a real
+  call site (step 2), and the models for reclamation during capture and for disposal.
 - Question 1 (owner), answered 2026-11-04 (question tool): "Checked format (Recommended)", option A, recorded as
   decision 21; options B and C are not picked. Meaning as asked: extend the checked representation to the real state
   so every summary can free the space behind it. The question as asked: the real state document and the checked
