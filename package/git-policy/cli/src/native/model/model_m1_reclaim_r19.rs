@@ -292,7 +292,9 @@ pub fn invariant(state: &State) -> Option<String> {
     return None;
 }
 
-/// The reason for the change: a quiescent state does not leave the dead incarnation's lock behind unless a reclaimer died holding.
+/// The reason for the change, conditionally: a quiescent state does not leave the dead incarnation's lock behind unless a reclaimer died.
+/// This is not eventual reclamation in general: after a death the lock may stay (the model has two one-shot reclaimers and one death, and
+/// no retry), and a stale lock left after a death is accepted here only because a later command's reclaimer is outside the bound.
 pub fn terminal(state: &State) -> Option<String> {
     if state.name == Name::Stale && !state.died {
         return Some("a proven-stale lock of the lane's own dead incarnation was left although no reclaimer died".to_string());

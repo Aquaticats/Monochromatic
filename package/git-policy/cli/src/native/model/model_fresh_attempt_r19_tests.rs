@@ -87,7 +87,8 @@ fn with_no_durable_authority_a_fresh_attempt_publishes_and_the_notice_says_so() 
 fn a_second_crash_during_the_attempt_leaves_the_notice_and_repeats_the_attempt() {
     let again: State = replay(initial(Rules::Nineteen), steps, &[LOSS, NO_AUTHORITY, WRITES_NOTICE, FORCES_NOTICE, PROCEEDS, STARTS, LOSS]);
     assert_eq!(again.notice_v, Notice::Scheduled, "the forced notice survived the second loss");
-    let repeated: State = replay(again, steps, &[NO_AUTHORITY, PROCEEDS, STARTS]);
+    // The surviving Scheduled notice belongs to attempt 1; the repeated attempt is attempt 2 and writes and forces its own.
+    let repeated: State = replay(again, steps, &[NO_AUTHORITY, WRITES_NOTICE, FORCES_NOTICE, PROCEEDS, STARTS]);
     assert_eq!(repeated.phase, Phase::Running);
 }
 
@@ -165,4 +166,28 @@ fn an_earlier_attempts_delivery_does_not_authorize_reclaiming_a_later_attempt() 
     let reclaimed: State = replay(wide, steps, &[RECLAIMS]);
     assert_eq!(invariant(&reclaimed), Some("the request's recovery data was reclaimed before the outcome notice was delivered".to_string()));
     assert!(red(Rules::DeliveryIsRequestWide).contains("reclaimed before"));
+}
+
+/// Review 10b: the stored notice, its printed observation and its removal belong to the attempt that produced them. Attempt 1 published and
+/// its Published notice was forced but not printed; a second power loss lost the landing facts; recovery chose attempt 2 and, before it
+/// wrote attempt 2's Scheduled notice, a command printed the old Published notice, removed it and forced the removal. That is delivery of
+/// attempt 1, not of attempt 2: attempt 2's recovery data is not reclaimable when it ends. The control that takes the attempt from the
+/// current counter at the print delivers attempt 2 by mistake and reclaims; the monitor that reads the tag stored in the notice file (not
+/// the owner's bookkeeping) is red for it.
+#[test]
+fn an_old_notice_printed_after_a_new_attempt_was_chosen_does_not_deliver_the_new_attempt() {
+    let first_published = [LOSS, NO_AUTHORITY, WRITES_NOTICE, FORCES_NOTICE, PROCEEDS, STARTS, PUBLISHES, UPDATES_OUTCOME, FORCES_OUTCOME];
+    let old_notice_delivered = [LOSS, NO_AUTHORITY, PRINTS, REMOVES, FORCES_REMOVAL];
+    let second_ended = [WRITES_NOTICE, FORCES_NOTICE, PROCEEDS, STARTS, ENDS_FAILED];
+    let schedule: Vec<&str> = [first_published.as_slice(), old_notice_delivered.as_slice(), second_ended.as_slice()].concat();
+    let bound: State = replay(initial(Rules::Nineteen), steps, &schedule);
+    assert_eq!(bound.attempt, 2);
+    assert_eq!(bound.delivered, Some(1), "what was delivered is attempt 1's notice");
+    let labels: Vec<String> = steps(&bound).into_iter().map(|step| { return step.0; }).collect();
+    assert!(!labels.iter().any(|label| { return label == RECLAIMS; }), "attempt 2 was reclaimable on attempt 1's notice: {:?}", labels);
+    let retagged: State = replay(initial(Rules::PrintRetagsToCurrentAttempt), steps, &schedule);
+    assert_eq!(retagged.delivered, Some(2), "the control takes the old notice for attempt 2's");
+    let reclaimed: State = replay(retagged, steps, &[RECLAIMS]);
+    assert_eq!(invariant(&reclaimed), Some("the request's recovery data was reclaimed before the outcome notice was delivered".to_string()));
+    assert!(red(Rules::PrintRetagsToCurrentAttempt).contains("reclaimed before"));
 }

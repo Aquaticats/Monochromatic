@@ -17,6 +17,7 @@ use crate::model_m1_reclaim_r19::{Name, Rec, Rules, State, check, initial, invar
 const JUDGES_0: &str = "reclaimer 0: proves the holder gone and judges the file at the name";
 const JUDGES_1: &str = "reclaimer 1: proves the holder gone and judges the file at the name";
 const FLOCK_0: &str = "reclaimer 0: takes the exclusive flock on the stale file";
+const FLOCK_1: &str = "reclaimer 1: takes the exclusive flock on the stale file";
 const BACKS_OFF_1: &str = "reclaimer 1: finds the flock held and backs off";
 const CHECK_0: &str = "reclaimer 0: checks that the name still refers to the judged file";
 const CHECK_1: &str = "reclaimer 1: checks that the name still refers to the judged file";
@@ -93,17 +94,21 @@ fn without_the_hold_a_second_reclaimer_removes_a_live_lock() {
     assert!(red(Rules::NoHold).contains("hold at once") || red(Rules::NoHold).contains("live lock"));
 }
 
-/// No name check (red): the second reclaimer judged the stale file, the first removed it, a landing placed its lock, and the second, holding
-/// after the first released, unlinks the live lock because it never compared the name with the file it judged.
+/// No name check (red): the second reclaimer judged the stale file, the first removed it, a landing placed its lock, and the second, taking
+/// the flock after the first released it, unlinks the live lock because it never compared the name with the file it judged.
 #[test]
 fn without_the_name_check_a_late_reclaimer_removes_the_landings_lock() {
     let reached: State = replay(
         initial(Rules::NoNameCheck),
         steps,
-        &[JUDGES_0, JUDGES_1, FLOCK_0, BACKS_OFF_1, CHECK_0, UNLINK_0, LANDING],
+        &[JUDGES_1, JUDGES_0, FLOCK_0, CHECK_0, UNLINK_0, LANDING, FLOCK_1, CHECK_1, UNLINK_1],
     );
-    assert_eq!(reached.name, Name::Live);
+    assert!(reached.removed_live && !reached.premise_broken);
+    assert!(invariant(&reached).is_some_and(|message| { return message.contains("live lock"); }));
     assert!(red(Rules::NoNameCheck).contains("live lock") || red(Rules::NoNameCheck).contains("foreign lock"));
+    // With the check the same schedule stops at the late reclaimer: it finds the name no longer refers to the file it judged.
+    let checked: State = replay(initial(Rules::Flock), steps, &[JUDGES_1, JUDGES_0, FLOCK_0, CHECK_0, UNLINK_0, LANDING, FLOCK_1]);
+    assert!(steps(&checked).iter().any(|step| { return step.0 == "reclaimer 1: finds the name no longer refers to the judged file and leaves"; }));
 }
 
 /// An unproven holder (red): a reclaimer that judges a live landing's lock without proving its holder gone removes it.

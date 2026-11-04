@@ -47,6 +47,9 @@ pub enum Rules {
     ReclaimBeforeDelivery,
     /// Control: recovery that settles the request on durable positive authority leaves the stored notice as it found it (review 9b item 2A).
     SettledKeepsNotice,
+    /// Control: printing takes the producing attempt from the current attempt counter and not from the stored notice (review 10b), so an
+    /// old notice printed after a new attempt was chosen is taken for the new attempt's.
+    PrintRetagsToCurrentAttempt,
     /// Control: delivery is one request-wide Boolean that no later attempt resets, so an earlier attempt's delivery lets a later attempt's
     /// recovery data be reclaimed (review 9b item 2B).
     DeliveryIsRequestWide,
@@ -97,6 +100,13 @@ pub struct State {
     pub notice_v: Notice,
     /// The notice file's durable content.
     pub notice_d: Notice,
+    /// The attempt that produced the visible notice (0 with no notice).
+    pub tag_v: u8,
+    /// The attempt that produced the durable notice.
+    pub tag_d: u8,
+    /// Monitor, independent of the owner's delivery bookkeeping: the attempts whose own final outcome notice (by the tag stored in the notice
+    /// file) was printed.
+    pub printed_log: u8,
     /// Where the request is.
     pub phase: Phase,
     /// Power losses so far.
@@ -125,6 +135,9 @@ pub fn initial(rules: Rules) -> State {
         world,
         notice_v: Notice::None,
         notice_d: Notice::None,
+        tag_v: 0,
+        tag_d: 0,
+        printed_log: 0,
         phase: Phase::Returned,
         losses: 0,
         commits: 1,
@@ -147,15 +160,17 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             push_step(&mut found, &format!("environment: write-back persists {}", name), after);
         }
     }
-    if state.notice_v != state.notice_d {
+    if state.notice_v != state.notice_d || state.tag_v != state.tag_d {
         let mut after: State = state.clone();
         after.notice_d = state.notice_v;
+        after.tag_d = state.tag_v;
         push_step(&mut found, "environment: write-back persists the notice", after);
     }
     if state.losses < MAX_LOSSES && !matches!(state.phase, Phase::Down | Phase::Reclaimed) {
         let mut after: State = state.clone();
         after.world = power_loss(after.world);
         after.notice_v = after.notice_d;
+        after.tag_v = after.tag_d;
         after.phase = Phase::Down;
         after.losses += 1;
         push_step(&mut found, "environment: power is lost", after);
@@ -179,14 +194,16 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             if state.rules == Rules::NoticeAfterAttempt {
                 after.phase = Phase::Ready;
                 push_step(&mut found, "owner: recovery goes straight to the attempt", after);
-            } else if state.notice_v != Notice::Scheduled {
+            } else if state.notice_v != Notice::Scheduled || state.tag_v != state.attempt {
                 after.notice_v = Notice::Scheduled;
+                after.tag_v = state.attempt;
                 push_step(&mut found, "owner: recovery writes the notice that an attempt is scheduled", after);
-            } else if state.notice_d == Notice::Scheduled {
+            } else if state.notice_d == Notice::Scheduled && state.tag_d == state.attempt {
                 after.phase = Phase::Ready;
                 push_step(&mut found, "owner: recovery has forced the notice and proceeds", after);
             } else {
                 after.notice_d = Notice::Scheduled;
+                after.tag_d = state.attempt;
                 push_step(&mut found, "owner: recovery forces the notice", after);
             }
         }
@@ -207,13 +224,15 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         }
         Phase::Ended(published) => {
             let content: Notice = if published { Notice::Published } else { Notice::Failed };
-            if state.rules != Rules::StaleNotice && state.notice_v != content {
+            if state.rules != Rules::StaleNotice && (state.notice_v != content || state.tag_v != state.attempt) {
                 let mut after: State = state.clone();
                 after.notice_v = content;
+                after.tag_v = state.attempt;
                 push_step(&mut found, "owner: the notice is updated to the attempt's outcome", after);
-            } else if state.rules != Rules::StaleNotice && state.notice_d != content {
+            } else if state.rules != Rules::StaleNotice && (state.notice_d != content || state.tag_d != state.attempt) {
                 let mut after: State = state.clone();
                 after.notice_d = content;
+                after.tag_d = state.attempt;
                 push_step(&mut found, "owner: the outcome notice is forced", after);
             }
             let delivered_for_this_attempt: bool = if state.rules == Rules::DeliveryIsRequestWide { state.delivered_ever } else { state.delivered == Some(state.attempt) };
@@ -231,9 +250,10 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
                 let mut after: State = state.clone();
                 after.notice_v = Notice::Published;
                 push_step(&mut found, "owner: recovery replaces the scheduled notice by the published outcome", after);
-            } else if state.notice_v == Notice::Published && state.notice_d != Notice::Published {
+            } else if state.notice_v == Notice::Published && (state.notice_d != Notice::Published || state.tag_d != state.tag_v) {
                 let mut after: State = state.clone();
                 after.notice_d = Notice::Published;
+                after.tag_d = state.tag_v;
                 push_step(&mut found, "owner: the reconciled notice is forced", after);
             }
         }
@@ -242,30 +262,38 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
     // The person's next wrapper command in the worktree prints the stored notice, removes a notice of the final outcome, and the owner forces
     // the removal: three steps, each with its own crash window. Only the forced removal delivers the outcome, and it delivers the attempt
     // the notice belongs to. A notice that an attempt is scheduled stays until the outcome replaces it.
-    let shown: bool = state.printed == state.notice_v && state.printed_attempt == state.attempt;
+    let observed_tag: u8 = if state.rules == Rules::PrintRetagsToCurrentAttempt { state.attempt } else { state.tag_v };
+    let shown: bool = state.printed == state.notice_v && state.printed_attempt == observed_tag;
     if state.notice_v != Notice::None && !shown {
         let mut after: State = state.clone();
         after.printed = state.notice_v;
-        after.printed_attempt = state.attempt;
+        // The print records the attempt that produced the stored notice; the control takes the current counter instead.
+        after.printed_attempt = observed_tag;
+        if matches!(state.notice_v, Notice::Published | Notice::Failed) {
+            after.printed_log |= 1 << state.tag_v;
+        }
         push_step(&mut found, "environment: the next wrapper command prints the notice", after);
     }
     let final_outcome: bool = matches!(state.notice_v, Notice::Published | Notice::Failed);
     if state.notice_v != Notice::None && shown && (final_outcome || state.rules == Rules::DiscardedOnFirstPrint) {
         let mut after: State = state.clone();
         after.notice_v = Notice::None;
+        after.tag_v = 0;
         push_step(&mut found, "environment: the command removes the printed notice", after);
     }
-    let removed_final: bool = state.notice_v == Notice::None && matches!(state.printed, Notice::Published | Notice::Failed) && state.printed_attempt == state.attempt;
-    if removed_final && state.delivered != Some(state.attempt) {
+    let removed_final: bool = state.notice_v == Notice::None && matches!(state.printed, Notice::Published | Notice::Failed);
+    if removed_final && state.delivered != Some(state.printed_attempt) {
         let mut after: State = state.clone();
         after.notice_d = Notice::None;
-        after.delivered = Some(state.attempt);
+        after.tag_d = 0;
+        after.delivered = Some(state.printed_attempt);
         after.delivered_ever = true;
         push_step(&mut found, "owner: the removal of the delivered notice is forced", after);
     }
     if state.rules == Rules::DiscardedOnFirstPrint && state.notice_v == Notice::None && state.notice_d != Notice::None {
         let mut after: State = state.clone();
         after.notice_d = Notice::None;
+        after.tag_d = 0;
         push_step(&mut found, "owner: the removal of the discarded notice is forced", after);
     }
     return found;
@@ -276,10 +304,10 @@ pub fn invariant(state: &State) -> Option<String> {
     if state.phase == Phase::Running && state.positive_at_recovery {
         return Some("a fresh attempt ran although durable positive authority survived".to_string());
     }
-    if state.phase == Phase::Running && state.notice_d != Notice::Scheduled {
+    if state.phase == Phase::Running && (state.notice_d != Notice::Scheduled || state.tag_d != state.attempt) {
         return Some("a fresh attempt runs and no durable notice names it".to_string());
     }
-    if state.phase == Phase::Reclaimed && state.delivered != Some(state.attempt) {
+    if state.phase == Phase::Reclaimed && (state.delivered != Some(state.attempt) || state.printed_log & (1 << state.attempt) == 0) {
         return Some("the request's recovery data was reclaimed before the outcome notice was delivered".to_string());
     }
     return None;
@@ -293,7 +321,7 @@ pub fn terminal(state: &State) -> Option<String> {
     }
     if let Phase::Ended(published) = state.phase {
         let wanted: Notice = if published { Notice::Published } else { Notice::Failed };
-        if state.notice_v == Notice::Scheduled || (state.notice_v != wanted && state.notice_v != Notice::None) {
+        if state.notice_v == Notice::Scheduled || (state.notice_v != wanted && state.notice_v != Notice::None) || (state.notice_v != Notice::None && state.tag_v != state.attempt) {
             return Some("the stored notice does not say what the attempt did".to_string());
         }
     }
