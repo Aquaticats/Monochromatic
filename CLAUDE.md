@@ -576,11 +576,10 @@ GC2:
 RT1:
  `rg` for text search,
  not directory navigation;
- `rg --files` for globs;
- `--hidden`,
+ `rg --files` for globs.
+Scope `--hidden`,
  recursive `grep`,
- unbounded `find` only with a named path:
- the search shadows refuse them at a repo root.
+ and unbounded `find` to named paths other than repo root.
 
 RT4:
  `gh` for GitHub issues,
@@ -734,8 +733,7 @@ No long form:
 RGT:
  `rg` recurses by default;
  its `-r` means `--replace`,
- so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output;
- the rg shadow refuses short `-r`.
+ so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output.
 
 ### Hazardous commands
 
