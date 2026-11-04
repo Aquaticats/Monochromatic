@@ -450,6 +450,18 @@ each in its own worktree:
   the whole design),
   before question 8 is asked.
 
+- Mutation campaign over what 0.5.28 changed (no recorded campaign covers it;
+  161 product files and 14,935 changed lines between the `monochromatic-git-policy-cli-v0.5.27` and `-v0.5.28` tags,
+  list in `~/temp/agent/mutation-scope-0528.txt`):
+  gate of main (`690e0eb89d`,
+  worktree `.claude/worktrees/mutation-main-0528`) running as `gpc-gate-mutation-main-0528-20261104T042223-0500`;
+  then `native:mutation:parallel` with `GIT_POLICY_NATIVE_IMAGE_TAG` set to that unit's name,
+  first landing,
+  index,
+  lock,
+  push and invocation files,
+  then the merge passes.
+
 Queue,
 in order:
 - Design revision 17 (started by 2026-11-04T04:05:21-05:00,
