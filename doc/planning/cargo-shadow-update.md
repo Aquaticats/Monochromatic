@@ -1354,3 +1354,62 @@ Next:
   `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2` covers a start as a child.
   The bounded fallback and the hop limit are gone.
 - The nine delegated picks of 2026-11-03 are kept (see the section above).
+
+## Resume point (round 21, written 2026-11-04T17:51:00-05:00, paused by the owner)
+
+Owner instruction, verbatim: "Don't discard work, but aside from layout + linting fixes, pause everything else - but let work already
+in flight run to their natural conclusions. Layout + linting fixes are the biggest priority." Nothing was discarded; the branch is
+`feat/cargo-shadow-check-to-start-race` (worktree `.claude/worktrees/cargo-shadow-r21`), not merged, nothing published or released.
+Clippy (`mise run //package/cargo-shadow/cli:lint:clippy`) was clean at the last commit. The full release gate was not run in this
+round, and no packets were rebuilt.
+
+Done in round 21 (each with its test named in `cargo-shadow-guarantees.md`, section "Round 21 additions", or in the commit message):
+
+- Check-to-start race for compiled real cargos: `real_binary::vet` and `Vetted::command` start through the checked descriptor at the two
+  starts this process makes itself; the contained cargo of an install step keeps the path with a repeated check (`command_by_path`),
+  because the scope launcher starts the program from its own process. Script and contained-start residual is recorded in the contract.
+- Sixth-pass group 2 and group 4 named fixes.
+- Production defects: a zero or impossible process id no longer counts as an acknowledgement (group 13); the printed Fix B record is
+  built by the JSON serializer (group 14); a failed rollback keeps the failure the run already had (group 5); the kept-files warning
+  is now announced by the fast path and by a frozen run (group 7).
+- Evidence fixes: listing faults replace the results of the real operations and completed journals are examined (group 5); record
+  sync and the journal's own barriers take injected failures through the real result handling (group 12); reap tests compare the
+  program's id with the spawned direct child (group 1); slow-start retry times its judged attempt (group 9); gone launcher with an
+  existing empty scope and the launcher-uncertainty and time-namespace cases run through the real recovery and admission (groups 3 and
+  10); collision-named refused copies count toward the warning (group 7); tests that cannot build their schedule fail unless
+  `CARGO_SHADOW_ALLOW_SKIPS` is set.
+
+Not done (resume here when the owner lifts the pause), in the order the sixth pass asked (production defects, false greens, coverage):
+
+1. Run the full release gate with the installed shadow first on PATH (`$HOME/temp/agent/gate-final.sh`, already pointed at the r21
+   worktree), then rebuild the packets as cert7 under 250 KB each with the manifest, and fix group 6's packet, which had no test
+   bodies assigned.
+2. Group 5: manifest-specific output-barrier failure (path-targeted); refused output plus `CompletionSync` failure; independent
+   syscall observation of the completion-parent barrier.
+3. Group 8: preferred-directory link failure followed by fallback-stage and barrier faults (R2, sibling fallback and stranded path);
+   recovery output barriers at the real file and directory syncs and their ordering; post-exchange restore failure with the manifest;
+   manifest unchanged on a damaged-ready rejection; update-caller continuation on a mandatory recovery failure; counted swap
+   callbacks in the exchange tests.
+4. Group 9: K2 retry after a failed own-directory barrier and after a failed parent-entry barrier in the same process.
+5. Groups 10 and 11: negative boot-identity and replaced-identity cases through recovery and admission; journal-view admission;
+   replace the masked legacy cross-journal and malformed-record tests with discriminating bodies; live-scope admission must assert the
+   journal and snapshots are retained after the first refusal; parent-view substitution through admission.
+6. Group 12: pending-launcher preparation kill; delegated-case skip wording.
+7. Group 13: weaker-route record write and sync failures with the weaker route forced (no payload starts, append then barrier then
+   spawn); acknowledgement barriers at the real operations and the reader's failures through recovery and admission; the CLI
+   acknowledgement protocol (lock, durability, quoting); positive acknowledgement controls for the broader uncertainty classes.
+8. Group 14: depth-aware append-only entry trace proving the second shadow is terminal and does not enter transaction preparation;
+   tests at the production start sites with a handshake between selection and check; remove the stale bounded-fallback test reference.
+9. Group 1 wording only: `assert_scope_record` proves the record, not placement; the double-fork probe has no reparenting handshake.
+10. The fifth-pass open list not covered above: R2 stranded path, admission schedules for the remaining boot and unreadable records,
+    the acknowledgement writer's ordering, the mandatory-finish refusal through a real shim run, the blocked-feeder handshake, the
+    start-time line naming the namespace, the `missing_entry_verdict` and `start_of` consumer wiring, and the group 1 refusal when the
+    emptiness proof fails.
+11. Contract: add suite counts to the round 21 block once the gate has run; map the new tests.
+
+Planted-red notes for the final report: the K1 collision test, the listing faults, the record sync, the journal barriers, the
+empty-scope recovery, the launcher uncertainty cases and the slow-start judged duration were each turned red by a planted change and
+restored. The two time-namespace plants (ignoring a start-time note in recovery or admission) went red; the recovery-side plant failed
+in under a second, so its exact assertion was not inspected. No cheap plant exists for the spawned-child id check (a launcher that
+forks instead of replacing itself is not built) and for the `assert_ran_in_recorded_scope` additions of group 2 and 4 beyond the
+earlier control.
