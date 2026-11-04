@@ -45,6 +45,11 @@ pub enum Rules {
     DiscardedOnFirstPrint,
     /// Control: the request's recovery data is reclaimed before the outcome notice has been delivered.
     ReclaimBeforeDelivery,
+    /// Control: recovery that settles the request on durable positive authority leaves the stored notice as it found it (review 9b item 2A).
+    SettledKeepsNotice,
+    /// Control: delivery is one request-wide Boolean that no later attempt resets, so an earlier attempt's delivery lets a later attempt's
+    /// recovery data be reclaimed (review 9b item 2B).
+    DeliveryIsRequestWide,
 }
 
 /// What the stored notice says.
@@ -100,10 +105,16 @@ pub struct State {
     pub commits: u8,
     /// Recovery found durable positive authority at its last run.
     pub positive_at_recovery: bool,
-    /// The last content a wrapper command printed.
+    /// The last content a wrapper command printed, and the attempt it belonged to.
     pub printed: Notice,
-    /// The notice for the final outcome was delivered (printed and removed).
-    pub delivered: bool,
+    /// The attempt number of the last print.
+    pub printed_attempt: u8,
+    /// The fresh attempts recovery has chosen so far (0 is the original command).
+    pub attempt: u8,
+    /// The attempt whose final outcome notice was printed, removed and whose removal was forced; `None` before any.
+    pub delivered: Option<u8>,
+    /// Some attempt's outcome notice was delivered at some point (the request-wide flag of the `DeliveryIsRequestWide` control).
+    pub delivered_ever: bool,
 }
 
 /// The start state: the command returned success; the landing facts are visible and not yet durable.
@@ -119,7 +130,10 @@ pub fn initial(rules: Rules) -> State {
         commits: 1,
         positive_at_recovery: false,
         printed: Notice::None,
-        delivered: false,
+        printed_attempt: 0,
+        attempt: 0,
+        delivered: None,
+        delivered_ever: false,
     };
 }
 
@@ -156,6 +170,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
                 push_step(&mut found, "owner: recovery sees durable positive authority and settles the request", after);
             } else {
                 after.phase = Phase::Scheduling;
+                after.attempt += 1;
                 push_step(&mut found, "owner: recovery sees no decisive positive authority and chooses a fresh attempt", after);
             }
         }
@@ -201,27 +216,57 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
                 after.notice_d = content;
                 push_step(&mut found, "owner: the outcome notice is forced", after);
             }
-            let delivered_or_early: bool = state.delivered || state.rules == Rules::ReclaimBeforeDelivery;
+            let delivered_for_this_attempt: bool = if state.rules == Rules::DeliveryIsRequestWide { state.delivered_ever } else { state.delivered == Some(state.attempt) };
+            let delivered_or_early: bool = delivered_for_this_attempt || state.rules == Rules::ReclaimBeforeDelivery;
             if delivered_or_early {
                 let mut after: State = state.clone();
                 after.phase = Phase::Reclaimed;
                 push_step(&mut found, "owner: the request's recovery data is reclaimed", after);
             }
         }
-        Phase::Returned | Phase::Settled | Phase::Reclaimed => {}
+        Phase::Settled => {
+            // Recovery that settles on durable positive authority reconciles a stored notice that still says an attempt is scheduled: the
+            // commit exists, so the notice says published, and the same forced delivery as for an attempt's outcome follows.
+            if state.notice_v == Notice::Scheduled && state.rules != Rules::SettledKeepsNotice {
+                let mut after: State = state.clone();
+                after.notice_v = Notice::Published;
+                push_step(&mut found, "owner: recovery replaces the scheduled notice by the published outcome", after);
+            } else if state.notice_v == Notice::Published && state.notice_d != Notice::Published {
+                let mut after: State = state.clone();
+                after.notice_d = Notice::Published;
+                push_step(&mut found, "owner: the reconciled notice is forced", after);
+            }
+        }
+        Phase::Returned | Phase::Reclaimed => {}
     }
-    // The person's next wrapper command in the worktree prints the stored notice. A notice of the final outcome is delivered by that print
-    // (removed, and the removal forced); a notice that an attempt is scheduled stays until the outcome replaces it.
-    if state.notice_v != Notice::None && state.printed != state.notice_v || (state.notice_v != Notice::None && matches!(state.phase, Phase::Ended(_))) {
+    // The person's next wrapper command in the worktree prints the stored notice, removes a notice of the final outcome, and the owner forces
+    // the removal: three steps, each with its own crash window. Only the forced removal delivers the outcome, and it delivers the attempt
+    // the notice belongs to. A notice that an attempt is scheduled stays until the outcome replaces it.
+    let shown: bool = state.printed == state.notice_v && state.printed_attempt == state.attempt;
+    if state.notice_v != Notice::None && !shown {
         let mut after: State = state.clone();
         after.printed = state.notice_v;
-        let final_outcome: bool = matches!(state.notice_v, Notice::Published | Notice::Failed);
-        if final_outcome || state.rules == Rules::DiscardedOnFirstPrint {
-            after.notice_v = Notice::None;
-            after.notice_d = Notice::None;
-            after.delivered = final_outcome;
-        }
+        after.printed_attempt = state.attempt;
         push_step(&mut found, "environment: the next wrapper command prints the notice", after);
+    }
+    let final_outcome: bool = matches!(state.notice_v, Notice::Published | Notice::Failed);
+    if state.notice_v != Notice::None && shown && (final_outcome || state.rules == Rules::DiscardedOnFirstPrint) {
+        let mut after: State = state.clone();
+        after.notice_v = Notice::None;
+        push_step(&mut found, "environment: the command removes the printed notice", after);
+    }
+    let removed_final: bool = state.notice_v == Notice::None && matches!(state.printed, Notice::Published | Notice::Failed) && state.printed_attempt == state.attempt;
+    if removed_final && state.delivered != Some(state.attempt) {
+        let mut after: State = state.clone();
+        after.notice_d = Notice::None;
+        after.delivered = Some(state.attempt);
+        after.delivered_ever = true;
+        push_step(&mut found, "owner: the removal of the delivered notice is forced", after);
+    }
+    if state.rules == Rules::DiscardedOnFirstPrint && state.notice_v == Notice::None && state.notice_d != Notice::None {
+        let mut after: State = state.clone();
+        after.notice_d = Notice::None;
+        push_step(&mut found, "owner: the removal of the discarded notice is forced", after);
     }
     return found;
 }
@@ -234,14 +279,18 @@ pub fn invariant(state: &State) -> Option<String> {
     if state.phase == Phase::Running && state.notice_d != Notice::Scheduled {
         return Some("a fresh attempt runs and no durable notice names it".to_string());
     }
-    if state.phase == Phase::Reclaimed && !state.delivered {
+    if state.phase == Phase::Reclaimed && state.delivered != Some(state.attempt) {
         return Some("the request's recovery data was reclaimed before the outcome notice was delivered".to_string());
     }
     return None;
 }
 
-/// A quiescent state is acceptable only if the notice says what the attempt did.
+/// A quiescent state is acceptable only if the notice says what the attempt did, and a request that recovery settled has no notice that
+/// still says an attempt is scheduled.
 pub fn terminal(state: &State) -> Option<String> {
+    if state.phase == Phase::Settled && state.notice_v == Notice::Scheduled {
+        return Some("recovery settled the request but the stored notice still says an attempt is scheduled".to_string());
+    }
     if let Phase::Ended(published) = state.phase {
         let wanted: Notice = if published { Notice::Published } else { Notice::Failed };
         if state.notice_v == Notice::Scheduled || (state.notice_v != wanted && state.notice_v != Notice::None) {
