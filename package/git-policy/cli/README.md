@@ -291,10 +291,20 @@ they narrow the window and do not close it.
   eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
   so the Windows-specific branches in the sources have never run; each is marked `UNTESTED ON WINDOWS` in the source.
   A Windows port is deferred to a later version (owner decision, 2026-10-15).
-- Real Git 2.55.0 or newer on `PATH` after the wrapper.
+- Real Git on `PATH` after the wrapper, tested with 2.56.0 (`MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs`).
   The wrapper checks the version before work that depends on Git's behavior,
-   such as a commit,
-  and refuses older Git.
+   such as a commit.
+  A Git older than that release is not refused:
+   the wrapper prints one warning that names the Git it found,
+   the release it reported and the release the wrapper was tested with,
+   says that the command continues,
+   and runs the command as usual
+   (owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+  Only a Git whose release cannot be read stops the command.
+  The constant follows the test image's Git:
+   the gate image installs the distribution's current `git` package,
+   so when `mise run //package/git-policy/cli:test:git-image` reports a newer release,
+   raise the constant to it with the first gate run on that release.
   The wrapper finds the real Git by walking `PATH`,
    skipping itself and anything that leads back to it:
    a link or a copy of the wrapper,
@@ -1738,7 +1748,7 @@ mise run //package/git-policy/cli:native:test:container
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
 - `native:test:container` is the authority.
-  It builds the crate and runs the tests and Clippy in bounded containers with Git 2.56.0 and no network.
+  It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
   The test run uses `cargo nextest run --no-fail-fast`, so every test runs even after a failure and one flaky test
   never hides the rest; the exit status is still non-zero, and nextest prints its summary and the list of failed tests
@@ -1887,10 +1897,20 @@ The tag is never pinned to a version or a digest, so an upstream CachyOS update 
 Two derived base images carry what the network-free image builds need:
 
 - `native-test-base.Containerfile` builds `localhost/git-policy-native-test-base`:
-  CachyOS, the distribution's Rust (Cargo and Clippy) and build tools, and the audited Git 2.56.0 built from its
-  checksum-pinned kernel.org tarball at `/usr/bin/git`, where the tests expect the real Git.
+  CachyOS, the distribution's Rust (Cargo and Clippy) and build tools, and the tools the tests start: Git (at
+  `/usr/bin/git`, where the tests expect the real Git), Node, pnpm, `strace` and cargo-nextest.
   The gate image and the mutation images build on it.
-- `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`: CachyOS, Node 24.11.0, and Git 2.55.0.
+- `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`: CachyOS with the distribution's Git
+  and Node and `ssh-keygen`.
+
+Every tool in these two images is the distribution's current pacman package, with no version pin, no source build and no
+downloaded archive (owner decisions of 2026-11-04: "We don't need to pin git because my current system is already using
+git latest.", "We don't need to pin Node too.", and "Pacman for everything it has").
+That is an exception to the repository rule that containers install locked tools from `toolchain.lock.json` rows, for
+these test images only.
+Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in the CachyOS image).
+`mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got; the wrapper's
+`MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
 
 Each run of `native:test:container`, `test:git-image`, `test:e2e:concurrent:image` and
 `test:e2e:concurrent:native:image` first pulls the `latest` tag with `podman pull --policy=newer`

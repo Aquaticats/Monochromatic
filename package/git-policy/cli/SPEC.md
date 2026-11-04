@@ -4560,14 +4560,26 @@ so it cannot end the line or hide a field.
 
 ### Compatibility and degradation
 
-The executable requires real Git 2.55.0 or newer for commits.
-It asks Git for its version once per invocation before that work,
-and on an older Git it runs nothing and emits an `engine-failure` event with code `content-unavailable` and exit `2`,
-whose message names the real Git it found,
-the version Git reported and the remedy (upgrade Git,
+The executable is tested with real Git 2.56.0, the release the gate image's distribution package carried on 2026-11-04,
+and `MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs` names it.
+It asks Git for its version once per invocation before commits, hooks and locks,
+and on an older Git it prints one warning to standard error
+that names the real Git it found,
+the version Git reported,
+the version the wrapper was tested with,
+and that the command continues,
+then runs the command as usual
+(owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+Only a version that cannot be read,
+or a Git that cannot start,
+stops the command with an `engine-failure` event with code `content-unavailable` and exit `2`,
+whose message names the real Git and the remedy (point the wrapper at a working Git,
  then run the command again).
 Read-only commands are never checked.
-Features that Git introduced after 2.55.0 are not assumed.
+The constant moves with the test image's Git: when the gate image's `git` package moves to a newer release,
+the constant is raised to it with the first gate run on that release.
+Code written while the minimum was 2.55.0 assumed no feature introduced after 2.55.0,
+and no test now runs on an older Git, so behavior on one is untested.
 
 The retired TypeScript wrapper had no version gate and degraded one feature at a time on Git 2.39.5 and 2.40.0:
 a probe of `git merge-tree --write-tree --merge-base` (fail fast with `concurrent-commit/head-moved` without it),
