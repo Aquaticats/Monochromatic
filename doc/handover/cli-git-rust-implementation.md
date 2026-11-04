@@ -65,8 +65,26 @@ the branch and agent lists below them are older and carry their own times.
 Git wrapper 0.5.33:
 branch-write round 2 merged to main (`6fc72e8abe`,
 gate r7 4839/4839 with main);
-`native:clippy` on main,
-then dispatch and install.
+`native:clippy` on main clean;
+dispatched as run 41896129005 (2026-11-04T14:25-05:00);
+`native:release:wait` following it;
+then `upgrade-wrapper.ts 0.5.33`.
+
+Agents running at 2026-11-04T14:27:00-05:00:
+- Branch-write round 3 (`aa0fee0c2cf70bb31`):
+  owner pick B for foreign-owner patience plus every round-2 review finding.
+- Models step 2 (`a9c775c9196f1d836`):
+  callers write the checked state document;
+  the step-1 cross-vendor review (`commit-models-step1-sol.txt`) is running.
+- cargo-shadow (`ae0fbdf78c31bd757`):
+  the launcher self-run fix first,
+  then the certification items;
+  then 0.1.1 and the relock.
+- e2e `sigkill-service-during-work` (`aca6e78c5ffbd5680`,
+  branch `fix/git-policy-cli-e2e-sigkill-service-during-work`):
+  diagnose whether the product or the scenario is wrong,
+  fix,
+  gate.
 
 cargo-shadow 0.1.0 is done:
 both proving runs passed (dry run 41893310452;
