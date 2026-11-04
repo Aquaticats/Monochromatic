@@ -339,8 +339,8 @@ The acknowledgement:
 This reverses the part of the earlier pick that let weaker-path recovery go ahead when the recorded group had no member.
 It closes 7c F1 and 7a F4.
 The round 7 test that encoded the reversed pick (a recorded and gone group is no survivor) is replaced by
-`a_weaker_path_journal_is_refused_by_recovery_and_admission_until_it_is_acknowledged` and
-`acknowledging_one_of_two_journals_settles_it_and_leaves_the_other_blocking`.
+`a_weaker_path_journal_is_refused_by_recovery_and_admission_before_it_is_acknowledged` and
+`acknowledging_one_of_two_journals_leaves_the_other_blocking_everything`.
 The acknowledging command also needs the "advertised repair" of 6b2 7 to work:
 the message names a command that the reader accepts.
 

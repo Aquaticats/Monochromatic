@@ -114,7 +114,7 @@ pub(crate) fn is_running(pid: i32) -> bool {
     }
     // A process that was reaped between the two reads is gone; one whose state cannot be read for another reason stops the test.
     let stat: String = match fs::read_to_string(format!("/proc/{pid}/stat")) {
-        Ok(found) => found,
+        Ok(text) => text,
         // A process that is exiting reads as missing (ENOENT) or as gone (ESRCH).
         Err(error) if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) => return false,
         Err(error) => panic!("/proc/{pid}/stat cannot be read ({error}): the state of the process is unknown"),
