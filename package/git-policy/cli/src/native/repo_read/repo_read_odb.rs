@@ -158,6 +158,18 @@ impl ObjectDatabase {
         if name.len() != name_length(self.format) || depth > 8 {
             return None;
         }
+        // Git searches the packs first and the loose files after, and so does this: nearly every object a commit reads is packed,
+        //  and a look at a loose path that is not there is a system call for each of thousands of objects.
+        let by_name = |base: &[u8]| -> Option<RawObject> { return self.read_at_depth(base, depth + 1); };
+        for pack in &self.packs {
+            if let Some(offset) = pack.find(name) {
+                if let Some(found) = pack.read(offset, &by_name, 0) {
+                    return Some(found);
+                }
+                // A pack entry that cannot be rebuilt leaves the loose copy, if there is one, to answer.
+                break;
+            }
+        }
         let hex: String = to_hex(name);
         for root in &self.roots {
             let path: PathBuf = root.join(&hex[..2]).join(&hex[2..]);
@@ -169,12 +181,6 @@ impl ObjectDatabase {
                 return None;
             }
             return parse_loose(std::fs::read(&path).ok()?.as_slice());
-        }
-        let by_name = |base: &[u8]| -> Option<RawObject> { return self.read_at_depth(base, depth + 1); };
-        for pack in &self.packs {
-            if let Some(offset) = pack.find(name) {
-                return pack.read(offset, &by_name, 0);
-            }
         }
         return None;
     }
