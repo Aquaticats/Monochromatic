@@ -16,15 +16,22 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-03T07:59:21-05:00).
+Installed versions and the release in flight were written 2026-11-04T14:08:00-05:00 against main `651fc7b9a5`;
+the branch and agent lists below them are older and carry their own times.
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.27 (`toolchain.lock.json`,
+- Git wrapper `monochromatic-git-policy-cli` 0.5.32 (`toolchain.lock.json`,
   row `cargo:monochromatic-git-policy-cli`,
-  lock commit `4779907f6e`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.27,
+  lock commit `e6bb6fbb62`;
+  `git --version` prints "monochromatic-git-policy-cli 0.5.32,
   shadowing git at /usr/bin/git" over Git 2.56.0).
+  Installed by `upgrade-wrapper.ts 0.5.32`:
+  the 0.5.31 service retired on the client's request,
+  0.5.32 started (protocol 7),
+  and the sample commit on main landed in 1680 ms in all,
+  1215 ms of it provisioning the new service (landing 31 ms,
+  lock hold 28 ms).
   Its commit service unit runs with systemd's defaults
   (`systemctl --user show` at 2026-11-03T10:47-05:00:
   `MemoryMax=infinity`,
@@ -38,8 +45,16 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
   `monochromatic-search-shadow` 0.2.1,
   `monochromatic-file-enforcer-cli` 0.1.1,
   `monochromatic-lint` 0.5.0 (all from the same lock file).
-- `monochromatic-dependency-catalog` 0.1.0 is the published version;
-  0.2.0 (with `trustLockfile`) exists only on the cargo-shadow branch.
+- `monochromatic-dependency-catalog` 0.2.0 (with `trustLockfile`) was published 2026-11-04T18:58:16Z,
+  after the cargo-shadow merge reached main;
+  0.1.0 is the earlier version.
+- `monochromatic-cargo-shadow` 0.1.0 was published 2026-11-04 with the owner's `cargo login` token
+  (`mise run //package/cargo-shadow/cli:publish`);
+  Trusted Publishing config 30988 (`Aquaticats/Monochromatic`,
+  `cargo-publish.yml`,
+  no environment,
+  `repository_owner_id` 343218767) was created through the API.
+  It is not yet in `toolchain.lock.json`.
 - The global toolchain lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`) was moved to wrapper 0.5.25
   on
   2026-11-03;
@@ -47,7 +62,69 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-None.
+Git wrapper 0.5.33 is installed:
+branch-write round 2 (`6fc72e8abe`,
+gate r7 4839/4839 with main,
+`native:clippy` on main clean),
+release run 41896129005,
+publish run 41896943949 built from `6a922adfee`,
+crates.io 2026-11-04T19:28:15Z;
+`upgrade-wrapper.ts 0.5.33`:
+the 0.5.32 service retired on the client's request,
+0.5.33 started (protocol 7),
+and the sample commit on main landed in 1980 ms in all,
+1271 ms of it provisioning the new service (landing 34 ms,
+lock hold 31 ms).
+
+Agents running at 2026-11-04T14:27:00-05:00:
+- Branch-write round 3 (`aa0fee0c2cf70bb31`):
+  owner pick B for foreign-owner patience plus every round-2 review finding.
+- Models step 2 (`a9c775c9196f1d836`):
+  callers write the checked state document;
+  the step-1 cross-vendor review (`commit-models-step1-sol.txt`) is running.
+- cargo-shadow (`ae0fbdf78c31bd757`):
+  the launcher self-run fix first,
+  then the certification items;
+  then 0.1.1 and the relock.
+- e2e `sigkill-service-during-work` (`aca6e78c5ffbd5680`,
+  branch `fix/git-policy-cli-e2e-sigkill-service-during-work`):
+  diagnose whether the product or the scenario is wrong,
+  fix,
+  gate.
+
+cargo-shadow 0.1.0 is done:
+both proving runs passed (dry run 41893310452;
+run 41893318423 authenticated through Trusted Publishing,
+skipped the upload and created the immutable release `monochromatic-cargo-shadow-v0.1.0`),
+and the consumer checks passed
+(runbook section "monochromatic-cargo-shadow 0.1.0").
+Owner action open:
+revoke the `cargo login` token,
+then `cargo logout`.
+
+cargo-shadow as `cargo` for every session is not live.
+It was locked (`efe10d9745`) and installed,
+then reverted (`65f5733aec`) and its link `.cache/cargo-shadow-bin/cargo` removed the same minute:
+the install links `cargo` to the toolchain launcher (`.cache/toolchain-launchers/cargo-shadow`),
+and through it the shadow runs itself once before the real cargo
+(strace:
+launcher,
+shadow,
+launcher again,
+shadow again,
+rustup proxy,
+real cargo;
+`cargo metadata` ran the shadow 4 times for 3 real cargo runs),
+against "We should never invoke ourselves recursively.".
+Started from its binary it ran once per command.
+Sent to the cargo-shadow agent (`ae0fbdf78c31bd757`) as the first 0.1.1 fix,
+the way pnpm-shadow 0.1.1 learned to skip its launcher;
+then 0.1.1,
+relock,
+and the launcher check (`/var/home/user/temp/agent/cgs-recursion-check.ts <launcher> <throwaway worktree> <toolchain-bin>`)
+before linking again.
+
+Older:
 0.5.28 was published to crates.io at 2026-11-04T03:09:07Z (publish run 41764751088,
 built from `7b41c215ec`) and installed by `upgrade-wrapper.ts 0.5.28`
 (`git --version`:
@@ -3686,6 +3763,90 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
+  Done 2026-11-04:
+  0.5.32 installed;
+  cargo-shadow merged to main (`624e4ea5d2`,
+  without waiting for 0.5.32,
+  owner:
+  "you don't have to wait for that.");
+  release wiring committed (`651fc7b9a5`;
+  the crate-release cli test now reads the expected crate list from the registry);
+  0.1.0 published and Trusted Publishing config 30988 created
+  (state in "Release in flight").
+  Branch-write round 2 (agent `aa0fee0c2cf70bb31`, finished):
+  all twelve follow-up items done except item 10,
+  which is analysis only
+  (foreign-owner patience options B > C > D > A in `doc/planning/cli-git-no-unbounded-waits.md`,
+  section "Foreign-owner patience: what its expiry authorizes";
+  owner question after the round-2 review checks the analysis);
+  gate r6 passed 4827/4827 on `d2f74ce55a`.
+  Main (with the index-lock change) merged into the branch as `bbf3317aff`;
+  gate `gpc-gate-branch-write-and-tool-ceilings-r7-20261104T140212-0500` running;
+  on pass,
+  merge to main and release 0.5.33.
+  Cross-vendor round-2 reviews running:
+  `branch-write-r2-sol-1.txt` (landing record,
+  protocol,
+  client,
+  step classifier,
+  output capture)
+  and `branch-write-r2-sol-2.txt` (tool ceilings,
+  review log,
+  the foreign-owner analysis).
+  Known gap the agent left:
+  `RERUNNABLE` names `symbolic-ref` and `init` in every form,
+  and the cut experiment never ran them.
+  Round-2 reviews returned 2026-11-04,
+  both "correct after named fixes".
+  sol-1:
+  a provisional `withdrawn` decision can be acknowledged by a second withdrawer,
+  so the commit lands while the command says it was withdrawn;
+  digit-only side refs do not rule out a reflog or a symbolic ref;
+  `fast-import` is allowed by name;
+  reading captured output has no bound;
+  `.tmp` decision files leak on a failed write.
+  sol-2:
+  a review that panics after its timeout leaves service reviews refused until restart;
+  admission is not atomic;
+  the timeout path still waits on `child.wait()`;
+  `has_shadow_log` runs outside containment.
+  Round 2 still merges after gate r7 (it narrows the 0.5.31 and 0.5.32 races;
+  owner rule "Treat reviews as async.");
+  every finding went to the agent as round 3.
+  Owner answers (question tool,
+  2026-11-04,
+  verbatim choices):
+  - Foreign-owner patience:
+    "Refuse and name it (Recommended)"
+    (option B:
+    an expired record from another PID namespace stops the command,
+    changes nothing,
+    and names the record,
+    its owner's PID and namespace,
+    its age and the exact `rm`;
+    the `rm` condition also covers Git processes the wrapper left running,
+    the reviewer's addition;
+    applies to merge intent recovery,
+    claim takeover and worktree-copy journals).
+    Sent to agent `aa0fee0c2cf70bb31` with round 3.
+  - Commit notices (commit protocol plan question 4):
+    "Line plus what was kept"
+    (option B,
+    not the ranked-first one-line option:
+    every outcome prints its first line,
+    then the indented `kept:` lines and their siblings from the drafts;
+    command names stay placeholders).
+    Sent to the models agent `a9c775c9196f1d836` as decision 24.
+  Models agent:
+  step 1 (the real state document as `LaneDocument`,
+  `commit_lane_state.rs`) built;
+  `native:test:model` 499 passed,
+  both clippy tasks clean,
+  `source_guard` 39 of 39;
+  decisions 21 to 23 recorded (`e2df97729c`);
+  next:
+  the reclamation-during-capture and disposal models,
+  then a review bundle for the coordinator.
   - Every other live pick in `doc/planning/cli-git-delegated-picks-status.md`,
     asked in seven grouped questions,
     each answered "Keep all (Recommended)":
