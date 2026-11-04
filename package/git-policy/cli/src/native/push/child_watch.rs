@@ -617,8 +617,15 @@ impl std::error::Error for CeilingReached {}
 
 /// The output of a step that ended: its status and what it wrote to the captured files.
 fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Output {
-    let (stdout, stderr): (Vec<u8>, Vec<u8>) = captured.map_or_else(|| { return (Vec::new(), Vec::new()); }, Capture::read);
-    return Output { status, stdout, stderr };
+    let Some(files) = captured else {
+        return Output { status, stdout: Vec::new(), stderr: Vec::new() };
+    };
+    let shown: crate::output_capture::Captured = files.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
+    let mut stderr: Vec<u8> = shown.stderr;
+    for note in &shown.notes {
+        stderr.extend_from_slice(format!("\ncli-git: {note}\n").as_bytes());
+    }
+    return Output { status, stdout: shown.stdout, stderr };
 }
 
 /// What:
@@ -735,6 +742,10 @@ pub fn output_watched_within(
                 Ok(finished) => finished.map(|status| { return output_of(status, captured.as_ref()); }),
                 Err(_timeout_or_gone) => {
                     watch.end();
+                    // Nobody will read what the step writes from here on, and it is held in memory until the step ends.
+                    if let Some(files) = captured.as_ref() {
+                        files.discard();
+                    }
                     return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra))));
                 }
             }

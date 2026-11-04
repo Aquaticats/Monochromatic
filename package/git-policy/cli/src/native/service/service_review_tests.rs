@@ -321,6 +321,7 @@ fn the_review_ceiling_is_past_the_call_ceiling_and_the_quiet_window() {
 /// when the pipe is read the stalled review ends, and the same item, reviewed again, is done.
 #[test]
 fn a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_reviewed_again_after() {
+    static OWN: crate::standards_review_run::Containment = crate::standards_review_run::Containment::new();
     let fixture: Fixture = fixture_with_log("review-log-stall");
     let first: WorkItem = commit(&fixture, &[("src/a.rs", "fn a() {}\n")], "feat(a): add a");
     let second: WorkItem = commit(&fixture, &[("src/b.rs", "fn b() {}\n")], "feat(b): add b");
@@ -332,14 +333,14 @@ fn a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_rev
     let mut stalled: ReviewOptions = options(&first, mock.url.as_str());
     stalled.log_path = pipe.clone();
     let ceiling: Duration = Duration::from_millis(700);
-    let verdict: Verdict = review_item_within(&git_context(), &first, stalled, ceiling);
+    let verdict: Verdict = review_item_in(&OWN, &git_context(), &first, stalled, ceiling);
     let Verdict::Failed(reason) = verdict else { panic!("{verdict:?}") };
     assert!(reason.contains(&first.oid) && reason.contains("SHADOW_REVIEW_SHA"), "{reason}");
-    assert_eq!(crate::standards_review_run::outstanding_reviews(), 1, "the stalled review is tracked");
-    let refused: Verdict = review_item_within(&git_context(), &second, options(&second, mock.url.as_str()), ceiling);
+    assert_eq!(OWN.outstanding(), 1, "the stalled review is tracked");
+    let refused: Verdict = review_item_in(&OWN, &git_context(), &second, options(&second, mock.url.as_str()), ceiling);
     let Verdict::Failed(busy) = refused else { panic!("{refused:?}") };
     assert!(busy.contains("was not started") && busy.contains(&format!("SHADOW_REVIEW_SHA={}", second.oid)), "{busy}");
-    assert_eq!(crate::standards_review_run::outstanding_reviews(), 1, "no thread was added behind the stalled one");
+    assert_eq!(OWN.outstanding(), 1, "no thread was added behind the stalled one");
     assert_eq!(log_of(&fixture), "", "nothing was written for the refused item");
     // The pipe is replaced at its path by nothing (the review then finds no log and makes one), and a writer is opened on the pipe by
     // its other name, which wakes the stalled review's open of it, so the review runs on and ends.
@@ -347,14 +348,18 @@ fn a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_rev
     std::fs::hard_link(&pipe, &other_name).expect("a second name for the pipe");
     std::fs::remove_file(&pipe).expect("the pipe leaves its path");
     let waiting_since: std::time::Instant = std::time::Instant::now();
-    while crate::standards_review_run::outstanding_reviews() > 0 {
+    while OWN.outstanding() > 0 {
         assert!(waiting_since.elapsed() < Duration::from_secs(30), "the stalled review never ended");
         let _poked = std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(other_name.as_path());
         std::thread::sleep(Duration::from_millis(20));
     }
-    let again: Verdict = review_item_within(&git_context(), &first, options(&first, mock.url.as_str()), Duration::from_secs(60));
+    // The same item, through the very log path that stalled: the pipe left its path, so the path is a log again.
+    let mut again_options: ReviewOptions = options(&first, mock.url.as_str());
+    again_options.log_path = pipe.clone();
+    let again: Verdict = review_item_in(&OWN, &git_context(), &first, again_options, Duration::from_secs(60));
     assert_eq!(again, Verdict::Done, "the same item is reviewed once the earlier review has ended");
-    assert!(log_of(&fixture).contains(&first.oid[..crate::standards_review_entry::SHORT_SHA_LENGTH]));
+    let written: String = std::fs::read_to_string(&pipe).unwrap_or_default();
+    assert!(written.contains(&first.oid[..crate::standards_review_entry::SHORT_SHA_LENGTH]), "the entry is in the log that had stalled: {written}");
     mock.finish();
     remove(fixture.parent.as_path());
 }

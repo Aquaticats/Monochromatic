@@ -207,6 +207,34 @@ fn a_helper_that_keeps_the_output_open_after_the_leader_exits_does_not_hold_the_
     assert_eq!(run.end, ToolEnd::Succeeded);
     assert!(String::from_utf8_lossy(run.stdout.as_slice()).contains("leader-output"));
     let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    // The helper is left alone on purpose (sol-2 round 2): a run that ended it would also pass the deadline above, so the control
+    //  asks the helper itself before it cleans up.
+    assert!(is_running(pid), "the helper of a tool that succeeded is left running");
+    // SAFETY: the control ends the helper it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    remove(&root);
+}
+
+/// The leader exits and a helper it started keeps writing to the tool's output (sol-1 and sol-2 round 2): the run ends with the
+/// leader's status and a finite snapshot, and the helper is left running. The control has a deadline of its own around the run.
+#[test]
+fn a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run() {
+    let root: PathBuf = fixture("runs-helper-keeps-writing");
+    let program: PathBuf = root.join("tool");
+    let record: PathBuf = root.join("helper-pid");
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\n(while :; do echo helper-output; sleep 0.01; done) &\necho $! > '{}'\necho leader-output\nsleep 0.3\n", record.display()).as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let started_in: PathBuf = program.clone();
+    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS })); });
+    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the run ended without chasing the helper's output");
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    assert!(String::from_utf8_lossy(run.stdout.as_slice()).contains("leader-output"));
+    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    assert!(is_running(pid), "the helper that keeps writing is left running");
     // SAFETY: the control ends the helper it started.
     let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
     remove(&root);
@@ -245,4 +273,30 @@ fn a_program_that_finishes_before_its_ceiling_succeeds() {
     let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
     assert_eq!(run.end, ToolEnd::Succeeded);
     remove(&root);
+}
+
+/// A leader that does not die when the group is stopped (a process in uninterruptible I/O ends only when the I/O does) is not waited
+/// for without a bound (sol-2 round 2): the reaping gives up after its budget, reports that it did, and hands the child to a thread
+/// that reaps it whenever it does end.
+#[test]
+fn a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget() {
+    let mut command: Command = Command::new("sleep");
+    command.arg("30");
+    let child: Child = command.spawn().expect("the leader");
+    let pid: i32 = i32::try_from(child.id()).expect("a process number");
+    let began: Instant = Instant::now();
+    assert!(!reap_within(child, Duration::from_millis(300)), "the leader had not ended");
+    assert!(began.elapsed() < Duration::from_secs(10), "the reaping gave up after its budget");
+    assert!(is_running(pid), "the leader is still there: nothing waited for it");
+    // SAFETY: the control ends the process it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    assert!(is_gone_soon(pid), "the thread the leader was handed to reaped it when it ended");
+}
+
+/// A leader that ends is reaped within the budget.
+#[test]
+fn a_leader_that_ends_is_reaped_within_the_budget() {
+    let mut command: Command = Command::new("true");
+    let child: Child = command.spawn().expect("the leader");
+    assert!(reap_within(child, Duration::from_secs(10)));
 }

@@ -556,6 +556,13 @@ Results (cuts are the cut points times two signals):
   `stash store` (8, 2 different: the stash reflog), `merge --ff-only` (54, 40 different, 11 second runs failed),
   `reset --hard` (80, 35 different: `ORIG_HEAD` and the reflogs), `read-tree -u -m OLD NEW` (14, 11, 11),
   `checkout BRANCH` (46, 40, 11) and `switch BRANCH` (46, 40, 11).
+- Added in round 3 (2026-11-04T14:20:00-05:00 onward, same method): identical, `update-ref --no-deref REF VALUE` with
+  `-c core.logAllRefUpdates=false` on the command line while the configuration says `always` (12 cuts), the same with REF a symbolic ref
+  to a branch (8), `update-ref -d --no-deref REF` with the setting (14), `symbolic-ref HEAD REF` in a bare repository (4).
+  Different: `init --bare --template= --ref-format=reftable DIR` (64 cuts, all different: the reftable names are random, and 57 second
+  runs failed), and `fast-import --done --export-marks=FILE` with the wrapper's own stream, the setting on the command line and the
+  configuration saying `always` (88 cuts, 2 different, both second runs failed on a `marks-1.lock` a cut left in the worktree).
+  Output files: `cut-experiment-round3.out` and a run of the `fast-import` case.
 - Not run, so counted with the different ones because data is lost by guessing wrong and a wait is not:
   every other form, such as `reset --soft`, `update-ref` of a ref outside `refs/cli-git/`, `stash push`.
 - Limits: one small repository, Git 2.56.0, local filesystem; a step cut part way through a large worktree could differ in ways a
@@ -680,10 +687,8 @@ Both verdicts were "merge after the named fixes". Files: `/var/home/user/temp/ag
   words; it rejects `config --add`, `stash -m list`, `update-ref --create-reflog` and `-m`, a ref outside the two numbered side-ref
   shapes, `add --intent-to-add`, and every step nobody listed.
   Test: `a_form_the_cut_experiment_did_not_run_has_no_ceiling` (red first).
-  The assumptions the classification rests on are written beside `is_side_ref`: the wrapper's side refs are plain refs, no reflog is
-  configured for them, and the number is all digits.
-  Not covered by the experiment and left as they were: the existing allow-list `RERUNNABLE`, which names `symbolic-ref` and `init` in
-  every form.
+  Round 2 left the assumptions that the side refs are plain refs and have no reflog written in a comment; round 3 enforces them (see
+  "Round 3").
 - Seven-second path missed (sol-1): see "The short extra wait".
 - Tests (sol-1): barrier-driven race, storage-failure injection, replay after consumption, late notice, and a deadline around the
   joins of the hung-write controls (`Submitting::join` waits at most the longest a control waits).
@@ -708,12 +713,21 @@ Both verdicts were "merge after the named fixes". Files: `/var/home/user/temp/ag
 - Documentation (sol-2): the `/proc` paragraph of `SPEC.md` no longer says an unreadable counter means a run is never ended; the two
   descriptions of the inside-write client are one; the cold-install figure is called a measured duration.
 
-### Foreign-owner patience: what its expiry authorizes (sol-2 C), options not yet chosen
+### Foreign-owner patience: what its expiry authorizes (sol-2 C), decided: refuse and name it
+
+The owner chose option B on 2026-11-04. Verbatim choice: "Refuse and name it (Recommended)" (the question: "Foreign-owner patience:
+what its expiry authorizes"). Built in round 3: when `FOREIGN_OWNER_PATIENCE` expires on a record from another PID namespace, the
+command stops and changes nothing. The error names the record file, the owner's process number and namespace, the record's age, that
+the owner may be live in another container, and the exact `rm -- '<path>'` for when no cli-git command is running on the repository
+in any container and no Git process that cli-git left running is either (the second condition because a step that cannot run twice
+is now left running, not ended). It covers the merge intent recovery, the conversion claim takeover, and the worktree-copy journals
+and stage claims; commits stay outside it. Each consumer has a red-first test, listed in `SPEC.md`, "Foreign-owner expiry". The
+analysis that follows is kept as the record of what the expiry authorized before the choice (the text says "today" for that time).
 
 `FOREIGN_OWNER_PATIENCE` (20 minutes, twice `LOCK_CEILING`) is the age after which a record written by an owner in another PID
 namespace stops counting as alive. The reviewer's point holds: the number was derived from the longest lock wait, and
 a step that cannot be run twice may now legitimately run past any number, so an old record is not proof of a dead owner.
-Nothing was changed. What the expiry authorizes today, from the code:
+What the expiry authorized before round 3, from the code:
 
 - Merge intent records (`merge_isolation_recovery.rs`, through `classify_transaction_owner_record`): a record judged dead is
   recovered by the next wrapper command in that worktree: `recover_interrupted_merges` decides whether the merge landed and
@@ -731,7 +745,7 @@ Nothing was changed. What the expiry authorizes today, from the code:
 - Not authorized by it: a lock (`index.lock`) is judged by its marker's namespace and boot and by the lock holder
   (`service_index_lock.rs`), not by this age; commits never wait for it.
 
-Options (none is built), each with its schedule and what a person sees:
+Options (B was built), each with its schedule and what a person sees:
 
 - A. Keep the derived value and its behavior.
   Schedule: a container's merge holds its record 21 minutes; another namespace's wrapper command in the same worktree finds it
@@ -766,4 +780,61 @@ B over C because B never reclaims a live owner's record and needs a change only 
 writer and still cannot fence a Git command;
 C over D because C removes the dependence on a length that no measurement bounds, where D only moves the number;
 D over A because an hour is less likely to be crossed by a write than 20 minutes, and costs a revert of the derivation the owner asked for.
-The choice is the owner's.
+The owner chose B.
+
+## Round 3, 2026-11-04T14:20:00-05:00 onward: the findings of the second reviews and what was done
+
+Files: `/var/home/user/temp/agent/reviews/branch-write-r2-sol-1.txt` and `branch-write-r2-sol-2.txt`. Both verdicts: correct after
+named fixes. Each finding, with its disposition and its test (red first unless said):
+
+- Provisional `withdrawn` acknowledged as final (sol-1 P1). A decision is provisional until its maker has re-read the journal and
+  created `<id>.cancelled`; a loser of the creation answers `Withdrawn` only when that file exists, else queues its withdrawal;
+  a maker that finds the request landed, open or unknown removes its own unacknowledged decision. Pruning removes the oldest
+  `.cancelled` file with its decision. Tests: `a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged`,
+  `a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation`, `only_the_retained_number_of_confirmed_withdrawals_is_kept`.
+  The reviewer's alternative, a short-held coordinated state lock, was not taken: the owner's "Use as few locks as possible."
+- Classifier (sol-1 P1). A side-ref write is ended only with `--no-deref` and `-c core.logAllRefUpdates=false` on the argv, which the
+  wrapper passes at every call site (`keep_unlanded` and the four scratch deletions in `service_land.rs`); `fast-import` is never
+  ended (its stream can update and checkpoint branches; the experiment found a marks lock left by a cut that failed the second run);
+  `RERUNNABLE` no longer names `symbolic-ref` or `init`, and `may_be_rerun` accepts a `symbolic-ref` read, a `symbolic-ref` write on
+  a shadow request with no option, and `init --bare` on a shadow request. Real argv forms found by `rg`: `symbolic-ref --quiet HEAD`
+  and `--quiet --short HEAD` (reads), `symbolic-ref HEAD <ref>` and `symbolic-ref <name> <target>` in `shadow_refs.rs` (shadow
+  requests), `init --bare --template= --object-format=<f> --ref-format=reftable <shadow>` in `shadow_create.rs`. `init` came out
+  different in the experiment, and it is kept as a rerun form because it creates a private repository that its transaction discards
+  when it fails. Tests: `a_form_the_cut_experiment_did_not_run_has_no_ceiling` (extended),
+  `a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state`,
+  `symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs`.
+  The reflog setting must be the last `-c` of its key (the key is not case-sensitive and `--config-env` of it is refused), and the
+  `init` form is the exact argv of `shadow_create.rs`; those two controls were written after their code and not run red first.
+  `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists, so the proof for
+  `refs/cli-git/kept/<seq>` rests on the sequence number being new at each use (noted beside `is_side_ref`).
+- Unbounded capture read (sol-1 P1, sol-2 A). The output is read once as a snapshot of the last `STEP_OUTPUT_LIMIT` bytes of the
+  sizes found when the read began, with a note for what was left out and for a read that failed; the files are emptied after the
+  read and when the command stops waiting for a step. Tests in `output_capture_tests.rs`
+  (`output_past_the_limit_keeps_the_tail_and_says_what_was_left_out`, `the_snapshot_reads_the_length_it_found_and_no_more`,
+  `a_read_that_fails_is_reported_and_not_taken_for_the_end`) and
+  `a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run`. Residual, stated in `SPEC.md`: a step left running that
+  keeps writing is held in memory by the kernel until it ends; nothing in the wrapper bounds that. This round wrote the snapshot and
+  its tests together and did not run them red first.
+- `decide` leaked `.tmp` on a failed write (sol-1 P2). An RAII `TemporaryFile` removes it on every return.
+  Test: `a_temporary_file_is_removed_by_an_early_return`.
+- A review that panics after its timeout left `OUTSTANDING` positive (sol-2 P1), and admission was not atomic (sol-2 P2). The runner
+  state is a generation and a status in one atomic; the release is a guard that runs when the thread unwinds. Tests:
+  `a_review_that_panics_after_its_timeout_leaves_nothing_outstanding` (timeout, panic, zero, new review) and
+  `two_callers_that_arrive_together_are_never_admitted_at_once`. The tests that shared the global use runners of their own.
+- `run_tool` timeout path (sol-2 A): `reap_within` waits for the leader within `STOP_GRACE` and hands a leader that does not end to a
+  reaper thread. Tests: `a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget`, `a_leader_that_ends_is_reaped_within_the_budget`.
+  `has_shadow_log` now runs inside the contained job; the FIFO control retries on the path that stalled and has its own runner.
+- Tests named by both reviews: two withdrawers plus completion and the journal failing after the win (above); the CLI-exit test has
+  a deadline around its command; the inherited-output tests assert the helper is alive before cleanup; a continuously writing
+  descendant after the leader exits (above).
+- Protocol and upgrade (sol-1 section 3). No wire change. `SPEC.md` ("Output of a step, the review runner, and releases that meet")
+  says what services and clients of 0.5.31 and 0.5.32 keep doing. Retirement: the polite `retire` of a same-instance upgrade never
+  stops a unit; the retirement of the single service of the releases before one service per worktree used to ask and stop at once,
+  and the manager's stop ends the whole unit with its Git children; it now stops the socket, waits `retirement_wait` for the
+  service to leave by itself, and stops the service only after it has left, failing the commit with the stop named for the person
+  otherwise. Tests: `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`,
+  `the_earlier_service_is_stopped_only_after_it_has_left`.
+- Foreign-owner expiry (sol-1, sol-2 C): decided and built, above.
+- Not changed: guard-fixture cleanup in older tests, `wait_ceilings.rs` verification (sol-2 round 1 notes), and the unrun reviewer
+  items about reason-string tests versus end-to-end propagation.

@@ -137,6 +137,7 @@ fn a_refused_probe_is_an_error() {
             "a signalable PID 1 is not linux:1"
         ),
         Err(OwnerLivenessError::Identity(error)) => panic!("unexpected identity failure: {error}"),
+        Err(OwnerLivenessError::ExpiredForeign(text)) => panic!("a bare PID is no foreign record: {text}"),
     }
 }
 
@@ -199,10 +200,11 @@ fn an_owner_of_another_namespace_is_alive_until_its_record_expires() {
         directory.as_path(),
         crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60),
     );
-    assert_eq!(
-        classify_transaction_owner_record(&owner, old.as_path()).expect("old"),
-        OwnerLiveness::Dead
-    );
+    // Past the patience the record is neither alive nor dead (owner, 2026-11-04, "Refuse and name it (Recommended)"): the
+    // classifier refuses, and the error names the record, the owner and its namespace.
+    let refused = classify_transaction_owner_record(&owner, old.as_path()).expect_err("an expired foreign record is refused");
+    let text: String = format!("{refused:?}");
+    assert!(text.contains("pid:[1]") && text.contains(old.to_string_lossy().as_ref()), "{text}");
 }
 
 /// A record of this namespace, or of none, is still judged by its PID.
