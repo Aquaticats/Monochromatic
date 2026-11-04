@@ -2866,6 +2866,19 @@ section "Owner questions for revision 12"):
   as with native Git).
   The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
 
+### The final disk save is never cut short
+
+The owner,
+in the session,
+after being told the fourteenth review found question 6a omitted fail-closed recovery:
+"Assume the final disk save would never be cut short."
+Meaning for the commit protocol design:
+the departure barrier (stop receipt and saved set) runs to completion with no time limit;
+questions 6a and 6b are dropped;
+the provisional decision 12 ("Short wait, then say unconfirmed") is superseded;
+a disk that never finishes the sync falls under the owner's outside-our-control list ("disk I/O errors").
+Sent to the revision 15 agent.
+
 ### cargo-shadow kept files
 
 The owner,
