@@ -159,6 +159,7 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     // `Command::new(program).args(arguments)` builds the command; the guard, when there is one, is added to its environment
     // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
     // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
+    crate::real_binary::refuse_if_ourselves(program).map_err(std::io::Error::other)?;
     let mut command: Command = Command::new(program);
     command.args(arguments);
     if let Some(value) = guard_value {
@@ -307,6 +308,10 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
     if will_exec {
+        if let Err(reason) = crate::real_binary::refuse_if_ourselves(&program) {
+            eprintln!("cargo-shadow: {reason}");
+            return EXEC_FAILED_EXIT_CODE;
+        }
         let error: std::io::Error = Command::new(&program).args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
         eprintln!("cargo-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;

@@ -154,6 +154,31 @@ const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 const MAX_LAUNCHER_HOPS: usize = 8;
 
 /// What:
+/// `pub fn refuse_if_ourselves(program: &Path) -> Result<(), String>` fails when the file a chosen program names is now the running image
+/// (or a recorded launcher that leads to it).
+/// Why:
+/// The choice of the real cargo and its start are two steps, and a path can be made to name the shadow between them (an ordinary
+/// installation swapping a link). The check is repeated right before each start, so the window shrinks to the instants between this
+/// check and the start itself; the shadow no longer starts itself for a path that already named it when the start was made
+/// (fifth certification pass). A file descriptor opened at the check and executed would close that window; it breaks scripts and
+/// proxies that open their own path, so it is not done without an owner decision.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function refuseIfOurselves(program: string): void  // throws the reason
+/// ```
+pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
+    let Some(image) = running_image_identity() else {
+        return Ok(());
+    };
+    let named_us: bool = identity_of(program) == Some(image) || fs::canonicalize(program).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[image]); });
+    if named_us {
+        return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+    }
+    return Ok(());
+}
+
+/// What:
 /// `pub fn running_image_identity() -> Option<(u64, u64)>` is the device and inode of the executable image this process runs.
 /// Why:
 /// `/proc/self/exe` opened as a file names the open image even when its installed path was replaced or removed; `None` where it

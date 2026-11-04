@@ -400,3 +400,21 @@ fn a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_
     assert_eq!(direct, expected.display().to_string(), "the lookup returned a hard link of the running image as the real cargo");
     assert_eq!(chain, expected.display().to_string(), "the lookup followed a recorded chain to a hard link of the running image");
 }
+
+/// Fifth certification pass: a path chosen as the real cargo that names the shadow at the moment of the start is refused, and a path that
+/// names another program is not. The path is a hard link of the running image (swapped in after the choice, in the schedule), checked
+/// by the same check the three start sites make.
+#[test]
+fn a_chosen_path_that_names_the_running_image_at_the_start_is_refused() {
+    let directory = scratch();
+    let chosen: PathBuf = directory.path().join(NAME);
+    write_program(directory.path(), EXECUTABLE_MODE);
+    assert!(crate::real_binary::refuse_if_ourselves(&chosen).is_ok(), "a program that is not the shadow was refused");
+
+    // The installer swaps a hard link of the running image over the chosen path after it was chosen.
+    std::fs::remove_file(&chosen).expect("remove the chosen program");
+    std::fs::hard_link(std::env::current_exe().expect("this test executable"), &chosen).expect("swap in a hard link of the image");
+
+    let refused = crate::real_binary::refuse_if_ourselves(&chosen);
+    assert!(refused.is_err_and(|reason| { return reason.contains("names this program itself"); }), "a path that names the running image was started");
+}
