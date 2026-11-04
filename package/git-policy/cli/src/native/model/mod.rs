@@ -211,6 +211,10 @@ mod model_receipt_r18;
 #[path = "model_receipt_r18_tests.rs"]
 mod model_receipt_r18_tests;
 
+/// The coverage map of the revision 18 acceptance target, checked against the tests it names.
+#[path = "model_target_tests.rs"]
+mod model_target_tests;
+
 /// Rule V's barriers (departure, reclamation, preservation) at the filesystem's level of detail.
 #[path = "model_barrier_r13.rs"]
 mod model_barrier_r13;

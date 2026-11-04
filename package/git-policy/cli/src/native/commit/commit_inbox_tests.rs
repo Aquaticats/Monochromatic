@@ -546,3 +546,29 @@ fn p9_a_departure_forces_the_whole_closure_of_the_state_it_acknowledges() {
     let events: Vec<String> = take_events();
     assert!(events.contains(&format!("file-sync:{}", lane.join("inbox").join(&other.id).display())), "r was not forced: {:?}", events);
 }
+
+/// Acceptance target (Rule V departure): stop failure still attempts the remaining saves. The stop receipt cannot be forced (the mark file is
+/// not there), and the departure still forces the request, the saved content and the state before it reports the stop's failure; it never
+/// returns an acknowledgment.
+#[test]
+fn p9_a_stop_failure_still_attempts_the_remaining_saves() {
+    let root: PathBuf = scratch("p9-stop-failure");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    std::fs::create_dir(lane.join("decision")).expect("decision");
+    let missing_mark: PathBuf = lane.join("decision").join(&request.id);
+    let saved: PathBuf = lane.join("saved-commit");
+    std::fs::write(&saved, b"objects").expect("saved");
+    start_events();
+    let outcome = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state"))
+        .with_stop(&missing_mark)
+        .with_closure(&[saved.as_path()])
+        .run();
+    let events: Vec<String> = take_events();
+    assert!(matches!(outcome, Err(git_policy_cli::commit_inbox::DepartureError::StopNotForced(_))), "{:?}", outcome.map(|_| ()));
+    assert!(events.contains(&format!("file-sync:{}", lane.join("inbox").join(&request.id).display())), "the request was not forced: {:?}", events);
+    assert!(events.contains(&format!("file-sync:{}", saved.display())), "the saved content was not forced: {:?}", events);
+    assert!(events.contains(&format!("dir:{}", lane.join("state").display())), "the state was not forced: {:?}", events);
+}

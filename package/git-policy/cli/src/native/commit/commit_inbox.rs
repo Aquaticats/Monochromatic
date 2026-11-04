@@ -395,6 +395,8 @@ pub enum DepartureError {
     },
     /// A file given for the disposition is not the one that carries its promise (the reason names it).
     NotThePromise(&'static str),
+    /// The stop receipt could not be forced; every other save was attempted before this was reported, and none of them is acknowledged.
+    StopNotForced(io::Error),
     /// A file system call failed.
     Io(io::Error),
 }
@@ -541,9 +543,14 @@ impl<'a> Departure<'a> {
     pub fn run(&self) -> Result<Acknowledgment, DepartureError> {
         self.validate()?;
         let mut forced: Vec<PathBuf> = Vec::new();
+        // A stop that cannot be forced (a returned error) does not end the departure: every other save is still attempted, and the failure
+        // is reported afterwards as the outside fault it is. Nothing is acknowledged then.
+        let mut stop_failure: Option<io::Error> = None;
         if let Some(stop) = self.stop {
-            self.force_with_name(stop)?;
-            forced.push(stop.to_path_buf());
+            match self.force_with_name(stop) {
+                Ok(()) => forced.push(stop.to_path_buf()),
+                Err(error) => stop_failure = Some(error),
+            }
         }
         for id in self.ids {
             let path: PathBuf = self.inbox.join(id);
@@ -569,6 +576,9 @@ impl<'a> Departure<'a> {
         if let Some(path) = self.ledger {
             self.force_with_name(path)?;
             forced.push(path.to_path_buf());
+        }
+        if let Some(error) = stop_failure {
+            return Err(DepartureError::StopNotForced(error));
         }
         return Ok(Acknowledgment { disposition: self.disposition, stop_forced: self.stop.is_some(), forced, state });
     }

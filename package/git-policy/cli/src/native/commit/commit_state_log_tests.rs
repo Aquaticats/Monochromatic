@@ -502,3 +502,18 @@ fn p9_an_append_to_a_captured_ledger_does_not_invalidate_the_root() {
     // Either the append is refused by an enforced lifetime rule, or it succeeds and the root stays valid. Both keep the lane recoverable.
     assert!(appended.is_err() || read(&state).is_ok(), "the lane is damaged by a legitimate append: {:?}", read(&state).err());
 }
+
+/// Revision 17 control 10 (R16a-6): an established root (the checkpoint completed and its predecessor was deleted) whose listed request file is
+/// then lost. Recovery fails closed: the state is reported damaged and its bytes are kept, never an older or an empty state, and never an
+/// automatic loss.
+#[test]
+fn p9_an_established_root_with_a_lost_dependency_fails_closed() {
+    let (lane, state, envelope) = lane_with_envelope("p9-established-lost");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document adopting the request", std::slice::from_ref(&entry)).expect("checkpoint");
+    assert!(!state.join("state.log.1").exists(), "the predecessor is gone: the checkpoint is the only root");
+    std::fs::remove_file(&envelope).expect("the listed request file is lost");
+    assert!(matches!(read(&state), Err(StateError::Damaged)), "recovery must stop and report");
+    assert!(state.join("state.log.2").exists(), "the bytes of the root are kept");
+}
