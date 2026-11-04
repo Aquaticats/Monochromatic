@@ -8,18 +8,18 @@
 //! before any repository is built.
 
 /// The executable entry point, which must hand its arguments to the wrapper without reading its start name.
-const MAIN_SOURCE: &str = include_str!("main.rs");
+const MAIN_SOURCE: &str = include_str!("../main.rs");
 
 /// Every source of the commit path that decides what Git is started with.
 const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
-    ("commit/commit_conclusion.rs", include_str!("commit/commit_conclusion.rs")),
-    ("commit/commit_preparation.rs", include_str!("commit/commit_preparation.rs")),
-    ("invocation/hooks_off.rs", include_str!("invocation/hooks_off.rs")),
-    ("landing/service_commit.rs", include_str!("landing/service_commit.rs")),
-    ("landing/service_native.rs", include_str!("landing/service_native.rs")),
-    ("landing/service_prepare.rs", include_str!("landing/service_prepare.rs")),
-    ("health/external_hooks.rs", include_str!("health/external_hooks.rs")),
-    ("shadow/shadow_config.rs", include_str!("shadow/shadow_config.rs")),
+    ("commit/commit_conclusion.rs", include_str!("../commit/commit_conclusion.rs")),
+    ("commit/commit_preparation.rs", include_str!("../commit/commit_preparation.rs")),
+    ("invocation/hooks_off.rs", include_str!("../invocation/hooks_off.rs")),
+    ("landing/service_commit.rs", include_str!("../landing/service_commit.rs")),
+    ("landing/service_native.rs", include_str!("../landing/service_native.rs")),
+    ("landing/service_prepare.rs", include_str!("../landing/service_prepare.rs")),
+    ("health/external_hooks.rs", include_str!("../health/external_hooks.rs")),
+    ("shadow/shadow_config.rs", include_str!("../shadow/shadow_config.rs")),
 ];
 
 /// What a commit-path source must never contain: a way to write an entry, a way to name this executable, Git's hook

@@ -373,7 +373,7 @@ git cli-git --help
 
 The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
 parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
-A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
+A Clippy rule bans `std::env::current_exe` and `src/native/source_guard/no_self_invocation_tests.rs` scans the source for the rest;
 nothing is on its exception list that starts the wrapper.
 
 Exactly one scope is required:

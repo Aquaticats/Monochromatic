@@ -179,15 +179,13 @@ pub mod transaction;
 /// Re-exports every module of `transaction` at the crate root, as above.
 pub use transaction::*;
 
-/// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
+/// Controls that read the crate's own source text.
 #[cfg(test)]
-#[path = "hook_self_invocation_tests.rs"]
-mod hook_self_invocation_tests;
+pub mod source_guard;
 
-/// The lock inventory of the service and its support modules: a lock stands only on the inventory, with its reason beside it.
+/// Re-exports every module of `source_guard` at the crate root, as above.
 #[cfg(test)]
-#[path = "service_lock_inventory_tests.rs"]
-mod service_lock_inventory_tests;
+pub(crate) use source_guard::*;
 
 /// The `doctor` report and the checks of hooks and configuration it runs.
 pub mod health;
@@ -260,20 +258,6 @@ pub mod service;
 
 /// Re-exports every module of `service` at the crate root, as above.
 pub use service::*;
-
-/// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
-#[cfg(test)]
-#[path = "no_self_invocation_tests.rs"]
-mod no_self_invocation_tests;
-
-/// The structural check that the review's network client is reachable only from the service run; never in the release build.
-#[cfg(test)]
-mod standards_review_boundary_tests;
-
-/// The shared base of the checks that read the crate's own source text: a strict walk and the module tree, so a check
-/// is right for nested module directories; never in the release build.
-#[cfg(test)]
-mod source_scan_tests;
 
 /// Btrfs subvolume worktrees and the filesystem primitives under them.
 pub mod subvolume;

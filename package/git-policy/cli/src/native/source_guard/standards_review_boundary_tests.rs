@@ -25,7 +25,7 @@ const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] =
 /// fixture controls (`standards_review_boundary_*`), which name the library and the modules on purpose.
 fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
-        || file.starts_with("standards_review_boundary_")
+        || file.starts_with("source_guard/standards_review_boundary_")
         || file.starts_with("landing/service_work")
         || SERVICE_ONLY_FILE_PREFIXES.iter().any(|prefix| return file.starts_with(prefix));
 }
@@ -69,7 +69,7 @@ fn violations(sources: &[(String, String)]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for (file, text) in sources {
         let client_tests: bool = file.starts_with("standards_review/standards_review_client");
-        if text.contains("ureq") && !client_tests && !file.starts_with("standards_review_boundary_") {
+        if text.contains("ureq") && !client_tests && !file.starts_with("source_guard/standards_review_boundary_") {
             found.push(format!("{file} names the HTTP library"));
         }
         // The credential type is shared with the client path on purpose; only the handler module is service-only.

@@ -3031,7 +3031,7 @@ A forwarded index writer that finds a foreign `index.lock` ends as native Git en
 
 Concurrency in the service is lock-free first: atomic rename, exclusive creation, one owner per item.
 Every lock that remains covers the smallest unit and has its reason written beside it in the code.
-`src/native/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
+`src/native/source_guard/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
 an `flock`) appears in the service and support sources outside its inventory, or without the reason above its declaration.
 
 Removed:
