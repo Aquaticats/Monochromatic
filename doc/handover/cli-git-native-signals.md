@@ -52,7 +52,7 @@ Neither module is wired into the commit refusal (`Unported::CommitTransaction` i
   Keep the guard alive through cleanup, so a signal during cleanup is caught rather than killing the wrapper.
 - One guard may be active per process.
 
-### Automatic maintenance (`src/native/maintenance_decision.rs`, `src/native/maintenance_run.rs`)
+### Automatic maintenance (`src/native/landing/maintenance_decision.rs`, `src/native/landing/maintenance_run.rs`)
 
 - `parse_config_records` reads the NUL-separated output of `git config --type=bool-or-int --null --get-regexp`.
   The last value of a key wins; a key without a newline reads as `true`; output that is not UTF-8 is refused.
@@ -248,7 +248,7 @@ The host proof above is the evidence that the guard tests fail; the container no
 Per the lane brief's Trailing gates decision, these gates were not run before the cutover:
 
 - Mutation campaigns (`native:mutation`, cargo-mutants) over `src/native/process/signal_relay.rs`,
-  `src/native/maintenance_decision.rs`, `src/native/maintenance_run.rs` and `src/native/maintenance_hk_config.rs`.
+  `src/native/landing/maintenance_decision.rs`, `src/native/landing/maintenance_run.rs` and `src/native/maintenance_hk_config.rs`.
   Signals and automatic maintenance are non-core modules.
   Remaining: run the scoped mutation task over these files through the slot limiter and record every survivor with a
   proof.

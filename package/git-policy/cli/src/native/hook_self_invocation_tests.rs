@@ -15,9 +15,9 @@ const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
     ("commit/commit_conclusion.rs", include_str!("commit/commit_conclusion.rs")),
     ("commit/commit_preparation.rs", include_str!("commit/commit_preparation.rs")),
     ("invocation/hooks_off.rs", include_str!("invocation/hooks_off.rs")),
-    ("service_commit.rs", include_str!("service_commit.rs")),
-    ("service_native.rs", include_str!("service_native.rs")),
-    ("service_prepare.rs", include_str!("service_prepare.rs")),
+    ("landing/service_commit.rs", include_str!("landing/service_commit.rs")),
+    ("landing/service_native.rs", include_str!("landing/service_native.rs")),
+    ("landing/service_prepare.rs", include_str!("landing/service_prepare.rs")),
     ("health/external_hooks.rs", include_str!("health/external_hooks.rs")),
     ("shadow/shadow_config.rs", include_str!("shadow/shadow_config.rs")),
 ];

@@ -1336,7 +1336,7 @@ A rejection by the server with a reason no rule names is tried again, and the jo
 The classification reads Git's own words, which are cited beside the rules in `src/native/push/push_retry.rs`.
 The plan is owned by the service's work loop alone: a round takes what is due for each repository out of it before the
 repositories are drained side by side, hands it to that repository's worker as a value, and applies the plans and forgets the
-workers return, so the workers share it with no lock (`src/native/service_work.rs`, `src/native/service_round.rs`).
+workers return, so the workers share it with no lock (`src/native/landing/service_work.rs`, `src/native/landing/service_round.rs`).
 The plan survives a restart of the service: it is kept on disk, a file per branch, in the instance's own journal
 (`src/native/push/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
 
@@ -3068,7 +3068,7 @@ The after-commit work of the service (pushes, upkeep, reviews, trash) is drained
 one, by the single work thread that commit `52f06fbe12` made the owner of the review credentials.
 The repository owner's answer of 2026-11-03 to whether the service's independent work should run side by side was
 "Parallelize, no locks (Recommended)", so a round of wakes now drains its repositories on workers within the host budget
-(`src/native/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
+(`src/native/landing/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
 The commit service's unit sets no CPU, memory, task or disk limit (the owner's decisions, `doc/handover/cli-git-rust-implementation.md`, lines 148 to 160), so the width
 of a round is the host budget: an eighth of the threads left free, and half of the memory available over `REPOSITORY_MEMORY`,
 128 MiB, which is the 90th percentile of the peaks of 28 services rounded up to a power of two
@@ -3082,7 +3082,7 @@ Within one repository the items still run in the order the drain gave them: push
 
 ### The service's hold on the index lock
 
-`src/native/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
+`src/native/landing/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
 Its hold,
 ownership check,
 staging files,
@@ -4123,8 +4123,8 @@ and the number of attempts it made:
 and "changed 3 times" for a commit the wrapper built (its `retry-prepare` rounds)
 and for a batch the service builds again after its reference update finds the branch moved,
 each three attempts at most.
-The bounds are `REBUILD_ATTEMPTS` in `src/native/service_commit.rs`
-and `LANDING_ATTEMPTS` in `src/native/service_land.rs`.
+The bounds are `REBUILD_ATTEMPTS` in `src/native/landing/service_commit.rs`
+and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
@@ -4149,7 +4149,7 @@ with the path quoted for the shell.
 
 The service takes a queued item by renaming its file into `claimed`,
 and the file name carries the clock reading of the holder's last renewal
-(`src/native/claim_time.rs`, `src/native/work_item.rs`).
+(`src/native/landing/claim_time.rs`, `src/native/landing/work_item.rs`).
 The reading holds the machine ID,
 the boot ID,
 the monotonic clock in milliseconds,

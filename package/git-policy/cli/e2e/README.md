@@ -324,7 +324,7 @@ Design scenarios exercise the accepted concurrent-commit design:
   overlapping hunks may fail only with exit `1` and the `concurrent-commit/replay-conflict` `core-finding` event
   that names the path.
   The first lands, and the second, which prepared against the branch before that,
-  has the bytes it captured merged onto the branch (`src/native/service_replay.rs`);
+  has the bytes it captured merged onto the branch (`src/native/landing/service_replay.rs`);
   a write the harness makes after the second command started never appears in its commit.
 - `shared-file-adjacent-edits`:
   the first agent edits one line and is queued at a frozen service,

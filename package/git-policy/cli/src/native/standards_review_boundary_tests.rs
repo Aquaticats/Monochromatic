@@ -26,7 +26,7 @@ const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] =
 fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
         || file.starts_with("standards_review_boundary_")
-        || file.starts_with("service_work")
+        || file.starts_with("landing/service_work")
         || SERVICE_ONLY_FILE_PREFIXES.iter().any(|prefix| return file.starts_with(prefix));
 }
 

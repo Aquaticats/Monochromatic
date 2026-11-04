@@ -122,7 +122,7 @@ New modules (each with its `*_tests.rs` where it has pure logic; the transaction
 - Garbage in `objects/pack` after a commit (the flake of `commit::a_pathspec_file_selects_the_committed_paths`, which
   failed once in a mutation baseline with `garbage: 2`): not a defect of the native commit and not a leftover. Git's own
   detached `git maintenance run --auto --quiet --detach`, which the landing starts as native `git commit` does
-  (`src/native/maintenance_run.rs`), repacks in the background: `git repack -d -l -q --cruft --write-midx` writes
+  (`src/native/landing/maintenance_run.rs`), repacks in the background: `git repack -d -l -q --cruft --write-midx` writes
   `tmp_pack_*` and `tmp_idx_*` files that `git count-objects -v` reports as garbage until the repack renames them. The
   Git 2.56.0 image starts that repack after the second landing even in a repository of 11 objects (it settles to one
   pack plus `multi-pack-index`, 0 garbage), so `assert_nothing_left` raced with it: 45 of 100 runs of the test failed in
