@@ -2159,6 +2159,199 @@ The selection is written to the manifest (`passOne`) and to the log.
 How the two passes are seeded, composed and resumed is in
 `package/mutation-test/cli-cargo-mutants/README.md` under "Two passes".
 
+### Source layout
+
+The crate is one library and two executables,
+and its sources live under `src/native/`.
+Each folder there is one subsystem,
+so a contributor opens a folder for a concern instead of searching a flat list of
+prefixed file names.
+The small-file rule stays:
+a folder holds many small modules,
+each with its sidecar test file.
+
+#### How a module is reached
+
+- `lib.rs` is the map.
+  It declares each folder (`pub mod command;`) and re-exports the folder's modules with a glob (`pub use command::*;`).
+- Each folder's `mod.rs` declares the modules inside it with one documented line each.
+- The glob re-export keeps every module at its old path,
+  so `crate::command_options` and
+  `git_policy_cli::command_options` still resolve.
+  The fuzz crate,
+  the two executables and the integration tests name modules that way and needed no change.
+- A glob re-export loses to an item written in `lib.rs`,
+  so no folder may share its name with a module.
+- `use super::` in a module that a folder declares directly names the folder,
+  not the crate root.
+  Write `use crate::module_name` to reach a module of another folder.
+- Library test names now start with the folder:
+  `command::command_options::tests::name`.
+  The integration test roots (`native_binary`,
+  `native_candidates`) keep their names.
+
+#### Subsystems
+
+- `invocation/`:
+  what one invocation does from arguments to Git:
+  the decision,
+  real Git resolution,
+  forwarding,
+  startup,
+  management words and the wrapper's own Git version check.
+- `config/`:
+  reading and validating `cli-git.config.jsonc` and the Git configuration a command is judged by.
+- `command/`:
+  the option grammar of each Git command the wrapper understands and the rules that rewrite,
+  refuse or hint.
+- `policy/`:
+  the policy engine:
+  registry,
+  triggers,
+  events,
+  passes over candidates and the direct fix.
+- `markdown/`,
+  `dependent_version/`,
+  `standards_review/`:
+  three policies large enough for a folder each.
+- `candidate/`:
+  what a commit or push would add,
+  read from the index or objects,
+  and the scanner run over it.
+  Its `candidate_consumer_tests.rs` is the `native_candidates` test root.
+- `commit/`,
+  `shadow/`,
+  `transaction/`:
+  the wrapper's commit path,
+  the shadow repository it prepares on and replays
+  onto,
+  and the durable transaction records with their recovery.
+- `landing/` and `service/`:
+  what the resident commit service does to land a commit,
+  and the service program around
+  it:
+  protocol,
+  server,
+  client,
+  journal,
+  provisioning and the unit files in `service/service_units/`.
+- `push/`,
+  `lfs/`,
+  `merge/`,
+  `conflict/`:
+  pushes and their waits,
+  Git LFS,
+  merges with the corpus in
+  `merge/word_merge_corpus/`,
+  and conflict state around commits and checkouts.
+- `worktree/`,
+  `worktree_copying/`,
+  `subvolume/`,
+  `repair/`,
+  `health/`:
+  worktree commands,
+  the ignored-state copy,
+  btrfs subvolumes and the filesystem primitives under them,
+  package-manager repair,
+  and the `doctor` report.
+- `repo_read/`,
+  `index/`,
+  `lock/`,
+  `process/`,
+  `foundation/`:
+  reads without a Git process,
+  the index file,
+  locks and claims,
+  facts about processes,
+  and shared building blocks that depend on no subsystem.
+- `testing/`:
+  test-only fixtures shared by many unit tests,
+  never part of the release executable.
+- `source_guard/`:
+  the controls that read the crate's own source text.
+- `binary/`:
+  the consumer-level controls that start the built executable;
+  `binary_tests.rs` is the `native_binary`
+  test root.
+- At the top:
+  `lib.rs`,
+  `main.rs` (`cli-git-native`,
+  installed as `git`) and `service_main.rs` (`cli-git-service`).
+
+#### Where new files go
+
+- A new module goes in the folder of the subsystem it belongs to.
+  Declare it in that folder's `mod.rs` with a documented line,
+  never in `lib.rs`.
+- Its sidecar test file `<module>_tests.rs` sits beside it and is declared in the module with `#[path]`.
+  Test support used by one subsystem stays in that folder under `#[cfg(test)]`;
+  support used by many goes in `testing/`.
+- A data file that `include_str!` reads sits in a subfolder beside the module that reads it,
+  and its path is added to the
+  `include` list in `Cargo.toml` when the published crate needs it.
+- A new subsystem is a new folder with a `mod.rs`,
+  a `pub mod` and `pub use` pair in `lib.rs`,
+  and a line in the list
+  above.
+  Its name must differ from every module name,
+  singular where it reads naturally.
+- Do not put a module in `lib.rs` or beside it;
+  the folders exist so the top level stays short.
+- The source scans (`source_guard/`) follow `mod` declarations from the `Cargo.toml` targets,
+  so a file that no
+  declaration reaches fails them.
+- Paths in tooling name the folder,
+  for example `src/native/command/command_add.rs`.
+  A mutation scope may name subfolders (`--file src/native/command/command_add.rs`);
+  pass 1 of a two-pass campaign
+  selects tests by top-level folder,
+  so its first pass covers more tests than it did when every module was a top-level
+  entry.
+- Records under `doc/` that predate this layout name the old flat paths.
+  `git log --follow -- <new path>` finds a file's history across the move.
+
+#### The `native` directory layer
+
+The sources sit under `src/native/` although the TypeScript implementation that the name told apart from is gone.
+This is a layout decision,
+picked by the coordinator's agent,
+veto open.
+Removing the layer needs no binary rename and no behaviour change,
+because the targets are named in `Cargo.toml`.
+
+- Keep `src/native/` for now and drop it in a follow-up.
+  - Pros:
+    no second mass rename while other branches still edit these files;
+    nothing else changes paths.
+    The shared mutation scope rules (`nativeSourcePrefix`) and their golden scenarios keep their prefix.
+  - Cons:
+    the redundant segment stays in every path until the follow-up.
+- Move to `src/` now (`src/lib.rs`,
+  `src/main.rs`,
+  `src/service_main.rs` and the folders).
+  - Pros:
+    the conventional Cargo layout and shorter paths,
+    in one step with the folder move.
+  - Cons:
+    a second rename of every file under review in other branches,
+    a change of the prefix in the mutation package
+    and its golden scenarios,
+    and hundreds of path mentions in other packages and documents.
+- Move to `src/` with the executables in `src/bin/`.
+  - Pros:
+    Cargo finds the executables without `[[bin]]` paths.
+  - Cons:
+    everything the previous option costs,
+    plus the executable entry points move away from `lib.rs`.
+
+Ranking:
+keep and drop later > move to `src/` now > `src/` with `src/bin/`,
+because the first avoids a second rename
+while branches are in flight and loses only a path segment,
+the second reaches the same layout as the third at a
+smaller cost,
+and the third only adds moves that nothing requires.
+
 ## License
 
 `LGPL-3.0-or-later`.
