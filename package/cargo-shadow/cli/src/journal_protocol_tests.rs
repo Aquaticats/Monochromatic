@@ -888,6 +888,25 @@ fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() 
 /// Review finding (4b 1):
 /// the kept directory and its parent are synced every time a file is linked into it,
 /// also when it existed.
+/// Round 6 (5b 1): the entries of the kept directory are made durable up to the directory that also holds the replaced file,
+/// not up to an arbitrary number of ancestors.
+#[test]
+fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_directory_that_holds_the_target() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let kept_dir = root.path().join("a").join("b").join("c").join("d");
+    fs::create_dir_all(&kept_dir).expect("an existing deep kept directory");
+    let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
+
+    replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
+
+    let calls = synced.borrow();
+    for ancestor in kept_dir.ancestors().take_while(|found| { return found.starts_with(root.path()); }) {
+        assert!(calls.contains(&ancestor.to_path_buf()), "{} was not synced: {calls:?}", ancestor.display());
+    }
+}
+
 #[test]
 fn the_kept_directory_and_its_parent_are_synced_even_when_the_directory_exists() {
     let root = repository("expected");
