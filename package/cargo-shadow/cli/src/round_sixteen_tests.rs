@@ -307,3 +307,117 @@ fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
     }
 }
 //endregion
+
+//region recovery and admission (V2, certification group 1)
+// What the region covers: schedules where the blocking cause must be the one the test claims.
+
+/// The crate root the journals of this region snapshot.
+const CRATE_DIR: &str = "package/s/one";
+
+/// A snapshot of the lockfile of the case.
+fn snapshot(source: &str) -> crate::crates::LockSnapshot {
+    return crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: source.to_string() };
+}
+
+/// A disposable repository whose crate root holds the output of a killed run.
+fn repository() -> tempfile::TempDir {
+    let root = scratch();
+    fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "unchecked output of the killed run").expect("lock");
+    return root;
+}
+
+/// A judge that refuses the live lockfile, so that a recovery that goes ahead restores the snapshot.
+fn refusing(_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]) -> Vec<String> {
+    return vec!["dep@1.0.1 refused".to_string()];
+}
+
+/// The text of the live lockfile.
+fn live_lock(root: &Path) -> String {
+    return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
+}
+
+/// Acceptance row "V2, amended c" (certification group 1): a journal whose only containment record is malformed is a possible
+/// survivor: the recovery keeps it and the lockfile and says that the record is not understood.
+/// An implementation that ignored malformed lines would recover it (nothing else in the journal blocks), so the cause of the refusal is
+/// the malformed record; the control is the acknowledgement, after which the same recovery settles the journal.
+#[test]
+fn a_journal_whose_only_record_is_malformed_is_kept_with_its_diagnostic_until_it_is_acknowledged() {
+    let root = repository();
+    let journal: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
+    fs::write(journal.join("groups"), "not a number\n").expect("write a malformed record");
+
+    let messages: Vec<String> = crate::journal::recover(root.path(), &refusing);
+
+    assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "a journal with a malformed record was recovered: {messages:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1, "the journal was not kept");
+    assert!(messages.iter().any(|message| { return message.contains("not understood") && message.contains("cargo-shadow acknowledge"); }), "the diagnostic of the malformed record is missing: {messages:?}");
+    crate::acknowledge::acknowledge(&journal).expect("acknowledges");
+    let after: Vec<String> = crate::journal::recover(root.path(), &refusing);
+    assert_eq!(live_lock(root.path()), "original", "the control: the acknowledged journal was not settled: {after:?}");
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
+}
+
+/// A scope with a live descendant and a journal that records it with a resolved lifecycle (the scope and its settled end), so the
+/// member is the only thing that can block.
+fn journal_with_a_scope_that_has_a_member(root: &Path) -> Option<(crate::cgroup_test_support::TestScope, PathBuf)> {
+    let scope = start_in_scope(Command::new("sleep").arg("600"))?;
+    let journal: PathBuf = crate::journal_support::plant(root, &[snapshot("first")], &[]);
+    fs::write(journal.join("groups"), format!("{}\nsettled {}\n", scope.group.record(), scope.group.directory().display())).expect("record the scope");
+    assert!(scope.group.members().is_ok_and(|found| { return !found.is_empty(); }), "the scope has no member, so the schedule is not made");
+    return Some((scope, journal));
+}
+
+/// Stops a scope and waits until it is gone.
+fn end_scope(scope: &crate::cgroup_test_support::TestScope) {
+    let _ = scope.group.stop(Duration::from_secs(10));
+    let directory: PathBuf = scope.group.directory().to_path_buf();
+    wait_until("the scope to be collected", &|| { return !directory.exists(); });
+}
+
+/// Acceptance row "V2, amended c" (certification group 1): a positively observed member of one journal's scope stops the recovery of
+/// another journal.
+/// The scope's lifecycle is resolved (its end is recorded), so nothing but the live member blocks; once the member is gone the same
+/// recovery settles both journals, which is the control that no other uncertainty was blocking.
+#[test]
+fn a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_ends() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let root = repository();
+    // The other journal is planted first: planting begins a transaction, which a journal with a live member would refuse.
+    let _other = crate::journal_support::plant(root.path(), &[snapshot("second")], &[]);
+    let Some((scope, _journal)) = journal_with_a_scope_that_has_a_member(root.path()) else {
+        return;
+    };
+
+    let blocked: Vec<String> = crate::journal::recover(root.path(), &refusing);
+    let kept: String = live_lock(root.path());
+    end_scope(&scope);
+    let after: Vec<String> = crate::journal::recover(root.path(), &refusing);
+
+    assert_eq!(kept, "unchecked output of the killed run", "a live member did not stop the recovery: {blocked:?}");
+    assert!(blocked.iter().any(|message| { return message.contains("still running"); }), "the refusal does not name the member: {blocked:?}");
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the control: with the member gone the journals were not settled: {after:?}");
+}
+
+/// Acceptance row "V2, amended c" (certification group 1): a new transaction does not start while a journal's scope has a member, and
+/// starts once it is gone (the control).
+#[test]
+fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let root = repository();
+    let Some((scope, _journal)) = journal_with_a_scope_that_has_a_member(root.path()) else {
+        return;
+    };
+
+    let refused = crate::journal::begin(root.path(), &[snapshot("second")], false);
+    end_scope(&scope);
+    let started = crate::journal::begin(root.path(), &[snapshot("second")], false);
+
+    assert!(refused.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "a transaction started beside a live member, or the refusal does not name it: {:?}", refused.as_ref().err());
+    assert!(started.is_ok(), "the control: with the member gone the transaction was still refused: {:?}", started.err());
+}
+//endregion
