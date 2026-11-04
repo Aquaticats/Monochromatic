@@ -69,6 +69,15 @@ Revision 18 models, built to the acceptance target:
   one. The model excuses the window as an outside fault until a next owner starts; the notice text may need to
   say it.
 
+- The receipt model has one flusher actor. A client that finds the lock free in the window where the holder has released
+  it and will sweep once more is treated as covered by that sweep; two flushers contending for the lock in that window
+  are not modeled. This is a named simplification, and the design reviewer may ask for the second actor.
+- `LIVE_FORCE_PASSES` in `commit/commit_inbox.rs` bounds how often a departure re-forces the live closure when the
+  state grows while it is forced. It turns an endless appender into a named refusal; the value is not measured.
+- The sequential reference interpreter of the support model (`reference_landing`) is the single-path definition: D's
+  staged version is diffed against the tip D lands on. It is not an execution of the whole request sequence by a second
+  implementation; the literal tail and tip are shared by the model and the reference.
+
 ## Coverage of the revision 18 acceptance target
 
 Each row names the test that shows the property or control, or says what it needs. A build test
@@ -99,8 +108,8 @@ shown only by a labelled historical control, 25 not yet.
   `model_w1_r13_tests.rs`.
 - Not yet, obligation: helpers retain no lock, gate, client-lock or pipe descriptor. Needs: the internal flush
   entry point and a descriptor-inventory test of the launched process.
-- Not yet, obligation: launch is non-recursive and resource-bounded. Needs: the internal flush entry point and a
-  test that the launch never uses the ordinary command line.
+- Not yet, obligation: launch is non-recursive and resource-bounded. Needs: the internal flush entry point and
+  a test that the launch never uses the ordinary command line.
 
 ### C0 to C5, S1, C3 repair
 
@@ -125,27 +134,27 @@ shown only by a labelled historical control, 25 not yet.
 
 - Covered, control: the P/Q/A/D counterexample: `pqad_is_red_under_seventeen_and_green_under_eighteen` in
   `model_support_r18_tests.rs`.
-- Covered, control: repeated supporting-owner removals: `repeated_removals_of_supporting_owners_follow_the_fold`
-  in `model_support_r18_tests.rs`.
+- Covered, control: repeated supporting-owner removals:
+  `repeated_removals_of_supporting_owners_follow_the_fold` in `model_support_r18_tests.rs`.
 - Covered, control: replay changing support:
   `a_replay_that_changes_support_is_followed_and_a_stale_decision_loses_the_selection` in
   `model_support_r18_tests.rs`.
 - Covered, control: checkpoint and recovery between rebuild steps:
   `recovery_between_rebuild_steps_rebuilds_the_same_decision` in `model_support_r18_tests.rs`.
-- Covered, control: held requests: `every_start_is_green_under_eighteen_and_the_family_is_red_under_seventeen`
-  in `model_support_r18_tests.rs`.
+- Covered, control: held requests: `a_held_head_blocks_publication_and_leaves_the_decision_alone` in
+  `model_support_r18_tests.rs`.
 - Covered, control: disjoint requests: `a_disjoint_request_neither_supports_nor_overrides` in
   `model_support_r18_tests.rs`.
 - Covered, control: overlapping requests:
   `an_equal_entry_that_a_later_differing_entry_overrides_supports_nothing` in `model_support_r18_tests.rs`.
-- Covered, control: superseded requests:
-  `every_start_is_green_under_eighteen_and_the_family_is_red_under_seventeen` in `model_support_r18_tests.rs`.
+- Covered, control: superseded requests: `a_superseding_version_changes_support_only_through_its_own_entry` in
+  `model_support_r18_tests.rs`.
 - Covered, control: comparison with a sequential reference interpreter:
   `pqad_is_red_under_seventeen_and_green_under_eighteen` in `model_support_r18_tests.rs`.
-- Not yet, property: held-version completion cannot affect its successor. Needs: a model step where a superseded
-  version's hook completes and a control that lets it publish.
-- Not yet, property: retained bytes suffice for recomputation (ledger never compacted). Needs: a component that
-  recomputes the augmented delta from the request bytes and the ledger's removals.
+- Not yet, property: held-version completion cannot affect its successor. Needs: a model step where a
+  superseded version's hook completes and a control that lets it publish.
+- Not yet, property: retained bytes suffice for recomputation (ledger never compacted). Needs: a component
+  that recomputes the augmented delta from the request bytes and the ledger's removals.
 
 ### P1 to P4, E1, W1 and W2, recovery classes
 
@@ -155,8 +164,8 @@ shown only by a labelled historical control, 25 not yet.
 - Covered, control: death at the client-lock handoff:
   `exposure_before_the_client_lock_lets_the_owner_decide_a_live_command_as_clientless` in
   `model_bound_r14_tests.rs`.
-- Covered, control: closed-nosubmit takeover: `a_client_killed_before_it_wrote_leaves_the_decision_to_the_owner`
-  in `model_w1_r13_tests.rs`.
+- Covered, control: closed-nosubmit takeover:
+  `a_client_killed_before_it_wrote_leaves_the_decision_to_the_owner` in `model_w1_r13_tests.rs`.
 - Covered, control: a full commit write after takeover then death is class U:
   `a_full_commit_write_then_client_death_is_unknown_and_not_failed` in `model_submission_r15_tests.rs`.
 - Covered, control: buffered commit then abort: `a_buffered_commit_is_read_before_end_of_input` in
@@ -165,19 +174,21 @@ shown only by a labelled historical control, 25 not yet.
   `model_w1_r13_tests.rs`.
 - Covered, control: rewritten publication:
   `a_reset_before_the_child_dies_is_unresolved_or_rewritten_never_failed` in `model_w1_r13_tests.rs`.
-- Covered, property: only a positive failure authorizes retry: `only_a_positive_failure_allows_the_next_attempt`
-  in `model_w1_r13_tests.rs`.
+- Covered, property: only a positive failure authorizes retry:
+  `only_a_positive_failure_allows_the_next_attempt` in `model_w1_r13_tests.rs`.
 - Covered, property: unresolved departure permits only the submitted attempt:
   `a_query_during_the_unresolved_mark_never_says_nothing_can_land` in `model_w1_r13_tests.rs`.
-- Not yet, control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend). Needs: fixtures
-  that run the installed Git for every supported invocation; the process runner exists, the experiments do not.
+- Not yet, control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend). Needs:
+  fixtures that run the installed Git for every supported invocation; the process runner exists, the experiments
+  do not.
 
 ### P2c, receipt forcing, L2 and L4, shutdown
 
 - Covered, control: delayed client after the final sweep:
   `a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen` in
   `model_receipt_r18_tests.rs`.
-- Covered, control: enqueue rejection (a ring to a service that has gone):
+- Covered, control: enqueue rejection, as the observable it has here: a ring to a service that has gone is
+  lost (the model has no refusal step):
   `a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen` in
   `model_receipt_r18_tests.rs`.
 - Covered, control: worker launch refused by a cap:
@@ -220,8 +231,8 @@ shown only by a labelled historical control, 25 not yet.
 - Covered, property: captured authority valid through completion or verified substitution:
   `p9_completion_cannot_delete_a_dependency_it_validated_and_forced` in `commit_state_log_tests.rs`.
 - Not yet, control: reclamation during capture. Needs: a model of capture against a concurrent reclaimer.
-- Not yet, control: every forcing error. Needs: fault injection at each forcing call of the departure, with the
-  outside-fault exit checked.
+- Not yet, control: every forcing error. Needs: fault injection at each forcing call of the departure, with
+  the outside-fault exit checked.
 - Not yet, control: cross-filesystem refs (level 2). Needs: level 2 eligibility checks; level 2 may stay
   disabled.
 - Not yet, control: repack overlap (level 2). Needs: level 2 registry observation checks.
@@ -234,8 +245,8 @@ shown only by a labelled historical control, 25 not yet.
 
 - Covered, control: non-drop counterexample: `p1_a_checkpoint_never_erases_a_still_live_request` in
   `model_discharge_r14_tests.rs`.
-- Covered, control: non-drop for later appends: `p9_a_later_append_cannot_drop_a_live_request_of_the_checkpoint`
-  in `commit_state_log_tests.rs`.
+- Covered, control: non-drop for later appends:
+  `p9_a_later_append_cannot_drop_a_live_request_of_the_checkpoint` in `commit_state_log_tests.rs`.
 - Covered, control: drop control isolated from the durability guard:
   `p7_the_drop_control_keeps_the_durability_guard_and_is_red_for_the_drop_alone` in
   `model_discharge_r14_tests.rs`.
@@ -264,8 +275,8 @@ shown only by a labelled historical control, 25 not yet.
 - Historical only, control: check and release races:
   `eight_releases_after_a_run_was_admitted_between_the_observation_and_the_release` in `model_f8_tests.rs` (a
   labelled historical control, not approval evidence).
-- Historical only, control: cross-worktree maintenance: `revision_six_other_worktree_releases_during_a_prune` in
-  `model_f8_tests.rs` (a labelled historical control, not approval evidence).
+- Historical only, control: cross-worktree maintenance: `revision_six_other_worktree_releases_during_a_prune`
+  in `model_f8_tests.rs` (a labelled historical control, not approval evidence).
 - Historical only, property: maintenance cannot outlive its recovery protection:
   `ten_roots_the_closure_until_the_release_is_done` in `model_f8_tests.rs` (a labelled historical control, not
   approval evidence).
@@ -287,9 +298,11 @@ shown only by a labelled historical control, 25 not yet.
   `model_f5_tests.rs` (a labelled historical control, not approval evidence).
 - Historical only, control: crash at every carry step: `nine_recovers_every_kill_point_by_identity` in
   `model_m1_crash_tests.rs` (a labelled historical control, not approval evidence).
-- Not yet, control: open-descriptor writes. Needs: a model of a writer holding the file open across the install.
+- Not yet, control: open-descriptor writes. Needs: a model of a writer holding the file open across the
+  install.
 - Not yet, control: atomic saves. Needs: a model of rename-over saves against the install.
-- Not yet, control: oversized and raced reads. Needs: inline-bound checks on actual reads and whole-index work.
+- Not yet, control: oversized and raced reads. Needs: inline-bound checks on actual reads and whole-index
+  work.
 - Not yet, control: expiry between clock check and marker (a resumed install does not restart the window).
   Needs: the watch model with the lock before expiry and the marker after it.
 

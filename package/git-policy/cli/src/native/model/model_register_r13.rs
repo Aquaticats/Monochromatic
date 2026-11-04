@@ -238,6 +238,8 @@ pub struct State {
     /// The wait ended by a terminal outcome of the request (revision 15): the absorbing outcome's ledger line is the stop disposition and is
     /// owed to disk before any normal return. A published outcome owes nothing: the receipt forbids a later attempt and is queued unforced.
     pub terminal_outcome: bool,
+    /// The wait ended because the request was published: nothing is owed to the stop disposition, and this state records that completion.
+    pub published: bool,
     /// The command ran its action (a bound was reached) and did not end by an ordinary completion.
     pub acted: bool,
     /// The exit was an outside-fault exit (revision 17: the stop authority could not be recorded), not a normal return.
@@ -271,6 +273,7 @@ pub fn initial(rules: Rules, path: &'static [usize]) -> State {
         saved: false,
         acted: false,
         terminal_outcome: false,
+        published: false,
         outside_fault: false,
         claims_confirmed: false,
         promised_landing: false,
@@ -318,7 +321,9 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
                 // The ordinary end of a wait is one of two typed completions (models review 7, finding 1): the request was published (the
                 // receipt, queued without forcing, forbids a later attempt, so no final save is owed) or it reached a terminal outcome
                 // (the ledger line is the stop disposition, and the departure barrier forces it before any normal return).
-                push_step(&mut found, "environment: the other party publishes the request and the wait ends", advance(state));
+                let mut published: State = advance(state);
+                published.published = true;
+                push_step(&mut found, "environment: the other party publishes the request and the wait ends", published);
                 if state.rules == Rules::FifteenOrdinaryBypass {
                     let mut bypass: State = advance(state);
                     bypass.terminal_outcome = true;
@@ -421,13 +426,13 @@ pub fn invariant(state: &State) -> Option<String> {
         return Some("the exit said everything was confirmed after a stage failed or hit its own bound".to_string());
     }
     if is_fifteen(state.rules) && state.phase == Phase::Done {
-        let entry: Entry = entry_of(state);
-        let has_barrier: bool = entry.stages.iter().any(|stage| { return stage.1 == Stage::Barrier; });
-        if has_barrier && (state.acted || is_departure(entry)) && !state.saved && !state.authority_lost {
-            return Some("a normal return without the final save of its departure".to_string());
-        }
         if state.terminal_outcome && !state.saved {
             return Some("a normal return after a terminal outcome without the final save of its ledger line".to_string());
+        }
+        let entry: Entry = entry_of(state);
+        let has_barrier: bool = entry.stages.iter().any(|stage| { return stage.1 == Stage::Barrier; });
+        if has_barrier && !state.saved && !state.authority_lost && !state.published {
+            return Some("a normal return without the final save of its departure or a recorded published completion".to_string());
         }
         if state.authority_lost && !state.outside_fault {
             return Some("a normal return after the stop authority could not be recorded".to_string());
@@ -500,6 +505,7 @@ pub fn exempt_state() -> State {
         saved: false,
         acted: false,
         terminal_outcome: false,
+        published: false,
         outside_fault: false,
         claims_confirmed: false,
         promised_landing: false,

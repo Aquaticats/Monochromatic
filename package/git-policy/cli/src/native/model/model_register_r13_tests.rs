@@ -313,7 +313,9 @@ fn p7_ordinary_completion_of_foreground_and_committing_is_published_or_saved() {
         assert!(!routes.is_empty());
         for (labels, state) in routes {
             let unsaved_normal: bool = !state.saved && !state.outside_fault && !state.authority_lost;
-            assert!(!unsaved_normal || labels.iter().any(|label| { return label == published; }), "{}: an unsaved normal return through {:?}", ENTRIES[index].name, labels);
+            assert!(!unsaved_normal || state.published, "{}: an unsaved normal return that records no completion, through {:?}", ENTRIES[index].name, labels);
+            assert_eq!(state.published, labels.iter().any(|label| { return label == published; }), "{}: only the published step records the completion", ENTRIES[index].name);
+            assert_eq!(invariant(&state), None, "{}: the invariant alone accepts these routes", ENTRIES[index].name);
         }
     }
 }

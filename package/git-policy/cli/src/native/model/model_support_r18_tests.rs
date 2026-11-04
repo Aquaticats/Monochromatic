@@ -136,3 +136,28 @@ fn a_disjoint_request_neither_supports_nor_overrides() {
     assert!(!state.added);
     assert_eq!(effective(state.tip, &state.tail), 1);
 }
+
+/// A held request: a hook holds the head, so nothing publishes behind it and D cannot land until the hook returns; the decision about `x` is
+/// unchanged by the hold.
+#[test]
+fn a_held_head_blocks_publication_and_leaves_the_decision_alone() {
+    let start: State = pqad(Rules::Eighteen);
+    let held: State = replay(start.clone(), steps, &["environment: a hook holds the head"]);
+    assert!(held.tail[0].held);
+    let labels: Vec<String> = steps(&held).into_iter().map(|step| { return step.0; }).collect();
+    assert!(labels.iter().all(|label| { return !label.ends_with("publishes"); }), "{:?}", labels);
+    assert_eq!(held.added, start.added);
+    let released: State = replay(held, steps, &["environment: the hook holding the head returns", "lane: request 1 publishes"]);
+    assert_eq!(released.tip, 1);
+}
+
+/// A superseded request: the new version of A without an entry on `x` stops supporting D (Q's value is effective again); the new version
+/// that keeps the entry keeps D deferred.
+#[test]
+fn a_superseding_version_changes_support_only_through_its_own_entry() {
+    let without: State = replay(pqad(Rules::Eighteen), steps, &["person: request 3 is superseded by a new version with entry None"]);
+    assert!(without.added);
+    let with: State = replay(pqad(Rules::Eighteen), steps, &["person: request 3 is superseded by a new version with entry Some(1)"]);
+    assert!(!with.added);
+    assert_eq!(with.tail[2].id, 4, "the successor has a new identity");
+}
