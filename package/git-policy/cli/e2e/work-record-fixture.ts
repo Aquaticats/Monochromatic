@@ -232,27 +232,32 @@ export type WorkRecordPlacement = Readonly<{
 
  @param text - the record, one JSON line
 
- @returns the count, absent when the text holds none
+ @returns `{ tries }` when the record holds a numeric count, an empty object otherwise, ready to spread into a placement
+
+ @throws the parser's error for any failure other than text that is not JSON
 
  @example
  ```ts
- triesOf('{"tries":1}\n');
+ triesOf('{"tries":1}\n'); // => { tries: 1 }
  ```
  */
-function triesOf(text: string,): number | undefined {
+function triesOf(text: string,): Readonly<{ tries?: number; }> {
   try {
     /**
      The parsed record.
      */
     const parsed: unknown = JSON.parse(text,);
-    if ((typeof parsed === 'object') && (parsed !== null) && ('tries' in parsed)
-      && (typeof parsed.tries === 'number'))
-      return parsed.tries;
-    return undefined;
+    if (((typeof parsed) === 'object') && (parsed !== null)
+      && ('tries' in parsed)
+      && ((typeof parsed.tries) === 'number'))
+      return { tries: parsed.tries, };
+    return {};
   }
-  catch {
+  catch (error: unknown) {
     // A record that is not JSON has no count; the caller reports the placement without it.
-    return undefined;
+    if (error instanceof SyntaxError)
+      return {};
+    throw error;
   }
 }
 
@@ -294,7 +299,7 @@ export async function workRecordPlacements({
         },)
         .map(async function placement(name,) {
           /**
-           The count the record holds.
+           The count the record holds, as a `tries` property, or no property when it holds none.
            */
           const tries = triesOf(await readFile(
             join(
@@ -306,7 +311,7 @@ export async function workRecordPlacements({
           return {
             state,
             name,
-            ...tries === undefined ? {} : { tries, },
+            ...tries,
           };
         },),);
     }

@@ -54,6 +54,17 @@ import {
 const INSTALLED_GIT = '/usr/bin/git';
 
 /**
+ Whether one dot-separated part of a release is a plain number, such as `56` (not `windows`, not empty).
+
+ @param part - one part
+
+ @returns true when the part is the decimal spelling of a number
+ */
+function isNumberPart(part: string,): boolean {
+  return (part !== '') && (String(Number(part,),) === part);
+}
+
+/**
  Reads the release of the installed Git.
 
  @returns the dotted release, such as `2.56.0`
@@ -74,12 +85,38 @@ async function installedGitVersion(): Promise<string> {
     ['--version',],
   );
   /**
-   The release in the version line.
+   The words Git prints before the release.
    */
-  const release = /^git version (?<release>\d+(?:\.\d+)+)/u.exec(stdout,)?.groups?.['release'];
-  if (release === undefined)
+  const prefix = 'git version ';
+  /**
+   The first line, such as `git version 2.56.0`.
+   */
+  const line = stdout.split('\n',)[0] ?? '';
+  /**
+   The words after the prefix, such as `2.56.0`.
+   */
+  const words = line.startsWith(prefix,) ? line.slice(prefix.length,)
+    .split(' ',) : [];
+  /**
+   The release word's dot-separated parts, such as `2`, `56` and `0`.
+   */
+  const parts = (words[0] ?? '').split('.',);
+  /**
+   Where the leading numeric parts end (a build such as `2.56.0.windows.1` keeps `2.56.0`).
+   */
+  const firstOther = parts.findIndex(function isOther(part,) {
+    return !isNumberPart(part,);
+  },);
+  /**
+   The leading numeric parts.
+   */
+  const numbers = firstOther === (-1) ? parts : parts.slice(
+    0,
+    firstOther,
+  );
+  if (numbers.length < 2)
     throw new Error(`${INSTALLED_GIT} printed no release in its version line: ${stdout.trim()}`,);
-  return release;
+  return numbers.join('.',);
 }
 
 /**

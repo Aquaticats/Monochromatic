@@ -270,7 +270,8 @@ async function killServiceDuringWork({
    Records still waiting after the lease and the margin.
    */
   const unfinished = await waitForServiceWork({
-    gitDir: context.repository.gitDir,
+    gitDir: context.repository
+      .gitDir,
     deadlineMilliseconds: Math.max(
       0,
       CLAIM_RECOVERY_BUDGET_MS - (Date.now() - killedAt),
