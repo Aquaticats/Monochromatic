@@ -1586,6 +1586,8 @@ pub fn force_items(lane: &Path, items: &[ClosureEntry]) -> io::Result<()> {
 /// Forces one retained item with its name chain through the lane directory, and checks that saved content is still sealed.
 pub fn force_item(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     let path: PathBuf = lane.join(&entry.path);
+    // The retained set was validated when the record was selected; the item can be replaced by then, and the open below judges what is there now.
+    fault_point("state:before-item-force");
     let file: File = open_regular(&path)?;
     sync_file(&file, &path)?;
     sync_chain(path.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")), lane)?;

@@ -328,6 +328,7 @@ fn a_killed_command_that_is_not_reaped_in_its_window_waits_in_the_pending_list_a
     inject_unreapable_child(false);
     assert!(result.is_err());
     assert_eq!(threads(), before, "a reaper thread was started");
+    assert_eq!(pending_reaps(), 1, "the killed child that was not reaped in its window never entered the pending list");
     let deadline: Instant = Instant::now() + WAIT;
     while pending_reaps() != 0 {
         assert!(Instant::now() < deadline, "the killed child was never reaped by a poll");

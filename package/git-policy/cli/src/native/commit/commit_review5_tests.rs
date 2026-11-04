@@ -226,6 +226,21 @@ fn a_doorbell_that_is_a_link_or_open_to_others_is_not_an_answer_and_the_client_l
     assert!(matches!(ring_running_service(&own), Ok(true)), "the lane's own doorbell is an answer");
 }
 
+/// The third review (A, 1): a hard link to another lane's live doorbell is a socket, owned by the account, private, and not a link in the
+/// sense of `lstat`; it leads to the other lane's service. A doorbell with a second name is no answer, and the client launches.
+#[test]
+fn a_doorbell_with_a_second_name_is_not_an_answer_and_the_client_launches() {
+    let other: PathBuf = scratch("rev5-ring-hard-other");
+    let _live_elsewhere = bind_ring(&other).expect("another lane's service");
+    let lane: PathBuf = scratch("rev5-ring-hard");
+    fs::hard_link(other.join("service.ring"), lane.join("service.ring")).expect("a second name of the other doorbell");
+    assert!(!matches!(ring_running_service(&lane), Ok(true)), "a hard link to another lane's doorbell was taken for this lane's service");
+    let mut route: Counting = Counting { calls: 0 };
+    let step = client_after_accept(&lane, RECEIPT_ID, &mut |lane| { return ring_running_service(lane); }, &mut route).expect("the client");
+    assert!(matches!(step, ClientStep::Launched(_)), "the client believed a hard link and launched nothing");
+    assert!(matches!(bind_ring(&lane), Err(error) if error.kind() == io::ErrorKind::InvalidInput), "a service bound beside a doorbell with a second name");
+}
+
 //endregion
 
 //region the opens and reads that could wait for ever
@@ -428,8 +443,9 @@ fn pause_at_the_stale_socket(point: &str) {
     }
 }
 
-/// The fourth review of the diffs: two services start on one lane with a stale doorbell. The first has inspected the stale socket and not
-/// yet removed it when the second starts. Exactly one of them may run: without the lock the second binds, and the first then removes the
+/// The fourth review of the diffs, and the third review (A, 2.1): two services start on one lane with a stale doorbell. The first has probed
+/// the stale socket, was refused, and has not yet removed it when the second starts. The second stays alive until the first has finished its
+/// start, so both can be running at once. Exactly one of them may run: without the lock the second binds, and the first then removes the
 /// second's live socket and binds over it, so both run and one is unreachable.
 #[test]
 fn two_services_that_meet_at_a_stale_doorbell_are_not_both_started() {
@@ -441,14 +457,16 @@ fn two_services_that_meet_at_a_stale_doorbell_are_not_both_started() {
     let first_markers: PathBuf = markers.clone();
     let first_service = std::thread::spawn(move || {
         return in_single_threaded_process(move || {
-            PAUSE.with(|cell| { *cell.borrow_mut() = Some(first_markers); });
+            PAUSE.with(|cell| { *cell.borrow_mut() = Some(first_markers.clone()); });
             set_fault_point(Some(pause_at_the_stale_socket));
-            return if start_lane_service(&first_lane, Duration::from_secs(60)).is_ok() { 0 } else { 1 };
+            let started: bool = start_lane_service(&first_lane, Duration::from_secs(60)).is_ok();
+            fs::write(first_markers.join("first-done"), b"").expect("a marker");
+            return if started { 0 } else { 1 };
         });
     });
     let deadline: std::time::Instant = std::time::Instant::now() + Duration::from_secs(10);
     while !markers.join("first-paused").exists() {
-        assert!(std::time::Instant::now() < deadline, "the first service never reached the stale doorbell");
+        assert!(std::time::Instant::now() < deadline, "the first service never reached the removal of the stale doorbell");
         std::thread::sleep(Duration::from_millis(5));
     }
     let second_lane: PathBuf = lane.clone();
@@ -456,6 +474,11 @@ fn two_services_that_meet_at_a_stale_doorbell_are_not_both_started() {
     let second: Option<i32> = in_single_threaded_process(move || {
         let started: bool = start_lane_service(&second_lane, Duration::from_secs(60)).is_ok();
         fs::write(second_markers.join("second-done"), b"").expect("a marker");
+        // Alive (with its service, if it started) until the first has finished its start.
+        let until: std::time::Instant = std::time::Instant::now() + Duration::from_secs(10);
+        while !second_markers.join("first-done").exists() && std::time::Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(5));
+        }
         return if started { 0 } else { 1 };
     });
     let first: Option<i32> = first_service.join().expect("the first service's process");
@@ -593,6 +616,57 @@ fn forcing_the_retained_set_does_not_wait_on_an_item_that_became_a_fifo() {
     make_fifo(&envelope, 0o600);
     let outcome: Option<i32> = in_single_threaded_process(move || { return if departure_acknowledge(&state, 1).is_err() { 0 } else { 1 }; });
     assert_eq!(outcome, Some(0), "the force of the retained set waited on a FIFO (None) or accepted it (1)");
+}
+
+//endregion
+
+//region the retained set seen the same way by every step of a disposal
+
+/// The third review (A, 3): a checked document that omits a saved item which the newest record's retained set holds (admitted by the public
+/// append) still begins its explicit disposal; the retirement reads the held set as recovery does.
+#[test]
+fn a_disposal_begins_for_an_item_that_the_newest_record_retains_only_in_its_closure() {
+    let (lane, state, _envelope) = lane_with_envelope("rev5-retire-closure-only");
+    let saved: ClosureEntry = create_saved_content(&lane, b"retained in the closure only").expect("saved content");
+    let name: String = saved.path().file_name().expect("name").to_string_lossy().to_string();
+    let mut items: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    items.retain(|entry| { return entry.path() != saved.path(); });
+    let document: LaneDocument = LaneDocument::from_closure(&items).expect("a document that does not list the item");
+    items.push(saved);
+    StateWriter::acquire(&state).expect("writer").append_with(1, &document.encode(), &items).expect("an over-approximating record is admitted");
+    dispose_saved_content(&lane, &state, &DisposalAuthorization::explicit(&name)).expect("the disposal of an item the record retains in its closure");
+    assert!(!lane.join("saved").join(&name).exists());
+}
+
+thread_local! {
+    /// The path the force hook replaces by a FIFO.
+    static FORCE_SWAP: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+/// Replaces the retained request by a FIFO, once, between the selection's validation and the force's open.
+fn swap_item_for_a_fifo(point: &str) {
+    if point != "state:before-item-force" {
+        return;
+    }
+    if let Some(path) = FORCE_SWAP.with(|cell| { return cell.borrow_mut().take(); }) {
+        fs::remove_file(&path).expect("remove the item");
+        make_fifo(&path, 0o600);
+    }
+}
+
+/// The third review (A, 2.2): the retained item is valid when the record is selected and a FIFO when the force opens it. The force does not
+/// wait on it.
+#[test]
+fn an_item_that_becomes_a_fifo_after_the_selection_validated_it_is_not_waited_for_by_the_force() {
+    let (lane, state, _name) = lane_with_saved("rev5-force-swap");
+    let envelope: PathBuf = fs::read_dir(lane.join("inbox")).expect("inbox").flatten().next().expect("an envelope").path();
+    let outcome: Option<i32> = in_single_threaded_process(move || {
+        FORCE_SWAP.with(|cell| { *cell.borrow_mut() = Some(envelope); });
+        set_fault_point(Some(swap_item_for_a_fifo));
+        let acknowledged = departure_acknowledge(&state, 1);
+        return if FORCE_SWAP.with(|cell| { return cell.borrow().is_some(); }) { 2 } else if acknowledged.is_err() { 0 } else { 1 };
+    });
+    assert_eq!(outcome, Some(0), "the force waited on the FIFO (None), accepted it (1) or the swap never ran (2)");
 }
 
 //endregion

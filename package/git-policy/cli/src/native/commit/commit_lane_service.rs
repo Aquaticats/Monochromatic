@@ -85,11 +85,14 @@ fn bind_ring_in(directory: &File) -> io::Result<UnixDatagram> {
             check_doorbell(&found)?;
             let probe: UnixDatagram = UnixDatagram::unbound()?;
             probe.set_nonblocking(true)?;
-            fault_point("service:before-stale-removal");
             match probe.send_to(b"ring", &path) {
                 Ok(_) => return Err(io::Error::new(io::ErrorKind::AddrInUse, "a service already answers at the doorbell")),
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Err(io::Error::new(io::ErrorKind::AddrInUse, "a service already answers at the doorbell")),
-                Err(error) if error.kind() == io::ErrorKind::ConnectionRefused => std::fs::remove_file(&path)?,
+                Err(error) if error.kind() == io::ErrorKind::ConnectionRefused => {
+                    // The probe was refused: the socket looks stale. Between this and the removal another service can bind a live one.
+                    fault_point("service:before-stale-removal");
+                    std::fs::remove_file(&path)?;
+                }
                 Err(error) => return Err(error),
             }
         }
