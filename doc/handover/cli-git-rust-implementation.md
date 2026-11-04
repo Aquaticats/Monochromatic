@@ -553,6 +553,79 @@ each in its own worktree:
   push and invocation files,
   then the merge passes.
 
+At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
+- Merged into main:
+  index reclamation as `5d23a0f800` (branch tip `5ae971d1ec`,
+  gate 4718 of 4718;
+  the `.aside-*` sweep removed and its leftovers documented with a manual removal,
+  coordinator's pick,
+  veto open)
+  and the CachyOS test containers as `a72b474e1d` (branch tip `976efc2fca`,
+  gate 4707 of 4707 with passing names identical to main's control;
+  e2e unchanged including the pre-existing `sigkill-service-during-work` failure,
+  not investigated).
+  Container agent's picks (veto open):
+  resolve `latest` once per run and key a derived base on the pulled image id plus the Containerfile hash;
+  Git 2.56.0 from source in the gate base;
+  with the registry unreachable the run continues on the local CachyOS copy with a loud warning (the one pick near "Must be latest");
+  Rust from pacman;
+  Node 24.11.0 from the tarball;
+  strace 6.13 by checksum.
+  Other packages' images still on Debian:
+  `cli.fuzz/bin/fuzz-images.ts`,
+  `forbidden-strings/cli/bin/snapshot-constants.ts`,
+  `linter/monochromatic-lint/test.Containerfile`.
+- Latency round 3 done (`perf/git-policy-cli-less-foreground-work` tip `e24d0cd017`,
+  gate 4727 of 4727):
+  warm wrapped commit 108 to 78 ms unsigned and 143 to 109 ms signed (native 53 and 57);
+  pack sync option C (the one `fast-import` child gets `core.fsync` minus `pack` and `pack-metadata` unless loose objects are synced),
+  pack-first object reads,
+  cache-tree comparison,
+  built-commit checks from the object store,
+  `sync_ms` renamed `index_update_ms`;
+  swap (0 kB over 25 minutes) and the queue link (not shown) need no change.
+  Decision-record drift for the owner:
+  `doc/decision/cli-git-concurrent-commits.md` lines 118 to 121 and 512 to 514 describe a kept pack per landing,
+  but the code keeps the scratch ref `refs/worktree/cli-git-service/<seq>` as the protection and unpacks small batches;
+  the record needs an owner-accepted correction.
+  Cross-vendor review running (`less-foreground-sol-1.txt`);
+  merge and release 0.5.29 after it.
+- cargo-shadow round 8 done (tip `089585a116`,
+  540 passed,
+  3 skipped):
+  all sixteen list rows have tests,
+  nine fully shown,
+  seven partly;
+  the delegated-scope route built (`systemd-run` with an escaped command line,
+  since `systemd-run` rewrites `$`;
+  the slice started before discovery);
+  the `user.delegate` route dropped (needs `clone3` with `CLONE_INTO_CGROUP`);
+  amended c's boot-scoped mount id makes every killed run's journal wait for acknowledgment after a reboot,
+  so the coordinator proposes recording the boot id and treating a different boot as proof the run's processes are gone
+  (in the review prompt).
+  Review in two parts running (`cargo-shadow-sol-8a.txt`,
+  `-8b.txt`).
+- Models round 13 done (tip `bf786b2004`,
+  368 model tests):
+  the round-12 findings closed red first;
+  revision 18's support fold and receipt protocol modelled;
+  coverage map 62 of 96 target items covered,
+  9 only by historical controls,
+  25 not yet.
+  Review against the acceptance target running (`commit-models-sol-8.txt`).
+- Design:
+  decision 19 recorded (`6d053403db`),
+  no open owner question;
+  review 17b timed out at its 3600 s bound (superseded by 18a and 19a).
+- Mutation campaign:
+  `landing/service_durable.rs` pass 1 scored 19 mutants (11 caught,
+  6 unviable,
+  2 missed:
+  `index_is_hardened` replaced with `true` and with `false`);
+  pass 2 did not run because the planted control "self-exclusion by identity and content" matches 0 times in `invocation/real_git_candidate.rs`.
+  An agent fixes the stale control and kills both survivors (`fix/git-policy-cli-planted-control-and-durable-survivors`);
+  campaign tags need one `podman tag` of the gate image per unit (`m0528-durable0` was added by hand).
+
 Flagged for the owner (measured,
 not forecasts):
 cargo-shadow has had seven review rounds with no part passing,
