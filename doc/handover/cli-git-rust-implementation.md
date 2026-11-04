@@ -155,8 +155,14 @@ owner questions "accurate after the edits below,
 not accurate as written",
 6a to be rewritten (it omitted fail-closed recovery),
 and planned shutdown added a hook-cancellation exception the owner never approved (R14-9);
-revision 15 running,
-with the corrected questions in a separate file to be checked before they are asked.
+revision 15 written (`4a6ad9d34a`,
+decision 14 recorded,
+6a and 6b dropped,
+planned shutdown is a drain that ends no protected program),
+with questions 5,
+7a,
+7b and 7c in `commits-never-fail-questions-4a6ad9d34a.md`;
+the fifteenth review (`commits-never-fail-sol-15.txt`) checks them before they are asked.
 Models round 10 running on revision 14 and the three latest reviews (components 6 "not correct",
 models 4a "sound after named fixes",
 models 4b "not sound").
