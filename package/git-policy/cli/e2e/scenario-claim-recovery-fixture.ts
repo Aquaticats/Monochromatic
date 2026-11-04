@@ -75,7 +75,10 @@ async function itemsOf({
 }: Readonly<{
   repository: ScenarioRepository;
   commit: string;
-}>,): Promise<readonly Readonly<{ id: string; placements: Awaited<ReturnType<typeof workRecordPlacements>>; }>[]> {
+}>,): Promise<readonly Readonly<{
+  id: string;
+  placements: Awaited<ReturnType<typeof workRecordPlacements>>
+}>[]> {
   return await Promise.all(CLAIMED_KINDS.map(async function placementsOf(kind,) {
     return {
       id: `${kind}-${commit}`,
@@ -136,7 +139,11 @@ export async function claimsAtKill({
    Ids of the items found in `claimed`, once each.
    */
   const claimed = items.filter(function isClaimed(item,) {
-    return (item.placements.length === 1) && (item.placements[0]?.state === 'claimed');
+    return (item.placements
+      .length
+      === 1) && (item.placements[0]
+        ?.state
+        === 'claimed');
   },)
     .map(function idOf(item,) {
       return item.id;
@@ -190,8 +197,14 @@ export async function claimsRunExpectation({
   return {
     name: 'claimed-work-settled-once-by-the-successor',
     holds: items.every(function settledOnce(item,) {
-      return (item.placements.length === 1) && (item.placements[0]?.state === DONE)
-        && (claimed.includes(item.id,) ? (item.placements[0]?.tries ?? 0) >= 1 : true);
+      return (item.placements
+        .length
+        === 1) && (item.placements[0]
+          ?.state
+          === DONE)
+        && (claimed.includes(item.id,) ? (item.placements[0]
+          ?.tries
+          ?? 0) >= 1 : true);
     },),
     detail: items.map(function describe(item,) {
       return `${item.id}: ${describePlacements(item.placements,)}`;

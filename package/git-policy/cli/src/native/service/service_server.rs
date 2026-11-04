@@ -619,11 +619,15 @@ pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &Atomi
         .filter_map(|directory| { return push_retries.next_wait(directory.as_path(), started).map(|wait| { return (directory, wait); }); })
         .collect();
     // A repository an earlier service was woken for may hold pending work or a claim its holder left: it is looked at without a
-    //  wake, at once unless a push plan already names it with a later time.
-    for directory in watch.directories() {
-        if !restored.iter().any(|(planned, _)| { return *planned == directory; }) {
-            restored.push((directory, Duration::ZERO));
-        }
+    //  wake, at once. A push plan that names the same repository does not stand in for the look: the plan is due when the push's
+    //  own pause is over, which may be long after a claim has run out its lease, and the round that follows the look asks for the
+    //  plan's wake again.
+    restored.extend(watch.directories().into_iter().map(|directory| { return (directory, Duration::ZERO); }));
+    // Notes that could not be read or written are tried again after a pause, and the service stays up until they are.
+    let mut watch_scheduled: bool = false;
+    if let Some(key) = watch.key().filter(|_| { return watch.needs_retry(); }) {
+        restored.push((key, watch.pause(push_retries.first())));
+        watch_scheduled = true;
     }
     retries.replace(&[], restored, started);
     if !retries.is_empty() {
@@ -644,7 +648,13 @@ pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &Atomi
         };
         busy.fetch_add(1, Ordering::SeqCst);
         let mut wakes: Vec<Wake> = first.into_iter().chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
-        wakes.extend(retries.take_due(Instant::now()).into_iter().map(|directory| { return (directory, None); }));
+        let (watch_due, due): (Vec<PathBuf>, Vec<PathBuf>) = retries.take_due(Instant::now()).into_iter().partition(|directory| { return watch.key().as_ref() == Some(directory); });
+        wakes.extend(due.into_iter().map(|directory| { return (directory, None); }));
+        if !watch_due.is_empty() {
+            // The repositories a retried read of the notes found are looked at as if they had been woken for.
+            watch_scheduled = false;
+            wakes.extend(watch.retry().into_iter().map(|directory| { return (directory, None); }));
+        }
         let mut ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
         // Written down before the first claim of a repository, so that a service killed while it holds the claim is followed by one
         //  that knows where to look. This thread does it, never the one that lands commits.
@@ -655,6 +665,10 @@ pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &Atomi
         // A directory the round named for its plan alone (the common directory of a bare repository) replaces its old entry too.
         ran.extend(asked.iter().map(|(directory, _)| { return directory.clone(); }));
         retries.replace(ran.as_slice(), asked, Instant::now());
+        if !watch_scheduled && let Some(key) = watch.key().filter(|_| { return watch.needs_retry(); }) {
+            retries.replace(&[], vec![(key, watch.pause(push_retries.first()))], Instant::now());
+            watch_scheduled = true;
+        }
         // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
         if !retries.is_empty() && !counted_waiting {
             busy.fetch_add(1, Ordering::SeqCst);
@@ -706,7 +720,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);
     // The repositories this instance was woken for are kept in the journal the same way, so a restarted service looks at them.
     let watch_directory: PathBuf = context.journal.join(WATCH_DIRECTORY);
-    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path())); });
+    let watch_instance: Option<String> = settings.instance.clone();
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path(), watch_instance.as_deref())); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();

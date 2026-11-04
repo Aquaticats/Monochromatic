@@ -62,6 +62,21 @@ the branch and agent lists below them are older and carry their own times.
 
 ### Release in flight
 
+Owner, 2026-11-04T17:50-05:00 (approximate time of reading), verbatim:
+"Don't discard work, but aside from layout + linting fixes, pause everything else - but let work already in flight run to their natural conclusions. Layout + linting fixes are the biggest priority."
+So only the source layout (issue 6261, principles in AGENTS.md MKY, LYD, LYF) and lint fixes go forward.
+In-flight steps finish, commit and stop:
+branch-write round 5 (re-gate with main, `-v2` bundle; its review not started),
+the commit-protocol models round (main merge and the fix in progress; reviews A and B of step3c left for later),
+cargo-shadow round 21 (the fix in progress; the rest written to its resume point),
+the lean build directories proposal (finished as a proposal, nothing built),
+and the claim-watch fix review already running.
+Paused, not started: release 0.5.35 (one executable, claim-watch fixes and the startup wake are on main; round 5 not yet),
+the mpm-shadow release,
+the TypeScript port,
+new review rounds,
+and the `semantic-line-breaks` findings (owner: "Put the semantic line break findings on hold.").
+
 Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
 
 - `monochromatic-file-enforcer-cli` 0.1.2 is published (bump `fadde01fff`,
@@ -368,6 +383,55 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   and writes `doc/planning/lean-build-dirs.md` with ranked options and a cross-vendor review;
   it deletes nothing;
   the owner picks before anything is built.
+- One executable merged to main (`ab40458516`,
+  branch tip `4a46ac09bc`,
+  gate 4880/4880;
+  main was ahead only by doc commits).
+  It fixed main's red `lint:clippy` (`service_executable` unused) and the three main-only test failures that blocked the
+  branch-write round 5 and claim-watch gates;
+  `lint:clippy` on main after the merge exits 0.
+  Both agents were told to merge main and re-gate;
+  round 5 restores `service_executable` and regenerates its review bundle (`-v2`).
+- Owner, 2026-11-04,
+  on the source layout (after stopping the issue 6261 child session:
+  "I told the layout subagent to stop because it couldn't ever produce something good enough. Lets do this ourselves."):
+  "Principle 1: Lint issues need to be taken care of asap.
+  Principle 2: every name of a dirent must be understandable to a monkey. If jargon is unavoidable, the file's top doc must explain everything, in a way that would make any monkey understand.
+  Principle 3: Who depends on who must be immediately visible from looking at the file structure."
+  and "Consider monkey someone who only knows what git commit and git push are."
+  Then "Put the semantic line break findings on hold. They aren't the most serious issues right now."
+  Question tool answers:
+  TypeScript in the Rust package "A: port all to Rust (Recommended)";
+  structure "B: numbered layers (Recommended)" with the note "Don't be afraid of using extremely long names. B, but make sure a monkey even just looking at one thing know what it means.";
+  granularity "Files too, checked (Recommended)";
+  scope "Repo-wide rules (Recommended)",
+  written as AGENTS.md MKY,
+  LYD and LYF (`b1955e0b49`,
+  CLAUDE.md regenerated).
+  Measured on main (`~/temp/agent/issue-6261/scc/`, comments and strings excluded):
+  554 production modules,
+  2,296 references between them,
+  266 in one dependency loop (plus loops of 4 and 2);
+  the best order found leaves 82 references pointing backwards (a heuristic upper bound, mostly inside one folder:
+  15 in `landing/`,
+  7 in `push/`,
+  6 in `worktree/`).
+  The flat glob re-exports in `lib.rs` (`pub use <folder>::*;`) have to go so every `use` names its folder.
+  Lint counts on main before the fixes (`~/temp/agent/issue-6261/lint-now.log`, `mlint-now.log`):
+  package `lint` had 1 clippy error and 6 oxlint errors with 14 warnings (now 0 errors and 1 pre-existing warning,
+  `8f475bf9e9`);
+  the repo linter reports 31,009 `markdown/semantic-line-breaks` (on hold),
+  2,528 `rust/avoidable-closure` warnings,
+  37 `rust/max-lines` and 3 `rust/tests-in-sidecars` errors.
+  The package holds 142 TypeScript files (34,270 lines: 79 in `e2e/` from 2026-09-25,
+  63 in `bin/`),
+  29 of them TypeScript tests,
+  all to be ported to Rust.
+  Next:
+  break the loop,
+  compute a layer per module from the graph,
+  and put the whole tree (every folder's old name,
+  new name and a one-line explanation) before the owner before anything moves.
 - Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
   (https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105):
   "The current layout is still completely unacceptable and far from enough to consider this issue complete."

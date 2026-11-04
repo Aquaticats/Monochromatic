@@ -9,15 +9,31 @@
 //!  starts. The name is written by the worker thread before it drains a directory for the first time in a process, never by the
 //!  thread that lands commits.
 //!
+//! Identity: an instance is named by a hash of the canonical path of its worktree's Git directory (`service_instance::instance_of`),
+//!  so the instance is the repository. A file is kept only when the path it holds names this instance, which a path that now
+//!  resolves through a link elsewhere, a copied journal or a damaged file does not; the work directory it names must be a real
+//!  directory, not a link. A repository that moved is another instance and is found by its own wake.
+//! Errors: only a file that is certainly of no use is removed (it holds no path, names another instance, or its work directory is
+//!  absent or not a directory). A read or write that fails for any other reason leaves the file where it is and is tried again
+//!  after a growing pause (`needs_retry`, `retry`), so a refused read or a full disk delays the look and never ends it.
+//! Durability: a file is written whole under a staging name and published by one rename (`write_private_file_unsynced`), so a kill
+//!  leaves a complete file or none. It is not synced: it survives the end of the process, like the work records it points at,
+//!  and not a power cut.
+//! Size: a journal belongs to one instance, so it holds one file per spelling of that instance's Git directory that clients have
+//!  used, and a file is removed at the start once its work directory is gone.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const watch = restore(journalDir); watch.remember(gitDir); for (const dir of watch.directories()) await drain(dir);
+//! const watch = restored(journalDir, instance); watch.remember(gitDir); for (const dir of watch.directories()) await drain(dir);
 //! ```
 
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
+use crate::service_instance::instance_of;
 use crate::work_item::WORK_DIRECTORY;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// Directory, under the service instance's journal, that holds one small file per watched Git directory.
 pub const WATCH_DIRECTORY: &str = "claim-watch";
@@ -25,27 +41,65 @@ pub const WATCH_DIRECTORY: &str = "claim-watch";
 /// The extension of a watch file.
 const WATCH_EXTENSION: &str = "watch";
 
+/// The first words of a watch file, which also say its format.
+const FORMAT_PREFIX: &str = "claim-watch-1 ";
+
+/// How a read of a watch file is done; a control replaces it to make a read fail.
+pub type ReadFile<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
+
 /// What:
-///  The Git directories to look at when the service starts, and the ones this process has already written down.
+///  The Git directories to look at when the service starts, the ones whose file could not be written yet, and whether a read of
+///  the store failed and must be made again.
 /// Why:
-///   One entry per directory; a directory that was written down is not written again, so the file system is touched once per
-///  directory per process.
+///   A directory that was written down is not written again, so the file system is touched once per directory per process; one
+///  that could not be written, or a store that could not be read, is tried again until it works.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ClaimWatch { store?: string; known: string[]; }
+/// class ClaimWatch { store?: string; instance?: string; known: string[]; unwritten: string[]; unread: boolean; failures: number; }
 /// ```
 #[derive(Debug, Default)]
 pub struct ClaimWatch {
     /// The directory the watch files are kept in; nothing for a watch kept in memory only.
     store: Option<PathBuf>,
-    /// The Git directories known to this process, from the files read at the start or remembered since.
+    /// The instance this journal belongs to, or nothing for a run that serves any worktree.
+    instance: Option<String>,
+    /// The Git directories known to this process, from the files read or written.
     known: Vec<PathBuf>,
+    /// The Git directories this process was woken for whose file could not be written.
+    unwritten: Vec<PathBuf>,
+    /// Whether the store or one of its files could not be read, so that a file may hold a directory this process does not know.
+    unread: bool,
+    /// How many times in a row the store has failed, for the growth of the pause.
+    failures: u32,
 }
 
-/// The file name of one watched Git directory.
-fn watch_name(git_dir: &Path) -> String {
-    return format!("{}.{WATCH_EXTENSION}", fnv_hex(git_dir.display().to_string().as_str()));
+/// What a file holds, or why it holds nothing.
+fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
+    let text: &str = std::str::from_utf8(bytes).map_err(|_| { return String::from("the file is not text"); })?;
+    let hex: &str = text.strip_prefix(FORMAT_PREFIX).and_then(|rest| { return rest.strip_suffix('\n'); }).ok_or_else(|| { return String::from("the file does not start with the format words or lacks its last newline"); })?;
+    if hex.len() % 2 != 0 || !hex.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }) {
+        return Err(String::from("the path is not written in hexadecimal"));
+    }
+    let digits: Vec<u32> = hex.chars().filter_map(|digit| { return digit.to_digit(16); }).collect();
+    let raw: Vec<u8> = digits.chunks(2).filter_map(|pair| { return u8::try_from(pair[0] * 16 + pair[1]).ok(); }).collect();
+    let path: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(raw));
+    if !path.is_absolute() || path.as_os_str().as_bytes().contains(&0) {
+        return Err(String::from("the path is not absolute"));
+    }
+    return Ok(path);
+}
+
+/// The text of the file of `git_dir`: the format words and the bytes of the path in hexadecimal, so that any path is kept as it is.
+fn encode(git_dir: &Path) -> String {
+    let hex: String = git_dir.as_os_str().as_bytes().iter().map(|byte| { return format!("{byte:02x}"); }).collect();
+    return format!("{FORMAT_PREFIX}{hex}\n");
+}
+
+/// The file name of the `attempt`th candidate for `git_dir`: a hash of its bytes, and the number of the candidate, which only
+/// differs from zero when another directory's file holds the first name.
+fn watch_name(git_dir: &Path, attempt: u32) -> String {
+    return format!("{}-{attempt}.{WATCH_EXTENSION}", fnv_hex(encode(git_dir).as_str()));
 }
 
 /// Methods over the watch.
@@ -56,35 +110,23 @@ impl ClaimWatch {
     }
 
     /// What:
-    ///  A watch kept in `directory`, holding the Git directories the service before this one wrote down.
+    ///  A watch kept in `directory`, holding the Git directories the service before this one wrote down for `instance`.
     /// Why:
-    ///   A directory that has no work directory any more (the worktree was removed, the records were swept) has nothing to look
-    ///  at; its file is removed, and the next wake for it writes it again. A file that holds no absolute path is removed as well,
-    ///  so that it is not said at every start.
+    ///   See the module words: what is kept, what is removed and what is tried again.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// new ClaimWatch(dir, (await readdir(dir)).map(read).filter(hasWorkDirectory))
+    /// new ClaimWatch(dir, instance).scan()
     /// ```
-    pub fn restored(directory: &Path) -> Self {
-        let mut known: Vec<PathBuf> = Vec::new();
-        if let Ok(listing) = std::fs::read_dir(directory) {
-            for entry in listing.flatten() {
-                let path: PathBuf = entry.path();
-                if path.extension().and_then(|extension| { return extension.to_str(); }) != Some(WATCH_EXTENSION) {
-                    continue;
-                }
-                let git_dir: PathBuf = PathBuf::from(std::fs::read_to_string(path.as_path()).unwrap_or_default().trim_end_matches('\n'));
-                if git_dir.is_absolute() && git_dir.join(WORK_DIRECTORY).is_dir() {
-                    if !known.contains(&git_dir) {
-                        known.push(git_dir);
-                    }
-                } else {
-                    let _removed = std::fs::remove_file(path.as_path());
-                }
-            }
-        }
-        return Self { store: Some(directory.to_path_buf()), known };
+    pub fn restored(directory: &Path, instance: Option<&str>) -> Self {
+        return Self::restored_reading(directory, instance, &|path: &Path| { return std::fs::read(path); });
+    }
+
+    /// `restored` with the reading of the files given, so that a control can make one fail.
+    pub fn restored_reading(directory: &Path, instance: Option<&str>, read: ReadFile<'_>) -> Self {
+        let mut watch: Self = Self { store: Some(directory.to_path_buf()), instance: instance.map(str::to_string), ..Self::default() };
+        let _found: Vec<PathBuf> = watch.scan(read);
+        return watch;
     }
 
     /// The Git directories to look at, each once.
@@ -92,30 +134,171 @@ impl ClaimWatch {
         return self.known.clone();
     }
 
-    /// Writes `git_dir` down unless this process has done so; a write that fails is said and tried again at the next wake.
+    /// The directory the store lives in, which names the watch's own entry in the work loop's schedule.
+    pub fn key(&self) -> Option<PathBuf> {
+        return self.store.clone();
+    }
+
+    /// Whether something failed that a later try can mend: a file that could not be written, or a read that could not be made.
+    pub fn needs_retry(&self) -> bool {
+        return self.store.is_some() && (self.unread || !self.unwritten.is_empty());
+    }
+
+    /// How long to wait before the next try: `first`, the first pause of a push that is tried again, doubled for each failure in a row,
+    /// never past those pushes' longest.
+    pub fn pause(&self, first: Duration) -> Duration {
+        return crate::push_retry::pause_before(self.failures.max(1), first);
+    }
+
+    /// Whether `git_dir` is a directory of another instance, which this journal does not hold.
+    fn is_foreign(&self, git_dir: &Path) -> bool {
+        return self.instance.as_deref().is_some_and(|mine| { return instance_of(git_dir) != mine; });
+    }
+
+    /// Writes `git_dir` down unless this process has done so. A write that fails is said and kept for `retry`; the caller goes on
+    /// with the work either way, because a failed note must not stop a backup.
     pub fn remember(&mut self, git_dir: &Path) {
-        if self.known.iter().any(|known| { return known == git_dir; }) {
+        if self.known.iter().chain(self.unwritten.iter()).any(|known| { return known == git_dir; }) {
             return;
         }
-        if let Some(directory) = self.store.as_deref()
-            && let Err(reason) = write_down(directory, git_dir)
-        {
-            crate::service_warn!("{} could not be kept for a restart, so a restart waits for the next wake to look at it: {reason}", git_dir.display());
+        if self.is_foreign(git_dir) {
+            crate::service_warn!("{} belongs to another instance and is not kept for a restart", git_dir.display());
             return;
         }
-        self.known.push(git_dir.to_path_buf());
+        let Some(directory) = self.store.clone() else {
+            self.known.push(git_dir.to_path_buf());
+            return;
+        };
+        match write_down(directory.as_path(), git_dir) {
+            Ok(()) => self.known.push(git_dir.to_path_buf()),
+            Err(reason) => {
+                crate::service_warn!("{} could not be kept for a restart, so it is tried again after a pause: {reason}", git_dir.display());
+                self.unwritten.push(git_dir.to_path_buf());
+                self.failures = self.failures.saturating_add(1);
+            }
+        }
+    }
+
+    /// Tries again what failed: the files that could not be written, and the reading of the store. Gives the directories this made
+    /// known, which the caller looks at.
+    pub fn retry(&mut self) -> Vec<PathBuf> {
+        return self.retry_reading(&|path: &Path| { return std::fs::read(path); });
+    }
+
+    /// `retry` with the reading of the files given.
+    pub fn retry_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
+        let Some(directory) = self.store.clone() else { return Vec::new() };
+        for git_dir in std::mem::take(&mut self.unwritten) {
+            match write_down(directory.as_path(), git_dir.as_path()) {
+                Ok(()) => self.known.push(git_dir),
+                Err(reason) => {
+                    crate::service_warn!("{} still could not be kept for a restart: {reason}", git_dir.display());
+                    self.unwritten.push(git_dir);
+                }
+            }
+        }
+        let found: Vec<PathBuf> = if self.unread { self.scan(read) } else { Vec::new() };
+        if self.needs_retry() {
+            self.failures = self.failures.saturating_add(1);
+        } else {
+            self.failures = 0;
+        }
+        return found;
+    }
+
+    /// Reads the store: keeps the directories whose file is whole, names this instance and has a work directory, removes the files
+    /// that are certainly of no use, and notes a failure to read as `unread`. Gives the directories that were not known before.
+    fn scan(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
+        let Some(directory) = self.store.clone() else { return Vec::new() };
+        self.unread = false;
+        let listing = match std::fs::read_dir(directory.as_path()) {
+            Ok(listing) => listing,
+            // A journal that never held a note.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+            Err(error) => {
+                crate::service_warn!("the notes of the repositories to look at in {} could not be listed, so they are listed again after a pause: {error}", directory.display());
+                self.unread = true;
+                return Vec::new();
+            }
+        };
+        let mut found: Vec<PathBuf> = Vec::new();
+        for listed in listing {
+            let path: PathBuf = match listed {
+                Ok(entry) => entry.path(),
+                Err(error) => {
+                    crate::service_warn!("an entry of {} could not be listed, so the notes are listed again after a pause: {error}", directory.display());
+                    self.unread = true;
+                    continue;
+                }
+            };
+            if path.extension().and_then(|extension| { return extension.to_str(); }) != Some(WATCH_EXTENSION) {
+                continue;
+            }
+            let git_dir: PathBuf = match read(path.as_path()) {
+                Ok(bytes) => match decode(bytes.as_slice()) {
+                    Ok(git_dir) => git_dir,
+                    Err(reason) => {
+                        crate::service_warn!("the note {} holds no repository and is removed: {reason}", path.display());
+                        let _removed = std::fs::remove_file(path.as_path());
+                        continue;
+                    }
+                },
+                // Removed between the listing and the read.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    crate::service_warn!("the note {} could not be read, so it is read again after a pause: {error}", path.display());
+                    self.unread = true;
+                    continue;
+                }
+            };
+            if self.is_foreign(git_dir.as_path()) {
+                crate::service_warn!("the note {} names {}, which is not this instance's repository, and is removed", path.display(), git_dir.display());
+                let _removed = std::fs::remove_file(path.as_path());
+                continue;
+            }
+            match std::fs::symlink_metadata(git_dir.join(WORK_DIRECTORY)) {
+                Ok(metadata) if metadata.is_dir() => {
+                    if !self.known.contains(&git_dir) {
+                        self.known.push(git_dir.clone());
+                        found.push(git_dir);
+                    }
+                }
+                Ok(_) => {
+                    crate::service_warn!("the work directory of {} is not a directory, so its note {} is removed", git_dir.display(), path.display());
+                    let _removed = std::fs::remove_file(path.as_path());
+                }
+                Err(error) if matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => {
+                    let _removed = std::fs::remove_file(path.as_path());
+                }
+                Err(error) => {
+                    crate::service_warn!("the work directory of {} could not be looked at, so its note is kept and read again after a pause: {error}", git_dir.display());
+                    self.unread = true;
+                }
+            }
+        }
+        return found;
     }
 }
 
-/// Writes the file of `git_dir`; one that is already there is the same file.
+/// Writes the file of `git_dir` under the first name that is free or already holds this directory. A file that holds no whole path is
+/// replaced; one that holds another directory's path is left, and the next name is tried.
 fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
-    create_private_directory_all(directory).map_err(|error| { return format!("creating the watch directory failed: {error}"); })?;
-    let text: String = format!("{}\n", git_dir.display());
-    return match write_private_file_unsynced(directory.join(watch_name(git_dir)).as_path(), text.as_bytes()) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
-        Err(error) => Err(format!("writing the watch file failed: {error}")),
-    };
+    create_private_directory_all(directory).map_err(|error| { return format!("creating the note directory failed: {error}"); })?;
+    let text: String = encode(git_dir);
+    let mut attempt: u32 = 0;
+    loop {
+        let path: PathBuf = directory.join(watch_name(git_dir, attempt));
+        match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match std::fs::read(path.as_path()) {
+                Ok(held) if held == text.as_bytes() => return Ok(()),
+                Ok(held) if decode(held.as_slice()).is_ok() => attempt = attempt.saturating_add(1),
+                Ok(_) => std::fs::remove_file(path.as_path()).map_err(|removal| { return format!("removing the damaged note {} failed: {removal}", path.display()); })?,
+                Err(read_error) => return Err(format!("reading the note {} failed: {read_error}", path.display())),
+            },
+            Err(error) => return Err(format!("writing the note failed: {error}")),
+        }
+    }
 }
 
 /// Watch controls stay out of the release executable.

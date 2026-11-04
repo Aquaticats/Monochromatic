@@ -642,6 +642,23 @@ gives up on (its start limit, five starts in ten seconds by default, is for a cr
 before. The service exits idle only after three hours without work (`IDLE_EXIT`) and counts itself busy while the schedule holds
 a repository, so it is not gone when the lease runs out.
 
+The note and its limits (2026-11-04, after the cross-vendor review of the startup look). A note holds the bytes of the Git
+directory in hexadecimal after a format line, so a path that is not text or ends in a newline is kept as it is; it is written whole
+under a staging name and published by one rename (`write_private_file_unsynced`), so a kill leaves a whole note or none, and it is
+not synced: it survives the end of the process, as the work records it points at do, and not a power cut. An instance is the hash
+of the canonical path of its Git directory, so the instance is the repository: a note is used only when its path names this
+instance (a path that now leads through a link to another repository, a copied journal and a damaged note do not), and its work
+directory must be a real directory, not a link. Only a note that is certainly of no use is removed: it holds no path, names another
+instance, or its work directory is absent or not a directory. A read that fails (the store, a note, the look at the work
+directory) or a write that fails leaves the note where it is and is tried again after the pause of a push that is tried again,
+doubled for each failure in a row and never past ten minutes, and the service counts itself busy until it works, so a refused read
+or a full disk delays the look and never ends it; the commit and the work in hand go on meanwhile. A name taken by another
+directory's note is skipped, and a damaged note under the name is replaced. The startup look is scheduled for a repository even
+when a push plan names it with a later time, because the plan is the push's own schedule. A repository that moved is another
+instance and is found by its own wake. A journal holds one note per spelling of its instance's Git directory that clients used.
+What is not covered: a service killed while it holds a claim and while its first note could not yet be written, which needs two
+faults at once; the claim then waits for the next wake. A shared journal of several live services of one instance is not assumed.
+
 How a claim is held (2026-11-01, the service queue fix). A claim is one file in `claimed/` named
 `<id>~<generation>~<boot id>~<monotonic ms>~<wall s>`: the generation is unique to one acquisition and the last two parts are
 the holder's clock reading at its last renewal. A renewal renames the file to the same name with a new reading, and a
