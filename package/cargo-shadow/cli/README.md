@@ -664,7 +664,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   Until then neither an absent scope nor an empty one counts: the manager creates a scope's control group and attaches the launcher in
   two steps, and a look that finds the scope absent or empty says nothing about a launcher that has not finished entering it.
   Right after the wrapper spawns the launcher (which becomes the program) it appends
-  `launcher <pid> <start time> <pid namespace> <time namespace> <scope path>` to the journal, without a sync (a lost or torn line is only a missing
+  `launcher <pid> <start time> <pid namespace> <scope path>` to the journal, without a sync (a lost or torn line is only a missing
   proof).
   The question is answered through one procfs descriptor that is opened once and checked (a procfs root that numbers this process
   as its own namespace does), a pidfd and the `Pid:` line of its `fdinfo`, which show that the procfs numbers the launcher's process
@@ -673,14 +673,17 @@ and an HTTP 429 is retried after its `Retry-After`.
   "unknown", never "gone".
   A program that deliberately changes mounts or `/proc` while a run or a recovery is in progress is outside what the wrapper
   promises (assumption a of the contract), like a same-user process that writes `Cargo.lock` directly.
-  A recovery asks about that process before it reads the scope: a launcher that no longer exists (no such process, or the id belongs
-  to a process with another start time, in the recorded process id namespace) can never join the scope, so an absent or empty scope
-  is final and the journal recovers by itself; a launcher that still exists blocks, and no acknowledgement overrides that.
+  A recovery asks about that process before it reads the scope: a launcher that no longer exists (no process has its id, in the
+  recorded process id namespace) can never join the scope, so an absent or empty scope is final and the journal recovers by itself;
+  a launcher that still exists (the id with the recorded start time) blocks, and no acknowledgement overrides that.
+  The id with another start time is unknown, not gone: the start time in the stat file is relative to the reader's time namespace,
+  and nothing recorded can show that the reader is in the writer's (namespace numbers are recycled), so a reused id waits for the
+  acknowledgement like the cases below.
   What the line cannot prove waits for `cargo-shadow acknowledge <journal directory>` (a person's assertion that every process of
   that run has stopped): another process id namespace, a journal with no launcher line (an older version, a failed append, a wrapper
   killed between the spawn and the append), a line for a scope the journal does not list, a torn line, a launcher that cannot be
-  inspected (including a procfs of another namespace), a recovery in another process id or time namespace than the line (the start
-  time in the stat file is relative to the reader's time namespace), and a line of an older version that has no time namespace.
+  inspected (including a procfs of another namespace), a recovery in another process id namespace than the line, and an id that a
+  process has with another start time.
   A scope that has a member blocks even then.
   Nothing waits in-process.
   A record that cannot be written leaves the journal unsettled, which is the safe side.

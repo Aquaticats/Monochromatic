@@ -1166,12 +1166,16 @@ the 12b repairs closed; no row needed) in `/var/home/user/temp/agent/reviews/`.
 
 ### Section 3: the start time and the time namespace
 
+Superseded in round 15: the fix described here (a time namespace number in the launcher line, compared at recovery) is gone; a namespace
+number is recycled, so it proved nothing (see "Round 15"). What stays from round 14 is the measurement, the discriminator test (tightened
+in round 15) and the finding that field 22 is relative to the reader's time namespace.
+
 Defect: field 22 of `/proc/<pid>/stat` is relative to the boot-time offset of the time namespace of the reader, so a recovery in a
 time namespace prepared beforehand read a live launcher's start time differently and took the difference for a reused id.
 This needs no remount, so the owner's exclusion of round 13 does not cover it.
 Measured here (`unshare --user --map-root-user --time --boottime 7200`): the same process read 16018424 outside and 16738423 inside,
 a difference of 720000 ticks for two hours.
-Fix: the launcher line carries the inode of the writer's time namespace (`launcher <pid> <start> <pid ns> <time ns> <path>`); the
+Fix of round 14 (replaced in round 15): the launcher line carries the inode of the writer's time namespace (`launcher <pid> <start> <pid ns> <time ns> <path>`); the
 question compares it with the reader's and answers unknown on a difference, when either side cannot be read, and for a line of an
 older version that has none (it still parses, with no time namespace).
 Red then green: `a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone`: a helper in a new user and time namespace
@@ -1203,15 +1207,75 @@ criterion, none certified.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r14-debug1.log`, `r14-gate1.log`, `r14-clippy2.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 14, rewritten 2026-11-04T10:02:46-05:00 after the gate)
+## Round 15 (2026-11-04): the answers to the round 14 review
 
-Done: rounds 10 to 14 (the sections above).
-The review inputs of round 14 are `/var/home/user/temp/agent/reviews/cargo-shadow-14*.diff`, cut from `f463a87151`.
+Review answered: `cargo-shadow-sol-14.txt` ("does not meet the list for the changes; not ready for the certification pass") in
+`/var/home/user/temp/agent/reviews/`.
+Closed per the review: the original distinct-time-namespace schedule, and the shim route and fault evidence.
+
+### Section 2: the recycled time namespace number
+
+Defect: namespace inode numbers are recycled once the namespace has no process, and a writer's current time namespace can differ from
+the one its launcher lives in, so the number recorded in round 14 can name a later, different namespace; a recovery there read a
+different start time and answered gone for a live launcher.
+Reproduced on this host, deterministically (`logs/r15-red.log`): `a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`.
+A writer helper runs in a time namespace T0 (offset 3600 s) and starts its launcher in T1 (offset 7200 s); the processes in T0 are
+killed so that T0 has none; a helper joins the launcher's user namespace (`nsenter --preserve-credentials --user=...`, so that no new
+user namespace takes the freed number first) and creates T2, which gets T0's number.
+Asserted prerequisites: the launcher is alive, the number is reused, the recovery's own start time differs from the recorded one.
+With the round 14 rule the question answered `Gone` and the recovery cleared the journal.
+Options considered:
+- 1, a start time that differs from the record is unknown (built).
+  Pros: no kernel version, nothing recorded that can be recycled, nothing to retain after the wrapper dies; an id that no process has
+  stays gone, which is the ordinary case of a launcher that ended.
+  Cons: a reused id (the pid counter wrapped since the launcher ended) waits for the acknowledgement.
+- 2, the pidfs inode number of the launcher's pidfd as an identity independent of every namespace, with option 1 below it.
+  Verified in `fs/pidfs.c` (read on the default branch and at v6.9, v6.12, v6.14 on 2026-11-04): from 6.9 to 6.13 the inode number
+  comes from an `ida` and is reused; from 6.14 it comes from a 64-bit counter that is not reused, and on a 32-bit kernel only its
+  lower 32 bits are the inode number.
+  Pros: would keep the reused-id case automatic on 6.14 and later on 64-bit.
+  Cons: a kernel version gate and a second path to test, for a case that is rare.
+- 3, a reference process (the start time of the namespace's first process, read by the writer and by the recovery) to prove a common
+  basis.
+  Pros: no kernel version.
+  Cons: the offset is rounded to clock ticks, so equality of the reference does not prove equality of the launcher's rounding; it
+  needs a tolerance and more tests.
+Ranking: 1 > 2 > 3, because 1 is sound on every kernel with the least code and costs only a rare acknowledgement; 2 recovers that rare
+case on new kernels at the price of a gate; 3 adds a tolerance that has to be argued.
+Built: 1.
+What was removed: the time namespace number from the record (the format is the round 11 form again; a line of round 14's form is
+not understood, so it waits for an acknowledgement), `time_namespace_id`, and the time namespace argument of the question.
+`a_reused_...` tests of rounds 11 and 12 that asserted gone for another start time now assert unknown.
+
+### Section 3
+
+- The shifted reader's start time in `a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone` must be read
+  successfully as a number and differ numerically from the recorded one (an `err` text no longer satisfies it).
+- The recovery's diagnostic must name the start times (the refusal is the start-time comparison, with the other views equal).
+  This held before the fix and holds after.
+
+### Section 4: claims corrected
+
+The contract, the map and the update record no longer say that a time namespace number is compared; round 14's section is marked
+superseded; the contract states why the number proves nothing and what replaced it.
+
+### Result
+
+The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 12 skipped (the `#[ignore]` helper entries),
+for the debug run and the release gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own criterion,
+none certified.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r15-debug1.log`, `r15-gate1.log`, `r15-clippy2.log`.
+Nothing was published and nothing was merged into main.
+
+## Resume point (round 15, rewritten TIMESTAMP after the gate)
+
+Done: rounds 10 to 15 (the sections above).
+The review inputs of round 15 are `/var/home/user/temp/agent/reviews/cargo-shadow-15*.diff`, cut from `2530e617f4`.
 
 Open for the owner: the picks of rounds 8 to 13 stay veto-open as listed in their sections; the first publication needs the owner's
 explicit approval.
 
 Next:
 
-1. The coordinator launches the cross-vendor review of the round 14 diffs against the contract.
+1. The coordinator launches the cross-vendor review of the round 15 diffs against the contract.
 2. Nothing is merged into main and nothing is published.
