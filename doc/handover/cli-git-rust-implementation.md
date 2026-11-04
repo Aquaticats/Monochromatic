@@ -3612,10 +3612,29 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   red first);
   `Reclaimed::Foreign` leaves another machine's lock or claim and names it.
   Two cross-vendor attempts by the agent timed out empty (exit 124);
-  a third runs on the current diff (`claims-always-3.diff`,
-  125 KB;
-  output `claims-always-sol-3.txt`).
-  Then merge with the branch-write branch and release 0.5.31.
+  the third (`claims-always-sol-3.txt`) returned "Merge after named fixes":
+  legacy foreign markers must fail closed,
+  a previous-release `flock` reclaimer and a claim reclaimer can still race on one lock,
+  a permanently unjudgeable claim reads as a transient `Busy`,
+  and a lost placement answer can strand this process's own claim;
+  sent to the agent with the test fixes.
+  Branch-write reviews (`branch-write-sol-1.txt`,
+  `branch-write-sol-2.txt`):
+  both "merge after named fixes";
+  P1s:
+  a commit can be answered withdrawn after it landed,
+  failed markers count as a withdrawal,
+  an early withdrawal is one-shot,
+  a step "left running" dies of SIGPIPE when the command exits,
+  and the classifier fails open on forms the experiment never ran;
+  also the 7 s path misses a write that starts within 60 s of the answer ceiling,
+  repair output collection is unbounded,
+  a timed-out review keeps the review log,
+  and the 20-minute foreign-owner patience can authorize reclaiming a still-live owner now that writes may run past any ceiling
+  (the agent designs options;
+  owner question to follow).
+  All sent to the agent.
+  Release 0.5.31 waits for both branches' fixes and their re-reviews.
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
