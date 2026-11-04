@@ -2051,3 +2051,442 @@ power-loss-before-completion and kill-during-barrier schedules):
 reminder; the retained recovery data and the permission to undo stay distinct. Do not make these pass using atomic
 abstractions for "checkpoint", "durable file", "client attached", "withdrawn view" or "leftover". Models must not
 label questions 5 and 7 green by adopting the recommended answers.
+
+## Revision 16 changelog, moved from the design in revision 17
+
+### Revision 16 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+
+Naming. New names: `WAIT_VERIFY`, `INLINE_PATHS`, `INLINE_BYTES`, the terminating class of inline materialization, the
+eligible checkpoint and its closure, the outcome `lost`, the success receipt forced in the syncer's first pass, the
+deferred selection with its copied content and its re-keying, the reminder record, owner question 8. Removed: the
+checkpoint rule "drop one request, never the checkpoint", the ordering `syncfs` before the side ref, the start-only
+`WAIT_MATERIALIZE` for any work, the "no closing line buffered" drain condition. Schedules below go red under revision
+15 and green under revision 16 as far as the owner's answers and the mechanisms allow; a model marked "new" is added
+to step 1; the models branch is not edited by this document.
+- Owner decisions 15 to 18 (questions 5, 7a, 7b, 7c answered): MG3 composition, MG6c's four tests and window, the
+  reminder record. Models: the window starts at MG3's installation; expiry admits no new cleanup and an already
+  started one finishes; dismissal does not dispose of saved copies.
+- Receipt forcing, R5 after power loss (R15-1; models new "success, receipt lost inside the lag, reset, erased
+  reflog", "ref write lost, replay restores"). The exception is reduced to the syncer's lag window and asked as
+  question 8, because no mechanism within the owner's rules removes it (the receipt forced before success would put
+  two syncs on every commit).
+- Checkpoint closure, eligibility, `lost`, disposal order (R15-2; models new "checkpoint and list D, ledger suffix not
+  D, predecessor deleted", "incomplete new root", "disposal line V then deletion").
+- Level 2 order and eligibility (R15-3; models new "side ref created after the flush", "alternate on another file
+  system", "repack during the verification"). Schedule: the ref was created after `syncfs` and lost: red; green (the
+  ref is created first and the flush covers it; one file system only; `WAIT_VERIFY` bounds the optional steps).
+- Submission accounting (R15-4; model new "write succeeded, client died before the record"). P2b and E1 use the full
+  write; `closed-nosubmit` makes "not submitted" final for the whole attempt, binding every decider.
+- Deferred selection with copied content and re-keying (R15-5; models new "ancestor disposed after add-back",
+  "multiple pending bases").
+- Terminating inline class, handoff otherwise (R15-6; models new "begun fallback hangs", "verification worker hangs").
+  Schedule: the ineligible-index fallback hangs after the start deadline: red (the foreground cannot leave); green (a
+  non-terminating materialization is never inline).
+- Draining shutdown configuration (R15-7; models new "hook outlasts the stop timeout", "buffered closing line"). The
+  unit's stop timeout is infinity and the upgrade path is a drain request.
+- Wording (R15-8): decision 14 and disk faults, upper bound of a command, level-1 qualification in rule B, MG6c
+  detection wording, accounting case.
+- Questions: 5, 7a, 7b, 7c asked and answered; question 8 open.
+
+
+
+## Answers to the fifteenth review, moved from the design in revision 17
+
+## Answers to the fifteenth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-15.txt`, with a closure line: closed (a transition
+answers the schedule; a model is owed), or owner question. The verdict was: continued model work only; the questions
+were accurate after named edits, which the coordinator applied before asking them. This revision builds nothing. The
+review did not inspect the cited Git source lines.
+
+- R15-1 (P2), the post-success replay exception is attributed but not shown approved: accepted. The window is narrowed
+  by a mechanism (the success receipt is forced in the syncer's first pass), and the remainder is asked as question 8.
+  Open as an owner question.
+- R15-2 (P1), the checkpoint root is incomplete and a dependency failure has two meanings: accepted. The closure
+  includes the ledger and order prefixes; an ineligible checkpoint falls back to the previous root instead of dropping
+  one request; the one loss transition is `lost`; disposal is forced before deletion. Closed.
+- R15-3 (P1), level 2 does not make the side ref durable: accepted. The ref is created before the flush, one file
+  system is required, the optional steps are bounded by `WAIT_VERIFY`, and level 1 is the fallback. Closed.
+- R15-4 (P2), submission order is contradicted: accepted and edited; `not-submitted a` is final only as the client's
+  last act. Closed.
+- R15-5 (P1), deferred selections lack retained content: accepted. The content is copied into the descendant's own
+  immutable bytes; re-keying keeps a selection across multiple bases. Closed.
+- R15-6 (P1), start-only materialization creates an unbounded foreground phase: accepted. A mechanism within the
+  owner's rules: only a terminating, size-limited, child-free class runs inline; everything else is handed to the
+  service before any mutation. Closed.
+- R15-7 (P1/P2), shutdown must implement draining: accepted. The unit's stop timeout is infinity, the upgrade path is
+  a drain, and the wrapper never invokes a finite forced stop; the buffered-line condition is removed. Closed as a
+  configuration obligation.
+- R15-8 (P2/P3), blanket claims: accepted and edited.
+- The questions: owner answers recorded as decisions 15 to 18; question 8 open.
+- Not a defect: none of the findings was rejected.
+
+
+
+## Owner questions for revision 16, full text as drafted, moved from the design in revision 17
+
+## Owner questions for revision 16 (open)
+
+Questions 5, 7a, 7b and 7c of revision 15 were asked and answered (decisions 15 to 18); their full text as drafted is
+in the history record. One question remains, and it exists only because no mechanism removes the risk. It is also
+written to a separate file named `commits-never-fail-questions-` followed by the abbreviated hash of the commit that
+holds this text.
+
+### Question 8: an old success receipt and a replay after a power loss
+
+Plain context. When a commit succeeds, the wrapper writes a tiny receipt that says "this request already published".
+If the power fails shortly afterwards, the receipt can be lost before it reaches the disk. On restart the wrapper
+decides from the branch: if the branch still holds the commit, nothing happens; if the branch lost it (the branch
+write itself did not reach the disk), the wrapper lands it again, which restores the commit you were told succeeded.
+The one bad case needs all of these together: the power fails before the receipt reaches the disk, you had
+deliberately removed the commit from the branch in that same span (for example `git reset --hard HEAD~1`), and the log
+that records that removal was also erased. Then the wrapper cannot tell your removal from a lost write, and it lands
+the commit again with a notice that names it and the command to drop it (your earlier decision 3, "Land it", covers
+exactly an indistinguishable publication, but it was not asked about a command that had already returned success). How
+long the span is depends on whether a background service is running. With the service running it forces receipts
+within a few seconds (the syncer's lag, a named constant that is not yet measured). With no service running (a plain
+command that started no service), nothing forces the receipt until the next wrapper command in that worktree, which
+has no time limit. Example: you run `git commit`, it prints success, you reset the branch two seconds later, the power
+fails one second after that.
+- Option A, accept both windows; land it again with the notice. Visible here: after the reboot the commit reappears on
+  the branch with a line saying so and how to drop it. Risk: in the conjunction above a commit you removed on purpose
+  comes back once; with no service running the window has no time limit. Pros: no extra wait on any commit.
+- Option B, force the receipt to disk before the command returns success only when no service is running
+  (Recommended). Visible here: with the service the ordinary path is unchanged; with no service the command waits for
+  two forced writes (the receipt file and its directory) and the unbounded window does not exist; the few-second
+  window of the service path remains. Cost: that wait on plain commands made with no service, which can take seconds
+  under disk pressure, against your rule that commits should not take 5 s longer than native Git. Pros: the longest
+  window is closed on the only path where nothing else would ever close it, and the common path keeps zero forced
+  writes.
+- Option C, force the receipt before success returns on every commit. Visible here: no window at all. Cost: two forced
+  writes wait on every successful commit, which can take seconds under pressure.
+- Option D, in this indistinguishable case do not land it; keep it and ask. Visible here: after the reboot a line says
+  a commit may or may not have been published, and the wrapper waits for you to confirm or drop it. Risk: a commit
+  whose write was really lost needs your confirmation to come back, which changes decision 3 for after-power-loss
+  cases.
+- Ranking: B > A > D > C. B beats A because it closes the unbounded window at a cost only where no background process
+  exists to do it; A beats D because A restores a lost write without a step from you and the bad case needs a
+  conjunction of rare events; D beats C because D costs nothing on the success path, while C puts forced writes on
+  every commit.
+
+
+
+## Models added from the fifteenth review, moved from the design in revision 17
+
+Models added from the fifteenth review (revision 16; each starts as a failing control with the revision 16 changelog's
+schedule; observations, never the completed logical operation). The review's eighteen controls, keyed to the
+transition that answers each:
+1. Checkpoint log closure: checkpoint and external list D; referenced ledger or order suffix not D; predecessor
+   deleted: the checkpoint closure.
+2. Incomplete new root: a checkpoint survives before one listed dependency; the predecessor remains; root selection,
+   not selective request deletion: eligibility and fallback.
+3. Disposed content: an older checkpoint references R; the disposal line V; R removed; power loss loses the disposal
+   authority: the disposal order.
+4. Exact saved ref: objects flushed, the side ref created afterwards and not forced; reboot, then a prune before the
+   ref is rebuilt: level 2 ordering.
+5. Multiple object locations: the exact closure includes an alternate on another file system: level 2 eligibility.
+6. Representation replacement: repack or maintenance replaces object representations during the level-2 interval: the
+   registry comparison.
+7. Submission crash window: the full `commit` write succeeds, the client dies before recording; an earlier non-final
+   `not-submitted` does not establish F: P2a and E1.
+8. Derived selection retention: an ancestor's removal activates the deferred content; the ancestor is disposed; the
+   descendant crashes and recovers; a prune follows: the copied content.
+9. Multiple-base removal: a deferred selection temporarily becomes a no-op, then another supporting base disappears:
+   re-keying.
+10. Begun materialization hang: an ineligible fallback hangs after the start deadline; foreground interrupts stay
+    available: the terminating class.
+11. Departure verification hang: the final flush completes, a connectivity or registry check does not; do not call it
+    a disk error: `WAIT_VERIFY`.
+12. Real shutdown configuration: a protected hook outlasts the normal manager stop timeout and an upgrade or restart
+    request: the drain configuration.
+13. Userspace-buffered closing line: the FIFO appears empty after Git's read-ahead; the drain does not infer no
+    submission.
+14. Expiry during cleanup: the lock is acquired before expiry; preservation or scheduling carries the first exchange,
+    or a later path, past expiry: decision 17's boundary.
+15. Fingerprint restoration: the index changes away from and back to the recorded bytes before the check.
+16. Question 5 scan gap: staging between the refusal scan and P1's sample; worktree-only divergence after the scan:
+    decision 15.
+17. Question dependency matrix: every combination of decisions 16 to 18 yields consistent notification, restore
+    command and retention.
+18. Dismissal versus disposal: dismiss notification, reboot, then restore; the sole saved copies remain. Do not make
+these pass using atomic abstractions for "save", "checkpoint", "handoff" or "cleanup". Models must not label question
+8 green by adopting the recommended answer.
+
+
+
+## Evidence for the 120 s commit, moved from the design in revision 17
+
+## Evidence for the 120 s commit
+
+An observed commit on `main` (11:07:54Z on 2026-11-03) took exactly 120 s to prepare and 120 s to submit,
+with `sync_ms` up to 119429.
+The previous agent found no 120 s constant on the commit or landing path, and this record agrees:
+the production 120 s constants are `QUERY_CEILING` (`bounded_query.rs`, auto-push queries only) and `CLAIM_LEASE`
+(`service_work.rs`); `WAIT_CAP` in `binary_wrapper_store.rs` is test support.
+
+What the evidence shows:
+
+- The commit's timing record (`.git/cli-git-commit-timing.jsonl`, request `ac73f10b-a0a8-456a-91b7-efa8b8e75a25`)
+  reads `totalMs` 299988, `prepareMs` 120013, `buildMs` 59790, `submitMs` 120009.
+- The service journal (`journalctl --user -t cli-git-service`, instance process 1186934) answers the same request at
+  06:07:54.042 local with `lock_hold_ms=119432` and `sync_ms=119429`: the service held `index.lock` for 119 s
+  while it brought the index up to date (`follow_up` in `service_land.rs`).
+- In that window the service printed wait notices for exactly two Git children, one after the other:
+  `git diff-tree -r --name-only -z --no-renames <old> <new>` (process 1240607, a quick query step) started at
+  06:05:54.6 and ended just before 06:06:54.0, which is under its 60 s class bound;
+  then `git reset -q <new> --pathspec-from-file=- --pathspec-file-nul` (process 1246804, a bulk step) started at
+  06:06:54.0 and ended at 06:07:54.0.
+  These are the two Git calls of `build_index` for a commit that Git built (`IndexPaths::Derived`).
+  So 120 s is two steps of about 60 s, not one 120 s limit.
+- The record of 11:10:06Z shows the same shape on the client: `prepareMs` 119474 and `buildMs` 59785,
+  and the record of 11:18:08Z shows `submitMs` 119768.
+  Phases of one and of two times about 60 s recur in the slow records of that hour (the slow records are phases of
+  50 s to 250 s), while a commit of another worktree of the same repository landed in 85 ms
+  of `index.lock` hold at 06:06:01 and 06:08:23 local, so the host was not stalled as a whole.
+- A later `git diff-tree --no-commit-id --name-only -r -z <oid>` of the review of that commit also waited
+  55 s and more (journal at 06:08:03 to 06:08:53).
+
+What Git 2.56.0's own source says about those two children (tag `v2.56.0`, clone `~/temp/agent/git-2.56.0-20261103`):
+
+- `diff-tree -r --name-only -z --no-renames <old> <new>` takes no lock.
+  It reads the whole index first, whatever the two trees are: `builtin/diff-tree.c:133` calls `repo_read_index` before it
+  looks at its arguments (this is why the package classed it as reading the index).
+  Nothing in it waits on a timer; its cost is the index load plus the tree objects, which on a saturated disk with a
+  large index and several packs is read time.
+  I could not find in its source a place where it waits about 60 s.
+- `reset -q <oid> --pathspec-from-file=- --pathspec-file-nul` takes `index.lock` once and dies at once if it is held
+  (`builtin/reset.c:491`, `LOCK_DIE_ON_ERROR`, which is a single try with no timeout; `lockfile.c:215` shows that a timeout of
+  zero means one try).
+  It then does two things: `read_from_tree` (`builtin/reset.c:197`, a diff of the tree against the index limited to the named
+  paths, applied by `update_index_from_diff` at `builtin/reset.c:149`), and, unless `--no-refresh` was given,
+  `refresh_index` over the whole index (`builtin/reset.c:500-505`, quiet because of `-q`).
+  The refresh makes one `lstat` per tracked file, so its cost grows with the number of tracked files and the state of the
+  disk's caches; the package's earlier measurement (`doc/planning/cli-git-commit-timeouts.md`) puts it at seconds on a
+  warm disk for twenty thousand files.
+  The wrapper never needs that refresh: the index it resets is a private copy it installs itself.
+  So the `reset` step has a cause in Git's source for being slow (a full-index refresh) and a Git-provided way to skip it.
+- Neither command contains a 60 s timer.
+  The only 60 s timeout in the source tree is the fsmonitor daemon's start timeout (`builtin/fsmonitor--daemon.c:40`),
+  which the owner's rule keeps out of scope: it was not set, unset, pinned or chased.
+- Was the 60.0 s `reset` stopped by the wrapper's 60 s quick-class bound?
+  No.
+  `reset` is not in `PLUMBING_SUBCOMMANDS` (`child_class.rs`), so it is a bulk step with a 300 s bound, and the notice the
+  journal printed for it says "a bulk step ... stopping it after 300 seconds".
+  The `diff-tree` is a quick step with a 60 s bound and ended 59.4 s after it started, before its bound.
+  Neither was stopped; both ended by themselves, so the coincidence of two near-60 s durations is not the wrapper's clock.
+
+What stays unexplained: why each of the two took about 60 s on the main worktree and not on its sibling worktree.
+The source shows what each does and that the wrapper's clocks did not fire, but it does not show a 60 s wait, and the
+timing was not reproduced (reproducing it would need synthetic load, which is banned).
+What the evidence supports, and nothing more: both steps are Git work proportional to the size of the index and the state of
+the disk, both ran inside the lock hold, and the design below removes both from the commit path.
+A child that took a few seconds longer than its 60 s class bound would have been stopped, and the stop ends the commit
+(before the branch moves) or leaves the index update undone (after).
+
+
+## (moved in revision 17) Item 1: a Git step of the commit crosses its class bound
+
+Root cause: the commit path starts many Git children (the quick class, 60 s, includes `diff-tree`; the bulk class, 300 s)
+and a clock ends any child that outlasts its class, whatever it is doing.
+A child that is slow on a loaded or saturated host is killed and the commit fails.
+Two causes are stacked: the clock kills, and the steps are slow.
+
+Change that removes it:
+
+- Replace the clock with a no-progress rule (owner decision 1).
+  The elapsed-time kill is removed. The watcher keeps its notices and cancels a child only for the stall rule of X1: no progress for the
+  measured interval, a command that cannot launch a protected program, the terminate signal first. A child that ignores it is owner
+  question A. A command that can launch a person's program is exempt and waits.
+- Remove the steps.
+  The slow ones in the evidence are the follow-up's `diff-tree` (old to new commit, to learn which paths changed)
+  and `reset` (to put those paths in the index), and the review's `diff-tree`.
+  The first is a tree comparison the wrapper already does in process (`repo_read_diff.rs`); the service has the
+  request's change list for every commit it builds itself, and for a commit Git built it can compare the two trees
+  with the in-process reader.
+  The second is an index entry update for known paths, which is a write of the index file the wrapper can do
+  itself (the index is copied beside the real one already), so the landing starts no Git for it.
+  The goal is a landing that starts Git only for `fast-import`, `update-ref` and, for commits Git must build
+  (signed, hooked, editor), the build itself.
+- `diff-index --cached --quiet HEAD` over 50 s on main (reported by the coordinator, not measured here): the
+  commit-speed branch replaces it by an in-process comparison of the index with its base; this record takes that over.
+- Two more client steps measured on main by the coordinator at about 07:35 local on 2026-11-03 (installed 0.5.25, load
+  average about 23): `git add --all -- toolchain.lock.json` (bulk class, process 3490505) waited over 50 s, and the commit
+  before it waited over 20 s on `git read-tree --reset <head>`.
+  From Git's source: `add` takes `index.lock` with a single try (`builtin/add.c:536`, `LOCK_DIE_ON_ERROR`), refreshes the
+  index for the pathspec (`builtin/add.c:134`), runs the diff of the worktree against the index for the pathspec
+  (`add_files_to_cache`, `read-cache.c:4027`) and writes the index; `read-tree --reset` takes the lock the same way
+  (`builtin/read-tree.c:191`), reads the index and rewrites every entry from the tree.
+  In both the work that Git does for one named file is proportional to the whole index.
+  The change: hash the named path in process (with the repository's clean filters and line-ending rules, ported from Git's
+  `convert.c`, and falling back to Git for a path with a filter the port does not cover) and write its entry into the
+  private index in process; and skip `read-tree --reset` when the private index already equals its base tree, which the
+  commit-speed branch already decides.
+  Expected saving per step: `add`, the whole observed wait except the read and write of the index file the in-process
+  writer still does once (no process start, no lock try, no full refresh, no untracked walk); `read-tree --reset`, all of
+  the observed wait when the index equals its base, which is the common case for a path commit.
+  These are expectations, not measurements: the observed waits came from a loaded host and I did not reproduce them.
+  Before building, time each step in the fixture with `strace -f -ttt` as `cli-git-commit-timeouts.md` did, so the saving is
+  measured and not asserted.
+- The follow-up `reset` of the landing: put the named paths' entries into the index copy in process by porting
+  `update_index_from_diff` (`builtin/reset.c:149`): for a path missing from the tree remove the entry, otherwise make a
+  cache entry from the tree's mode and object (keeping a skip-worktree bit as that function does) and replace the entry,
+  which also clears unmerged stages of the path.
+  Where the port cannot decide (sparse index, sparse checkout), run Git with `--no-refresh`, which is Git's own switch
+  (`builtin/reset.c:352`) and removes the whole-index refresh.
+  The follow-up `diff-tree` becomes an in-process tree comparison (`repo_read_diff.rs`), which also never reads the index.
+
+Residue: a Git child that never ends. X1 cancels it with the terminate signal only when its command cannot launch a protected program;
+one that ignores the signal is owner question A; one that can launch a person's program waits, and the wait is the person's. A deterministic
+Git bug is handled by the embedding direction adopted in the transaction model, not by pending as an end state. The retry-based attempt on
+this branch (a doubled window and a restart of the step) remains the redo half of X1 for the idempotent children.
+
+
+
+## (moved in revision 17) Item 2: the service does not start within `START_WAIT`
+
+Root cause: the commit depends on a second process that the manager must start, and the client gives it ten seconds.
+The commit's own work is complete before the service is asked.
+
+Change: the service stops being a correctness dependency.
+The client hands the request over by writing the record into `inbox/` (durable, no ref write) and then asks the manager to start
+the instance.
+If no owner holds the lane lock, the client takes the lock and acts as owner only to drain the requests adopted before its own and to
+publish and retire its own, then exits (L1 to L4 and the inline-owner rule); a service that starts later waits for that lock and takes
+everything else over. One lock per worktree, held by the kernel, replaces the ref fence,
+the epoch and the takeover of earlier drafts (third review, "Transaction model").
+If the owner is the service and it is alive, the client waits for its answer under item 3.
+
+Residue: none that ends a commit.
+Failures about the machine's setup (another account's service, a program that is missing, a unit file in the way) become
+notices that the service is not running.
+
+
+
+## (moved in revision 17) Item 3: the service does not answer within `COMMIT_WAIT`
+
+Root cause: silence is read as a fault, and a read timeout decides.
+
+Change: the commit waits on the record, not on a connection or a clock.
+The client reads the request's state (the service pushes it on the open connection and the client re-reads the record if
+the connection closes).
+The lane writes a phase counter into its state file after each phase, for notices only: a heartbeat shows that the sender runs, not
+that the request moves, and nothing acts on the counter (no unit watchdog, no takeover; the unit sets no limits; the one external supervisor is the gated client restart of "One owner per worktree").
+A closed connection is a resend with the same id, answered from the record or the permanent ledger.
+A command whose request sits with an owner that makes no progress waits with a notice that names the phase and says how to
+restart the unit; the person can interrupt it at no cost, because the request is durable and the next owner finishes it.
+`WaitedTooLong` and `RECONNECTS` leave the commit path.
+
+May wait: a service that is alive and slow makes the commit slow, and the notice names the phase and the process.
+
+
+
+## (moved in revision 17) Item 5: `index.lock` is refused after the service's wait
+
+Revision 12 reading: what follows is derived materialization after a published commit (M1, MG3). It is not a commit
+landing later; it is a wait of the command only for the part rule B lists as MATERIALIZE (the terminating class,
+started within its deadline), and the rest continues under the service.
+
+Root cause: the landing needs the real index lock to install the updated index and holds it across Git work; a foreign program can
+hold it for as long as it likes, and after 1800 s, or at once when no inotify watch can be set, the commit fails although the
+commit itself did not need the index.
+
+Change (owner, 2026-11-03, "Same as the ref lock"): the commit does not wait for `index.lock` at all.
+The publication tries the lock once and never waits for it (optional index locking, "Installing into the current index"). If the
+try fails the index catches up afterwards by the delta applied to the index read under the lock, with a single try for the lock and a
+watch on its path set before the try (re-checked on every wake, with a periodic re-check when the watch fails, so a missed event or a
+replaced file cannot stall it).
+The command exits 0 with a line saying the index will catch up when the lock is free.
+No foreign lock is ever removed: a PID or an open descriptor does not prove the pathname still names an abandoned lock, and a dead
+writer's lock can hold a complete index not yet installed.
+The earlier plan to build the index off the lock and install the whole file is withdrawn, because it can erase another program's
+staging.
+
+May wait, off the command: the index catching up, for as long as a foreign program holds the lock. The commit is on the branch.
+
+
+
+## (moved in revision 17) Item 6: `ContentPruned`
+
+Root cause: the objects a commit captured are unreferenced until the branch moves, and `git gc --prune=now` deletes every
+unreferenced object at once.
+
+Change: the retention lifecycle of "Transaction model": the spool is the source of truth until the ledger line exists; it is a
+self-contained closure (new bytes, the base content the replay needs, the conclusion's dependencies); the lane imports it with
+one stream and an extra hold ref when the store allows; a prune after handover is repaired by importing again; before handover the
+client reads again, which is legitimate because nothing was handed over. No base hold ref is needed at capture (no ref write).
+The earlier plan to prepare again from the worktree after handover is withdrawn: it would commit a later edit.
+
+Residue: a prune another tool runs that overlaps the request. Git's source shows it can delete objects written after it took its view
+(`builtin/prune.c:36`, `:98`, `:172`); the lane checks connectivity before it releases the spool and imports again if anything is missing, and a
+loss after the release by a tool the wrapper did not start is a corrupt repository caused by another tool, on the owner's outside list. Maintenance
+the wrapper starts is coordinated over its whole lifetime (G1 to G4), including its retention extension where no manager exists. The question the
+review left about overlapping prune is therefore settled by the outside list plus coordination; it is not an open owner question.
+The spool is on the same disk, so a full disk or an I/O error while writing it is one of the owner's outside causes.
+
+
+### Rationale for X1 and the owner questions on cancellation (explains; the state machine governs)
+
+The wrapper never removes a ref lock file: not after a crash, not after cancelling its own child, whatever its birth time or contents.
+Creation inside a child's lifetime does not prove creation by that child (a foreign program can take the lock while the child is stalled before
+acquiring it, or after the child released it and stalled before exiting), and a check of inode and birth time followed by an unlink is not an
+atomic conditional unlink. The earlier rule that deleted a lock born during the child's life is withdrawn and is not to be implemented.
+Git removes its own lock files when it ends on a signal it catches (`lockfile.c:83`, `tempfile.c:93`, installed at `tempfile.c:117`), so X1 sends
+the terminate signal and a continue signal and waits the existing grace (`STOP_GRACE`, `child_watch.rs`). That is all it does automatically.
+A child that ignores termination is the one case where the wrapper would have to kill what it started; killing a Git child that holds a ref
+lock manufactures a lock the wrapper may not remove, and not killing it leaves the child stuck. That is a real choice (owner question A); until
+it is decided the default is the conservative one: do not kill, leave the request pending with a notice that names the child and says it
+ignored the signal. A command that can launch a protected program (for instance `update-ref` while a `reference-transaction` hook exists, or a
+commit with `pre-commit` or `commit-msg` configured) is exempt from cancellation entirely. Revision 9 (R8-5) classifies by the kind of command, fixed in a table, and not at spawn from the hooks
+directory, the hooks path or the `hook.*` configuration: any configuration read at spawn can change before Git reaches its dispatch point, so a
+spawn-time classification races a program installed in between (owner question C-class lists the alternatives).
+The restart of a quiet owner (L7) is unavailable while a ref-transaction child is in flight (the gate), so ending the owner can never leave a lock
+that cancellation would not have left. After an outside kill (the OOM killer, a person) a lock may remain; it is treated as foreign, the request
+becomes pending, and the notice names the file and says that if no Git process runs it can be removed by hand; that case is on the owner's
+outside list.
+X1 stays as written, and no finding forces otherwise (revision 9, model finding on F4). The step-1 model candidate that removed a stale lock through a
+journaled `O_TMPFILE` plus `linkat` would make the wrapper delete a lock it did not create: a ref lock is created by Git, so no inode of it is
+one the lane created and journaled, and the identity rule (delete only an inode the lane created and journaled) cannot hold for it. The same
+technique is sound for `index.lock` that the lane itself creates by `linkat` (M1), where the inode is the lane's own, and that is the only place
+it is used. A finding that would force the wrapper to remove a ref lock does not exist: R8-5 concerns classification, S-1 and S-2 concern the
+shipped sweeper, and the accepted narrowing A-kill is the stated cost. The L7 restart ends the owner with an uncatchable signal through the
+pidfd (SIGKILL, step 1 finding F3): a wedged owner can ignore the terminate signal, and L7 holds the gate exclusively, so no ref-transaction
+child is in flight when it is ended.
+Tests (red controls first): the retained-description deadlock in the fork-to-exec window; a closed-description descendant still writing when the
+lock frees; the service cgroup reused by a replacement owner (the replacement must not kill itself); restart versus hook dispatch; restarter
+death at every point of L7; a wedged shared gate holder; a pid read in another namespace.
+
+
+
+### The side ref for a held branch lock, or a branch a foreign program keeps moving
+
+Revision 12 reading: for a command with a client, "the command exits 0 and says the branch will show it" below is
+replaced by W1 at the FOREGROUND bound (the commit stays on the side ref and nothing lands by itself); the exit-0
+answer applies to a request that has no client.
+
+Owner decisions (question tool, 2026-11-03): "Save on a side ref (Recommended)" for a held branch ref lock, and "Save on the side
+ref (Recommended)" for a branch a foreign program keeps moving.
+The publication is tried once and its failure classified from Git's message: the lock on the branch exists
+(`unable_to_lock_message`, `refs/files-backend.c:859-866`; Git waits 100 ms by default, `refs.c:996-997`); the old value did not
+match; no space, I/O error or read-only (the owner's outside causes); or other (kept `handed-over`, reported, retried when the
+repository changes). An unchanged tip never counts as proof of a lock.
+For a held lock or a lost swap the request becomes `pending`: the commit is built and in the spool and record, the command exits 0
+and says the branch will show it when the other program lets go, and the lane publishes pending requests in adoption order when the
+branch allows it. The side ref `refs/cli-git/<instance>/pending/<id>` is written when the ref store lets the lane; the record and
+spool are the guarantee. Pending requests are not materialized.
+
+Pushes.
+Refs under `refs/cli-git/` are never pushed. The exclusion is unconditional, not derived from an earlier expansion: every push the
+wrapper runs (the auto-push and a forwarded `git push`) carries the negative refspec `^refs/cli-git/*`, so a ref created between an
+earlier dry run and the real push is excluded too. A control must show, on the installed Git, that the negative refspec is honored
+for each invocation form: an explicit refspec, `refs/*:refs/*`, a configured `remote.<name>.push`, `push.default`, `--all`,
+`--tags` and `--mirror`. For a form where it is not honored, the wrapper runs that push with the lane's best-effort ref creation paused by a marker the lane
+acknowledges (the lane finishes or aborts a ref creation in flight, writes its acknowledgement, and creates none until the marker is
+removed) and sends a frozen, filtered explicit update set: the invocation names every ref update itself, so it cannot expand a
+wildcard, mirror, all-branch or tag selection again (mirror deletions are listed explicitly after one listing of the remote); the wrapper prints a line saying wrapper refs were left out and why (owner, "Leave out wrapper refs
+(Recommended)").
+Execution contract of the frozen set (sixth review): the update set fixes the source object identifiers as well as the names; wrapper refs
+are excluded from updates and from mirror deletions; every option or configuration that would expand the selection again is removed or
+neutralized for that invocation; force, leases, atomicity, deletion and tag semantics are preserved as the person's command meant them;
+the pause marker is acknowledged by the lane, never by the lane waiting for itself; concurrent pushes share a reference-counted pause,
+not a single flag. Whether the installed Git honors the negative refspec for each form, and how it interacts with default and configured
+selection, are controls, not established facts.
