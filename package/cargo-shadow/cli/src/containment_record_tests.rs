@@ -244,6 +244,34 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     drop(transaction);
 }
 
+/// Acceptance row "Weaker path" (certification, third pass): the process group is stopped at the normal exit as well as at the bound.
+/// A same-group writer announces itself (a handshake), the direct payload exits successfully with the writer still running, and the
+/// writer would write into the workspace later; after the run returns the marker must never appear and the writer must be gone.
+#[test]
+fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
+    let plain = scratch();
+    use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+    let marker = plain.path().join("late");
+    let ready = plain.path().join("writer-ready");
+    let pid_file = plain.path().join("writer-pid");
+    // The writer closes its inherited pipes (so the runner's drain does not wait for it) and keeps running after the payload exits.
+    let script: String = format!(
+        "(echo $$ > {pid}; : > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        pid = pid_file.display(),
+        ready = ready.display(),
+        late = marker.display()
+    );
+
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound());
+    use_route_settings_for_test(None);
+    let ready_before: bool = ready.exists();
+    std::thread::sleep(Duration::from_millis(2_700));
+
+    assert!(result.is_ok_and(|output| { return output.status.success(); }), "the payload should have exited successfully");
+    assert!(ready_before, "the writer never ran, so its absence proves nothing");
+    assert!(!marker.exists(), "a member of the process group wrote after the run returned: the exit cleanup of the group is missing");
+}
+
 /// Acceptance row "Weaker path":
 /// both `pgroup starting` alone and a completed record whose group is gone block a recovery and a new transaction
 /// until the journal is acknowledged,
