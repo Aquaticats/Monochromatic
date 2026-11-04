@@ -962,3 +962,58 @@ fn a_git_that_cannot_report_its_system_configuration_is_not_assumed() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(answered.is_err(), "{answered:?}");
 }
+
+/// A Git that answers the batch by stopping early, and whose upstream query ends as `upstream_query` says;
+/// any other query resolves the second commit.
+fn git_whose_upstream_query_fails(directory: &Path, fixture: &Fixture, upstream_query: &str) -> PathBuf {
+    let body = format!(
+        "case \"$1\" in\n  cat-file) head -n 1 >/dev/null; echo '{second} commit 100'; exit 128;;\n  rev-parse) case \"$*\" in *upstream*) {upstream_query};; *) echo {second};; esac;;\nesac",
+        second = fixture.second
+    );
+    return script(directory, "failing-git", &body);
+}
+
+/// Round 6 (5a F4): a Git that ends fatally is an operational failure with its message,
+/// never "not a commit" that lets a lower candidate be chosen.
+#[test]
+fn a_fatal_git_exit_in_the_sequential_fallback_is_reported_with_its_message() {
+    let fixture = fixture("topic");
+    include_with(&fixture, "");
+    let directory = scratch();
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.git.program = git_whose_upstream_query_fails(directory.path(), &fixture, "echo 'fatal: could not fetch the promised object' >&2; exit 128");
+
+    let base = resolve_trust_base_with(&fixture.work, false, None, &environment);
+
+    let message: String = base.commit.expect_err("a fatal Git must not let a lower candidate be chosen");
+    assert!(message.contains("could not fetch the promised object"), "{message}");
+}
+
+/// Round 6 (5a F4): a Git killed by a signal is an operational failure.
+#[test]
+fn a_git_killed_by_a_signal_in_the_sequential_fallback_is_reported() {
+    let fixture = fixture("topic");
+    include_with(&fixture, "");
+    let directory = scratch();
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.git.program = git_whose_upstream_query_fails(directory.path(), &fixture, "kill -KILL $$");
+
+    let base = resolve_trust_base_with(&fixture.work, false, None, &environment);
+
+    let message: String = base.commit.expect_err("a killed Git must not let a lower candidate be chosen");
+    assert!(message.contains("signal"), "{message}");
+}
+
+/// Round 6 (5a F4): the quiet negative answer of Git (exit 1, nothing printed) still means "not a commit".
+#[test]
+fn a_quiet_negative_answer_still_lets_the_next_candidate_be_tried() {
+    let fixture = fixture("topic");
+    include_with(&fixture, "");
+    let directory = scratch();
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.git.program = git_whose_upstream_query_fails(directory.path(), &fixture, "exit 1");
+
+    let base = resolve_trust_base_with(&fixture.work, false, None, &environment);
+
+    assert!(base.commit.is_ok(), "{base:?}");
+}
