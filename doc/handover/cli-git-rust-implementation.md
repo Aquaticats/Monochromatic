@@ -569,9 +569,23 @@ State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner aske
   the helper runs Rust after a bare `fork` (safe only single-threaded),
   Git experiments on one version and two backends,
   the reference-interpreter row's Covered is the author's call.
-  Cross-vendor reviews running:
-  `commit-models-sol-9a.txt` (components and evidence) and `commit-models-sol-9b.txt` (models and map),
-  prompts `commit-models-prompt-9a.txt` and `-9b.txt` in `~/temp/agent/reviews/`.
+  Cross-vendor reviews returned:
+  `commit-models-sol-9a.txt` "does not meet the target items it claims" (component authority,
+  departure prefixes,
+  `state_covers` succession,
+  launch success on a failed second fork,
+  the single-threaded fork precondition,
+  helpers bounded only at the lock,
+  a receipt joining after the error snapshot,
+  an unforced directory entry counted as forced)
+  and `commit-models-sol-9b.txt` "no, as submitted" (the receipt error handoff still atomic;
+  two false-green decision 19 schedules:
+  a notice left Scheduled after positive authority survives,
+  and reclamation on an earlier attempt's delivery;
+  map rows to mark narrower);
+  both say no acceptance criterion is added.
+  Round 15 running on both (same branch and worktree);
+  it cuts `commit-models-10-part-*.diff` when done.
 - cargo-shadow round 9 done:
   `feat/cargo-shadow-cli` tip `16249ffe94`;
   debug suite and release gate 561 passed,
@@ -580,21 +594,36 @@ State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner aske
   two stale contract names fixed;
   README and "Round 9" written;
   all 16 rows "shown".
-  Cross-vendor review `cargo-shadow-sol-9a.txt` (production and docs) running;
-  queued:
-  `cargo-shadow-sol-9b.txt` (tests;
-  prompt `cargo-shadow-prompt-9b.txt`,
-  inputs `cargo-shadow-sol-8b.txt`,
-  `cargo-shadow-guarantees-16249ffe94.md`,
-  `cargo-shadow-9b.diff`,
-  `cargo-shadow-9c.diff`),
-  to start when one of the three running reviews ends.
+  Cross-vendor reviews returned:
+  `cargo-shadow-sol-9a.txt` "does not meet the list for this part" (D1:
+  an unsettled scope upgraded by a later `exists()` check,
+  in two schedules;
+  D2:
+  a malformed boot identity read as a reboot;
+  D3:
+  discovery cleanup past its shared deadline;
+  the boot rule needs an authoritative kernel boot identity or a stated premise)
+  and `cargo-shadow-sol-9b.txt` "Meets it after named fixes" (seven false-green test assertions,
+  the missing same-namespace bind-mount schedule);
+  no row added.
+  Round 10 running on both (same branch and worktree);
+  it cuts `cargo-shadow-10*.diff` when done.
 - Latency round 3 merged to main (`b0d9708b17`;
   gate `gpc-gate-less-foreground-r3-fixes-20261104T073150-0500` passed 4751/4751;
   `native:clippy` on main clean);
-  release 0.5.29 dispatched (run 41837674379),
-  `native:release:wait` running;
-  then `upgrade-wrapper.ts 0.5.29` and a sample commit.
+  0.5.29 published (crates.io 2026-11-04T13:32:49Z,
+  run 41837674379) and installed (`d4979bab1b`);
+  the sample commit took 2665 ms,
+  1254 ms of it provisioning the upgraded service,
+  as earlier upgrades did (1016 to 1491 ms);
+  the landing took 36 ms.
+- Agents running:
+  index-lock reclaim without `flock` (`fix/git-policy-cli-index-lock-reclaim-without-flock`,
+  worktree `.claude/worktrees/index-lock-without-flock`);
+  models round 15;
+  cargo-shadow round 10;
+  test images from pacman (`feat/git-policy-cli-test-images-from-pacman`,
+  worktree `.claude/worktrees/test-images-from-pacman`).
   Not done from that round:
   a built root-commit control.
 - Planted controls and the `service_durable.rs` survivors merged to main (`3248a86254`;
@@ -3469,6 +3498,10 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   if it cannot,
   bring the evidence and ask again.
   Work on `feat/git-policy-cli-test-images-from-pacman`.
+  The owner then added:
+  "I just realized something. We don't need to pin git because my current system is already using git latest."
+  So the test image takes pacman's current `git`,
+  with no version pin.
   The other container picks (resolve `latest` once per run,
   run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
 - #6261 native-layer move:
