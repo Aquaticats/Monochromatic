@@ -332,3 +332,78 @@ fn a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so() 
     assert!(refused.to_string().contains("could not be reaped"), "the unreaped child was not reported: {refused}");
     assert!(elapsed < bound + Duration::from_millis(1500), "the discovery returned after {elapsed:?}, past its deadline of {bound:?} by more than a reaping poll");
 }
+
+/// The helper process of the bind-mount substitution test (9b 2.4):
+/// in a new user and mount namespace (the cgroup namespace is the one it inherited) it gives the journal the views this namespace has,
+/// so that nothing differs, asks for the verdict, then binds a different cgroup directory over the directory that held the recorded
+/// scope, and asks again.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace"]
+fn bind_substitution_fixture() {
+    let Ok(root_text) = std::env::var(FIXTURE_ROOT) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(root_text);
+    let journal: PathBuf = crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal");
+    let groups: String = fs::read_to_string(journal.join("groups")).expect("the records");
+    let mut slice_dir: Option<PathBuf> = None;
+    let mut rewritten: String = String::new();
+    for line in groups.lines() {
+        match crate::control_group::parse_record(line) {
+            Ok(crate::control_group::Record::Scope { namespace, path, .. }) => {
+                let parent: PathBuf = path.parent().expect("a parent").to_path_buf();
+                let here: crate::control_group::View = view_of(&parent).expect("the view of the parent here");
+                rewritten.push_str(&format!("{}\n", crate::control_group::Record::Scope { namespace, parent_view: here, path }));
+                slice_dir = Some(parent);
+            }
+            _ => rewritten.push_str(&format!("{line}\n")),
+        }
+    }
+    fs::write(journal.join("groups"), rewritten).expect("rewrite the records as this namespace sees them");
+    let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
+    let rest: String = recorded.lines().skip(1).map(|line| { return format!("{line}\n"); }).collect();
+    fs::write(journal.join("view"), format!("view {}\n{rest}", view_of(&journal).expect("views"))).expect("rewrite the view");
+
+    let baseline: Option<String> = crate::journal_recover::survivor_note(&journal);
+    let slice_dir: PathBuf = slice_dir.expect("a scope record");
+    let substitute: PathBuf = slice_dir.parent().expect("a directory above the slice").to_path_buf();
+    mount_in_namespace(&["--bind", &substitute.display().to_string(), &slice_dir.display().to_string()]);
+    let substituted: Option<String> = crate::journal_recover::survivor_note(&journal);
+    fs::write(
+        root.join("fixture-result"),
+        format!("{}\n{}\n", baseline.unwrap_or_else(|| { return "no survivor".to_string(); }), substituted.unwrap_or_else(|| { return "no survivor".to_string(); })),
+    )
+    .expect("write the result");
+}
+
+/// Acceptance row V2, amended c (9b 2.4, the same-cgroup-namespace bind-mount substitution of 7a F6):
+/// with the cgroup namespace unchanged and every recorded view equal, a bind mount of another cgroup directory over the directory that
+/// held the settled, absent scope makes the recovery refuse for the cgroup parent view, and the journal and the lockfile stay.
+/// The first verdict (nothing substituted) is the control: it clears, so the refusal is caused by the bind and nothing else.
+#[test]
+fn a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace() {
+    let Some(route) = delegated_route() else {
+        return;
+    };
+    let root = repository();
+    let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
+    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\nsettled {}\n", planned.record(), planned.directory().display()));
+
+    let status = Command::new("unshare")
+        .args(["--user", "--map-root-user", "--mount", "--"])
+        .arg(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "round_ten_tests::bind_substitution_fixture", "--nocapture"])
+        .env(FIXTURE_ROOT, root.path())
+        .status()
+        .expect("unshare must be installed and allowed to make a user and mount namespace for this test");
+
+    assert!(status.success(), "the helper process failed: {status:?}");
+    let said: String = fs::read_to_string(root.path().join("fixture-result")).expect("the helper's result");
+    let (baseline, substituted): (&str, &str) = said.trim_end().split_once('\n').expect("two verdicts");
+    assert_eq!(baseline, "no survivor", "the control did not clear, so the refusal below is not caused by the bind: {baseline}");
+    assert!(substituted.contains("recorded path may lead somewhere else"), "the substitution was not refused for the cgroup parent view: {substituted}");
+    assert!(!substituted.contains("another mount or path"), "the journal view differed too, so the cgroup view was not isolated: {substituted}");
+    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN);
+    assert!(journal.exists());
+}
