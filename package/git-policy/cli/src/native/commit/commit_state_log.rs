@@ -297,6 +297,8 @@ struct Authority {
     document: Vec<u8>,
     items: Vec<ClosureEntry>,
     reclaims: Vec<u64>,
+    /// The chain hashes of the records of the predecessor segment this authority replaces (the records an acknowledgment may have named).
+    lineage: Vec<String>,
 }
 
 fn kind_word(kind: EntryKind) -> &'static str {
@@ -315,11 +317,11 @@ fn item_lines(items: &[ClosureEntry]) -> String {
     return text;
 }
 
-fn encode_authority(document: &[u8], items: &[ClosureEntry], reclaims: &[u64]) -> Vec<u8> {
+fn encode_authority(document: &[u8], items: &[ClosureEntry], reclaims: &[u64], lineage: &[String]) -> Vec<u8> {
     let mut text: String = String::from(AUTHORITY_MAGIC);
     text.push_str(&item_lines(items));
     let numbers: Vec<String> = reclaims.iter().map(|number| { return number.to_string(); }).collect();
-    text.push_str(&format!("reclaims {}\ndocument {}\n", numbers.join(","), document.len()));
+    text.push_str(&format!("reclaims {}\nlineage {}\ndocument {}\n", numbers.join(","), lineage.join(","), document.len()));
     let mut bytes: Vec<u8> = text.into_bytes();
     bytes.extend_from_slice(document);
     return bytes;
@@ -393,9 +395,12 @@ fn parse_authority(body: &[u8]) -> Option<Authority> {
     let (lines, document) = header_lines(body)?;
     let mut items: Vec<ClosureEntry> = Vec::new();
     let mut reclaims: Vec<u64> = Vec::new();
+    let mut lineage: Vec<String> = Vec::new();
     for line in lines {
         if let Some(rest) = line.strip_prefix("item ") {
             items.push(parse_item(rest)?);
+        } else if let Some(rest) = line.strip_prefix("lineage ") {
+            lineage = rest.split(',').filter(|piece| { return !piece.is_empty(); }).map(str::to_string).collect();
         } else {
             let rest: &str = line.strip_prefix("reclaims ")?;
             for number in rest.split(',').filter(|piece| { return !piece.is_empty(); }) {
@@ -403,7 +408,7 @@ fn parse_authority(body: &[u8]) -> Option<Authority> {
             }
         }
     }
-    return Some(Authority { document, items, reclaims });
+    return Some(Authority { document, items, reclaims, lineage });
 }
 
 /// One record of a log file's valid chain.
@@ -688,9 +693,10 @@ pub fn sync_prefix(dir: &Path) -> io::Result<Prefix> {
     return Ok(Prefix { number: selected.number, length: selected.length as u64, generation: selected.generation, hash: selected.hash, items: selected.items });
 }
 
-/// Whether the state recovery would select now still carries what `prefix` promised: the same record, or a record that carries every item
-/// of the promised one (a successor by completion of a checkpoint, or by a later append) at a generation not older. Support that was dropped
-/// or whose content no longer validates is not coverage.
+/// Whether the state recovery would select now still carries what `prefix` promised: the same record (or a later record of the same chain),
+/// or the segment of a checkpoint whose authority names the promised record among those it replaced and that carries every item of the
+/// promised one. Items alone are not succession: a different document that retains the same files does not cover the promise, and support
+/// that was dropped or whose content no longer validates is not coverage.
 pub fn state_covers(dir: &Path, prefix: &Prefix) -> Result<bool, StateError> {
     let Some(current) = select(dir)? else { return Ok(false) };
     if current.generation < prefix.generation {
@@ -703,8 +709,18 @@ pub fn state_covers(dir: &Path, prefix: &Prefix) -> Result<bool, StateError> {
             return Ok(true);
         }
     }
+    // Across segments the successor must descend from the promised record: the first record of the current segment is a replacement
+    // authority that names the promised record's hash among the records it replaced, and nothing the promise retained was dropped except
+    // by a discharge its own ledger prefix proves.
+    let bytes: Vec<u8> = fs::read(log_path(dir, current.number))?;
+    let descends: bool = records(&bytes).first().is_some_and(|first| {
+        return matches!(parse_payload(&first.payload), Payload::Authority(authority) if authority.lineage.contains(&prefix.hash));
+    });
+    if !descends {
+        return Ok(false);
+    }
     let lane: PathBuf = lane_of(dir);
-    return Ok(check_non_drop(&lane, &prefix.items, &current.items, Some(&[])).is_ok());
+    return Ok(check_non_drop(&lane, &prefix.items, &current.items, None).is_ok());
 }
 
 /// A checkpoint candidate the writer started: its file number, generation and chain hash, so completion acts on exactly this file.
@@ -751,7 +767,13 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
         .last()
         .map_or(Some(1), |number| { return number.checked_add(1); })
         .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the segment numbers are exhausted"); })?;
-    let (record, hash) = encode_record(generation, &genesis(), &encode_authority(document, closure, &existing));
+    // The records this authority replaces: the eligible chain of the segment recovery selects now. An acknowledgment of any of them is
+    // covered by a successor that names its hash here (one hop; an acknowledgment older than the previous checkpoint is not covered).
+    let lineage: Vec<String> = match &selected {
+        Some(chosen) => records(&fs::read(log_path(dir, chosen.number))?).into_iter().filter(|record| { return record.end <= chosen.length; }).map(|record| { return record.hash; }).collect(),
+        None => Vec::new(),
+    };
+    let (record, hash) = encode_record(generation, &genesis(), &encode_authority(document, closure, &existing, &lineage));
     let mut file: File = OpenOptions::new().create_new(true).write(true).open(log_path(dir, next))?;
     file.write_all(&record)?;
     return Ok(Candidate { number: next, generation, hash });
