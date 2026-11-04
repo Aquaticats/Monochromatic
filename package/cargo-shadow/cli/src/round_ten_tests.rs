@@ -126,6 +126,36 @@ fn a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run
     assert!(blocked.contains("did not record its end"), "{blocked}");
 }
 
+/// Acceptance rows A1, V2 (certification, third pass): the same race, driven through the real recovery. The scope appears after the
+/// query inside the recovery's own check; the recovery must refuse, restore nothing and keep the journal, whatever the second
+/// look at the scope shows.
+#[test]
+fn a_scope_that_appears_inside_the_real_recovery_is_not_read_as_a_run_that_ended() {
+    let Some(route) = delegated_route() else {
+        return;
+    };
+    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
+        return;
+    };
+    let inside: Route = route_inside(holder.group.directory(), &route);
+    let planned: ControlGroup = ControlGroup::plan(&inside).expect("a scope name");
+    assert!(!planned.directory().exists());
+    let root = repository();
+    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n", planned.record()));
+    let directory: PathBuf = planned.directory().to_path_buf();
+    after_query_for_test(Some(Rc::new(move || { fs::create_dir(&directory).expect("the launcher's request makes the scope"); })));
+
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    after_query_for_test(None);
+    let created: bool = planned.directory().exists();
+    let _ = fs::remove_dir(planned.directory());
+
+    assert!(created, "the hook did not run inside the recovery's check");
+    assert!(messages.iter().any(|message| { return message.contains("did not record its end"); }), "the recovery did not refuse for the unsettled scope: {messages:?}");
+    assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "a recovery went ahead on a scope that appeared during its check: {messages:?}");
+    assert!(journal.exists(), "the journal was removed: {messages:?}");
+}
+
 /// A process in a process group of its own, which is alive until the test ends, however it ends.
 struct LiveGroup(
     /// The process that leads the group.
