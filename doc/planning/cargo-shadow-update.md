@@ -809,31 +809,21 @@ Where the sections above say otherwise, the contract and this section are curren
   different boot id clears liveness only.
 - First publication of the crate to crates.io needs the owner's explicit approval; nothing was published.
 
-## Resume point (round 9, written 2026-11-04 when the session was asked to stop)
+## Resume point (round 9, rewritten 2026-11-04T07:45:00-05:00 after the gate)
 
-Done in round 9 (commits on `feat/cargo-shadow-cli`, tip after this commit):
+Done in round 9 (commits on `feat/cargo-shadow-cli`; the section "Round 9" above lists the changes):
 
-- Production: `settled <scope path>` records and the refusal of an unsettled run whose scope is absent (8a F1); the boot identity
-  (machine id and boot id in the journal's `view` record, reboot of the same machine discharges liveness only); discovery that reads
-  and reaps under its deadline (8a F2); non-blocking route cache and unsynced registry (8a F3); whole and durable acknowledgement
-  records (8a F4); the unknown-inventory warning (8a K1).
-- Tests: `round_nine_tests.rs` (17 tests), the 8b fixes (orphan test with each orphan's own pid, thread oracle by thread id with a
-  control, ESRCH treated as gone, completion-sync count, namespace test isolating the cgroup view, R2 message naming a surviving
-  path, rollback test asserting both faults), the seven partly rows (reap, joined install test, R2 stages, K2 chain, V5 two roots,
-  V3/V4 failpoints and cut-off journals).
-- The guards were removed on the committed tests and the tests failed (list in the contract's coverage map), then restored.
-- Last full debug run before the contract edits: 561 passed, 3 skipped. Not rerun after: the rename
-  `the_scope_record_is_durable_before_the_program_starts` to `the_scope_record_is_visible_before_the_program_starts`, and the contract
-  and coverage map rewrite.
+- Debug suite, `lint:clippy` and the release gate ran at tip `7699f5df6f`: 561 tests, 561 passed, 0 failed, 3 skipped (the
+  `#[ignore]` helper entries), clippy clean after one fix (a shadowed binding in `contain_counterexample_tests.rs`).
+  Counts are in the coverage map of `doc/planning/cargo-shadow-guarantees.md`.
+- Stale test names in the contract: two (`a_weaker_path_journal_is_refused_by_recovery_and_admission_until_it_is_acknowledged` and
+  `acknowledging_one_of_two_journals_settles_it_and_leaves_the_other_blocking`) now match the tests that exist; every other
+  backticked identifier of twelve characters or more is a `fn` in the crate.
+- README and the Round 9 section written.
+- Diffs `cargo-shadow-9a.diff` (production), `-9b.diff` (`round_nine_tests.rs`), `-9c.diff` (the other tests) and `-9d.diff`
+  (contract, this file, README) were cut from `089585a116` into `/var/home/user/temp/agent/reviews/`, each under 250 KB.
 
-Next, in order:
+Next:
 
-1. Run the debug suite, `lint:clippy`, then the release gate (`//package/cargo-shadow/cli:test`); fix what fails; fill the counts in the
-   coverage map of `doc/planning/cargo-shadow-guarantees.md` (the placeholder sentence under "Counts").
-2. Check every test name the contract cites exists (the name-check script idea: backticked identifiers against `fn` names).
-3. Update `package/cargo-shadow/cli/README.md` (settled records, boot identity, acknowledgement record) and a short "Round 9" section
-   in this file.
-4. Cut `cargo-shadow-9a.diff` to `-9d.diff` from `089585a116` into `/var/home/user/temp/agent/reviews/`, each under 250 KB, and report.
-
-No gate unit or `systemd-run` scope of mine is running; scratch and logs are in `/var/home/user/temp/agent/cargo-shadow-r7/`
-(`logs/full9f.log` is the last full run).
+1. The coordinator launches the cross-vendor review of the four diffs against the contract.
+2. The owner's vetoes stay open (listed in "Round 9"); nothing is merged into main and nothing is published.
