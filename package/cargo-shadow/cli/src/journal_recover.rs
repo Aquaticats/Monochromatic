@@ -46,7 +46,7 @@ use crate::constants::LOCKFILE_NAME;
 use crate::crates::{LockSnapshot, read_locks};
 // Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, J...`.
 /// Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, KeepAs, LOCK_FILE, MANIFEST_INDEX_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, decode_path, file_name_text, no_hook, replace_keeping_with_hook, sync_directory}` for this file.
-use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, KeepAs, MANIFEST_INDEX_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, file_name_text, make_durable, no_hook, replace_keeping_with_hook};
+use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, KeepAs, MANIFEST_INDEX_FILE, OWNER_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, file_name_text, make_durable, no_hook, replace_keeping_with_hook};
 // Imports `crate::journal_transaction::{mark_done_and_...`.
 /// Imports `crate::journal_transaction::{mark_done_and_remove, try_lock}` for this file.
 use crate::journal_transaction::{mark_done_and_remove, take_workspace};
@@ -199,27 +199,20 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     }
     // The listed set must be exactly the payload a recovery needs: the index, one snapshot per root, and the manifest index when promised.
     let roots: usize = fs::read_to_string(directory.join(INDEX_FILE))?.lines().filter(|line| { return !line.starts_with("end ") && *line != "v2"; }).count();
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `let mut`: a binding that may change.
-    // Typed binding: `required: Vec<String>`.
-    // Macro `vec!`: builds or prints text (or a list) from a template.
     let mut required: Vec<String> = vec![INDEX_FILE.to_string()];
-    // Closure `|position|`: an anonymous function, like a TS arrow function.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    // Macro `format!`: builds or prints text (or a list) from a template.
     required.extend((0..roots).map(|position| { return format!("{position}.lock"); }));
     if manifests {
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         required.push(MANIFEST_INDEX_FILE.to_string());
+        let snapshots: usize = fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?.lines().filter(|line| { return !line.starts_with("end ") && *line != "v1"; }).count();
+        required.extend((0..snapshots).map(|position| { return format!("m{position}.toml"); }));
     }
-    // Borrow `&required`: lends the value without copying or giving it away.
-    for name in &required {
-        if !listed.contains(name) {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // Borrow `&format`: lends the value without copying or giving it away.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(corrupt(&format!("{name} is required and not listed")));
-        }
+    // The listed files are exactly the payload the indexes imply: no omission, no duplicate, no extra.
+    let mut sorted_listed: Vec<&String> = listed.iter().collect();
+    sorted_listed.sort();
+    let mut sorted_required: Vec<&String> = required.iter().collect();
+    sorted_required.sort();
+    if sorted_listed != sorted_required {
+        return Err(corrupt(&format!("the listed files {listed:?} differ from the payload the indexes imply {required:?}")));
     }
     return Ok(Some(Ready { manifests }));
 }
@@ -346,63 +339,103 @@ pub(crate) fn survivor_note(directory: &Path) -> Option<String> {
 }
 
 /// What:
-/// `fn recover_unready(root, directory, messages)` settles a journal that has no ready record.
+/// `fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String>` decides whether a journal without a ready
+/// record holds nothing that the live files do not already hold,
+/// and returns the live files to make durable before it is removed;
+/// `Err` says why it must be kept.
 /// Why:
-/// Review finding (4b2 6):
-/// no ready record is normally a run killed while it prepared,
-/// before cargo ran,
-/// and then the copies lose
-/// nothing;
-/// but a ready record that was lost to damage looks the same.
-/// So the copies are removed only when no lockfile differs from its snapshot (the copies are then redundant);
-/// otherwise the journal is kept and named.
+/// Round 6 (5b2 3): equal lockfiles do not make a manifest snapshot or an unknown file redundant,
+/// and a missing index is no proof that the directory is empty.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unreadyVerdict(root: string, directory: string): string[]  // throws the reason to keep it
+/// ```
+fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String> {
+    let names: Vec<String> = fs::read_dir(directory)
+        .map_err(|error| { return format!("it could not be listed ({error})"); })?
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().to_string(); })
+        .collect();
+    let is_lock = |name: &str| -> bool { return name.strip_suffix(".lock").is_some_and(|stem| { return !stem.is_empty() && stem.bytes().all(|byte| { return byte.is_ascii_digit(); }); }) };
+    let is_snapshot = |name: &str| -> bool { return name.strip_prefix('m').and_then(|rest| { return rest.strip_suffix(".toml"); }).is_some_and(|stem| { return !stem.is_empty() && stem.bytes().all(|byte| { return byte.is_ascii_digit(); }); }) };
+    if let Some(unknown) = names.iter().find(|name| { return ![OWNER_FILE, GROUPS_FILE, INDEX_FILE, MANIFEST_INDEX_FILE].contains(&name.as_str()) && !is_lock(name) && !is_snapshot(name) && !name.ends_with(".tmp"); }) {
+        return Err(format!("it holds {unknown}, which this version does not know"));
+    }
+    let locks: usize = names.iter().filter(|name| { return is_lock(name); }).count();
+    let snapshots: usize = names.iter().filter(|name| { return is_snapshot(name); }).count();
+    let mut live_files: Vec<String> = Vec::new();
+    match read_journal(directory) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            if locks > 0 {
+                return Err("its index is missing but lockfile snapshots remain".to_string());
+            }
+        }
+        Err(error) => return Err(format!("its index is damaged ({error})")),
+        Ok(before) => {
+            if locks != before.len() {
+                return Err("it holds lockfile snapshots that its index does not list".to_string());
+            }
+            let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
+            let live = read_locks(root, &dirs).map_err(|error| { return format!("a live lockfile could not be read ({error})"); })?;
+            if !before.iter().zip(live.iter()).all(|(old, now)| { return old.source == now.source; }) {
+                return Err("it holds the only copy of a lockfile that differs from the live one".to_string());
+            }
+            live_files.extend(dirs.iter().map(|crate_dir| { return root.join(crate_dir).join(LOCKFILE_NAME).to_string_lossy().to_string(); }));
+        }
+    }
+    if names.iter().any(|name| { return name == MANIFEST_INDEX_FILE; }) {
+        let manifests = read_manifest_index(directory).map_err(|error| { return format!("its manifest index is damaged ({error})"); })?;
+        if snapshots != manifests.len() {
+            return Err("it holds manifest snapshots that its manifest index does not list".to_string());
+        }
+        for manifest in &manifests {
+            match fs::read_to_string(&manifest.path) {
+                Ok(live) if live == manifest.before => live_files.push(manifest.path.to_string_lossy().to_string()),
+                Ok(_) => return Err(format!("it holds the only copy of {}, which differs from the live file", manifest.path.display())),
+                Err(error) => return Err(format!("{} could not be read ({error})", manifest.path.display())),
+            }
+        }
+    } else if snapshots > 0 {
+        return Err("manifest snapshots remain without a manifest index".to_string());
+    }
+    return Ok(live_files);
+}
+
+/// What:
+/// `fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>)` removes a journal that never became ready
+/// when every payload in it is redundant and the live files that make it redundant are durable,
+/// and keeps it otherwise.
+/// Why:
+/// Deleting a durable copy while its live equal is still in the page cache could lose both in a power cut (round 6, 5b2 4).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function recoverUnready(root: string, directory: string, messages: string[]): void
 /// ```
 fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>) {
-    // `match`: picks the arm whose pattern fits the value.
-    // Typed binding: `redundant: bool`.
-    let redundant: bool = match read_journal(directory) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => true,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(_) => false,
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(before) => {
-            // `.collect()`: runs the iterator and gathers the items into the bound collection type.
-            // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-            // Why:      The collection stays usable after the walk and no item is copied until it must be.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // for (const item of list) { ... }  // or list.map(...)
-            // ```
-            // Adapter `.map(`: transforms or selects items with a closure.
-            // Typed binding: `dirs: Vec<String>`.
-            let dirs: Vec<String> = before.iter().map(LockSnapshot::crate_dir_text).collect();
-            // `match`: picks the arm whose pattern fits the value.
-            // Borrow `&dirs`: lends the value without copying or giving it away.
-            match read_locks(root, &dirs) {
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                // Closure `|(old, now)|`: an anonymous function, like a TS arrow function.
-                // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-                Ok(live) => before.iter().zip(live.iter()).all(|(old, now)| { return old.source == now.source; }),
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
-                Err(_) => false,
-            }
+    let live_files: Vec<String> = match unready_verdict(root, directory) {
+        Ok(found) => found,
+        Err(reason) => {
+            messages.push(format!("{}: a journal without a ready record was kept: {reason}", directory.display()));
+            return;
         }
     };
-    if !redundant {
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        messages.push(format!("{}: a journal without a ready record holds the only copy of a lockfile that differs from the live one; it was kept", directory.display()));
-        return;
+    for live in &live_files {
+        #[cfg(test)]
+        let outcome: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::RecoverDurability) {
+            Err(io::Error::other("injected recovery durability failure"))
+        } else {
+            make_durable(Path::new(live))
+        };
+        #[cfg(not(test))]
+        let outcome: io::Result<()> = make_durable(Path::new(live));
+        if let Err(error) = outcome {
+            messages.push(format!("{}: a journal without a ready record was kept because {live} could not be made durable ({error})", directory.display()));
+            return;
+        }
     }
-    // `Err(...)`: builds the success or the failure variant of a `Result`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     if let Err(error) = mark_done_and_remove(directory) {
-        // Macro `format!`: builds or prints text (or a list) from a template.
         messages.push(format!("{}: a journal that never became ready could not be removed ({error}); it will be tried again", directory.display()));
     }
 }
