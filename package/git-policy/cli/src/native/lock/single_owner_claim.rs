@@ -210,8 +210,11 @@ const SMALL_RECORD_LIMIT: u64 = 4096;
 ///  gone, and an error when that cannot be decided.
 fn live_owner(record: &Record, path: &Path) -> Result<Option<i64>, MigrateError> {
     let Record::Owned { pid, birth, namespace } = record else { return Ok(None) };
-    if let Some(standing) = foreign_owner_standing(namespace.as_deref(), path) {
-        return Ok(standing.then_some(*pid));
+    match foreign_owner_standing(namespace.as_deref(), path) {
+        Some(Ok(())) => return Ok(Some(*pid)),
+        // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old claim of another namespace is neither taken nor trusted.
+        Some(Err(expired)) => return Err(MigrateError::Journal(expired.describe(*pid))),
+        None => {}
     }
     return match process_birth_identity(*pid) {
         Ok(Some(current)) => Ok((&current == birth).then_some(*pid)),

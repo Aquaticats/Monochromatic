@@ -949,3 +949,25 @@ fn a_manifest_path_that_is_not_utf8_is_recovered_exactly() {
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(fs::read_to_string(&manifest_path).expect("read"), "manifest before");
 }
+
+/// Acceptance row R1 (certification, third pass): a conflict found at the exchange boundary of a rollback (another process changes the
+/// file in place between the comparison and the exchange, so the exchange displaced a file that is not the expected one) leaves both
+/// writers' bytes intact, keeps the replacement, and is reported as a warning that names the kept file.
+#[test]
+fn a_rollback_whose_exchange_finds_another_writers_change_keeps_both_files_and_warns() {
+    use std::os::unix::fs::MetadataExt;
+    let root = repository("produced");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let writers_inode: u64 = fs::metadata(&path).expect("examines").ino();
+    let other_writer = |live: &Path| { fs::write(live, "another writer's text").expect("the other writer writes"); };
+
+    let (warnings, failure) = crate::journal::restore_if_unchanged_with(root.path(), &[snapshot("original")], &[snapshot("produced")], &other_writer);
+
+    assert!(failure.is_none(), "{failure:?}");
+    let warning: &String = warnings.iter().find(|text| { return text.contains("was changed again during the restore"); }).unwrap_or_else(|| { panic!("the conflict at the exchange boundary was not reported: {warnings:?}"); });
+    // The other writer's bytes are live again and its inode is the one that was there; the replacement (the snapshot text) is kept.
+    assert_eq!(lock(root.path()), "another writer's text");
+    assert_eq!(fs::metadata(&path).expect("examines").ino(), writers_inode, "the other writer's inode is not the live file");
+    let kept: &str = warning.rsplit("kept as ").next().expect("a kept path").trim();
+    assert_eq!(fs::read_to_string(kept).expect("the kept replacement"), "original", "the replacement was not kept under the reported name: {warning}");
+}

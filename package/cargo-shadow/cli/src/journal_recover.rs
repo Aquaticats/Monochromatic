@@ -48,8 +48,8 @@ use crate::crates::{LockSnapshot, read_locks};
 /// Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, KeepAs, LOCK_FILE, MANIFEST_INDEX_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, decode_path, file_name_text, no_hook, replace_keeping_with_hook, sync_directory}` for this file.
 use crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, KeepAs, MANIFEST_INDEX_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, file_name_text, make_durable, no_hook, replace_keeping_with_hook};
 // Imports `crate::journal_transaction::{mark_done_and_...`.
-/// Imports `crate::journal_transaction::{mark_done_and_remove, try_lock}` for this file.
-use crate::journal_transaction::{finish_journal, mark_done_and_remove, take_workspace};
+/// Imports `crate::journal_transaction::{finish_journal, take_workspace}` for this file.
+use crate::journal_transaction::{finish_journal, take_workspace};
 /// Imports the process-group probe and the error code that says a group is empty.
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
@@ -266,16 +266,19 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
         // The second entry is the one a test makes fail, so the first is already in the partial listing.
         #[cfg(test)]
         if index == 1 && iteration_fault {
+            crate::bounded_run::trace(|| { return format!("listing fault iteration at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
             return Err(io::Error::other("injected failure to read an entry of the journal directory"));
         }
         let entry: fs::DirEntry = found?;
         let path: PathBuf = entry.path();
         #[cfg(test)]
         if index == 1 && inspection_fault {
+            crate::bounded_run::trace(|| { return format!("listing fault inspection at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
             return Err(io::Error::other("injected failure to examine an entry of the journal directory"));
         }
         #[cfg(test)]
         if index == 1 && vanished_fault {
+            crate::bounded_run::trace(|| { return format!("listing fault entry-not-found at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
             return Err(io::Error::from(io::ErrorKind::NotFound));
         }
         if path.to_string_lossy().ends_with(DONE_SUFFIX) {
@@ -406,8 +409,13 @@ fn recover_messages(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
         }
     };
     for directory in listing.done {
-        if let Err(error) = mark_done_and_remove(&directory) {
-            messages.push(format!("{}: a finished journal could not be removed ({error}); it will be tried again", directory.display()));
+        // A journal already marked done still has its completion barrier to make: the earlier rename may not be durable, so the parent
+        // is synchronized again here, and a failure of that is a mandatory failure, not a cleanup (certification, third pass).
+        if let Err(error) = finish_journal(&directory) {
+            messages.push(format!("{}: a finished journal could not be completed or removed ({error}); it will be tried again", directory.display()));
+            if !error.cleanup_only() {
+                *mandatory = true;
+            }
         }
     }
     let open: Vec<PathBuf> = listing.open;

@@ -594,7 +594,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "cargo:monochromatic-git-policy-cli@latest",
-      "version": "0.5.33",
+      "version": "0.5.34",
       "route": "cargo-binstall",
       "bins": [
         "cli-git-native"
@@ -613,6 +613,20 @@
           }
         }
       },
+      "artifacts": {}
+    },
+    "cargo:monochromatic-cargo-shadow": {
+      "request": "cargo:monochromatic-cargo-shadow@latest",
+      "version": "0.1.1",
+      "route": "cargo-binstall",
+      "bins": [
+        "cargo-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {},
       "artifacts": {}
     },
     "cargo:monochromatic-pnpm-shadow": {
@@ -706,7 +720,7 @@
     },
     "cargo:monochromatic-file-enforcer-cli": {
       "request": "cargo:monochromatic-file-enforcer-cli@latest",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "route": "cargo-binstall",
       "bins": [
         "file-enforcer"
@@ -1502,5 +1516,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:607ad1af2f340da6056ba774d0e7f3aedccedbbd6fdc09f1be003d671de956fd"
+  "digest": "sha256:29e5f47702f3a172c53b505d7be2eebcf93630fc5fe2869db8c8629265d61d15"
 }

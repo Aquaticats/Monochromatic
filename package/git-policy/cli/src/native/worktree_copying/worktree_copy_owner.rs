@@ -128,6 +128,15 @@ impl CopyOwner {
         });
     }
 
+    /// The error to stop with when this owner is in another namespace and its item is older than the patience: neither alive nor
+    ///  dead (owner, 2026-11-04, "Refuse and name it (Recommended)").
+    pub fn expired_foreign_refusal(&self, item: &Path) -> Option<WorktreeCopyError> {
+        return match foreign_owner_standing(self.pid_namespace.as_deref(), item) {
+            Some(Err(expired)) => Some(WorktreeCopyError(expired.describe(self.pid))),
+            Some(Ok(())) | None => None,
+        };
+    }
+
     /// What:
     ///  Whether the owner still runs.
     /// Why:
@@ -142,8 +151,11 @@ impl CopyOwner {
     /// # Errors
     ///  When the platform refuses to report the process.
     pub fn is_alive(&self, item: &Path) -> Result<bool, WorktreeCopyError> {
-        if let Some(standing) = foreign_owner_standing(self.pid_namespace.as_deref(), item) {
-            return Ok(standing);
+        if let Some(refusal) = self.expired_foreign_refusal(item) {
+            return Err(refusal);
+        }
+        if foreign_owner_standing(self.pid_namespace.as_deref(), item).is_some() {
+            return Ok(true);
         }
         // `match` on the platform's answer: a live process with the recorded birth is the owner; no process is a dead owner.
         match process_birth_identity(self.pid).map_err(|error| return raw_failure(&error))? {
@@ -161,16 +173,20 @@ impl CopyOwner {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function ownerIsDead(token: string | undefined, itemPath: string): boolean;
+/// function ownerIsDead(token: string | undefined, itemPath: string): boolean; // throws when the owner is of another namespace and the item is older than the patience
 /// ```
-pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> bool {
+pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> Result<bool, WorktreeCopyError> {
     let Some(owner) = token.and_then(CopyOwner::from_token) else {
-        return true;
+        return Ok(true);
     };
+    // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old item of another namespace stops the command.
+    if let Some(refusal) = owner.expired_foreign_refusal(item) {
+        return Err(refusal);
+    }
     // `match` on the proof: only a clean answer of "not running" is a dead owner.
     match owner.is_alive(item) {
-        Ok(alive) => return !alive,
-        Err(_unproven) => return false,
+        Ok(alive) => return Ok(!alive),
+        Err(_unproven) => return Ok(false),
     }
 }
 

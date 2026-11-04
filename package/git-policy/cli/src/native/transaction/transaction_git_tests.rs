@@ -614,8 +614,8 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     let ends = |arguments: &[&str]| { return matches!(bound(arguments, false), StepBound::EndAt(_)); };
     // Identical after a second run at every cut.
     for same in [
-        &["update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
-        &["update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/1"],
         &["stash", "list", "--format=%H"],
         &["clean", "--force", "-d"],
         &["read-tree", "--reset", "-u", "abc"],
@@ -634,6 +634,10 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     // Different after a second run at some cut, or not in the experiment.
     for differs in [
         &["update-ref", "--stdin"][..],
+        // The import is a writer of a reference whatever its stream says here: the experiment found a marks lock it left that the
+        //  second run could not pass.
+        &["-c", "core.logAllRefUpdates=false", "fast-import", "--done", "--export-marks=marks-1"],
+        &["fast-import", "--done"],
         &["update-ref", "refs/heads/main", "new", "old"],
         &["update-ref", "refs/heads/main", "new"],
         &["update-ref", "-d", "refs/heads/old"],
@@ -654,7 +658,6 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     assert_eq!(bound(&["rev-parse", "HEAD"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
     assert_eq!(bound(&["merge-base", "a", "b"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
     assert_eq!(bound(&["log", "-1"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
-    assert_eq!(bound(&["fast-import", "--done"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
     assert_eq!(bound(&["commit-tree", "abc", "-m", "x"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
 }
 
@@ -805,7 +808,18 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
         // A reflog introduced on a side ref is the doubling that made a branch write different.
         &["update-ref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
         &["update-ref", "-m", "message", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        // The numbered ref is a plain ref only with `--no-deref`, and has no reflog only with the setting on the command line (the
+        //  repository's own `core.logAllRefUpdates=always` would append a second entry in the second run).
         &["update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        // The last setting of the key wins in Git, a key is not case-sensitive, and `--config-env` sets one too.
+        &["-c", "core.logAllRefUpdates=false", "-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "-c", "core.logallrefupdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "--config-env=core.logAllRefUpdates=LOGGING", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
         // A ref under the prefix is not any ref under it: the wrapper makes numbered ones, and `..` is not a number.
         &["update-ref", "refs/cli-git/../heads/main", "0123456789abcdef0123456789abcdef01234567"],
         &["update-ref", "refs/cli-git/kept/1/../../heads/x", "0123456789abcdef0123456789abcdef01234567"],
@@ -833,8 +847,8 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
     }
     // The forms that were run are exact: the same words with the proven options, and nothing else, keep the ceiling.
     for proven in [
-        &["update-ref", "refs/cli-git/kept/12", "0123456789abcdef0123456789abcdef01234567"][..],
-        &["update-ref", "-d", "refs/worktree/cli-git-service/1793"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/12", "0123456789abcdef0123456789abcdef01234567"][..],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "-d", "refs/worktree/cli-git-service/1793"],
         &["stash", "list", "--format=%H"],
         &["clean", "--force", "-d"],
         &["read-tree", "--reset", "-u", "abc"],
@@ -846,4 +860,39 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
     ] {
         assert!(ends(proven), "{proven:?} is a form the experiment ran and keeps its ceiling");
     }
+}
+
+/// Which forms of `symbolic-ref` and `init` may be run again (sol-1 and sol-2 round 2): the forms the wrapper runs, and no other. A
+/// read changes nothing. A write of a symbolic ref is run twice only in a shadow repository the wrapper made for one transaction
+/// (the experiment: identical after a second run at every cut). `init` is only the shadow's creation, which is private and thrown
+/// away when it fails (the experiment: different after a second run, so a step ended there discards that transaction's shadow).
+#[test]
+fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
+    let may = |arguments: &[&str], shadow: bool| -> bool {
+        let mut request: GitRequest = GitRequest::new(Path::new("/repo"), arguments);
+        request.without_prefix = shadow;
+        return may_be_rerun(&request);
+    };
+    // Reads.
+    assert!(may(&["symbolic-ref", "--quiet", "HEAD"], false));
+    assert!(may(&["symbolic-ref", "--quiet", "--short", "HEAD"], false));
+    // The wrapper's writes in a shadow repository.
+    assert!(may(&["--git-dir=/shadow", "-c", "core.hooksPath=/x", "symbolic-ref", "HEAD", "refs/heads/main"], true));
+    // A write in the repository of the person is a branch write.
+    assert!(!may(&["symbolic-ref", "HEAD", "refs/heads/other"], false));
+    // A delete, a message (it writes a reflog entry) and any other option are not forms the wrapper runs.
+    assert!(!may(&["symbolic-ref", "--delete", "HEAD"], true));
+    assert!(!may(&["symbolic-ref", "-m", "why", "HEAD", "refs/heads/main"], true));
+    assert!(!may(&["symbolic-ref", "--delete", "--quiet", "HEAD"], false));
+    // The shadow's creation.
+    assert!(may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(may(&["init", "--bare", "--template=", "--object-format=sha256", "--ref-format=reftable", "/shadow"], true));
+    // Any other words, or an extra one, are not the form the wrapper runs.
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
+    assert!(!may(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
+    // Any other `init` can relocate or re-initialize the repository of the person.
+    assert!(!may(&["init", "--bare", "--template=", "/shadow"], false));
+    assert!(!may(&["init", "--quiet", "--initial-branch=main"], true));
+    assert!(!may(&["init", "--separate-git-dir=/elsewhere", "--bare"], false));
 }

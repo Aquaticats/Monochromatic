@@ -245,7 +245,7 @@ pub fn recover_worktree_copy_transactions(
     let mut recovered: usize = 0;
     let mut notices: Vec<String> = Vec::new();
     for journal in pending {
-        if !journal_owner_is_dead(&journal) {
+        if !journal_owner_is_dead(&journal)? {
             continue;
         }
         // `match` on the take-over: another command already took this journal, and it recovers it.

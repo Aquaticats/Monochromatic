@@ -542,13 +542,26 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
     .expect("the step");
     // The test binary is the program this process was started as (the test harness starts it by its path).
     let test_binary: PathBuf = PathBuf::from(std::env::args_os().next().expect("the program this test runs as"));
-    let helper = Command::new(test_binary)
+    let mut running = Command::new(test_binary)
         .args(["--exact", "push::child_watch::tests::left_running_helper", "--nocapture"])
         .env(HELPER_DIRECTORY, directory.as_os_str())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
+        .spawn()
         .expect("the command runs");
+    // A command that waits for the step it left (the defect under test) must fail this test and not hang it (sol-1 round 2).
+    let command_began: Instant = Instant::now();
+    let helper = loop {
+        if let Some(status) = running.try_wait().expect("ask the command") {
+            break status;
+        }
+        if command_began.elapsed() > Duration::from_secs(30) {
+            let _ended = running.kill();
+            let _reaped = running.wait();
+            panic!("the command did not exit after it left the step running");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
     assert!(helper.success(), "the command that left the step running exited cleanly: {helper:?}");
     let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
     // SAFETY: signal 0 only asks whether the process exists.

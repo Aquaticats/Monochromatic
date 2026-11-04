@@ -433,10 +433,16 @@ fn a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_e
         return;
     };
 
+    let before_journals: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
     let blocked: Vec<String> = crate::journal::recover(root.path(), &refusing);
     let kept: String = live_lock(root.path());
+    // Both journals stay while the member lives (certification, third pass): checked before the scope ends and the control runs, so
+    // a recovery that deleted them while refusing could not pass through the control's empty listing.
+    let retained: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
     end_scope(&scope);
     let after: Vec<String> = crate::journal::recover(root.path(), &refusing);
+    assert_eq!(before_journals.len(), 2, "the case needs two journals");
+    assert_eq!(retained, before_journals, "the blocked recovery removed or changed a journal: {blocked:?}");
 
     assert_eq!(kept, "unchecked output of the killed run", "a live member did not stop the recovery: {blocked:?}");
     assert!(blocked.iter().any(|message| { return message.contains("still running"); }), "the refusal does not name the member: {blocked:?}");

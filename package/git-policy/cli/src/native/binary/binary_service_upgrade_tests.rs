@@ -105,11 +105,12 @@ fn a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted() 
     assert_eq!(finished_batches(&fixture), 1, "the worktree's own service landed it");
     assert!(git_text(&fixture, &repo, &["cat-file", "commit", "HEAD"]).contains("\ngpgsig -----BEGIN SSH SIGNATURE-----"), "the commit is signed");
     git(&fixture, &repo, &["verify-commit", "HEAD"]);
-    // After both stops, the wrapper asks for each unit's state (GetUnit, then the ActiveState property) until the stand-in
-    //  reports them stopped, which it does on the first ask.
+    // The socket is stopped, the wrapper asks for the service's state until the stand-in reports it stopped (it left when it was
+    //  asked to retire; the stop of the service goes after it left), and then for each unit's state, which the stand-in reports
+    //  stopped on the first ask.
     assert_eq!(
         bus.join().expect("bus"),
-        vec![vec!["Hello", "StopUnit", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit"]]
+        vec![vec!["Hello", "StopUnit", "GetUnit", "Get", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit"]]
     );
     assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "the old units are gone");
     keep.lock().expect("lock").clear();

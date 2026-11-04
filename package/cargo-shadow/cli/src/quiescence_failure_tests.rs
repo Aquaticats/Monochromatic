@@ -219,9 +219,10 @@ fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_bo
 }
 
 /// Acceptance row "V6":
-/// a manager that does not answer ends the discovery at its deadline with the reason,
-/// and the run takes the weaker path;
+/// a manager that does not answer ends the discovery at its deadline with the reason as a missing capability;
 /// nothing waits for the manager without end.
+/// This test calls only the discovery; that a run then takes the weaker path with its record is shown by
+/// `each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_before_the_start`.
 #[test]
 fn a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline() {
     let settings: RouteSettings = RouteSettings {

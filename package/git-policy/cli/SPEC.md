@@ -770,7 +770,8 @@ file and published with one exclusive `link` under the next generation number, s
 generation; the newest generation is the claim and records the owner's process id, process birth identity and PID namespace.
 A newer generation replaces an older one only when the older records a released claim or an owner that no longer runs with
 that birth (a reused PID does not count as alive); an owner in another PID namespace counts as alive until its file is older
-than `FOREIGN_OWNER_PATIENCE`. The newest generation is never removed (a released one is rewritten by a rename), older ones are
+than `FOREIGN_OWNER_PATIENCE`, and a command that finds it older stops with an error and takes nothing over (the owner's "Refuse and
+name it (Recommended)", "Foreign-owner expiry" below). The newest generation is never removed (a released one is rewritten by a rename), older ones are
 removed by the command that took the newer, and a generation published by a command whose listing went stale is withdrawn
 when a newer one exists. A command that finds a live owner skips the worktree, names the process and the file, waits for
 nothing and writes nothing. A killed command leaves a claim file that needs no cleanup.
@@ -1032,7 +1033,8 @@ A journal is `<id>.<owner>.json`, where `<owner>` is the owner's process id, bir
 text; a stage claim holds the container path on its first line and `owner=<owner>` on its second; every temporary file is
 `<item>.<owner>.<unique>.tmp`.
 An owner is alive when a process with its id and its birth identity exists; one in a PID namespace the reader cannot see is
-alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`, 20 minutes); one the platform cannot report on is not proven dead, so its item is kept.
+alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`, 20 minutes), and past it the command that finds the item stops with an
+error that names the item and changes nothing (the owner's "Refuse and name it (Recommended)", "Foreign-owner expiry" below); one the platform cannot report on is not proven dead, so its item is kept.
 An item that names no owner (a name an earlier release wrote, or a stranger's file) has none to wait for and counts as dead.
 A command that finds a pending journal or stage claim whose owner is alive leaves it whole and goes on: it never waits for
 the owner, because the owner is an add or a copy in progress.
@@ -1385,13 +1387,21 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   mutating system call with `SIGKILL` and `SIGTERM`, running it again, and comparing the end state with an uncut run's
   (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The rule is a whitelist of the exact forms the experiment
   ran, parsed by their options and words, so a form it did not run has no ceiling: `update-ref` set or delete of one numbered side
-  ref (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`, assumed plain, with no reflog), `stash list
+  ref (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`) only with `--no-deref` and with
+  `-c core.logAllRefUpdates=false` on the same argv as the last setting of that key (Git takes the last; `--config-env` of the key is refused too), which the wrapper passes at each of its call sites in
+  `src/native/landing/service_land.rs` (the repository's own `core.logAllRefUpdates=always` and a side ref that is a symbolic ref
+  were both run), `stash list
   --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index` with only `--refresh`, only `--index-info` (and
   `-z`), or `--add --cacheinfo <triple>`, `add` with `--update` or `--all`, `checkout-index --all --force`, `restore` with
   `--staged`, `--worktree`, `--source=` and paths after `--`, `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key>
   <value>`; and the steps `RERUNNABLE` names, and the readers and writers of unreferenced objects (`rev-list`, `merge-base`, `log`,
   `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`, `fmt-merge-msg`, `show-ref`, `name-rev`,
-  `commit-tree`, `fast-import`, `mktree`). Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
+  `commit-tree`, `mktree`; `fast-import` is not among them: its input can update and checkpoint branches, and the experiment ran the
+  wrapper's own stream and found a marks lock a cut left that the second run could not pass). `RERUNNABLE` no longer names
+  `symbolic-ref` or `init`: `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the
+  wrapper made, as a write of one name to one target with no option (identical in the experiment), and `init` only as the shadow's
+  creation (the one argv `shadow_create.rs` runs, on a shadow request), which the experiment found different after a second run (reftable names are random) and
+  which is private and thrown away with its transaction when it fails. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
   `checkout`, `switch`, `config --add`, `gc` and the rest, is never ended. On the commit service's landing thread such a step is
   announced at the usual interval and waited for as long as it lives. Any other command stops waiting at the bound of the step's
   class plus `SHORT_EXTRA_WAIT` (7 seconds; the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
@@ -1538,7 +1548,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   result is not known (twice the longest branch write measured, 3.4 s).
 - `FOREIGN_OWNER_PATIENCE` 20 minutes: twice `LOCK_CEILING`, derived in code (`src/native/process/pid_namespace.rs`), 1.6 times the
   longest commit measured (751 s) and 2.2 times the longest worktree add (540 s). It was an hour, twice the 30 minute live lock
-  wait of a file that no longer exists.
+  wait of a file that no longer exists. It is the age after which a record of an owner in another PID namespace is refused, not
+  reclaimed: see "Foreign-owner expiry".
 
 What happens at the bound, on the commit path:
 
@@ -1576,7 +1587,10 @@ What happens at the bound, on the commit path:
   (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
   not begun to land. Admission and cancellation are one decision per request: the file `<id>.decision` in the journal's `busy`
   directory, made with `link(2)` of a whole file, which exactly one side can create (`landing` by the landing thread before it
-  lands the request, `withdrawn` by a connection thread before it answers). A `withdrawn` decision stays as a tombstone, so every
+  lands the request, `withdrawn` by a connection thread before it answers). A `withdrawn` decision is provisional until its maker has
+  checked the journal once more and created the file `<id>.cancelled`; only a decision with that file is acknowledged to a client or
+  kept, and a maker that finds the request landed, open or unknown removes its decision, which nobody has acknowledged, so no
+  observer reports a cancellation that is later undone. A `withdrawn` decision with its `.cancelled` file stays as a tombstone, so every
   copy of the request that reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches, and
   cleared when the service starts like the service's own memory of withdrawals); a `landing` decision is removed when its group is
   done, after the batch is in the journal, and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
@@ -1638,6 +1652,52 @@ Kept from the delegated picks, now inside these bounds:
   no wait outlasts `SCRATCH_STALE_AFTER`
   either.
 - `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) cover only a lock that was gone by the time it was looked at.
+
+#### Foreign-owner expiry
+
+The owner, 2026-11-04, "Refuse and name it (Recommended)" (option B of "Foreign-owner patience: what its expiry authorizes"): when
+`FOREIGN_OWNER_PATIENCE` expires on a record from another PID namespace, the command stops and changes nothing. An age is not proof
+that an owner is dead: a merge or a copy that cannot run twice may legitimately outlive any number. The error names the record file,
+the owner's process number and namespace, the record's age, that the owner may be a live command in another container, and the exact
+`rm -- '<path>'` to run when no cli-git command is running on the repository in any container and no Git process that cli-git left
+running (a step it stopped waiting for) is either. It covers the merge intent recovery (`merge_isolation_recovery.rs`), the takeover
+of a conversion claim (`single_owner_claim.rs`), and the journals and stage claims of a worktree add (`worktree_copy_owner.rs`,
+`worktree_copy_journal.rs`, `worktree_copy_recovery.rs`, `worktree_copy_stage_claim.rs`), and the legacy transaction owner records
+(`transaction_owner.rs`). A commit is outside it: commits never wait for these records and never fail on them. Tests, each red first:
+`an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes`,
+`a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes`,
+`an_owner_of_another_namespace_with_an_old_item_is_refused_and_named`, and
+`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`.
+
+#### Output of a step, the review runner, and releases that meet
+
+- The output of a step the wrapper started (`src/native/process/output_capture.rs`) is read once, when the step has ended or the
+  command has stopped waiting for it, as a snapshot of the last `STEP_OUTPUT_LIMIT` (8 MiB) bytes of each stream as the files were
+  sized when the read began. What was left out is said in the text the person sees ("N bytes at the start ... are left out"), and
+  a read that fails is said too and is never taken for the end of the output. A descendant that keeps appending after its leader
+  has exited therefore holds nothing up. The files are emptied (`ftruncate`) once nobody will read them, which frees what was
+  written until then; a step left running that keeps writing is held in memory by the kernel (it is anonymous memory of the step's
+  own output file) until the step ends or closes its output, which nothing in the wrapper bounds, and a very verbose step left
+  running can use memory in proportion to what it writes after the command has gone. A step the wrapper stops at its ceiling is
+  stopped with its whole process group, and the leader is reaped within `STOP_GRACE`: a leader that does not end then (an
+  uninterruptible wait for the disk) is handed to a reaper thread, and the command goes on.
+- The review of the commit service (`standards_review_run.rs`) admits one job at a time in one atomic step: a state of a
+  generation and a status, changed by compare-and-swap, so two callers that arrive together are never admitted both, and the
+  release of the state runs from a guard when the job's thread unwinds, so a review that panics after its timeout leaves nothing
+  outstanding. The look at the review's log runs inside the contained job.
+- Releases that meet. The protocol version stays 7 and no message changes: `waiting` with `"inside_write": true`, `withdraw` and
+  `withdrawn` are the messages of 0.5.31 and 0.5.33. A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
+  it was released with: a classifier by the name of the step, a decision race between landing and withdrawal that this release
+  closes, a step left running that dies of `SIGPIPE` when its command exits, and no snapshot bound on output. A client of those
+  releases sends its withdrawal on a connection that the service of this release answers, but it does not take the shortened
+  deadline a late `inside_write` notice gives, and this release's client against a service of those releases may get no timely
+  notice and then keeps to the longer withdrawal path (`WITHDRAW_CEILING`). Installing a new executable does not repair a service
+  that is running: the first connection of the new release sends it a `retire`, which it handles between batches, and waits for it
+  to leave for `START_WAIT`; a service in the middle of a write is never stopped by the wrapper, and the command that waited ends
+  with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again. The single service of the releases before one service per
+  worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it, because the manager's
+  stop ends the whole unit and with it a Git step that cannot run twice; one that is still there fails the commit with the stop
+  named for the person to run when no commit is running. Test: `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
 
 
 #### Commands that add commits

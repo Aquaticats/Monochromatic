@@ -53,6 +53,10 @@ const LANDING: &str = "landing";
 /// What the decision file says when a withdrawal took the request.
 const WITHDRAWN: &str = "withdrawn";
 
+/// The extension of the file that confirms a withdrawal: the withdrawer that won the decision made it after it asked the journal a
+///  second time and found no batch naming the request. A decision without it is provisional: nobody but its creator may rely on it.
+const CANCELLED_EXTENSION: &str = "cancelled";
+
 /// The longest request identity the record keeps a decision for; a longer one, or one with a character outside letters, digits and
 ///  hyphens, gets no early answer, because its name could not be made into a file name that is only a name.
 const LONGEST_ID: usize = 80;
@@ -114,6 +118,15 @@ fn now_millis() -> u128 {
     return SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_millis(); });
 }
 
+/// A temporary file that is removed when it goes out of scope.
+struct TemporaryFile(PathBuf);
+
+impl Drop for TemporaryFile {
+    fn drop(&mut self) {
+        let _removed = std::fs::remove_file(self.0.as_path());
+    }
+}
+
 /// Distinguishes the temporary files of concurrent decisions.
 static TEMPORARY_NUMBER: AtomicU64 = AtomicU64::new(0);
 
@@ -147,8 +160,13 @@ impl LandingBoard {
     }
 
     /// The decision file of a request.
-    fn decision_path(&self, id: &str) -> PathBuf {
+    pub(crate) fn decision_path(&self, id: &str) -> PathBuf {
         return self.directory.join(format!("{id}.{DECISION_EXTENSION}"));
+    }
+
+    /// The file that confirms the withdrawal of a request.
+    fn cancelled_path(&self, id: &str) -> PathBuf {
+        return self.directory.join(format!("{id}.{CANCELLED_EXTENSION}"));
     }
 
     /// What:
@@ -162,10 +180,10 @@ impl LandingBoard {
     /// try { link(temporary, decisionPath); return 'won'; } catch (exists) { return { lost: read(decisionPath) }; }
     /// ```
     fn decide(&self, id: &str, outcome: &str) -> std::io::Result<Decision> {
-        let beside: PathBuf = self.directory.join(format!("{id}.{}.{}.tmp", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed)));
-        std::fs::File::create(beside.as_path()).and_then(|mut file| { return file.write_all(outcome.as_bytes()); })?;
-        let linked: std::io::Result<()> = std::fs::hard_link(beside.as_path(), self.decision_path(id));
-        let _removed = std::fs::remove_file(beside.as_path());
+        // Removed whichever way this function leaves, a failed write included (a leaked file is an inode the recovery needs).
+        let beside: TemporaryFile = TemporaryFile(self.directory.join(format!("{id}.{}.{}.tmp", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed))));
+        std::fs::File::create(beside.0.as_path()).and_then(|mut file| { return file.write_all(outcome.as_bytes()); })?;
+        let linked: std::io::Result<()> = std::fs::hard_link(beside.0.as_path(), self.decision_path(id));
         return match linked {
             Ok(()) => Ok(Decision::Won),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Decision::Lost(std::fs::read_to_string(self.decision_path(id))?)),
@@ -317,17 +335,28 @@ impl LandingBoard {
         }
         match self.decide(id, WITHDRAWN) {
             Err(_) => return EarlyAnswer::Queued,
-            Ok(Decision::Lost(content)) if content == WITHDRAWN => return EarlyAnswer::Withdrawn(words),
+            // Another withdrawer won. Its decision is acknowledged only when it has confirmed it; before that it is provisional, and
+            // may still be taken back (the journal may name the request when the winner asks again).
+            Ok(Decision::Lost(content)) if content == WITHDRAWN && self.cancelled_path(id).exists() => return EarlyAnswer::Withdrawn(words),
             Ok(Decision::Lost(_)) => return EarlyAnswer::Queued,
             Ok(Decision::Won) => {}
         }
+        #[cfg(test)]
+        AFTER_THE_DECISION_IS_WON.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
         // The decision is ours, so the request cannot be admitted any more; what could have happened is that it was admitted,
         // landed and let go of before the decision was tried.
         match self.naming(id) {
             Naming::No => {
+                // Confirmed: from now on any withdrawer may acknowledge it, and nothing removes it but the retention.
+                if std::fs::File::create_new(self.cancelled_path(id)).is_err() {
+                    // Not confirmed, and nobody may have acknowledged a decision that was not: it is taken back.
+                    let _undone = std::fs::remove_file(self.decision_path(id));
+                    return EarlyAnswer::Queued;
+                }
                 self.prune_withdrawals();
                 return EarlyAnswer::Withdrawn(words);
             }
+            // Never confirmed, so never acknowledged by anyone else: taken back.
             Naming::Landed(commit) => {
                 let _undone = std::fs::remove_file(self.decision_path(id));
                 return EarlyAnswer::Landed(commit);
@@ -339,13 +368,12 @@ impl LandingBoard {
         }
     }
 
-    /// Forget the oldest withdrawals once more than `WITHDRAWALS_RETAINED` are remembered.
+    /// Forget the oldest confirmed withdrawals once more than `WITHDRAWALS_RETAINED` are remembered.
     fn prune_withdrawals(&self) {
         let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return };
         let mut remembered: Vec<(SystemTime, PathBuf)> = entries
             .flatten()
-            .filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(DECISION_EXTENSION); })
-            .filter(|entry| { return std::fs::read_to_string(entry.path()).is_ok_and(|content| { return content == WITHDRAWN; }); })
+            .filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(CANCELLED_EXTENSION); })
             .filter_map(|entry| { return Some((entry.metadata().ok()?.modified().ok()?, entry.path())); })
             .collect();
         if remembered.len() <= WITHDRAWALS_RETAINED {
@@ -353,10 +381,19 @@ impl LandingBoard {
         }
         remembered.sort();
         let surplus: usize = remembered.len() - WITHDRAWALS_RETAINED;
-        for (_, path) in remembered.into_iter().take(surplus) {
-            let _forgotten = std::fs::remove_file(path);
+        for (_, confirmation) in remembered.into_iter().take(surplus) {
+            // The decision first, so the confirmation is never left standing for a decision that is gone.
+            let _forgotten = std::fs::remove_file(confirmation.with_extension(DECISION_EXTENSION));
+            let _also = std::fs::remove_file(confirmation);
         }
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may stop a withdrawal on this thread between the moment it wins the decision and the moment it asks the journal again,
+    ///  which is where the reviews found the window.
+    pub(crate) static AFTER_THE_DECISION_IS_WON: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
 }
 
 thread_local! {

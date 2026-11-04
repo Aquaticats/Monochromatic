@@ -94,6 +94,8 @@ fn missing_capability_classes(plain: &Path) -> Vec<(&'static str, RouteSettings,
         ),
         ("no cgroup v2 mount", RouteSettings { cgroup_root: plain.to_path_buf(), ..RouteSettings::default() }, "cgroup v2"),
         ("a unit the manager does not have", RouteSettings { slice: "cargo-shadow-no-such.service".to_string(), ..RouteSettings::default() }, "user manager cannot"),
+        // The manager names the root group, which has no `cgroup.kill`: discovery tells it apart from the others.
+        ("a manager group without cgroup.kill", RouteSettings { systemctl: "sh".to_string(), question: Some(vec!["-c".to_string(), "echo /".to_string()]), ..RouteSettings::default() }, "cgroup.kill"),
     ];
 }
 
@@ -140,6 +142,81 @@ fn each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_be
     }
 }
 
+/// The environment variable that tells the notice helper process which capability class to run under (an index into
+/// `missing_capability_classes`).
+const FIXTURE_CLASS: &str = "CARGO_SHADOW_NOTICE_FIXTURE_CLASS";
+
+/// The environment variable that gives the notice helper process a directory that is not a cgroup mount.
+const FIXTURE_PLAIN: &str = "CARGO_SHADOW_NOTICE_FIXTURE_PLAIN";
+
+/// The helper process of the notice test: it runs one bounded command under the settings of one capability class and exits.
+/// A fresh process per class, because the notice is given once per process.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of each_missing_capability_class_prints_the_notice_on_the_real_standard_error"]
+fn weaker_notice_fixture() {
+    let (Ok(class), Ok(plain)) = (std::env::var(FIXTURE_CLASS), std::env::var(FIXTURE_PLAIN)) else {
+        return;
+    };
+    let index: usize = class.parse().expect("a class index");
+    let (_name, settings, _words) = missing_capability_classes(Path::new(&plain)).swap_remove(index);
+    use_route_settings_for_test(Some(settings));
+    output_within(Command::new("sh").args(["-c", "echo ok"]), None, &bound()).expect("the command runs on the weaker path");
+}
+
+/// Acceptance row "Weaker path" (certification, third pass): the notice reaches the real standard error of the run, once, as one line
+/// with the reason of the class, for every missing-capability class including the manager group without `cgroup.kill`.
+/// Each class runs in a fresh process whose standard error is captured; the trace of the other test shows which notice a run selects,
+/// this shows that it is printed (a test that removed the printing and kept the trace would pass that one).
+#[test]
+fn each_missing_capability_class_prints_the_notice_on_the_real_standard_error() {
+    let plain = scratch();
+    let classes = missing_capability_classes(plain.path());
+    for (index, (class, settings, words)) in classes.into_iter().enumerate() {
+        let unavailable = detect_route(&settings).expect_err(class);
+        let expected: String = weaker_notice(&unavailable);
+        let output = Command::new(std::env::current_exe().expect("this test executable"))
+            .args(["--ignored", "--exact", "containment_record_tests::weaker_notice_fixture", "--nocapture"])
+            .env(FIXTURE_CLASS, index.to_string())
+            .env(FIXTURE_PLAIN, plain.path())
+            .output()
+            .expect("the notice helper");
+
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(output.status.success(), "{class}: the helper failed: {stderr}");
+        let printed: Vec<&str> = stderr.lines().filter(|line| { return line.starts_with("cargo-shadow: no delegated control group"); }).collect();
+        assert_eq!(printed.len(), 1, "{class}: the notice was not printed exactly once on standard error: {stderr}");
+        assert_eq!(printed[0], expected, "{class}: the printed notice is not the one for this class");
+        assert!(printed[0].contains(words) && printed[0].contains("quiescence is not shown") && printed[0].contains("cargo-shadow acknowledge"), "{class}: {}", printed[0]);
+    }
+}
+
+/// Acceptance row "Weaker path" (certification, third pass): an acknowledgement that cannot be read is not an acknowledgement.
+/// The marker is a directory, so opening it succeeds and reading it fails on every system and for every user; the real recovery and the
+/// real admission both stay blocked, the journal stays and nothing is restored; a real acknowledgement in its place (the control)
+/// lets the recovery go on.
+#[test]
+fn an_unreadable_acknowledgement_does_not_count_for_the_recovery_or_the_admission() {
+    let root = repository();
+    let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
+    fs::create_dir(journal.join("acknowledged")).expect("a marker that cannot be read as a file");
+
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    let admitted = begin(root.path(), &[snapshot("original")], false);
+
+    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "a recovery went ahead on an acknowledgement it could not read: {messages:?}");
+    assert!(journal.exists(), "the journal was removed on an unreadable acknowledgement: {messages:?}");
+    assert!(admitted.is_err(), "a transaction was admitted beside a journal whose acknowledgement cannot be read");
+    assert!(survivor_note(&journal).is_some());
+    assert_eq!(journal_dirs(root.path()), vec![journal.clone()]);
+
+    // Control: a real acknowledgement in its place lets the same recovery go on.
+    fs::remove_dir(journal.join("acknowledged")).expect("take the unreadable marker away");
+    acknowledge(&journal).expect("acknowledges");
+    let after: Vec<String> = recover(root.path(), &refusing);
+    assert!(journal_dirs(root.path()).is_empty(), "the control: the acknowledged journal was not recovered: {after:?}");
+}
+
 /// The weaker path stops the process group at the bound,
 /// as round 5 did.
 #[test]
@@ -165,6 +242,71 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     assert!(fs::read_to_string(journal.join("groups")).expect("the record").starts_with("pgroup starting\npgroup "), "the run was not the weaker path");
     assert!(!marker.exists(), "a member of the process group wrote after the stop");
     drop(transaction);
+}
+
+/// Acceptance row "Weaker path" (certification, third pass): an acknowledgement overrides neither a failed enumeration of the journals
+/// nor a failed mandatory step of finishing the recovery. Two acknowledged journals (the second makes the listing fail at its entry):
+/// the recovery changes nothing and keeps both; one acknowledged journal whose completion marker cannot be made durable is a
+/// mandatory failure, with the journal retained.
+#[test]
+fn an_acknowledged_journal_is_still_held_by_a_failed_listing_and_a_failed_mandatory_finish() {
+    use crate::failpoints::{Point, arm, fires};
+    // A failed enumeration.
+    let root = repository();
+    let first: PathBuf = journal_with_records(root.path(), "pgroup starting\npgroup 2147483646\n");
+    acknowledge(&first).expect("acknowledges");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
+    let second: PathBuf = {
+        // Planting begins a transaction, which an unacknowledged weaker-path journal would refuse; the first is acknowledged.
+        let planted: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
+        fs::write(planted.join("groups"), "pgroup starting\npgroup 2147483646\n").expect("records");
+        acknowledge(&planted).expect("acknowledges");
+        planted
+    };
+    arm(Point::ListingIteration);
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    assert!(!fires(Point::ListingIteration), "the listing fault was never reached");
+    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "an acknowledged recovery went ahead on a journal set it could not list: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("could not be listed"); }), "{messages:?}");
+    assert!(first.exists() && second.exists(), "an acknowledged journal was removed on a failed listing");
+
+    // A failed mandatory finish.
+    let other = repository();
+    let acknowledged: PathBuf = journal_with_records(other.path(), "pgroup starting\npgroup 2147483646\n");
+    acknowledge(&acknowledged).expect("acknowledges");
+    arm(Point::CompletionSync);
+    let report = crate::journal::recover_report(other.path(), &refusing);
+    assert!(!fires(Point::CompletionSync), "the completion fault was never reached");
+    assert!(report.mandatory_failure, "an acknowledged recovery whose marker could not be made durable was not a mandatory failure: {:?}", report.messages);
+    assert_eq!(journal_dirs(other.path()).len(), 1, "the journal was not retained");
+}
+
+/// Acceptance row "Weaker path" (certification, third pass): the process group is stopped at the normal exit as well as at the bound.
+/// A same-group writer announces itself (a handshake), the direct payload exits successfully with the writer still running, and the
+/// writer would write into the workspace later; after the run returns the marker must never appear and the writer must be gone.
+#[test]
+fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
+    let plain = scratch();
+    use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+    let marker = plain.path().join("late");
+    let ready = plain.path().join("writer-ready");
+    let pid_file = plain.path().join("writer-pid");
+    // The writer closes its inherited pipes (so the runner's drain does not wait for it) and keeps running after the payload exits.
+    let script: String = format!(
+        "(echo $$ > {pid}; : > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        pid = pid_file.display(),
+        ready = ready.display(),
+        late = marker.display()
+    );
+
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound());
+    use_route_settings_for_test(None);
+    let ready_before: bool = ready.exists();
+    std::thread::sleep(Duration::from_millis(2_700));
+
+    assert!(result.is_ok_and(|output| { return output.status.success(); }), "the payload should have exited successfully");
+    assert!(ready_before, "the writer never ran, so its absence proves nothing");
+    assert!(!marker.exists(), "a member of the process group wrote after the run returned: the exit cleanup of the group is missing");
 }
 
 /// Acceptance row "Weaker path":

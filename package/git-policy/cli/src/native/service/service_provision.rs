@@ -260,14 +260,14 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
         // The time spent asking the earlier service to retire is not taken from the stop calls.
         manager.within(EXCHANGE_WAIT);
         // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
-        for name in &units {
-            match manager.stop(name) {
-                Ok(()) => {}
-                // A unit the manager never loaded has nothing to stop.
-                Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
-                Err(error) => return Err(refusal(error)),
-            }
-        }
+        let (sockets, services): (Vec<&str>, Vec<&str>) = units.iter().partition(|name| { return **name == LEGACY_SOCKET_UNIT_NAME; });
+        stop_units(manager, sockets.as_slice())?;
+        // The manager's stop ends the whole unit, the Git children of a landing in progress with it, and a Git step that cannot run
+        //  twice may be one of them. The service is asked to retire, which it handles between batches, and is given the wait to
+        //  leave by itself; the stop goes to a service that has left, and a service that is still there when the wait ends fails
+        //  the commit with the sentence that names the stop for the person to choose (sol-1 round 2).
+        wait_until_stopped(host, manager, services.as_slice())?;
+        stop_units(manager, services.as_slice())?;
         wait_until_stopped(host, manager, units.as_slice())?;
     }
     for file in &owned_files {
@@ -275,6 +275,18 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
     }
     let _socket_removed = std::fs::remove_file(&socket_file);
     return Ok(!owned_files.is_empty());
+}
+
+/// Asks the manager to stop each unit; a unit it never loaded has nothing to stop.
+fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
+    for name in units {
+        match manager.stop(name) {
+            Ok(()) => {}
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+            Err(error) => return Err(refusal(error)),
+        }
+    }
+    return Ok(());
 }
 
 /// Whether the unit file at `path` carries a marker of this wrapper's units.
@@ -324,8 +336,8 @@ fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
 ///  Waits until the manager reports each unit inactive, failed or not held, and fails when that takes longer than the host
 ///  allows.
 /// Why:
-///   A stop call returns when the job is queued. The service finishes the batch it holds, and its Git children, before it
-///  exits; an instance started meanwhile would recover and claim work the earlier service is still doing, so the commit
+///   A stop call returns when the job is queued, and a service that was asked to retire finishes the batch it holds, and its Git
+///  children, before it exits (the wait comes before the stop of the service, which would cut that batch); an instance started meanwhile would recover and claim work the earlier service is still doing, so the commit
 ///  fails instead, naming what is still stopping. Its files stay, so the next commit finds the same state and tries again.
 ///
 /// In TS you'd write (pseudocode):
@@ -336,7 +348,7 @@ fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[
     let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
     let still_stopping = |unit: &str| -> ClientFailure {
         return ClientFailure::CouldNotStart(format!(
-            "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
+            "the earlier commit service ({unit}) is still running after {:.1} seconds, and it may be in the middle of a landing that stopping it would cut; run the commit again in a moment, or, when no commit is running, stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
             host.retirement_wait.as_secs_f64()
         ));
     };

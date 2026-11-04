@@ -1278,3 +1278,42 @@ fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_f
         }
     }
 }
+
+/// Acceptance rows V5 and A3 (certification, third pass): a journal that is already marked done still has its completion barrier,
+/// and a recovery whose barrier fails on it stops the command before cargo; a failed removal of it only warns.
+/// The `.done` journal is made by a recovery whose marker sync fails (the marker is renamed, the sync is not made), then a later
+/// command finds it and its barrier fails again.
+#[test]
+fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_removal_does_not() {
+    use crate::failpoints::{Point, arm, fires};
+    // (fault on the second command, the command must stop)
+    for (fault, stops) in [(Point::CompletionSync, true), (Point::FinishCleanup, false)] {
+        let root = repository(STALE);
+        let start = root.path().join(CRATE_DIR);
+        let journal = crate::journal_support::plant(root.path(), &[crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: STALE.to_string() }], &[]);
+        // First command: its recovery renames the journal to `.done` and its marker sync fails, so the command stops and the journal stays `.done`.
+        arm(Point::CompletionSync);
+        let first_runner: FakeCargo = cargo(SATISFIED);
+        let first = step(&start, false, &first_runner, &registry());
+        assert!(matches!(first, StepOutcome::Refused(_)), "{fault:?}: the first command should have stopped: {first:?}");
+        assert!(!fires(Point::CompletionSync));
+        assert!(crate::journal_support::journal_dirs(root.path()).iter().all(|dir| { return dir.to_string_lossy().ends_with(".done"); }), "{fault:?}: the journal is not marked done: {journal:?}");
+
+        // Second command: the `.done` journal is found and its barrier (or removal) fails.
+        arm(fault);
+        let runner: FakeCargo = cargo(SATISFIED);
+        let outcome = step(&start, false, &runner, &registry());
+
+        assert!(!fires(fault), "{fault:?}: the fault was never reached");
+        if stops {
+            match &outcome {
+                StepOutcome::Refused(message) => assert!(message.contains("recovery of an earlier run could not finish its journal"), "{fault:?}: {message}"),
+                other => panic!("{fault:?}: a failed completion barrier of a done journal read as {other:?}"),
+            }
+            assert!(runner.commands.borrow().is_empty(), "{fault:?}: the command went on to cargo: {:?}", runner.commands.borrow());
+            assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1, "{fault:?}: the journal was not kept");
+        } else {
+            assert!(!runner.commands.borrow().is_empty(), "{fault:?}: a failed removal stopped the command");
+        }
+    }
+}
