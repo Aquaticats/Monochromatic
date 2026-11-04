@@ -2150,8 +2150,14 @@ here."):
 - H (hook runs when a held request is replayed): picked H-version, once per version, with the stated crash exception;
   H2: picked H-episode, one new invocation per recovery episode that lacks a durable result.
 - M (merge order): now owner decision 8, "Branch first, files after".
-- R (a stranded `index.lock` of the lane's own dead incarnation): picked R-never; the lane never removes it and
-  reports it.
+- R (a stranded `index.lock` of the lane's own dead incarnation): owner decision 20 (2026-11-04, question tool,
+  "Reclaim it (Recommended)"), replacing the coordinator's pick R-never: the lane reclaims a proven-stale `index.lock`
+  of its own dead incarnation by the mechanism the shipped wrapper uses (the `flock` on the stale lock's own inode
+  where it works, and the `flock`-free fallback being built on `fix/git-policy-cli-index-lock-reclaim-without-flock`
+  where it does not), once that mechanism passes review; a live lock and a foreign lock are never removed. The
+  owner's related words: "Must work perfectly even when flock isn't available. Do better." and "I'm not banning
+  flock. I'm just saying our wrapper must work perfectly even when flock isn't there." Until the mechanism is
+  reviewed, the lane reports the lock as R-never did.
 - P (a merge touching a path the person has staged): owner decision, "Merge anyway, unstage x" (P-carry); composition
   in MG3 and decision 11.
 - W (the attachment concession for merge file writes): owner decision, "Allow the rare leftover" (W-detect); its
