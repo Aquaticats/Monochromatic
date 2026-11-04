@@ -13,7 +13,7 @@
 //! ```
 
 use crate::model_barrier_r13::{
-    Answer, INDEX_NEW, LEDGER_LINE, LEDGER_NAME, RELEASED, Rules, SAVED_CONTENT, SAVED_NAME, SAVED_RECORD, SCENARIOS, State, check, initial,
+    Answer, INDEX_NEW, StopPolicy, LEDGER_LINE, LEDGER_NAME, RELEASED, Rules, SAVED_CONTENT, SAVED_NAME, SAVED_RECORD, SCENARIOS, State, check, initial,
     invariant, recoverable, steps,
 };
 use crate::model_explore::{Report, replay};
@@ -29,12 +29,71 @@ fn twelve_every_scenario_breaks_its_promise_at_a_power_loss() {
     }
 }
 
-/// Revision 13 (green) for every scenario, exhaustive over the interleavings with write-back and one power loss.
+/// Revision 13 (green) for every scenario that has no stop disposition and no named content beyond the lane's files; those two kinds
+/// are the thirteenth review's schedules and are red below.
 #[test]
-fn thirteen_every_scenario_keeps_its_promise_at_every_power_loss() {
-    for (index, scenario) in SCENARIOS.iter().enumerate() {
+fn thirteen_keeps_the_promises_that_need_no_stop_and_no_closure() {
+    for (index, scenario) in SCENARIOS.iter().enumerate().filter(|(_, scenario)| { return scenario.stop == 0 && scenario.closure == 0; }) {
         let report: Report = check(Rules::Thirteen, index);
         assert!(report.violation.is_none() && report.exhausted, "{}: {:?}", scenario.name, report.violation.map(|found| { return found.message; }));
+    }
+}
+
+/// Controls 4 and 5 (R13-2): the request and its adoption are durable, W1 (or the unresolved exit) creates the mark, `WAIT_DEPART`
+/// expires before the mark is durable, power is lost. Revision 13's single D-set forces the mark last, so the command answers "not
+/// confirmed" with the stop lost: the request is live and recovery can publish it (or start an attempt after the one in flight).
+#[test]
+fn thirteen_a_timed_departure_can_lose_only_the_mark() {
+    for name in ["W1 withdrawn", "the unresolved COMMITTING exit"] {
+        let index: usize = SCENARIOS.iter().position(|scenario| { return scenario.name == name; }).expect("the scenario");
+        let violation = check(Rules::Thirteen, index).violation.unwrap_or_else(|| { panic!("{} must be red under revision 13", name) });
+        assert!(violation.message.contains("stop disposition"), "{}", violation.message);
+    }
+}
+
+/// Control 21 (R13-6): the exit names a built commit whose parent holds content only another writer wrote; the barrier of revision 13
+/// forces the request and the lane's files only, so a power loss leaves the named commit without its parent's objects.
+#[test]
+fn thirteen_a_named_commit_whose_parent_was_not_forced_is_lost() {
+    let index: usize = SCENARIOS.iter().position(|scenario| { return scenario.name.starts_with("a named built commit"); }).expect("the scenario");
+    assert!(check(Rules::Thirteen, index).violation.is_some());
+    let fourteen: Report = check(Rules::Fourteen(StopPolicy::Unbounded), index);
+    assert!(fourteen.violation.is_none() && fourteen.exhausted);
+}
+
+/// Revision 14 with question 6a answered B (the stop is waited for without a limit): green for every scenario. This is one answer's
+/// result, not the design's; the other answers follow.
+#[test]
+fn fourteen_with_an_unbounded_stop_keeps_every_promise() {
+    for (index, scenario) in SCENARIOS.iter().enumerate() {
+        let report: Report = check(Rules::Fourteen(StopPolicy::Unbounded), index);
+        assert!(report.violation.is_none() && report.exhausted, "{}: {:?}", scenario.name, report.violation.map(|found| { return found.message; }));
+    }
+}
+
+/// Question 6a answered A (wait up to `WAIT_STOP`, then leave and say the stop is not confirmed): every scenario without a stop is green,
+/// and the scenarios with a stop have exactly the residue the question states, a power loss inside the window loses the mark. The
+/// residue is shown reachable; the model does not call it green and does not call the answer chosen.
+#[test]
+fn fourteen_with_a_bounded_stop_has_the_stated_residue() {
+    for (index, scenario) in SCENARIOS.iter().enumerate() {
+        let report: Report = check(Rules::Fourteen(StopPolicy::BoundedThenLeave), index);
+        if scenario.stop == 0 {
+            assert!(report.violation.is_none() && report.exhausted, "{}", scenario.name);
+        } else {
+            let violation = report.violation.expect("the stated residue of option A");
+            assert!(violation.message.contains("stop disposition"), "{}", violation.message);
+            assert!(violation.trace.iter().any(|label| { return label.contains("not confirmed"); }), "{:?}", violation.trace);
+        }
+    }
+}
+
+/// Question 6a answered C (the background forces the stop; the command does not): red for the scenarios with a stop, which is the
+/// option's stated cost ("gives up the power-cut protection of the stop").
+#[test]
+fn fourteen_with_a_background_stop_gives_up_the_power_cut_protection() {
+    for (index, scenario) in SCENARIOS.iter().enumerate().filter(|(_, scenario)| { return scenario.stop != 0; }) {
+        assert!(check(Rules::Fourteen(StopPolicy::Background), index).violation.is_some(), "{}", scenario.name);
     }
 }
 

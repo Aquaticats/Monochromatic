@@ -51,6 +51,10 @@ pub const SAVED_RECORD: u32 = 2048;
 pub const INDEX_NEW: u32 = 4096;
 /// The retained recovery copy of the request (the spool and the request file) was released.
 pub const RELEASED: u32 = 8192;
+/// Content that only another writer's commit holds and that the exit's named built commit needs (its parent's objects).
+pub const PARENT: u32 = 16384;
+/// The highest fact, for the loops over facts.
+pub const LAST_FACT: u32 = PARENT;
 
 /// What a scenario promises and needs.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -67,10 +71,15 @@ pub struct Scenario {
     pub deps: &'static [(u32, u32)],
     /// Facts another actor made visible before the command began (a resend that finds the request file already linked).
     pub preexisting: u32,
+    /// The facts that carry the stop disposition (the mark and the name of the mark): after any answer, no attempt may start, so these
+    /// must survive a power loss whatever the wording of the answer.
+    pub stop: u32,
+    /// Facts the exit's named content needs beyond the lane's own files (revision 14 forces them with the closure).
+    pub closure: u32,
 }
 
 /// The scenarios of revision 13.
-pub const SCENARIOS: [Scenario; 9] = [
+pub const SCENARIOS: [Scenario; 10] = [
     Scenario {
         name: "W1 withdrawn",
         writes: &[REQUEST, INBOX_NAME, BUILT, LOG_RECORD, MARK, MARK_NAME],
@@ -78,6 +87,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: REQUEST | INBOX_NAME | BUILT | LOG_RECORD | MARK | MARK_NAME,
         deps: &[(LOG_RECORD, REQUEST | BUILT), (REQUEST, INBOX_NAME), (MARK, MARK_NAME)],
         preexisting: 0,
+        stop: MARK | MARK_NAME,
+        closure: 0,
     },
     Scenario {
         name: "the unresolved COMMITTING exit",
@@ -86,6 +97,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: REQUEST | INBOX_NAME | BUILT | LOG_RECORD | MARK | MARK_NAME,
         deps: &[(LOG_RECORD, REQUEST | BUILT), (REQUEST, INBOX_NAME), (MARK, MARK_NAME)],
         preexisting: 0,
+        stop: MARK | MARK_NAME,
+        closure: 0,
     },
     Scenario {
         name: "conflicted",
@@ -94,6 +107,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: BUILT | LOG_RECORD | LEDGER_LINE | LEDGER_NAME,
         deps: &[(LOG_RECORD, BUILT), (LEDGER_LINE, LOG_RECORD | LEDGER_NAME)],
         preexisting: 0,
+        stop: 0,
+        closure: 0,
     },
     Scenario {
         name: "rewritten-away",
@@ -102,6 +117,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: BUILT | LOG_RECORD | LEDGER_LINE | LEDGER_NAME,
         deps: &[(LOG_RECORD, BUILT), (LEDGER_LINE, LOG_RECORD | LEDGER_NAME)],
         preexisting: 0,
+        stop: 0,
+        closure: 0,
     },
     Scenario {
         name: "W1 finds a terminal outcome",
@@ -110,6 +127,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: LEDGER_LINE | LEDGER_NAME,
         deps: &[(LEDGER_LINE, LEDGER_NAME)],
         preexisting: 0,
+        stop: 0,
+        closure: 0,
     },
     Scenario {
         name: "T1 reclamation (the lane releases the request's recovery copy)",
@@ -118,6 +137,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: LEDGER_LINE | LEDGER_NAME | REMOVAL,
         deps: &[(LEDGER_LINE, LEDGER_NAME), (REMOVAL, LEDGER_LINE)],
         preexisting: 0,
+        stop: 0,
+        closure: 0,
     },
     Scenario {
         name: "MG3 preservation (a staged-only version saved before the index entry is replaced)",
@@ -126,6 +147,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: SAVED_CONTENT | SAVED_NAME | SAVED_RECORD,
         deps: &[(SAVED_RECORD, SAVED_CONTENT | SAVED_NAME), (SAVED_NAME, SAVED_CONTENT)],
         preexisting: 0,
+        stop: 0,
+        closure: 0,
     },
     Scenario {
         name: "carry-forward (the saved file made durable in the filesystem's order, then the displacing step)",
@@ -134,6 +157,8 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: SAVED_CONTENT | SAVED_NAME | SAVED_RECORD,
         deps: &[(SAVED_RECORD, SAVED_CONTENT | SAVED_NAME), (SAVED_NAME, SAVED_CONTENT)],
         preexisting: 0,
+        stop: 0,
+        closure: 0,
     },
     Scenario {
         name: "a resend that finds the request file already linked (EEXIST) and then withdraws",
@@ -142,6 +167,18 @@ pub const SCENARIOS: [Scenario; 9] = [
         promise: REQUEST | INBOX_NAME | LOG_RECORD | MARK | MARK_NAME,
         deps: &[(LOG_RECORD, REQUEST), (REQUEST, INBOX_NAME), (MARK, MARK_NAME)],
         preexisting: REQUEST | INBOX_NAME,
+        stop: 0,
+        closure: 0,
+    },
+    Scenario {
+        name: "a named built commit whose parent holds content only another writer wrote",
+        writes: &[REQUEST, INBOX_NAME, BUILT, LOG_RECORD],
+        d_set: &[REQUEST, INBOX_NAME, BUILT, LOG_RECORD],
+        promise: REQUEST | INBOX_NAME | BUILT | LOG_RECORD | PARENT,
+        deps: &[(LOG_RECORD, REQUEST | BUILT), (REQUEST, INBOX_NAME), (BUILT, PARENT)],
+        preexisting: PARENT,
+        stop: 0,
+        closure: PARENT,
     },
 ];
 
@@ -156,6 +193,20 @@ pub enum Rules {
     MissesLastName,
     /// Control: revision 13 whose barrier skips the facts another actor linked first (the resend's `EEXIST` fast path).
     SkipsExisting,
+    /// Revision 14: the stop receipt is forced first and alone, the closure of a named built commit is forced with the request, and
+    /// what happens when the stop cannot be confirmed in time is the owner's answer to question 6a (the parameter), never assumed.
+    Fourteen(StopPolicy),
+}
+
+/// The owner's answer to question 6a (forcing the stop mark when the disk is slow); the model is run for each, never for one assumed.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum StopPolicy {
+    /// Option A: wait up to `WAIT_STOP`, then leave and say the stop is not confirmed on disk.
+    BoundedThenLeave,
+    /// Option B: wait for the stop without a limit.
+    Unbounded,
+    /// Option C: do not force the stop at leaving; the background forces it.
+    Background,
 }
 
 /// The kind of answer the command gave.
@@ -212,6 +263,24 @@ fn gated(scenario: &Scenario) -> bool {
 fn barrier(state: &State) -> Vec<u32> {
     let scenario: Scenario = SCENARIOS[state.scenario];
     let mut facts: Vec<u32> = scenario.d_set.to_vec();
+    if let Rules::Fourteen(policy) = state.rules {
+        // The stop receipt first and alone; then the closure the exit names; then the rest of the D-set.
+        let stop_facts: Vec<u32> = facts.iter().copied().filter(|fact| { return scenario.stop & *fact != 0; }).collect();
+        let rest: Vec<u32> = facts.iter().copied().filter(|fact| { return scenario.stop & *fact == 0; }).collect();
+        let mut ordered: Vec<u32> = Vec::new();
+        if policy != StopPolicy::Background {
+            ordered.extend(stop_facts);
+        }
+        let mut bit: u32 = 1;
+        while bit <= LAST_FACT {
+            if scenario.closure & bit != 0 && scenario.preexisting & bit != 0 {
+                ordered.push(bit);
+            }
+            bit <<= 1;
+        }
+        ordered.extend(rest);
+        facts = ordered;
+    }
     if state.rules == Rules::MissesLastName {
         facts.pop();
     }
@@ -262,14 +331,20 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             after.answer = Answer::Confirmed;
             push_step(&mut found, "client: answers confirmed", after);
         }
-        if state.answer == Answer::No && ready && state.rules != Rules::Twelve && state.synced < barrier_len(state) {
+        let stop_forced: bool = scenario.stop == 0 || state.world.durable & scenario.stop == scenario.stop;
+        let may_leave_unconfirmed: bool = match state.rules {
+            // Option B waits for the stop without a limit; only the saved copy has a bound.
+            Rules::Fourteen(StopPolicy::Unbounded) => stop_forced,
+            _ => true,
+        };
+        if state.answer == Answer::No && ready && state.rules != Rules::Twelve && state.synced < barrier_len(state) && may_leave_unconfirmed {
             let mut after: State = state.clone();
             after.answer = Answer::NotConfirmed;
             push_step(&mut found, "client: the departure bound passed; answers saved and not confirmed", after);
         }
         // Write-back persists any visible fact, in any order, at any time.
         let mut bit: u32 = 1;
-        while bit <= RELEASED {
+        while bit <= LAST_FACT {
             if state.world.visible & bit != 0 && state.world.durable & bit == 0 {
                 let mut after: State = state.clone();
                 after.world = sync(state.world, bit);
@@ -296,7 +371,7 @@ pub fn recoverable(world: World, bit: u32, deps: &[(u32, u32)]) -> bool {
             continue;
         }
         let mut need_bit: u32 = 1;
-        while need_bit <= RELEASED {
+        while need_bit <= LAST_FACT {
             if needs & need_bit != 0 && !recoverable(world, need_bit, deps) {
                 return false;
             }
@@ -308,7 +383,7 @@ pub fn recoverable(world: World, bit: u32, deps: &[(u32, u32)]) -> bool {
 
 fn all_recoverable(world: World, promise: u32, deps: &[(u32, u32)]) -> bool {
     let mut bit: u32 = 1;
-    while bit <= RELEASED {
+    while bit <= LAST_FACT {
         if promise & bit != 0 && !recoverable(world, bit, deps) {
             return false;
         }
@@ -323,6 +398,10 @@ pub fn invariant(state: &State) -> Option<String> {
     let scenario: Scenario = SCENARIOS[state.scenario];
     if !state.crashed {
         return None;
+    }
+    // Whatever the wording, an answer that returns the command means no attempt may start later: the stop must survive the loss.
+    if state.answer != Answer::No && scenario.stop != 0 && !all_recoverable(state.world, scenario.stop, scenario.deps) {
+        return Some(format!("after the power loss the stop disposition of `{}` is lost and the request is live", scenario.name));
     }
     let promised: bool = state.answer == Answer::Confirmed || state.gated_done;
     if promised && !all_recoverable(state.world, scenario.promise, scenario.deps) {
