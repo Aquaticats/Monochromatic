@@ -2773,7 +2773,9 @@ section "Owner questions for revision 13"):
 ### Issues the owner raised are active work
 
 The owner,
-2026-11-03 at about 20:40-05:00:
+in the session,
+before commit `25c4b39f58` (2026-11-03,
+the commit that first recorded it):
 "Why are you still not doing gh issue 6260 and 6261?"
 #6260 was fixed and merged into the 0.5.28 base but the issue had no comment;
 #6261 had been queued by the coordinator behind 0.5.28 without asking.
