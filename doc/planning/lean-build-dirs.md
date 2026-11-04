@@ -38,11 +38,15 @@ fuzz and verification output, Gradle and Android output, `dist/`, `node_modules`
 - Cargo never removes an intermediate artifact once a newer compiler has superseded it.
   Cargo's metadata hash includes the compiler version, so each toolchain change orphans every intermediate built
   before it (`src/compiler/build_runner/compilation_files.rs` lines 923 to 932).
-  The repository installed a new nightly 18 times since 2026-09-11 and pins one per checkout.
+  The repository installed 16 dated nightlies from 2026-09-11 to 2026-11-01 and pins one per checkout.
   Grouping the units of those two directories by the `rustc` field of their fingerprint files, 36.5 GiB of the 54.5 GiB
   of units and incremental state belong to a compiler generation older than the newest one in their profile directory.
 - The host Cargo build directory `/var/mnt/encrypted/cargo-build` holds 3545 sized trees (plus 101 created while
-  measuring) that add up to 6166 GiB by `du`, much of it shared by reflink; PEND-PHYSICAL.
+  measuring) that add up to 6166 GiB by `du`, much of it shared by reflink.
+  Physical use is lower: the first 770 trees sized one by one with `btrfs filesystem du` total 1251 GiB,
+  of which 247 GiB are exclusive to their tree and 441 GiB are extents shared
+  (counted once per tree, so an upper bound on their physical size);
+  the whole-directory physical figure is given in the host-directory section.
 - Ranking (reasons in section "Ranking"):
   the compiler-generation sweep first, orphan-tree collection second, per-directory size caps third,
   generation-keyed build directories fourth, a container build-directory split fifth,
@@ -67,7 +71,7 @@ fuzz and verification output, Gradle and Android output, `dist/`, `node_modules`
   Across filesystems the same files are a byte copy, so `du` is the right measure for the cost of a copy
   into `~/temp/agent` (`/var/mnt/encrypted`, another filesystem), and the wrong measure for disk pressure.
   The `btrfs filesystem du` set definition is per argument ("We define each set as those files found by a recursive
-  search of an argument"), so physical figures below are per tree.
+  search of an argument"), so the physical figures in this document are per tree.
 - The "stale" figures group Cargo units by the `rustc` field of their fingerprint, treat the group whose
   `invoked.timestamp` is newest in each profile directory as current, and sum the others.
   Several compiler generations can be live at once in one directory when two toolchains alternate (a host build and a
@@ -131,7 +135,7 @@ present in the same directory (the Cargo Book says the layout changed in 1.100.0
 - `target/verification`: 6.2 GiB across `package/git-policy/cli.fuzz` (2.6), `package/linter/monochromatic-lint.fuzz`
   (2.0), `package/git-policy/cli` (1.1), `package/linter/monochromatic-lint` (0.5) and `package/forbidden-strings/cli`
   (0.04).
-  These are retained run directories (`campaign-*`, `native-*`, `git-image-*`, `mutation-*`): 27, 247, 20, 117 and 58
+  These are retained run directories (`campaign-*`, `native-*`, `git-image-*`, `mutation-*`): 27, 20, 247, 117 and 58
   directories, the oldest from 2026-10-04.
   The fuzz README says "Results are retained under `target/verification/planted-*`" and that campaign logs are
   retained under `target/verification/campaign-*`.
@@ -160,7 +164,8 @@ For the two container-built directories, grouping by the compiler recorded in ea
 - By file time alone (no fingerprint read), 46.6 of the 51.2 GiB under `deps/`, `build/` and `incremental/` in all
   main-checkout targets were last written before 2026-11-01, when the current pin `nightly-2026-11-01` was installed
   (`~/.rustup/toolchains` directory time 2026-10-31T22:57:24-04:00; `.cache/toolchain.env.json` pins it).
-- Installed toolchains: 20 directories under `~/.rustup/toolchains`, about 2.7 GiB each, including 17 nightlies from
+- Installed toolchains: 20 directories under `~/.rustup/toolchains`, about 2.7 GiB each,
+  including 16 dated nightlies from
   2026-09-11 to 2026-11-01.
   Each retired one is a generation whose intermediates nothing will reuse.
 - Why it happens: Cargo hashes the compiler version into each unit's metadata (`hash_rustc_version`,
@@ -179,7 +184,7 @@ The mount has 730 GiB free of 3.7 TiB.
 - 3646 trees at measurement end (256 shard directories); 3545 existed when sizing started.
   Sizes by `du`: 6166 GiB in total; 1539 trees over 1 GiB, 1155 between 0.1 and 1 GiB, 851 under 0.1 GiB;
   the largest are 41.8, 38.7, 24.4, 23.8, 19.1 and 17.8 GiB.
-- Trees by last write: 2026-10-14 to 2026-10-31 hold 697 GiB;
+- Trees by last write: 2026-10-14 to 2026-10-31 hold 517 GiB;
   2026-11-01 and 2026-11-02 hold 362 GiB; 2026-11-03 holds 3517 GiB; 2026-11-04 holds 1771 GiB.
   These are not build days.
   The wrapper's Cargo repair clones a source workspace's build tree for each new worktree and keeps file times
@@ -208,9 +213,9 @@ The mount has 730 GiB free of 3.7 TiB.
 - Unit-level duplication across trees, by directory name only (profile, package, hash) over the 3516 trees that have
   per-unit directories: 1,741,401 unit directories but 34,957 distinct ones; 19,282 distinct units occur in more than
   one tree and 4528 occur in 100 or more.
-  Most of that is the clones above plus registry crates compiled with identical settings in several workspaces.
+  Most of that is the clone-shape trees plus registry crates compiled with identical settings in several workspaces.
   Sharing them is not possible with one directory per workspace path, and the shared-directory alternative is rejected
-  below.
+  in the rejected list at the end of the options.
 
 ### Worktrees
 
@@ -240,12 +245,13 @@ GiB, `out` 12 GiB and `corpus` 6.5 GiB, 3218 GiB by `du` in all, in 325 worktree
   `build/` has no automatic cleanup (Gradle's own text: "the latter are transient files Gradle uses to support features
   like incremental builds"); `package/music-player/android-app/mise.toml` already has a `clean` task
   (`./gradlew clean`).
-  All Gradle `build/` directories together are 0.9 GiB, so no option below targets them.
+  All Gradle `build/` directories together are 0.9 GiB, so no option targets them.
 - `dist/` outputs total 0.6 GiB; 218 directories, one at 0.44 GiB.
   The `session-start-housekeeping` plugin removes only stray Git metadata inside `dist/final` (its README).
 - Fuzz `corpus` is input data (0.08 GiB), `artifacts` is 56 KiB.
 - Root `node_modules`: `.monochromatic` already has retention inside its producer
-  (`doc/decision/module-logger-log-accumulation.md` lines 5 to 12: "retention window 14 days and 512 MiB and 50,000 files"),
+  (`doc/decision/module-logger-log-accumulation.md` lines 5 to 12:
+  "retention window 14 days and 512 MiB and 50,000 files"),
   and the pnpm store and `prefer-readonly-parameter-type` cache are rebuilt by their tools.
 
 ### Outside the checkout
@@ -261,13 +267,14 @@ an open question.
 `package/git-policy/cli/src/native/worktree_copying/worktree_copy_prune.rs` skips `target/**/incremental`,
 `target/**/zig-global-cache`, `target/verification`, `.cache`, `.pnpm-store`, `.gradle`, `.kotlin`, `.zig-cache`,
 `node_modules/.monochromatic`, `mutants.out`, `playwright-report` and `test-results` for a main-checkout source.
-Under that rule the target directories that remain to be copied, by apparent size, are 21.8 GiB for
+Under that rule the target directories that remain to be copied, by apparent size, are 20.8 GiB for
 `package/ide/app/target`, 12.1 GiB for `package/nested-wayland-session/cli/target`, 1.2 GiB for
 `package/git-policy/cli.fuzz/target`, 0.5 GiB for `package/linter/monochromatic-lint/target`,
-0.3 GiB for `package/git-policy/cli/target` and 0.1 GiB for `package/terminal/app/target`: 36.1 GiB.
+0.3 GiB for `package/git-policy/cli/target` and 0.1 GiB for `package/terminal/app/target`: 35.0 GiB.
 That does not reconcile with the 49.5 GB per add in the brief; the difference is not explained by anything measured
 here (an installed wrapper older than this rule, or ignored state outside `target/`, are the untested candidates).
-Of the 36.1 GiB, the stale non-incremental units above are 13.3 GiB of `package/ide/app/target` and 5.0 GiB of
+Of the 35.0 GiB, the stale non-incremental units found by the fingerprint grouping are 13.3 GiB of
+`package/ide/app/target` and 5.0 GiB of
 `package/nested-wayland-session/cli/target`.
 If the wrapper binary in use predates the rule, the incremental state (19.3 GiB) is copied as well.
 
@@ -280,12 +287,14 @@ A directory is lean when both hold:
   and no run record older than the owner's retention.
 - Size: it is no larger than a bound taken from one current build of its own configuration.
 
-Proposed bounds, each backed by a measurement above and each needing the owner's decision before it is shipped
+Proposed bounds, each backed by a measurement in the section Measurements
+and each needing the owner's decision before it is shipped
 (a shipped limit has to cite a measurement or an owner decision beside the value):
 
 - A package `target/` directory that keeps intermediates in the tree (container builds):
-  at most one and a half times the bytes of its current generation, measured now at 2.8 + 0.9 + 4.2 GiB of units and
-  about 1.5 GiB of incremental state for `package/ide/app/target` (about 9.4 GiB, bound about 14 GiB) and
+  at most one and a half times the bytes of its current generation,
+  measured now at 2.8 + 0.9 + 0.2 + 4.2 GiB of units and
+  about 2.0 GiB of incremental state for `package/ide/app/target` (about 10 GiB, bound about 15 GiB) and
   6.6 + 0.6 GiB plus 0.8 GiB of incremental state for `package/nested-wayland-session/cli/target` (about 8 GiB, bound
   about 12 GiB), against 38.7 and 13.5 GiB now.
 - A package `target/` directory that holds final artifacts only (host builds): at most 2 GiB; every one except the
@@ -363,7 +372,7 @@ Records that bear on this, quoted:
   the hash directories of workspace paths no longer built.
   Lines 317 to 342: container builds "keep writing full intermediates into the repository tree. Expect a mixed state".
   Its section on the layout says "Do not write repository tooling that parses these paths."
-  The sweep below has to read fingerprint files, which conflicts with that line; the owner decides whether the
+  Option A has to read fingerprint files, which conflicts with that line; the owner decides whether the
   conflict is accepted (a reader that does nothing when it cannot parse is the mitigation proposed).
 - `doc/troubleshooting/cargo-build-dir-workspace-path-hash-unbounded.md`: 438 GiB from 284 trees in three weeks;
   lists "Periodic removal of trees not modified within N days" with the tradeoff that "mtime reflects the last build,
@@ -400,7 +409,7 @@ rename before deleting it, so a reader sees either the unit or nothing.
   generation built within a grace period the owner picks), and removes the other generations' units and the
   incremental directories older than the kept one.
 - Frees here: 36.5 GiB of the 54.5 GiB of units and incremental state in the two container-built targets, which is
-  all of the stale non-incremental part of the 36.1 GiB copy set (18.3 GiB) and, if the wrapper in use copies
+  all of the stale non-incremental part of the 35.0 GiB copy set (18.3 GiB) and, if the wrapper in use copies
   incremental state, 18.2 GiB more; 83.7 GiB of the 181.4 GiB in the 8 largest host trees.
 - Costs: it parses Cargo's internal fingerprint files, which two layouts and a pending layout change make a standing
   maintenance cost, against the line in `doc/decision/cargo-build-dir-host-cache.md` that says not to.
@@ -445,7 +454,7 @@ rename before deleting it, so a reader sees either the unit or nothing.
 - What: after A and B have run, a cap per directory (section "What always lean can mean") evicts the units with the
   oldest `invoked.timestamp` until the directory is under it, the same shape as the logger's 14 days and 512 MiB and
   50,000 files.
-- Frees here: nothing that A and B leave if a cap is set above the current generation; its job is to make "always"
+- Frees here: nothing that A and B leave if the cap is not under the current generation; its job is to make "always"
   true when one generation alone outgrows its bound.
 - Costs: a cap set too low evicts units that the next build recompiles; it needs a number from the owner.
 - Automatic and concurrent: as A.
@@ -470,7 +479,7 @@ rename before deleting it, so a reader sees either the unit or nothing.
   `package/music-player/desktop-app`) pass `CARGO_BUILD_BUILD_DIR` pointing into a named volume, as they already keep
   the registry in a named volume (`ide-cargo`, `nested-wayland-session-cargo`).
   Then the in-tree `target/` holds final artifacts only, like host builds.
-- Frees here: the in-tree copy set shrinks from 36.1 GiB to final artifacts (a few GiB); physical bytes move into the
+- Frees here: the in-tree copy set shrinks from 35.0 GiB to final artifacts (a few GiB); physical bytes move into the
   volumes (87.6 GB of volumes exist already) and still need A to B to stay lean.
 - Costs: one cold container build per package; a volume per package is shared by every worktree of the package, and
   inside the container every worktree is `/work`, so the workspace-path hash is the same: worktrees would thrash one
@@ -514,7 +523,7 @@ Ranking: A > B > C > D > E > F > G > H.
 A and B and C are complementary and can all be adopted in that order; D is an alternative to the host-tree half of A;
 E is complementary to A; F only schedules the others.
 
-- A over B: A removes stale bytes from the directories that the motivating copy reads (18.3 GiB of the 36.1 GiB copy
+- A over B: A removes stale bytes from the directories that the motivating copy reads (18.3 GiB of the 35.0 GiB copy
   set now, and all of the incremental state if the installed wrapper copies it) and from every kind of Cargo output
   directory, including the container-built ones, so it addresses the owner's request directly.
   B removes whole trees from a base directory that no worktree copy reads by bytes (clones there are reflinks on one
@@ -549,7 +558,7 @@ E is complementary to A; F only schedules the others.
 - The package-shape trees: what runs `cargo package` or `cargo publish --dry-run` about 90 times per crate, and whether
   that should stop at the source.
 - Which wrapper build is installed: the source skips `target/**/incremental`, `target/verification` and the caches, and
-  the 49.5 GB in the brief is within a percent of the listed total minus incremental state (49.1 GB), which suggests a
+  the 49.5 GB in the brief is within a percent of the listed total minus incremental state (49.2 GB), which suggests a
   build that skips incremental state but not `target/verification`.
   I did not verify this.
 - Whether the component that creates the clone trees may record and remove them with their worktree, despite the
@@ -561,7 +570,7 @@ E is complementary to A; F only schedules the others.
 PEND-REVIEW
 
 [btrfs-du]: https://btrfs.readthedocs.io/en/latest/btrfs-filesystem.html#:~:text=Each%20argument%20to%20btrfs%20filesystem%20du%20will%20have%20a%20set%20shared%20value%20calculated%20for%20it
-[build-cache]: https://doc.rust-lang.org/cargo/reference/build-cache.html#:~:text=The%20build-dir%20layout%20is%20considered%20internal%20to%20Cargo
+[build-cache]: https://doc.rust-lang.org/cargo/reference/build-cache.html#:~:text=The%20build%2Ddir%20layout%20is%20considered%20internal%20to%20Cargo
 [cargo-hash-rustc]: https://github.com/rust-lang/cargo/blob/d6b1b43ed13a7e12072b5f1685056719546e127a/src/compiler/build_runner/compilation_files.rs#L923-L932
 [cargo-5026]: https://github.com/rust-lang/cargo/issues/5026
 [cargo-5026-plan]: https://github.com/rust-lang/cargo/issues/5026#issuecomment-2803122104
@@ -570,11 +579,11 @@ PEND-REVIEW
 [cargo-config-build-dir]: https://doc.rust-lang.org/cargo/reference/config.html#:~:text=The%20directory%20where%20intermediate%20build%20artifacts%20will%20be%20stored
 [cargo-config-cache]: https://doc.rust-lang.org/cargo/reference/config.html#:~:text=Support%20for%20tracking%20build%20artifacts%20is%20not%20yet%20implemented
 [cargo-clean]: https://doc.rust-lang.org/cargo/commands/cargo-clean.html#:~:text=With%20no%20options%2C%20cargo%20clean%20will%20delete%20the%20entire%20target%20directory
-[cargo-gc]: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#:~:text=The-Zgc%20flag%20is%20used%20to%20enable%20certain%20features%20related%20to%20garbage-collection
+[cargo-gc]: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#:~:text=The%20%2DZgc%20flag%20is%20used%20to%20enable%20certain%20features%20related%20to%20garbage%2Dcollection
 [cargo-layout]: https://github.com/rust-lang/cargo/blob/d6b1b43ed13a7e12072b5f1685056719546e127a/src/compiler/layout.rs#L264-L285
 [cargo-flock]: https://github.com/rust-lang/cargo/blob/d6b1b43ed13a7e12072b5f1685056719546e127a/src/util/flock.rs#L161-L174
 [cargo-sweep]: https://github.com/holmgr/cargo-sweep#:~:text=currently%20unmaintained
 [sweep-140]: https://github.com/holmgr/cargo-sweep/issues/140
 [cargo-clean-all]: https://github.com/dnlmlr/cargo-clean-all
 [sccache-rust]: https://github.com/mozilla/sccache/blob/main/docs/Rust.md#:~:text=incremental%20compilation%20needs%20to%20be%20disabled
-[gradle-cleanup]: https://docs.gradle.org/current/userguide/directory_layout.html#:~:text=They%20are%20deleted%20if%20they%20haven%27t%20been%20used%20for%207%20days
+[gradle-cleanup]: https://docs.gradle.org/current/userguide/directory_layout.html#:~:text=They%20are%20deleted%20if%20they%20haven%E2%80%99t%20been%20used%20for%207%20days
