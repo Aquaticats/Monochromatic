@@ -1,0 +1,245 @@
+//! What:
+//! Round 7 tests built from the sixth review's own counterexamples to the containment of a bounded run (6a R1, R2, R3).
+//! Why:
+//! Round 5's process group and round 6's subreaper with a `/proc` scan failed one proof, that every process a command started
+//! has stopped; each test here is a schedule the reviewer gave, written to fail on that design first.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // describe('containment counterexamples', () => { it('a zombie leader with a live thread', ...) })
+//! ```
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command};
+use std::time::{Duration, Instant};
+
+use rustix::process::{Pid, Signal, kill_process, test_kill_process};
+
+use crate::bounded_run::{Bound, output_within};
+use crate::crates::LockSnapshot;
+use crate::journal::recover;
+use crate::test_scratch::scratch;
+
+/// The environment variable that tells the helper process which workspace to use.
+const FIXTURE_ROOT: &str = "CARGO_SHADOW_CONTAIN_FIXTURE_ROOT";
+
+/// The crate root of the workspace fixtures.
+const CRATE_DIR: &str = "package/c/one";
+
+/// How long a test waits for a file that a helper promised to make.
+const FILE_WAIT: Duration = Duration::from_secs(30);
+
+/// The C source of a process whose first thread ends while a second thread lives on and writes a file.
+/// The comments are for a reader who knows only TypeScript.
+const LEADER_SOURCE: &str = r#"
+/* What: includes the thread library and the standard helpers. Why: pthread_create starts a second thread, sleep waits. */
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+/* The second thread: waits `delay` seconds, then writes the file named by `path`, like a late write to a lockfile.
+   In TS you'd write (pseudocode): setTimeout(() => writeFileSync(path, "late"), delay * 1000) */
+struct job { unsigned delay; const char *path; };
+static void *late_writer(void *argument) {
+  struct job *work = (struct job *) argument;
+  sleep(work->delay);
+  FILE *out = fopen(work->path, "w");
+  if (out != NULL) { fputs("late", out); fclose(out); }
+  return NULL;
+}
+
+/* The first thread (the thread group leader) starts the writer and then ends alone with pthread_exit.
+   The process lives on in the second thread while /proc shows the leader as a zombie. */
+int main(int count, char **arguments) {
+  static struct job work;
+  pthread_t thread;
+  (void) count;
+  work.delay = (unsigned) atoi(arguments[1]);
+  work.path = arguments[2];
+  pthread_create(&thread, NULL, late_writer, &work);
+  pthread_exit(NULL);
+}
+"#;
+
+/// A bound for the commands of these tests.
+fn bound(limit: Duration) -> Bound {
+    return Bound { limit, what: "the contained command".to_string(), rerun: "contained-command".to_string() };
+}
+
+/// Waits until a file exists, up to `FILE_WAIT`.
+fn wait_for_file(path: &Path) {
+    let deadline: Instant = Instant::now() + FILE_WAIT;
+    while !path.exists() {
+        assert!(Instant::now() < deadline, "{} did not appear", path.display());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// Reads a process id a helper wrote.
+fn read_pid(path: &Path) -> i32 {
+    return fs::read_to_string(path).expect("a pid file").trim().parse::<i32>().expect("a pid");
+}
+
+/// Whether a process with this id exists and is not a zombie.
+fn is_running(pid: i32) -> bool {
+    let Some(found) = Pid::from_raw(pid) else {
+        return false;
+    };
+    if test_kill_process(found).is_err() {
+        return false;
+    }
+    let stat: String = fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default();
+    let state: &str = stat.rsplit(')').next().unwrap_or("").trim_start();
+    return !state.starts_with('Z');
+}
+
+/// Stops a helper process the test started and does not mind if it is gone.
+fn stop_quietly(pid: i32) {
+    if let Some(found) = Pid::from_raw(pid) {
+        let _ = kill_process(found, Signal::KILL);
+    }
+}
+
+/// Compiles the C source above with the system C compiler into `directory`.
+fn compile_leader(directory: &Path) -> PathBuf {
+    let source: PathBuf = directory.join("leader.c");
+    let program: PathBuf = directory.join("leader");
+    fs::write(&source, LEADER_SOURCE).expect("write the C source");
+    let status = Command::new("cc").arg("-pthread").arg("-o").arg(&program).arg(&source).status().expect("a C compiler (cc) is needed by this test");
+    assert!(status.success(), "the C fixture did not compile");
+    return program;
+}
+
+/// Round 7 (6a R1 A):
+/// a thread group whose leader ended while another thread still lives is not quiescent,
+/// although `/proc` shows the leader as a zombie.
+#[test]
+fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns() {
+    let directory = scratch();
+    let leader: PathBuf = compile_leader(directory.path());
+    let target: PathBuf = directory.path().join("target");
+    let script: String = format!("setsid {} 2 {} </dev/null >/dev/null 2>&1 & sleep 0.6; echo done", leader.display(), target.display());
+
+    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(20))).expect("runs");
+    std::thread::sleep(Duration::from_millis(2_700));
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
+    assert!(!target.exists(), "a thread of a process whose leader had ended wrote after the run returned");
+}
+
+/// Round 7 (6a R1 B):
+/// many short-lived parents that leave orphans while the run ends are all stopped.
+/// This one passed before the change in most schedules:
+/// the reviewer's schedule depends on the order in which `/proc` is read.
+#[test]
+fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
+    let directory = scratch();
+    let target: PathBuf = directory.path().join("target");
+    let script: String = format!(
+        "i=0; while [ $i -lt 40 ]; do ( ( sleep 2; echo late >> {} ) & ) & i=$((i+1)); done; echo done",
+        target.display()
+    );
+
+    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(20))).expect("runs");
+    std::thread::sleep(Duration::from_millis(2_700));
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
+    assert!(!target.exists(), "an orphan of the run wrote after the run returned");
+}
+
+/// Round 7 (6a R3):
+/// a child the caller had before the run, whose own child is adopted by the caller while the run is open,
+/// is not part of the run and is not stopped.
+#[test]
+fn a_grandchild_adopted_during_the_run_that_the_run_did_not_start_survives() {
+    let directory = scratch();
+    let pid_file: PathBuf = directory.path().join("grandchild.pid");
+    let script: String = format!("sleep 30 & echo $! > {}; sleep 1", pid_file.display());
+    let mut earlier: Child = Command::new("sh").args(["-c", &script]).spawn().expect("a child the caller already had");
+    wait_for_file(&pid_file);
+    std::thread::sleep(Duration::from_millis(100));
+    let grandchild: i32 = read_pid(&pid_file);
+
+    output_within(Command::new("sleep").arg("2"), None, &bound(Duration::from_secs(20))).expect("runs");
+    let alive: bool = is_running(grandchild);
+    stop_quietly(grandchild);
+    let _ = earlier.wait();
+
+    assert!(alive, "a process the run did not start was stopped when its parent exited during the run");
+}
+
+/// Round 7 (6a R3):
+/// an ordinary subprocess that another thread of the caller starts during the run is not part of the run.
+#[test]
+fn a_subprocess_another_thread_starts_during_the_run_survives() {
+    let starter = std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(300));
+        return Command::new("sleep").arg("30").spawn().expect("an unrelated child");
+    });
+
+    output_within(Command::new("sleep").arg("1.5"), None, &bound(Duration::from_secs(20))).expect("runs");
+    let mut unrelated: Child = starter.join().expect("the starting thread");
+    let alive: bool = is_running(i32::try_from(unrelated.id()).expect("a process id"));
+    let _ = unrelated.kill();
+    let _ = unrelated.wait();
+
+    assert!(alive, "a process another thread started was stopped by a run it was not part of");
+}
+
+/// The helper process of the crash test below:
+/// it opens a transaction and runs a command that starts a writer in a session of its own and then waits.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_killed_wrapper_with_an_escaped_writer_stops_the_recovery"]
+fn wrapper_with_an_escaped_writer_fixture() {
+    let Ok(root) = std::env::var(FIXTURE_ROOT) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(root);
+    let snapshot: LockSnapshot = LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() };
+    let _transaction = crate::journal::begin(&root, std::slice::from_ref(&snapshot), false).expect("begin");
+    let directory: PathBuf = root.join("fixture");
+    let script: String = format!(
+        "echo $$ > {shell}; setsid sh -c 'exec </dev/null >/dev/null 2>&1; echo $$ > {writer}; : > {ready}; sleep 20; echo late > {target}' & \
+         i=0; while [ ! -e {ready} ] && [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done; exec sleep 120",
+        shell = directory.join("shell.pid").display(),
+        writer = directory.join("writer.pid").display(),
+        ready = directory.join("ready").display(),
+        target = directory.join("target").display()
+    );
+    let _ = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(300)));
+}
+
+/// Round 7 (6a R2, 6c R2):
+/// the wrapper and the direct child die while a writer in another session lives:
+/// a recovery that finds the journal must not restore the lockfile, because the writer may still change it.
+#[test]
+fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
+    let root = scratch();
+    fs::create_dir_all(root.path().join(CRATE_DIR)).expect("crate dir");
+    fs::create_dir_all(root.path().join("fixture")).expect("fixture dir");
+    let lock: PathBuf = root.path().join(CRATE_DIR).join("Cargo.lock");
+    fs::write(&lock, "original").expect("lock");
+    let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "contain_counterexample_tests::wrapper_with_an_escaped_writer_fixture", "--nocapture"])
+        .env(FIXTURE_ROOT, root.path())
+        .spawn()
+        .expect("the wrapper helper");
+    wait_for_file(&root.path().join("fixture/ready"));
+    fs::write(&lock, "unchecked output of the killed run").expect("the killed run's output");
+    let shell: i32 = read_pid(&root.path().join("fixture/shell.pid"));
+    let writer: i32 = read_pid(&root.path().join("fixture/writer.pid"));
+    wrapper.kill().expect("kill the wrapper");
+    let _ = wrapper.wait();
+    stop_quietly(shell);
+    std::thread::sleep(Duration::from_millis(300));
+
+    let messages: Vec<String> = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let writer_alive: bool = is_running(writer);
+    stop_quietly(writer);
+
+    assert!(writer_alive, "the escaped writer died by itself; the test proves nothing");
+    assert_eq!(fs::read_to_string(&lock).expect("lock"), "unchecked output of the killed run", "a recovery restored a file a live writer may change: {messages:?}");
+}

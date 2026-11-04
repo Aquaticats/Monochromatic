@@ -950,3 +950,59 @@ fn a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_
     let journals = crate::journal_support::journal_dirs(root.path());
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
 }
+
+/// Round 7 (6c R1):
+/// cargo failed (an operational error) and the mandatory durability barrier failed too:
+/// the command stops,
+/// because an operational error alone lets the shim run the command again with `--locked`.
+#[test]
+fn an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_keeps_both_diagnostics() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = |_cwd: &Path, _arguments: &[String]| -> Result<CargoOutcome, String> {
+        return Ok(CargoOutcome { ok: false, output: "cargo broke".to_string(), stdout: String::new() });
+    };
+    crate::failpoints::arm(crate::failpoints::Point::FinishDurability);
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("disk") && message.contains("cargo broke"), "{message}"),
+        other => panic!("an operational error hid a failed barrier and the shim would fall back: {other:?}"),
+    }
+}
+
+/// Round 7 (6b2 5):
+/// a completion marker that could not be published is not a cleanup problem:
+/// a later recovery would still see an active journal and could judge the run again.
+#[test]
+fn a_completion_marker_that_cannot_be_published_stops_the_command() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner: FakeCargo = cargo(SATISFIED);
+    crate::failpoints::arm(crate::failpoints::Point::FinishCompletion);
+
+    let outcome = step(&start, false, &runner, &registry());
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("completion"), "{message}"),
+        other => panic!("a failed completion marker read as {other:?}"),
+    }
+}
+
+/// Round 7 (6b2 5):
+/// the cleanup failure point is after the durable marker:
+/// the journal is already named `.done` when the removal fails.
+#[test]
+fn the_cleanup_failure_happens_after_the_completion_marker_was_published() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner: FakeCargo = cargo(SATISFIED);
+    crate::failpoints::arm(crate::failpoints::Point::FinishCleanup);
+
+    let outcome = step(&start, false, &runner, &registry());
+
+    assert_eq!(outcome, StepOutcome::Updated { crate_dir: CRATE_DIR.to_string(), added: Vec::new() });
+    let journals = crate::journal_support::journal_dirs(root.path());
+    assert!(journals.iter().any(|journal| { return journal.to_string_lossy().ends_with(".done"); }), "no completion marker at the point of the cleanup failure: {journals:?}");
+}

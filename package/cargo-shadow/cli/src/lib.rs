@@ -358,6 +358,10 @@ mod journal_recover_tests;
 /// The round 6 tests of what a bounded run contains.
 #[cfg(test)]
 mod bounded_contain_tests;
+#[cfg(test)]
+mod contain_counterexample_tests;
+#[cfg(test)]
+mod survivor_discovery_tests;
 
 /// Helpers the journal tests share.
 #[cfg(test)]

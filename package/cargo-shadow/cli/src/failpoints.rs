@@ -34,6 +34,10 @@ thread_local! {
     static FINISH_CLEANUP: Cell<bool> = const { Cell::new(false) };
     /// Whether the next durability barrier of a recovery on this thread fails.
     static RECOVER_DURABILITY: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next publication of a journal's durable completion marker on this thread fails.
+    static FINISH_COMPLETION: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next listing of the journals of a workspace on this thread reports an error for one entry.
+    static JOURNAL_LISTING: Cell<bool> = const { Cell::new(false) };
 }
 
 /// The steps that can be made to fail.
@@ -47,6 +51,10 @@ pub enum Point {
     FinishCleanup,
     /// The forcing of live files to disk before a recovery deletes the durable copies that made them recoverable.
     RecoverDurability,
+    /// The publication of a journal's durable completion marker (the rename to its done name and the sync of the directory that lists it).
+    FinishCompletion,
+    /// The listing of the journals of a workspace, which a survivor check and a recovery both depend on.
+    JournalListing,
 }
 
 /// What:
@@ -79,6 +87,8 @@ pub fn arm(point: Point) {
         Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
         Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
         Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
+        Point::FinishCompletion => FINISH_COMPLETION.with(|slot| { slot.set(true); }),
+        Point::JournalListing => JOURNAL_LISTING.with(|slot| { slot.set(true); }),
     }
 }
 
@@ -99,5 +109,7 @@ pub fn fires(point: Point) -> bool {
         Point::FinishDurability => FINISH.with(Cell::take),
         Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
         Point::RecoverDurability => RECOVER_DURABILITY.with(Cell::take),
+        Point::FinishCompletion => FINISH_COMPLETION.with(Cell::take),
+        Point::JournalListing => JOURNAL_LISTING.with(Cell::take),
     };
 }

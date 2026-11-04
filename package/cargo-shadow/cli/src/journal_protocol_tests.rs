@@ -893,11 +893,12 @@ fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() 
 /// Review finding (4b 1):
 /// the kept directory and its parent are synced every time a file is linked into it,
 /// also when it existed.
-/// Round 6 (5b 1):
-/// the entries of the kept directory are made durable up to the directory that also holds the replaced file,
-/// not up to an arbitrary number of ancestors.
+/// Round 6 (5b 1), replaced in round 7 (6b 1):
+/// a directory that holds the replaced file is not shown durable by that fact (its own entry in its parent may not be),
+/// so the entries of the kept directory are made durable all the way to the root of the file system,
+/// by the resolved path.
 #[test]
-fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_directory_that_holds_the_target() {
+fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_filesystem_root() {
     let root = repository("expected");
     let path = root.path().join(CRATE_DIR).join("Cargo.lock");
     let kept_dir = root.path().join("a").join("b").join("c").join("d");
@@ -908,9 +909,11 @@ fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_directory_that_holds
     replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
 
     let calls = synced.borrow();
-    for ancestor in kept_dir.ancestors().take_while(|found| { return found.starts_with(root.path()); }) {
+    let resolved: PathBuf = fs::canonicalize(&kept_dir).expect("the kept directory resolves");
+    for ancestor in resolved.ancestors() {
         assert!(calls.contains(&ancestor.to_path_buf()), "{} was not synced: {calls:?}", ancestor.display());
     }
+    assert!(calls.contains(&PathBuf::from("/")), "the root of the file system was never reached: {calls:?}");
 }
 
 #[test]

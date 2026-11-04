@@ -587,8 +587,8 @@ no `cgroup.kill`), cargo-shadow takes the weaker path with a one-line notice (be
   and `cgroup.events` reports `populated 1`, so `populated` is correct and a `/proc` state test was not.
 - **`cgroup.kill` alone did not end that group:** after 2000 ms (and in an earlier run 5000 ms) `populated 1` remained.
   `kill(2)` with `SIGKILL` on the id listed in `cgroup.procs` ended it in 1 ms, and so did `cgroup.kill` followed by `kill(2)`.
-  The mechanism is the kernel's: `cgroup.kill` signals each listed task, and a signal sent to the task of a zombie
-  leader does not wake the live threads, while a signal sent to the process does.
+  The cause was not read in the kernel source; the guess is that `cgroup.kill` signals the listed leader task, which has
+  exited, instead of the process, and only the measurement above is claimed.
   So the stop is `cgroup.kill`, then `SIGKILL` to every process listed by `cgroup.procs` (through a pidfd that is checked
   against the listing again), repeated until `populated 0` or the bound; this is built and tested.
 - A zombie that nobody reaped, alone in a group, is not listed and `populated` is 0 (the kernel leaves the group when
