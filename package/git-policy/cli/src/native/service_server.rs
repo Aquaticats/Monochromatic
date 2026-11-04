@@ -638,7 +638,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         }
     });
     // Microseconds, so that instances started at nearly the same time do not number their batches alike in a shared journal.
-    let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
+    let clock_seed: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
+    let mut seq: u64 = super::service_fault::pinned_first_batch().unwrap_or(clock_seed);
     // The marker made ahead is removed whichever way this loop ends.
     let _prestaged = PrestageGuard;
     let mut retiring: bool = false;

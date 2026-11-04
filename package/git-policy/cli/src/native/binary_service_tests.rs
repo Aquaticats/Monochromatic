@@ -16,9 +16,9 @@
 use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
-use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE};
+use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE};
 use git_policy_cli::service_instance::instance_of;
-use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED};
+use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED, landed_commits};
 use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_retire, encode_service,
@@ -714,4 +714,49 @@ fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
         stop(restarted);
         remove_settled(&fixture);
     }
+}
+
+/// A service that starts on a clock reading another service of the journal also took, and a service whose count another service
+///  has overtaken, must not number a batch with one the journal already holds: each landing keeps its own record, so a request
+///  sent again after a broken connection is still found landed.
+#[test]
+fn two_services_of_one_journal_never_number_their_batches_alike() {
+    let fixture: Fixture = fixture("service-shared-numbers");
+    let first_repo: PathBuf = repository(&fixture, OsStr::new("first"));
+    let second_repo: PathBuf = repository(&fixture, OsStr::new("second"));
+    let pinned: String = String::from("1000");
+    let mut services: Vec<Service> = Vec::new();
+    let mut names: Vec<String> = Vec::new();
+    for label in ["numbers-a", "numbers-b"] {
+        let name: String = address(&fixture, label);
+        let journal: PathBuf = fixture.root.join("journal");
+        let mut command: Command = Command::new(SERVICE);
+        command
+            .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str()])
+            .env(FIRST_BATCH_VARIABLE, pinned.as_str())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit());
+        services.push(Service { child: command.spawn().expect("the service starts") });
+        names.push(name);
+    }
+    for name in &names {
+        wait_until_reachable(name.as_str());
+    }
+    let first: CommitRequest = request(&fixture, &first_repo, "numbers-1", "a.txt", "a\n");
+    let second: CommitRequest = request(&fixture, &second_repo, "numbers-2", "a.txt", "a\n");
+    assert!(matches!(submit_quietly(&config(names[0].as_str()), &first), Ok(Submitted::Landed { already: false, .. })));
+    assert!(matches!(submit_quietly(&config(names[1].as_str()), &second), Ok(Submitted::Landed { already: false, .. })));
+    let finished: usize = std::fs::read_dir(fixture.root.join("journal"))
+        .expect("journal")
+        .flatten()
+        .filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == DONE_EXTENSION; }); })
+        .count();
+    assert_eq!(finished, 2, "each landing leaves its own finished batch");
+    let known: std::collections::HashMap<String, String> = landed_commits(fixture.root.join("journal").as_path());
+    assert!(known.contains_key("numbers-1") && known.contains_key("numbers-2"), "both requests are remembered as landed: {known:?}");
+    for service in services {
+        stop(service);
+    }
+    remove_settled(&fixture);
 }
