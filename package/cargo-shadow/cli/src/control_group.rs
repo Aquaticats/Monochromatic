@@ -687,6 +687,22 @@ pub(crate) fn procfs_matches_namespace() -> Result<(), String> {
 }
 
 /// What:
+/// `fn names_an_absent_process(error: &io::Error) -> bool` says whether a failed read of a process's file shows that the process is
+/// not there: `ENOENT` (the entry is gone) or `ESRCH` (the entry was there when it was opened and the process ended before the read).
+/// Why:
+/// A read of `/proc/<pid>/stat` of a process that ends under it fails with either; the map says both are read as gone, and the pidfd
+/// then confirms it, so neither is taken as a failure of the oracle (fourth certification pass).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namesAnAbsentProcess(error: NodeJS.ErrnoException): boolean { return error.code === 'ENOENT' || error.code === 'ESRCH'; }
+/// ```
+#[cfg(test)]
+pub(crate) fn names_an_absent_process(error: &io::Error) -> bool {
+    return error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::SRCH.raw_os_error());
+}
+
+/// What:
 /// `pub(crate) fn process_is_running(pid: i32) -> Result<bool, String>` says whether a process with this id is running (not ended,
 /// not a zombie that is waiting to be reaped), and fails when it cannot tell.
 /// Why:
@@ -720,7 +736,7 @@ pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
     }
     return match read_in_proc(&root, &format!("{pid}/stat")).and_then(|text| { return parse_stat(pid, &text); }) {
         Ok((_, state)) => Ok(state != 'Z' && state != 'X'),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => match number()? {
+        Err(error) if names_an_absent_process(&error) => match number()? {
             -1 => Ok(false),
             _ => Err(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({error})")),
         },
@@ -1380,6 +1396,8 @@ impl ControlGroup {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 self.absence_is_verified()?;
+                #[cfg(test)]
+                crate::bounded_run::trace(|| { return "scope proved absent".to_string(); });
                 return Ok(true);
             }
             // The signal pass below does the stopping when the kill file cannot be written.
@@ -1389,12 +1407,18 @@ impl ControlGroup {
             Ok(found) => found,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 self.absence_is_verified()?;
+                #[cfg(test)]
+                crate::bounded_run::trace(|| { return "scope proved absent".to_string(); });
                 return Ok(true);
             }
             Err(error) => return Err(error),
         };
         loop {
             if !populated_through(&events)? && !survivor {
+                // The authoritative proof: the kernel reports the scope unpopulated after the kill (a test build traces it, so a
+                // test sees that a successful stop went through this check and not through a snapshot of the members).
+                #[cfg(test)]
+                crate::bounded_run::trace(|| { return "scope proved empty".to_string(); });
                 return Ok(true);
             }
             self.signal_members()?;

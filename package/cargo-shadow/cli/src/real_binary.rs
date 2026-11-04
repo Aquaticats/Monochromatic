@@ -98,9 +98,26 @@ fn is_executable_file(path: &Path) -> bool {
 /// export function findInPath(name: string, pathVariable: string, skip: string[]): string | undefined
 /// ```
 pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf> {
+    return find_in_path_with_image(name, path_variable, skip, running_image_identity());
+}
+
+/// What:
+/// `pub fn find_in_path_with_image(name, path_variable, skip, image) -> Option<PathBuf>` is `find_in_path` with the identity of the
+/// running executable image given.
+/// Why:
+/// The identity of the image that is running comes from the open image, not from a pathname: an installer may replace the installed
+/// path while the shadow runs, after which the path names another file (or reads with a ` (deleted)` suffix) and a hard link of the
+/// image still on PATH would not be recognized. A test gives the identity it took before such a replacement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function findInPathWithImage(name: string, pathVariable: string, skip: string[], image: [bigint, bigint] | undefined): string | undefined
+/// ```
+pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf], image: Option<(u64, u64)>) -> Option<PathBuf> {
     // The skipped executables by file identity: a hard link to the shadow resolves to another pathname than the shadow's own and is
-    // still the same file, so the pathname alone cannot tell it (certification, third pass).
-    let skipped: Vec<(u64, u64)> = skip.iter().filter_map(|path| { return identity_of(path); }).collect();
+    // still the same file, so the pathname alone cannot tell it (certification, third pass); the running image is one of them.
+    let mut skipped: Vec<(u64, u64)> = skip.iter().filter_map(|path| { return identity_of(path); }).collect();
+    skipped.extend(image);
     for directory in path_variable.split(':') {
         // An empty PATH entry means the current directory in a shell; the shadow ignores it on purpose.
         if directory.is_empty() {
@@ -135,6 +152,21 @@ const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 /// How many launchers in a row are followed before the chain is taken as one that never reaches a program: a record chain longer than
 /// this is a loop, and a loop leads back.
 const MAX_LAUNCHER_HOPS: usize = 8;
+
+/// What:
+/// `pub fn running_image_identity() -> Option<(u64, u64)>` is the device and inode of the executable image this process runs.
+/// Why:
+/// `/proc/self/exe` opened as a file names the open image even when its installed path was replaced or removed; `None` where it
+/// cannot be opened, in which case only the pathname-based skips apply.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runningImageIdentity(): [bigint, bigint] | undefined
+/// ```
+pub fn running_image_identity() -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    return fs::File::open("/proc/self/exe").and_then(|image| { return image.metadata(); }).ok().map(|found| { return (found.dev(), found.ino()); });
+}
 
 /// What:
 /// `fn identity_of(path: &Path) -> Option<(u64, u64)>` is the device and inode of the file a path names, through links.

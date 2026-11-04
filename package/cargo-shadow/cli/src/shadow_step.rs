@@ -513,6 +513,15 @@ pub fn prepare(arguments: &[OsString]) -> Result<Option<Prepared>, String> {
     // try { return compute(); } catch { return undefined; }
     // ```
     // Typed binding: `program: PathBuf`.
+    // A crate in a directory that git ignores is no lockfile of this repository (a disposable copy a gate stages under `node_modules`
+    // is the case that found it): there is no base to compare with, so the command goes to cargo untouched like one outside any catalog.
+    if let Some(cargo_root) = find_cargo_root(&start)
+        && let Ok(relative) = cargo_root.strip_prefix(&catalog_root)
+        && !relative.as_os_str().is_empty()
+        && crate::git_base::is_git_ignored(&catalog_root, &relative.to_string_lossy().replace('\\', "/"))
+    {
+        return Ok(None);
+    }
     let program: PathBuf = find_real_cargo().ok_or_else(missing_cargo_message)?;
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `explicit: String`.

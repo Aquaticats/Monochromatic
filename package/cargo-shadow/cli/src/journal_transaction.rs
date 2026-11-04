@@ -951,11 +951,19 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
             if unlisted.len() == 1 { "it" } else { "them" }
         )
     };
-    if count + unreadable <= KEPT_FILES_WARNING_COUNT {
+    // An entry that could not be read may be one of any number: an iteration error can end the listing before the files that follow,
+    // so an incomplete inventory is never taken as small (fourth certification pass).
+    if count + unreadable <= KEPT_FILES_WARNING_COUNT && unreadable == 0 {
         if unlisted.is_empty() {
             return None;
         }
         return Some(format!("cargo-shadow:{unknown} Nothing was deleted and cargo keeps working."));
+    }
+    if count + unreadable <= KEPT_FILES_WARNING_COUNT {
+        return Some(format!(
+            "cargo-shadow: {} holds files that could not all be read ({unreadable} entries could not be read after {count} that could), so how many files are kept there is unknown; look at it.{unknown} Nothing was deleted and cargo keeps working.",
+            directory.display()
+        ));
     }
     let unread: String = if unreadable == 0 { String::new() } else { format!(" ({unreadable} more could not be read)") };
     let besides: String = if beside == 0 { String::new() } else { format!(" and {beside} more are kept beside the lockfiles of the crate roots (Cargo.lock.displaced*, Cargo.lock.refused*, .Cargo.lock.shadow-*.tmp)") };

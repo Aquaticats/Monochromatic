@@ -134,6 +134,37 @@ pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 }
 
 /// What:
+/// `pub(crate) fn run_until_the_payload_started<T>(first: Duration, reset: &dyn Fn(), started: &dyn Fn() -> bool, attempt: &mut dyn FnMut(Duration) -> T) -> (T, Duration)`
+/// runs `attempt` with a bound, and repeats it with a doubled bound while the payload did not start inside it.
+/// Why:
+/// The bound of a run counts from the start of the run, scope startup included. A bound that ended while the scope was still being
+/// made says nothing about stopping a payload at its bound; on a host whose disk or user manager is busy that is what a short
+/// bound measures (a bound of 400 ms failed a full run for it). The attempt that is judged is the first in which the payload
+/// really started; each earlier attempt is reset and repeated, so the wait follows the event and not the clock.
+/// An attempt where the payload does not start even with the longest bound is returned too, and the caller's assertions fail on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runUntilThePayloadStarted<T>(first: number, reset: () => void, started: () => boolean, attempt: (limit: number) => T): [T, number]
+/// ```
+pub(crate) fn run_until_the_payload_started<T>(first: Duration, reset: &dyn Fn(), started: &dyn Fn() -> bool, attempt: &mut dyn FnMut(Duration) -> T) -> (T, Duration) {
+    let mut limit: Duration = first;
+    let mut result: T = attempt(limit);
+    for _doubling in 0..LONGEST_ESCALATION {
+        if started() {
+            break;
+        }
+        reset();
+        limit *= 2;
+        result = attempt(limit);
+    }
+    return (result, limit);
+}
+
+/// How many times a bound is doubled while the payload has not started (400 ms doubled six times is about 26 s).
+const LONGEST_ESCALATION: u32 = 6;
+
+/// What:
 /// `pub(crate) fn assert_scope_record(groups_file: &str)` asserts that a journal's record names a delegated scope.
 /// Why:
 /// The strong-path tests must show that they used delegated containment and not the weaker path.
