@@ -568,6 +568,24 @@ impl RouteCache {
         }
         return found;
     }
+
+    /// What:
+    /// `pub(crate) fn hold_for_test<T>(&self, work: impl FnOnce() -> T) -> T` runs `work` while this thread holds the cache's own mutex.
+    /// Why:
+    /// A test shows that a caller finds the busy cache and answers at once, with the actual mutex held, not a discovery in flight
+    /// that happens to run outside it (certification, third pass, V6).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// holdForTest<T>(work: () => T): T
+    /// ```
+    #[cfg(test)]
+    pub(crate) fn hold_for_test<T>(&self, work: impl FnOnce() -> T) -> T {
+        let guard = self.slot.lock();
+        let result: T = work();
+        drop(guard);
+        return result;
+    }
 }
 
 /// What:

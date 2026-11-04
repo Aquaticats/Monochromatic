@@ -672,6 +672,10 @@ fn a_group_record_that_cannot_be_read_defers_the_recovery() {
 
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
     assert!(messages.iter().any(|message| { return message.contains("record"); }), "{messages:?}");
+    // The refusal keeps the journal itself, with its snapshot (certification, third pass): a recovery that reported the record and
+    // then discarded the journal would pass the two assertions above.
+    assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the journal with the unreadable record was removed or replaced: {messages:?}");
+    assert!(journal.join("0.lock").exists() && journal.join("groups").is_dir(), "the journal's snapshot or its unreadable record is gone: {messages:?}");
 }
 
 /// Round 6 (5b2 2):
@@ -1525,4 +1529,23 @@ fn finishing_is_observed_as_outputs_then_marker_then_marker_barrier_then_removal
             (unexpected, _) => panic!("{fault:?}: the finish ended as {unexpected:?}"),
         }
     }
+}
+
+/// Acceptance row A4 (certification, third pass): the ordinary `finish()` makes the real outputs durable (the final lockfile and the
+/// journaled manifest, through `make_durable`) before the marker is renamed, the marker's directory is synchronized, and the journal
+/// is removed. The trace is produced by the production barrier itself, not by a callback of the test.
+#[test]
+fn the_ordinary_finish_makes_the_lockfile_and_the_manifest_durable_before_the_marker() {
+    let root = repository("final output");
+    let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+    fs::write(&manifest, "final manifest").expect("manifest");
+    let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+    transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+    let _ = crate::bounded_run::take_trace_for_test();
+
+    transaction.finish().expect("finish");
+
+    let seen: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("durable ") || event.starts_with("marker ") || event.starts_with("cleanup "); }).collect();
+    let expected: Vec<&str> = vec!["durable Cargo.lock", "durable Cargo.toml", "marker renamed", "marker parent synced", "cleanup attempted"];
+    assert_eq!(seen, expected, "the ordinary finish did not make both outputs durable, in order, before the marker");
 }

@@ -678,6 +678,10 @@ the tests that discriminate; the planted regressions that turned the old asserti
 to judge them again: no row is certified by this map.
 The shared helper `journal_dirs` now stops on every listing error except the initial absence of the journal directory
 (`the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty`, red against the old helper).
+Suite counts at the round 18 code tip `c82ee474fc` (written 2026-11-04T15:22:00-05:00): the debug run and the release gate each ran
+634 tests: 634 passed, 0 failed, 14 skipped (the thirteen `#[ignore]` helper entries of before and the helper of
+`each_missing_capability_class_prints_the_notice_on_the_real_standard_error`); `lint:clippy` with warnings denied is clean; logs
+`/home/user/temp/agent/r18-debug.log`, `r18-gate.log`, `r18-clippy.log`.
 Suite counts at the round 17 code tip `8e009bc256` (written 2026-11-04T14:50:00-05:00): the debug run and the release gate each ran
 618 tests: 618 passed, 0 failed, 13 skipped (the same thirteen `#[ignore]` helper entries); `lint:clippy` with warnings denied is
 clean; logs `/home/user/temp/agent/r17-debug.log`, `r17-gate.log`, `r17-clippy.log`.
@@ -1055,6 +1059,90 @@ No row is certified by this map.
   (`started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`, red with the skip removed,
   planted; `a_launcher_whose_record_names_the_shadow_is_skipped_directly_and_through_another_launcher`,
   `a_launcher_of_another_program_a_broken_record_and_a_record_loop`).
+
+### Round 18 additions (third certification pass, 2026-11-04T15:17:00-05:00)
+
+The third certification pass (`cargo-shadow-cert3-sol-1.txt` to `-7.txt`) found three production defects and evidence gaps.
+Each item names the test that carries it and says whether a planted regression turned it red; "no plant" says that no cheap
+regression of the production code could be built.
+No row is certified by this map.
+
+- **Launcher.**
+  Production defect: the PATH search compared canonical pathnames, so a hard link to the shadow was taken for the real cargo.
+  The search now compares file identity (device and inode) for direct candidates and for the targets of launcher records
+  (`a_hard_link_to_the_shadow_is_skipped_by_file_identity`, `a_launcher_record_that_names_a_hard_linked_alias_of_the_shadow_is_skipped`;
+  both red with the identity set emptied, planted).
+  The older integration test is renamed `a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs`: it
+  shows the process-bound guard ends a chain of a launcher that has no record, with an append-only counter, and does not claim
+  "skipped"; the skipping is `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`.
+- **V5, A3.**
+  Production defect: the `.done` journals of the recovery were finished through `mark_done_and_remove`, which erased the phase of a
+  failed completion barrier, so no mandatory failure was reported. The loop now calls `finish_journal` and sets the flag for a
+  non-cleanup error (`a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_removal_does_not`, red with the
+  flag not set, planted; the removal control stays a warning).
+  `a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_is_restored_with_its_own` shows the pair of a failed
+  root is not split while another root of the journal is restored with its manifest (red with both guards of `recover_manifests`
+  removed, planted).
+- **K1.**
+  Production defect: the total size of the kept files was an unchecked `u64` sum; it is a `u128` sum now
+  (`kept_entries_with_huge_sparse_lengths_are_summed_exactly_and_never_refuse`, three entries of `i64::MAX` bytes, red with the
+  old sum: it panics with an overflow, planted; the test stops with a message on a file system that refuses such a length, and
+  this host's btrfs allows it).
+  `the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_keeps_every_kept_file_itself` reads the real standard
+  error of the command on three completed runs and compares every kept file by content and inode (red with the printing removed,
+  and red with the central files deleted and recreated empty under their names, both planted); directory errors fail it.
+- **R1.**
+  `a_rollback_whose_exchange_finds_another_writers_change_keeps_both_files_and_warns` drives the conflict at the exchange boundary
+  through the rollback and asserts the warning, both writers' bytes, the other writer's inode and the kept replacement (red with the
+  warning removed, planted). The replacement-hook implementation is in the bundle of this row.
+- **A1.**
+  The thread oracle's prerequisite is now a procfs that lists the process in exactly one namespace (`NSpid`), not equal numbers:
+  `a_procfs_whose_nspid_lists_two_namespaces_is_refused_even_when_the_numbers_coincide` (red with the count check weakened, planted);
+  the same check is in `open_proc_root`, so the launcher question and the process oracle use it too.
+- **V6.**
+  `the_route_cache_answers_at_once_while_its_own_mutex_is_held` holds the cache's actual mutex (red with `lock` in place of
+  `try_lock`, planted); `a_timeout_returns_promptly_even_when_the_child_ignores_its_input` shows the program started (a pid file)
+  and the feeder was blocked by a larger-than-pipe input; the fault consumers (`ControlGroup::stop`, `reap`, `reap_within`) are in
+  the bundle of this row.
+- **A1, A2 (scope lifecycle).**
+  `a_settled_run_whose_scope_was_collected_is_read_as_ended_without_any_launcher_record` removes the launcher proof and recovers
+  without an acknowledgement (red with `settled` ignored, planted).
+  The procfs and ended-number launcher tests belong to this row: `a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher`
+  and `only_the_ended_process_number_shows_a_gone_process`.
+- **V1 (7b P1-2).**
+  The listing faults leave an ordered trace event ("listing fault ... at entry 1 after 1 accumulated") that
+  `a_journal_listing_that_fails_in_any_way_stops_the_recovery` asserts, so the fault is at the second entry after the first journal
+  was accumulated (no plant: the trace is the evidence of placement); the listing implementation is in the bundle.
+- **V2, amended c.**
+  `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty` now drives the real recovery and the real admission after each of the
+  four states, acknowledged or not (red with acknowledged journals excluded from the liveness check, planted);
+  `a_group_record_that_cannot_be_read_defers_the_recovery` and
+  `a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_ends` assert the retained journals at once (red with a
+  recovery that deletes the journals while refusing, planted);
+  `a_scope_that_appears_inside_the_real_recovery_is_not_read_as_a_run_that_ended` drives the appearing-scope boundary through
+  `recover` (red with the late-appearing scope ignored, planted);
+  `a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor` now also runs the recovery and the admission (no plant for
+  this state; `a_nonempty_journal_that_lost_its_records_is_kept_by_recovery_and_refuses_admission`, whose body is in this row's bundle,
+  was red against a planted shortcut).
+  Qualifications: `boot_authority_fixture` asks the liveness check (`survivor_note`), not the whole recovery;
+  `a_gone_launcher_lets_the_recovery_read_the_scope_as_final` shows the absent case through the whole recovery and the empty case
+  through `survivor_note` only.
+- **A3, A4.**
+  `the_ordinary_finish_makes_the_lockfile_and_the_manifest_durable_before_the_marker` observes `finish()` through the production
+  output barrier `make_durable` (red with `finish` wired to a no-op callback, planted).
+- **Weaker path.**
+  `each_missing_capability_class_prints_the_notice_on_the_real_standard_error` runs a fresh process per capability class, including
+  the manager group without `cgroup.kill`, and reads the notice from its standard error (red with the printing removed, planted);
+  `an_unreadable_acknowledgement_does_not_count_for_the_recovery_or_the_admission` (a marker that is a directory; red with a read
+  error counted as an acknowledgement, planted);
+  `the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit` (red with the exit cleanup skipped, planted);
+  `an_acknowledged_journal_is_still_held_by_a_failed_listing_and_a_failed_mandatory_finish` (no plant: both paths are shared code).
+- **V3, V4.**
+  The preparation hook (`begin_step_for_test` and its call sites in `begin`) and the producers of the ordering trace
+  (`append_record_with`, `start_contained`) are in the bundle of this row.
+- **Host qualifications.**
+  A delegated test returns early when no delegated route exists and `CARGO_SHADOW_ALLOW_NO_CGROUP` is set; `a_higher_ancestor_the_user_cannot_open_is_never_touched`
+  and the permission-based failed-restore test skip when the user can bypass permissions. The logs of this host show them running.
 
 ### What the map does not claim
 

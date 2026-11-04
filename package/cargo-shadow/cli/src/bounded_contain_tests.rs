@@ -160,15 +160,22 @@ fn nested_transactions_keep_their_own_records() {
 
 /// Round 6 (5a F2):
 /// a run that returns an error does not leave a worker reading the pipe.
+/// Certification, third pass: the program is known to have started (it writes its pid file before it ignores its input), the input
+/// is larger than any pipe buffer so the feeder is blocked by backpressure when the bound passes, and the answer is the bound's
+/// `TimedOut`, not an error of the start that spent the budget.
 #[test]
 fn a_timeout_returns_promptly_even_when_the_child_ignores_its_input() {
+    let directory = crate::test_scratch::scratch();
+    let pid_file = directory.path().join("pid");
     let input: Vec<u8> = vec![b'x'; 4_000_000];
     let started = Instant::now();
+    let script = format!("echo $$ > {}; exec sleep 30", pid_file.display());
 
-    let result = output_within(Command::new("sleep").arg("30"), Some(&input), &bound(Duration::from_millis(300)));
+    let result = output_within(Command::new("sh").args(["-c", &script]), Some(&input), &bound(Duration::from_secs(3)));
 
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
-    assert!(started.elapsed() < Duration::from_secs(8), "{:?}", started.elapsed());
+    assert!(pid_file.exists(), "the program never started, so the feeder was never blocked by a program that ignores its input");
+    assert!(started.elapsed() < Duration::from_secs(10), "{:?}", started.elapsed());
 }
 
 /// Round 7 (retires the round 6 refusal of a second run):

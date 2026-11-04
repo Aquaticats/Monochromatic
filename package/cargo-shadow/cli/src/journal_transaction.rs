@@ -890,7 +890,9 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
     let directory: PathBuf = root.join(QUARANTINE_DIR);
     let mut central: usize = 0;
     let mut beside: usize = 0;
-    let mut bytes: u64 = 0;
+    // A wide accumulator: kept entries can have huge (sparse) lengths, and a sum that overflows would panic or wrap; the warning is
+    // never refused for the size of what is kept ("Warn past a count, never refuse").
+    let mut bytes: u128 = 0;
     let mut unreadable: usize = 0;
     // Whole directories that could not be listed: what is kept there is unknown, which is not "small".
     let mut unlisted: Vec<PathBuf> = Vec::new();
@@ -900,7 +902,7 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
                 match entry.and_then(|found| { return found.metadata(); }) {
                     Ok(metadata) => {
                         central += 1;
-                        bytes += metadata.len();
+                        bytes += u128::from(metadata.len());
                     }
                     Err(_) => unreadable += 1,
                 }
@@ -925,7 +927,7 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
                                 match found.metadata() {
                                     Ok(metadata) => {
                                         beside += 1;
-                                        bytes += metadata.len();
+                                        bytes += u128::from(metadata.len());
                                     }
                                     Err(_) => unreadable += 1,
                                 }
