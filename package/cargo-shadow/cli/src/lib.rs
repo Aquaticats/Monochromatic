@@ -336,6 +336,10 @@ mod git_differential_tests;
 #[cfg(test)]
 mod journal_protocol_tests;
 
+/// The round 6 tests of the command line named in errors.
+#[cfg(test)]
+mod rerun_tests;
+
 /// The tests of the SHA-1 used for object names.
 #[cfg(test)]
 mod git_sha1_tests;

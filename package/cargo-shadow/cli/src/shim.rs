@@ -234,7 +234,7 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // `Preflight::Refused` stops the command (below). `arguments` is replaced for the rest of the run, so the notice and
     // guard logic see the same line.
     // The command the user ran, so an error that says "run it again" names it (review finding 4c P3).
-    crate::bounded_run::set_rerun(Some(format!("cargo {}", arguments.iter().map(|argument| { return argument.to_string_lossy().to_string(); }).collect::<Vec<String>>().join(" "))));
+    crate::bounded_run::set_rerun(Some(rerun_command(&arguments)));
     if hops == 0
         && treatment == Treatment::InstallStep
         // `Some`: the present or the absent value of an `Option`.
@@ -355,4 +355,17 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
             return EXEC_FAILED_EXIT_CODE;
         }
     }
+}
+
+/// What:
+/// `pub(crate) fn rerun_command(arguments: &[OsString]) -> String` is the command line the user ran, for errors that say "run it again".
+/// Why:
+/// Round 6 (5c N5): arguments are joined with their boundaries kept, so the text can be copied into a shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function rerunCommand(args: string[]): string
+/// ```
+pub(crate) fn rerun_command(arguments: &[std::ffi::OsString]) -> String {
+    return format!("cargo {}", arguments.iter().map(|argument| { return argument.to_string_lossy().to_string(); }).collect::<Vec<String>>().join(" "));
 }
