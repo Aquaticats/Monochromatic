@@ -974,18 +974,78 @@ Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r10-debug3.log`, `r
 run (`r10-gate1.log`) failed once on the bound named above and is kept as evidence.
 Nothing was published and nothing was merged into main; the first publication needs the owner's explicit approval.
 
-## Resume point (round 10, rewritten 2026-11-04T08:57:09-05:00 after the gate)
+## Round 11 (2026-11-04): the launcher record
 
-Done in round 10: the section "Round 10" above lists each finding, its red and green tests and the options.
-The review inputs were cut from `16249ffe94` into `/var/home/user/temp/agent/reviews/cargo-shadow-10*.diff`.
+The owner's answers of 2026-11-04 (question tool), quoted: for the way out of 9a D1, "Record the launcher (Recommended)" (after
+starting the launcher, cargo-shadow notes its process id, start time and namespace; recovery first checks that process is gone; if it
+is, it can never join the scope later, so recovery continues by itself; a launcher still alive keeps blocking); for the boot
+authority, "Check and state premise (Recommended)", which is what round 10 built and is kept unchanged.
+Option B of "9a D1" above is therefore built; options A (refuse and acknowledge) stays as the fallback for what B cannot prove, and C
+is not built.
 
-Open for the owner:
+What was built:
 
-1. Whether to build option B of "9a D1" (the launcher's liveness record), so that a killed wrapper's journal recovers without
-   `cargo-shadow acknowledge` when the launcher is gone.
-2. The boot-authority pick (option 1) and the residual premise in assumption c, veto open with the other picks of rounds 8 and 9.
+- `launcher <pid> <start time> <pid namespace> <scope path>` is appended to the journal's `groups` file right after the launcher is
+  spawned (`note_launcher` in `src/bounded_run.rs`).
+  The process id and the start time come from `/proc/<pid>/stat` (field 22, counted after the last closing parenthesis, because the
+  name field may hold spaces and brackets); the namespace is the inode of `/proc/self/ns/pid`.
+- Durability, as the owner asked ("if no sync is enough, prove it"): no sync.
+  The line is one `write`, so a killed wrapper leaves it whole or absent, and the page cache keeps what a process wrote;
+  `a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` kills a real wrapper and reads the line back.
+  After a power loss the line may be lost or torn: a lost line means an unsettled scope without a launcher line, which waits for an
+  acknowledgement like an older journal, and a torn line is not understood or names another namespace or path;
+  `a_torn_launcher_line_never_reads_as_a_gone_launcher` cuts a valid line at every length and requires the journal to stay blocked
+  each time, with the whole line as the control that clears it.
+  The synced `settled` line that follows carries the earlier lines to disk with it, and a reboot is decided first by the boot rule.
+  So a sync would buy nothing a recovery can use and cost one more `fsync` on the start path of every run.
+- A recovery (`assess` in `src/journal_unready.rs`) reads the whole record first, then for each scope without a `settled` line asks
+  `launcher_state` before it reads the scope: gone means this process is in the recorded process id namespace and no process with
+  that id and start time exists; an unreaped zombie counts as existing; another namespace, a process that exists but cannot be
+  inspected, or a state that is not understood is unknown.
+  Alive: blocks as live, no acknowledgement overrides it.
+  Gone: the scope's own answer is final (populated blocks; absent or empty is ended).
+  Unknown, no launcher line, a line for a scope the journal does not list, or a line that is not understood: uncertain, which
+  `cargo-shadow acknowledge` overrides.
+- What B cannot prove, and so still waits for a person (listed in the contract, A1): another process id namespace, a journal with no
+  launcher line (an older version, a failed append, a wrapper killed between the spawn and the append), a line for another scope, a
+  torn or not understood line, a launcher that cannot be inspected.
+
+Red then green (red at `37c5524be1`, on a scaffold at `a94403ae25` that parsed the record and ignored it; green at `e6fab10dd4`):
+
+- A killed wrapper whose launcher ended long ago now recovers without acknowledgement:
+  `a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` (a real wrapper helper is killed while its program runs; the
+  recovery blocks with "still running" while the program lives, and settles the journal and restores the lockfile once the program
+  ended and the manager collected the scope), and `a_gone_launcher_lets_the_recovery_read_the_scope_as_final` (planted journal:
+  absent and empty scopes).
+- A launcher still alive is not read as gone: `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty` (absent, empty, and
+  after an acknowledgement; the two round 10 D1 schedules stay refused while the launcher lives).
+  A reused process id (another start time) reads as gone in `a_gone_launcher_lets_the_recovery_read_the_scope_as_final`, and in
+  `the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie`; another process id namespace is unknown there and
+  in `what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement`; an unreaped zombie is alive.
+- The round 10 D1 schedules without a launcher line stay refused (`an_unsettled_scope_that_exists_empty_...`,
+  `a_scope_that_appears_between_the_query_and_the_judgement_...`, unchanged and green).
+- Two older tests counted the lines of a run's record (scope, then settled) and now expect scope, launcher, settled.
+
+Not measured: the premise that a launcher which is gone cannot join the scope is the process model (an ended process has no thread to
+attach); no test makes the manager handle a request after its sender died.
+The planted-journal tests use a stand-in process for the launcher; the end-to-end test uses the real `systemd-run` launcher.
+
+### Result
+
+The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 6 skipped (the `#[ignore]` helper entries),
+for the debug run and the release gate; `lint:clippy` with warnings denied is clean.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r11-debug1.log`, `r11-gate1.log`, `r11-clippy3.log`.
+Nothing was published and nothing was merged into main.
+
+## Resume point (round 11, rewritten TIMESTAMP after the gate)
+
+Done: rounds 10 and 11 (the sections above).
+The review inputs cover `16249ffe94` to the tip of round 11, in `/var/home/user/temp/agent/reviews/cargo-shadow-11*.diff`.
+
+Open for the owner: the picks of rounds 8 to 11 stay veto-open as listed in their sections; the first publication needs the owner's
+explicit approval.
 
 Next:
 
-1. The coordinator launches the cross-vendor review of the round 10 diffs against the contract.
+1. The coordinator launches the cross-vendor review of the round 10 and 11 diffs against the contract.
 2. Nothing is merged into main and nothing is published.

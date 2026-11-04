@@ -657,16 +657,24 @@ and an HTTP 429 is retried after its `Retry-After`.
   record it cannot read or understand, or a journal that lost its record while other files remain, or a journal or a scope seen
   with another mount id or inode or in another cgroup namespace than the record was made in (assumption c);
   it names the journal.
-  A recorded scope counts as gone only when the run also recorded its end and the directory that held it is seen as it was
+  A recorded scope counts as gone only when the run also recorded its end (or its launcher is recorded and gone) and the directory that held it is seen as it was
   recorded, because the manager removes a scope only when it is empty (probed).
   The end is a `settled <scope path>` line that the run appends to the journal after it reaped the launcher and showed the scope
   empty.
   Until then neither an absent scope nor an empty one counts: the manager creates a scope's control group and attaches the launcher in
   two steps, and a look that finds the scope absent or empty says nothing about a launcher that has not finished entering it.
-  So a recovery of a journal with an unsettled scope refuses, naming the journal, whether the scope is absent, empty or appears while
-  the check runs; the way out is `cargo-shadow acknowledge <journal directory>` (a person's assertion that every process of that
-  run has stopped), and a scope that has a member blocks even then.
-  A killed wrapper whose scope was never settled therefore waits for that one command, and nothing waits in-process.
+  Right after the wrapper spawns the launcher (which becomes the program) it appends
+  `launcher <pid> <start time> <pid namespace> <scope path>` to the journal, without a sync (a lost or torn line is only a missing
+  proof).
+  A recovery asks about that process before it reads the scope: a launcher that no longer exists (no such process, or the id belongs
+  to a process with another start time, in the recorded process id namespace) can never join the scope, so an absent or empty scope
+  is final and the journal recovers by itself; a launcher that still exists blocks, and no acknowledgement overrides that.
+  What the line cannot prove waits for `cargo-shadow acknowledge <journal directory>` (a person's assertion that every process of
+  that run has stopped): another process id namespace, a journal with no launcher line (an older version, a failed append, a wrapper
+  killed between the spawn and the append), a line for a scope the journal does not list, a torn line, a launcher that cannot be
+  inspected.
+  A scope that has a member blocks even then.
+  Nothing waits in-process.
   A record that cannot be written leaves the journal unsettled, which is the safe side.
   The journal's view record also holds the machine id (`/etc/machine-id`) and the boot id
   (`/proc/sys/kernel/random/boot_id`) of the system that made it, written before any record of a scope or a process group.

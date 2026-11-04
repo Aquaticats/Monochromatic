@@ -1,6 +1,8 @@
 # What cargo-shadow promises and what it assumes
 
 Status:
+amended for round 11 (the owner's pick of 2026-11-04, "Record the launcher") with the launcher record (guarantee A1: a launcher that is
+gone can never join its scope, so a recovery that finds it gone reads the scope as final without an acknowledgement);
 amended once more after the round 9 reviews (`cargo-shadow-sol-9a.txt`, `-9b.txt`; round 10, written 2026-11-04T08:57:09-05:00) with
 the unsettled scope (guarantee A1: an empty or late-appearing scope is no more a completed lifecycle than an absent one), the strict
 and authoritative boot identity (assumption c and e) and the shared discovery deadline (guarantee V6);
@@ -38,17 +40,41 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   that every process the run started has stopped: the direct child was reaped, and either the kernel reported `populated 0` for
   the run's scope, or the scope is verifiably absent.
   Verified absence counts only for a run that recorded its end (a `settled` line in the journal, written after the launcher was
-  reaped and the scope shown empty): until then an absent scope may be one the launcher has not made yet, and a scope that exists
+  reaped and the scope shown empty), or whose launcher is recorded and shown gone (the launcher record below): until then an absent scope may be one the launcher has not made yet, and a scope that exists
   with `populated 0` may be one whose launcher the manager has not attached yet (the manager creates the control group and attaches
-  the process in two steps), so a recovery that finds an unsettled scope absent, empty, or appearing while it checks refuses and asks
-  for an acknowledgement (round 9, 8a F1; round 10, 9a D1).
+  the process in two steps), so a recovery that finds an unsettled scope absent, empty, or appearing while it checks, and has no launcher
+  record that shows the launcher gone, refuses and asks for an acknowledgement (round 9, 8a F1; round 10, 9a D1).
   A later look at the scope never turns an unsettled run into a completed one; a scope with a member blocks and no acknowledgement
   overrides it.
-  The way out of such a refusal is the acknowledgement of the weaker path (`cargo-shadow acknowledge <journal directory>`): one
-  command by a person, which tries the workspace lock and does not wait, so nothing in the program waits for it.
-  A protocol that would remove the refusal without a person (the launcher's process id and start time recorded after its spawn, and
-  a check that it is gone before the scope is read) is not built; it is an option in "Round 10" of
-  `doc/planning/cargo-shadow-update.md`.
+  The launcher record (round 11, the owner's pick "Record the launcher") removes the refusal for a launcher that is gone.
+  Right after it spawns the launcher, which becomes the program (same process), the wrapper appends
+  `launcher <pid> <start time> <pid namespace> <scope path>` to the journal's `groups` file: the process id, field 22 of
+  `/proc/<pid>/stat` (clock ticks since boot, so the id with its start time names one process in one boot) and the inode of the
+  process id namespace.
+  A recovery asks about the launcher before it reads the scope.
+  The launcher is gone only when the recovery is in the recorded process id namespace and no process with that id and that start
+  time exists (no such process, or the id was reused by a process with another start time).
+  A process that is gone has no thread that could still be attached to a scope, so what the scope shows afterwards (absent, empty,
+  or populated by a descendant) is final: absent or empty is read as ended, populated blocks.
+  A launcher that exists blocks, whatever the scope looks like, and no acknowledgement overrides it; an unreaped zombie counts as
+  existing, because only its reaping shows that it ended.
+  Durability of this line: it is appended with one `write` and no sync.
+  It is read only after the wrapper was killed (the page cache keeps what a process wrote), or after a power loss or a reboot, where a
+  lost or torn line is read as no proof (an unsettled scope without a launcher line waits for an acknowledgement) and the boot rule
+  decides first.
+  Every proper prefix of a launcher line, as a torn write leaves it, keeps the journal blocked (the line fields are in the order pid,
+  start time, namespace, path, so a cut leaves a line that is not understood, a different namespace, or a different path).
+  The later `settled` line is synced and carries the earlier lines with it.
+  What the launcher record cannot prove, and that therefore still waits for `cargo-shadow acknowledge <journal directory>` (one
+  command by a person, which tries the workspace lock and does not wait):
+  a recovery in another process id namespace than the record; a journal with no launcher line for an unsettled scope (a journal of an
+  older version, a line that could not be appended, a wrapper killed between the spawn and the append); a launcher line for a scope
+  the journal does not list; a launcher line that is torn or not understood; a launcher whose process cannot be inspected (a `/proc`
+  that hides it, an unreadable stat file).
+  A scope with a member blocks and no acknowledgement overrides it.
+  The premise under "gone": the manager attaches only the launcher it was asked about, and a process that has ended cannot become a
+  member of a scope; this is the process model, not a measurement against a manager that handles a request after its sender died.
+  The earlier choice of round 10 (refuse every unsettled scope, acknowledge) stays as the fallback for the list above.
   Verified absence is proof under amended assumption c and one invariant of the manager:
   systemd removes a scope only when it is empty or after stopping its members
   (probed: a scope whose program exited stayed observable with `populated 1` while a descendant lived, and vanished 2991 ms later
@@ -546,8 +572,9 @@ These are acceptance tests, not a claim that finite testing mathematically prove
   Exercise unreadable, malformed and missing records beside other files.
   Independently change the journal view and the recorded cgroup-parent view, including the same-cgroup-namespace bind-mount
   schedule: refuse with the intended reason and retain the journal.
-  An unsettled scope that is absent, empty or appears during the check refuses; a malformed or replaced boot identity never clears
-  a live group (round 10; counterexamples to this row, not a new row).
+  An unsettled scope that is absent, empty or appears during the check refuses unless its launcher is recorded and gone; a live
+  launcher blocks without an acknowledgement; a malformed or replaced boot identity never clears a live group (rounds 10 and 11;
+  counterexamples to this row, not a new row).
 - **V3, V4.**
   Fail each record-publication or durability step: no payload starts.
   Kill the wrapper in preparation and start windows and verify conservative recovery.
@@ -569,21 +596,21 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written 2026-11-04T08:57:09-05:00 against the tip that carries it (round 10); the round 9 text it replaces was written at
-2026-11-04T07:00:00-05:00.
+Written 2026-11-04T09:30:00-05:00 against the tip that carries it (round 11); the round 10 text it replaces was written at
+2026-11-04T08:57:09-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
-No row is certified by this map: the cross-vendor review of round 10 has not run, and the round 9 review of the tests
+No row is certified by this map: the cross-vendor review of rounds 10 and 11 has not run, and the round 9 review of the tests
 (`cargo-shadow-sol-9b.txt`) said that "16 rows shown" was not established by the attachments it saw.
 Counts: 16 rows, 14 shown, 2 partly (A2/R4: the call-site test has no shim and no user-command sentinel behind it; V3/V4: the
 preparation windows are built by hand, not cut at the real boundaries), 0 not yet.
-Suite counts at the round 10 tip `4c7d357f27` (the docs commit after it changes no code): the debug run
-(`mise run //package/cargo-shadow/cli:test:debug`) and the release gate (`mise run //package/cargo-shadow/cli:test`) each ran 571
-tests: 571 passed, 0 failed, 5 skipped; `lint:clippy` with warnings denied is clean.
-The 5 skipped are the `#[ignore]` helper entries that five other tests start as child processes (their names are in the `ignore`
-attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs` and `src/round_ten_tests.rs`); they are not run
-on their own.
-Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r10-debug3.log`, `r10-gate3.log`, `r10-clippy4.log`.
+Suite counts at the round 11 code tip `CODETIP`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran COUNT tests: COUNT passed, 0 failed, 6 skipped; `lint:clippy` with warnings
+denied is clean.
+The 6 skipped are the `#[ignore]` helper entries that six other tests start as child processes (their names are in the `ignore`
+attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs` and
+`src/round_eleven_tests.rs`); they are not run on their own.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r11-debug1.log`, `r11-gate1.log`, `r11-clippy3.log`.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 to 10 the new guards were removed from the committed tests and the tests failed, then the guard was put back:
@@ -597,6 +624,9 @@ round 9: `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_e
 `an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses`,
 `a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal`,
 `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member`;
+round 11 (red at `37c5524be1`, green at `e6fab10dd4`): `a_gone_launcher_lets_the_recovery_read_the_scope_as_final`,
+`a_live_launcher_blocks_whether_its_scope_is_absent_or_empty`, `a_torn_launcher_line_never_reads_as_a_gone_launcher`,
+`a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` (four red on the scaffold that parsed the record and ignored it);
 round 10 (each red on the committed old code or with the guard removed, then green; commits `6a6513b482`, `1318ffd101`, `147f558d13`):
 `an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended`,
 `a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended`,
@@ -631,6 +661,15 @@ written with the code.
   `an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended` (creation before placement: the control group exists with
   `populated 0`),
   `a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended` (the race between two observations),
+  and the launcher record of round 11: `a_launcher_record_reads_back_and_a_damaged_one_is_not_understood`,
+  `the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie`,
+  `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty` (no acknowledgement clears it),
+  `a_gone_launcher_lets_the_recovery_read_the_scope_as_final` (absent and empty; a reused process id reads as gone),
+  `what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement` (another namespace, no line, a line for another scope, a line
+  not understood),
+  `a_torn_launcher_line_never_reads_as_a_gone_launcher` (every proper prefix; the whole line is the control),
+  `a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` (a real wrapper killed while its program runs: blocked while it
+  lives, settled without an acknowledgement after the program ended and the scope was collected),
   `a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone`.
 - **A2, R4 (7a F3): partly.**
   Shown: the joined runner-to-install test, the fault classes and the unstoppable member.
@@ -754,6 +793,10 @@ written with the code.
   runner choosing it when it has one; the tests that read a journal record or the program's own group show the choice
   (`assert_scope_record`, the program's group).
 - The identity tests give the recovery a different identity; no machine was rebooted.
+- The launcher record's premise that a launcher which is gone cannot join a scope is the process model; no test makes a manager
+  handle a request after its sender died.
+  The launcher is a stand-in process (a shell at a gate) in the planted-journal tests and a real `systemd-run` launcher only in the
+  end-to-end test.
 - The authority check of the boot id was shown in a disposable user and mount namespace on this host; no container runtime
   (`systemd-nspawn`, Docker, Podman, gVisor, a virtual machine) was run, and the nspawn behavior is read from its source
   (`src/nspawn/nspawn.c`, `setup_boot_id`, on the default branch, 2026-11-04).
