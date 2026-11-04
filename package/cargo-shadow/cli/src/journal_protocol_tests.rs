@@ -672,6 +672,10 @@ fn a_group_record_that_cannot_be_read_defers_the_recovery() {
 
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
     assert!(messages.iter().any(|message| { return message.contains("record"); }), "{messages:?}");
+    // The refusal keeps the journal itself, with its snapshot (certification, third pass): a recovery that reported the record and
+    // then discarded the journal would pass the two assertions above.
+    assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the journal with the unreadable record was removed or replaced: {messages:?}");
+    assert!(journal.join("0.lock").exists() && journal.join("groups").is_dir(), "the journal's snapshot or its unreadable record is gone: {messages:?}");
 }
 
 /// Round 6 (5b2 2):
