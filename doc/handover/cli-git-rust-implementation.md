@@ -3634,7 +3634,26 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   (the agent designs options;
   owner question to follow).
   All sent to the agent.
-  Release 0.5.31 waits for both branches' fixes and their re-reviews.
+  Shipping under the owner's rule that reviews are async (2026-11-04):
+  branch-write `bafebbd512` merged to main (`9cc1060ecb`),
+  clippy clean,
+  release 0.5.31 dispatched (run 41886727366);
+  its review findings follow as fixes.
+  Known in 0.5.31 and being fixed:
+  a withdrawal can be answered after the commit landed,
+  a step left running can die of SIGPIPE when the command exits,
+  and the 20-minute foreign-owner patience is shorter than main's one hour
+  (`branch-write-sol-2.txt` section 1 C;
+  options then an owner question).
+  Index lock `69650ced17` merged onto main in the integration worktree
+  `.claude/worktrees/index-lock-claims-on-main` (branch `fix/git-policy-cli-index-lock-claims-on-main`);
+  combined gate `gpc-gate-index-lock-claims-on-main-20261104T132517-0500` running;
+  on pass,
+  merge to main and release 0.5.32.
+  cargo-shadow 0.1.0:
+  the agent merges main into `feat/cargo-shadow-cli` (799 commits behind),
+  wires it into `crate-release` as `7036dca934` did for mpm-shadow,
+  then the coordinator merges and dispatches.
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
