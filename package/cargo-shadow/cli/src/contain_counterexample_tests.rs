@@ -69,7 +69,7 @@ fn bound(limit: Duration) -> Bound {
 }
 
 /// Waits until a file exists, up to `FILE_WAIT`.
-fn wait_for_file(path: &Path) {
+pub(crate) fn wait_for_file(path: &Path) {
     let deadline: Instant = Instant::now() + FILE_WAIT;
     while !path.exists() {
         assert!(Instant::now() < deadline, "{} did not appear", path.display());
@@ -78,12 +78,12 @@ fn wait_for_file(path: &Path) {
 }
 
 /// Reads a process id a helper wrote.
-fn read_pid(path: &Path) -> i32 {
+pub(crate) fn read_pid(path: &Path) -> i32 {
     return fs::read_to_string(path).expect("a pid file").trim().parse::<i32>().expect("a pid");
 }
 
 /// Whether a process with this id exists and is not a zombie.
-fn is_running(pid: i32) -> bool {
+pub(crate) fn is_running(pid: i32) -> bool {
     let Some(found) = Pid::from_raw(pid) else {
         return false;
     };
@@ -96,14 +96,14 @@ fn is_running(pid: i32) -> bool {
 }
 
 /// Stops a helper process the test started and does not mind if it is gone.
-fn stop_quietly(pid: i32) {
+pub(crate) fn stop_quietly(pid: i32) {
     if let Some(found) = Pid::from_raw(pid) {
         let _ = kill_process(found, Signal::KILL);
     }
 }
 
 /// Compiles the C source above with the system C compiler into `directory`.
-fn compile_leader(directory: &Path) -> PathBuf {
+pub(crate) fn compile_leader(directory: &Path) -> PathBuf {
     let source: PathBuf = directory.join("leader.c");
     let program: PathBuf = directory.join("leader");
     fs::write(&source, LEADER_SOURCE).expect("write the C source");

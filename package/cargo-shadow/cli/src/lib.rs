@@ -92,6 +92,7 @@ pub mod git_sha1;
 /// Containment of everything a bounded run starts,
 /// by the process tree.
 pub mod bounded_contain;
+pub mod control_group;
 
 /// Pipe reading and writing that a caller can cancel.
 pub mod bounded_io;
@@ -360,6 +361,10 @@ mod journal_recover_tests;
 mod bounded_contain_tests;
 #[cfg(test)]
 mod contain_counterexample_tests;
+#[cfg(test)]
+mod cgroup_probe_tests;
+#[cfg(test)]
+mod cgroup_test_support;
 #[cfg(test)]
 mod survivor_discovery_tests;
 

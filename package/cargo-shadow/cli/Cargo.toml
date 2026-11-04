@@ -68,7 +68,7 @@ tar = { workspace = true }
 
 # Swaps two paths atomically (`renameat2` with `RENAME_EXCHANGE`) through a safe wrapper, so a lockfile restore can see what it
 # displaced and undo the swap when that was another writer's file. Already in the lockfile through tempfile.
-rustix = { workspace = true, features = ["fs", "process"] }
+rustix = { workspace = true, features = ["fs", "process", "event"] }
 
 # Keys the "already verified" cache of locked entries by a digest of the lockfile text, the way pnpm keys its lockfile-verification cache.
 sha2 = { workspace = true }
