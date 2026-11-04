@@ -410,7 +410,8 @@ each in its own worktree:
 
 Queue,
 in order:
-- Design revision 17 when a delegate slot frees (the cap of five is in use),
+- Design revision 17 (started by 2026-11-04T04:05:21-05:00,
+  commit `1e301bfdc1`),
   from review 16a (`commits-never-fail-sol-16a.txt`:
   R15 closure "not closed";
   P1s R16a-1 level 2 still lacks the promised durable representation (the ref store need not share the object store's file system),
