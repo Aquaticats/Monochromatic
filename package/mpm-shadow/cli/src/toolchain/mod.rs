@@ -335,6 +335,10 @@ mod fakes_cargo;
 #[cfg(test)]
 mod cargo_installs_tests;
 
+/// The unit tests of the `cargo binstall` command: which crates may fall back to compiling.
+#[cfg(test)]
+mod install_cargo_tests;
+
 /// The unit tests of the newest-only layout for archive-route tools this repository publishes.
 #[cfg(test)]
 mod published_archive_tests;
