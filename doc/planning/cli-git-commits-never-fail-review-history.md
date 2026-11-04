@@ -1808,3 +1808,246 @@ record of every incarnation. At L4, when the recorded identity differs from the 
   deliberate reset plus an erased reflog hide the publication: recovery lands the commit with a notice. That permission is decision 3's, which covers a publication that
   cannot be told from a deliberate removal; it is not read from decision 10, which only chose when to force data.
 The machine implements both settings, and the default until the owner answers question 6a is the first.
+
+## Revision 15 changelog, moved from the design in revision 16
+
+### Revision 15 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+
+Naming. New names: the deferred selection of a capture, the fingerprint of the installed index, the permission to undo
+(`attach-watch`) kept apart from the reminder record, the materialization executor rule, the draining shutdown, the
+live dependency list of a checkpoint, the ledger as the single discharge authority, the level 1 and level 2 promises
+of a saved exit, the register entry DEPARTURE. Removed: `WAIT_STOP`, `WAIT_DEPART`, the departure timeout and
+`d-pending`, the claim that no fail-closed recovery exists, the planned-shutdown cancellation of protected executions.
+Schedules below go red under revision 14 and green under revision 15 as far as the owner's answers and the mechanisms
+allow; a model marked "new" is added to step 1; the models branch is not edited by this document.
+- Decision 14 and the stop disposition (R14-2; models new "departure that always completes", "kill during the
+  barrier", "disk error returned by the sync"). Schedule: W1 creates the mark, the sync is slow, power fails after the
+  command returned: red under 14 (the timeout let the command return with the mark not D); green under 15 (the command
+  does not return until the stop disposition is D; a power loss before that has reported nothing). A terminal refusal
+  whose ledger line is forced as its stop disposition. What remains: a power loss or a kill before the barrier
+  completes.
+- Recovery after a power loss and R14-1 (model new "success, lost receipt, reset, erased reflog"). The permission is
+  attributed to decision 3 and the residue is the conjunction named; the fail-closed alternative (quarantine of
+  client-originated requests after a reboot, confirmation by the person) is designed in the history record and is not
+  part of the machine.
+- P2 nonblocking keeper, `submitted a` after the full write (R14-3; models new "full pipe while the owner writes",
+  "failed commit write after bookkeeping"). Schedule: a full pipe blocks the owner's `abort` write through a blocking
+  keeper: red; green (every protocol write is nonblocking and retried under the remaining bound).
+- Checkpoint live dependency list, ledger as discharge authority, recovery procedure (R14-4; models new "checkpoint D
+  while a request file is not D", "saved outcome crosses reclamation", "disposed record in an invalid suffix",
+  "checkpoint authoritative with its predecessor deleted"). Schedules as in the review.
+- Saved-content set level 1 and level 2 (R14-5; models new "inherited parent objects are V only", "prune view before
+  the side ref"). Schedule: the exit names `D` built on a parent whose objects are V only: red (the barrier forced
+  lane-written objects only); green (level 2 needs `syncfs`, the side ref, a connectivity check and the registry
+  comparison; otherwise level 1).
+- C1 deferred selection (R14-6; model new "unresolved base, later staging, late F"). Schedule: `x=1` staged and
+  consumed by an unresolved R1, the person stages `y`, R2 captures, R1 fails: red (R2 replayed on `x=0` publishes
+  `x=0,y=1`); green (the deferred selection adds `x` back).
+- Materialization executor (R14-7; models new "inline owner holds index.lock at the deadline", "executor death or
+  failed handoff"). Schedule: the deadline passes while MG3 holds `index.lock`: red (no specified transition both
+  returns and continues safely); green (the deadline is a start deadline; a begun mutation is finished by the command,
+  or by the service after `resume = MG3`).
+- MG6c fingerprint wording, the revalidation under `index.lock`, the worktree race (R14-8; models new "byte-identical
+  index rewrite", "worktree changes between the last check and the exchange").
+- Draining shutdown (R14-9; models new "shutdown with a running hook", "buffered commit then parent-death before
+  evidence"). Schedule: planned shutdown with a running hook: red (the hook was ended and called an outside death);
+  green (the service drains; an end of the hook is only the manager's or a person's kill). A buffered `commit` with
+  the child killed before evidence is class U.
+- Wording (R14-10): unconditional "stop receipt is D" statements are replaced by decision 14's; MATERIALIZE is a wait
+  of the command; `S != E` is a value guard; the background count excludes the receipt and the client lock; the cost
+  wording for C1 is two sets of `stat`.
+- Questions 5, 7a, 7b, 7c corrected as the review lists; 6a and 6b withdrawn.
+
+
+
+## Answers to the fourteenth review, moved from the design in revision 16
+
+## Answers to the fourteenth review
+
+Each finding of `~/temp/agent/reviews/commits-never-fail-sol-14.txt`, with a closure line: closed (a transition
+answers the schedule; a model is owed), or owner question. The verdict was: continued model work only. This revision
+builds nothing. The review did not inspect the cited Git source lines.
+
+- R14-1 (P2), decision 10 does not approve a fresh attempt after a successful return: accepted. The permission is
+  attributed to decision 3 ("Land it": a publication that cannot be told from a deliberate removal), not to decision
+  10, and the residue is the conjunction of a lost receipt, a deliberate reset and an erased reflog. The conservative
+  alternative is designed in the history record. Closed as attribution.
+- R14-2 (P1), a tiny timed stop flush still resurrects: accepted, and settled by the owner's decision 14: there is no
+  timed flush, so the original schedule no longer exists; the claim that fail-closed recovery is not implementable is
+  withdrawn as too broad; terminal exits force their ledger line as their stop disposition. What remains: a power loss
+  or a kill before the barrier completes, when no error has been reported. Fail-closed recovery (quarantine after a
+  reboot, at the cost that interrupted client work waits for confirmation) is designed in the history record and is
+  not needed.
+- R14-3 (P2), the keeper can block the owner's write: accepted. Every protocol write is nonblocking, retries run under
+  the remaining bound, `submitted a` is recorded after the full write. Closed.
+- R14-4 (P1), a checkpoint cannot discharge dependencies on content it lacks: accepted. A checkpoint carries a live
+  dependency list that must be D before the old root is removed; the ledger is the single discharge authority and a
+  saved outcome's inputs stay live until a `disposed` line; recovery is a two-pass procedure. Closed.
+- R14-5 (P1), the exact saved commit lacks a durable, maintenance-safe closure: accepted. Level 1 (captured intent) is
+  always promised; level 2 (the exact commit) only after `syncfs`, the side ref, a connectivity check and the registry
+  comparison. Closed.
+- R14-6 (P1), late F after an unresolved capture loses selection: accepted. C1 records the deferred selection and W2
+  adds it back when the unresolved request resolves without publishing. Closed.
+- R14-7 (P1), `WAIT_MATERIALIZE` needs an executor: accepted. It is a start deadline; a begun mutation is finished, by
+  the command or by the service after `resume = MG3`. Closed.
+- R14-8 (P2), the MG6c fingerprint is not proof of no write: accepted. The wording, the revalidation under
+  `index.lock` and the worktree race are stated; the concession is in questions 7a to 7c.
+- R14-9 (P1), planned shutdown invents a hook-cancellation exception: accepted. Shutdown is a drain; ending a hook is
+  only an outside kill. A buffered `commit` followed by a child death with no evidence is class U. Closed.
+- R14-10 (P3), qualifications: accepted and edited.
+- Owner questions: 5, 7a, 7b, 7c corrected as the review lists and also written to a separate file; 6a and 6b
+  withdrawn by decision 14.
+- Not a defect: none of the findings was rejected.
+
+
+
+## Owner questions for revision 15, full text as drafted (answered as decisions 15 to 18), moved from the design in revision 16
+
+## Owner questions for revision 15
+
+The owner decided "Assume the final disk save would never be cut short." (decision 14), so questions 6a and 6b are not
+asked. The questions below are the only open ones; the same text is in a separate file in the review directory, named
+`commits-never-fail-questions-` followed by the abbreviated hash of the commit that holds this text, so that they can
+be checked on their own. Each question states its risk plainly; the recommended option is marked and the ranking gives
+a reason for each adjacent pair. None is decided here.
+
+### Question 5: when what you staged is not what is in the file
+
+Plain context. You chose "Merge anyway, unstage x" and then "Carry the file, save staged". This asks again, with an
+option added and the claims corrected. Example: `x.txt` is `A` at the branch tip; you stage a change so the index
+holds `B`; you then edit the file to `D`; the merge makes `x.txt` `C`. Two limits apply to every option. The wrapper
+reads your index entry once, when the merge asks to move the branch (the attempt's pre-entry), and later compares by
+value: a path whose entry has detectably changed since then is left alone as later staging, but a change that only
+touches stat data can look like staging, and a deliberate restage that reproduces the earlier entry looks like nothing
+changed and is replaced. Whatever is replaced is saved aside first, so nothing is lost; which version is visible in
+the file is what you are choosing.
+- Option A, carry the file you see; save the staged-only version aside (Recommended; your earlier answer). Visible
+  here: `x.txt` becomes the merge of your change `A` to `D` onto `C` (with the usual markers where they collide), the
+  index holds `C`, and a line says your staged `B` is saved in `saved/x.txt.staged`. Risk: a staged change you meant
+  to keep is not in the file and must be taken from the saved file by hand. Pros: the file stays readable; nothing is
+  lost.
+- Option B, carry the staged version onto the result and save your file aside. Visible here: `x.txt` becomes the merge
+  of `B` onto `C` (markers where they collide), the index holds `C`, and your later file `D` is saved in
+  `saved/x.txt.worktree`. Risk: the version you worked on last is the one that is not in the file. Pros: the most
+  literal reading of "your staged x becomes an unstaged edit".
+- Option C, show all three versions in the file (not yet implementable as described: it needs a defined text format
+  for your staged `B`, your file `D` and the merge `C`, and it applies only to text files; modes, deletions, non-text
+  files, symlinks and unmerged entries would still keep your version at its path with the merged one beside it, and
+  the protection of concurrent writes would still need a saved backup). Visible here, if built: `x.txt` holds the
+  three-version conflict, the index holds `C`. Risk: long files make it hard to read, and you are asked to resolve
+  what you did not ask to resolve. Pros: nothing is archived or hidden for ordinary text.
+- Option D, stop before the branch moves. Visible here: when the merge is computed, the wrapper scans the index once;
+  if a path you changed has a staged version that differs from the file, the command exits non-zero naming the path
+  and changes nothing. Risk: it can only refuse on what its scan saw; staging that appears between the scan and the
+  move of the branch is not caught and is handled as later staging, and it is not "merge anyway". Pros: nothing is
+  decided for you.
+- Ranking: A > B > C > D. A beats B because it keeps the version you last worked on visible; B beats C because B
+  leaves one readable file where C would leave a three-way conflict and is buildable now; C beats D because C
+  completes the merge as you asked and D returns the work to you.
+
+### Question 7a: may the late-switch cleanup act on a test of values?
+
+Plain context. After a merge writes files, a `git switch` that was paused can finish and leave the merge's files in
+your new branch. The wrapper can restore the old files, but it cannot prove the state is a leftover and not something
+you did on purpose: it can only test values. It records a fingerprint of the index file it wrote (size and trailing
+checksum) and checks that the fingerprint still matches, that the index entry still equals the merge's, that the file
+still matches what it wrote (which can include edits it carried, so not necessarily the raw merge blob), and that the
+new branch's version of the path differs. A fingerprint is not proof that nothing wrote the index: a write that
+changes the fingerprint defeats the check, and a write that produces byte-identical contents does not. Two more
+limits: the checks are repeated while the wrapper holds `index.lock`, but your file can change after the last check
+and before the swap, in which case the newer version is saved aside under a name and the visible path gets the old
+file back. Example: you merge; then you run `git reset --soft` to an earlier commit and switch to a branch whose
+version of the file is the same as that commit's, keeping the merge's content staged on purpose without Git rewriting
+the index. Every value test passes, and the cleanup would restore the old file and entry, undoing your deliberate
+staged change (the merge's content stays in the merge commit). No measurement of how often such sequences happen
+exists.
+- Option A, yes: clean up on the value tests, inside the span of question 7b (Recommended). Visible here: in the
+  example above your staged change is undone and a line says what was restored from which saved copy; in an ordinary
+  late switch the leftover is cleaned; if a command wrote the index in a way that changed the fingerprint between the
+  merge and the switch, the wrapper does not clean up and the line names the leftover instead. Risk: a deliberate
+  sequence like the example, or a byte-identical rewrite, can be mistaken for a leftover inside the span; and the race
+  above. Pros: the leftover you accepted is cleaned without a step from you.
+- Option B, no automatic undo; the wrapper tells you and offers an explicit restore command. Visible here: nothing is
+  undone by itself; the next wrapper command in that worktree prints the possible leftover and the exact restore
+  command. Risk: the leftover stays until you act; and the restore command, when you run it, is also a value-based
+  restore and says what it will replace and where your current versions are saved. Pros: the wrapper never undoes
+  anything on its own.
+- Option C, no cleanup and no restore command; the leftover is reported once at the merge. Visible here: one line
+  naming the files and how to undo them by hand. Risk: the leftover is always yours to fix. Pros: simplest.
+- Ranking: A > B > C. A beats B because it restores the leftover you accepted without a step from you, at the stated
+  risks; B beats C because B keeps the restore one command away.
+
+### Question 7b: how long may that automatic cleanup last?
+
+Plain context. Only matters if you answered 7a with A. A timer is a limit on the permission to undo, not evidence that
+a paused switch has finished. Example: a late switch finishes 5 s after the merge, or 5 minutes.
+- Option A, a measured span after the merge, then the permission ends (Recommended). Visible here: a switch that
+  finishes inside the span is cleaned only if the value tests still hold, a service or a wrapper command checks before
+  the span ends, and `index.lock` can be taken; the permission ends at the end of the span even if a cleanup was
+  waiting for `index.lock`. After it the files stay (question 7c). Risk: a slower switch leaves the files; a check
+  that never happens inside the span cleans nothing. Pros: it bounds the chance of mistaking your own later action for
+  a leftover.
+- Option B, until the first wrapper command in that worktree after the merge. Visible here: that command checks once;
+  if the branch is no longer the merge's and the value tests hold it cleans, and in every case the permission ends
+  there, including when the branch is still the merge's. Risk: a switch that finishes after that command is not
+  cleaned, and if you run no command for a long time the window stays open as long as you are away. Pros: no clock.
+- Option C, until the files change. Visible here: cleaned whenever the leftover is next seen, however late. Risk: days
+  later it can mistake your own state for a leftover, the risk of 7a made unbounded. Pros: no span to outlast.
+- Ranking: A > B > C. A beats B because its window is bounded in time and not by when you happen to run a command; B
+  beats C because C has no end at all.
+
+### Question 7c: after the permission ends, what is kept and what is said?
+
+Plain context. Both options below mean no automatic restoration after the permission ends; they differ in whether you
+are told. A paused switch has no finite completion time, so a late switch can still leave the merge's files after the
+permission ends. Example: the switch finishes an hour after the merge.
+- Option A, one line at the merge naming how to undo by hand, and nothing afterwards. Visible here: nothing happens at
+  the hour mark. Risk: you may never notice the files. The wrapper keeps the saved copies until you dispose of them,
+  as it does for every saved copy. Pros: no standing record.
+- Option B, keep a reminder (Recommended). Visible here: the wrapper keeps a small record of the merge's saved copies
+  and metadata until you dismiss or dispose of it; a later wrapper command in that worktree prints a line only when
+  its conditions match (the branch no longer names the merge's branch and a file matches what the wrapper wrote), and
+  the line says "possible leftover", not "leftover", because the ambiguity of 7a remains. The restore command it names
+  says what it will replace and where your current versions will be saved; the reminder is not renewed permission to
+  undo automatically. Risk: no line appears if no command matches the conditions, and a standing record exists. Pros:
+  you are told without anything being undone.
+- Ranking: B > A. B beats A because it tells you about a possible leftover without undoing anything, at the price of a
+  record to keep.
+
+
+
+## Models added from the fourteenth review, moved from the design in revision 16
+
+Models added from the fourteenth review (revision 15; each starts as a failing control with the revision 15
+changelog's schedule; observations, never the completed logical operation). The review's twenty controls, keyed to the
+transition that answers each (controls 1 and 2 test the departure barrier of decision 14 and become
+power-loss-before-completion and kill-during-barrier schedules):
+1. R14-2: the departure barrier is cut short by power loss before it completes; no error was reported; request and
+   adoption survive: the stop disposition and its residue.
+2. R14-2: two identical durable states, one from an outside-killed client and one from a client that left with a lost
+   mark; check what recovery may do in each (the owner chose continuation: it continues).
+3. R14-2: a terminal refusal or conflict whose ledger line is the stop disposition; power loss before it is D;
+   conditions later permit publication.
+4. R14-3: a full FIFO while the owner writes through the keeper; the event loop does not block.
+5. R14-3: a failed `commit` write after bookkeeping; submission follows the successful full write only.
+6. R14-4: a checkpoint is D while a live request's file or name is not D; the old root is removed.
+7. R14-4: a terminal saved request crosses a checkpoint and reclamation; its inputs stay live until disposal.
+8. R14-4: a later `disposed` record in an invalid suffix with a missing earlier saved item; no circular discharge.
+9. R14-4: a valid new checkpoint with the sealed predecessor deleted; why it stays authoritative.
+10. R14-5: inherited parent objects are V only; the lane-written child objects and the side ref survive.
+11. R14-5: a prune takes its view before the saved side ref exists and deletes after exact-commit confirmation.
+12. R14-6: an unresolved exit, later staging, a descendant capture, then late F; check selection as well as ancestry.
+13. R14-7: a materialization timeout while an inline owner holds `index.lock` with no service available.
+14. R14-7: the foreground deadline during preservation or carry, with executor death or a failed handoff.
+15. R14-8: a byte-identical index rewrite after MG3; the fingerprint is not proof of no write.
+16. R14-8: the index changes between the first predicate check and the lock; the worktree changes after the last check
+    and before the exchange.
+17. Question 5: staging after P1 and before publication; staging after publication that reproduces `E`; stat-only
+    changes.
+18. R14-9: planned shutdown with a running protected hook; no cancellation is smuggled in as an outside death.
+19. R14-9: a buffered `commit`, shutdown, a parent-death signal before evidence; the result is U unless positive
+    evidence establishes P or F.
+20. Questions 7b and 7c: cleanup deferred past the end of the permission, no service during the span, then a later
+reminder; the retained recovery data and the permission to undo stay distinct. Do not make these pass using atomic
+abstractions for "checkpoint", "durable file", "client attached", "withdrawn view" or "leftover". Models must not
+label questions 5 and 7 green by adopting the recommended answers.
