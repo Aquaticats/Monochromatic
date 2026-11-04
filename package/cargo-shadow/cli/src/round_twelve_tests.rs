@@ -168,6 +168,12 @@ fn procfs_namespace_fixture() {
     let pid: i32 = i32::try_from(launcher.id()).expect("a process id");
     let namespace: u64 = pid_namespace_id().expect("the namespace");
     let recorded_start: Result<u64, String> = process_start(pid).map_err(|error| { return error.to_string(); });
+    // What a numeric lookup would find: the stat file that this procfs has for the same number, and the name it shows.
+    let collision: String = fs::read_to_string(format!("/proc/{pid}/stat")).map_or_else(
+        |error| { return format!("unreadable ({error})"); },
+        |text| { return text.split_once('(').and_then(|(_, rest)| { return rest.rsplit_once(')'); }).map_or("not understood".to_string(), |(name, _)| { return name.to_string(); }); },
+    );
+    let start_error: String = recorded_start.as_ref().err().cloned().unwrap_or_default();
     // An arbitrary start time stands for a launcher recorded earlier; in a consistent procfs a live process has another start time
     // only if it is another process, and in an inconsistent one nothing can be said.
     let arbitrary: u64 = recorded_start.as_ref().map_or(1, |start| { return start + 1; });
@@ -178,7 +184,10 @@ fn procfs_namespace_fixture() {
     let after_end: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
     fs::write(
         root.join("fixture-result"),
-        format!("{mode}\nrecorded {}\nother start {against_other_start}\nown start {against_own_start}\nafter end {after_end}\n", if recorded_start.is_ok() { "ok" } else { "err" }),
+        format!(
+            "{mode}\nrecorded {}\nother start {against_other_start}\nown start {against_own_start}\nafter end {after_end}\ncollision name {collision}\nstart error {start_error}\n",
+            if recorded_start.is_ok() { "ok" } else { "err" }
+        ),
     )
     .expect("write the result");
 }
@@ -214,6 +223,10 @@ fn a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher() {
     assert!(own.contains("recorded ok") && own.contains("other start Gone") && own.contains("own start Alive") && own.contains("after end Gone"), "the control did not move: {own}");
     let ancestor: String = run_procfs_fixture("ancestor");
     assert!(ancestor.contains("recorded err"), "a start time was read through a procfs of another namespace: {ancestor}");
+    // The prerequisite (12b 3.2): the ancestor's procfs has a readable entry under the launcher's number that is another process, so a
+    // lookup without the numbering guard would have read it; and the refusal is the numbering mismatch, not some other failure.
+    assert!(ancestor.contains("collision name ") && !ancestor.contains("collision name unreadable") && !ancestor.contains("collision name sleep\n"), "no readable other process under the launcher's number: {ancestor}");
+    assert!(ancestor.contains("start error ") && ancestor.contains("another process id namespace"), "the refusal is not the numbering mismatch: {ancestor}");
     assert!(ancestor.contains("other start Unknown(") && !ancestor.contains("Gone"), "a launcher was read as gone through a procfs of another namespace: {ancestor}");
 }
 
@@ -289,4 +302,6 @@ fn a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged() {
     acknowledge(&journal).expect("acknowledges again");
     let again: Vec<String> = recover(root.path(), &refusing);
     assert_eq!(live_lock(root.path()), "original", "the second acknowledgement did not settle the journal: {again:?}");
+    // Settling is the completed journal, not only the restored text (12b 3.3).
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the recovery after the second acknowledgement left a journal behind: {again:?}");
 }

@@ -517,8 +517,75 @@ pub(crate) enum StartOf {
 pub(crate) fn missing_entry_verdict(number: i64, pid: i32, reason: &str) -> StartOf {
     return match number {
         n if n == i64::from(pid) => StartOf::Unknown(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({reason})")),
-        _ => StartOf::Gone,
+        -1 => StartOf::Gone,
+        other => StartOf::Unknown(format!("process {pid} is numbered {other} by the procfs after its directory could not be read ({reason}), which does not show that it ended")),
     };
+}
+
+/// The procfs, opened once: every numeric lookup of one question goes through this descriptor.
+struct ProcRoot {
+    /// The root directory of the procfs mount.
+    directory: OwnedFd,
+    /// This process's own number in that procfs.
+    own: i32,
+}
+
+/// What:
+/// `fn open_proc_root() -> Result<ProcRoot, String>` opens `/proc` once and shows that it is the root of a procfs mount that numbers
+/// this process as the caller's own namespace does.
+/// Why:
+/// The observation that a pidfd's process has a given number and the read of that process's stat file must come from one procfs,
+/// so both go through this one descriptor (round 13, 12a); a procfs that numbers the caller differently is another namespace's.
+/// This is a guard that costs a few system calls; a program that deliberately changes mounts or `/proc` while a run or a recovery
+/// is in progress is outside the contract (assumption a, amended in round 13).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openProcRoot(): ProcRoot  // throws the reason
+/// ```
+fn open_proc_root() -> Result<ProcRoot, String> {
+    let directory: OwnedFd = rustix::fs::open("/proc", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::DIRECTORY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
+        .map_err(|error| { return format!("/proc cannot be opened ({error})"); })?;
+    let found = rustix::fs::fstatfs(&directory).map_err(|error| { return format!("/proc cannot be examined ({error})"); })?;
+    if u64::try_from(found.f_type).unwrap_or(0) != PROC_MAGIC {
+        return Err("/proc is not a procfs".to_string());
+    }
+    let attributes = statx(&directory, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).map_err(|error| { return format!("/proc cannot be examined ({error})"); })?;
+    if !attributes.stx_attributes_mask.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) || !attributes.stx_attributes.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
+        return Err("/proc is not the root of a procfs mount".to_string());
+    }
+    let own: i32 = rustix::process::getpid().as_raw_nonzero().get();
+    let link = rustix::fs::readlinkat(&directory, "self", Vec::new()).map_err(|error| { return format!("the procfs does not name this process ({error})"); })?;
+    let named: i32 = link.to_str().ok().and_then(|text| { return text.parse::<i32>().ok(); }).ok_or_else(|| { return "the procfs names this process in a form that is not a number".to_string(); })?;
+    if named != own {
+        return Err(format!("the mounted procfs numbers this process {named} and this process is {own}, so it serves another process id namespace than this process is in"));
+    }
+    return Ok(ProcRoot { directory, own });
+}
+
+/// What:
+/// `fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String>` reads a file below the procfs root, refusing to leave it,
+/// to cross a mount point or to follow a link on the way.
+/// Why:
+/// `openat2` with `RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_SYMLINKS` (Linux 5.6; a kernel without it gives an error, which the
+/// callers read as unknown, never as gone) keeps a numeric lookup inside the procfs that `open_proc_root` checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readInProc(root: ProcRoot, relative: string): string
+/// ```
+fn read_in_proc(root: &ProcRoot, relative: &str) -> io::Result<String> {
+    let opened: OwnedFd = rustix::fs::openat2(
+        &root.directory,
+        relative,
+        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC,
+        rustix::fs::Mode::empty(),
+        rustix::fs::ResolveFlags::BENEATH | rustix::fs::ResolveFlags::NO_XDEV | rustix::fs::ResolveFlags::NO_SYMLINKS,
+    )
+    .map_err(io::Error::from)?;
+    let mut text: String = String::new();
+    fs::File::from(opened).read_to_string(&mut text)?;
+    return Ok(text);
 }
 
 /// What:
@@ -546,8 +613,12 @@ fn start_of(pid: i32) -> StartOf {
         Err(Errno::SRCH) => return StartOf::Gone,
         Err(error) => return StartOf::Unknown(format!("a pidfd for process {pid} cannot be opened ({error})")),
     };
+    let root: ProcRoot = match open_proc_root() {
+        Ok(opened) => opened,
+        Err(reason) => return StartOf::Unknown(reason),
+    };
     let number_in_procfs = || -> Result<i32, String> {
-        let info: String = fs::read_to_string(format!("/proc/self/fdinfo/{}", pidfd.as_raw_fd())).map_err(|error| { return format!("the pidfd of process {pid} cannot be examined through procfs ({error})"); })?;
+        let info: String = read_in_proc(&root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd())).map_err(|error| { return format!("the pidfd of process {pid} cannot be examined through procfs ({error})"); })?;
         let line: &str = info.lines().find_map(|candidate| { return candidate.strip_prefix("Pid:"); }).ok_or_else(|| { return format!("the pidfd of process {pid} has no Pid line in procfs"); })?;
         return line.trim().parse::<i32>().map_err(|error| { return format!("the Pid line of the pidfd of process {pid} is not a number ({error})"); });
     };
@@ -556,9 +627,9 @@ fn start_of(pid: i32) -> StartOf {
         Ok(number) => return StartOf::Unknown(format!("the mounted procfs numbers process {pid} as {number}, so it serves another process id namespace than this process is in")),
         Err(reason) => return StartOf::Unknown(reason),
     }
-    return match read_stat(pid) {
+    return match read_in_proc(&root, &format!("{pid}/stat")).and_then(|text| { return parse_stat(pid, &text); }) {
         Ok((start, _)) => StartOf::Process(start),
-        // The same process was numbered `pid` a moment ago: if procfs now has no entry, it ended (its number is then -1), or procfs hides it.
+        // The same process was numbered `pid` a moment ago: if the procfs now has no entry, it ended (its number is then -1), or hides it.
         Err(error) if error.kind() == io::ErrorKind::NotFound => match number_in_procfs() {
             Ok(number) => missing_entry_verdict(i64::from(number), pid, &error.to_string()),
             Err(reason) => StartOf::Unknown(reason),
@@ -587,16 +658,16 @@ pub(crate) fn process_start(pid: i32) -> io::Result<u64> {
 }
 
 /// What:
-/// `fn read_stat(pid: i32) -> io::Result<(u64, char)>` reads the start time and the state letter of a process.
+/// `fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)>` reads the start time and the state letter from the text of a stat
+/// file.
 /// Why:
 /// The name field of the stat file may hold spaces and brackets, so the fields are counted after its last closing parenthesis.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readStat(pid: number): [number, string]
+/// function parseStat(pid: number, text: string): [number, string]
 /// ```
-fn read_stat(pid: i32) -> io::Result<(u64, char)> {
-    let text: String = fs::read_to_string(format!("/proc/{pid}/stat"))?;
+fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
     let invalid = || -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("/proc/{pid}/stat is not understood: {text:?}")); };
     let after: &str = text.rsplit_once(')').ok_or_else(invalid)?.1;
     let fields: Vec<&str> = after.split_whitespace().collect();

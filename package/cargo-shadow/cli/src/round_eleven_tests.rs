@@ -334,7 +334,8 @@ fn wrapper_running_a_program_fixture() {
     let _transaction = begin(&root, &[snapshot("original")], false).expect("begin");
     // The program is the launcher (same process), so `$$` is the launcher's process id; the pid file appears whole.
     let script: String = format!(
-        "echo $$ > {pid}.part; mv {pid}.part {pid}; while [ ! -e {release} ]; do sleep 0.05; done",
+        "cat /proc/self/cgroup > {cgroup}.part; mv {cgroup}.part {cgroup}; echo $$ > {pid}.part; mv {pid}.part {pid}; while [ ! -e {release} ]; do sleep 0.05; done",
+        cgroup = root.join("payload-cgroup").display(),
         pid = root.join("payload-pid").display(),
         release = root.join("release").display()
     );
@@ -379,6 +380,9 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
     assert_eq!(start, process_start(payload).expect("the program's start time"), "the record holds another start time than the program has");
     assert_eq!(pid_namespace, pid_namespace_id().expect("the namespace"), "the record holds another process id namespace");
     assert_eq!(path, scope, "the record names another scope");
+    // The scope the journal records is compared with the cgroup the program itself reports (12b 3.1), not with the journal again, and
+    // the program's group differs from the wrapper's own.
+    crate::cgroup_test_support::assert_ran_in_recorded_scope(&groups, &fs::read_to_string(root.path().join("payload-cgroup")).expect("the program's own cgroup"), &crate::cgroup_test_support::wrapper_group());
     let while_running: Option<String> = survivor_note(&journal);
     fs::write(root.path().join("release"), "go").expect("release the program");
     wait_until("the launcher to be gone", &|| { return launcher_state(pid, start, pid_namespace) == LauncherState::Gone; });
