@@ -3772,7 +3772,21 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     no proof of the containment kind attempted);
     no production defect;
     sent to the agent as evidence fixes;
-    bundles rebuilt after groups 1 and 3 report;
+    group 1 `cargo-shadow-cert-sol-1.txt`:
+    "not certified" (V1 shown;
+    A1,
+    V2 amended c and V6 partly:
+    direct-child reaping not observed,
+    zombie fixture not run through the timeout,
+    malformed and survivor tests accept another blocking cause,
+    view tests only classify,
+    no stalled scope-startup or shutdown deadline,
+    lock tests do not time the answer,
+    the pipe-holder `alive` oracle fails open,
+    one timeout test checks only text);
+    sent to the agent as well;
+    group 3 running (`cargo-shadow-cert-sol-3.txt`);
+    bundles rebuilt after group 3 reports and the fixes land;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
