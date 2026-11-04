@@ -125,23 +125,8 @@ pub(crate) fn current_machine_id() -> &'static str {
 
 /// A machine ID a control gives this thread in place of the host's, so that a control does not depend on the host having one.
 #[cfg(test)]
-pub(crate) mod test_machine {
-    use std::cell::Cell;
-
-    thread_local! {
-        static INJECTED: Cell<Option<&'static str>> = const { Cell::new(None) };
-    }
-
-    /// What this thread's machine ID is: the injected text (empty for a host with none), or nothing injected.
-    pub(crate) fn injected() -> Option<&'static str> {
-        return INJECTED.with(Cell::get);
-    }
-
-    /// Gives this thread the machine ID `id` (empty for a host with none) until the thread ends.
-    pub(crate) fn inject(id: &'static str) {
-        INJECTED.with(|cell| { cell.set(Some(id)); });
-    }
-}
+#[path = "claim_time_machine_id_test_support.rs"]
+pub(crate) mod test_machine;
 
 /// Methods over a reading.
 impl ClaimTime {
