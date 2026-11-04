@@ -710,3 +710,52 @@ fn r14_a_departures_acknowledgment_still_covers_after_a_later_append() {
     state_append(&lane.join("state"), 2, b"later").expect("append");
     assert!(acknowledgment.still_covers(&lane.join("state")));
 }
+
+thread_local! {
+    /// The lane of the interleaving control, for its fault-point callback.
+    static GROWING_LANE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The writer's step between the departure's forcing of the state's items and its capture of the state prefix: a ledger line appended and
+/// not forced, then the state record that retains the longer ledger prefix.
+fn grow_the_ledger_and_the_state(point: &str) {
+    use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind};
+    if point != "departure:after-items-forced" {
+        return;
+    }
+    let Some(lane) = GROWING_LANE.with(|cell| { return cell.borrow_mut().take(); }) else { return };
+    let ledger: PathBuf = lane.join("ledger");
+    let mut file = std::fs::OpenOptions::new().append(true).open(&ledger).expect("the ledger writer's append");
+    std::io::Write::write_all(&mut file, &ledger_line(&"2".repeat(32))).expect("an unforced ledger line");
+    let longer: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the longer prefix");
+    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").append_with(3, b"retains the longer prefix", std::slice::from_ref(&longer)).expect("append");
+    git_policy_cli::commit_identity::record_event("test:ledger-line-appended");
+}
+
+/// Review 9a section 2D: the departure forced the ledger prefix of state G and recorded the ledger's path. The writer then appended ledger
+/// line L1, not forced, and state G+1 retaining the longer prefix. The path was already "forced", so the departure acknowledged G+1 although
+/// only the shorter prefix was forced. A forced item is accounted by its identity, the path and the extent of the prefix, and the longer
+/// prefix is forced before the acknowledgment.
+#[test]
+fn r15_a_departure_forces_the_longer_ledger_prefix_of_a_state_that_grew_while_it_forced() {
+    use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind};
+    let root: PathBuf = scratch("r15-grown-prefix");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"first").expect("append");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, ledger_line(&"1".repeat(32))).expect("the first ledger line");
+    let shorter: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger prefix");
+    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").checkpoint(2, b"retains the ledger prefix", std::slice::from_ref(&shorter)).expect("checkpoint");
+    GROWING_LANE.with(|cell| { *cell.borrow_mut() = Some(lane.clone()); });
+    set_fault_point(Some(grow_the_ledger_and_the_state));
+    start_events();
+    let acknowledgment = Departure::new(Disposition::Saved, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).run().expect("depart");
+    set_fault_point(None);
+    let events: Vec<String> = take_events();
+    let appended_at: usize = events.iter().position(|event| { return event == "test:ledger-line-appended"; }).expect("the interleaving happened");
+    let wanted: String = format!("file-sync:{}", ledger.display());
+    assert!(events[appended_at..].contains(&wanted), "the longer ledger prefix of the acknowledged state was not forced: {:?}", events);
+    assert_eq!(acknowledgment.state.generation, 3, "the acknowledgment is of the grown state");
+}

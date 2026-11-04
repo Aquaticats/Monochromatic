@@ -657,6 +657,7 @@ impl<'a> Departure<'a> {
                     return None;
                 }
             }
+            fault_point("departure:after-items-forced");
             let prefix: Prefix = match sync_prefix(self.state_dir) {
                 Ok(prefix) => prefix,
                 Err(error) => {
