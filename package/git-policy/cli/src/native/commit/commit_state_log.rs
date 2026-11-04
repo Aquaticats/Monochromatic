@@ -992,11 +992,13 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
         .last()
         .map_or(Some(1), |number| { return number.checked_add(1); })
         .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the segment numbers are exhausted"); })?;
-    // The records this authority replaces: the eligible chain of the segment recovery selects now. An acknowledgment of any of them is
-    // covered by a successor that names its hash here (one hop; an acknowledgment older than the previous checkpoint is not covered).
+    // The records this authority replaces, recorded only when it is a compaction of the head (the head's document at the head's
+    // generation): an acknowledgment of any record of that chain is covered by the compaction that names its hash here (one hop; an
+    // acknowledgment older than the previous checkpoint is not covered, and a checkpoint that changes the document covers nothing).
     let lineage: Vec<String> = match &selected {
-        Some(chosen) => records(&fs::read(log_path(dir, chosen.number))?).into_iter().filter(|record| { return record.end <= chosen.length; }).map(|record| { return record.hash; }).collect(),
-        None => Vec::new(),
+        Some(chosen) if generation == chosen.generation && document == chosen.payload.as_slice() => records(&fs::read(log_path(dir, chosen.number))?).into_iter().filter(|record| { return record.end <= chosen.length; }).map(|record| { return record.hash; }).collect(),
+        // A checkpoint that changes the document is a new state and records no lineage: it covers no earlier acknowledgment.
+        _ => Vec::new(),
     };
     let (record, hash) = encode_record(generation, &genesis(), &encode_authority(document, closure, &existing, &lineage));
     let mut file: File = OpenOptions::new().create_new(true).write(true).open(log_path(dir, next))?;
