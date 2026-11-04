@@ -3655,6 +3655,28 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   combined gate `gpc-gate-index-lock-claims-on-main-20261104T132517-0500` running;
   on pass,
   merge to main and release 0.5.32.
+  Combined gate passed (4812/4812) and merged;
+  the agent's review fixes (`7280815a34`,
+  gate 4824/4824 on main) merged too.
+  Owner answer (question tool,
+  2026-11-04) on the open pick:
+  "Own format only (Recommended)"
+  (each release reclaims only locks of its own marker format;
+  an older-format stale lock is left and named with its `rm`).
+  Release 0.5.32 dispatched (run 41890150737).
+  cargo-shadow:
+  owner answered "Yes,
+  add the wiring (Recommended)" for the three release-wiring edits the permission check had refused the agent
+  (`releasable-crates.json`,
+  the crate list in `crate-release.yml`,
+  `release` and `release:wait` tasks),
+  and "Done." for the first-publish token (`cargo login` in the owner's own terminal,
+  per `doc/runbook/publish-crate-first-time.md`);
+  the branch (`39b67c8748`,
+  main merged,
+  610 passed) merges after 0.5.32 is built;
+  its one `doc/decision/rust-dependency-catalog.md` hunk (`c3602e69f1`,
+  the update now living in the cargo shadow) has no recorded owner approval and goes to the owner.
   cargo-shadow 0.1.0:
   the agent merges main into `feat/cargo-shadow-cli` (799 commits behind),
   wires it into `crate-release` as `7036dca934` did for mpm-shadow,
