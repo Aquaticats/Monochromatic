@@ -114,6 +114,12 @@ impl Walk<'_> {
 /// function unequalParts(odb, tree, format, cache, paths): { tree: FlatEntry[]; skipped: [number, number][] } | undefined;
 /// ```
 pub fn unequal_parts(database: &ObjectDatabase, tree: &[u8], format: ObjectFormat, cache: &CacheTree, paths: &[&[u8]]) -> Option<UnequalParts> {
+    // Git reads the tree it compares with and fails when it is gone, so the root is read before any shortcut: a cache-tree that
+    //  names it proves the directories below equal, not that the object is there.
+    let root = database.read(tree)?;
+    if root.kind != ObjectKind::Tree {
+        return None;
+    }
     let mut walk: Walk<'_> = Walk { database, format, paths, tree: Vec::new(), skipped: Vec::new() };
     walk.directory(tree, Some(cache), &mut Vec::new(), (0, paths.len()), 0)?;
     walk.skipped.sort_unstable();
