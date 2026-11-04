@@ -422,9 +422,16 @@ pub struct Seams<'a> {
 
 /// The most names tried when a kept file's name is taken,
 /// and the most temporary names tried.
-/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
-/// Collisions were not counted; the names carry the process id, a nanosecond clock and a counter, so one try is the normal case
+/// Delegated pick,
+/// open to veto:
+/// the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back.";
+/// doc/planning/cargo-shadow-update.md,
+/// "Delegated picks of 2026-11-03").
+/// Collisions were not counted;
+/// the names carry the process id,
+/// a nanosecond clock and a counter,
+/// so one try is the normal case
 /// and the cap only ends a search that something else is filling.
 /// The number is a ceiling that a directory this tool does not fill cannot reach.
 const MAX_NAME_ATTEMPTS: u32 = 10_000;
@@ -550,7 +557,7 @@ pub fn create_exclusive(directory: &Path, base: &str, text: &str, mode: u32, nex
     }
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return Err(io::Error::other(names_exhausted_message(directory, &base)));
+    return Err(io::Error::other(names_exhausted_message(directory, base)));
 }
 
 /// What:
@@ -949,7 +956,8 @@ pub fn replace_with_seams(path: &Path, expected: &str, new_text: &str, keep: &Ke
 /// What:
 /// `pub(crate) fn names_exhausted_message(directory: &Path, base: &str) -> String` is the error for a directory whose temporary names are used up.
 /// Why:
-/// The files may be the only names of another writer's data, so the text says what keeps the data and what loses it.
+/// The files may be the only names of another writer's data,
+/// so the text says what keeps the data and what loses it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

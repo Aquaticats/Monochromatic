@@ -1,11 +1,19 @@
 //! What:
-//! Containment of everything a bounded run starts, found by the process tree instead of the process group.
+//! Containment of everything a bounded run starts,
+//! found by the process tree instead of the process group.
 //! Why:
-//! Round 6 (fifth review 5a F1, 5c N2): a descendant that calls `setsid` or `setpgid` leaves the group and may close its pipes,
+//! Round 6 (fifth review 5a F1,
+//! 5c N2):
+//! a descendant that calls `setsid` or `setpgid` leaves the group and may close its pipes,
 //! so neither the group nor the pipes show it.
-//! While the caller is a child subreaper, every orphan of the run is adopted by the caller, and every descendant that is
-//! still alive has the caller as an ancestor, so a scan of `/proc` finds all of them.
-//! The limit: after the caller itself died nothing adopts them, so a recovery can only look at the recorded process group.
+//! While the caller is a child subreaper,
+//! every orphan of the run is adopted by the caller,
+//! and every descendant that is
+//! still alive has the caller as an ancestor,
+//! so a scan of `/proc` finds all of them.
+//! The limit:
+//! after the caller itself died nothing adopts them,
+//! so a recovery can only look at the recorded process group.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,11 +43,15 @@ use std::time::{Duration, Instant};
 use rustix::process::{Pid, Signal, WaitOptions, getpid, kill_process, set_child_subreaper, waitpid};
 
 /// How often the process tree is scanned while it is being stopped.
-/// Delegated pick of round 6, open to veto: the interval of the group polling it replaces (10 ms), which round 5 measured
+/// Delegated pick of round 6,
+/// open to veto:
+/// the interval of the group polling it replaces (10 ms),
+/// which round 5 measured
 /// against the time a killed process takes to disappear (milliseconds).
 const SCAN_INTERVAL: Duration = Duration::from_millis(10);
 
-/// Whoever is stopping descendants is the only one in this process: adoption cannot tell the orphans of two runs apart.
+/// Whoever is stopping descendants is the only one in this process:
+/// adoption cannot tell the orphans of two runs apart.
 static ONE_RUN: Mutex<()> = Mutex::new(());
 
 /// One process as `/proc` shows it.
@@ -59,14 +71,16 @@ pub(crate) struct Containment {
     _one_run: MutexGuard<'static, ()>,
     /// This process.
     me: i32,
-    /// The children this process already had, which are not part of the run.
+    /// The children this process already had,
+    /// which are not part of the run.
     preexisting: HashSet<i32>,
 }
 
 /// What:
 /// `fn parse_stat(text: &str) -> Option<(i32, bool)>` reads the parent and the zombie state from `/proc/<pid>/stat`.
 /// Why:
-/// The command name may hold spaces and parentheses, so the fields are counted from the last closing parenthesis.
+/// The command name may hold spaces and parentheses,
+/// so the fields are counted from the last closing parenthesis.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +97,9 @@ fn parse_stat(text: &str) -> Option<(i32, bool)> {
 /// What:
 /// `fn processes() -> io::Result<Vec<Process>>` lists every process in `/proc`.
 /// Why:
-/// A process that exits during the scan is skipped; any other failure is an error, never "no processes".
+/// A process that exits during the scan is skipped;
+/// any other failure is an error,
+/// never "no processes".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,7 +148,8 @@ impl Containment {
     /// What:
     /// `fn tree(&self) -> io::Result<Vec<Process>>` is every process that descends from a child this run started or adopted.
     /// Why:
-    /// Roots are the children of this process that it did not have before the run; the rest follows by parent links.
+    /// Roots are the children of this process that it did not have before the run;
+    /// the rest follows by parent links.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -156,10 +173,13 @@ impl Containment {
 
     /// What:
     /// `pub(crate) fn stop_all(&self, direct: Option<i32>, bound: Duration) -> io::Result<bool>` kills every live process of the run,
-    /// reaps the adopted ones, and returns `true` once a scan finds no live process left.
+    /// reaps the adopted ones,
+    /// and returns `true` once a scan finds no live process left.
     /// Why:
-    /// The direct child is reaped by its `Child` handle, so it is killed here but never waited for here.
-    /// Killed processes cannot start others, so repeating until a scan is clean ends the race with forks.
+    /// The direct child is reaped by its `Child` handle,
+    /// so it is killed here but never waited for here.
+    /// Killed processes cannot start others,
+    /// so repeating until a scan is clean ends the race with forks.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -199,7 +219,8 @@ impl Drop for Containment {
     /// What:
     /// `fn drop(&mut self)` stops this process from adopting orphans.
     /// Why:
-    /// The attribute survives `exec`, and the shim may replace itself with the real command after the run.
+    /// The attribute survives `exec`,
+    /// and the shim may replace itself with the real command after the run.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

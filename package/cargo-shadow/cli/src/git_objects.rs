@@ -72,7 +72,6 @@ const FANOUT_ENTRIES: usize = 256;
 /// The pack entry type of a commit that is stored whole.
 const PACK_TYPE_COMMIT: u8 = 1;
 
-
 /// What:
 /// `fn index_failure(error: std::io::Error) -> String` words a failed read of a pack index.
 /// Why:
@@ -327,15 +326,12 @@ const MAX_COMMIT_BYTES: u64 = 16 * 1024 * 1024;
 /// object count).
 const PACK_HEADER_BYTES: usize = 12;
 
-fn is_regular_file(path: &Path) -> bool {
-    return fs::symlink_metadata(path).map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
-}
-
 /// What:
 /// `pub(crate) fn open_regular(path: &Path) -> Result<File, String>` opens a file that the object reader may read,
 /// or says why only Git reads it.
 /// Why:
-/// Round 6 (5a F7): the check and the open must be one operation on the path.
+/// Round 6 (5a F7):
+/// the check and the open must be one operation on the path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -344,9 +340,8 @@ fn is_regular_file(path: &Path) -> bool {
 pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
     // Opened without waiting and without following a final link: a path swapped for a FIFO after any earlier check cannot block
     // the open, and the descriptor that was opened is the one inspected (round 6, 5a F7).
-    use std::os::unix::fs::OpenOptionsExt;
     let flags: i32 = (rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::NOFOLLOW).bits().try_into().unwrap_or(0);
-    let file: File = std::fs::OpenOptions::new().read(true).custom_flags(flags).open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
+    let file: File = std::os::unix::fs::OpenOptionsExt::custom_flags(std::fs::OpenOptions::new().read(true), flags).open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
     let is_file: bool = file.metadata().map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
     if !is_file {
         return Err(format!("{} is not a regular file, so only Git reads it", path.display()));
@@ -354,6 +349,15 @@ pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
     return Ok(file);
 }
 
+/// What:
+/// `fn looks_like_commit(body: &[u8]) -> bool` says whether a commit body passes the checks of Git's `parse_commit_buffer`.
+/// Why:
+/// The tree line and every parent line must be well formed and followed by more bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function looksLikeCommit(body: Uint8Array): boolean
+/// ```
 fn looks_like_commit(body: &[u8]) -> bool {
     // Git's `parse_commit_buffer` (commit.c): the tree line must be followed by at least one more byte, and so must every
     // parent line (`tail <= bufptr + entry_len + 1` is an error). Mirrored exactly, never loosened (round 6, 5a F3 A).

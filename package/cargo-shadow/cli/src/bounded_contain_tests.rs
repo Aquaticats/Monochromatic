@@ -1,8 +1,14 @@
 //! What:
-//! Round 6 tests of what a bounded run contains: descendants that leave the process group, the group record made before the child
-//! can run, and the scope of that record.
+//! Round 6 tests of what a bounded run contains:
+//! descendants that leave the process group,
+//! the group record made before the child
+//! can run,
+//! and the scope of that record.
 //! Why:
-//! Fifth review 5a F1, F2, 5b2 6 and 5c N2: a process group is not an operation boundary.
+//! Fifth review 5a F1,
+//! F2,
+//! 5b2 6 and 5c N2:
+//! a process group is not an operation boundary.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,8 +31,11 @@ fn bound(limit: Duration) -> Bound {
     return Bound { limit, what: "the contained command".to_string(), rerun: "contained-command".to_string() };
 }
 
-/// The script of a parent that starts a writer in a session of its own (it also closes every standard stream, so no pipe
-/// reaches it), waits until the writer says it escaped, and then does `after`.
+/// The script of a parent that starts a writer in a session of its own (it also closes every standard stream,
+/// so no pipe
+/// reaches it),
+/// waits until the writer says it escaped,
+/// and then does `after`.
 /// The writer writes the target file after `delay` seconds.
 fn script_with_escaped_writer(directory: &Path, delay: u32, after: &str) -> String {
     let ready = directory.join("ready");
@@ -44,7 +53,9 @@ fn wait_for_a_late_write(delay: u32) {
     std::thread::sleep(Duration::from_millis(u64::from(delay) * 1000 + 700));
 }
 
-/// Round 6 (5a F1, 5c N2): a descendant that left the process group and closed the pipes is stopped before a normal exit returns.
+/// Round 6 (5a F1,
+/// 5c N2):
+/// a descendant that left the process group and closed the pipes is stopped before a normal exit returns.
 #[test]
 fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
     let directory = scratch();
@@ -57,7 +68,9 @@ fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
     assert!(!directory.path().join("target").exists(), "a descendant wrote after the run had returned");
 }
 
-/// Round 6 (5a F1, 5c N2): the same at the bound.
+/// Round 6 (5a F1,
+/// 5c N2):
+/// the same at the bound.
 #[test]
 fn a_writer_in_another_session_is_stopped_at_the_bound() {
     let directory = scratch();
@@ -70,7 +83,9 @@ fn a_writer_in_another_session_is_stopped_at_the_bound() {
     assert!(!directory.path().join("target").exists(), "a descendant wrote after the run had returned");
 }
 
-/// Round 6 (5a P1, 5b2 2): a child whose group cannot be recorded is not started,
+/// Round 6 (5a P1,
+/// 5b2 2):
+/// a child whose group cannot be recorded is not started,
 /// because a killed wrapper could then leave a writer that no recovery knows about.
 #[test]
 fn a_child_whose_group_cannot_be_recorded_is_not_started() {
@@ -92,7 +107,8 @@ fn a_child_whose_group_cannot_be_recorded_is_not_started() {
     drop(transaction);
 }
 
-/// Round 6 (5b2 6): dropping an inner transaction does not stop the recording of the outer one,
+/// Round 6 (5b2 6):
+/// dropping an inner transaction does not stop the recording of the outer one,
 /// and dropping the outer one first does not stop the inner one's.
 #[test]
 fn nested_transactions_keep_their_own_records() {
@@ -114,7 +130,8 @@ fn nested_transactions_keep_their_own_records() {
     drop(outer);
 }
 
-/// Round 6 (5a F2): a run that returns an error does not leave a worker reading the pipe.
+/// Round 6 (5a F2):
+/// a run that returns an error does not leave a worker reading the pipe.
 #[test]
 fn a_timeout_returns_promptly_even_when_the_child_ignores_its_input() {
     let input: Vec<u8> = vec![b'x'; 4_000_000];

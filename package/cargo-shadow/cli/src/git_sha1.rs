@@ -1,9 +1,14 @@
 //! What:
-//! SHA-1, only to check that a stored Git object has the name it is stored under.
+//! SHA-1,
+//! only to check that a stored Git object has the name it is stored under.
 //! Why:
-//! Round 6 (fifth review 5a F3): an object file whose contents hash to another name is not the object Git would read
-//! (Git checks the signature before it peels), so the reader must check it too or decline.
-//! This is an integrity check of data the repository owner wrote, not a defence against a collision attack: a mismatch only
+//! Round 6 (fifth review 5a F3):
+//! an object file whose contents hash to another name is not the object Git would read
+//! (Git checks the signature before it peels),
+//! so the reader must check it too or decline.
+//! This is an integrity check of data the repository owner wrote,
+//! not a defence against a collision attack:
+//! a mismatch only
 //! makes the reader decline and leave the answer to Git.
 //!
 //! In TS you'd write (pseudocode):
@@ -21,7 +26,8 @@ pub(crate) const DIGEST_BYTES: usize = 20;
 /// What:
 /// `fn compress(state: &mut [u32; 5], block: &[u8])` mixes one 64-byte block into the state.
 /// Why:
-/// It is the round function of SHA-1 (FIPS 180-4, section 6.1.2).
+/// It is the round function of SHA-1 (FIPS 180-4,
+/// section 6.1.2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,8 +35,8 @@ pub(crate) const DIGEST_BYTES: usize = 20;
 /// ```
 fn compress(state: &mut [u32; 5], block: &[u8]) {
     let mut words: [u32; 80] = [0; 80];
-    for (index, chunk) in block.chunks_exact(4).enumerate() {
-        words[index] = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+    for (index, chunk) in block.as_chunks::<4>().0.iter().enumerate() {
+        words[index] = u32::from_be_bytes(*chunk);
     }
     for index in 16..80 {
         words[index] = (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16]).rotate_left(1);
@@ -60,7 +66,8 @@ fn compress(state: &mut [u32; 5], block: &[u8]) {
 /// What:
 /// `pub(crate) fn sha1(parts: &[&[u8]]) -> [u8; DIGEST_BYTES]` is the SHA-1 digest of the parts joined in order.
 /// Why:
-/// An object's name is the digest of its header and its body, which are held apart.
+/// An object's name is the digest of its header and its body,
+/// which are held apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +81,7 @@ pub(crate) fn sha1(parts: &[&[u8]]) -> [u8; DIGEST_BYTES] {
         length += part.len() as u64;
         pending.extend_from_slice(part);
         let whole: usize = pending.len() / BLOCK_BYTES * BLOCK_BYTES;
-        for block in pending[..whole].chunks_exact(BLOCK_BYTES) {
+        for block in pending[..whole].as_chunks::<BLOCK_BYTES>().0 {
             compress(&mut state, block);
         }
         pending.drain(..whole);
@@ -84,11 +91,11 @@ pub(crate) fn sha1(parts: &[&[u8]]) -> [u8; DIGEST_BYTES] {
         pending.push(0);
     }
     pending.extend_from_slice(&(length * 8).to_be_bytes());
-    for block in pending.chunks_exact(BLOCK_BYTES) {
+    for block in pending.as_chunks::<BLOCK_BYTES>().0 {
         compress(&mut state, block);
     }
     let mut digest: [u8; DIGEST_BYTES] = [0; DIGEST_BYTES];
-    for (slot, word) in digest.chunks_exact_mut(4).zip(state) {
+    for (slot, word) in digest.as_chunks_mut::<4>().0.iter_mut().zip(state) {
         slot.copy_from_slice(&word.to_be_bytes());
     }
     return digest;

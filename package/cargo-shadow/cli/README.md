@@ -647,9 +647,11 @@ and an HTTP 429 is retried after its `Retry-After`.
   (a child whose group cannot be recorded is not started),
   and a recovery or a new transaction stops while any journal of the workspace names a group that still has a member,
   or holds a group record that cannot be read or understood (it names the journal and the record to remove once you are sure).
-  Only the groups are recorded: a descendant that left its group and outlived a killed wrapper is not found by a recovery.
+  Only the groups are recorded:
+  a descendant that left its group and outlived a killed wrapper is not found by a recovery.
   The Linux feature that would find it (a control group per run) needs delegation that an ordinary login session does not have,
-  so it is not used; this limit is a pick open to the owner's veto.
+  so it is not used;
+  this limit is a pick open to the owner's veto.
   Every run keeps a journal under `.cache/cargo-shadow/journal/<unique name>/`,
   created exclusively (a journal is never reused or truncated),
   with the snapshots synced and a `ready` record written last that lists every file with its length;
@@ -679,32 +681,46 @@ and an HTTP 429 is retried after its `Retry-After`.
   Data is synced before it is relied on:
   the displaced file (a failed data barrier is an error,
   never a settled outcome),
-  every directory from the kept directory up to the nearest directory that also holds the replaced file, every time a file is linked into it
-  (that directory is the durable anchor: the replaced file could not be there if it were not durable).
+  every directory from the kept directory up to the nearest directory that also holds the replaced file,
+  every time a file is linked into it
+  (that directory is the durable anchor:
+  the replaced file could not be there if it were not durable).
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
   The kept directory is never capped and never emptied by the tool.
-  Owner answer of round 6, "Warn past a count, never refuse":
-  past 1,000 files every run prints how many files are kept there, their total size and the folder to review,
+  Owner answer of round 6,
+  "Warn past a count,
+  never refuse":
+  past 1,000 files every run prints how many files are kept there,
+  their total size and the folder to review,
   and cargo keeps working.
-  The 1,000 is the warning point, kept from round 5 and open to veto;
+  The 1,000 is the warning point,
+  kept from round 5 and open to veto;
   the rate at which files are kept has not been measured.
-  Before removing a kept file, make sure no program still has it open,
-  because a program that holds it keeps writing to the inode, and a copy made earlier misses those writes.
+  Before removing a kept file,
+  make sure no program still has it open,
+  because a program that holds it keeps writing to the inode,
+  and a copy made earlier misses those writes.
 - Nothing waits forever
   (owner rule of 2026-11-03:
   "nothing should ever wait forever or indefinitely").
   Locks are tried,
   never waited for.
-  Every child process runs in its own process group under a bound, and while it runs this process is a child subreaper
-  (Linux `PR_SET_CHILD_SUBREAPER`), so a descendant that left the group with `setsid` or `setpgid` and closed its pipes
+  Every child process runs in its own process group under a bound,
+  and while it runs this process is a child subreaper
+  (Linux `PR_SET_CHILD_SUBREAPER`),
+  so a descendant that left the group with `setsid` or `setpgid` and closed its pipes
   is still a descendant and is found by a scan of `/proc`.
   At the bound the group and every descendant are killed and shown to be gone,
   and the error names the call and the command the user ran (quoted so it can be copied);
   after a normal exit any descendant left is killed too.
-  A descendant that cannot be killed (an uninterruptible wait) is "not quiescent": install and update then stop with the lockfiles
-  neither rolled back nor accepted and the journal kept, and the command is not run.
-  Output is returned only when it is complete, and the pipe workers are cancelled when the call ends.
-  Only one bounded run is in flight in a process, because adopted orphans cannot be told apart between two runs.
+  A descendant that cannot be killed (an uninterruptible wait) is "not quiescent":
+  install and update then stop with the lockfiles
+  neither rolled back nor accepted and the journal kept,
+  and the command is not run.
+  Output is returned only when it is complete,
+  and the pipe workers are cancelled when the call ends.
+  Only one bounded run is in flight in a process,
+  because adopted orphans cannot be told apart between two runs.
   The bounds,
   with what was measured in this repository on 2026-11-04 (load average 6.2 to 6.9 on 32 CPUs,
   3 runs each):

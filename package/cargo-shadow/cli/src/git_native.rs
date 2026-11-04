@@ -199,8 +199,11 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
 /// `pub fn native_base_counting(root, in_ci, environment, starts) -> Result<NativeBase, String>` is `native_base` with the count of
 /// Git starts kept by the caller.
 /// Why:
-/// A declined attempt may already have started Git (to ask for its system configuration); the caller adds its own starts to the
-/// same count, so a declined choice reports every start it cost (round 6, 5a F6).
+/// A declined attempt may already have started Git (to ask for its system configuration);
+/// the caller adds its own starts to the
+/// same count,
+/// so a declined choice reports every start it cost (round 6,
+/// 5a F6).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

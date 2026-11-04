@@ -74,16 +74,23 @@ pub mod journal_manifests;
 /// a journal held by a lock for the life of a run.
 pub mod journal_transaction;
 
-/// The error of finishing a transaction, told by whether the outputs were already on disk.
+/// The error of finishing a transaction,
+/// told by whether the outputs were already on disk.
 pub mod journal_finish;
+
+/// The recovery of journals that never became ready,
+/// and the survivor check.
+pub mod journal_unready;
 
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
-/// SHA-1, only to check that a stored Git object has the name it is stored under.
+/// SHA-1,
+/// only to check that a stored Git object has the name it is stored under.
 pub mod git_sha1;
 
-/// Containment of everything a bounded run starts, by the process tree.
+/// Containment of everything a bounded run starts,
+/// by the process tree.
 pub mod bounded_contain;
 
 /// Pipe reading and writing that a caller can cancel.

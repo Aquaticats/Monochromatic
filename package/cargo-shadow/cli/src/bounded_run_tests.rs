@@ -293,7 +293,8 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
 /// the output cannot be complete,
 /// and the call
 /// says so instead of returning a prefix.
-/// Round 6 (5a F1): a descendant that left the process group while holding the pipes is stopped,
+/// Round 6 (5a F1):
+/// a descendant that left the process group while holding the pipes is stopped,
 /// so the output is complete and nothing of the run is left running.
 #[test]
 fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete() {

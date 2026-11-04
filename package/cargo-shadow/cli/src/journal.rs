@@ -169,10 +169,15 @@ pub(crate) const OWNER_FILE: &str = "owner";
 /// one group id per line.
 pub(crate) const GROUPS_FILE: &str = "groups";
 
-/// The number of kept files past which every run warns (count, total size, folder).
-/// Owner answer of round 6, "Warn past a count, never refuse (Recommended)":
+/// The number of kept files past which every run warns (count,
+/// total size,
+/// folder).
+/// Owner answer of round 6,
+/// "Warn past a count,
+/// never refuse (Recommended)":
 /// nothing is refused or deleted past it.
-/// The value is the warning point carried over from round 5, open to veto;
+/// The value is the warning point carried over from round 5,
+/// open to veto;
 /// the rate at which files are kept has not been measured.
 pub const KEPT_FILES_WARNING_COUNT: usize = 1_000;
 
@@ -328,6 +333,18 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
     return restore_if_unchanged_with(root, snapshots, produced, &no_hook);
 }
 
+/// What:
+/// `pub fn restore_if_unchanged_with(root, snapshots, produced, between) -> (Vec<String>, Option<io::Error>)` is
+/// `restore_if_unchanged` with a hook that runs between the exchange and the link.
+/// Why:
+/// The warnings of every root come back beside the first failure,
+/// and a failed root does not stop the others (round 6,
+/// 5b 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function restoreIfUnchangedWith(root: string, snapshots: LockSnapshot[], produced: LockSnapshot[], between: Hook): [string[], Error | undefined]
+/// ```
 pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> (Vec<String>, Option<io::Error>) {
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::Restore) {

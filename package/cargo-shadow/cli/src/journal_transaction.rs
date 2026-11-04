@@ -86,9 +86,16 @@ use crate::manifest_edit::ManifestEdit;
 use crate::journal_finish::FinishError;
 
 /// The most journal names tried when one exists already.
-/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
-/// The names carry a clock, a process id and a counter, so a second try is the exception; the collision count was not measured.
+/// Delegated pick,
+/// open to veto:
+/// the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back.";
+/// doc/planning/cargo-shadow-update.md,
+/// "Delegated picks of 2026-11-03").
+/// The names carry a clock,
+/// a process id and a counter,
+/// so a second try is the exception;
+/// the collision count was not measured.
 const MAX_JOURNAL_NAME_ATTEMPTS: u32 = 100;
 
 /// The counter that keeps two journals of one process apart.
@@ -265,9 +272,11 @@ pub struct Transaction {
     manifests: std::cell::RefCell<Vec<PathBuf>>,
     /// Whether the manifests were journaled already.
     manifests_added: std::cell::Cell<bool>,
-    /// The notice that the kept folder is large, when it is.
+    /// The notice that the kept folder is large,
+    /// when it is.
     kept_notice: Option<String>,
-    /// Where the process groups of this transaction's children are recorded, and whether any of them left writers behind;
+    /// Where the process groups of this transaction's children are recorded,
+    /// and whether any of them left writers behind;
     /// it also keeps the transaction on the thread that began it.
     scope: RunScope,
 }
@@ -529,7 +538,8 @@ impl Transaction {
     /// `pub fn writers_may_remain(&self) -> bool` says whether a run of this transaction could not show that everything it started
     /// was stopped.
     /// Why:
-    /// Then the lockfiles can be neither rolled back nor finished safely, and the command must stop with the journal kept.
+    /// Then the lockfiles can be neither rolled back nor finished safely,
+    /// and the command must stop with the journal kept.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -678,12 +688,19 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
 /// What:
 /// `fn kept_folder_notice(root: &Path) -> Option<String>` is the warning for a kept folder that holds more than
 /// `KEPT_FILES_WARNING_COUNT` files:
-/// how many, how many bytes, and where to look.
+/// how many,
+/// how many bytes,
+/// and where to look.
 /// Why:
-/// Owner answer, round 6, "Warn past a count, never refuse":
-/// kept files may be someone's work, so the tool neither deletes them nor stops working;
+/// Owner answer,
+/// round 6,
+/// "Warn past a count,
+/// never refuse":
+/// kept files may be someone's work,
+/// so the tool neither deletes them nor stops working;
 /// it tells the person on every run past the count.
-/// A folder that cannot be read is also reported, never taken as small.
+/// A folder that cannot be read is also reported,
+/// never taken as small.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

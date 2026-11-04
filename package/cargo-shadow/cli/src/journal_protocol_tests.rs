@@ -656,7 +656,9 @@ fn a_journal_whose_recorded_process_group_is_still_alive_is_left_alone() {
 
 /// Review finding (4b2 3):
 /// the outputs are made durable before the completion marker exists.
-/// Round 6 (5b2 2): a group record that cannot be read or understood is uncertainty, never "no children".
+/// Round 6 (5b2 2):
+/// a group record that cannot be read or understood is uncertainty,
+/// never "no children".
 #[test]
 fn a_group_record_that_cannot_be_read_defers_the_recovery() {
     let root = repository("unchecked output of the killed run");
@@ -670,7 +672,8 @@ fn a_group_record_that_cannot_be_read_defers_the_recovery() {
     assert!(messages.iter().any(|message| { return message.contains("groups"); }), "{messages:?}");
 }
 
-/// Round 6 (5b2 2): a malformed group record is uncertainty too.
+/// Round 6 (5b2 2):
+/// a malformed group record is uncertainty too.
 #[test]
 fn a_malformed_group_record_defers_the_recovery() {
     let root = repository("unchecked output of the killed run");
@@ -682,7 +685,8 @@ fn a_malformed_group_record_defers_the_recovery() {
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
 }
 
-/// Round 6 (5b2 1): a surviving child of one killed run stops the recovery of every other journal of the workspace,
+/// Round 6 (5b2 1):
+/// a surviving child of one killed run stops the recovery of every other journal of the workspace,
 /// because that child still writes the same files.
 #[test]
 fn a_survivor_of_one_journal_stops_the_recovery_of_another() {
@@ -700,7 +704,8 @@ fn a_survivor_of_one_journal_stops_the_recovery_of_another() {
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
 }
 
-/// Round 6 (5b2 1): a new transaction does not start while a child of a killed run may still be writing.
+/// Round 6 (5b2 1):
+/// a new transaction does not start while a child of a killed run may still be writing.
 #[test]
 fn a_new_transaction_does_not_start_beside_a_survivor() {
     use std::os::unix::process::CommandExt;
@@ -888,7 +893,8 @@ fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() 
 /// Review finding (4b 1):
 /// the kept directory and its parent are synced every time a file is linked into it,
 /// also when it existed.
-/// Round 6 (5b 1): the entries of the kept directory are made durable up to the directory that also holds the replaced file,
+/// Round 6 (5b 1):
+/// the entries of the kept directory are made durable up to the directory that also holds the replaced file,
 /// not up to an arbitrary number of ancestors.
 #[test]
 fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_directory_that_holds_the_target() {
@@ -997,7 +1003,8 @@ fn restoring_manifests_returns_the_warnings_of_those_restored_before_a_failure()
     assert!(warnings.iter().any(|warning| { return warning.contains("is kept as"); }), "{warnings:?}");
 }
 
-/// Round 6 (owner answer "Warn past a count, never refuse"):
+/// Round 6 (owner answer "Warn past a count,
+/// never refuse"):
 /// a kept folder past the count does not stop a new transaction;
 /// the transaction carries a notice with the count,
 /// the total size and the folder,
@@ -1021,7 +1028,8 @@ fn a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_re
     assert_eq!(fs::read_dir(&kept).expect("list").count(), count, "a kept file was deleted");
 }
 
-/// Round 6: a kept folder at or under the count adds no notice.
+/// Round 6:
+/// a kept folder at or under the count adds no notice.
 #[test]
 fn a_kept_directory_at_the_count_adds_no_notice() {
     let root = repository("lock");

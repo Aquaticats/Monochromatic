@@ -1,8 +1,11 @@
 //! What:
 //! Round 6 tests of the recovery of journals that never became ready and of the ready record's payload set.
 //! Why:
-//! Fifth review 5b2 findings 3, 4 and 5: unready cleanup must not delete a nonredundant payload or make a durable copy
-//! disappear before its live equivalent is durable, and the ready record must name exactly the payload the indexes imply.
+//! Fifth review 5b2 findings 3,
+//! 4 and 5:
+//! unready cleanup must not delete a nonredundant payload or make a durable copy
+//! disappear before its live equivalent is durable,
+//! and the ready record must name exactly the payload the indexes imply.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -46,7 +49,9 @@ fn run_recovery(root: &Path) -> Vec<String> {
     return recover(root, &|_before, _live| { return vec!["refused".to_string()]; });
 }
 
-/// A journal that crashed while its manifests were being journaled: snapshots written, no ready record.
+/// A journal that crashed while its manifests were being journaled:
+/// snapshots written,
+/// no ready record.
 fn unready_journal_with_manifest(root: &Path, lock: &str, manifest_before: &str) -> PathBuf {
     let transaction = begin(root, &[snapshot(lock)], true).expect("begin");
     drop(transaction);
@@ -56,7 +61,8 @@ fn unready_journal_with_manifest(root: &Path, lock: &str, manifest_before: &str)
     return journal;
 }
 
-/// Round 6 (5b2 3): equal lockfiles do not make a manifest snapshot redundant.
+/// Round 6 (5b2 3):
+/// equal lockfiles do not make a manifest snapshot redundant.
 #[test]
 fn an_unready_journal_whose_manifest_differs_from_its_snapshot_is_kept() {
     let root = repository("same lock", "manifest after");
@@ -67,7 +73,8 @@ fn an_unready_journal_whose_manifest_differs_from_its_snapshot_is_kept() {
     assert!(journal.join("m0.toml").exists(), "the only copy of the manifest was deleted: {messages:?}");
 }
 
-/// Round 6 (5b2 3): a journal that lost its index but still holds payload is not empty.
+/// Round 6 (5b2 3):
+/// a journal that lost its index but still holds payload is not empty.
 #[test]
 fn an_unready_journal_that_lost_its_index_but_holds_snapshots_is_kept() {
     let root = repository("same lock", "manifest");
@@ -79,7 +86,8 @@ fn an_unready_journal_that_lost_its_index_but_holds_snapshots_is_kept() {
     assert!(journal.join("0.lock").exists(), "a snapshot was deleted without an index to judge it: {messages:?}");
 }
 
-/// Round 6 (5b2 4): a redundant journal is deleted only after the live files that make it redundant are durable.
+/// Round 6 (5b2 4):
+/// a redundant journal is deleted only after the live files that make it redundant are durable.
 #[test]
 fn an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable() {
     let root = repository("same lock", "manifest");
@@ -91,7 +99,8 @@ fn an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable() {
     assert!(journal.exists(), "the durable copy was deleted before the live files were durable: {messages:?}");
 }
 
-/// A planted ready journal with one manifest, and the text of its ready record.
+/// A planted ready journal with one manifest,
+/// and the text of its ready record.
 fn ready_journal(root: &Path) -> (PathBuf, String) {
     let journal = plant(root, &[snapshot("lock")], &[edit(root, "manifest before")]);
     let ready = fs::read_to_string(journal.join("ready")).expect("ready record");
@@ -114,7 +123,8 @@ fn file_lines(ready: &str) -> Vec<String> {
     return ready.lines().filter(|line| { return line.contains('\t'); }).map(str::to_string).collect();
 }
 
-/// Round 6 (5b2 5): a ready record that leaves out a manifest snapshot is rejected,
+/// Round 6 (5b2 5):
+/// a ready record that leaves out a manifest snapshot is rejected,
 /// so a truncated snapshot cannot pass unchecked.
 #[test]
 fn a_ready_record_that_omits_a_manifest_snapshot_is_rejected() {
@@ -126,7 +136,8 @@ fn a_ready_record_that_omits_a_manifest_snapshot_is_rejected() {
     assert!(read_ready(&journal).is_err(), "an omitted manifest snapshot passed");
 }
 
-/// Round 6 (5b2 5): a duplicate entry is rejected.
+/// Round 6 (5b2 5):
+/// a duplicate entry is rejected.
 #[test]
 fn a_ready_record_with_a_duplicate_entry_is_rejected() {
     let root = repository("lock", "manifest");
@@ -138,7 +149,8 @@ fn a_ready_record_with_a_duplicate_entry_is_rejected() {
     assert!(read_ready(&journal).is_err(), "a duplicate entry passed");
 }
 
-/// Round 6 (5b2 5): an entry that is no part of the payload is rejected.
+/// Round 6 (5b2 5):
+/// an entry that is no part of the payload is rejected.
 #[test]
 fn a_ready_record_with_an_unexpected_entry_is_rejected() {
     let root = repository("lock", "manifest");
@@ -151,7 +163,8 @@ fn a_ready_record_with_an_unexpected_entry_is_rejected() {
     assert!(read_ready(&journal).is_err(), "an unexpected entry passed");
 }
 
-/// Round 6 (5b 4): the advice about exhausted temporary names never offers a copy-and-delete as safe,
+/// Round 6 (5b 4):
+/// the advice about exhausted temporary names never offers a copy-and-delete as safe,
 /// because a program that still has the file open keeps writing to the original.
 #[test]
 fn the_exhausted_names_advice_does_not_recommend_archiving_and_names_the_open_file_risk() {

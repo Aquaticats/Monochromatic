@@ -3,15 +3,24 @@
 //! with everything the child started contained.
 //! Why:
 //! The owner's rule of 2026-11-03 is "nothing should ever wait forever or indefinitely".
-//! At the bound, and after a normal exit, every process the child started is stopped, wherever it went:
-//! while the run is open this process is a child subreaper, so descendants that left the process group (`setsid`, `setpgid`) or
+//! At the bound,
+//! and after a normal exit,
+//! every process the child started is stopped,
+//! wherever it went:
+//! while the run is open this process is a child subreaper,
+//! so descendants that left the process group (`setsid`,
+//! `setpgid`) or
 //! closed their pipes are still found as descendants and killed.
-//! A call that returns `Ok` found no live descendant (round 6, fifth review 5a F1 and 5c N2).
+//! A call that returns `Ok` found no live descendant (round 6,
+//! fifth review 5a F1 and 5c N2).
 //! The recorded process group of the child is on disk before the child runs its first instruction.
 //! Output is returned only when it is complete:
 //! a prefix is an error (review finding 4c F4).
-//! The limits: a process that is held in an uninterruptible wait cannot be killed, and that is `NotQuiescent`;
-//! after this process itself died nothing adopts the orphans, so a recovery only knows the recorded process group.
+//! The limits:
+//! a process that is held in an uninterruptible wait cannot be killed,
+//! and that is `NotQuiescent`;
+//! after this process itself died nothing adopts the orphans,
+//! so a recovery only knows the recorded process group.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -77,23 +86,35 @@ use crate::bounded_contain::Containment;
 use crate::bounded_io::{collect, feed};
 
 /// How often the child is asked whether it has ended.
-/// Delegated pick of round 6, open to veto: 10 ms keeps the latency of a finished command far under any human-visible delay
+/// Delegated pick of round 6,
+/// open to veto:
+/// 10 ms keeps the latency of a finished command far under any human-visible delay
 /// while costing one `wait` system call per interval.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 /// How long the direct child is given to be reaped after it was killed.
-/// Delegated pick of round 6, open to veto: a killed process is reaped within milliseconds unless it is in an uninterruptible
-/// wait, which no bound can fix; 5 s is long against that and short against a person's patience.
+/// Delegated pick of round 6,
+/// open to veto:
+/// a killed process is reaped within milliseconds unless it is in an uninterruptible
+/// wait,
+/// which no bound can fix;
+/// 5 s is long against that and short against a person's patience.
 /// The time from kill to reap was not measured on slow machines.
 const REAP_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the descendants are given to disappear after they were killed.
-/// Delegated pick of round 6, open to veto, for the same reason as `REAP_BOUND`.
+/// Delegated pick of round 6,
+/// open to veto,
+/// for the same reason as `REAP_BOUND`.
 const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the output workers are given to report once every writer is gone.
-/// Delegated pick of round 6, open to veto: with every writer gone the pipes are at their end at once, so this only needs to
-/// cover the scheduling of the worker threads; the largest output (`cargo metadata` of this repository) drains in well under it.
+/// Delegated pick of round 6,
+/// open to veto:
+/// with every writer gone the pipes are at their end at once,
+/// so this only needs to
+/// cover the scheduling of the worker threads;
+/// the largest output (`cargo metadata` of this repository) drains in well under it.
 const READER_GRACE: Duration = Duration::from_secs(2);
 
 thread_local! {
@@ -101,7 +122,8 @@ thread_local! {
     /// for the error of a bound that was exceeded.
     static RERUN: RefCell<Option<String>> = const { RefCell::new(None) };
 
-    /// The scopes of the open transactions of this thread, innermost last.
+    /// The scopes of the open transactions of this thread,
+    /// innermost last.
     static SCOPES: RefCell<Vec<(u64, Rc<ScopeState>)>> = const { RefCell::new(Vec::new()) };
 
     /// The number the next scope gets.
@@ -117,13 +139,18 @@ struct ScopeState {
 }
 
 /// The records and the verdict of one open transaction.
-/// It belongs to the thread that opened it: dropping it, in any order, removes only its own entry.
+/// It belongs to the thread that opened it:
+/// dropping it,
+/// in any order,
+/// removes only its own entry.
 pub struct RunScope {
     /// The number of this scope in the stack.
     id: u64,
-    /// What the scope remembers, shared with the runs under it.
+    /// What the scope remembers,
+    /// shared with the runs under it.
     state: Rc<ScopeState>,
-    /// Keeps the scope on its thread, because the stack it is in is thread-local.
+    /// Keeps the scope on its thread,
+    /// because the stack it is in is thread-local.
     _on_one_thread: PhantomData<*const ()>,
 }
 
@@ -133,7 +160,9 @@ impl RunScope {
     /// `pub fn open(group_log: PathBuf) -> RunScope` makes the runs of this thread record their process groups in `group_log`.
     /// Why:
     /// A recovery that finds a killed run's journal needs to know whether a child of that run may still be running.
-    /// The record belongs to the transaction that owns this scope, not to the thread (round 6, 5b2 6).
+    /// The record belongs to the transaction that owns this scope,
+    /// not to the thread (round 6,
+    /// 5b2 6).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -150,7 +179,8 @@ impl RunScope {
     /// `pub fn writers_may_remain(&self) -> bool` says whether a run under this scope could not show that everything it
     /// started was stopped.
     /// Why:
-    /// Then the files of the transaction cannot be rolled back or finished safely, and the command must stop.
+    /// Then the files of the transaction cannot be rolled back or finished safely,
+    /// and the command must stop.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -198,7 +228,8 @@ pub enum RunError {
         /// The system error.
         io::Error,
     ),
-    /// The bound passed; the child and everything it started were stopped.
+    /// The bound passed;
+    /// the child and everything it started were stopped.
     TimedOut {
         /// What was running.
         what: String,
@@ -212,7 +243,8 @@ pub enum RunError {
         /// What was running.
         what: String,
     },
-    /// The run could not be contained, so the child was not started.
+    /// The run could not be contained,
+    /// so the child was not started.
     ContainmentUnavailable {
         /// What was to run.
         what: String,
@@ -236,7 +268,8 @@ impl std::fmt::Display for RunError {
     /// What:
     /// `fn fmt(&self, formatter)` writes the error with what was running and what it means for the files.
     /// Why:
-    /// The texts say only what is established: the command may have changed files before it was stopped.
+    /// The texts say only what is established:
+    /// the command may have changed files before it was stopped.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -266,7 +299,9 @@ impl std::fmt::Display for RunError {
 /// What:
 /// `fn current_scope() -> Option<Rc<ScopeState>>` is the innermost open scope of this thread.
 /// Why:
-/// The run records into, and reports to, the transaction that is open around it.
+/// The run records into,
+/// and reports to,
+/// the transaction that is open around it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,11 +312,15 @@ fn current_scope() -> Option<Rc<ScopeState>> {
 }
 
 /// What:
-/// `fn record_own_group(path: &CStr) -> io::Result<()>` appends the calling process's own id, which is its process group, to the
+/// `fn record_own_group(path: &CStr) -> io::Result<()>` appends the calling process's own id,
+/// which is its process group,
+/// to the
 /// record and forces it to disk.
 /// Why:
-/// It runs in the forked child before `exec`, so the record exists before the child can write anything.
-/// It uses only system calls and a stack buffer, because nothing else is safe there.
+/// It runs in the forked child before `exec`,
+/// so the record exists before the child can write anything.
+/// It uses only system calls and a stack buffer,
+/// because nothing else is safe there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -336,8 +375,10 @@ fn reap(child: &mut Child) -> Option<ExitStatus> {
 }
 
 /// What:
-/// `fn stop_everything(containment, child, group) -> bool` kills the process group, then every descendant wherever it went,
-/// reaps the direct child, and returns `true` only if all of it is shown gone.
+/// `fn stop_everything(containment, child, group) -> bool` kills the process group,
+/// then every descendant wherever it went,
+/// reaps the direct child,
+/// and returns `true` only if all of it is shown gone.
 /// Why:
 /// This is the one way a run is ended early,
 /// on timeout and on every error path.
@@ -357,7 +398,8 @@ fn stop_everything(containment: &Containment, child: &mut Child, group: Pid) -> 
 /// What:
 /// `fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<u8>, RunError>` takes the result of an output worker.
 /// Why:
-/// A worker that does not report means the output is not complete, and a prefix must never be returned as the output.
+/// A worker that does not report means the output is not complete,
+/// and a prefix must never be returned as the output.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -371,15 +413,21 @@ fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<
     };
 }
 
-/// Sets the cancel flag when the run ends, however it ends, so no worker outlives the call.
-struct CancelOnDrop(Arc<AtomicBool>);
+/// Sets the cancel flag when the run ends,
+/// however it ends,
+/// so no worker outlives the call.
+struct CancelOnDrop(
+    /// The flag the pipe workers look at.
+    Arc<AtomicBool>,
+);
 
 /// How the guard acts.
 impl Drop for CancelOnDrop {
     /// What:
     /// `fn drop(&mut self)` tells the pipe workers to stop.
     /// Why:
-    /// A worker must not keep a thread, a descriptor and a growing buffer after the call returned.
+    /// A worker must not keep a thread,
+    /// a descriptor and a growing buffer after the call returned.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -406,10 +454,14 @@ fn lose(scope: &Option<Rc<ScopeState>>) {
 }
 
 /// What:
-/// `pub fn output_within(command, input, bound) -> Result<Output, RunError>` runs the command, feeds it `input`, and returns
-/// its complete output, or an error naming what was running.
+/// `pub fn output_within(command, input, bound) -> Result<Output, RunError>` runs the command,
+/// feeds it `input`,
+/// and returns
+/// its complete output,
+/// or an error naming what was running.
 /// Why:
-/// Every external process of cargo-shadow runs through here, so nothing waits forever and nothing is left running.
+/// Every external process of cargo-shadow runs through here,
+/// so nothing waits forever and nothing is left running.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -484,7 +536,8 @@ pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound)
 /// What:
 /// `pub fn mark_scope_lost_for_test()` marks the innermost open scope of this thread as one whose writers may remain.
 /// Why:
-/// Tests of the callers need the verdict a run gives when a descendant cannot be stopped, which a real run cannot be made to give.
+/// Tests of the callers need the verdict a run gives when a descendant cannot be stopped,
+/// which a real run cannot be made to give.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

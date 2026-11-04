@@ -357,6 +357,18 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     }
 }
 
+/// What:
+/// `pub(crate) fn rerun_command(arguments: &[OsString]) -> String` is the command line the user ran,
+/// for errors that say "run it again".
+/// Why:
+/// Round 6 (5c N5):
+/// arguments keep their boundaries,
+/// so the text can be copied into a shell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function rerunCommand(args: string[]): string
+/// ```
 pub(crate) fn rerun_command(arguments: &[std::ffi::OsString]) -> String {
     // POSIX shell quoting: a word of plain characters stays as it is; anything else is single-quoted, with each single quote
     // written as close-quote, escaped quote, open-quote. Bytes that are not text are shown as the replacement character.

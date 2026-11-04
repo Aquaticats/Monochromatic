@@ -1,7 +1,12 @@
 //! What:
-//! Tests of the SHA-1 used for object names: published vectors, split inputs, and Git itself as the oracle.
+//! Tests of the SHA-1 used for object names:
+//! published vectors,
+//! split inputs,
+//! and Git itself as the oracle.
 //! Why:
-//! A wrong digest would decline objects Git accepts, or worse, confirm objects it rejects.
+//! A wrong digest would decline objects Git accepts,
+//! or worse,
+//! confirm objects it rejects.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,19 +23,22 @@ fn hex(digest: &[u8]) -> String {
     return digest.iter().map(|byte| { return format!("{byte:02x}"); }).collect();
 }
 
-/// FIPS 180 vector: the empty message.
+/// FIPS 180 vector:
+/// the empty message.
 #[test]
 fn the_digest_of_nothing_is_the_published_one() {
     assert_eq!(hex(&sha1(&[])), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
 }
 
-/// FIPS 180 vector: "abc".
+/// FIPS 180 vector:
+/// "abc".
 #[test]
 fn the_digest_of_abc_is_the_published_one() {
     assert_eq!(hex(&sha1(&[b"abc"])), "a9993e364706816aba3e25717850c26c9cd0d89d");
 }
 
-/// FIPS 180 vector: a message of two blocks.
+/// FIPS 180 vector:
+/// a message of two blocks.
 #[test]
 fn the_digest_of_a_two_block_message_is_the_published_one() {
     let message: &[u8] = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";

@@ -48,8 +48,10 @@ fn restored(result: (Vec<String>, Option<std::io::Error>)) -> Vec<String> {
     return result.0;
 }
 
-/// Round 6 (5b 2): a restore that fails on one root still restores the others and returns the warnings it collected,
-/// beside the failure, so the person is told about every retained path.
+/// Round 6 (5b 2):
+/// a restore that fails on one root still restores the others and returns the warnings it collected,
+/// beside the failure,
+/// so the person is told about every retained path.
 #[test]
 fn a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others() {
     let root = scratch();

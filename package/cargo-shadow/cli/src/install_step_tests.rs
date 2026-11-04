@@ -912,7 +912,8 @@ impl CargoRunner for CargoThatLeavesWriters {
     /// What:
     /// `fn run(&self, cwd, args)` writes the lockfile on `update` and reports that its descendants could not be stopped.
     /// Why:
-    /// The command must stop when writers may remain, whatever the policy says about the bytes.
+    /// The command must stop when writers may remain,
+    /// whatever the policy says about the bytes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -928,8 +929,11 @@ impl CargoRunner for CargoThatLeavesWriters {
     }
 }
 
-/// Round 6 (5c N2): when a descendant of cargo could not be stopped, the lockfiles are neither rolled back nor accepted,
-/// the journal is kept, and the command does not run.
+/// Round 6 (5c N2):
+/// when a descendant of cargo could not be stopped,
+/// the lockfiles are neither rolled back nor accepted,
+/// the journal is kept,
+/// and the command does not run.
 #[test]
 fn a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal() {
     let root = repository(STALE);

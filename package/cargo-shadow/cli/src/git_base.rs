@@ -683,16 +683,18 @@ const SYSTEM_CONFIG_CACHE: &str = ".cache/cargo-shadow/git-system-config";
 /// `fn find_program(program: &Path, search: &str, working_directory: &Path) -> Option<PathBuf>` finds the executable that `execvp`
 /// would run for a program name.
 /// Why:
-/// The first regular file is not the first executable, and a relative name or search entry is relative to the directory the Git
-/// runs in, which is the repository (round 6, 5a F5).
+/// The first regular file is not the first executable,
+/// and a relative name or search entry is relative to the directory the Git
+/// runs in,
+/// which is the repository (round 6,
+/// 5a F5).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function findProgram(program: string, search: string, workingDirectory: string): string | undefined
 /// ```
 fn find_program(program: &Path, search: &str, working_directory: &Path) -> Option<PathBuf> {
-    use std::os::unix::fs::PermissionsExt;
-    let runnable = |candidate: &Path| -> bool { return candidate.metadata().is_ok_and(|metadata| { return metadata.is_file() && metadata.permissions().mode() & 0o111 != 0; }); };
+    let runnable = |candidate: &Path| -> bool { return candidate.metadata().is_ok_and(|metadata| { return metadata.is_file() && std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o111 != 0; }); };
     if program.components().count() > 1 {
         let anchored: PathBuf = working_directory.join(program);
         return Some(anchored);
@@ -799,9 +801,8 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     // An answer is reused only for a compiled program: a script may forward to any Git, chosen by files, variables or the
     // directory, so nothing about the script says which Git answers (round 6, 5a F5).
     let compiled: bool = {
-        use std::io::Read;
         let mut magic: [u8; 4] = [0; 4];
-        std::fs::File::open(&canonical).and_then(|mut file| { return file.read_exact(&mut magic); }).is_ok() && magic == *b"\x7fELF"
+        std::fs::File::open(&canonical).and_then(|mut file| { return std::io::Read::read_exact(&mut file, &mut magic); }).is_ok() && magic == *b"\x7fELF"
     };
     // What the compiled program reads to find its system configuration: its own file and the two variables that move or remove it.
     let seen = |name: &str| -> String {
@@ -809,14 +810,13 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
         return given.or_else(|| { return if environment.git.clean_environment { None } else { std::env::var(name).ok() }; }).unwrap_or_default();
     };
     let key: String = {
-        use std::os::unix::fs::MetadataExt;
         format!(
             "{}\t{}\t{}\t{}\t{modified_nanos}\t{}\t{}\t{}\t{}",
             canonical.display(),
-            metadata.dev(),
-            metadata.ino(),
+            std::os::unix::fs::MetadataExt::dev(&metadata),
+            std::os::unix::fs::MetadataExt::ino(&metadata),
             metadata.len(),
-            metadata.ctime_nsec() + metadata.ctime() * 1_000_000_000,
+            std::os::unix::fs::MetadataExt::ctime_nsec(&metadata) + std::os::unix::fs::MetadataExt::ctime(&metadata) * 1_000_000_000,
             seen("GIT_CONFIG_SYSTEM"),
             seen("GIT_CONFIG_NOSYSTEM"),
             seen("GIT_EXEC_PATH")

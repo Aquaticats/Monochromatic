@@ -56,14 +56,24 @@ pub const USER_AGENT: &str = "monochromatic-cargo-shadow (https://github.com/Aqu
 /// The longest response body read,
 /// in bytes.
 /// A crate's whole version list is the largest response (a few megabytes).
-/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
-/// The cap is a ceiling far above that, so it only ends a response that is not a version list; it is not a measured worst case.
+/// Delegated pick,
+/// open to veto:
+/// the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back.";
+/// doc/planning/cargo-shadow-update.md,
+/// "Delegated picks of 2026-11-03").
+/// The cap is a ceiling far above that,
+/// so it only ends a response that is not a version list;
+/// it is not a measured worst case.
 const MAX_BODY_BYTES: u64 = 128 * 1024 * 1024;
 
 /// How long one request may take before it counts as failed.
-/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// Delegated pick,
+/// open to veto:
+/// the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back.";
+/// doc/planning/cargo-shadow-update.md,
+/// "Delegated picks of 2026-11-03").
 /// Chosen as a ceiling on one request that is long against a version list over an ordinary link and short against a person's patience;
 /// the slowest real request was not measured.
 /// A per-request limit is not an end-to-end limit:

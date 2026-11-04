@@ -578,6 +578,7 @@ fn replace_loose_second(fixture: &Fixture, stored: &[u8]) -> PathBuf {
     return common;
 }
 
+#[test]
 fn a_malformed_parent_line_is_not_a_commit() {
     use crate::git_objects::confirm_commit;
     let fixture = fixture("topic");
@@ -887,7 +888,12 @@ fn the_system_configuration_is_the_file_the_answering_git_reports() {
 /// The answer is cached by the identity of the Git program,
 /// so the question is asked once,
 /// not on every call.
-/// Round 6 (5a F5): a compiled Git program is asked once; its identity (file, size, times, relevant environment) is the key.
+/// Round 6 (5a F5):
+/// a compiled Git program is asked once;
+/// its identity (file,
+/// size,
+/// times,
+/// relevant environment) is the key.
 #[test]
 fn the_reported_system_configuration_of_a_compiled_git_is_asked_once() {
     let fixture = fixture("topic");
@@ -908,7 +914,9 @@ fn the_reported_system_configuration_of_a_compiled_git_is_asked_once() {
     assert_eq!(second.git_starts, 0, "the cached answer costs no start");
 }
 
-/// Round 6 (5a F5): an executable that is not a compiled program may forward to any Git, so its answer is never reused.
+/// Round 6 (5a F5):
+/// an executable that is not a compiled program may forward to any Git,
+/// so its answer is never reused.
 #[test]
 fn a_wrapper_script_is_asked_every_time() {
     let fixture = fixture("topic");
@@ -927,7 +935,9 @@ fn a_wrapper_script_is_asked_every_time() {
     assert_eq!(fs::read_to_string(&asked).expect("the question log").lines().count(), 2, "a wrapper's earlier answer was reused");
 }
 
-/// Round 6 (5a F5): the first executable on the search path is the one that is asked, as `execvp` would choose it.
+/// Round 6 (5a F5):
+/// the first executable on the search path is the one that is asked,
+/// as `execvp` would choose it.
 #[test]
 fn a_file_that_is_not_executable_does_not_hide_the_git_after_it_on_the_search_path() {
     let fixture = fixture("topic");
@@ -975,7 +985,8 @@ fn a_git_that_cannot_report_its_system_configuration_is_not_assumed() {
     assert!(answered.is_err(), "{answered:?}");
 }
 
-/// A Git that answers the batch by stopping early, and whose upstream query ends as `upstream_query` says;
+/// A Git that answers the batch by stopping early,
+/// and whose upstream query ends as `upstream_query` says;
 /// any other query resolves the second commit.
 fn git_whose_upstream_query_fails(directory: &Path, fixture: &Fixture, upstream_query: &str) -> PathBuf {
     let body = format!(
@@ -985,7 +996,8 @@ fn git_whose_upstream_query_fails(directory: &Path, fixture: &Fixture, upstream_
     return script(directory, "failing-git", &body);
 }
 
-/// Round 6 (5a F4): a Git that ends fatally is an operational failure with its message,
+/// Round 6 (5a F4):
+/// a Git that ends fatally is an operational failure with its message,
 /// never "not a commit" that lets a lower candidate be chosen.
 #[test]
 fn a_fatal_git_exit_in_the_sequential_fallback_is_reported_with_its_message() {
@@ -1001,7 +1013,8 @@ fn a_fatal_git_exit_in_the_sequential_fallback_is_reported_with_its_message() {
     assert!(message.contains("could not fetch the promised object"), "{message}");
 }
 
-/// Round 6 (5a F4): a Git killed by a signal is an operational failure.
+/// Round 6 (5a F4):
+/// a Git killed by a signal is an operational failure.
 #[test]
 fn a_git_killed_by_a_signal_in_the_sequential_fallback_is_reported() {
     let fixture = fixture("topic");
@@ -1016,7 +1029,9 @@ fn a_git_killed_by_a_signal_in_the_sequential_fallback_is_reported() {
     assert!(message.contains("signal"), "{message}");
 }
 
-/// Round 6 (5a F4): the quiet negative answer of Git (exit 1, nothing printed) still means "not a commit".
+/// Round 6 (5a F4):
+/// the quiet negative answer of Git (exit 1,
+/// nothing printed) still means "not a commit".
 #[test]
 fn a_quiet_negative_answer_still_lets_the_next_candidate_be_tried() {
     let fixture = fixture("topic");
@@ -1030,13 +1045,15 @@ fn a_quiet_negative_answer_still_lets_the_next_candidate_be_tried() {
     assert!(base.commit.is_ok(), "{base:?}");
 }
 
-/// A Git that logs every start and answers the system-configuration question with an empty file; all else goes to the real Git.
+/// A Git that logs every start and answers the system-configuration question with an empty file;
+/// all else goes to the real Git.
 fn git_that_logs_every_start(directory: &Path, reported: &Path, log: &Path) -> PathBuf {
     let body = format!("echo x >> {log}\nif [ \"$1\" = var ]; then echo {reported}; exit 0; fi\nexec {SYSTEM_GIT} \"$@\"", log = log.display(), reported = reported.display());
     return script(directory, "logging-git", &body);
 }
 
-/// Round 6 (5a F6): the Git starts of an unsuccessful native attempt are counted with the starts of the fallback.
+/// Round 6 (5a F6):
+/// the Git starts of an unsuccessful native attempt are counted with the starts of the fallback.
 #[test]
 fn a_declined_choice_counts_the_start_that_asked_for_the_system_configuration() {
     let fixture = fixture("topic");
@@ -1057,7 +1074,8 @@ fn a_declined_choice_counts_the_start_that_asked_for_the_system_configuration() 
     assert_eq!(usize::try_from(base.git_starts).expect("count"), started, "reported {} starts, Git was started {started} times", base.git_starts);
 }
 
-/// Round 6 (5a F7): a path that was replaced by a FIFO after it was checked cannot make the reader wait.
+/// Round 6 (5a F7):
+/// a path that was replaced by a FIFO after it was checked cannot make the reader wait.
 #[test]
 fn opening_a_fifo_for_reading_returns_without_waiting() {
     let directory = scratch();
@@ -1076,7 +1094,8 @@ fn opening_a_fifo_for_reading_returns_without_waiting() {
 }
 
 /// Writes a commit object with the given body through Git and returns its name.
-/// `literally` skips Git's format check, so malformed bodies can be stored under their true name.
+/// `literally` skips Git's format check,
+/// so malformed bodies can be stored under their true name.
 fn hash_commit(fixture: &Fixture, body: &str) -> String {
     use std::io::Write;
     let mut git = Command::new(SYSTEM_GIT)
@@ -1098,7 +1117,8 @@ fn git_peels(fixture: &Fixture, name: &str) -> bool {
     return status.success();
 }
 
-/// Round 6 (5a F3 B): object files hold what their name says.
+/// Round 6 (5a F3 B):
+/// object files hold what their name says.
 #[test]
 fn a_commit_stored_under_another_name_is_not_confirmed() {
     use crate::git_objects::confirm_commit;
@@ -1112,7 +1132,8 @@ fn a_commit_stored_under_another_name_is_not_confirmed() {
     assert!(confirm_commit(&common, &fixture.second).is_err(), "a commit under another commit's name was confirmed");
 }
 
-/// Round 6 (5a F3 A): Git needs bytes after the tree line.
+/// Round 6 (5a F3 A):
+/// Git needs bytes after the tree line.
 #[test]
 fn a_tree_only_commit_body_is_not_a_commit() {
     use crate::git_objects::confirm_commit;
@@ -1125,7 +1146,8 @@ fn a_tree_only_commit_body_is_not_a_commit() {
     assert!(confirm_commit(&common, &name).is_err(), "a tree-only commit was confirmed");
 }
 
-/// Round 6 (5a F3 A): Git needs bytes after the last parent line too.
+/// Round 6 (5a F3 A):
+/// Git needs bytes after the last parent line too.
 #[test]
 fn a_commit_body_that_ends_with_a_parent_line_is_not_a_commit() {
     use crate::git_objects::confirm_commit;
@@ -1138,7 +1160,8 @@ fn a_commit_body_that_ends_with_a_parent_line_is_not_a_commit() {
     assert!(confirm_commit(&common, &name).is_err(), "a commit that ends with a parent line was confirmed");
 }
 
-/// Round 6 (5a F3 C): a loose object file ends where its zlib stream ends.
+/// Round 6 (5a F3 C):
+/// a loose object file ends where its zlib stream ends.
 #[test]
 fn bytes_after_the_stream_of_a_loose_commit_are_not_confirmed() {
     use crate::git_objects::confirm_commit;

@@ -1,7 +1,11 @@
 //! What:
-//! The error of finishing a transaction, told by whether the outputs were already on disk.
+//! The error of finishing a transaction,
+//! told by whether the outputs were already on disk.
 //! Why:
-//! Round 6 (fifth review, 5c N1): a failed durability barrier must stop the command, while a journal that could not be removed
+//! Round 6 (fifth review,
+//! 5c N1):
+//! a failed durability barrier must stop the command,
+//! while a journal that could not be removed
 //! after its completion marker was made durable is only a warning.
 //!
 //! In TS you'd write (pseudocode):
@@ -29,7 +33,8 @@ impl FinishError {
     /// What:
     /// `pub fn before_durable(source: io::Error) -> FinishError` is a failure while forcing the outputs to disk.
     /// Why:
-    /// The run's outputs may not survive a crash, so the command must not rely on them.
+    /// The run's outputs may not survive a crash,
+    /// so the command must not rely on them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -42,7 +47,8 @@ impl FinishError {
     /// What:
     /// `pub fn after_durable(source: io::Error) -> FinishError` is a failure after the outputs were forced to disk.
     /// Why:
-    /// The journal stays and the next run settles it; nothing the run produced is at risk.
+    /// The journal stays and the next run settles it;
+    /// nothing the run produced is at risk.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -103,4 +109,43 @@ impl std::error::Error for FinishError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         return Some(&self.source);
     }
+}
+
+/// What:
+/// `pub(crate) fn settle_finish(outcome, finished, recovered, restore_warnings) -> Result<UpdateReport, UpdateError>` joins the
+/// result of an update with the result of finishing its transaction.
+/// Why:
+/// A refusal stands and names a failed durability barrier too;
+/// an accepted run whose outputs could not be forced to disk is a
+/// stopped run,
+/// never a clean pass;
+/// only a journal that could not be removed after its durable marker is a warning (round 6,
+/// 5c N1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function settleFinish(outcome: UpdateReport, finished: FinishError | undefined, recovered: string[], restoreWarnings: string[]): UpdateReport  // throws
+/// ```
+pub(crate) fn settle_finish(
+    outcome: Result<crate::update::UpdateReport, crate::update::UpdateError>,
+    finished: Result<(), FinishError>,
+    recovered: Vec<String>,
+    restore_warnings: Vec<String>,
+) -> Result<crate::update::UpdateReport, crate::update::UpdateError> {
+    return outcome.and_then(|mut report| {
+        report.warnings.extend(recovered);
+        report.warnings.extend(restore_warnings);
+        return match finished {
+            Ok(()) => Ok(report),
+            Err(error) if !report.problems.is_empty() && !error.outputs_durable() => {
+                report.problems.push(error.to_string());
+                Ok(report)
+            }
+            Err(error) if !error.outputs_durable() => Err(crate::update::other_text(format!("{error}; run the command again"))),
+            Err(error) => {
+                report.warnings.push(error.to_string());
+                Ok(report)
+            }
+        };
+    });
 }

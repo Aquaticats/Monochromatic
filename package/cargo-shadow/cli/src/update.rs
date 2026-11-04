@@ -159,7 +159,7 @@ use crate::install::{LockBaseFactory, policy_findings};
 use crate::journal::{begin, recover, restore_if_unchanged, run_recording, Transaction};
 
 /// Imports `crate::journal_finish::FinishError` for this file.
-use crate::journal_finish::FinishError;
+use crate::journal_finish::{FinishError, settle_finish};
 /// Imports `Claim`,
 /// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
@@ -1167,22 +1167,5 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     if let Err(error) = &finished {
         eprintln!("cargo-shadow: warning: {error}");
     }
-    return outcome.and_then(|mut report| {
-        report.warnings.extend(recovered);
-        report.warnings.extend(restore_warnings);
-        return match finished {
-            Ok(()) => Ok(report),
-            // A refusal stands; the failed barrier is one more thing to know.
-            Err(error) if !report.problems.is_empty() && !error.outputs_durable() => {
-                report.problems.push(error.to_string());
-                Ok(report)
-            }
-            // A failed barrier is a stopped run, never a clean pass.
-            Err(error) if !error.outputs_durable() => Err(other_text(format!("{error}; run the command again"))),
-            Err(error) => {
-                report.warnings.push(error.to_string());
-                Ok(report)
-            }
-        };
-    });
+    return settle_finish(outcome, finished, recovered, restore_warnings);
 }
