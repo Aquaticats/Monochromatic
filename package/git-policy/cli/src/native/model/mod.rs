@@ -374,3 +374,8 @@ mod commit_drain_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_disposal_tests.rs"]
 mod commit_disposal_tests;
+
+/// Plan step 2: forcing errors at the departure and the seal.
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_io_error_tests.rs"]
+mod commit_io_error_tests;
