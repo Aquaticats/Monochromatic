@@ -257,6 +257,18 @@ fn the_route_cache_does_not_make_a_caller_wait_for_a_discovery_in_flight() {
     assert!(CACHE.get_or_discover(&|| { return Err(crate::control_group::GroupUnavailable { reason: "must not be asked".to_string() }); }).is_ok(), "the answer was not kept");
 }
 
+/// Acceptance row V6 (certification, third pass), the production cache with its own mutex held:
+/// a caller that finds the cache's mutex held answers at once, discovering for itself, and does not wait for the holder.
+/// The holder keeps the mutex until the answer arrived, so a caller that waited for the lock would never answer in the window.
+#[test]
+fn the_route_cache_answers_at_once_while_its_own_mutex_is_held() {
+    static CACHE: RouteCache = RouteCache::new();
+    CACHE.hold_for_test(|| {
+        let answered: bool = crate::round_sixteen_tests::answers_within("a caller of the route cache", Duration::from_secs(10), || { return CACHE.get_or_discover(&|| { return Ok(some_route()); }).is_ok(); });
+        assert!(answered, "the caller did not get an answer from its own discovery");
+    });
+}
+
 /// Acceptance row "Weaker path" (8a F4):
 /// a marker that has three lines but is not the whole versioned record does not count.
 #[test]
