@@ -324,24 +324,56 @@ fn output_past_the_snapshot_is_disclosed_to_the_person() {
 }
 
 /// The stop path hands the killed leader to the reaper the run was given, after the captured pages were released (sol-1 round 3,
-/// P2 E and the test review: nothing showed that `run_tool` reaps within a budget when a killed leader does not end).
+/// P2 E and the test review: nothing showed that `run_tool` reaps within a budget when a killed leader does not end). The tool says
+/// when it has written, and the control checks that before it checks that the pages were released, so a tool that had not run yet
+/// cannot make the emptiness hold by itself.
 #[test]
 fn a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_released() {
     let root: PathBuf = fixture("runs-stop-reaper");
     let program: PathBuf = root.join("tool");
-    executable(program.as_path(), format!("#!/bin/sh\necho before-the-stop\nsleep {SLOW_SECONDS}\n").as_bytes());
+    let written: PathBuf = root.join("written");
+    executable(program.as_path(), format!("#!/bin/sh\necho before-the-stop\n: > '{}'\nsleep {SLOW_SECONDS}\n", written.display()).as_bytes());
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
     let calls = std::cell::Cell::new(0_u32);
-    let emptied = std::cell::Cell::new(false);
-    let run: ToolRun = run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: BRIEF }, &|mut leader: Child, captured: &Capture| -> bool {
+    let verdict = std::cell::RefCell::new(String::new());
+    let run: ToolRun = run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: Duration::from_secs(3) }, &|mut leader: Child, captured: &Capture| -> bool {
         calls.set(calls.get() + 1);
-        emptied.set(captured.snapshot(1024).stdout.is_empty());
+        let tool_had_written: bool = written.exists();
+        let emptied: bool = captured.snapshot(1024).stdout.is_empty();
+        *verdict.borrow_mut() = format!("written={tool_had_written} emptied={emptied}");
         // A leader that does not end is the reaper's to wait for: this one is reaped here.
         let _ended = leader.wait();
         return false;
     });
-    assert_eq!(run.end, ToolEnd::CeilingReached(BRIEF));
+    assert_eq!(run.end, ToolEnd::CeilingReached(Duration::from_secs(3)));
     assert_eq!(calls.get(), 1, "the stop path reaps through the reaper it was given");
-    assert!(emptied.get(), "what the tool wrote is released before the reaper runs");
+    assert_eq!(verdict.borrow().as_str(), "written=true emptied=true", "the tool had written, and what it wrote was released before the reaper ran");
+    remove(&root);
+}
+
+/// A failure to wait for the tool is a stop like any other: the process group is stopped, the pages are released and the leader goes
+/// to the reaper (sol-1 round 4: the wait error returned before any of that, and a descendant holding the files kept the pages). The
+/// seam makes the wait fail once the tool says it has written.
+#[test]
+fn a_wait_that_fails_stops_the_tool_and_releases_its_output() {
+    let root: PathBuf = fixture("runs-wait-error");
+    let program: PathBuf = root.join("tool");
+    let written: PathBuf = root.join("written");
+    executable(program.as_path(), format!("#!/bin/sh\necho before-the-failure\n: > '{}'\nsleep {SLOW_SECONDS}\n", written.display()).as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { *seam.borrow_mut() = Some(written.clone()); });
+    let calls = std::cell::Cell::new(0_u32);
+    let verdict = std::cell::RefCell::new(String::new());
+    let run: ToolRun = run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: ROOMY }, &|mut leader: Child, captured: &Capture| -> bool {
+        calls.set(calls.get() + 1);
+        *verdict.borrow_mut() = format!("emptied={}", captured.snapshot(1024).stdout.is_empty());
+        let _ended = leader.wait();
+        return false;
+    });
+    WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { *seam.borrow_mut() = None; });
+    let ToolEnd::Failed(text) = &run.end else { panic!("{run:?}") };
+    assert!(text.contains("could not be waited for"), "{text}");
+    assert_eq!(calls.get(), 1, "the leader goes to the reaper");
+    assert_eq!(verdict.borrow().as_str(), "emptied=true", "the output was released");
     remove(&root);
 }

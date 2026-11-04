@@ -226,8 +226,9 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
+    let mut wait_failure: Option<std::io::Error> = None;
     let status: Option<std::process::ExitStatus> = loop {
-        match child.try_wait() {
+        match wait_status(&mut child) {
             Ok(Some(done)) => break Some(done),
             // The ceiling ends the program whatever it shows (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
             Ok(None) if started.elapsed() >= limits.ceiling => {
@@ -236,12 +237,16 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
             }
             Ok(None) if clock.check().is_some() => break None,
             Ok(None) => std::thread::sleep(POLL_INTERVAL),
-            Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
+            // A wait that fails is a stop like the others: the group is stopped, the pages are released and the leader is reaped below.
+            Err(error) => {
+                wait_failure = Some(error);
+                break None;
+            }
         }
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
     if clock.measures() {
-        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling);
+        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling && wait_failure.is_none());
     }
     let Some(finished) = status else {
         stop_group(&child);
@@ -250,7 +255,11 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
         // What the tool wrote is released first: nobody reads it, and a descendant that keeps the files open would keep the pages.
         captured.discard();
         let _reaped_in_time: bool = reap(child, &captured);
-        let end: ToolEnd = if at_ceiling { ToolEnd::CeilingReached(limits.ceiling) } else { ToolEnd::TimedOut };
+        let end: ToolEnd = match wait_failure {
+            Some(error) => ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())),
+            None if at_ceiling => ToolEnd::CeilingReached(limits.ceiling),
+            None => ToolEnd::TimedOut,
+        };
         return ToolRun { end, millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
     };
     let shown: crate::output_capture::Captured = captured.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
@@ -266,6 +275,21 @@ pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimit
     // What was left out, or could not be read, is part of what the person is told: the text shows the tail only.
     let disclosed: String = if shown.notes.is_empty() { String::new() } else { format!(" ({})", shown.notes.join("; ")) };
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };
+}
+
+/// `Child::try_wait`, and in a control an error once the file the seam names exists.
+fn wait_status(child: &mut Child) -> std::io::Result<Option<std::process::ExitStatus>> {
+    #[cfg(test)]
+    if WAIT_FAILS_ONCE_THIS_FILE_EXISTS.with(|seam| { return seam.borrow().as_ref().is_some_and(|path| { return path.exists(); }); }) {
+        return Err(std::io::Error::other("the wait failed"));
+    }
+    return child.try_wait();
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control makes the wait for the tool fail once the file it names exists, which the tool makes after it has written.
+    pub(crate) static WAIT_FAILS_ONCE_THIS_FILE_EXISTS: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:

@@ -164,3 +164,17 @@ fn concurrent_items_where_no_thread_can_start_are_done_in_turn() {
     }
     every_item_has_its_result_in_item_order();
 }
+
+/// Output that was cut is never read as the metadata (sol-1 round 4: nothing exercised the refusal): a cargo that succeeds with more
+/// output than the snapshot keeps is an error that says the output could not be taken whole, not a parse of its tail.
+#[test]
+fn metadata_that_was_cut_is_not_parsed() {
+    let root: std::path::PathBuf = crate::test_support::fixture("cargo-metadata-cut");
+    let cargo: std::path::PathBuf = root.join("cargo");
+    let too_much: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1024;
+    crate::test_support::executable(cargo.as_path(), format!("#!/bin/sh\nhead --bytes={too_much} /dev/zero | tr '\\0' 'x'\n").as_bytes());
+    let limits: ToolLimits = ToolLimits { window: std::time::Duration::from_secs(60), ceiling: std::time::Duration::from_secs(60) };
+    let refused: String = read_workspace(cargo.as_path(), root.as_path(), limits).expect_err("cut output is refused");
+    assert!(refused.contains("could not be taken whole"), "{refused}");
+    crate::test_support::remove(root.as_path());
+}
