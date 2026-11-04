@@ -22,7 +22,7 @@ use git_policy_cli::commit_flusher::{FlushError, FlusherLaunchError, RECEIPT_DIR
 use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, transient_unit_arguments, unit_name};
 use git_policy_cli::commit_identity::set_fault_point;
 use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, departure_acknowledge, seal_for_shutdown, startup_sweep, syncer_pass, RETRYING};
-use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind, LaneDocument, LaneState, Marker, StateWriter, read, state_covers, sync_prefix};
+use git_policy_cli::commit_state_log::{ClosureEntry, Consumption, ConsumptionKind, EntryKind, LaneDocument, LaneState, Marker, RequestPhase, RequestState, StateWriter, read, state_covers, sync_prefix};
 use std::cell::Cell;
 use std::fs;
 use std::io;
@@ -418,4 +418,28 @@ fn a_departure_that_cannot_acknowledge_within_its_attempts_fails() {
     let (_lane, state, _id) = lane_with_everything("life-race-absent");
     let failed = departure_acknowledge(&state, 2);
     assert!(failed.is_err(), "an absent log was acknowledged");
+}
+
+/// Request states, the adoption order position, the consumption map and the head survive the seal and a later recovery: the sealed root,
+/// read by a replacement owner's startup sweep, parses to the state that was carried.
+#[test]
+fn request_order_and_consumption_data_survive_the_seal_and_a_recovery() {
+    let (lane, state, id) = lane_with_everything("life-roundtrip");
+    let adopt: String = format!("adopt {} 0badc0de\n", id);
+    fs::write(lane.join("order"), &adopt).expect("an order file that holds the request's adopt line");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let carried: LaneState = LaneState {
+        marker: Marker::Materializing,
+        head: Some("a".repeat(40)),
+        tail: vec![id.clone()],
+        requests: vec![RequestState { id: id.clone(), phase: RequestPhase::Publishing, resume: "P1".to_string(), position: Some(0) }],
+        consumption: vec![Consumption { path: b"dir/f.txt".to_vec(), kind: ConsumptionKind::Install, request: id.clone(), version: 1, entry: vec![1, 2, 3] }],
+    };
+    let first: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible").with_state(carried.clone());
+    StateWriter::acquire(&state).expect("writer").append_with(1, &first.encode(), &closure).expect("the state before the seal");
+    seal_for_shutdown(&lane, &state).expect("the seal");
+    let recovery = startup_sweep(&lane, &state).expect("the replacement owner's sweep");
+    assert_eq!(recovery.generation, Some(2));
+    let bytes: Vec<u8> = read(&state).expect("readable").expect("state").1;
+    assert_eq!(LaneDocument::parse(&bytes).expect("a checked document").state(), &carried);
 }
