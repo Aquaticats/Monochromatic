@@ -36,6 +36,8 @@ const CRASHED: i32 = 77;
 const RECEIPT_ID: &str = "fedcba9876543210fedcba9876543210";
 
 thread_local! {
+    /// The directories the swap hook uses: the lane, the place the real saved directory moves to, and the outside directory that takes its name.
+    static SWAP: RefCell<Option<(PathBuf, PathBuf, PathBuf)>> = const { RefCell::new(None) };
     /// The fault point at which the process of this thread dies.
     static CRASH_AT: Cell<Option<&'static str>> = const { Cell::new(None) };
     /// The lane in which the flood hook creates receipts, and how many it created.
@@ -140,6 +142,35 @@ fn a_saved_directory_that_is_a_link_is_never_followed_by_a_disposal() {
     std::os::unix::fs::symlink(&fourth_outside, fourth_lane.join("saved")).expect("a link in its place");
     assert!(unlink_retired(token).is_err(), "the unlink went through a link that took the directory's place");
     assert!(fourth_outside.join(&fourth_name).exists(), "the unlink removed a file outside the lane");
+    // The window after the open: the directory is swapped for a link between the unlink's check and its removal. The removal is relative to the
+    // directory that was opened, so the outside file of the same name survives.
+    let (fifth_lane, fifth_state, fifth_name) = lane_with_saved("rev5-saved-link-window");
+    let fifth_token = retire_saved_content(&fifth_lane, &fifth_state, &DisposalAuthorization::explicit(&fifth_name)).expect("the retirement");
+    let fifth_moved: PathBuf = scratch("rev5-saved-window-moved").join("saved");
+    let fifth_outside: PathBuf = scratch("rev5-saved-window-outside");
+    SWAP.with(|cell| { *cell.borrow_mut() = Some((fifth_lane.clone(), fifth_moved.clone(), fifth_outside.clone())); });
+    set_fault_point(Some(swap_saved_for_a_link));
+    let windowed = unlink_retired(fifth_token);
+    set_fault_point(None);
+    assert!(SWAP.with(|cell| { return cell.borrow().is_none(); }), "the swap never ran in the window");
+    assert!(windowed.is_ok(), "{:?}", windowed);
+    assert!(fifth_outside.join(&fifth_name).exists(), "the unlink removed the outside file that the swapped link led to");
+    assert!(!fifth_moved.join(&fifth_name).exists(), "the unlink did not remove the lane's own file");
+}
+
+/// Replaces the saved directory by a link to an outside directory that holds a file of the same name, once, at the window between the
+/// unlink's opening of the directory and its removal.
+fn swap_saved_for_a_link(point: &str) {
+    if point != "disposal:before-unlink" {
+        return;
+    }
+    if let Some((lane, moved, outside)) = SWAP.with(|cell| { return cell.borrow_mut().take(); }) {
+        fs::rename(lane.join("saved"), &moved).expect("move the real directory away");
+        for listed in fs::read_dir(&moved).expect("the real directory").flatten() {
+            fs::copy(listed.path(), outside.join(listed.file_name())).expect("a file of the same name outside");
+        }
+        std::os::unix::fs::symlink(&outside, lane.join("saved")).expect("a link in its place");
+    }
 }
 
 /// Review of step 3 (whole files, 6): a seal over a root that is not in the checked representation published a newer root with an empty
