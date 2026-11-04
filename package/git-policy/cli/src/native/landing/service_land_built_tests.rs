@@ -177,7 +177,11 @@ fn every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list
         crate::service_durable::drain();
         remove(world.root.as_path());
     }
-    // The configuration and the global option.
+}
+
+/// `core.useReplaceRefs` set to anything sends the checks to `rev-list`.
+#[test]
+fn a_use_replace_refs_setting_sends_the_checks_to_rev_list() {
     let (world, trace) = traced("service-built-use-replace-refs");
     git(world.repo.as_path(), &["config", "core.useReplaceRefs", "false"]);
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
@@ -186,6 +190,11 @@ fn every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list
     assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "core.useReplaceRefs: the checks went to rev-list");
     crate::service_durable::drain();
     remove(world.root.as_path());
+}
+
+/// The global option that switches replacements off sends the checks to `rev-list`.
+#[test]
+fn the_no_replace_objects_option_sends_the_checks_to_rev_list() {
     let (mut world, trace) = traced("service-built-no-replace-option");
     world.context.git.global_prefix.push(std::ffi::OsString::from("--no-replace-objects"));
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
@@ -196,9 +205,9 @@ fn every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list
     remove(world.root.as_path());
 }
 
-/// A shallow boundary and a replacement object anywhere in the repository are left to `rev-list` as well.
+/// A shallow boundary at the default place is left to `rev-list` as well.
 #[test]
-fn a_shallow_file_and_a_replacement_object_send_the_checks_to_rev_list() {
+fn a_shallow_file_sends_the_checks_to_rev_list() {
     let (world, trace) = traced("service-built-shallow");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     std::fs::write(world.repo.join(".git/shallow"), format!("{base}\n")).expect("a shallow boundary at the tip");
@@ -208,6 +217,11 @@ fn a_shallow_file_and_a_replacement_object_send_the_checks_to_rev_list() {
     assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "shallow: the checks went to rev-list");
     crate::service_durable::drain();
     remove(world.root.as_path());
+}
+
+/// A replacement object anywhere in the repository is left to `rev-list` too.
+#[test]
+fn a_replacement_object_sends_the_checks_to_rev_list() {
     let (world, trace) = traced("service-built-replaced");
     let empty: String = git_text(world.repo.as_path(), &["hash-object", "-t", "tree", "-w", "--stdin"]);
     let first: String = git_text(world.repo.as_path(), &["commit-tree", empty.as_str(), "-m", "unrelated one"]);

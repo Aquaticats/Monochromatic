@@ -309,10 +309,7 @@ impl ConfigSnapshot {
         let legacy = self.entries.iter().rfind(|entry| { return entry.key == "core.fsyncobjectfiles"; });
         let legacy_flush: bool = match legacy {
             None => false,
-            Some(entry) => match canonical_bool(entry.value.as_deref()) {
-                Some(flushed) => flushed,
-                None => return None,
-            },
+            Some(entry) => canonical_bool(entry.value.as_deref())?,
         };
         if set.names_loose_object() || legacy_flush {
             // Native Git flushes the objects it writes, and a pack that the import keeps instead of unpacking holds the same

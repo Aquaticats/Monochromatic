@@ -46,6 +46,7 @@ thread_local! {
 }
 
 /// The loose paths the readers of this thread have looked at so far.
+#[cfg(test)]
 pub(crate) fn loose_looks() -> u64 {
     return LOOSE_LOOKS.with(std::cell::Cell::get);
 }

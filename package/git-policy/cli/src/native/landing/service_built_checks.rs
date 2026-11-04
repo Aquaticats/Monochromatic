@@ -38,6 +38,7 @@ thread_local! {
 }
 
 /// The name comparisons the proofs of this thread have made so far.
+#[cfg(test)]
 pub(crate) fn name_steps() -> u64 {
     return NAME_STEPS.with(std::cell::Cell::get);
 }
