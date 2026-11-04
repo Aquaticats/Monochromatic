@@ -35,8 +35,12 @@ pub enum Client {
     Linked,
     /// Holds the lock and the request is linked: waiting at its bound.
     Waiting,
-    /// Withdrew and returned the withdrawal error.
+    /// The mark is created and the departure barrier is running; the command still holds its lock.
+    Withdrawing,
+    /// Withdrew, returned the withdrawal error and released its lock (after the departure barrier completed).
     Withdrawn,
+    /// Killed from outside after the link: the kernel released the lock; no normal exit ran.
+    Killed,
     /// Exited before the link: no request exists.
     ExitedBeforeLink,
 }
@@ -54,11 +58,13 @@ pub struct Bound {
     pub linked: bool,
     /// The owner adopted the request and decided it as one with no client (it wrote `commit`).
     pub owner_committed: bool,
+    /// The withdrawal mark exists.
+    pub marked: bool,
 }
 
 /// The start state.
 pub fn initial(rules: Rules) -> Bound {
-    return Bound { rules, client: Client::Init, lock_held: false, linked: false, owner_committed: false };
+    return Bound { rules, client: Client::Init, lock_held: false, linked: false, owner_committed: false, marked: false };
 }
 
 /// Every step enabled.
@@ -98,11 +104,25 @@ pub fn steps(state: &Bound) -> Vec<(String, Bound)> {
         push_step(&mut found, "client: exits holding the lock and before the link", exit);
     }
     if state.client == Client::Waiting {
+        // The mark is created while the command still holds its lock; the barrier follows, then the return and the release (decision 14:
+        // the barrier runs to completion, so the lock is released only after it).
+        let mut after: Bound = state.clone();
+        after.client = Client::Withdrawing;
+        after.marked = true;
+        push_step(&mut found, "W1: the bound is reached; the command creates the mark", after);
+        let mut killed: Bound = state.clone();
+        killed.client = Client::Killed;
+        killed.lock_held = false;
+        push_step(&mut found, "environment: the command is killed from outside after the link", killed);
+    }
+    if state.client == Client::Withdrawing {
         let mut after: Bound = state.clone();
         after.client = Client::Withdrawn;
-        push_step(&mut found, "W1: the bound is reached; the command withdraws and returns the error", after);
+        after.lock_held = false;
+        push_step(&mut found, "W1: the departure barrier completed; the command returns the error and releases its lock", after);
     }
-    if state.linked && !state.lock_held && !state.owner_committed {
+    // An owner decides a request as clientless only when no client lock is held and no mark exists.
+    if state.linked && !state.lock_held && !state.owner_committed && !state.marked {
         let mut after: Bound = state.clone();
         after.owner_committed = true;
         push_step(&mut found, "owner: adopts the request, sees no client lock and decides it as clientless", after);
@@ -112,7 +132,7 @@ pub fn steps(state: &Bound) -> Vec<(String, Bound)> {
 
 /// A command that returned the withdrawal error never has its request decided by the owner as one with no client.
 pub fn invariant(state: &Bound) -> Option<String> {
-    if state.client == Client::Withdrawn && state.owner_committed {
+    if matches!(state.client, Client::Withdrawn | Client::Withdrawing) && state.owner_committed {
         return Some("the command returned the withdrawal error and the owner decided the request as clientless".to_string());
     }
     if state.client == Client::ExitedBeforeLink && state.linked {

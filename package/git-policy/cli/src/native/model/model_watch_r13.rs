@@ -33,15 +33,11 @@ pub enum Authority {
     ReportOnly,
 }
 
-/// The owner's answer to question 7b: how long the cleanup authority lasts.
+/// The owner's answer to question 7b, "A measured span" (the only option kept; B and C were rejected): how long the cleanup authority lasts.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Span {
     /// Option A: a measured span after the merge.
     Measured,
-    /// Option B: until the next wrapper command in the worktree finds the branch still the merge's.
-    UntilNextCommand,
-    /// Option C: until the files change.
-    UntilFilesChange,
 }
 
 /// The owner's answer to question 7c: what happens after the watch ends.
@@ -73,6 +69,10 @@ pub enum Rules {
     Thirteen,
     /// Revision 14, with the owner's answers to questions 7a, 7b and 7c as the parameter (they are not yet answered).
     Fourteen(Policy),
+    /// Revision 15 with the owner's answers: 7a "Clean up automatically" (by value, with the index fingerprint test), 7b "A measured span"
+    /// (the window starts at MG3's installation; at its end no new cleanup starts and one already started finishes), 7c "Keep a reminder"
+    /// (dismissing deletes no saved copy). The violation this rule shows is the accepted concession of 7a, stated as such.
+    Fifteen,
 }
 
 /// Where `HEAD` is.
@@ -139,6 +139,17 @@ pub struct Watch {
     pub reminder: bool,
     /// The leftover was reported to the person (question 7a options B and C).
     pub reported: bool,
+    /// The index's fingerprint (size and checksum) differs from the one recorded at installation. A byte-identical rewrite, or a change
+    /// away and back, leaves it equal while `index_rewritten` is true: the wrapper sees the fingerprint and never the write.
+    pub fingerprint_changed: bool,
+    /// MG6c holds the index lock and has begun to exchange the files.
+    pub cleanup_started: bool,
+    /// The saved copies of the merge's pre-state exist (installation wrote them; only the person's explicit disposal deletes them).
+    pub saved_copy: bool,
+    /// The person restored the files with the printed command.
+    pub restored_by_person: bool,
+    /// The person dismissed the reminder (a decision of the person's; the saved copies stay).
+    pub dismissed: bool,
 }
 
 /// The start state: the merge is published.
@@ -159,12 +170,18 @@ pub fn watch_initial(rules: Rules) -> Watch {
         undone_deliberate: false,
         reminder: false,
         reported: false,
+        fingerprint_changed: false,
+        cleanup_started: false,
+        saved_copy: true,
+        restored_by_person: false,
+        dismissed: false,
     };
 }
 
 fn policy_of(rules: Rules) -> Option<Policy> {
     return match rules {
         Rules::Fourteen(policy) => Some(policy),
+        Rules::Fifteen => Some(Policy { authority: Authority::ByValueWithIndexTest, span: Span::Measured, residue: Residue::Reminder }),
         Rules::Twelve | Rules::Thirteen => None,
     };
 }
@@ -207,15 +224,63 @@ pub fn watch_steps(state: &Watch) -> Vec<(String, Watch)> {
     if state.installed && !state.index_rewritten {
         let mut after: Watch = state.clone();
         after.index_rewritten = true;
+        after.fingerprint_changed = true;
         push_step(&mut found, "environment: a command writes the index (git add or a refresh)", after);
+        if state.rules == Rules::Fifteen {
+            // The wrapper compares a fingerprint, so a rewrite with identical bytes, or a change away from the recorded bytes and back,
+            // is a write it cannot see.
+            let mut same: Watch = state.clone();
+            same.index_rewritten = true;
+            push_step(&mut found, "environment: a command rewrites the index with identical bytes, or changes it away and back", same);
+        }
     }
-    let span_ticks: bool = !matches!(policy.map(|chosen| { return chosen.span; }), Some(Span::UntilFilesChange | Span::UntilNextCommand));
-    if state.watching && state.clock < SPAN + 1 && span_ticks {
+    if state.watching && state.clock < SPAN + 1 {
         let mut after: Watch = state.clone();
         after.clock = state.clock + 1;
         push_step(&mut found, "timer: one tick of the span", after);
     }
-    if state.watching && state.head == Head::Elsewhere {
+    if state.rules == Rules::Fifteen {
+        let by_value: bool = state.file == File::Merged;
+        let fingerprint_equal: bool = !state.fingerprint_changed;
+        if state.watching && state.head == Head::Elsewhere && !state.cleanup_started && state.clock <= SPAN && by_value && fingerprint_equal {
+            let mut after: Watch = state.clone();
+            after.cleanup_started = true;
+            push_step(&mut found, "owner: MG6c takes index.lock and begins the cleanup", after);
+        }
+        if state.cleanup_started {
+            // A cleanup already begun finishes, whatever the clock says; the files are exchanged back from the saved copies.
+            let mut after: Watch = state.clone();
+            after.git_result_overwritten = state.file == File::Git;
+            after.undone_deliberate = state.deliberate;
+            after.file = File::Original;
+            after.cleanup_started = false;
+            after.watching = false;
+            push_step(&mut found, "owner: MG6c finishes the cleanup", after);
+        }
+        if state.watching && state.head == Head::Elsewhere && !state.cleanup_started && (state.clock > SPAN || !by_value || !fingerprint_equal) {
+            // No new cleanup starts after the span, or when the by-value test or the fingerprint fails: the leftover is named and a
+            // reminder record is kept (7c), and nothing is restored.
+            let mut after: Watch = state.clone();
+            after.watching = false;
+            after.reported = true;
+            after.reminder = by_value;
+            push_step(&mut found, "owner: no cleanup starts; the leftover is named and a reminder is kept", after);
+        }
+        if state.reminder {
+            let mut after: Watch = state.clone();
+            after.reminder = false;
+            after.dismissed = true;
+            // Dismissing the notification disposes of the notification only; the saved copies stay.
+            push_step(&mut found, "person: dismisses the reminder", after);
+        }
+        if state.saved_copy && state.head == Head::Elsewhere && state.file == File::Merged && !state.cleanup_started {
+            let mut after: Watch = state.clone();
+            after.file = File::Original;
+            after.restored_by_person = true;
+            after.reminder = false;
+            push_step(&mut found, "person: runs the printed restore command", after);
+        }
+    } else if state.watching && state.head == Head::Elsewhere {
         let mut after: Watch = state.clone();
         let by_value: bool = state.file == File::Merged;
         let index_test: bool = match policy {
@@ -225,26 +290,24 @@ pub fn watch_steps(state: &Watch) -> Vec<(String, Watch)> {
         let acts: bool = match state.rules {
             Rules::Twelve => true,
             Rules::Thirteen => by_value,
-            Rules::Fourteen(_) => by_value && index_test,
+            Rules::Fourteen(_) | Rules::Fifteen => by_value && index_test,
         };
         if acts {
             after.git_result_overwritten = state.file == File::Git;
             after.undone_deliberate = state.deliberate;
             after.file = File::Original;
         } else if by_value {
-            // Question 7a options B and C, or the index changed: the leftover is named, nothing is restored.
+            // Question 7a options B and C, or the index changed: the leftover is named, nothing is restored, and under the reminder answer
+            // a reminder record is kept.
             after.reported = true;
+            after.reminder = policy.is_some_and(|chosen| { return chosen.residue == Residue::Reminder; });
         }
         after.watching = false;
         push_step(&mut found, "owner: MG6c cleans up after the late switch", after);
     }
     // The end of the authority is observed, not assumed: a check that finds HEAD elsewhere dispatches the cleanup above and never ends
     // the watch silently. Only a check that finds HEAD still attached to the target may end it.
-    let expires: bool = match policy.map(|chosen| { return chosen.span; }) {
-        Some(Span::UntilFilesChange) => false,
-        Some(Span::UntilNextCommand) => state.watching,
-        _ => state.clock > SPAN,
-    };
+    let expires: bool = state.clock > SPAN;
     if state.watching && expires && state.head == Head::Target {
         let mut after: Watch = state.clone();
         after.watching = false;
@@ -276,16 +339,44 @@ pub fn watch_invariant(state: &Watch) -> Option<String> {
     if state.undone_deliberate {
         return Some("MG6c undid a state the person kept on purpose".to_string());
     }
+    // The obligation is derived from the modelled state (a leftover that may remain with no cleanup under way, no reminder and no
+    // restoration), not from a flag the transitions maintain.
     let wants_reminder: bool = policy_of(state.rules).is_some_and(|chosen| { return chosen.residue == Residue::Reminder; });
-    if wants_reminder && state.residue && state.head == Head::Elsewhere && state.file == File::Merged && !state.watching && !state.reminder {
+    let possible_leftover: bool = state.head == Head::Elsewhere
+        && state.file == File::Merged
+        && !state.watching
+        && !state.cleanup_started
+        && !state.reminder
+        && !state.restored_by_person
+        && !state.dismissed
+        && !state.deliberate;
+    if wants_reminder && possible_leftover && (state.residue || state.reported) {
         return Some("a leftover remained after the watch ended and no reminder record is kept".to_string());
     }
+    if state.rules == Rules::Fifteen && !state.saved_copy {
+        return Some("the saved copies of the merge's pre-state are gone".to_string());
+    }
     return None;
+}
+
+/// The invariant without the accepted concession of 7a: used to show that the concession is the only violation revision 15 has.
+pub fn watch_invariant_except_concession(state: &Watch) -> Option<String> {
+    if state.undone_deliberate {
+        let mut relaxed: Watch = state.clone();
+        relaxed.undone_deliberate = false;
+        return watch_invariant(&relaxed);
+    }
+    return watch_invariant(state);
 }
 
 /// The caps.
 pub fn limits() -> Limits {
     return Limits { max_states: 50_000, max_depth: 30 };
+}
+
+/// Explores the watch with the invariant that leaves out the accepted concession.
+pub fn check_watch_except_concession(rules: Rules) -> Report {
+    return explore(vec![watch_initial(rules)], watch_steps, watch_invariant_except_concession, |_| { return None; }, limits());
 }
 
 /// Explores the watch.

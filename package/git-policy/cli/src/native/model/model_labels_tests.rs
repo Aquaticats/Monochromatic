@@ -17,7 +17,7 @@ use std::path::PathBuf;
 const LABEL: &str = "//! Historical control, not approval evidence for revision 13:";
 
 /// The modules that are evidence for revision 13, and the tools and test files that are not models.
-const CURRENT: [&str; 24] = [
+const CURRENT: [&str; 26] = [
     "model_explore.rs",
     "model_fixture.rs",
     "model_w1_r13.rs",
@@ -29,6 +29,8 @@ const CURRENT: [&str; 24] = [
     "model_m1_split_r13.rs",
     "model_discharge_r14.rs",
     "model_bound_r14.rs",
+    "model_submission_r15.rs",
+    "model_submission_r15_tests.rs",
     "model_merge_r14.rs",
     "model_merge_r14_tests.rs",
     "model_bound_r14_tests.rs",
@@ -74,7 +76,7 @@ fn the_current_modules_do_not_carry_the_historical_label() {
 
 /// The acceptance manifest for revision 14: each of the thirteenth review's twenty-two controls and the test that carries it, so that a
 /// whole-target green is not read as acceptance and a missing or renamed control is found here. Historical results are not listed.
-const ACCEPTANCE: [(u8, &str, &str); 24] = [
+const ACCEPTANCE: [(u8, &str, &str); 25] = [
     (1, "model_w1_r13_tests.rs", "success_then_owner_death_then_reset_does_not_publish_again_under_fourteen"),
     (2, "model_bound_r14_tests.rs", "exposure_before_the_client_lock_lets_the_owner_decide_a_live_command_as_clientless"),
     (3, "model_bound_r14_tests.rs", "fourteen_takes_the_lock_before_the_link_and_exits_on_both_sides_are_clean"),
@@ -92,12 +94,13 @@ const ACCEPTANCE: [(u8, &str, &str); 24] = [
     (15, "model_merge_r14_tests.rs", "a_plain_commit_of_an_old_based_edit_keeps_the_merge_change"),
     (16, "model_merge_r14_tests.rs", "a_stat_match_with_e_is_not_a_proof_that_the_file_is_o"),
     (17, "model_merge_r14_tests.rs", "overlapping_staged_and_worktree_versions_are_all_kept"),
-    (18, "model_watch_r13_tests.rs", "a_deliberate_state_is_undone_by_thirteen_and_only_in_the_stated_concession_by_fourteen"),
+    (18, "model_watch_r13_tests.rs", "fifteen_has_the_accepted_concession_and_nothing_else"),
     (19, "model_register_r13_tests.rs", "thirteen_has_no_bound_for_the_stop_receipt_and_for_materialization"),
     (20, "model_w1_r13_tests.rs", "a_planned_shutdown_with_an_attached_client_aborts_as_class_f_and_decides_nothing"),
     (21, "model_barrier_r13_tests.rs", "thirteen_a_named_commit_whose_parent_was_not_forced_is_lost"),
     (22, "model_w1_r13_tests.rs", "a_query_during_the_unresolved_mark_never_says_nothing_can_land"),
-    (0, "model_watch_r13_tests.rs", "the_watch_is_checked_for_every_answer_of_the_open_questions"),
+    (0, "model_watch_r13_tests.rs", "the_earlier_watches_are_red_over_every_schedule"),
+    (0, "model_submission_r15_tests.rs", "the_submission_window_is_red_under_fourteen_and_green_under_fifteen"),
     (0, "model_register_r13_tests.rs", "fifteen_every_entry_is_bounded_except_the_final_save_which_is_exempt_by_decision"),
 ];
 

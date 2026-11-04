@@ -262,3 +262,11 @@ mod model_merge_r14;
 /// The controls of MG2 and MG3.
 #[path = "model_merge_r14_tests.rs"]
 mod model_merge_r14_tests;
+
+/// Revision 15: the submission window of P2b and what a drain may infer from the FIFO.
+#[path = "model_submission_r15.rs"]
+mod model_submission_r15;
+
+/// The controls of the submission window.
+#[path = "model_submission_r15_tests.rs"]
+mod model_submission_r15_tests;

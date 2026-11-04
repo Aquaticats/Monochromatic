@@ -12,7 +12,7 @@
 
 use crate::model_explore::{Report, replay};
 use crate::model_watch_r13::{
-    Authority, Policy, Residue, Rules, Span, Step, check_retire, check_watch, retire_initial, retire_invariant, retire_steps, watch_initial, watch_invariant, watch_steps,
+    Authority, Policy, Residue, Rules, Span, check_watch_except_concession, Step, check_retire, check_watch, retire_initial, retire_invariant, retire_steps, watch_initial, watch_invariant, watch_steps,
 };
 
 const INSTALL: &str = "owner: MG3 installs the merge's files and records attach-watch";
@@ -73,31 +73,11 @@ fn a_deliberate_state_is_undone_by_thirteen_and_only_in_the_stated_concession_by
     }
 }
 
-/// The whole space of the watch for every combination of the owner's open answers to questions 7a, 7b and 7c: no combination is
-/// assumed. Revision 12 and revision 13 are red. Revision 14 is red exactly when 7a is answered A (the concession), whatever 7b and 7c say,
-/// and the span answers change which schedules reach it: under 7b option C the authority never ends, so even a late deliberate state is
-/// undone, which is that option's stated cost.
+/// Revision 12 and revision 13 are red over the whole space.
 #[test]
-fn the_watch_is_checked_for_every_answer_of_the_open_questions() {
+fn the_earlier_watches_are_red_over_every_schedule() {
     assert!(check_watch(Rules::Twelve).violation.is_some());
     assert!(check_watch(Rules::Thirteen).violation.is_some());
-    for authority in [Authority::ByValueWithIndexTest, Authority::AskFirst, Authority::ReportOnly] {
-        for span in [Span::Measured, Span::UntilNextCommand, Span::UntilFilesChange] {
-            for residue in [Residue::PrintOnce, Residue::Reminder] {
-                let report: Report = check_watch(Rules::Fourteen(Policy { authority, span, residue }));
-                assert!(report.exhausted || report.violation.is_some(), "{:?} {:?} {:?}", authority, span, residue);
-                assert_eq!(
-                    report.violation.is_some(),
-                    authority == Authority::ByValueWithIndexTest,
-                    "{:?} {:?} {:?}: {:?}",
-                    authority,
-                    span,
-                    residue,
-                    report.violation.map(|found| { return found.message; })
-                );
-            }
-        }
-    }
 }
 
 /// Review 4b: the end of the authority is observed, not assumed. After a paused switch completed and HEAD left the target, the span's
@@ -163,4 +143,88 @@ fn a_link_that_falls_between_the_reads_of_a_listing_is_found_by_the_probe() {
         ],
     );
     assert_eq!(probed.step, Step::Withdrawn);
+}
+
+/// Revision 15 with the owner's answers (7a automatic cleanup with the index fingerprint test, 7b the measured span from MG3's installation,
+/// 7c a reminder): the one violation the whole space reaches is the accepted concession of 7a (a deliberate state the fingerprint cannot
+/// tell from a leftover), reported as such; with that concession set aside, every other property holds over every schedule, including no
+/// new cleanup after the span, a cleanup already begun finishing, a derived reminder obligation on every no-restore ending, and dismissal
+/// keeping the saved copies.
+#[test]
+fn fifteen_has_the_accepted_concession_and_nothing_else() {
+    let all: Report = check_watch(Rules::Fifteen);
+    assert_eq!(all.violation.expect("the accepted concession of 7a").message, "MG6c undid a state the person kept on purpose");
+    let rest: Report = check_watch_except_concession(Rules::Fifteen);
+    assert!(rest.violation.is_none() && rest.exhausted, "{:?}", rest.violation.map(|found| { return (found.message, found.trace); }));
+}
+
+/// Control 14 (expiry during cleanup): MG6c has taken the lock and begun before the span ended; the clock passes the span; the cleanup
+/// finishes (one already begun finishes), and no new cleanup starts after the span.
+#[test]
+fn a_cleanup_begun_before_the_span_ends_finishes_after_it_and_no_new_one_starts() {
+    const BEGIN: &str = "owner: MG6c takes index.lock and begins the cleanup";
+    const FINISH: &str = "owner: MG6c finishes the cleanup";
+    let begun = replay(
+        watch_initial(Rules::Fifteen),
+        watch_steps,
+        &[PAUSED, INSTALL, "environment: the paused switch completes; HEAD leaves the target and the merge's files stay", BEGIN, TICK, TICK, TICK],
+    );
+    assert!(begun.clock > crate::model_watch_r13::SPAN && begun.cleanup_started);
+    let finished = replay(begun, watch_steps, &[FINISH]);
+    assert_eq!(finished.file, crate::model_watch_r13::File::Original);
+    // A new cleanup after the span: HEAD moves after the span, and the only step is to name the leftover and keep a reminder.
+    let late = replay(
+        watch_initial(Rules::Fifteen),
+        watch_steps,
+        &[PAUSED, INSTALL, TICK, TICK, TICK, "environment: the paused switch completes; HEAD leaves the target and the merge's files stay"],
+    );
+    let labels: Vec<String> = watch_steps(&late).into_iter().map(|step| { return step.0; }).collect();
+    assert!(!labels.contains(&BEGIN.to_string()));
+    assert!(labels.contains(&"owner: no cleanup starts; the leftover is named and a reminder is kept".to_string()));
+}
+
+/// Control 15 (fingerprint restoration): the index changes away from the recorded bytes and back, or is rewritten with identical bytes,
+/// before the check. The fingerprint is equal, so the cleanup proceeds; this is part of the concession of 7a and is shown reachable.
+#[test]
+fn an_index_that_returns_to_the_recorded_bytes_passes_the_fingerprint_test() {
+    let reached = replay(
+        watch_initial(Rules::Fifteen),
+        watch_steps,
+        &[
+            INSTALL,
+            "environment: a command rewrites the index with identical bytes, or changes it away and back",
+            "environment: reset --soft, then a switch that carries the staged merge content and leaves the file alone",
+            "owner: MG6c takes index.lock and begins the cleanup",
+            "owner: MG6c finishes the cleanup",
+        ],
+    );
+    assert!(reached.index_rewritten && !reached.fingerprint_changed && reached.undone_deliberate);
+}
+
+/// Control 18 (dismissal versus disposal): the reminder is dismissed, and the saved copies remain, so the person can still restore.
+#[test]
+fn dismissing_the_reminder_deletes_no_saved_copy_and_the_restore_command_still_works() {
+    let reached = replay(
+        watch_initial(Rules::Fifteen),
+        watch_steps,
+        &[
+            INSTALL,
+            TICK,
+            TICK,
+            TICK,
+            "environment: a switch that began after the install rewrites the file itself",
+        ],
+    );
+    assert_eq!(reached.file, crate::model_watch_r13::File::Git);
+    let leftover = replay(
+        watch_initial(Rules::Fifteen),
+        watch_steps,
+        &[PAUSED, INSTALL, TICK, TICK, TICK, "environment: the paused switch completes; HEAD leaves the target and the merge's files stay"],
+    );
+    let named = replay(leftover, watch_steps, &["owner: no cleanup starts; the leftover is named and a reminder is kept"]);
+    assert!(named.reminder);
+    let dismissed = replay(named, watch_steps, &["person: dismisses the reminder"]);
+    assert!(!dismissed.reminder && dismissed.saved_copy, "dismissing the notification disposes of nothing");
+    let restored = replay(dismissed, watch_steps, &["person: runs the printed restore command"]);
+    assert_eq!(restored.file, crate::model_watch_r13::File::Original);
 }

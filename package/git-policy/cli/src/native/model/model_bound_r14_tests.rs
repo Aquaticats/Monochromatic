@@ -23,7 +23,7 @@ fn exposure_before_the_client_lock_lets_the_owner_decide_a_live_command_as_clien
             "client: links the request into inbox/",
             "owner: adopts the request, sees no client lock and decides it as clientless",
             "client: takes the client lock",
-            "W1: the bound is reached; the command withdraws and returns the error",
+            "W1: the bound is reached; the command creates the mark",
         ],
     );
     assert_eq!(invariant(&reached), Some("the command returned the withdrawal error and the owner decided the request as clientless".to_string()));
@@ -41,4 +41,31 @@ fn fourteen_takes_the_lock_before_the_link_and_exits_on_both_sides_are_clean() {
     let after = replay(initial(Rules::Fourteen), steps, &["client: takes the client lock", "client: links the request into inbox/ (bound)"]);
     assert!(after.linked && after.lock_held, "after the bound the request is linked and the lock is held");
     assert!(steps(&after).iter().all(|step| { return !step.0.starts_with("owner:"); }), "an owner sees an attached command");
+}
+
+/// Review 5b: the departed command's lock is released after its departure, so the interval after the return exists in the model: the mark
+/// exists, the lock is gone, and the owner that sees a linked request with no client lock still does not decide it, because the mark stands.
+/// Outside death after the link releases the lock with no mark, and then the owner may decide (the outside-cause rule), which is not a
+/// violation because the command never returned an error.
+#[test]
+fn after_the_return_the_lock_is_released_and_the_owner_still_does_not_decide_a_marked_request() {
+    let returned = replay(
+        initial(Rules::Fourteen),
+        steps,
+        &[
+            "client: takes the client lock",
+            "client: links the request into inbox/ (bound)",
+            "W1: the bound is reached; the command creates the mark",
+            "W1: the departure barrier completed; the command returns the error and releases its lock",
+        ],
+    );
+    assert!(!returned.lock_held && returned.client == Client::Withdrawn);
+    assert!(steps(&returned).iter().all(|step| { return !step.0.starts_with("owner:"); }), "the mark forbids the clientless decision");
+    let killed = replay(
+        initial(Rules::Fourteen),
+        steps,
+        &["client: takes the client lock", "client: links the request into inbox/ (bound)", "environment: the command is killed from outside after the link"],
+    );
+    assert!(steps(&killed).iter().any(|step| { return step.0.starts_with("owner:"); }), "the outside-cause rule lets the owner finish it");
+    assert_eq!(invariant(&killed), None);
 }
