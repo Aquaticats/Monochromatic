@@ -1,23 +1,52 @@
 //! What:
-//!  The removal of a stale index lock: taken aside by one rename, looked at again there, and removed only if it is still the stale
-//!  one.
+//!  The removal of a stale index lock by one reclaimer at a time: the reclaimer opens the lock it will judge, reads the marker
+//!  from that open file, takes a non-blocking exclusive `flock` on it, checks that the name still refers to that file, and only
+//!  then unlinks the name.
 //! Why:
-//!  A removal by name removes whatever the name holds by then, so a lock another program placed after the marker was read would
-//!  be lost. The module is split from `service_index_placement.rs` and `service_index_lock.rs`, which re-export its functions.
+//!  A removal by name removes whatever the name holds by then. Between a look at the marker and the removal, the stale lock may
+//!  be gone and a live lock in its place; that happens when a second reclaimer (another instance serving the same physical
+//!  index, an alternate index shared by two worktrees) removed the stale lock and placed its own. The earlier cure took the
+//!  file aside by a rename and put it back by a hard link, which left the live lock off its name for a while, in which Git could
+//!  take the name and strand it. Here no file is moved: the `flock` is held on the very file that was judged, so a second
+//!  reclaimer of that file backs off, and a reclaimer that opened it before it was removed finds the name no longer refers to
+//!  it. A live landing cannot place a lock while the name is occupied. What stays open is a person's `rm index.lock` between
+//!  the check and the unlink, because no system call unlinks a name only if it still names a given file
+//!  (`doc/planning/cli-git-one-reclaimer-per-index.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! reclaimIf(platform, lock, stillStale) // rename to aside; stillStale(aside) ? unlink(aside) : link(aside, lock)
+//! reclaimIf(platform, lock, isStale) // open; judge; flock(NB) ?? busy; sameFile(lock, fd) ? unlink(lock) : changed
 //! ```
 
 use crate::service_index_lock::lock_path_of;
-use crate::service_index_marker::{holder_is_gone, marker_of};
+use crate::service_index_marker::{LOCK_MARKER, Marked, holder_is_gone, marker_of_file};
 use crate::service_index_placement::{Platform, SYSTEM};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
+/// What a reclaimer made of the file at a lock's name.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Reclaimed {
+    /// No lock is left in the way: the stale file was removed, or was already gone.
+    Removed,
+    /// The name no longer refers to the file that was judged stale: the placement is worth another try.
+    Changed,
+    /// Another reclaimer holds the stale file and is removing it: the lock is not this reclaimer's to remove.
+    Busy,
+    /// The file is not a stale lock of the service (a live holder's, Git's, or not readable): it is left where it is.
+    Kept,
+    /// The file is stale and cannot be removed; the log says why.
+    Stuck,
+    /// The file is stale, but the hold a safe removal needs could not be taken (no `flock` on the file system, or the kernel
+    ///  refused it): the file is left where it is, and the person is told how to remove it. It carries the marker read from the
+    ///  very file that was judged, so the notice never describes a file that replaced it.
+    Unguarded(Marked),
+}
+
 /// What:
-///  Removes an index lock left by a service that was killed, when it still carries the service's marker for `seq` and its
-///  holder is gone.
+///  Removes the index lock of `index` left by a service that was killed, when it still carries the service's marker for `seq`
+///  and its holder is gone.
 /// Why:
 ///   Only the marker proves the lock is ours; a foreign lock, one a Git holds, or one whose holder still runs is never touched.
 ///
@@ -27,80 +56,158 @@ use std::path::{Path, PathBuf};
 /// ```
 pub fn remove_stale(index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
-    let stale = |path: &Path| -> bool { return marker_of(path).is_some_and(|marked| { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); }); };
-    if stale(lock.as_path()) {
-        crate::service_fault::reach("reclaim-checked");
-        // The lock is taken aside by one rename and looked at again, so a lock another program placed after the look above is
-        //  put back and never removed: removing by name would remove whatever the name holds by then.
-        let _removed = reclaim_if(&SYSTEM, lock.as_path(), &stale);
-    }
+    let for_this_batch = |marked: &Marked| -> bool { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); };
+    let _outcome: Reclaimed = reclaim_if(&SYSTEM, lock.as_path(), &for_this_batch);
 }
 
 /// What:
-///  Removes the file at `lock` only if `still_stale` says the file taken from that name is the stale one; true when no lock is
-///  left in the way.
+///  Removes the file at `lock` if `is_stale` says the marker in it is a stale one, while no other reclaimer holds the file.
 /// Why:
-///   A removal by name removes whatever the name holds by then: between a look at the marker and the removal, the stale lock
-///  may be gone and a foreign program's live lock in its place (a second instance serving the same physical index, or Git), and
-///  the live lock would be removed. The file is taken aside by one rename, which takes exactly one file, looked at again
-///  there, removed if it is the stale one, and otherwise put back by a hard link that fails rather than replace a lock
-///  placed meanwhile. A lock that could not be put back stays at the name it was taken to, and the log says where.
+///   One reclaimer per file at a time is what keeps a live lock another instance placed after the marker was read from being
+///  removed. The answer says what the caller does next: place again after `Removed` and `Changed`, wait as for any held lock
+///  after `Busy` and `Kept`, and give up after `Stuck`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// reclaimIf(platform, lock, stillStale) // rename to aside; stillStale(aside) ? unlink(aside) : link(aside, lock)
+/// const outcome = reclaimIf(platform, lock, isStale) // 'removed' | 'changed' | 'busy' | 'kept' | 'stuck'
 /// ```
-pub fn reclaim_if(platform: &Platform, lock: &Path, still_stale: &dyn Fn(&Path) -> bool) -> bool {
-    let Some(aside) = aside_of(lock) else {
-        crate::service_error!("the index lock {} cannot be taken aside: it has no file name", lock.display());
-        return false;
+pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -> bool) -> Reclaimed {
+    let file: std::fs::File = match open_to_judge(lock) {
+        Ok(opened) => opened,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Reclaimed::Removed,
+        Err(_) => return Reclaimed::Kept,
     };
-    match std::fs::rename(lock, &aside) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return true,
-        Err(error) => {
-            crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be taken aside ({error}); \
-                 remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
+    // A control reaches here to act as another program would while the reclaimer looks at the file.
+    crate::service_fault::reach("reclaim-opened");
+    let Some(marked) = marker_of_file(&file) else {
+        return Reclaimed::Kept;
+    };
+    if !is_stale(&marked) {
+        return Reclaimed::Kept;
+    }
+    crate::service_fault::reach("reclaim-judged");
+    match hold(platform, &file) {
+        Hold::Taken => {}
+        Hold::Busy => return Reclaimed::Busy,
+        Hold::Unavailable(error) => {
+            crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: the hold that keeps two reclaimers apart could not be taken ({error}), so a removal could take a live lock; \
+                 remove it by hand once no git command runs in this repository",
                 lock.display()
             );
-            return false;
+            return Reclaimed::Unguarded(marked);
         }
     }
-    if !still_stale(aside.as_path()) {
-        put_back(aside.as_path(), lock);
-        return false;
+    crate::service_fault::reach("reclaim-held");
+    match same_file(lock, &file) {
+        Ok(true) => {}
+        Ok(false) => return Reclaimed::Changed,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Reclaimed::Removed,
+        Err(error) => {
+            crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be looked at ({error})", lock.display());
+            return Reclaimed::Stuck;
+        }
     }
-    return match (platform.unlink)(&aside) {
-        Ok(()) => true,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+    return match (platform.unlink)(lock) {
+        Ok(()) => Reclaimed::Removed,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Reclaimed::Removed,
         Err(error) => {
             crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
                  remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
                 lock.display()
             );
-            put_back(aside.as_path(), lock);
-            false
+            Reclaimed::Stuck
         }
     };
 }
 
-/// A name beside `lock` that no other run uses: the process and the clock.
-fn aside_of(lock: &Path) -> Option<std::path::PathBuf> {
-    let clock: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_nanos();
-    return Some(lock.with_file_name(format!("{}.aside-{}-{clock:x}", lock.file_name()?.to_string_lossy(), std::process::id())));
+/// Opens `lock` to read its marker without following a link or waiting on a pipe, and without a descriptor a child could inherit.
+fn open_to_judge(lock: &Path) -> std::io::Result<std::fs::File> {
+    return std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(lock);
 }
 
-/// Puts the file taken aside back under the lock's name, without replacing a file that has the name by now.
-fn put_back(aside: &Path, lock: &Path) {
-    match std::fs::hard_link(aside, lock) {
-        Ok(()) => {
-            let _removed = std::fs::remove_file(aside);
-        }
-        Err(error) => {
-            crate::service_error!("the index lock {} was taken aside to {} and could not be put back ({error}); the file at the second name is that lock, and it is not removed",
-                lock.display(),
-                aside.display()
-            );
-        }
-    }
+/// What taking the reclaim hold on a file came to.
+enum Hold {
+    /// This reclaimer holds the file until its descriptor is closed, or the process ends.
+    Taken,
+    /// Another reclaimer holds it.
+    Busy,
+    /// The file system gives no `flock`, or the call failed for a reason that waiting does not change: nothing is removed.
+    Unavailable(std::io::Error),
+}
+
+/// What:
+///  Takes the reclaim hold on `file` through the platform's `flock`, without waiting.
+/// Why:
+///   Two reclaimers of one stale lock must not both remove a name; the reason is written beside the call in `flock_exclusive`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hold = tryFlock(file) // 'taken' | 'busy' | { unavailable: error }
+/// ```
+fn hold(platform: &Platform, file: &std::fs::File) -> Hold {
+    return match (platform.flock)(file) {
+        Ok(()) => Hold::Taken,
+        // An interrupted call is asked again by the wait, like a hold another reclaimer has taken.
+        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted) => Hold::Busy,
+        Err(error) => Hold::Unavailable(error),
+    };
+}
+
+/// What:
+///  The system's exclusive `flock` on `file`, without waiting; `WouldBlock` when another descriptor holds it.
+/// Why:
+///   The one place the lock is taken, so a control can stand in a file system that gives none (`Platform::flock`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// flockExclusive(file) // throws WouldBlock when held
+/// ```
+pub fn flock_exclusive(file: &std::fs::File) -> std::io::Result<()> {
+    // Lock kept: two reclaimers of one stale lock must not both remove a name, because the second removal would remove what a
+    //  live landing placed after the first. A design without a lock needs an atomic conditional unlink, which Linux does not have
+    //  (a rename aside leaves a live lock off its name for a while, in which Git can take the name). The hold is non-blocking,
+    //  is on the one file being reclaimed (the smallest unit there is, never the repository or the directory), is kept for a few
+    //  system calls, and is dropped by the kernel when the descriptor closes or the process dies, so no leftover can block a
+    //  reclaim.
+    // SAFETY: `flock` takes an open descriptor, which `file` keeps open for the call.
+    let result: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    return if result == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
+}
+
+/// Whether the name `lock` refers to the very file `file` has open: the same device and the same inode, so a replaced file whose
+///  inode number was reused cannot pass while `file` keeps the old one alive.
+fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
+    let named = std::fs::symlink_metadata(lock)?;
+    let open = file.metadata()?;
+    return Ok(named.dev() == open.dev() && named.ino() == open.ino());
+}
+
+/// What:
+///  The words for a stale lock that was not removed: which lock, which batch and process left it, how to tell it is still that
+///  lock, and how to remove it.
+/// Why:
+///   Native Git leaves a stale `index.lock` to the person, and so does a service that cannot take the hold a safe removal needs;
+///  the person must be able to act from the notice alone. `marked` is the marker read from the file that was judged, never a
+///  second read of the name, which another landing may have taken since; the first line to look for lets the person see that
+///  the file is still the one described.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `The index lock ${lock} was left by cli-git-service batch ${seq} (process ${pid}, gone). ... remove it yourself: rm ${lock}`
+/// ```
+pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
+    let (who, first_line): (String, String) = match marked.holder.as_ref() {
+        Some((pid, birth)) => (
+            format!("cli-git-service batch {} (process {pid}, which is gone)", marked.seq),
+            format!("{LOCK_MARKER}{} {pid} {birth}", marked.seq),
+        ),
+        None => (format!("cli-git-service batch {}", marked.seq), format!("{LOCK_MARKER}{}", marked.seq)),
+    };
+    return format!(
+        "The index lock {} was left by {who} and is not removed here, because the file lock that makes its removal safe could not be taken on this file system. \
+         The commit waits as for any held lock. Once no git command and no commit of this service is running in this repository, and the first line of the file \
+         still reads `{first_line}`, remove it yourself (`rm {}`).",
+        lock.display(),
+        lock.display()
+    );
 }

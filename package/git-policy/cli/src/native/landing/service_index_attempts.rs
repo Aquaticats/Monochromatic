@@ -25,9 +25,9 @@ use crate::index_lock_evidence::{
 use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::process_start::resolve_process_start;
 use crate::service_index_lock::{Announce, LockFailure, notice_every};
-use crate::service_index_marker::is_reclaimable;
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
-use crate::service_index_placement::{Platform, log_placement_failure, place_marked, reclaim};
+use crate::service_index_placement::{Platform, Reclaimed, log_placement_failure, place_marked, reclaim};
+use crate::service_index_reclaim::stale_lock_words;
 use crate::service_index_staging::refresh_age;
 use crate::service_index_watch::{POLL_PAUSE, Watch};
 use crate::service_protocol::FailureCode;
@@ -147,19 +147,26 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
     let mut proof: Proved = Proved::Nothing;
     let mut last_notice: Instant = began;
     loop {
+        // What the reclaim of this round found: a stale lock another reclaimer holds (looked at again at the poll pace, because
+        //  the end of a hold leaves no event in the directory), and a stale lock that is not removed here (told to the person).
+        let mut busy: bool = false;
+        let mut left_stale: Option<String> = None;
         // The hold begins at the placement, not at the staging that may have been long ago.
         refresh_age(held);
         match place_marked(platform, staged, lock) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 // A lock with the service's marker whose holder is gone is a dead instance's: it is removed, and the
-                //  attempt is made again at once. A live holder of any release is waited for like a foreign one. A lock
-                //  that cannot be removed ends the wait: more waiting would not change that.
-                if is_reclaimable(lock) {
-                    if !reclaim(platform, lock) {
-                        return Err(LockFailure { code: FailureCode::Unavailable });
-                    }
-                    continue;
+                //  attempt is made again at once; so is a lock that was replaced while it was judged. A live holder of any
+                //  release is waited for like a foreign one, and so is a stale lock another reclaimer is removing (the watch
+                //  wakes when it is gone, and the notice timer looks again if that reclaimer died). A lock that cannot be
+                //  removed ends the wait: more waiting would not change that.
+                match reclaim(platform, lock) {
+                    Reclaimed::Removed | Reclaimed::Changed => continue,
+                    Reclaimed::Stuck => return Err(LockFailure { code: FailureCode::Unavailable }),
+                    Reclaimed::Busy => busy = true,
+                    Reclaimed::Unguarded(marked) => left_stale = Some(stale_lock_words(lock, &marked)),
+                    Reclaimed::Kept => {}
                 }
             }
             Err(error) => {
@@ -175,7 +182,12 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         let due: bool = first || last_notice.elapsed() >= notice_every();
         // The evidence is read at the first look and at each repeat of the line, not at every wake or poll.
         let at_ceiling: bool = waited >= ceiling;
-        let looked: Looked = if due || at_ceiling { look_at_holder(index, waited, first) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None } };
+        let mut looked: Looked = if due || at_ceiling { look_at_holder(index, waited, first) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None } };
+        if let Some(words) = left_stale {
+            // The notice is the person's way to the lock; the holder is named from the marker, not from a process scan.
+            looked.line = Some(words);
+            looked.who = Some(String::from("A service that is gone"));
+        }
         proof = looked.proved;
         let mut seen: String = describe_lock(lock);
         if let Some(text) = looked.open {
@@ -213,7 +225,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         }
         match watch.as_ref() {
             Some(active) => {
-                if !active.wait(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), true), lock_name) {
+                if !active.wait(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), !busy), lock_name) {
                     // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
                     //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
                     drop(watch.take());

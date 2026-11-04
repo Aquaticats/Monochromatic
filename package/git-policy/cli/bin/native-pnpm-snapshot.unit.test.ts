@@ -14,7 +14,7 @@ import {
 import { testContainerfile, } from './native-test-containerfile.ts';
 
 /**
- The platform of the gate image: Debian on x86-64, which links the GNU C library.
+ The platform of the gate image: CachyOS on x86-64, which links the GNU C library.
  */
 const platform = 'linux-x64';
 

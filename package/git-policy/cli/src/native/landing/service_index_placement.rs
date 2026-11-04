@@ -34,7 +34,8 @@ use std::path::Path;
 /// the setting of a watch on the lock's directory,
 /// the flush of the staged marker to storage,
 /// the question whether a lock is still the holder's,
-/// and the removal of a lock the holder owns.
+/// the removal of a lock the holder owns,
+/// and the hold a reclaimer takes on a stale lock.
 /// Why:
 ///   A filesystem with neither atomic placement,
 /// a stale lock that cannot be unlinked,
@@ -69,6 +70,9 @@ pub struct Platform<'a> {
     /// The removal of the lock the holder owns,
     /// at its release or when it goes out of scope.
     pub release: fn(&Path) -> std::io::Result<()>,
+    /// The non-blocking exclusive hold a reclaimer takes on the stale lock it removes;
+    /// `WouldBlock` when another reclaimer holds it.
+    pub flock: &'a dyn Fn(&std::fs::File) -> std::io::Result<()>,
 }
 
 /// The operating system's own calls.
@@ -81,6 +85,7 @@ pub const SYSTEM: Platform<'static> = Platform {
     sync: &sync_file,
     inspect: inspect_ownership,
     release: unlink_file,
+    flock: &crate::service_index_reclaim::flock_exclusive,
 };
 
 pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
@@ -248,13 +253,12 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
 }
 
 /// Removes the stale `lock`,
-/// whose holder is gone.
-/// False,
-/// after saying why in the log,
-/// when it is still there;
-/// a lock that is already gone counts as removed.
-pub fn reclaim(platform: &Platform, lock: &Path) -> bool {
-    return reclaim_if(platform, lock, &crate::service_index_marker::is_reclaimable);
+/// whose holder is gone,
+/// while no other reclaimer holds it;
+/// what came of it is the answer (`Reclaimed`),
+/// and the log says why a stale lock stays.
+pub fn reclaim(platform: &Platform, lock: &Path) -> Reclaimed {
+    return reclaim_if(platform, lock, &|marked: &crate::service_index_marker::Marked| { return crate::service_index_marker::holder_is_gone(marked.holder.as_ref()); });
 }
 
-pub use crate::service_index_reclaim::reclaim_if;
+pub use crate::service_index_reclaim::{Reclaimed, reclaim_if};

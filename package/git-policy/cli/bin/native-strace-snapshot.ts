@@ -46,7 +46,11 @@ const contextFileName = 'strace.tar.xz';
 /**
  Containerfile lines of the stage that builds `strace`. The stage starts from the same base as the test image, so the
  executable is static and runs on any C library; `libunwind` stack traces are left out because the tests never ask for
- them and the image has no such library.
+ them and the image has no such library. The build uses the kernel headers that strace bundles
+ (`--enable-bundled=yes`): this release checks structure sizes against the newest `linux-api-headers`, which the
+ CachyOS base carries, and without the option stops in `io_uring.c` with `Unexpected size of arg.resv`.
+ Its default `-Werror` stops the build in `ioctl.c` on a warning of the newest compiler and C library
+ (`assignment discards 'const' qualifier`), so warnings do not fail this build of a fixed test tool (`--disable-gcc-Werror`).
 
  @param base - content-addressed base image ID shared with the test image
 
@@ -71,7 +75,7 @@ export function straceStageLines({
     `COPY ${contextFileName} /strace/${contextFileName}`,
     'WORKDIR /strace',
     `RUN ["tar", "--extract", "--xz", "--file=${contextFileName}", "--strip-components=1"]`,
-    `RUN ["sh", "-c", "./configure --quiet --enable-mpers=no --without-libunwind LDFLAGS=-static && make --quiet --jobs=${String(jobs)}"]`,
+    `RUN ["sh", "-c", "./configure --quiet --enable-mpers=no --enable-bundled=yes --disable-gcc-Werror --without-libunwind LDFLAGS=-static && make --quiet --jobs=${String(jobs)}"]`,
   ];
 }
 

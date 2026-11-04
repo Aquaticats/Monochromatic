@@ -1873,6 +1873,29 @@ A test that starts such a run records its arguments with `recording_git.rs` and 
 `git reset` without `-q` lists the tracked paths whose files differ from the index, so the service's journal now names
 the paths of other uncommitted work for every landing.
 
+### Container base images
+
+Every container image of the verification tasks starts from the newest CachyOS image the host CPU can run,
+on its `latest` tag (`doc/decision/container-base-distro.md` at the repository top level).
+The tag is never pinned to a version or a digest, so an upstream CachyOS update that breaks a task is a bug to fix at once.
+Two derived base images carry what the network-free image builds need:
+
+- `native-test-base.Containerfile` builds `localhost/git-policy-native-test-base`:
+  CachyOS, the distribution's Rust (Cargo and Clippy) and build tools, and the audited Git 2.56.0 built from its
+  checksum-pinned kernel.org tarball at `/usr/bin/git`, where the tests expect the real Git.
+  The gate image and the mutation images build on it.
+- `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`: CachyOS, Node 24.11.0, and Git 2.55.0.
+
+Each run of `native:test:container`, `test:git-image`, `test:e2e:concurrent:image` and
+`test:e2e:concurrent:native:image` first pulls the `latest` tag with `podman pull --policy=newer`
+(one small request when nothing changed; a registry that cannot be reached is reported and the copy the host holds is used).
+The derived base is tagged `<first digits of the pulled image ID>-<first digits of the Containerfile hash>`,
+so a new CachyOS image or an edited Containerfile builds a new base (with network, once) and every run after that finds it.
+The gate image then builds from the base's ID with no network, exactly as before, and its layer cache is keyed on that ID.
+`bin/native-test-base.ts` holds the pull, the tag and the build.
+The resolver that picks `cachyos-v4`, `cachyos-v3` or `cachyos` is `package/test-harness/core-matrix`;
+a host that is not x86-64 stops with an error that names the image, because these images have no Alpine variant.
+
 ### Container limits
 
 Every container the verification tasks start is bounded.
@@ -1904,11 +1927,10 @@ whole CPUs of the limit, never below one.
 mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
 mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/invocation/startup_gate.rs
 mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
-mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
+mise run //package/git-policy/cli:test:git-image -- --memory 4g
 ```
 
-- `native:test:container` accepts all three options, and so do `native:mutation:scoped` and `test:git-image`
-  (the Git checkout path comes first there).
+- `native:test:container` accepts all three options, and so do `native:mutation:scoped` and `test:git-image`.
 - `native:mutation` runs the gate and then the mutation step, and mise passes the options to the mutation step only,
   so the gate runs at the defaults.
   Run `native:test:container` with its own options first when both need changing.
