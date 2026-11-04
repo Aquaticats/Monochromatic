@@ -117,179 +117,77 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
-Update after the last list:
-the integration branch (`fix/git-policy-cli-commits-fast-under-disk-pressure` tip `c7ce91581e`,
-gate 4703 of 4703) was fast-forwarded into the 0.5.28 base,
-then the batch-number fix (`fix/git-policy-cli-service-batch-numbers-unique` tip `9c3d279e1a`,
-gate 4666 of 4666) merged as `d9e8907ae8`;
-the base gate `gpc-gate-base-0-5-28-final-20261103T214518-0500` is running,
-and 0.5.28 is released from that tip when it passes.
-Measured on that integration tip,
-median of 19 warm paired rounds:
-signed commits wrapped 207 ms against native 118 ms (1.75 times),
-unsigned 171 against 115 ms (1.45 times);
-0 wrapper syncs waited on a publishing landing (7 queued to a background thread),
-3 forced on a withdrawal;
-Git's own defaults (`core.fsync` read from Git 2.56.0 source) are followed.
-The batch-number bug was real for services sharing a journal (development runs and the test harness;
-production gives each instance its own journal):
-two landings could share a number and one landing's records overwrite the other's;
-fixed with an `O_EXCL` claim file per number.
-Models round 9 done (`feat/git-policy-cli-commit-protocol-models` tip `3e86918e4c`,
-252 of 252):
-W1 and the register rebuilt for revision 13 (red under 12),
-controls 1 to 6,
-9 to 17 and F7/F9 re-opened,
-historical models labelled by a guard test,
-state log distinguishes absent,
-damaged and unreadable,
-legacy pair and binding removed (spool kept).
-cargo-shadow fifth review:
-all four parts "not correct";
-round 6 running with the owner's kept-files answer.
-Thirteenth design review:
-"Approve continued model work only";
-revision 14 written (`fc28bb5219`);
-fourteenth review (`commits-never-fail-sol-14.txt`):
-owner questions "accurate after the edits below,
-not accurate as written",
-6a to be rewritten (it omitted fail-closed recovery),
-and planned shutdown added a hook-cancellation exception the owner never approved (R14-9);
-revision 15 written (`4a6ad9d34a`,
-decision 14 recorded,
-6a and 6b dropped,
-planned shutdown is a drain that ends no protected program),
-with questions 5,
-7a,
-7b and 7c in `commits-never-fail-questions-4a6ad9d34a.md`;
-the fifteenth review (`commits-never-fail-sol-15.txt`) checks them before they are asked.
-Models round 10 done in part (`feat/git-policy-cli-commit-protocol-models` tip `ffc98d1eae`,
-293 of 293):
-all twenty-two revision 14 controls carried by named tests in an `ACCEPTANCE` manifest (red under 13,
-green under 14);
-the open owner questions modelled as parameters;
-`StateWriter` single writer,
-validated checkpoint replacement root,
-`sync_prefix` watermark.
-Not done:
-dependency discharge in a component,
-T1's phased observations,
-the keeper write end inside the W1 model,
-components 4.2,
-4.4,
-4.6,
-4.7.
-Its reviews are running (`commit-components-sol-7.txt`,
-`commit-models-sol-5a.txt`,
-`commit-models-sol-5b.txt`);
-the next models round takes them with revision 15 and its review (the 6a `StopPolicy` parameter is obsolete under decision 14).
-
-At 2026-11-03T20:14:48-05:00 (the owner's cap is five delegate agents at once),
-five running:
-- Integration and the owner's power-cut answer on today's landing,
-  branch `fix/git-policy-cli-commits-fast-under-disk-pressure` (from `ce711b0379`),
-  worktree `.claude/worktrees/fix-commits-fast-under-disk-pressure`:
-  merges the base tip `f89fa63f10` and index round 5 (`b47467ebd1`),
-  then takes the wrapper's own syncs off the waiting path of a publishing landing
-  ("Force at leaving, else background",
-  in "Owner decisions in force"),
-  then measures and gates.
-  Its first round,
-  measured on a main-shaped fixture (20,740 files) under the load there was:
-  the 0.5.28 base was worse than 0.5.27
-  (warm paired delta 273 against 139 ms unsigned,
-  298 against 172 ms signed;
-  12 fsyncs per landing against about 4,
-  native none);
-  its tip is 2.0 times native warm (116 against about 113 ms),
-  but still waited for 11 fsyncs per landing,
-  the cause of the 8 to 36 s commits
-  (the production journal attributes 78% of slow-landing time to `sync_ms`,
-  up to 119,715 ms).
-  Fixed in that round:
-  pack lookups and pack opens read once instead of per search step
-  (46.9 MB and 79,951 `pread64` per commit against native's 1.5 MB and 8),
-  `diff-tree` reads only differing subtrees,
-  commit listing once per process,
-  the child watch looks at its child before listing the host's processes,
-  the gate stopped walking whole trees (69 to 10 ms),
-  one redundant sync removed;
-  gate 4622 of 4622.
-  No measured pair reached 5 s,
-  so no raise of the 5 s standard was asked;
-  `doc/planning/cli-git-commit-latency-under-disk-pressure.md` says no finite bound holds while a sync stays on the waiting path.
-- Design revision 13,
-  `fix/git-policy-cli-commits-never-fail` (from `18ca87c579`):
-  records the owner's four revision-12 answers and answers the twelfth review
-  (`commits-never-fail-sol-12.txt`:
-  "Approve continued model work only";
-  first need:
-  a complete submitted-attempt and normal-exit state machine).
-- Models round 7,
-  `feat/git-policy-cli-commit-protocol-models` (from `8dbe45a649`):
-  the components rebuilt on rule V (one checksummed request file,
-  a double-buffered state pair,
-  zero wrapper syncs on the waiting path),
-  the open components findings (standalone `repair_tail` contract,
-  amendment parents as a recoverable closure,
-  a working native fallback for refused gitlinks),
-  and the model findings that do not depend on revision 13.
-  Round 6 (178 of 178 model tests):
-  the explorer's false-green bounded wait fixed red-first;
-  the W1/P2 model now shows revision 11's COMMITTING exit as red against the owner's rule;
-  publication split into send,
-  apply and acknowledge;
-  the disposable Git runner bounded;
-  components refuse a symlinked root,
-  resend without a temporary,
-  append reading only the tail,
-  replay without the quadratic scan,
-  and a replay from a closure rebuilt after pruning.
-- cargo-shadow round 5 done:
-  tip `8e42ae47c9`,
-  428 of 428 tests,
-  clippy clean,
-  103 `avoidable-closure` warnings.
-  One workspace lock (`.cache/cargo-shadow/lock`,
-  non-waiting `flock`,
-  close-on-exec) replaces the per-journal lock (agent's pick,
-  veto open);
-  cargo children run in a recorded process group and `bounded_run` stops the whole group;
-  the reader asks the answering Git for its system configuration;
-  kept copies capped at `MAX_KEPT_FILES` 1,000 (unmeasured;
-  past it a new transaction is refused with a listing,
-  nothing deleted):
-  an owner question.
-  Bounds now cite measurements from this repository (cargo calls 0.05 to 0.91 s against 30 min;
-  Git 0.006 to 0.018 s against 60 s),
-  the rest labelled unmeasured.
-  A pnpm 12.16.1 oracle confirmed pnpm also refuses an unchanged update that leaves a too-young version locked.
-  The agent used Python and shell scratch scripts (`bench_bounds.py`,
-  `t.sh`),
-  against AGENTS.md's TypeScript-only script rule;
-  to be said in its next brief.
-  Fifth review running in four parts (`cargo-shadow-sol-5a/5b/5b2/5c.txt`).
-- (Earlier entry) cargo-shadow round 5,
-  `feat/cargo-shadow-cli` (from `e4451f1a75`),
-  answering the fourth review (all four parts "not correct":
-  4a Git-equivalent object acceptance;
-  4b two durable-preservation gaps,
-  kept paths lost on errors,
-  kept copies unbounded;
-  4b2 journal scanning is not transaction exclusion,
-  the lock's lifetime does not cover surviving cargo writers,
-  no final durability barrier;
-  4c cleanup can erase a refusal,
-  the bounded runner does not prove writers stopped,
-  a placeholder race)
-  and measuring its bounds (LQM).
-- Batch numbers,
-  `fix/git-policy-cli-service-batch-numbers-unique` (from `f89fa63f10`):
-  a gate run once saw two of sixteen services answer with the same batch number in `service_sequencer::a_pathspec_commit_after_a_conflicted_cherry_pick...`;
-  product bug or test count,
-  to be found out.
+At 2026-11-04T03:27:12-05:00 (the owner's cap is five delegate agents at once),
+two delegate agents and four cross-vendor reviews running:
+- Design revision 16,
+  `fix/git-policy-cli-commits-never-fail` (from revision 15,
+  `4a6ad9d34a`):
+  records the owner's revision-15 answers (in "Owner decisions in force") as decisions 15 to 18
+  and answers the fifteenth review (`commits-never-fail-sol-15.txt`,
+  R15-1 to R15-8;
+  protocol "approve continued model work only",
+  questions "accurate after named edits").
+  Two of its findings bear on owner rules:
+  R15-1,
+  accurate attribution of the post-success exception is not yet shown to be the owner's approval;
+  R15-6,
+  start-only materialization adds an unbounded foreground phase the owner never approved.
+  It writes a new questions file only if one is needed.
+- Models round 11,
+  `feat/git-policy-cli-commit-protocol-models` (from `ffc98d1eae`,
+  293 of 293):
+  merges main (the subsystem folders of #6261),
+  puts the `commit_*` component files in `commit/` and the `model_*` files in a new `model/` folder,
+  fixes components review 7 ("Not correct"),
+  models review 5a ("sound after named fixes") and 5b ("Not sound":
+  the discharge green is tautological and its checkpoint rule is unsafe),
+  applies decisions 14 to 18,
+  and adds the fifteenth review's model controls.
+  Not done at round 10:
+  dependency discharge in a component,
+  T1's phased observations,
+  the keeper write end inside the W1 model,
+  components 4.2,
+  4.4,
+  4.6 and 4.7.
+- cargo-shadow sixth review,
+  four parts (`cargo-shadow-sol-6a.txt`,
+  `-6b.txt`,
+  `-6b2.txt`,
+  `-6c.txt`),
+  of round 6 (tip `d206fd5321`,
+  472 of 472);
+  round 6 is described in "Cargo shadow and the Rust catalog tools".
 
 Done since the last list:
+- Issue #6261 (subsystem folders):
+  merged into main as `fec77945dd` (parents `5435980375` and `ac5414810a`);
+  the issue closed at 2026-11-04T08:22:56Z through `186e264e06`,
+  and main matches origin.
+  29 subsystem folders;
+  `lib.rs` re-exports each folder (`pub mod <folder>; pub use <folder>::*;`),
+  so old paths keep working.
+  Removing the `native` layer is deferred (option A,
+  coordinator's pick under the delegation,
+  veto open).
+- Issue #6260 (nested-aware source scans):
+  shipped in 0.5.28 and closed at 2026-11-04T02:57:10Z.
+- 0.5.28:
+  see "Release in flight";
+  its measurements are in `doc/planning/cli-git-commit-latency-under-disk-pressure.md`.
+  It carries the batch-number fix (`fix/git-policy-cli-service-batch-numbers-unique` tip `9c3d279e1a`,
+  merged as `d9e8907ae8`):
+  services sharing a journal (development runs and the test harness;
+  production gives each instance its own journal) could give two landings one number,
+  and one landing's records then overwrote the other's;
+  each number is now claimed with an `O_EXCL` claim file.
+- Design revision 15 (`4a6ad9d34a`) and its review:
+  the owner answered questions 5,
+  7a,
+  7b and 7c (all recommended).
+- cargo-shadow fifth review:
+  all four parts "not correct";
+  round 6 answered it.
 - Every wait has a bound:
   fast-forwarded into the 0.5.28 base (tip `f89fa63f10`).
   Step ceilings with measurements:
@@ -2007,6 +1905,44 @@ Decisions:
 see "Merge auto-resolution" under owner decisions in force.
 
 ### Cargo shadow and the Rust catalog tools
+
+Current state at 2026-11-04T03:27:12-05:00:
+round 6,
+tip `d206fd5321` (2026-11-03T22:26:12-05:00),
+472 of 472 tests;
+the sixth cross-vendor review runs in four parts (`~/temp/agent/reviews/cargo-shadow-sol-6a.txt`,
+`-6b.txt`,
+`-6b2.txt`,
+`-6c.txt`).
+Round 6 answered the fifth review (all four parts "not correct").
+Picks open to veto,
+the agent's under the coordinator's delegation:
+one workspace lock (`.cache/cargo-shadow/lock`,
+non-waiting `flock`,
+close-on-exec) instead of a lock per journal;
+a child subreaper plus a `/proc` scan,
+not a control group (`cgroup.kill` was available here),
+to stop every descendant;
+one bounded run per process;
+runner constants labelled as the implementer's picks (the scan cost 7.9 to 14.6 ms with 894 processes);
+HTTP limits unmeasured.
+Kept copies follow the owner's warning (see "cargo-shadow kept files" in "Owner decisions in force").
+A pnpm 12.16.1 oracle confirmed that pnpm also refuses an unchanged update that leaves a too-young version locked.
+Not built:
+the background half of "Force at leaving,
+else background".
+Not done:
+a hard-link fault matrix,
+a power-loss model,
+concurrent directory publication,
+the three-writer undo,
+the "refused version already in the initial lockfile" counterexample,
+network tests for trickling,
+stalled and oversized bodies,
+add and remove dispatch tests,
+and a pnpm oracle for an unrelated refused package during a targeted update.
+The rest of this section is the history of the first rounds;
+its "Remaining" list is what follows once the reviews pass.
 
 Branch `feat/cargo-shadow-cli` `504a82aa3f`:
 182 tests at the last report,
