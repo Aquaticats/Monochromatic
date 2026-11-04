@@ -77,6 +77,15 @@ pub fn launch_code<T>(result: Result<T, LaunchError>) -> i32 {
     };
 }
 
+/// The exit code a flusher launch result becomes: the launch codes, 20 for a lock failure, and 0 for both a started and a not-needed helper.
+pub fn flusher_launch_code(result: Result<git_policy_cli::commit_flusher::Launched, git_policy_cli::commit_flusher::FlusherLaunchError>) -> i32 {
+    return match result {
+        Ok(_) => 0,
+        Err(git_policy_cli::commit_flusher::FlusherLaunchError::Launch(error)) => launch_code::<()>(Err(error)),
+        Err(git_policy_cli::commit_flusher::FlusherLaunchError::Lock(_)) => 20,
+    };
+}
+
 /// Launches `entry` from a copy of this process that has one thread (the harness has two), and returns the launch's `launch_code`.
 fn launch_clean<F: FnOnce() -> i32>(entry: F) -> Option<i32> {
     return in_single_threaded_process(move || { return launch_code(launch_detached(entry)); });

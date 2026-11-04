@@ -12,7 +12,7 @@
 //! ```
 #![cfg(feature = "test-seams")]
 
-use crate::commit_helper_launch_tests::launch_code;
+use crate::commit_helper_launch_tests::flusher_launch_code;
 use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_flusher::{FlushError, Flushed, RECEIPT_DIR, RECEIPT_ERRORS, flush_lane_with, launch_flusher};
 use git_policy_cli::commit_identity::set_fault_point;
@@ -92,7 +92,7 @@ fn a_flusher_launched_in_the_release_window_carries_the_receipt_the_first_hands_
         &mut || {
             std::os::unix::fs::symlink(launch_lane.join("nowhere"), &dangling).expect("a receipt that cannot be forced");
             let lane_for_child: PathBuf = launch_lane.clone();
-            launched = in_single_threaded_process(move || { return launch_code(launch_flusher(&lane_for_child)); });
+            launched = in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&lane_for_child)); });
         },
     )
     .expect("flush");

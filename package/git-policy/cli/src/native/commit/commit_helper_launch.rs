@@ -1,7 +1,9 @@
 //! What:
 //!  The launch of a detached helper that is a function of this program and not a start of it: two forks, a new session, standard
 //!  streams on `/dev/null` and every other descriptor closed with `close_range`. The first child leaves at once; the helper is the
-//!  grandchild, whose parent is then the reaper of orphans.
+//!  grandchild, whose parent is then the reaper of orphans. The launch returns success only after the helper itself reported ready on a
+//!  pipe (its setup done, its entry about to run); a failure of the first child or of the helper's setup is the launch's error.
+//!  A process with more than one thread is refused before the fork.
 //! Why:
 //!  The one-shot flusher (`doc/planning/cli-git-commits-never-fail.md`, rule V, "Receipt responsibility") must survive its launcher,
 //!  must hold no lane lock, client lock, gate or pipe description it inherited (a `flock` belongs to the open file description, which a
@@ -11,7 +13,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // detach(entry: () => number): void; // fork twice, setsid, null the streams, close every other descriptor, run entry, exit with its code
+//! // detach(entry: () => number): void; // one thread only; fork twice, setsid, null the streams, close every other descriptor, report ready, run entry
 //! ```
 
 use std::fmt;
@@ -103,24 +105,44 @@ impl fmt::Display for LaunchError {
 impl std::error::Error for LaunchError {}
 
 /// What:
-///  Closes every descriptor numbered `first` or above in this process, with the `close_range` system call; where that call is absent
-///  (`ENOSYS`, before Linux 5.9) or filtered (`EPERM`), it lists `/proc/self/fd` and closes each one.
+///  Closes every descriptor numbered `first` or above in this process, except those in `keep`, with the `close_range` system call; where
+///  that call is absent (`ENOSYS`, before Linux 5.9) or filtered (`EPERM`), it lists `/proc/self/fd` and closes each one.
 /// Why:
-///  A forked helper shares every open file description of its launcher.
+///  A forked helper shares every open file description of its launcher; the few it must keep (its ready report, the flusher lock it was
+///  handed) are named, and nothing else survives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function closeDescriptorsFrom(first: number): void;
+/// function closeDescriptorsExcept(first: number, keep: number[]): void;
 /// ```
-pub fn close_descriptors_from(first: u32) -> io::Result<()> {
-    // SAFETY: `close_range` takes three plain integers and has no memory preconditions.
-    let status: libc::c_long = unsafe { libc::syscall(libc::SYS_close_range, first as libc::c_uint, libc::c_uint::MAX, 0 as libc::c_uint) };
-    if status == 0 {
-        return Ok(());
+pub fn close_descriptors_except(first: u32, keep: &[libc::c_int]) -> io::Result<()> {
+    let mut kept: Vec<u32> = keep.iter().filter_map(|number| { return u32::try_from(*number).ok(); }).filter(|number| { return *number >= first; }).collect();
+    kept.sort_unstable();
+    let mut ranges: Vec<(u32, u32)> = Vec::with_capacity(kept.len() + 1);
+    let mut start: u32 = first;
+    for number in &kept {
+        if *number > start {
+            ranges.push((start, *number - 1));
+        }
+        start = number.saturating_add(1);
     }
-    let error: io::Error = io::Error::last_os_error();
-    if !matches!(error.raw_os_error(), Some(libc::ENOSYS | libc::EPERM)) {
-        return Err(error);
+    ranges.push((start, u32::MAX));
+    let mut fallback: bool = false;
+    for (low, high) in &ranges {
+        // SAFETY: `close_range` takes three plain integers and has no memory preconditions.
+        let status: libc::c_long = unsafe { libc::syscall(libc::SYS_close_range, *low as libc::c_uint, *high as libc::c_uint, 0 as libc::c_uint) };
+        if status == 0 {
+            continue;
+        }
+        let error: io::Error = io::Error::last_os_error();
+        if !matches!(error.raw_os_error(), Some(libc::ENOSYS | libc::EPERM)) {
+            return Err(error);
+        }
+        fallback = true;
+        break;
+    }
+    if !fallback {
+        return Ok(());
     }
     let mut open: Vec<libc::c_int> = Vec::new();
     for entry in std::fs::read_dir("/proc/self/fd")? {
@@ -128,6 +150,7 @@ pub fn close_descriptors_from(first: u32) -> io::Result<()> {
         if let Some(number) = name.to_str().and_then(|text| { return text.parse::<libc::c_int>().ok(); })
             && number >= 0
             && number as u32 >= first
+            && !keep.contains(&number)
         {
             open.push(number);
         }
@@ -137,6 +160,11 @@ pub fn close_descriptors_from(first: u32) -> io::Result<()> {
         unsafe { libc::close(number) };
     }
     return Ok(());
+}
+
+/// Closes every descriptor numbered `first` or above; see `close_descriptors_except`.
+pub fn close_descriptors_from(first: u32) -> io::Result<()> {
+    return close_descriptors_except(first, &[]);
 }
 
 /// Points descriptors 0, 1 and 2 at `/dev/null`; false when that failed.
@@ -159,47 +187,152 @@ fn null_the_standard_streams() -> bool {
     return true;
 }
 
-/// Waits, with a bound, for the first child to exit; false when it did not within the limit.
-fn first_child_left(child: libc::pid_t) -> Result<bool, LaunchError> {
-    let deadline: Instant = Instant::now() + LAUNCH_CONFIRM_LIMIT;
+/// The report byte of a helper whose setup finished.
+const READY: u8 = 0;
+
+/// The report byte of a helper that could not point its streams at `/dev/null`.
+const STREAMS_FAILED: u8 = 1;
+
+/// The report byte of a helper that could not close its inherited descriptors.
+const DESCRIPTORS_FAILED: u8 = 2;
+
+/// The number of threads of this process, read from `/proc/self/task`; the launch forks only when it is one.
+fn require_single_thread() -> Result<(), LaunchError> {
+    let mut count: usize = 0;
+    for entry in std::fs::read_dir("/proc/self/task").map_err(LaunchError::ThreadsUnknown)? {
+        entry.map_err(LaunchError::ThreadsUnknown)?;
+        count += 1;
+    }
+    return if count == 1 { Ok(()) } else { Err(LaunchError::Threaded(count)) };
+}
+
+/// Waits, until `deadline`, for the first child to exit; its wait status, or `None` when it did not leave in time.
+fn reap_first_child(child: libc::pid_t, deadline: Instant) -> Result<Option<libc::c_int>, LaunchError> {
     loop {
         let mut status: libc::c_int = 0;
         // SAFETY: `status` is a live local the call writes through.
         let reaped: libc::pid_t = unsafe { libc::waitpid(child, &raw mut status, libc::WNOHANG) };
         if reaped == child {
-            return Ok(true);
+            return Ok(Some(status));
         }
         if reaped < 0 {
             return Err(LaunchError::Wait(io::Error::last_os_error()));
         }
         if Instant::now() >= deadline {
-            return Ok(false);
+            return Ok(None);
         }
         std::thread::sleep(Duration::from_millis(1));
     }
 }
 
+/// Reads the helper's ready report from `report`, waiting until `deadline`: the byte, or `None` at end of input (every writer closed
+/// without a byte) or at the deadline (`timed_out` says which).
+fn read_report(report: libc::c_int, deadline: Instant) -> Result<(Option<u8>, bool), LaunchError> {
+    loop {
+        let left: Duration = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Ok((None, true));
+        }
+        let mut waiting = libc::pollfd { fd: report, events: libc::POLLIN, revents: 0 };
+        let milliseconds: libc::c_int = libc::c_int::try_from(left.as_millis().max(1)).unwrap_or(libc::c_int::MAX);
+        // SAFETY: `waiting` is one live `pollfd`.
+        let ready: libc::c_int = unsafe { libc::poll(&raw mut waiting, 1, milliseconds) };
+        if ready < 0 {
+            let error: io::Error = io::Error::last_os_error();
+            if error.kind() == io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(LaunchError::Wait(error));
+        }
+        if ready == 0 {
+            continue;
+        }
+        let mut byte: u8 = 0;
+        // SAFETY: `byte` is one live byte the call writes through.
+        let count: isize = unsafe { libc::read(report, (&raw mut byte).cast::<libc::c_void>(), 1) };
+        if count == 1 {
+            return Ok((Some(byte), false));
+        }
+        if count == 0 {
+            return Ok((None, false));
+        }
+        let error: io::Error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(LaunchError::Wait(error));
+        }
+    }
+}
+
+/// What the helper's grandchild does before its entry: points its streams at `/dev/null`, closes every descriptor but `keep` and `report`,
+/// and writes the one report byte (the failed step, or `READY`); false when a setup step failed (it then ends).
+fn helper_setup(report: libc::c_int, keep: &[libc::c_int]) -> bool {
+    let step: u8 = if injected(2) || !null_the_standard_streams() {
+        STREAMS_FAILED
+    } else {
+        let mut kept: Vec<libc::c_int> = keep.to_vec();
+        kept.push(report);
+        if injected(3) || close_descriptors_except(3, &kept).is_err() { DESCRIPTORS_FAILED } else { READY }
+    };
+    // SAFETY: `step` is one live byte; `write` and `close` take plain integers. A launcher that stopped waiting closed its end; the
+    // write then fails and the helper goes on or ends by its step.
+    unsafe {
+        libc::write(report, (&raw const step).cast::<libc::c_void>(), 1);
+        libc::close(report);
+    }
+    return step == READY;
+}
+
 /// What:
-///  Starts `entry` as a detached helper and returns when the first child has left: the helper runs `entry` in a new session with its
+///  Starts `entry` as a detached helper and returns when the helper has reported ready: it runs `entry` in a new session with its
 ///  standard streams on `/dev/null` and no other descriptor, and exits with the code `entry` returns (`PANICKED_EXIT` if it panics).
 ///  It runs no `exec`: the helper is a copy of this process's memory, not a start of its executable and not a parse of its command line.
 /// Why:
-///  See the module documentation. Call it before this process has other threads that hold locks the helper might need; the helper
-///  allocates, so it relies on the C library's fork handling of its allocator.
+///  See the module documentation. A fork copies the memory of the forking thread only, so a lock another thread holds would be held for ever
+///  in the copy; the launch therefore refuses a process with another thread (`LaunchError::Threaded`) instead of relying on the caller.
+///  The helper allocates, which a single-threaded fork leaves safe.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function launchDetached(entry: () => number): void; // throws LaunchError
 /// ```
 pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> {
-    // SAFETY: the child branches below call only `setsid`, `fork`, `_exit` and, in the grandchild, the helper functions of this module.
+    return launch_detached_keeping(&[], entry);
+}
+
+/// What:
+///  As `launch_detached`, and the descriptors in `keep` stay open in the helper (and nothing else does); the launcher still has them.
+/// Why:
+///  The flusher is handed the lock the launcher took, so at most one helper is forked per lock holder; the helper's copy keeps the lock's
+///  open file description alive after the launcher drops its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function launchDetachedKeeping(keep: number[], entry: () => number): void; // throws LaunchError
+/// ```
+pub fn launch_detached_keeping<F: FnOnce() -> i32>(keep: &[libc::c_int], entry: F) -> Result<(), LaunchError> {
+    require_single_thread()?;
+    let mut pipe: [libc::c_int; 2] = [-1, -1];
+    // SAFETY: `pipe` is a live array of two integers the call fills.
+    if unsafe { libc::pipe(pipe.as_mut_ptr()) } != 0 {
+        return Err(LaunchError::Refused(io::Error::last_os_error()));
+    }
+    let [read_end, write_end] = pipe;
+    // SAFETY: the child branches below call only `close`, `setsid`, `fork`, `_exit` and, in the grandchild, the helper functions of this
+    // module; this process has one thread, so no lock a vanished thread held is copied.
     let first: libc::pid_t = unsafe { libc::fork() };
     if first < 0 {
-        return Err(LaunchError::Refused(io::Error::last_os_error()));
+        let error: io::Error = io::Error::last_os_error();
+        // SAFETY: both descriptors are this call's own.
+        unsafe {
+            libc::close(read_end);
+            libc::close(write_end);
+        }
+        return Err(LaunchError::Refused(error));
     }
     if first == 0 {
         // SAFETY: as above; every path of this branch ends in `_exit` or becomes the helper, which ends in `_exit`.
         unsafe {
+            libc::close(read_end);
             if libc::setsid() < 0 {
                 libc::_exit(1);
             }
@@ -211,7 +344,7 @@ pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> 
                 libc::_exit(0);
             }
         }
-        if injected(2) || !null_the_standard_streams() || injected(3) || close_descriptors_from(3).is_err() {
+        if !helper_setup(write_end, keep) {
             // SAFETY: `_exit` takes an integer and never returns.
             unsafe { libc::_exit(3) };
         }
@@ -220,5 +353,23 @@ pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> 
         unsafe { libc::_exit(code) };
     }
     FORKED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    return if first_child_left(first)? { Ok(()) } else { Err(LaunchError::NotConfirmed) };
+    // SAFETY: the launcher's copy of the write end is closed so that end of input means every writer is gone.
+    unsafe { libc::close(write_end) };
+    let deadline: Instant = Instant::now() + LAUNCH_CONFIRM_LIMIT;
+    let report = read_report(read_end, deadline);
+    // SAFETY: the read end is this call's own.
+    unsafe { libc::close(read_end) };
+    let (byte, timed_out) = report?;
+    let status: Option<libc::c_int> = reap_first_child(first, deadline)?;
+    return match (byte, timed_out) {
+        (Some(READY), _) => Ok(()),
+        (Some(step), _) => Err(LaunchError::SetupFailed(step)),
+        (None, true) => Err(LaunchError::NotConfirmed),
+        (None, false) => match status {
+            None => Err(LaunchError::NotConfirmed),
+            Some(code) if libc::WIFEXITED(code) && libc::WEXITSTATUS(code) != 0 => Err(LaunchError::FirstChildFailed(libc::WEXITSTATUS(code))),
+            Some(code) if libc::WIFSIGNALED(code) => Err(LaunchError::FirstChildFailed(128 + libc::WTERMSIG(code))),
+            Some(_) => Err(LaunchError::LostBeforeReady),
+        },
+    };
 }

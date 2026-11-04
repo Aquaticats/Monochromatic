@@ -10,7 +10,7 @@
 //! // test('a second flusher finds the lock held and forces nothing', ...);
 //! ```
 
-use crate::commit_helper_launch_tests::launch_code;
+use crate::commit_helper_launch_tests::flusher_launch_code;
 use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_flusher::{FlushError, Flushed, FlusherLock, RECEIPT_DIR, RECEIPT_ERRORS, flush_lane, flush_lane_with, launch_flusher};
 use git_policy_cli::commit_helper_launch::helpers_forked;
@@ -121,6 +121,9 @@ fn a_forcing_error_records_every_receipt_whose_name_is_not_forced_the_joiner_inc
     assert_eq!(named, ["a", "b", "c"], "{}", record);
 }
 
+/// The receipts in the lane of the launched-flusher control: `a`, the dangling `b` and `c`; the record is complete when it names all.
+const RECEIPTS_OF_THE_LAUNCHED_LANE: usize = 3;
+
 /// The launched flusher end to end: a receipt that cannot be forced (a dangling link) makes the helper record every unforced receipt, and
 /// the helper releases the lock when it ends.
 #[test]
@@ -128,11 +131,11 @@ fn a_launched_flusher_records_a_forcing_error_and_releases_the_lock() {
     let lane: PathBuf = lane_with("flusher-launched", &["a", "c"]);
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("b")).expect("a dangling receipt");
     let launch_lane: PathBuf = lane.clone();
-    assert_eq!(in_single_threaded_process(move || { return launch_code(launch_flusher(&launch_lane)); }), Some(0), "the launch from a single-threaded process");
+    assert_eq!(in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&launch_lane)); }), Some(0), "the launch from a single-threaded process");
     let deadline: Instant = Instant::now() + FLUSHER_WAIT;
     let record: String = loop {
         if let Ok(text) = fs::read_to_string(lane.join(RECEIPT_ERRORS))
-            && text.lines().count() >= 2
+            && text.lines().count() >= RECEIPTS_OF_THE_LAUNCHED_LANE
         {
             break text;
         }
