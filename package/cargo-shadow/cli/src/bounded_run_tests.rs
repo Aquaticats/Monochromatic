@@ -293,41 +293,19 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
 /// the output cannot be complete,
 /// and the call
 /// says so instead of returning a prefix.
+/// Round 6 (5a F1): a descendant that left the process group while holding the pipes is stopped,
+/// so the output is complete and nothing of the run is left running.
 #[test]
-fn output_that_cannot_be_completed_is_an_error_not_a_prefix() {
+fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete() {
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
-    // Macro `format!`: builds or prints text (or a list) from a template.
     let script = format!("setsid sh -c 'echo $$ > {}; exec sleep 30' & echo started; sleep 0.3", pid_file.display());
 
-    // `None`: the present or the absent value of an `Option`.
-    // Borrow `&script`: lends the value without copying or giving it away.
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(10)));
 
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-    // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (value !== undefined) { const inner = value; ... }
-    // ```
-    // Borrow `&pid_file`: lends the value without copying or giving it away.
-    if let Ok(pid) = std::fs::read_to_string(&pid_file) {
-        // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-        // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // void expr;   // or try { expr } catch {}
-        // ```
-        let _ = Command::new("kill").arg(pid.trim()).status();
-    }
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // Typed binding: `message: String`.
-    let message: String = result.expect_err("an incomplete capture").to_string();
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(message.contains("output"), "{message}");
+    let output = result.expect("the holder of the pipe was stopped, so the output is complete");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "started");
+    assert!(gone_soon(pid_in(&pid_file)), "the descendant in another session still runs");
 }
 
 /// Review finding (4c P3):
