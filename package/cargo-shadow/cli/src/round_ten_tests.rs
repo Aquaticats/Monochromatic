@@ -351,7 +351,9 @@ fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
 /// not a fresh budget later.
 #[test]
 fn a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so() {
-    let bound: Duration = Duration::from_millis(400);
+    // The bound is long enough that a second budget of the same length (or the old two seconds) cannot be mistaken for scheduling
+    // overhead: one deadline returns at about the bound, two budgets at about twice the bound (11b 2.1).
+    let bound: Duration = Duration::from_millis(1500);
     let settings: RouteSettings = RouteSettings {
         systemctl: "sh".to_string(),
         question: Some(vec!["-c".to_string(), "exec sleep 30".to_string()]),
@@ -366,7 +368,8 @@ fn a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so() 
 
     assert!(refused.to_string().contains("did not answer"), "{refused}");
     assert!(refused.to_string().contains("could not be reaped"), "the unreaped child was not reported: {refused}");
-    assert!(elapsed < bound + Duration::from_millis(1500), "the discovery returned after {elapsed:?}, past its deadline of {bound:?} by more than a reaping poll");
+    assert!(elapsed >= bound, "the discovery returned after {elapsed:?}, before its deadline of {bound:?}");
+    assert!(elapsed < bound + Duration::from_millis(700), "the discovery returned after {elapsed:?}: a second budget was spent after its deadline of {bound:?}");
 }
 
 /// The helper process of the bind-mount substitution test (9b 2.4):
@@ -457,13 +460,15 @@ fn a_reboot_still_publishes_the_completion_marker_of_the_recovery_or_keeps_the_j
         arm(fault);
         let failed: Vec<String> = recover(root.path(), &refusing);
         let reached: bool = !crate::failpoints::fires(fault);
-        let kept: bool = journal.exists() && !journal.to_string_lossy().ends_with(".done");
+        let kept: bool = journal.exists() && !journal.to_string_lossy().ends_with(".done") && crate::journal_support::journal_dirs(root.path()).len() == 1;
         let again: Vec<String> = recover(root.path(), &refusing);
         use_identity_for_test(None);
 
         assert!(reached, "{fault:?}: the barrier was never reached, so the reboot skipped the finish ({failed:?})");
         assert!(kept, "{fault:?}: the journal was removed or marked done although its barrier failed ({failed:?})");
         assert!(!failed.is_empty(), "{fault:?}: the failure of the barrier was not reported");
+        // The control must complete the journal, not only leave the restored text behind (11b 2.5): the journal is gone.
+        assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "{fault:?}: the control recovery left a journal behind: {:?} {again:?}", crate::journal_support::journal_dirs(root.path()));
         assert_eq!(live_lock(root.path()), "original", "{fault:?}: the control did not settle the journal once the barrier worked: {again:?}");
     }
 }

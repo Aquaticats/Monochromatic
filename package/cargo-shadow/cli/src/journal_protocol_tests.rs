@@ -853,6 +853,23 @@ fn replace_with(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::
     return replace_with_seams(path, "expected", "new text", keep, &Seams { between: &none, after_exchange: &none, swap: &swap, link, sync_file, sync_dir });
 }
 
+/// One step of a preservation, in the order it happened: a successful link and its new name, or a directory barrier and whether it held.
+#[derive(Debug)]
+enum Event {
+    /// A hard link was made with this new name.
+    Linked(
+        /// The new name.
+        PathBuf,
+    ),
+    /// A directory barrier ran on this directory and held (`true`) or failed.
+    Barrier(
+        /// The directory.
+        PathBuf,
+        /// Whether it held.
+        bool,
+    ),
+}
+
 /// Like `replace_with`, and also returns the inode the live path names right after the exchange, which is the replacement's (9b 3.1).
 fn replace_capturing(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::io::Result<()>, sync_file: &dyn Fn(&Path) -> std::io::Result<()>, sync_dir: &dyn Fn(&Path) -> std::io::Result<()>) -> (std::io::Result<ReplaceOutcome>, Option<u64>) {
     let replacement: Cell<Option<u64>> = Cell::new(None);
@@ -1303,30 +1320,43 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
         fs::create_dir_all(root.path().join("a")).expect("the pre-existing anchor");
         let displaced: u64 = fs::metadata(&path).expect("examines").ino();
         let seen: RefCell<usize> = RefCell::new(0);
-        let barrier_log: RefCell<Vec<(PathBuf, bool)>> = RefCell::new(Vec::new());
+        // One ordered log of what happened: each successful link (its new name) and each directory barrier (its directory, and
+        // whether it held), so a barrier can be required to come after the publication it protects (11b 2.2).
+        let events: RefCell<Vec<Event>> = RefCell::new(Vec::new());
         let fail_nth = |directory: &Path| -> std::io::Result<()> {
             let index: usize = *seen.borrow();
             *seen.borrow_mut() += 1;
             if index == failing {
-                barrier_log.borrow_mut().push((directory.to_path_buf(), false));
+                events.borrow_mut().push(Event::Barrier(directory.to_path_buf(), false));
                 return Err(std::io::Error::other("injected barrier failure"));
             }
-            barrier_log.borrow_mut().push((directory.to_path_buf(), true));
+            events.borrow_mut().push(Event::Barrier(directory.to_path_buf(), true));
+            return Ok(());
+        };
+        let logging_link = |existing: &Path, new: &Path| -> std::io::Result<()> {
+            real_link(existing, new)?;
+            events.borrow_mut().push(Event::Linked(new.to_path_buf()));
             return Ok(());
         };
 
-        let (outcome, _replacement) = replace_capturing(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &fail_nth);
+        let (outcome, captured) = replace_capturing(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &logging_link, &real_sync_file, &fail_nth);
 
         let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
         assert!(!names.is_empty(), "barrier {failing}: the displaced inode lost its last name");
+        // Both inodes are inventoried after every failure (11b 2.2): the replacement stays at the live path.
+        let replacement: u64 = captured.unwrap_or_else(|| { panic!("barrier {failing}: the exchange was never reached"); });
+        assert!(names_of_inode(root.path(), replacement).contains(&path), "barrier {failing}: the replacement is not at the live path");
         if outcome.is_ok() {
             reported_preserved += 1;
             // Reported as preserved: the protected copy is the fallback beside the target (a `.displaced` name next to the lockfile,
-            // not an exchange temporary and not a name in the new chain), and the barrier of that directory succeeded after it was made.
+            // not an exchange temporary and not a name in the new chain), and a barrier of that directory succeeded after the link
+            // that published that name.
             let crate_dir: PathBuf = path.parent().expect("a parent").to_path_buf();
             let protected: Vec<&PathBuf> = names.iter().filter(|name| { return name.parent() == Some(crate_dir.as_path()) && name.file_name().is_some_and(|file| { return file.to_string_lossy().contains(".displaced"); }); }).collect();
             assert!(!protected.is_empty(), "barrier {failing}: reported as preserved without a protected name beside the target: {names:?}");
-            assert!(barrier_log.borrow().iter().any(|(directory, ok)| { return *ok && directory == &crate_dir; }), "barrier {failing}: the directory of the protected copy was never synced successfully: {:?}", barrier_log.borrow());
+            let log = events.borrow();
+            let linked_at: usize = log.iter().position(|event| { return matches!(event, Event::Linked(name) if protected.contains(&name)); }).unwrap_or_else(|| { panic!("barrier {failing}: the protected name was not published by a link: {log:?}"); });
+            assert!(log[linked_at..].iter().any(|event| { return matches!(event, Event::Barrier(directory, true) if *directory == crate_dir); }), "barrier {failing}: no successful barrier of the target directory came after the link of the protected name: {log:?}");
         }
     }
     // The branch that checks the protected copy must have been exercised by at least one barrier of the chain.

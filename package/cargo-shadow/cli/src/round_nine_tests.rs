@@ -145,33 +145,47 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
 fn a_discovery_whose_descendant_holds_the_pipes_ends_at_its_deadline() {
     let directory = scratch();
     let shell_file: PathBuf = directory.path().join("shell");
+    let ready_file: PathBuf = directory.path().join("descendant-ready");
     let descendant_file: PathBuf = directory.path().join("descendant");
-    // The direct program records its own process id, starts a descendant that records its id and then holds the inherited pipes
-    // open, and exits at once: the boundary of the claim is reached only when both files exist and the program is gone (9b 3.7).
+    // The direct program records its own process id, starts a descendant that records its id, says it is ready and holds the
+    // inherited pipes open, waits for that readiness, and exits: both facts of the claim are established before the deadline.
     let script: String = format!(
-        "echo $$ > {shell}; sh -c 'echo $$ > {descendant}; exec sleep 5' & exit 0",
+        "echo $$ > {shell}; sh -c 'echo $$ > {descendant}; : > {ready}; exec sleep 5' & while [ ! -e {ready} ]; do sleep 0.01; done; exit 0",
         shell = shell_file.display(),
-        descendant = descendant_file.display()
+        descendant = descendant_file.display(),
+        ready = ready_file.display()
     );
+    let bound: Duration = Duration::from_millis(2500);
     let settings: RouteSettings = RouteSettings {
         systemctl: "sh".to_string(),
         question: Some(vec!["-c".to_string(), script]),
-        discovery_bound: Duration::from_millis(1500),
+        discovery_bound: bound,
         ..RouteSettings::default()
     };
+    // An observer, alongside the discovery, establishes at the boundary (not after the return) that the direct program has exited
+    // while the descendant is alive and ready, and when that was.
+    let observer = std::thread::spawn({
+        let (watched_shell, watched_ready, watched_descendant) = (shell_file.clone(), ready_file.clone(), descendant_file.clone());
+        move || -> (Instant, bool) {
+            crate::cgroup_test_support::wait_until("the descendant to be ready", &|| { return watched_ready.exists() && watched_descendant.exists(); });
+            let shell: i32 = crate::contain_counterexample_tests::read_pid(&watched_shell);
+            let descendant: i32 = crate::contain_counterexample_tests::read_pid(&watched_descendant);
+            crate::cgroup_test_support::wait_until("the direct program to exit", &|| { return !crate::contain_counterexample_tests::is_running(shell); });
+            return (Instant::now(), crate::contain_counterexample_tests::is_running(descendant));
+        }
+    });
     let started = Instant::now();
 
     let refused = detect_route(&settings).expect_err("a manager whose answer never ends is a missing capability");
-    let elapsed: Duration = started.elapsed();
-    let descendant: i32 = crate::contain_counterexample_tests::read_pid(&descendant_file);
-    let held_the_pipes: bool = crate::contain_counterexample_tests::is_running(descendant);
-    let program_gone: bool = !crate::contain_counterexample_tests::is_running(crate::contain_counterexample_tests::read_pid(&shell_file));
-    crate::contain_counterexample_tests::stop_quietly(descendant);
+    let returned: Instant = Instant::now();
+    let (exited_at, descendant_alive_then): (Instant, bool) = observer.join().expect("the observer");
+    crate::contain_counterexample_tests::stop_quietly(crate::contain_counterexample_tests::read_pid(&descendant_file));
 
-    assert!(held_the_pipes, "the descendant was not alive at the deadline, so it did not hold the pipes");
-    assert!(program_gone, "the direct program was still running, so the boundary of the claim was not reached");
+    assert!(descendant_alive_then, "the descendant was not alive when the direct program exited, so it did not hold the pipes");
+    assert!(exited_at < started + bound, "the direct program exited only at the deadline, so the boundary of the claim was not reached before it");
+    assert!(exited_at < returned, "the direct program had not exited when the discovery returned");
     assert!(refused.to_string().contains("did not answer"), "{refused}");
-    assert!(elapsed < Duration::from_secs(4), "the discovery waited {elapsed:?} for a descendant that lives five seconds");
+    assert!(returned.duration_since(started) < bound + Duration::from_millis(1500), "the discovery waited {:?} for a descendant that lives five seconds", returned.duration_since(started));
 }
 
 /// Acceptance row V6 (8a F3):

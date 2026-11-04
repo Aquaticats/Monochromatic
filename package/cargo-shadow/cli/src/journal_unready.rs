@@ -350,7 +350,20 @@ fn assess(directory: &Path) -> Option<Finding> {
     // not have finished entering its scope.
     let mut unsettled: Vec<PathBuf> = Vec::new();
     // The whole record is read first: the launcher line of a scope comes after the scope line, and a scope is judged by it.
-    let records: Vec<Result<Record, String>> = text.lines().map(parse_record).collect();
+    // A launcher line that the record ends without a line feed may be cut short (a torn write), so it is not understood (11b 2.6).
+    let line_total: usize = text.lines().count();
+    let ends_whole: bool = text.ends_with('\n');
+    let records: Vec<Result<Record, String>> = text
+        .lines()
+        .enumerate()
+        .map(|(index, line)| {
+            return if !ends_whole && index + 1 == line_total && line.starts_with("launcher ") {
+                Err("the launcher line is not ended by a line feed, so it may be cut short".to_string())
+            } else {
+                parse_record(line)
+            };
+        })
+        .collect();
     let settled_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Settled { path: settled_path }) = record { Some(settled_path) } else { None }; }).collect();
     let scope_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Scope { path: listed_path, .. }) = record { Some(listed_path) } else { None }; }).collect();
     for record in &records {

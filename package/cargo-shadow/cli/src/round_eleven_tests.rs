@@ -35,8 +35,6 @@ const LEFT_BY_THE_KILLED_RUN: &str = "unchecked output of the killed run";
 /// The environment variable that gives the helper process its workspace.
 const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_ELEVEN_FIXTURE_ROOT";
 
-/// The environment variable that gives the helper's program the seconds it lives.
-const FIXTURE_SECONDS: &str = "CARGO_SHADOW_ROUND_ELEVEN_FIXTURE_SECONDS";
 
 /// A snapshot of the lockfile of the case.
 fn snapshot(source: &str) -> LockSnapshot {
@@ -187,9 +185,11 @@ fn a_live_launcher_blocks_whether_its_scope_is_absent_or_empty() {
 
     fs::create_dir(planned.directory()).expect("the manager makes the control group before it attaches the launcher");
     let empty: Option<String> = survivor_note(&journal);
+    acknowledge(&journal).expect("acknowledges");
+    let empty_acknowledged: Option<String> = survivor_note(&journal);
     fs::remove_dir(planned.directory()).expect("remove it again");
 
-    for (label, note) in [("absent", absent), ("absent and acknowledged", absent_acknowledged), ("empty", empty)] {
+    for (label, note) in [("absent", absent), ("absent and acknowledged", absent_acknowledged), ("empty", empty), ("empty and acknowledged", empty_acknowledged)] {
         let text: String = note.unwrap_or_else(|| { panic!("{label}: a live launcher was cleared"); });
         assert!(text.contains("launcher") && text.contains("still running"), "{label}: {text}");
     }
@@ -233,6 +233,32 @@ fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
     assert_eq!(live_lock(root.path()), "original", "the journal was not settled without an acknowledgement: {recovered:?}");
 }
 
+/// Acceptance rows A1, V2 (11b 2.4): a gone launcher does not clear a scope that has a member, and no acknowledgement overrides it:
+/// the descendants of a program that ended are still in the scope.
+#[test]
+fn a_gone_launcher_does_not_clear_a_scope_with_a_member() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let Some(scope) = start_in_scope(Command::new("sleep").arg("600")) else {
+        return;
+    };
+    let directory = scratch();
+    let mut stand_in: HeldLauncher = HeldLauncher::start(directory.path());
+    let record: Record = stand_in.record(scope.group.directory());
+    stand_in.end();
+    let root = repository();
+    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n{record}\n", scope.group.record()));
+    assert!(scope.group.members().is_ok_and(|found| { return !found.is_empty(); }), "the scope has no member, so the schedule is not made");
+
+    let blocked: Option<String> = survivor_note(&journal);
+    acknowledge(&journal).expect("acknowledges");
+    let acknowledged: Option<String> = survivor_note(&journal);
+
+    assert!(blocked.is_some_and(|text| { return text.contains("still running"); }), "a gone launcher cleared a scope with a member");
+    assert!(acknowledged.is_some_and(|text| { return text.contains("still running"); }), "an acknowledgement overrode a scope with a member");
+}
+
 /// Acceptance rows A1, V2 (round 11): what the launcher record cannot prove still waits for an acknowledgement:
 /// another process id namespace, a missing launcher record (a journal of an older version), a launcher record that names no scope of
 /// the journal, and a launcher record that is not understood.
@@ -269,7 +295,8 @@ fn what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement() {
 
 /// Durability of the launcher record (round 11): the line is appended without a sync, which is enough because a lost or torn line
 /// is read as no proof.
-/// Every proper prefix of a launcher line, as a torn write or a lost tail leaves it, keeps the journal blocked; none reads as gone.
+/// Every proper prefix of the bytes production appends (the line and its line feed), as a torn write or a lost tail leaves it, keeps
+/// the journal blocked, including the whole text with only its line feed missing; none reads as a gone launcher (11b 2.6).
 #[test]
 fn a_torn_launcher_line_never_reads_as_a_gone_launcher() {
     let Some(route) = delegated_route() else {
@@ -278,24 +305,25 @@ fn a_torn_launcher_line_never_reads_as_a_gone_launcher() {
     let directory = scratch();
     let mut held: HeldLauncher = HeldLauncher::start(directory.path());
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let line: String = held.record(planned.directory()).to_string();
+    // The bytes `append_record_with` writes: the display text of the record and one line feed.
+    let bytes: String = format!("{}\n", held.record(planned.directory()));
     held.end();
     let root = repository();
     let journal: PathBuf = journal_with_records(root.path(), "");
-    for length in 0..line.len() {
-        if !line.is_char_boundary(length) {
+    for length in 0..bytes.len() {
+        if !bytes.is_char_boundary(length) {
             continue;
         }
-        fs::write(journal.join("groups"), format!("{}\n{}", planned.record(), &line[..length])).expect("write a torn line");
-        assert!(survivor_note(&journal).is_some(), "a launcher line cut after {length} bytes ({:?}) read as a gone launcher", &line[..length]);
+        fs::write(journal.join("groups"), format!("{}\n{}", planned.record(), &bytes[..length])).expect("write a torn line");
+        assert!(survivor_note(&journal).is_some(), "a launcher line cut after {length} of {} bytes ({:?}) read as a gone launcher", bytes.len(), &bytes[..length]);
     }
-    fs::write(journal.join("groups"), format!("{}\n{line}\n", planned.record())).expect("the whole line");
+    fs::write(journal.join("groups"), format!("{}\n{bytes}", planned.record())).expect("the whole line");
     assert_eq!(survivor_note(&journal), None, "the whole line did not count, so the cuts above prove nothing");
 }
 
 /// The helper process of the killed-wrapper test:
-/// it begins a transaction and runs a program through the bounded runner; the program says when it started and then lives for the
-/// given seconds. Run on its own it does nothing.
+/// it begins a transaction and runs a program through the bounded runner; the program publishes its own process id, then waits at a
+/// release gate file (the wrapper is killed while it waits). Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone"]
 fn wrapper_running_a_program_fixture() {
@@ -303,17 +331,22 @@ fn wrapper_running_a_program_fixture() {
         return;
     };
     let root: PathBuf = PathBuf::from(root_text);
-    let seconds: String = std::env::var(FIXTURE_SECONDS).expect("seconds");
     let _transaction = begin(&root, &[snapshot("original")], false).expect("begin");
-    let started: PathBuf = root.join("started");
-    let script: String = format!(": > {}; exec sleep {seconds}", started.display());
+    // The program is the launcher (same process), so `$$` is the launcher's process id; the pid file appears whole.
+    let script: String = format!(
+        "echo $$ > {pid}.part; mv {pid}.part {pid}; while [ ! -e {release} ]; do sleep 0.05; done",
+        pid = root.join("payload-pid").display(),
+        release = root.join("release").display()
+    );
     let bound: Bound = Bound { limit: Duration::from_secs(600), what: "the contained command".to_string(), rerun: "contained-command".to_string() };
     let _ = output_within(Command::new("sh").args(["-c", &script]), None, &bound);
 }
 
 /// Acceptance rows A1, V2, V3/V4 (round 11, the owner's pick), end to end:
-/// a wrapper is killed while its program runs; while the program lives the recovery refuses (a member, then a live launcher);
-/// once the program has ended and the manager collected the scope, the same recovery settles the journal with no acknowledgement.
+/// the real wrapper records the real launcher (its process id, start time and namespace are compared with the program that says who
+/// it is), is killed once that record is whole while the program waits at a release gate, and the recovery refuses while the program
+/// lives; after the program is released and the launcher is shown gone, and the scope collected, the same recovery settles the
+/// journal with no acknowledgement.
 #[test]
 fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
     if delegated_route().is_none() {
@@ -323,24 +356,38 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
     let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
         .args(["--ignored", "--exact", "round_eleven_tests::wrapper_running_a_program_fixture", "--nocapture"])
         .env(FIXTURE_ROOT, root.path())
-        .env(FIXTURE_SECONDS, "3")
         .spawn()
         .expect("the wrapper helper");
-    wait_for_file(&root.path().join("started"));
-    wrapper.kill().expect("kill the wrapper while its program runs");
-    let _ = wrapper.wait();
+    wait_for_file(&root.path().join("payload-pid"));
+    let payload: i32 = fs::read_to_string(root.path().join("payload-pid")).expect("the program's id").trim().parse::<i32>().expect("a process id");
     let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
     let groups: String = journal.join("groups").display().to_string();
-    let record: String = fs::read_to_string(&groups).expect("the records");
     let scope: PathBuf = scope_directory_of(&groups);
+    // The launcher line is whole (it ends with its line feed) and names the program that says who it is, before the wrapper is killed:
+    // a kill inside the window between the spawn and the append is the contract's fallback, not this test's schedule.
+    wait_until("a whole launcher record for the program", &|| {
+        return fs::read_to_string(&groups).is_ok_and(|text| { return text.ends_with('\n') && text.lines().any(|line| { return matches!(parse_record(line), Ok(Record::Launcher { .. })); }); });
+    });
+    let record: String = fs::read_to_string(&groups).expect("the records");
+    let Some(Ok(Record::Launcher { pid, start, pid_namespace, path })) = record.lines().map(parse_record).find(|parsed| { return matches!(parsed, Ok(Record::Launcher { .. })); }) else {
+        panic!("no launcher record in {record:?}");
+    };
+    wrapper.kill().expect("kill the wrapper while its program waits");
+    let _ = wrapper.wait();
 
+    assert_eq!(pid, payload, "the record names another process than the program");
+    assert_eq!(start, process_start(payload).expect("the program's start time"), "the record holds another start time than the program has");
+    assert_eq!(pid_namespace, pid_namespace_id().expect("the namespace"), "the record holds another process id namespace");
+    assert_eq!(path, scope, "the record names another scope");
     let while_running: Option<String> = survivor_note(&journal);
-    wait_until("the program to end and the manager to collect the scope", &|| { return !scope.exists(); });
+    fs::write(root.path().join("release"), "go").expect("release the program");
+    wait_until("the launcher to be gone", &|| { return launcher_state(pid, start, pid_namespace) == LauncherState::Gone; });
+    wait_until("the manager to collect the scope", &|| { return !scope.exists(); });
     let after: Option<String> = survivor_note(&journal);
     let messages: Vec<String> = recover(root.path(), &refusing);
 
-    assert!(record.lines().any(|line| { return matches!(parse_record(line), Ok(Record::Launcher { .. })); }), "the wrapper did not note its launcher: {record:?}");
     assert!(while_running.is_some_and(|text| { return text.contains("still running"); }), "the journal did not block while the program lived");
     assert_eq!(after, None, "the launcher ended and the scope was collected, and the journal still waited: {record:?}");
     assert_eq!(live_lock(root.path()), "original", "the killed run was not recovered by itself: {messages:?}");
+    assert!(journal_dirs(root.path()).is_empty(), "the journal was not completed and removed: {messages:?}");
 }

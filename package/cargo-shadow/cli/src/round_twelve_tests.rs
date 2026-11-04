@@ -18,9 +18,8 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use crate::acknowledge::acknowledge;
-use crate::cgroup_test_support::wait_until;
 use crate::contain_counterexample_tests::wait_for_file;
-use crate::control_group::{Identity, LauncherState, RouteSettings, current_identity, detect_route, launcher_state, pid_namespace_id, process_start, use_identity_for_test};
+use crate::control_group::{Identity, RouteSettings, current_identity, detect_route, launcher_state, pid_namespace_id, process_start};
 use crate::crates::LockSnapshot;
 use crate::failpoints::{Point, arm};
 use crate::journal::{before_publish_for_test, recover};
@@ -216,4 +215,78 @@ fn a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher() {
     let ancestor: String = run_procfs_fixture("ancestor");
     assert!(ancestor.contains("recorded err"), "a start time was read through a procfs of another namespace: {ancestor}");
     assert!(ancestor.contains("other start Unknown(") && !ancestor.contains("Gone"), "a launcher was read as gone through a procfs of another namespace: {ancestor}");
+}
+
+/// Acceptance row "Weaker path" (11b 2.6, the writer's file sync):
+/// an acknowledgement whose temporary file cannot be made durable is not published and does not count,
+/// and acknowledging again, with the sync working, publishes it whole and clears the journal.
+#[test]
+fn an_acknowledgement_whose_file_cannot_be_synced_is_not_published() {
+    let root = repository();
+    let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
+    arm(Point::PublicationFileSync);
+
+    let failed = acknowledge(&journal);
+    let reached: bool = !crate::failpoints::fires(Point::PublicationFileSync);
+    let published: bool = journal.join("acknowledged").exists();
+    let blocked: Option<String> = survivor_note(&journal);
+    acknowledge(&journal).expect("acknowledges once the sync works");
+    let cleared: Option<String> = survivor_note(&journal);
+
+    assert!(reached, "the file sync fault was never reached");
+    assert!(failed.is_err_and(|text| { return text.contains("could not be written") && text.contains("nothing was acknowledged"); }), "a failed file sync was reported as an acknowledgement");
+    assert!(!published, "a name was published although its file could not be synced");
+    assert!(blocked.is_some(), "an unsynced acknowledgement counted");
+    assert_eq!(cleared, None);
+}
+
+/// The helper process of the interrupted publication test:
+/// it acknowledges the journal of the workspace, and its publisher stops between the finished temporary file and the rename that
+/// publishes it (it says so and waits to be killed). Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged"]
+fn publisher_held_before_its_rename_fixture() {
+    let Ok(root_text) = std::env::var(FIXTURE_ROOT) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(root_text);
+    let journal: PathBuf = crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal");
+    let ready: PathBuf = root.join("ready");
+    before_publish_for_test(Some(Rc::new(move || {
+        fs::write(&ready, "held").expect("announce the held publisher");
+        std::thread::sleep(Duration::from_secs(300));
+    })));
+    let _ = acknowledge(&journal);
+}
+
+/// Acceptance row "Weaker path" (11b 2.6, a real interrupted publication):
+/// a real publisher killed between its finished temporary file and the rename leaves the journal unacknowledged (the complete text is
+/// under its temporary name, no published name), a recovery does not settle it, and acknowledging again settles it.
+#[test]
+fn a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged() {
+    let root = repository();
+    let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
+    let mut publisher: Child = Command::new(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "round_twelve_tests::publisher_held_before_its_rename_fixture", "--nocapture"])
+        .env(FIXTURE_ROOT, root.path())
+        .spawn()
+        .expect("the publisher helper");
+    wait_for_file(&root.path().join("ready"));
+    publisher.kill().expect("kill the publisher between the temporary file and the rename");
+    let _ = publisher.wait();
+
+    let temporaries: Vec<PathBuf> = fs::read_dir(&journal).expect("lists").flatten().map(|entry| { return entry.path(); }).filter(|path| { return path.file_name().is_some_and(|name| { let text = name.to_string_lossy(); return text.starts_with(".acknowledged.") && text.ends_with(".tmp"); }); }).collect();
+    let published: bool = journal.join("acknowledged").exists();
+    let note: Option<String> = survivor_note(&journal);
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    let kept: String = live_lock(root.path());
+
+    assert!(!published, "the rename happened although the publisher was held before it");
+    assert_eq!(temporaries.len(), 1, "the real publisher did not leave its finished temporary file: {temporaries:?}");
+    assert!(fs::read_to_string(&temporaries[0]).is_ok_and(|text| { return text.starts_with("acknowledged v1\n") && text.ends_with('\n'); }), "the temporary file is not a whole acknowledgement");
+    assert!(note.is_some(), "a temporary file was read as an acknowledgement");
+    assert_eq!(kept, LEFT_BY_THE_KILLED_RUN, "the journal was settled without a published acknowledgement: {messages:?}");
+    acknowledge(&journal).expect("acknowledges again");
+    let again: Vec<String> = recover(root.path(), &refusing);
+    assert_eq!(live_lock(root.path()), "original", "the second acknowledgement did not settle the journal: {again:?}");
 }
