@@ -286,6 +286,22 @@ two delegate agents and four cross-vendor reviews running:
   question 8).
   Models round 13 started (the models agent resumed),
   building to the acceptance target with a coverage map.
+  Review 18a (`commits-never-fail-sol-18a.txt`):
+  "Rule gaps:
+  closed after named fixes" (the first design verdict since revision 12 with no new P1;
+  R17a-1 and R17a-4 closed,
+  R17a-3 closed subject to R17a-2,
+  R17a-2 needs recurring enumeration independent of the doorbell,
+  R17a-5 needs level 2 disabled on that path or bounded whole);
+  the copied acceptance target "substantively preserved";
+  "Internal helper launch:
+  no inherent recursion conflict";
+  "`lane/flusher.lock`:
+  no demonstrated violation";
+  question 8 "accurate after named edits".
+  Coordinator's pick (veto open):
+  disable level 2 on that path.
+  Revision 19 started (the two named fixes and the question 8 edits only).
   Models round 12 started (the models agent resumed):
   the P1s of components 8,
   models 6a and 6b,
