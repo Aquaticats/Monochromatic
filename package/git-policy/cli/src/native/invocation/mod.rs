@@ -31,6 +31,15 @@ pub mod effective_target;
 /// The per-invocation decision the thin executable performs.
 pub mod entry;
 
+/// Plans what a forwarded Git command does: plain forward, settled worktree copy, or index-writer coordination.
+pub mod entry_forward_action_planning;
+
+/// Turns a plain forward of a push into a stacked or LFS-uploading push, with the notices a forward owes.
+pub mod entry_push_stacking_and_lfs_upload;
+
+/// Runs coordinated and settled forwards and writes to the standard streams.
+pub mod entry_run_forwarded_actions;
+
 /// Spellings of the wrapper-only escape hatches shared by several modules.
 pub mod escape_hatch;
 
