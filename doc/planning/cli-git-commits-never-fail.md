@@ -2502,9 +2502,9 @@ line followed by the retained inputs, listed.
 Landed (the commit was made; recovery found the earlier publication or a fresh attempt published it):
 
 - Option A, exact lines:
-  - `commit 3f9c1d2 landed on main: "Add the parser". To undo it: git reset --soft 3f9c1d2~1`
+  - `commit 3f9c1d2 landed on main: "Add the parser". To drop it: git commit-drop 3f9c1d2`
 - Option B, exact lines:
-  - `commit 3f9c1d2 landed on main: "Add the parser". To undo it: git reset --soft 3f9c1d2~1`
+  - `commit 3f9c1d2 landed on main: "Add the parser". To drop it: git commit-drop 3f9c1d2`
   - `  kept: request 7c41 (src/parser.ts, staged version b1e07aa, file version 90d3c52)`
   - `  saved copies: none needed`
 
