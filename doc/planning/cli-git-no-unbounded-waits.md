@@ -855,3 +855,72 @@ repository, at most 21,012 bytes (`package/ide/app`); `pnpm install --offline --
 bytes. Git's own writers print one line (`HEAD is now at ...`) or nothing when their output is not a terminal. So the largest was 638,784
 bytes, and 8 MiB is 13.1 times that. The value stays at 8 MiB with this citation; what a step writes beyond it is disclosed, and output
 that was cut is never parsed as a whole result.
+
+### Retirement of the single service of the earlier releases: options for an owner question, 2026-11-04
+
+The coordinator asked for these options on 2026-11-04 (round 4). Nothing here is decided.
+
+What exists today:
+
+- The releases before one service per worktree ran one `cli-git.service` with a `cli-git.socket` for every worktree, listening on
+  `cli-git/service.sock` under the runtime directory. The first release with a service for each worktree is 0.5.7 (the commit
+  `4b52f3745c`, 2026-11-01T16:51:44-05:00, is first contained in the tag `monochromatic-git-policy-cli-v0.5.7`), so the earlier
+  installs are 0.5.0 to 0.5.6.
+- On this host none can exist: no `cli-git.service` or `cli-git.socket` in `~/.config/systemd/user`, in the runtime directory's
+  `systemd/user`, or anywhere under the home directory to four levels, no `cli-git/service.sock` in the runtime directory, and
+  `systemctl --user list-units --all 'cli-git.service' 'cli-git.socket'` lists nothing. The units that exist are `cli-git@<instance>`
+  of the current design (their sockets are `<instance>.sock`). Other accounts, containers and machines were not looked at; a machine
+  where an install of 0.5.0 to 0.5.6 still runs would meet this the first time the current release provisions its first worktree.
+- The retirement is `retire_earlier_service` (`service_provision.rs`). Before round 4 it asked the service to retire (a message the
+  service handles between batches) and then had the manager stop both units at once; the manager's stop sends `SIGTERM` to the unit's
+  whole control group, the Git children of a landing in progress included, and `SIGKILL` after its own timeout. Built in round 4: the
+  socket is stopped, the service is given `retirement_wait` (10 seconds, `RETIREMENT_WAIT`) to leave by itself, the stop of the
+  service goes only to a service that has left, and a service still there fails the commit.
+- Why a service can still be there after the wait: it is landing a batch (a Git step that can run for the class ceiling and more), or
+  it is stuck in one that is never ended, or it is an old release that does not read the retire message.
+
+Options:
+
+- A. Fail the commit and let it be retried (built).
+  Schedule: the commit asks the old service to retire and stops its socket; 10 seconds later the service is still in a landing; the
+  commit exits non-zero with a sentence that names the service, says it may be in the middle of a landing that stopping it would cut,
+  and gives `systemctl --user stop cli-git.service cli-git.socket` for when no commit is running. The next commit, run again, finds
+  the service gone if its landing finished (it handled the retire between batches) and goes on.
+  The person sees one failed commit with a retryable sentence, once per upgrade per machine, and nothing else changes. What can be
+  lost: nothing of the repository; a commit that was built and not made can be made again by running the command again.
+  Costs: it is the one place where a commit fails for want of a bounded wait, against the owner's "Commits should never fail."
+- B. Land through the worktree's own service while the old one still runs.
+  Not safe, as the code and the invariant stand. The documented invariant (`SPEC.md`, the lock section) is that two commit services
+  never overlap on one repository: an instance that starts recovers the batches open in the journals it finds and claims work items,
+  and the old service is still doing that work. Two landing threads would race for the index lock marker and the branch write, and
+  the new instance's recovery would settle an intent that the old service is writing. Schedule: the old service has an open intent
+  for batch 41 and is inside its `update-ref --stdin`; the new instance starts, reads the open intent, finds the branch not yet
+  moved, drops the intent; the old service's write completes and moves the branch, and the journal says the batch was dropped. What
+  can be lost: a landed commit recorded as dropped, a client told "not landed" for a commit that is on the branch. Making it safe
+  needs a handshake between the two releases that the earlier ones, which cannot be changed, would have to take part in.
+- C. Wait longer, with a stated bound.
+  Schedule: as A, but the commit waits for the service to leave for a longer bound (for example `LOCK_CEILING`, 10 minutes, which is
+  the longest the wrapper waits for a lock holder, or `ANSWER_CEILING`, 20 minutes), polling the manager and saying once a minute
+  what it waits for; if the service leaves, the commit goes on and succeeds; if not, it fails as in A.
+  The person sees a commit that takes as long as the old service's landing, with a notice, and a failure only after the longer
+  bound. What can be lost: nothing of the repository. Costs: a commit that waits minutes on a machine that has the old service stuck
+  in a write; the bound is a new number that needs a measurement (the longest landing is 751 seconds, measured) or an owner
+  decision.
+- D. Stop the old service anyway after the wait.
+  Schedule: as A, but after 10 seconds the manager is asked to stop the units (the behavior before round 4). The control group
+  receives `SIGTERM`; a Git child cut in the middle of `update-ref --stdin` or `merge` is exactly what "Never cut a branch write
+  (Recommended)" decided against, and the service's own recovery (the intent journal) has to complete or undo the batch afterwards
+  in the worktree's instance.
+  The person sees a commit that succeeds. What can be lost: a branch write cut at an unlucky moment (the cut experiment shows
+  `update-ref --stdin` and `merge` come out different at some cuts), the work of the clients queued behind it, and an index lock left
+  by the killed process (reclaimed by the stale-lock sweep).
+
+Ranking: A > C > D > B.
+A over C because A never makes a commit wait for a landing it cannot see the end of, fails once, retryably, per upgrade per machine
+(none exists on this host), and needs no new number, where C adds a bound that nothing measures and that a stuck service makes the
+person pay in full before the same failure.
+C over D because C keeps every landing whole and costs only time, where D cuts a write that cannot run twice, which the owner's
+decision rules out for branch writes.
+D over B because D loses at worst one cut write that the journal recovery is built to settle, where B can report a landed commit as
+dropped with no recovery at all, and only a change to releases that are already published could make it safe.
+The choice is the owner's: it is between "Commits should never fail." (D, and B if it were safe) and "never discard user data" (A, C).
