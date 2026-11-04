@@ -3792,8 +3792,37 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   decided by the fixed acceptance target:
   build that protocol,
   so the 3B narrowing is withdrawn.
-  Round 17 sent to the models agent (`a9c775c9196f1d836`) with all of these;
-  its parts go to `commit-models-12-part-<n>-<topic>.diff`.
+  Round 17 done (tip `8425cf376f`;
+  462 model tests passed;
+  both clippy variants clean;
+  map unchanged at 64,
+  17,
+  9,
+  17):
+  the handover wait and the intermediate child fixed (reap,
+  close the launcher copy,
+  then the byte,
+  then an acknowledgment);
+  checked kill and reap;
+  every descriptor owned on every path (EMFILE tests);
+  only a checked `LaneDocument` checkpoint reclaims,
+  and lineage names only reclaimed records.
+  Coordinator direction,
+  from the review's two options and the bounded log:
+  extend `LaneDocument` with whatever the real lane state needs once that state is built;
+  only states not yet represented stay non-reclaiming.
+  3B not built:
+  the model checker finds two schedules where the reviewer's token-to-exit protocol misses a receipt
+  (a planned shutdown with no owner left to retry,
+  and a client that cannot start one during the shutdown);
+  the launch-bound row stays Narrower.
+  Cross-vendor review running:
+  `commit-models-sol-12.txt` (prompt `commit-models-prompt-12.txt`),
+  asked whether those misses are real under the target and whether any bounded protocol avoids them.
+  The owner question on 3B (built release-recheck-exit with the bound stated,
+  token to exit,
+  or a wait) goes out once that review returns,
+  with its answer folded in.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
