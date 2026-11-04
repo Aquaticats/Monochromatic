@@ -165,8 +165,12 @@ pub(crate) const INDEX_FILE: &str = "index.txt";
 /// the process id and the process start time.
 pub(crate) const OWNER_FILE: &str = "owner";
 
-/// The file whose exclusive lock the owner of a transaction holds while it lives.
-pub(crate) const LOCK_FILE: &str = "lock";
+/// The file in which the process groups of the children a transaction started are recorded, one group id per line.
+pub(crate) const GROUPS_FILE: &str = "groups";
+
+/// The file whose exclusive lock a transaction, or a recovery, holds on the whole workspace while it lives.
+/// One lock for all roots is the fewest locks that exclude every conflict (owner rule: "Use as few locks as possible.").
+pub const WORKSPACE_LOCK: &str = ".cache/cargo-shadow/lock";
 
 /// The record written last that lists every file a recovery needs,
 /// with its length.
@@ -204,7 +208,7 @@ pub(crate) fn write_synced(path: &Path, text: &str) -> io::Result<()> {
     // let x = ...;   // plain Rust `let` is TS `const`
     // ```
     // Typed binding: `file: fs::File`.
-    let mut file: fs::File = fs::File::create(path)?;
+    let mut file: fs::File = fs::OpenOptions::new().write(true).create_new(true).open(path)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     file.write_all(text.as_bytes())?;
     return file.sync_all();
@@ -516,4 +520,26 @@ pub(crate) fn decode_path(text: &str) -> Option<PathBuf> {
     // // TS has one type for this: string
     // ```
     return Some(PathBuf::from(std::ffi::OsString::from_vec(bytes)));
+}
+
+/// What:
+/// `pub fn make_durable(path: &Path) -> io::Result<()>` syncs a file and the directory that lists it; an absent file is skipped.
+/// Why:
+/// Review finding (4b2 3), and the owner's rule "Force at leaving": what a command promises when it leaves is on disk before the
+/// snapshots that could undo it are removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function makeDurable(path: string): void  // fsync the file, then its directory
+/// ```
+pub fn make_durable(path: &Path) -> io::Result<()> {
+    match fs::File::open(path) {
+        Ok(file) => file.sync_all()?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    return match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => sync_directory(parent),
+        _ => Ok(()),
+    };
 }

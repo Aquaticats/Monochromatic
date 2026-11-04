@@ -55,14 +55,9 @@ pub(crate) struct JournaledManifest {
 pub(crate) fn read_manifest_index(directory: &Path) -> io::Result<Vec<JournaledManifest>> {
     // `match`: picks the arm whose pattern fits the value.
     // Typed binding: `text: String`.
-    let text: String = match fs::read_to_string(directory.join(MANIFEST_INDEX_FILE)) {
-        Ok(found) => found,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(error) => return Err(error),
-    };
+    // Review finding (4b2 6): this is called only for a journal whose ready record promises manifests, so a missing index is
+    // damage and never "no manifests".
+    let text: String = fs::read_to_string(directory.join(MANIFEST_INDEX_FILE))?;
     // Macro `format!`: builds or prints text (or a list) from a template.
     let corrupt = |why: &str| -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("the manifest index is corrupt: {why}")); };
     // `let mut`: a binding that may change.

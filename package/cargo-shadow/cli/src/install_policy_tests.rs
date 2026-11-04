@@ -655,17 +655,11 @@ fn a_second_install_does_not_take_the_first_ones_unapproved_lockfile_for_approve
 
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `second: InstallReport`.
-    let second: InstallReport = registry.second.borrow_mut().take().expect("the second install ran").expect("the second install reports");
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(
-        // Closure `|line|`: an anonymous function, like a TS arrow function.
-        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        second.warnings.iter().any(|line| { return line.contains("dep@1.0.1"); }),
-        "the second install did not check the unapproved lockfile: {:?}",
-        second.warnings
-    );
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(second.problems.is_empty(), "{:?}", second.problems);
+    // Review finding (4b2 1): the workspace lock keeps a second transaction out while the first holds the unapproved output, so the
+    // second install stops with an error naming the holder instead of taking that lockfile for approved.
+    let second = registry.second.borrow_mut().take().expect("the second install ran");
+    let message: String = second.err().map(|error| { return error.to_string(); }).unwrap_or_default();
+    assert!(message.contains("another cargo-shadow run"), "{message}");
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(first.problems.is_empty(), "{:?}", first.problems);
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.

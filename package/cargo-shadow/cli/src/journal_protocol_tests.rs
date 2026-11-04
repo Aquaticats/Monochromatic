@@ -431,30 +431,19 @@ fn a_missing_manifest_index_keeps_the_journal_and_its_snapshots() {
     assert!(journal.join("m0.toml").exists(), "the only copy of the manifest was deleted with the journal");
 }
 
-/// A journal whose preparation never finished (its owner was killed before cargo ran) changed nothing,
-/// so recovery removes it
-/// and does not touch the lockfile,
-/// which another writer may have written meanwhile.
+/// A journal whose preparation never finished (its owner was killed before cargo ran) changed nothing; with every lockfile equal to
+/// its snapshot the copies are redundant, so recovery removes it and does not touch the lockfile.
 #[test]
 fn a_journal_that_never_became_ready_is_removed_without_touching_the_lockfile() {
-    let root = repository("written by someone else");
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    let root = repository("original");
     let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin, manifests promised but never journaled");
     drop(transaction);
 
-    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // Macro `vec!`: builds or prints text (or a list) from a template.
     recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "written by someone else");
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "an unready journal is removed");
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "original");
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "an unready journal with redundant copies is removed");
 }
-
 /// A journal whose removal was interrupted after the completion marker is finished by the next recovery.
 #[test]
 fn a_journal_marked_done_is_removed_by_the_next_recovery() {
