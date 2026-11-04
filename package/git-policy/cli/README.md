@@ -37,6 +37,12 @@ Read-only commands,
   The wrapper takes no lock of its own: a commit meets only Git's `index.lock`,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
   A commit the service was landing when it died is settled by the service from its journal when it starts again.
+  A stale `index.lock` that a killed service left (its marker names a process that is gone) is removed by one reclaimer at a time:
+   the reclaimer takes a `flock` on that lock file and checks that the name still refers to it before it unlinks.
+  Where the file system refuses `flock` (some network file systems), the reclaimers are kept apart by numbered claim files beside the lock instead,
+   so the stale lock is still removed and the commit goes on; a killed reclaimer can leave inert `index.lock.cli-reclaim-*` files,
+   which `SPEC.md` ("The claim chain") says how to remove.
+  A lock that cannot be proven stale is never removed (a running Git's lock, or one held by a process of another PID namespace).
 - Merges that do not fail (the owner's rules of 2026-11-03: "Auto merging should never fail." and
    "Manual merge should never fail too.").
   Native Git's merge stashes first and dies when another process holds `index.lock`,

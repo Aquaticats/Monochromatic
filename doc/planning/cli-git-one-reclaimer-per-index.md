@@ -171,25 +171,133 @@ stale lock and a landing places its own, and the other then unlinks the name, wh
 lock beside a landing that has passed its ownership check. Every error but `WouldBlock` took that route, not only a file system
 without `flock`; an NFS client that emulates `flock` with byte-range locks can refuse a lock on a read-only descriptor.
 
-Pick (the coordinator's, under the owner's delegation "Pick options as if I had picked them and invite veto"; veto open): a
-reclaimer that cannot take the hold never removes the lock (`Reclaimed::Unguarded`). A landing treats the lock as a held lock:
-the ordinary wait to `LOCK_CEILING`, then the withdrawal that keeps the commit on its side ref. Its notice names the stale
-lock's path, the batch and the dead process from its marker, and says to remove it by hand with `rm` once no git command runs
-there, as native Git leaves a stale `index.lock` to the person. A restart leaves the batch open.
-An interrupted call is not a refusal: it is treated as a hold by another reclaimer and asked again by the wait.
+The second build (the coordinator's pick under the owner's delegation, veto open) never removed the lock when the `flock` could
+not be taken (`Reclaimed::Unguarded`): the landing waited to `LOCK_CEILING`, withdrew, and told the person to run `rm`.
+The owner rejected that on 2026-11-04: "Must work perfectly even when flock isn't available. Do better." and then
+"I'm not banning flock. I'm just saying our wrapper must work perfectly even when flock isn't there."
+So the `flock` on the stale lock's own inode stays wherever it works, and the case where it is not there gets a path that
+needs no `flock` at all.
+
+### Facts the design rests on
+
+- Which file systems give no `flock`: the kernel calls `f_op->flock` when a file system defines one and otherwise takes a local
+  lock itself (`flock` system call in `fs/locks.c`: `if (f_op->flock) ... else locks_lock_file_wait`), so a local file system
+  always gives `flock`. Only file systems that define the operation can refuse: NFS (`nfs_flock` in `fs/nfs/file.c`, a byte-range
+  emulation that needs a lock manager), 9p (`v9fs_file_flock_dotl` in `fs/9p/vfs_file.c`, returns `ENOLCK` unless converted),
+  CIFS (`cifs_flock` in `fs/smb/client/file.c`, `ENOLCK` or `EOPNOTSUPP`), and FUSE (`fuse_file_flock` in `fs/fuse/file.c`, which
+  falls back to a local lock only when the server has no lock support, so a daemon that answers the lock request can refuse it;
+  Ceph and others define one too). Fetched from the kernel tree on 2026-11-04.
+  A fixture with a real file system that refuses `flock` needs a mount of one of these, which a rootless container cannot make,
+  so the controls stand in the refusal through `Platform::flock`.
+- Transient errors: the local `flock` can fail with `ENOMEM` when the lock record cannot be allocated (`fs/locks.c`); that says
+  nothing about the file system, so it is treated as a hold by someone else (try again), never as "no `flock` here".
+- The coordinator's reading that only reclaimers on this machine can race is wrong. `holder_state_in`
+  (`service_index_identity.rs`) answers `Gone` for a marker whose boot ID differs from the reader's, so a reader on another
+  host judges a lock of a holder on a third host stale, and two such readers over one shared file system race for the same file
+  (a live holder on yet another host reads as gone too; that is the existing cross-host limit, not new). A lock in
+  `/run/lock`, `/dev/shm` or an abstract socket is local to one kernel (and one mount or network namespace), so it would not
+  keep those apart; a claim file on the repository's own file system does.
+
+### The claim chain
+
+Used only when the `flock` on the stale file answers that the file system gives none (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`,
+`EBADF`). `EWOULDBLOCK`, `EINTR` and `ENOMEM` are back-offs, and any other error is `Unguarded` (see the cross-vendor review below).
+All claims are files beside the lock, named `<lock>.cli-reclaim-<key>-<slot>`, with a key made from the stale lock's marker (batch,
+process, birth identity in hexadecimal) and a slot number counted from zero. The first design keyed on the device and inode of the
+stale file; the review found that two mounts of one remote tree can give one file different device numbers, so two reclaimers would
+place at different names. The marker is the file's own content, the process it names is gone and places no further lock with that
+marker, and so no later lock carries the key.
+A claim holds the service marker of its claimer (batch zero, process, birth identity, boot, PID namespace), so
+`holder_state_in` judges a claimer exactly as it judges a lock holder. It is made like the lock: written to a staging file,
+then placed by a rename that does not replace, else a hard link (`place_marked`), so a claim is never visible half written.
+
+The reclaimer that judged the lock stale takes a claim like this:
+
+1. Try to place its claim at slot zero. If the name is free, the claim is placed. If it exists, read it: a claimer that is
+   gone (or a file that holds no whole marker, which only a power loss or a stranger can leave, since placed claims are whole)
+   is passed over and the next slot is tried; a claimer that runs or cannot be judged makes this reclaimer back off (`Busy`).
+2. After placing at slot n, read every slot below n again. All must exist and name a gone claimer; otherwise remove the own
+   claim and back off. This is the step that makes a reclaimer's earlier reading (which may be arbitrarily old) harmless.
+3. Holding the claim, run the ordinary steps: check that the name still refers to the stale file (device and inode), unlink.
+4. When the name no longer refers to the stale file (removed by this reclaimer, or by someone else), remove every claim from
+   zero to the own slot, and nothing else. When the unlink failed, remove only the own claim.
+
+Why one claimer at a time holds while the stale file is at its name:
+a dead claim is never removed by anyone but a claimer that has seen the stale file leave its name; while the file is there,
+claims only get added, except that a claimer removes its own live claim when it backs off. So a slot that one claimer read as
+gone at some moment still exists, unchanged, for as long as the file is at its name, and no claimer can be placed at a lower
+slot behind it. Two holders would need slots a and b with a below b; b's step 2 reads slot a, which is either not there
+(then b backs off) or a's live claim (b backs off). Two reclaimers placing at one slot are kept apart by the exclusive
+placement. A dead claimer's claim is neither judged nor removed by a race, because nobody removes it before the stale file is
+gone, and after that nothing destructive is left to guard: every later holder fails the check of the name.
+That is also why the rule needs no birth time of the file: an orphan claim left under the same key is a gone claim at a low slot and
+is passed over.
+
+Leftovers: a claimer killed between the unlink and the removal of claims leaves `<lock>.cli-reclaim-*` files. They are inert,
+passed over by every later reclaim of a file with that key, and removed by the first reclaim that finishes one. To remove them by
+hand, once no git command and no commit of this service is running in the repository:
+
+```sh
+# claims are named <lock>.cli-reclaim-<device>-<inode>-<slot>; each holds one line starting "cli-git-service "
+ls -l -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*
+rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*
+```
+
+What this does not close, with the schedule:
+- The mixed case: reclaimer one's `flock` works and holds, reclaimer two's `flock` on the same file answers "not there". One holds the
+  `flock` and no claim, the other a claim and no `flock`, and they do not see each other. It takes two mounts of one file system that
+  differ in lock support, or a lock manager that answers `ENOLCK` to one call and grants the next. No call closes it without making
+  every reclaimer take the claim chain (the reviewer's fix: drop the `flock` fast path, which the owner said to keep: "I'm not banning
+  flock."); the errors are mapped so that a back-off errno (`EWOULDBLOCK`, `EINTR`, `ENOMEM`) never takes the claim path and an error
+  that does not say "no `flock` here" (`EIO`, a timeout) leaves the lock and says so.
+- A claimer that is alive on another host reads as gone (boot ID differs), as a lock holder does: the existing cross-host limit. The
+  same reading makes a reclaimer on another host judge a live claim gone, and then two reclaimers can both pass the name check. The
+  alternative, reading an incomparable identity as unknown, would stop recovery after a reboot of a shared file system, which
+  `holder_state_in` is written to allow; not changed here, and listed as open.
+- A claimer that is alive but cannot be judged (another PID namespace, an unreadable `/proc`) makes reclaimers back off to the
+  ceiling of the wait, as for any holder that cannot be judged; no commit waits without bound.
+- A person's `rm index.lock` between the name check and the unlink, as in every variant.
+- No space for the claim file (the same disk that would refuse the landing's own lock): the stale lock stays and the notice of
+  `Unguarded` is written, now only for that case and for a refusal of the placement itself.
 
 Alternatives considered:
-- Remove anyway, as the first build did. Rejected: the interleaving above deletes a live lock, and it needs no manual `rm`.
-- Fall back to the old rename aside and put-back where there is no `flock`. Rejected: it brings back the empty-name window in
-  which Git takes the name and the live lock is stranded, for exactly the file systems that cannot be tested here.
-- Fail the landing at once. Rejected: "Commits should never fail."; the bounded wait lets the person remove the lock and the
-  commit land, and the withdrawal keeps the commit on its side ref.
-- Land the commit and leave the index update for a later recovery when the lock cannot be had. Not taken: the update needs the
-  lock to be safe, and the replay gate would have to accept a batch with no lock ever held; a larger design change.
-- Retry the `flock` on a descriptor opened for writing, for NFS emulation. Not built: opening another account's lock file for
-  writing may fail, and the case is unexercised here; it would narrow the set of file systems that wait for a person.
+- Remove anyway, as the first build did. Rejected: the interleaving above deletes a live lock.
+- Never remove, wait for a person (the second build). Rejected by the owner.
+- Fall back to the old rename aside and put-back. Rejected: it brings back the empty-name window in which Git takes the name and
+  the live lock is stranded.
+- A `flock` on a file in `/run/lock` or `/dev/shm`. Rejected: it is still `flock`, it is local to one kernel and one mount
+  namespace while stale locks can be judged from other hosts, permissions and the sticky bit decide which accounts can open it,
+  and it leaves files that nothing owns.
+- An abstract Unix socket bound under a name made from the stale file's identity (no file, no `flock`, released on death).
+  Rejected for the same scope reason: one network namespace of one kernel.
+- One claim file per stale file, with a dead claimer's claim removed by name. Rejected: two readers of the dead claim, one
+  removes it and places a live one, the other removes that; the race moves one level down and no Linux call removes a name
+  only if it still names a given file.
+- The same race broken by recursing the reclaim onto the dead claim (a claim for the claim). Not taken: the chain needs no
+  recursion and no depth bound.
+- Exchange the names with `RENAME_EXCHANGE` to take over. Rejected: while a live lock is exchanged out its holder's install
+  renames whatever stands at the lock name.
+- A claim file kept after the fact (never removed, one per reclaim). Rejected: unbounded leftovers.
 
-Ranking: not removing > failing at once > falling back to the aside window > removing anyway.
+Ranking: the claim chain after the `flock` > never removing (the second build) > the fall back to a rename aside > removing anyway.
+
+### What was built for the claim chain
+
+`package/git-policy/cli/src/native/landing/service_index_claim.rs` (`take_claim`, `ClaimHold`), called from `reclaim_if` in
+`service_index_reclaim.rs` when `hold` answers `Unavailable`. `hold` answers `Busy` for `EWOULDBLOCK`, `EINTR` and `ENOMEM`, and
+`Unavailable` for every other error. The controls are in `service_index_claim_tests.rs`; the controls that encoded the second
+build's behaviour (`a_failed_flock_never_has_the_stale_lock_removed`, and the landing that waited to its ceiling) are inverted
+there (`a_stale_lock_is_removed_where_flock_is_not_available`, `a_landing_takes_a_stale_lock_where_flock_is_not_available_without_waiting`),
+and the ceiling and notice controls now refuse the placement of claims as well, since `Unguarded` is what remains when neither
+the `flock` nor a claim is possible.
+
+### The cross-vendor review of the claim chain
+
+`/var/home/user/temp/agent/reviews/claim-chain-sol-1.txt` (2026-11-04): no break of the core interleavings; a backed-off claim,
+a slot read as gone long before, and the cleanup against a reused inode were each attacked and held. Findings folded in: the key
+from the device and inode (above); an unreadable claim must not read as gone (it never did: only a successful read of text that is
+no marker does; a claim is now mode 0644 so another account can read it); an ambiguous placement answer (the claim carries a random
+token, and a file at the slot with this attempt's text is its own); the mixed case and the remote live claimer (above, kept open).
 
 ## A busy stale lock
 
