@@ -36,7 +36,7 @@ use crate::private_storage::create_private_directory;
 /// Where Git's words go now that the `init` carries no `--quiet`.
 use crate::inner_git_words::record_words;
 /// Process context and one required Git start.
-use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitRequest, checked_from, refused_by_the_system, run_git};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// Strings for the redirect variable list.
@@ -113,6 +113,11 @@ pub fn ensure_private_directory(directory: &Path) -> std::io::Result<()> {
     }
 }
 
+/// How many times the shadow's `git init` is started, each in a fresh directory, when a start is cut at its ceiling or refused by the
+///  system. Two: the start and one more, the same "redone once" the quiet-window rule reads (`doc/planning/cli-git-shipped-limits-audit.md`,
+///  pick 4, the coordinator's reading, open to veto); a shadow whose `init` is cut twice fails its transaction.
+pub(crate) const SHADOW_CREATION_ATTEMPTS: u32 = 2;
+
 /// What:
 ///  Creates an empty bare repository with `git init`, for the ref backend whose tables this crate does not write.
 /// Why:
@@ -138,10 +143,49 @@ fn init_with_git(
     let mut init: GitRequest = GitRequest::new(layout.common_dir.as_path(), &arguments);
     init.without_prefix = true;
     init.unset = REPOSITORY_REDIRECT_VARIABLES.iter().map(|name| { return OsString::from(*name); }).collect();
-    let made = run_git_checked(context, &init)?;
-    // The `init` carries no `--quiet`; what Git said of it is kept in the journal.
-    record_words(&["init", "--bare", "--template=", "--ref-format=reftable"], &made);
-    return Ok(());
+    let mut attempt: u32 = 1;
+    loop {
+        let outcome = run_git(context, &init);
+        // A start ended at its ceiling, or refused a process or a thread, leaves a directory that a second `init` in place fails in (the cut
+        //  experiment: reftable table names are random, 57 of 64 second runs failed). It is discarded and the start is made again in a
+        //  fresh directory, which the experiment found equal to an uncut run.
+        let cut: bool = match &outcome {
+            Err(error) => error.kind() == std::io::ErrorKind::TimedOut,
+            Ok(finished) => refused_by_the_system(finished),
+        };
+        if cut && attempt < SHADOW_CREATION_ATTEMPTS {
+            let note: String = format!("the shadow's init was cut or refused (attempt {attempt} of {SHADOW_CREATION_ATTEMPTS}); its directory {} is discarded and the step starts again in a fresh one", shadow.display());
+            crate::client_journal::record_entry(crate::journald_native::Priority::Warning, note.as_str(), &[]);
+            discard_partial_shadow(shadow)?;
+            attempt += 1;
+            continue;
+        }
+        if cut {
+            discard_partial_shadow(shadow)?;
+        }
+        let made = checked_from(outcome, init.arguments.as_slice())?;
+        // The `init` carries no `--quiet`; what Git said of it is kept in the journal.
+        record_words(&["init", "--bare", "--template=", "--ref-format=reftable"], &made);
+        return Ok(());
+    }
+}
+
+/// What:
+///  Removes what a cut `git init` left at the shadow's path.
+/// Why:
+///   A shadow is private to its transaction and holds nothing but what `init` made, so a partial one is discarded whole and never
+///  completed in place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(shadow, { recursive: true, force: true });
+/// ```
+fn discard_partial_shadow(shadow: &Path) -> Result<(), GitFailure> {
+    return match std::fs::remove_dir_all(shadow) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(GitFailure(format!("the partial shadow {} cannot be discarded: {error}", shadow.display()))),
+    };
 }
 
 /// What:

@@ -338,8 +338,8 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
 }
 
 /// Commands whose second run after a refusal is harmless: they read, or they write content-addressed objects,
-///  or they set the same value again. `symbolic-ref` and `init` are not here: only the forms the wrapper runs may be run again
-///  (`may_be_rerun`).
+///  or they set the same value again. `symbolic-ref` is not here: only the forms the wrapper runs may be run again (`may_be_rerun`).
+///  `init` is not run again in place at all: its one form is ended at a ceiling and restarted in a fresh directory (`may_be_ended`).
 const RERUNNABLE: [&str; 15] = [
     "rev-parse",
     "for-each-ref",
@@ -448,7 +448,6 @@ fn may_be_rerun(request: &GitRequest) -> bool {
         "remote" => return rest.first().is_some_and(|word| { return word == "get-url"; }),
         "add" | "reset" | "read-tree" | "update-index" => return request.index.is_some(),
         "symbolic-ref" => return symbolic_ref_may_be_rerun(&Words::of(rest.as_slice()), request.without_prefix),
-        "init" => return request.without_prefix && is_shadow_creation(&rest),
         other => return RERUNNABLE.contains(&other),
     }
 }
@@ -463,7 +462,7 @@ fn may_be_rerun(request: &GitRequest) -> bool {
 /// ```ts
 /// output.exitCode !== 0 && output.stderr.includes('Resource temporarily unavailable')
 /// ```
-fn refused_by_the_system(output: &GitOutput) -> bool {
+pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
     return output.code != Some(0)
         && String::from_utf8_lossy(output.stderr.as_slice()).contains("Resource temporarily unavailable");
 }
@@ -787,6 +786,12 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
         return true;
     }
     let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    // The shadow's creation cannot be run twice in place (a cut `init` leaves a directory the second run fails in), and it is ended at
+    //  its ceiling because its creator discards that directory and starts a fresh one (`shadow_create.rs`, `init_with_git`), which the
+    //  cut experiment found equal to an uncut run.
+    if name == "init" {
+        return request.without_prefix && is_shadow_creation(&rest);
+    }
     return is_proven_to_run_twice(request.arguments.as_slice(), name.as_str(), rest.as_slice());
 }
 
@@ -900,7 +905,7 @@ pub fn run_git_checked(
 /// ```ts
 /// function checkedFrom(outcome: GitOutput | Error, args: string[]): GitOutput; // throws CommitTransactionGitError
 /// ```
-fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
+pub(crate) fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
     let output: GitOutput = match outcome {
         Ok(finished) => finished,
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {

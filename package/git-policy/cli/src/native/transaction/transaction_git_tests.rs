@@ -884,15 +884,32 @@ fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
     assert!(!may(&["symbolic-ref", "--delete", "HEAD"], true));
     assert!(!may(&["symbolic-ref", "-m", "why", "HEAD", "refs/heads/main"], true));
     assert!(!may(&["symbolic-ref", "--delete", "--quiet", "HEAD"], false));
-    // The shadow's creation.
-    assert!(may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
-    assert!(may(&["init", "--bare", "--template=", "--object-format=sha256", "--ref-format=reftable", "/shadow"], true));
-    // Any other words, or an extra one, are not the form the wrapper runs.
-    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
-    assert!(!may(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
-    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
+    // The shadow's creation is not run again in place: a cut `init` leaves a directory the second run fails in, and the shadow's creator
+    //  discards the directory and starts a fresh one (`a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`).
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
     // Any other `init` can relocate or re-initialize the repository of the person.
     assert!(!may(&["init", "--bare", "--template=", "/shadow"], false));
     assert!(!may(&["init", "--quiet", "--initial-branch=main"], true));
     assert!(!may(&["init", "--separate-git-dir=/elsewhere", "--bare"], false));
+}
+
+/// The shadow's creation keeps its ceiling only in the exact form the wrapper runs and only for a request on a shadow: its creator
+/// discards a cut start's directory and starts again in a fresh one, which the experiment found equal to an uncut run (64 of 64).
+/// Any other `init` can touch the repository of the person, so it has no ceiling.
+#[test]
+fn only_the_shadow_creation_init_keeps_a_ceiling() {
+    let ends = |arguments: &[&str], shadow: bool| -> bool {
+        let mut request: GitRequest = GitRequest::new(Path::new("/repo"), arguments);
+        request.without_prefix = shadow;
+        return matches!(step_bound(&request), StepBound::EndAt(_));
+    };
+    for object_format in ["sha1", "sha256"] {
+        let format: String = format!("--object-format={object_format}");
+        assert!(ends(&["init", "--bare", "--template=", format.as_str(), "--ref-format=reftable", "/shadow"], true), "{object_format}");
+    }
+    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], false), "not a shadow request");
+    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
+    assert!(!ends(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
+    assert!(!ends(&["init", "--quiet", "--initial-branch=main"], true));
 }
