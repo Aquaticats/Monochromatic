@@ -1404,11 +1404,11 @@ is the rule.
   group's
   leader with a window of 600 seconds, and ends with its whole process group.
   An install that downloads for a long time is never reported as having run past a limit.
-- The Markdown linter (`src/native/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
+- The Markdown linter (`src/native/markdown/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
   of that
   thread (`src/native/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
   `/proc/self/task/<tid>/`, with a window of 60 seconds. A linter thread that shows none is abandoned as before.
-- The standards-review gateway call (`src/native/standards_review_client.rs`) has no total deadline. Resolving,
+- The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has no total deadline. Resolving,
   connecting and
   each read and write of the connection may be silent for the window, 10 seconds in the service (`CALL_QUIET_WINDOW`)
   and 30

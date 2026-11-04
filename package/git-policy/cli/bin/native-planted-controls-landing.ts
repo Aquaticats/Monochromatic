@@ -97,7 +97,7 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   },
   {
     name: 'an event path keeps the exact bytes of a name that is not UTF-8',
-    file: 'src/native/event_path.rs',
+    file: 'src/native/policy/event_path.rs',
     from: 'exact: Some(bytes.to_vec()),',
     to: 'exact: None,',
     failing: 'event_path::tests::a_name_that_is_not_utf8_keeps_its_bytes',

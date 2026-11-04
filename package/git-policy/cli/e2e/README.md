@@ -114,7 +114,7 @@ The instruments that replace them add nothing to the release executables:
 
 A declared `postCommit` action in `cli-git.config.jsonc` is not an instrument:
 that facility was built and deleted on the owner's instruction, and the key is a configuration error
-(`src/native/config_parse.rs`, `SPEC.md` "External hooks").
+(`src/native/config/config_parse.rs`, `SPEC.md` "External hooks").
 
 ### Scenarios whose instrument no longer runs
 

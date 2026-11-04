@@ -23,7 +23,7 @@
 //! ```
 
 /// Import the conversion of Git's pathname bytes to a path.
-use super::git_metadata::path_from_git_bytes;
+use crate::git_metadata::path_from_git_bytes;
 /// What:
 ///  `Gitignore` is a compiled pattern list;
 ///  `GitignoreBuilder` compiles one.

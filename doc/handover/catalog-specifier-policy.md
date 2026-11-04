@@ -439,7 +439,7 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
     stay independent of the local wrapper ("Local enforcement remains best-effort fast feedback; CI remains authoritative").
   - `package/git-policy/cli/README.md`, "Policies": the wrapper ships a fixed set of policies and no others; the config keys
     `plugins` and `trust` are refused, so a new policy means a native Rust policy inside that crate
-    (`src/native/policy_registry.rs` and siblings), listed in `cli-git.config.jsonc` where the four optional ones are listed.
+    (`src/native/policy/policy_registry.rs` and siblings), listed in `cli-git.config.jsonc` where the four optional ones are listed.
     `mono/dependent-version-bump` already reads package manifests at commit time and blocks at `error`.
   - A `mono/catalog-specifiers` policy would reject a commit whose staged `package.json` bytes violate the rule, at the point where a
     violation lands, with no directory walk and no PATH-order dependency beyond the git shadow every commit already uses.

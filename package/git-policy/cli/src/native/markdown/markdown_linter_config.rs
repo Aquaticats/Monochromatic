@@ -18,7 +18,7 @@
 //! ```
 
 /// Import the selectable rules and their configuration spelling.
-use super::config_schema::{MarkdownRule, markdown_rule_name};
+use crate::config_schema::{MarkdownRule, markdown_rule_name};
 /// Import the JSONC value model and its emitter.
 use monochromatic_jsonc_edit::{JsoncEntry, JsoncKey, JsoncValue, emit_jsonc_value};
 /// The files the block selects,

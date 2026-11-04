@@ -34,14 +34,14 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   },
   {
     name: 'unknown top-level key rejection',
-    file: 'src/native/config_parse.rs',
+    file: 'src/native/config/config_parse.rs',
     from: 'return Err(unknown_top_level_key(key.as_str()));',
     to: 'continue;',
     failing: 'config_parse::tests::unknown_and_retired_top_level_keys_are_named',
   },
   {
     name: 'legacy configuration migration diagnostic',
-    file: 'src/native/config_file.rs',
+    file: 'src/native/config/config_file.rs',
     from: 'return Err(migration_required(first.as_path(), source.as_path()));',
     to: 'let _ = first;',
     failing: 'config_file::tests::legacy_configuration_alone_requires_migration',

@@ -135,7 +135,7 @@ compile only under `cfg(test)`.
 ### Tokenizer functions and types
 
 ```rust
-// package/git-policy/cli/src/native/command_options.rs
+// package/git-policy/cli/src/native/command/command_options.rs
 pub fn parse_options(
     arguments: &[OsString],
     table: &[OptionSpec],

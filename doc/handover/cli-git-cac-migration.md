@@ -70,7 +70,7 @@ A later explicit adoption request is required before implementation or a decisio
   that replaced
   the `@optique/core` facade.
 - `package/git-policy/cli/src/parser/argv.ts`
-  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/command_options.rs`)
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/command/command_options.rs`)
   describes a repository-owned Git argv region parser that replaced
   `@optique/core` option parsing.
 - Several source comments still use Optique terminology.
@@ -131,7 +131,7 @@ The measured source map at baseline is:
   It is 265 physical lines,
   including declarations and TSDoc.
 - `package/git-policy/cli/src/parser/argv.ts`
-  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/command_options.rs`)
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/command/command_options.rs`)
   is the shared subset parser used by management and Git-region parsers.
   It is 415 physical lines and has eighteen direct unit cases.
 - `package/git-policy/cli/src/parser/` contains twenty production TypeScript files and 3,953 physical lines.

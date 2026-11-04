@@ -27,17 +27,17 @@
 //! ```
 
 /// Import the guarded thread runner.
-use super::markdown_linter_guard::{GuardFailure, run_guarded};
+use crate::markdown_linter_guard::{GuardFailure, run_guarded};
 /// Import the one-rule configuration.
-use super::markdown_linter_config::one_rule_configuration;
+use crate::markdown_linter_config::one_rule_configuration;
 /// Import the reading of one run.
-use super::markdown_linter_output::{LintRun, explanation, interpret_embedded_run};
+use crate::markdown_linter_output::{LintRun, explanation, interpret_embedded_run};
 /// Import the conversion of Git's pathname bytes to a path.
-use super::git_metadata::path_from_git_bytes;
+use crate::git_metadata::path_from_git_bytes;
 /// Import the interface this linter provides.
-use super::policy_markdown::{LintRequest, MarkdownLinter};
+use crate::policy_markdown::{LintRequest, MarkdownLinter};
 /// When a long run prints its notices.
-use super::wait_progress::Cadence;
+use crate::wait_progress::Cadence;
 /// The linter library's in-process entry and its types.
 use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRequest, EmbeddedRun, fix_source};
 /// The sink of those notices.

@@ -710,7 +710,7 @@ A plain notice (an internal error, a push stopped by its deadline or its output 
  a failed worktree copy, a real Git that cannot start, a commit that normalization emptied) ends with the hint.
 The rejections that already carry their own alternatives (`require-root`, `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
-`src/native/event_hints.rs` holds the texts, and its tests fail when a finding code or an engine failure code has no hint.
+`src/native/policy/event_hints.rs` holds the texts, and its tests fail when a finding code or an engine failure code has no hint.
 
 ### Discarding commands
 

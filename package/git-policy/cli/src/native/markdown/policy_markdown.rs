@@ -36,36 +36,36 @@
 
 /// Import the candidate's mode,
 ///  which decides whether it is a file of text.
-use super::candidate_object::CandidateMode;
+use crate::candidate_object::CandidateMode;
 /// Import the candidate's change kinds.
-use super::candidate_record::CandidateChange;
+use crate::candidate_record::CandidateChange;
 /// Import the candidate and version types.
-use super::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the policy's validated options and the configuration spelling of a rule.
-use super::config_schema::{MarkdownAutofixOptions, PolicyConfig, markdown_rule_name};
+use crate::config_schema::{MarkdownAutofixOptions, PolicyConfig, markdown_rule_name};
 /// Import the engine-failure codes.
-use super::diagnostics::EngineFailureCode;
+use crate::diagnostics::EngineFailureCode;
 /// Import the event form of a pathname.
-use super::event_path::EventPath;
+use crate::event_path::EventPath;
 /// Import the conversion of Git's pathname bytes to a path.
-use super::git_metadata::path_from_git_bytes;
+use crate::git_metadata::path_from_git_bytes;
 /// Import the compiled `exclude` patterns.
-use super::markdown_exclude::{ExcludeMatcher, compile_exclude};
+use crate::markdown_exclude::{ExcludeMatcher, compile_exclude};
 /// Import what one usable linter run returns.
-use super::markdown_linter_output::{LintRun, RemainingFinding};
+use crate::markdown_linter_output::{LintRun, RemainingFinding};
 /// Import the lifecycle's candidates and the correction a fix applies.
-use super::policy_content::{ContentState, Correction, LifecycleContent};
+use crate::policy_content::{ContentState, Correction, LifecycleContent};
 /// Import the finding and outcome types of a check.
-use super::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 /// Import the lifecycle points;
 ///  only a direct fix corrects.
-use super::policy_trigger::Trigger;
+use crate::policy_trigger::Trigger;
 /// Import the facts interface for the repository's top level.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// Import the repository location answer.
-use super::repository_location::RepositoryLocation;
+use crate::repository_location::RepositoryLocation;
 /// Import the worktree's top level from Git's answer.
-use super::worktree_identity::worktree_root;
+use crate::worktree_identity::worktree_root;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// `Rc<T>` is a shared,

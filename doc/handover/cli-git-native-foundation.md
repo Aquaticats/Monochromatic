@@ -734,7 +734,7 @@ and both forms stop the program on a missing one,
 so no control could tell them apart.
 Commit `cba0702fe` uses a `for` loop,
 which has no bound to mutate.
-`mise run //package/git-policy/cli:native:mutation -- --file src/native/policy_registry.rs`,
+`mise run //package/git-policy/cli:native:mutation -- --file src/native/policy/policy_registry.rs`,
 the chained gate and runner,
 then tested 19 mutants on the sources of commit `de15ea3ea`:
 15 caught,

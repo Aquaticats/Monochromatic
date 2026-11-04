@@ -35,11 +35,11 @@
 //! ```
 
 /// When a long wait prints its notices.
-use super::wait_progress::{Cadence, WaitReporter};
+use crate::wait_progress::{Cadence, WaitReporter};
 /// The longest quiet gap of each tool, kept for the timing records.
-use super::quiet_ledger;
+use crate::quiet_ledger;
 /// The thread's own number, and the clock that says when a thread has been quiet for a window.
-use super::thread_quiet::{ThreadClock, current_thread_id};
+use crate::thread_quiet::{ThreadClock, current_thread_id};
 /// The thread builder the linter's own executable uses for everything that lints.
 use monochromatic_lint::run_workers::lint_thread;
 /// Panic containment and the payload type of a caught panic.

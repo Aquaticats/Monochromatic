@@ -145,7 +145,7 @@ The steps:
    Append the entry to the live log
    with one append-only write on an `O_APPEND` descriptor, once per commit,
    so entries of several worktrees' services never interleave and no lock is taken
-   (`package/git-policy/cli/src/native/standards_review_append.rs`).
+   (`package/git-policy/cli/src/native/standards_review/standards_review_append.rs`).
    The service creates the directory and the file when missing.
    The tracked `doc/audit/standards-review-gate-shadow.md` is never written.
    The earlier spool and the repair of entries another writer overwrote are gone

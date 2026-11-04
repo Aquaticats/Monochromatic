@@ -608,7 +608,7 @@ its rules cannot be loaded,
 or an internal error).
 `plugin-threw` is gone.
 
-`EngineFailureCode` in `src/native/diagnostics.rs` has both codes in the merged tree:
+`EngineFailureCode` in `src/native/policy/diagnostics.rs` has both codes in the merged tree:
 `ContentUnavailable`,
 and `PolicyIncomplete`,
 which the engine delegation added on `main` in `090c147e7`.
@@ -755,20 +755,20 @@ and none can without engine changes,
 which this branch does not make:
 
 - `PolicyOutcome::Failed(String)`
-  (`src/native/policy_engine.rs:80`)
+  (`src/native/policy/policy_engine.rs:80`)
   carries a message and no code.
   `run_policy_stage` reports every `Failed` as `EngineFailureCode::ContentUnavailable`
-  (`src/native/policy_engine.rs:255` to `256`).
+  (`src/native/policy/policy_engine.rs:255` to `256`).
   The outcome needs a code,
   for example `Failed { code: EngineFailureCode, message: String }`,
   and `run_policy_stage` must put that code into the `EngineFailure` event.
 - Every place that builds `PolicyOutcome::Failed` then names its code:
-  `src/native/policy_checks.rs:150`,
+  `src/native/policy/policy_checks.rs:150`,
   `189` and `217`
   (repository facts that could not be read,
   so `content-unavailable`),
-  and the controls at `src/native/policy_engine_tests.rs:469`
-  and `src/native/policy_checks_tests.rs:141`,
+  and the controls at `src/native/policy/policy_engine_tests.rs:469`
+  and `src/native/policy/policy_checks_tests.rs:141`,
   `224` and `320`.
 - The content policies still answer `PolicyOutcome::Unavailable` through
   `policy_checks::check_content`,

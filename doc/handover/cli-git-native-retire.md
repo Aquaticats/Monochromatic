@@ -51,7 +51,7 @@ The pinned incumbent revision,
   `native:config:differential`,
    `native:differential:commit` and `native:differential:dependent-version`,
    the ignored
-  corpus test `corpus_from_environment` of `src/native/dependent_version_differential_tests.rs`,
+  corpus test `corpus_from_environment` of `src/native/dependent_version/dependent_version_differential_tests.rs`,
    the four packages
   with their ignored `node_modules`,
    the three mirror blocks of `file-enforcer.config.ts` and

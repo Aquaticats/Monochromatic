@@ -64,10 +64,10 @@ absolute path.
 or enabling
   the optional policy.
 - `package/git-policy/repository/src/index.ts`
-  (deleted 2026-10-13: now `package/git-policy/cli/src/native/policy_dependent_version.rs`)
+  (deleted 2026-10-13: now `package/git-policy/cli/src/native/dependent_version/policy_dependent_version.rs`)
   remains the canonical repository-policy source.
   File-enforcer generates `package/git-policy/cli/src/optional/repository-policy.ts`
-  (deleted 2026-09-14 and 2026-10-13: now `package/git-policy/cli/src/native/policy_dependent_version.rs`)
+  (deleted 2026-09-14 and 2026-10-13: now `package/git-policy/cli/src/native/dependent_version/policy_dependent_version.rs`)
   for self-contained source-level
   trusted config bundling.
 - `package/git-policy/api` owns the cycle-free policy contract used by separately owned policy source packages.

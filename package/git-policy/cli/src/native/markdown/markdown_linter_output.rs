@@ -20,7 +20,7 @@
 //! ```
 
 /// Import the selectable rules and their configuration spelling.
-use super::config_schema::{MarkdownRule, markdown_rule_name};
+use crate::config_schema::{MarkdownRule, markdown_rule_name};
 /// Import the linter's in-process result types and finding model.
 use monochromatic_lint::{
     diagnostic::{Diagnostic, Severity},

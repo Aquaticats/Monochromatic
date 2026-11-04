@@ -32,7 +32,7 @@ export async function copySourceSnapshot({ context, }: {
           'clippy.toml',
         ),
       },
-      // The configuration control in `src/native/config_repository_tests.rs` reads the repository's own file.
+      // The configuration control in `src/native/config/config_repository_tests.rs` reads the repository's own file.
       {
         from: resolve('../../../cli-git.config.jsonc'),
         to: join(
