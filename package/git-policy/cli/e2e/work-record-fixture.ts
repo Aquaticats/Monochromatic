@@ -120,12 +120,18 @@ export async function waitForPushRecord({
    */
   const deadline = Date.now() + RECORD_TIMEOUT_MS;
   for await (const _tick of ticks(POLL_MILLISECONDS,)) {
+    /**
+     Whether a record is there, read after the wrapper's state was read:
+     the wrapper can exit between a look at the records and a look at the process,
+     and a record the service claimed in that gap exists by the time the process is seen to have ended.
+     */
+    const settled = running.isSettled();
     if ((await pushRecordNames({
       repository,
       states,
     },)).length > 0)
       return 'record';
-    if (running.isSettled())
+    if (settled)
       return 'settled';
     if (Date.now() >= deadline)
       return 'timeout';
