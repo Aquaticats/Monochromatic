@@ -418,7 +418,7 @@ fn a_withdrawal_the_service_does_not_answer_ends_at_its_own_ceiling() {
     let _fake = serve_a_wait_and_a_withdrawal(service, None);
     let config: ClientConfig = ClientConfig { answer_ceiling: SHORT_CEILING, withdraw_ceiling: SHORT_CEILING, heartbeat_silence: PATIENCE, ..config(name.as_str()) };
     let (answered, _notices) = client_within_patience(config).expect("the client ended at its ceilings");
-    assert_eq!(answered, Err(ClientFailure::WithdrawalUnconfirmed));
+    assert_eq!(answered, Err(ClientFailure::WithdrawalUnconfirmed { blocker: None }));
 }
 
 /// A start the manager reports as under way (`activating`) is waited for only until the start ceiling, then ends with the plain

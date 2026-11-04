@@ -565,7 +565,7 @@ pub fn output_watched_stopping(
     terms: WatchTerms,
     stoppable: bool,
 ) -> std::io::Result<Output> {
-    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, OBJECT_STEP_CEILING);
+    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, Some(OBJECT_STEP_CEILING));
 }
 
 /// The error of a step ended at its ceiling, which tells it apart from a step ended for being quiet: a step that may be run again
@@ -590,10 +590,13 @@ pub fn is_ceiling(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  `output_watched_stopping` where the step is ended at `ceiling` whatever it shows.
+///  `output_watched_stopping` where the step is ended at `ceiling` whatever it shows, or never ended for its length when there is
+///  none.
 /// Why:
 ///   The owner's rule is that nothing waits for ever; the ceiling is what ends a step that keeps working and one that may not be
-///  ended for being quiet.
+///  ended for being quiet. A step with no ceiling is a write in place that is not safe to run twice (owner, 2026-11-04: "Never cut
+///  a branch write (Recommended)"; `transaction_git.rs`, `step_ceiling`): ending it in the middle of its write could cost the
+///  person's data, so only the person ends it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -605,23 +608,30 @@ pub fn output_watched_within(
     ledger_step: &str,
     terms: WatchTerms,
     stoppable: bool,
-    ceiling: Duration,
+    ceiling: Option<Duration>,
 ) -> std::io::Result<Output> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
     let child: Child = command.spawn_retrying()?;
-    let watch: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step).within(ceiling);
+    let started: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step);
+    // A step with no ceiling is waited for as long as it lives: the watch starts without one.
+    let watch: ChildWatch = match ceiling {
+        Some(limit) => started.within(limit),
+        None => started,
+    };
     if !stoppable {
         watch.never_stop();
     }
     watch.begin();
     let output: std::io::Result<Output> = child.wait_with_output();
     watch.end();
-    if watch.ceiling_hit() {
+    if let Some(limit) = ceiling
+        && watch.ceiling_hit()
+    {
         return Err(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
-            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", ceiling.as_secs())),
+            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", limit.as_secs())),
         ));
     }
     if watch.expired() {

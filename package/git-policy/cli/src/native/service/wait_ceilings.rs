@@ -1,6 +1,7 @@
 //! What:
 //!  The longest the wrapper waits for each thing it waits for without a person at the keyboard, with the measurement or the
-//!  decision beside each number.
+//!  decision beside each number. A write in place that is not safe to run twice (the branch write) has no ceiling at all: the
+//!  owner, 2026-11-04, "Never cut a branch write (Recommended)".
 //! Why:
 //!  The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". Every wait on the commit path ends at one of these,
 //!  the request is withdrawn so it never lands later, the person's index and worktree stay as they were, and the command exits
@@ -54,14 +55,15 @@ pub const PHASE_PATIENCE: Duration = Duration::from_secs(5 * 60);
 ///  landings); two minutes is 12 times that. It is below `ANSWER_CEILING`, so the service answers first.
 pub const PLUMBING_STEP_CEILING: Duration = Duration::from_secs(2 * 60);
 
-/// The longest a bulk Git step (`fast-import`, `add`, `reset`, the commit Git builds in a scratch repository, ...) runs before the
-///  wrapper ends it, even while it shows signs of work. Measured: the longest client-side preparation of the timing log was
+/// The longest a bulk Git step that is not a write in place (`fast-import`, `pack-objects`, `add` and `reset` on a private index,
+///  the commit Git builds in a scratch repository, ...) runs before the wrapper ends it, even while it shows signs of work. Measured: the longest client-side preparation of the timing log was
 ///  250,280 ms (`prepareMs`, 1,400 records) and the longest build 183,296 ms; the service's object step took at most 1,358 ms
 ///  (`objects_ms`). Ten minutes is 2.4 times the longest preparation and below `ANSWER_CEILING`.
 pub const OBJECT_STEP_CEILING: Duration = Duration::from_secs(10 * 60);
 
-/// The longest a reference update (`update-ref`), the step that is not safe to run twice, runs before the wrapper ends it. Measured:
-///  the longest of 1,651 reference updates took 3,438 ms (`ref_ms`); one minute is 17 times that. Git writes a reference by creating
-///  its lock file and renaming it, so ending the step leaves either the old reference or the new one, and the lock file it may leave
-///  is removed by the stale-lock sweep once the process is gone.
-pub const REFERENCE_STEP_CEILING: Duration = Duration::from_secs(60);
+/// How long a write that the wrapper never ends (`transaction_git.rs`, `WRITES_IN_PLACE`: the branch write above all) runs before
+///  the commit service tells the clients queued behind it what it is stuck in, and before it lets a queued client be withdrawn
+///  while the landing thread is inside it (`service_busy.rs`). This is a notice threshold, not a bound: nothing ends the write.
+///  Measured: the longest of 2,093 reference updates in the service journal (`answered` lines, `ref_ms`, 2026-11-02T04:01:38-05:00
+///  to 2026-11-04T09:11:09-05:00) took 3,438 ms (99th percentile 47 ms); one minute is 17 times the longest.
+pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);

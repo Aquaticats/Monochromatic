@@ -528,6 +528,9 @@ fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     remove(world.root.as_path());
 }
 
+/// The ceiling the controls give the steps that have one: short, so a control that needs a step ended ends it in moments.
+const SHORT_STEP_CEILING: std::time::Duration = std::time::Duration::from_secs(3);
+
 /// A Git whose reference update of the landing (`update-ref --stdin`) is slow but ends: it waits `seconds`, then does what the real
 ///  one does. Finite on purpose, so a control that finds the update ended early or never fails in moments and never hangs.
 fn late_reference_git(world: &World, seconds: u64) -> PathBuf {
@@ -561,71 +564,6 @@ fn a_branch_write_that_outlasts_the_step_ceiling_is_not_ended() {
     assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
     assert!(said.lock().expect("lock").iter().all(|note| { return !matches!(note, Announce::Waiting(text) if text.contains("was not made")); }), "no step was ended");
-    remove(world.root.as_path());
-}
-
-/// A Git that does what the real one does, except that the reference update of the landing (`update-ref --stdin`) never returns:
-///  after it did its work (`after`), or instead of it (`before`). The mode is in a file, so a control can change it.
-fn slow_reference_git(world: &World, mode: &str) -> PathBuf {
-    let mode_file: PathBuf = world.root.join("slow-update-ref-mode");
-    std::fs::write(&mode_file, mode).expect("mode");
-    let program: PathBuf = world.root.join("slow-update-ref-git");
-    let script: String = format!(
-        "#!/bin/sh\ncase \" $* \" in\n  *\" update-ref --stdin \"*)\n    case \"$(cat '{mode}')\" in\n      after) '{real}' \"$@\"; sleep 600;;\n      *) sleep 600;;\n    esac;;\n  *) exec '{real}' \"$@\";;\nesac\n",
-        mode = mode_file.display(),
-        real = crate::test_support::REAL_GIT
-    );
-    std::fs::write(&program, script).expect("script");
-    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
-    return program;
-}
-
-/// The ceiling the reference-update controls give a step: short, so the control ends in moments.
-const SHORT_STEP_CEILING: std::time::Duration = std::time::Duration::from_secs(3);
-
-/// A reference update that is ended at its ceiling after it renamed the reference: the branch is at the request's commit, so the
-/// outcome is `Landed`, the scratch branch is gone, and no intent is left open.
-#[test]
-fn a_reference_update_ended_after_it_renamed_the_branch_reports_landed() {
-    let world: World = world("service-land-ref-ceiling-after");
-    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
-    let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
-    context.git.real_git = slow_reference_git(&world, "after");
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
-    let outcomes = land_batch(&context, 1, &[request]).expect("the commit landed although the update never returned");
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    let Outcome::Landed { commit } = &outcomes[0] else { panic!("{outcomes:?}") };
-    assert_eq!(&git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), commit, "the branch is at the commit the answer names");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
-    remove(world.root.as_path());
-}
-
-/// A reference update that is ended at its ceiling before it renamed anything: the batch is withdrawn like one that met
-/// `LOCK_CEILING`, the branch has not moved, the built commit is kept on a side ref, the line names the step, the lock is given up,
-/// and a restart lands nothing.
-#[test]
-fn a_reference_update_ended_before_it_renamed_the_branch_withdraws_the_commit() {
-    let world: World = world("service-land-ref-ceiling-before");
-    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
-    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
-    context.git.real_git = slow_reference_git(&world, "before");
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
-    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-    let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
-    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    assert_eq!(answered, Err(FailureCode::StepTooSlow));
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]), "refs/cli-git/kept/1");
-    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no intent is left to land it later");
-    assert!(!world.repo.join(".git/index.lock").exists(), "the lock was given up");
-    let texts: Vec<String> = said.lock().expect("lock").iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
-    let line: String = texts.join("");
-    assert!(line.contains("update-ref") && line.contains("refs/cli-git/kept/1") && line.contains("was not made"), "{line}");
-    assert!(recover(&world.context).is_empty(), "nothing is left for a restart to land");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
     remove(world.root.as_path());
 }
 

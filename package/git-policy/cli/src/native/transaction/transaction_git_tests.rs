@@ -596,6 +596,57 @@ fn only_harmless_commands_may_be_rerun() {
     assert!(!may(&["-c", "a=b"], false));
 }
 
+/// Owner, 2026-11-04: "Never cut a branch write (Recommended)". The steps without a ceiling are the writes in place that are not
+/// safe to run twice; the readers, the writers of unreferenced objects and the changes of a private index keep the ceiling of their
+/// class, and the ceiling of a step that has one is the shortened one a control sets.
+#[test]
+fn a_write_in_place_has_no_ceiling_and_every_other_step_keeps_one() {
+    let ceiling = |arguments: &[&str], private_index: bool| -> Option<Duration> {
+        let mut request: GitRequest = GitRequest::new(Path::new("/repo"), arguments);
+        if private_index {
+            request.index = Some(PathBuf::from("/private.index"));
+        }
+        return step_ceiling(&request);
+    };
+    // The branch write, every form of it the landing uses.
+    assert_eq!(ceiling(&["update-ref", "--stdin"], false), None);
+    assert_eq!(ceiling(&["-c", "core.hooksPath=/x", "update-ref", "refs/heads/main", "abc", "def"], false), None);
+    assert_eq!(ceiling(&["update-ref", "-d", "refs/worktree/cli-git-service/1"], false), None);
+    // The other writes in place that cannot be run twice: the real index, the worktree, the configuration.
+    for write in [&["reset", "--quiet"][..], &["read-tree", "-u", "-m", "a", "b"], &["update-index", "--refresh"], &["add", "--all"]] {
+        assert_eq!(ceiling(write, false), None, "{write:?} on the real index");
+    }
+    for write in [&["checkout-index", "--all"][..], &["clean", "--force"], &["stash", "push"], &["merge", "--ff-only", "abc"], &["config", "a.b", "c"]] {
+        assert_eq!(ceiling(write, false), None, "{write:?}");
+    }
+    // The same changes on a private index may be run twice, so they keep the ceiling of their class.
+    assert_eq!(ceiling(&["add", "--all"], true), Some(OBJECT_STEP_CEILING));
+    assert_eq!(ceiling(&["reset", "--quiet"], true), Some(OBJECT_STEP_CEILING));
+    // Readers, with or without a place on the rerun list.
+    assert_eq!(ceiling(&["rev-parse", "HEAD"], false), Some(PLUMBING_STEP_CEILING));
+    assert_eq!(ceiling(&["for-each-ref"], false), Some(PLUMBING_STEP_CEILING));
+    assert_eq!(ceiling(&["config", "--get", "a.b"], false), Some(PLUMBING_STEP_CEILING));
+    assert_eq!(ceiling(&["rev-list", "--count", "HEAD"], false), Some(PLUMBING_STEP_CEILING), "not on the rerun list, but it changes nothing");
+    assert_eq!(ceiling(&["log", "-1"], false), Some(OBJECT_STEP_CEILING), "not on the rerun list, but it changes nothing");
+    assert_eq!(ceiling(&["merge-base", "a", "b"], false), Some(PLUMBING_STEP_CEILING));
+    // Writers of unreferenced objects: a second run writes the same bytes.
+    assert_eq!(ceiling(&["fast-import", "--done"], false), Some(OBJECT_STEP_CEILING));
+    assert_eq!(ceiling(&["commit-tree", "abc", "-m", "x"], false), Some(OBJECT_STEP_CEILING));
+    assert_eq!(ceiling(&["hash-object", "-w", "--", "a.txt"], false), Some(OBJECT_STEP_CEILING));
+}
+
+/// The ceiling a control sets applies to the steps that have one and never to a write in place.
+#[test]
+fn a_shortened_ceiling_never_reaches_a_write_in_place() {
+    let shortened: Duration = Duration::from_secs(3);
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(shortened)); });
+    let reader: Option<Duration> = step_ceiling(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"]));
+    let writer: Option<Duration> = step_ceiling(&GitRequest::new(Path::new("/repo"), &["update-ref", "--stdin"]));
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert_eq!(reader, Some(shortened));
+    assert_eq!(writer, None);
+}
+
 /// A Git that cannot be started at all is the caller's failure with its own kind, not a refusal to retry and not a
 ///  failure of another kind: the error of a rerunnable command comes back as the operating system gave it.
 #[test]

@@ -421,7 +421,7 @@ fn a_step_that_keeps_working_is_ended_at_its_ceiling() {
     let mut command: Command = Command::new("sh");
     command.args(["-c", "while true; do echo working; sleep 0.05; done"]);
     let began: Instant = Instant::now();
-    let error = output_watched_within(&mut command, "a working step", "a working step", terms(Duration::from_secs(3600), &sink), true, Duration::from_millis(700))
+    let error = output_watched_within(&mut command, "a working step", "a working step", terms(Duration::from_secs(3600), &sink), true, Some(Duration::from_millis(700)))
         .expect_err("the ceiling ended it");
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
     assert!(is_ceiling(&error), "{error}");
@@ -436,10 +436,22 @@ fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
     let mut command: Command = Command::new("sleep");
     command.arg("600");
     let began: Instant = Instant::now();
-    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(200), &sink), false, Duration::from_millis(700))
+    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(200), &sink), false, Some(Duration::from_millis(700)))
         .expect_err("the ceiling ended it");
     assert!(is_ceiling(&error), "{error}");
     assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
+}
+
+/// A step with no ceiling (a write in place that is not safe to run twice) is waited for as long as it lives, though a ceiling of the
+/// length that ended the control above would have ended it, and though it was quiet for longer than the window: it is never ended
+/// for being quiet either, because it may not be run twice.
+#[test]
+fn a_step_with_no_ceiling_is_waited_for_until_it_ends_by_itself() {
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", "sleep 2; echo done"]);
+    let output = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_millis(300), &sink), false, None).expect("waited for");
+    assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("done"));
 }
 
 /// A quiet step is ended for being quiet, and that error is not the ceiling's.
@@ -448,7 +460,7 @@ fn a_quiet_step_is_not_reported_as_the_ceiling() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sleep");
     command.arg("600");
-    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(300), &sink), true, Duration::from_secs(600))
+    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(300), &sink), true, Some(Duration::from_secs(600)))
         .expect_err("the quiet window ended it");
     assert!(!is_ceiling(&error), "{error}");
 }

@@ -25,7 +25,7 @@ use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use crate::child_class::{ChildClass, class_of};
 use crate::child_watch::{WatchTerms, output_watched_within};
-use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING, REFERENCE_STEP_CEILING};
+use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 /// Private exclusive files for standard input.
 use crate::private_storage::write_exclusive_scratch;
 /// The repository scratch directory the input file is made in.
@@ -546,30 +546,75 @@ fn step_subject(request: &GitRequest) -> String {
     );
 }
 
+/// The subcommands whose step changes the person's own repository state in place (a reference, the real index, the worktree or the
+///  configuration), so that ending one in the middle of its write could cost data and running it a second time is not known to be
+///  harmless. A request of one of these that `may_be_rerun` refuses has no ceiling.
+///  Left out on purpose, and so still ended at the ceiling of their class: the readers that `RERUNNABLE` does not name (`rev-list`,
+///  `merge-base`, `log`, `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`, `fmt-merge-msg`),
+///  which change nothing, and the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`), whose second run
+///  writes the same content-addressed bytes and whose partial result is a loose object or a temporary pack that no reference names.
+///  Citation: the owner's answer of 2026-11-04, "Never cut a branch write (Recommended)", which reads "Steps that can safely run
+///  twice keep their ceilings; the branch write is never ended" (`doc/planning/cli-git-no-unbounded-waits.md`, "Picks").
+const WRITES_IN_PLACE: [&str; 13] = [
+    "update-ref",
+    "reset",
+    "read-tree",
+    "update-index",
+    "add",
+    "checkout-index",
+    "clean",
+    "stash",
+    "merge",
+    "checkout",
+    "switch",
+    "restore",
+    "config",
+];
+
 /// What:
-///  The longest the request's step runs before it is ended, whatever it shows: the reference update has the shortest ceiling, the
-///  other steps the ceiling of their class.
+///  Whether the request's step writes the person's repository state in place and may not be run twice, which is the step the
+///  wrapper never ends.
 /// Why:
-///   The owner's rule is that nothing waits for ever, and a landing's one thread must not be held for good by a step that never
-///  returns (`wait_ceilings.rs`). In a unit test the ceiling can be shortened for the thread that runs the control.
+///   The branch write is the owner's named case; the others are the same kind of step by the same reasoning, listed in
+///  `WRITES_IN_PLACE` with what was left out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stepCeiling(request): number { return request.subcommand === 'update-ref' ? REFERENCE_STEP_CEILING : classOf(request).ceiling }
+/// !mayBeRerun(request) && WRITES_IN_PLACE.includes(subcommandOf(request))
 /// ```
-fn step_ceiling(request: &GitRequest) -> Duration {
+pub(crate) fn is_write_in_place(request: &GitRequest) -> bool {
+    if may_be_rerun(request) {
+        return false;
+    }
+    return subcommand_of(request.arguments.as_slice()).is_some_and(|(_, name)| { return WRITES_IN_PLACE.contains(&name.as_str()); });
+}
+
+/// What:
+///  The longest the request's step runs before it is ended, whatever it shows: the ceiling of its class, or none for a write in
+///  place that is not safe to run twice.
+/// Why:
+///   The owner's rule is that nothing waits for ever (`wait_ceilings.rs`), but a write in the middle of its work is ended only
+///  by the person (owner, 2026-11-04: "Never cut a branch write (Recommended)"): a landing that is stuck in one keeps the service
+///  busy, the clients that wait behind it are told what it is stuck in and are withdrawn at their own ceiling
+///  (`service_busy.rs`). In a unit test the ceiling of the steps that have one can be shortened for the thread that runs the
+///  control; a step with none stays without.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stepCeiling(request): number | undefined { return isWriteInPlace(request) ? undefined : classOf(request).ceiling }
+/// ```
+fn step_ceiling(request: &GitRequest) -> Option<Duration> {
+    if is_write_in_place(request) {
+        return None;
+    }
     #[cfg(test)]
     if let Some(shortened) = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get) {
-        return shortened;
+        return Some(shortened);
     }
-    let reference: bool = subcommand_of(request.arguments.as_slice()).is_some_and(|(_, name)| { return name == "update-ref"; });
-    if reference {
-        return REFERENCE_STEP_CEILING;
-    }
-    return match class_of(request.arguments.as_slice()) {
+    return Some(match class_of(request.arguments.as_slice()) {
         ChildClass::Plumbing => PLUMBING_STEP_CEILING,
         ChildClass::Object => OBJECT_STEP_CEILING,
-    };
+    });
 }
 
 #[cfg(test)]
@@ -600,8 +645,15 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
     let subject: String = step_subject(request);
     let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
+    let ceiling: Option<Duration> = step_ceiling(request);
+    // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
+    let _recorded = if ceiling.is_none() {
+        crate::service_busy::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
+    } else {
+        None
+    };
     let output: std::process::Output =
-        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), step_ceiling(request))?;
+        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), ceiling)?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

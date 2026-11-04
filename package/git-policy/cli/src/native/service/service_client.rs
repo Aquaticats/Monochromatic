@@ -535,14 +535,16 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
 /// ```
 fn withdraw(config: &ClientConfig, id: &str, blocker: Option<String>) -> Result<Submitted, ClientFailure> {
     let minutes: u64 = config.answer_ceiling.as_secs() / 60;
+    // What the service says it is stuck in on this connection replaces what it said on the first one: it is the newer.
+    let mut blocker: Option<String> = blocker;
     let mut announced: bool = true;
     let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true) else {
-        return Err(ClientFailure::WithdrawalUnconfirmed);
+        return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
     };
     let mut asking: String = encode_client(&ClientMessage::Withdraw { id: id.to_string() });
     asking.push('\n');
     if reader.get_mut().write_all(asking.as_bytes()).is_err() {
-        return Err(ClientFailure::WithdrawalUnconfirmed);
+        return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
     }
     let deadline: Instant = Instant::now() + config.withdraw_ceiling;
     while Instant::now() < deadline {
@@ -551,11 +553,12 @@ fn withdraw(config: &ClientConfig, id: &str, blocker: Option<String>) -> Result<
         match listen(&mut reader) {
             Heard::Message(ServiceMessage::Landed { commit, .. }) => return Ok(Submitted::Landed { commit, already: true }),
             Heard::Message(ServiceMessage::Withdrawn { .. }) => return Err(ClientFailure::StillWithService { minutes, blocker }),
+            Heard::Message(ServiceMessage::Waiting { text }) => blocker = Some(text.trim().to_string()),
             Heard::Message(_) => {}
-            Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed),
+            Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed { blocker }),
         }
     }
-    return Err(ClientFailure::WithdrawalUnconfirmed);
+    return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
 }
 
 /// What:

@@ -541,33 +541,18 @@ fn land_batch_body(
         //  names takes the commit, and the head is read again below.
         let transaction: String = format!("start\nupdate {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
         let ref_began: Instant = Instant::now();
-        let ran = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()));
-        timing.ref_update += ref_began.elapsed();
-        let moved: GitOutput = match ran {
-            Ok(output) => output,
-            Err(FailureCode::StepTooSlow) => {
-                // The update was ended at its ceiling. Git writes a reference by renaming its lock file, so the branch is now at
-                //  the request's commit or where it was: the branch is read, and the answer follows what it says.
-                let step: String = take_ceiling_step().unwrap_or_else(|| { return String::from("the reference update ran too long and was ended"); });
-                let tip: Option<String> = checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None).ok();
-                if tip.as_deref() == Some(new.as_str()) {
-                    // It renamed before it was ended: the commit is on the branch. The scratch branch the transaction would have
-                    //  removed is removed here, and the landing goes on as if the update had returned.
-                    let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
-                    GitOutput { code: Some(0), stdout: Vec::new(), stderr: Vec::new() }
-                } else {
-                    // It did nothing: the batch is withdrawn like one that met the lock ceiling. The intent goes, so a restart cannot
-                    //  land it; the commit is kept on a side ref; the lock is given up when `held` goes out of scope.
-                    let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
-                    remove_start(context.journal.as_path(), seq);
-                    announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
-                    announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
-                    let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
-                    return Err(FailureCode::StepTooSlow);
-                }
-            }
-            Err(code) => return Err(code),
+        // The write is never ended by the wrapper (owner, 2026-11-04: "Never cut a branch write (Recommended)"), so a write that never
+        //  returns holds this thread; the clients that queue behind it are told what it is stuck in, and the commit it makes is on
+        //  the scratch branch until the update renames the reference (`service_busy.rs`).
+        let moved: GitOutput = {
+            let _described = crate::service_busy::detail(if first.commit.is_some() {
+                format!("it moves {} to {new}", first.reference)
+            } else {
+                format!("it moves {} to {new}; the commit is also at {scratch} until the update ends", first.reference)
+            });
+            run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()))?
         };
+        timing.ref_update += ref_began.elapsed();
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
