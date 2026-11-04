@@ -1445,3 +1445,54 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
     // The branch that checks the protected copy must have been exercised by at least one barrier of the chain.
     assert!(reported_preserved > 0, "no failed barrier ended in a reported preservation, so the fallback was never checked");
 }
+
+/// Acceptance rows A3 and A4 (certification, second pass): the whole order of finishing is observed in one ordered trace:
+/// the output barriers, the completion rename, the successful barrier of the directory that lists the marker, and only then the
+/// removal (the cleanup).
+/// A failure at each step stops the trace at that step, with the failure kind the contract names: the output barrier, the rename and
+/// the marker's directory barrier are mandatory failures that attempt no cleanup, and a failed cleanup is cleanup-only and comes
+/// after the successful barrier.
+#[test]
+fn finishing_is_observed_as_outputs_then_marker_then_marker_barrier_then_removal() {
+    use crate::failpoints::{Point, arm};
+    let outputs = ["output Cargo.lock", "output Cargo.toml"];
+    let marker = ["marker renamed", "marker parent synced"];
+    let cleanup = "cleanup attempted";
+    // (fault, the events that must be seen, the failure is cleanup-only; None: the finish succeeds)
+    let cases: Vec<(Option<Point>, Vec<&str>, Option<bool>)> = vec![
+        (None, [outputs.to_vec(), marker.to_vec(), vec![cleanup]].concat(), None),
+        (Some(Point::FinishDurability), vec![], Some(false)),
+        (Some(Point::CompletionRename), outputs.to_vec(), Some(false)),
+        (Some(Point::CompletionSync), [outputs.to_vec(), vec![marker[0]]].concat(), Some(false)),
+        (Some(Point::FinishCleanup), [outputs.to_vec(), marker.to_vec(), vec![cleanup]].concat(), Some(true)),
+    ];
+    for (fault, expected, failure) in cases {
+        let root = repository("final output");
+        let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+        fs::write(&manifest, "final manifest").expect("manifest");
+        let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+        transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+        if let Some(point) = fault {
+            arm(point);
+        }
+        let _ = crate::bounded_run::take_trace_for_test();
+        let record = |path: &Path| {
+            let name: String = path.file_name().map(|found| { return found.to_string_lossy().into_owned(); }).unwrap_or_default();
+            crate::bounded_run::trace(|| { return format!("output {name}"); });
+            return Ok(());
+        };
+
+        let outcome = transaction.finish_with(&record);
+
+        let seen: Vec<String> = crate::bounded_run::take_trace_for_test();
+        assert_eq!(seen, expected, "{fault:?}: the finishing steps are not in the order outputs, marker, marker barrier, removal");
+        if let Some(point) = fault {
+            assert!(!crate::failpoints::fires(point), "{point:?}: the fault was never reached");
+        }
+        match (outcome, failure) {
+            (Ok(()), None) => {}
+            (Err(error), Some(cleanup_only)) => assert_eq!(error.cleanup_only(), cleanup_only, "{fault:?}: {error}"),
+            (outcome, _) => panic!("{fault:?}: the finish ended as {outcome:?}"),
+        }
+    }
+}

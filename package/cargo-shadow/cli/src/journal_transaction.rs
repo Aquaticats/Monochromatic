@@ -718,13 +718,8 @@ impl Transaction {
         if crate::failpoints::fires(crate::failpoints::Point::FinishCompletion) {
             return Err(FinishError::completion(io::Error::other("injected completion failure")));
         }
-        let done: PathBuf = publish_done(&self.directory).map_err(FinishError::completion)?;
-        // Phase three: only the removal of a journal that is already marked done is a warning.
-        #[cfg(test)]
-        if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
-            return Err(FinishError::cleanup(io::Error::other("injected cleanup failure")));
-        }
-        return remove_done(&done).map_err(FinishError::cleanup);
+        // Phase three (inside the same function the recovery uses): only the removal of a journal that is already marked done is a warning.
+        return finish_journal(&self.directory);
     }
 }
 
@@ -759,11 +754,29 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
         fs::rename(directory, &done)?;
     }
     #[cfg(test)]
+    crate::bounded_run::trace(|| { return "marker renamed".to_string(); });
+    #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::CompletionSync) {
         return Err(io::Error::other("injected failure of the completion directory sync"));
     }
-    sync_directory(&parent)?;
+    sync_marker_parent(&parent)?;
     return Ok(done);
+}
+
+/// What:
+/// `fn sync_marker_parent(parent: &Path) -> io::Result<()>` makes the entry of the completion marker durable.
+/// Why:
+/// The marker counts only once this has returned; a test build traces the success, so the order of finishing is observed at the call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function syncMarkerParent(parent: string): void
+/// ```
+fn sync_marker_parent(parent: &Path) -> io::Result<()> {
+    sync_directory(parent)?;
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "marker parent synced".to_string(); });
+    return Ok(());
 }
 
 /// What:
@@ -811,6 +824,8 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
 pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
     let done: PathBuf = publish_done(directory).map_err(FinishError::completion)?;
     // The removal of a journal that is already marked done is the cleanup, which a test can make fail after the marker (V5).
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "cleanup attempted".to_string(); });
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
         return Err(FinishError::cleanup(io::Error::other("injected cleanup failure")));
