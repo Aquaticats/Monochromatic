@@ -90,11 +90,20 @@ fn an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended() {
     let note: Option<String> = survivor_note(&journal);
     let messages: Vec<String> = recover(root.path(), &refusing);
     let lock: String = live_lock(root.path());
+    // Fourth certification pass: while the empty scope still exists, the recovery keeps the journal and says why, and a new
+    // transaction is not admitted beside it (the journal set is unchanged by the refusal).
+    let retained: bool = journal.exists() && journal.join("0.lock").exists();
+    let admitted = crate::journal::begin(root.path(), &[snapshot("original")], false);
+    let journals_after: usize = crate::journal_support::journal_dirs(root.path()).len();
     let _ = fs::remove_dir(planned.directory());
 
     let blocked: String = note.expect("an unsettled, empty scope blocks");
     assert!(blocked.contains("did not record its end") && blocked.contains("cargo-shadow acknowledge"), "{blocked}");
     assert_eq!(lock, LEFT_BY_THE_KILLED_RUN, "a recovery restored files while a program could still be attached: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("did not record its end"); }), "the recovery did not refuse for the unsettled scope: {messages:?}");
+    assert!(retained, "the journal or its snapshot was removed by the refusing recovery: {messages:?}");
+    assert!(admitted.is_err_and(|error| { return error.to_string().contains("did not record its end"); }), "a transaction was admitted beside an unsettled run, or the refusal does not name it");
+    assert_eq!(journals_after, 1, "the refused admission left a journal behind");
 }
 
 /// Acceptance rows A1, V2, V3/V4 (9a D1, the race between two observations):
