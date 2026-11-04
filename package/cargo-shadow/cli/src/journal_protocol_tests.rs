@@ -747,3 +747,18 @@ fn a_kept_directory_over_its_cap_refuses_a_new_transaction_and_lists_the_files()
     assert!(message.contains("Cargo.lock.displaced.0") && message.contains("kept files"), "{message}");
     assert_eq!(fs::read_dir(&kept).expect("list").count(), crate::journal::MAX_KEPT_FILES + 1, "a kept file was deleted");
 }
+
+/// Review finding (4b 3): a temporary left by a run that was killed between the exchange and the kept link may be the only name of
+/// a displaced file, so recovery reports it and leaves it.
+#[test]
+fn a_leftover_temporary_of_a_killed_replacement_is_reported_and_kept() {
+    let root = repository("original");
+    plant(root.path(), &[snapshot("original")], &[]);
+    let leftover = root.path().join(CRATE_DIR).join(".Cargo.lock.shadow-1-2-3.tmp");
+    fs::write(&leftover, "somebody's displaced work").expect("a leftover");
+
+    let messages = recover(root.path(), &|_before, _live| { return Vec::new(); });
+
+    assert!(leftover.exists(), "the leftover was deleted");
+    assert!(messages.iter().any(|message| { return message.contains(".Cargo.lock.shadow-1-2-3.tmp") && message.contains("may hold"); }), "{messages:?}");
+}

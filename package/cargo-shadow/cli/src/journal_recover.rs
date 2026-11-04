@@ -320,6 +320,31 @@ fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>) {
 }
 
 /// What:
+/// `fn report_leftover_temporaries(root, crate_dirs, messages)` names the replacement temporaries a killed run left in the crate
+/// roots.
+/// Why:
+/// Review finding (4b 3): a run killed between the exchange and the kept link leaves the displaced file only under a hidden
+/// `.shadow-*.tmp` name; recovery reports it and never deletes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reportLeftoverTemporaries(root: string, crateDirs: string[], messages: string[]): void
+/// ```
+fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mut Vec<String>) {
+    for crate_dir in crate_dirs {
+        let Ok(listing) = fs::read_dir(root.join(crate_dir)) else {
+            continue;
+        };
+        for entry in listing.flatten() {
+            let name: String = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') && name.contains(".shadow-") && name.ends_with(".tmp") {
+                messages.push(format!("{} may hold a file that a killed run displaced and did not get to keep under another name; it was left as it is", entry.path().display()));
+            }
+        }
+    }
+}
+
+/// What:
 /// `fn recover_one(root, directory, judge, between, messages)` recovers one journal while this process holds the workspace.
 /// Why:
 /// An unready journal is settled by `recover_unready`; a damaged or unsettled one is kept; a settled one is made durable,
@@ -371,6 +396,7 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[
             return;
         }
     };
+    report_leftover_temporaries(root, &dirs, messages);
     let mut settled: bool = true;
     let mut decisions: Vec<(String, RootDecision)> = Vec::new();
     for (old, now) in before.iter().zip(live.iter()) {
