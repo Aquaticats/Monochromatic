@@ -23,6 +23,44 @@ use std::time::{Duration, Instant};
 /// owner's "nothing should ever wait forever or indefinitely", not a measured latency.
 pub const LAUNCH_CONFIRM_LIMIT: Duration = Duration::from_secs(5);
 
+/// How many helpers this process has forked a first child for (a launch counter, for tests and for the logs of a launcher).
+static FORKED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many first children this process has forked.
+pub fn helpers_forked() -> u64 {
+    return FORKED.load(std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The step of a launch where a test makes the system fail.
+#[cfg(feature = "test-seams")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LaunchFault {
+    /// The first child's second `fork` fails.
+    SecondFork,
+    /// The helper's standard streams cannot be pointed at `/dev/null`.
+    Streams,
+    /// The helper's descriptors cannot be closed.
+    Descriptors,
+}
+
+#[cfg(feature = "test-seams")]
+static FAULT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// Makes the next launches of this process (and of the children it forks) fail at `fault`; `None` clears it.
+#[cfg(feature = "test-seams")]
+pub fn inject_launch_fault(fault: Option<LaunchFault>) {
+    let code: u8 = match fault { None => 0, Some(LaunchFault::SecondFork) => 1, Some(LaunchFault::Streams) => 2, Some(LaunchFault::Descriptors) => 3 };
+    FAULT.store(code, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Whether a test asked `fault` to fail; always false without the test seams.
+fn injected(fault: u8) -> bool {
+    #[cfg(feature = "test-seams")]
+    return FAULT.load(std::sync::atomic::Ordering::SeqCst) == fault;
+    #[cfg(not(feature = "test-seams"))]
+    return { let _ = fault; false };
+}
+
 /// The exit code of a helper whose entry point panicked.
 pub const PANICKED_EXIT: i32 = 101;
 
@@ -35,6 +73,16 @@ pub enum LaunchError {
     NotConfirmed,
     /// Waiting for the first child failed.
     Wait(io::Error),
+    /// The first child left with a failure code (its `setsid` or its second `fork` failed): no helper exists.
+    FirstChildFailed(i32),
+    /// The helper could not finish its own setup (streams, descriptors) and reported the step; it exited.
+    SetupFailed(u8),
+    /// The helper was lost before it reported ready (no report, no failure code).
+    LostBeforeReady,
+    /// This process has more than one thread, so a fork would copy locks other threads hold; nothing was forked.
+    Threaded(usize),
+    /// The thread count could not be read, so single-threadedness cannot be shown; nothing was forked.
+    ThreadsUnknown(io::Error),
 }
 
 impl fmt::Display for LaunchError {
@@ -43,6 +91,11 @@ impl fmt::Display for LaunchError {
             LaunchError::Refused(error) => write!(formatter, "the system refused to start a helper process (a process or memory limit): {}", error),
             LaunchError::NotConfirmed => write!(formatter, "the helper launch was not confirmed within {:?}", LAUNCH_CONFIRM_LIMIT),
             LaunchError::Wait(error) => write!(formatter, "waiting for the helper launch failed: {}", error),
+            LaunchError::FirstChildFailed(code) => write!(formatter, "the helper launch failed before the helper existed (first child exit code {})", code),
+            LaunchError::SetupFailed(step) => write!(formatter, "the helper could not finish its setup (step {})", step),
+            LaunchError::LostBeforeReady => write!(formatter, "the helper was lost before it reported ready"),
+            LaunchError::Threaded(count) => write!(formatter, "a helper was not forked because this process has {} threads and a fork would copy locks they may hold", count),
+            LaunchError::ThreadsUnknown(error) => write!(formatter, "a helper was not forked because the thread count could not be read: {}", error),
         };
     }
 }
@@ -150,7 +203,7 @@ pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> 
             if libc::setsid() < 0 {
                 libc::_exit(1);
             }
-            let second: libc::pid_t = libc::fork();
+            let second: libc::pid_t = if injected(1) { -1 } else { libc::fork() };
             if second < 0 {
                 libc::_exit(2);
             }
@@ -158,7 +211,7 @@ pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> 
                 libc::_exit(0);
             }
         }
-        if !null_the_standard_streams() || close_descriptors_from(3).is_err() {
+        if injected(2) || !null_the_standard_streams() || injected(3) || close_descriptors_from(3).is_err() {
             // SAFETY: `_exit` takes an integer and never returns.
             unsafe { libc::_exit(3) };
         }
@@ -166,5 +219,6 @@ pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> 
         // SAFETY: the helper ends here without unwinding into the launcher's stack.
         unsafe { libc::_exit(code) };
     }
+    FORKED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     return if first_child_left(first)? { Ok(()) } else { Err(LaunchError::NotConfirmed) };
 }

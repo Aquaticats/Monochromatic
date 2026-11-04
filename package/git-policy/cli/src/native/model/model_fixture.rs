@@ -153,3 +153,49 @@ pub fn owned_repair(anchor: &Path, ledger: &Path) -> Result<git_policy_cli::comm
     let mut owner = git_policy_cli::commit_ledger::LedgerOwner::acquire(ledger)?;
     return owner.repair_tail(anchor, ledger);
 }
+
+/// The longest a test waits for a process it forked to leave.
+#[cfg(target_os = "linux")]
+const FORKED_PROCESS_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What:
+///  Runs `body` in a forked copy of this test process, which has exactly one thread (a fork keeps only the forking thread), and returns
+///  the exit code `body` gave (255 when `body` panicked); `None` when the copy was killed by a signal or did not leave within the limit (it is
+///  killed then).
+/// Why:
+///  The test harness runs each test on a second thread beside its own main thread, so a launcher that refuses a threaded process can only
+///  be exercised from a copy of the process that has one. The copy runs only the body and `_exit`s: nothing of the harness runs in it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function inSingleThreadedProcess(body: () => number): number | null; // fork, run body, exit with its code
+/// ```
+#[cfg(target_os = "linux")]
+pub fn in_single_threaded_process<F: FnOnce() -> i32>(body: F) -> Option<i32> {
+    // SAFETY: the child runs only `body` and `_exit`; the harness' other threads are not copied, and `body` takes no lock they hold.
+    let child: libc::pid_t = unsafe { libc::fork() };
+    assert!(child >= 0, "the test could not fork a single-threaded copy");
+    if child == 0 {
+        let code: i32 = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)).unwrap_or(-1);
+        // SAFETY: `_exit` takes an integer and never returns.
+        unsafe { libc::_exit(if code < 0 { 255 } else { code }) };
+    }
+    let deadline: std::time::Instant = std::time::Instant::now() + FORKED_PROCESS_LIMIT;
+    loop {
+        let mut status: libc::c_int = 0;
+        // SAFETY: `status` is a live local the call writes through.
+        let reaped: libc::pid_t = unsafe { libc::waitpid(child, &raw mut status, libc::WNOHANG) };
+        if reaped == child {
+            return if libc::WIFEXITED(status) { Some(libc::WEXITSTATUS(status)) } else { None };
+        }
+        if std::time::Instant::now() >= deadline {
+            // SAFETY: `kill` and `waitpid` take plain integers and a live local.
+            unsafe {
+                libc::kill(child, libc::SIGKILL);
+                libc::waitpid(child, &raw mut status, 0);
+            }
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+}

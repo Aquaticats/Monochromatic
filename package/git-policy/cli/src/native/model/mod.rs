@@ -182,12 +182,22 @@ mod commit_state_log_tests;
 /// The detached helper launch: no inherited descriptor, a new session, no program start.
 #[cfg(target_os = "linux")]
 #[path = "../commit/commit_helper_launch_tests.rs"]
-mod commit_helper_launch_tests;
+pub mod commit_helper_launch_tests;
+
+/// The detached helper launch where a step after the first fork fails.
+#[cfg(all(target_os = "linux", feature = "test-seams"))]
+#[path = "../commit/commit_helper_launch_fault_tests.rs"]
+mod commit_helper_launch_fault_tests;
 
 /// The one-shot receipt flusher: the lock, the recheck sweep and the error record.
 #[cfg(target_os = "linux")]
 #[path = "../commit/commit_flusher_tests.rs"]
 mod commit_flusher_tests;
+
+/// The one-shot receipt flusher at a named decision point of its error path, and a real second flusher in the release window.
+#[cfg(all(target_os = "linux", feature = "test-seams"))]
+#[path = "../commit/commit_flusher_window_tests.rs"]
+mod commit_flusher_window_tests;
 
 /// Revision 13's W1 against publication: the pipe, the mark, E1's three kinds, PREPARED-HOLD and a transaction process that outlives its owner.
 #[path = "model_w1_r13.rs"]

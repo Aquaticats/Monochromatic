@@ -15,6 +15,7 @@
 //! ```
 
 use super::commit_helper_launch::{LaunchError, launch_detached};
+use super::commit_identity::fault_point;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
@@ -144,6 +145,7 @@ fn sweep(lane: &Path, forced: &mut BTreeSet<OsString>, force: &mut dyn FnMut(&Pa
     for path in &pending {
         if let Err(error) = force(path) {
             let remaining: Vec<PathBuf> = unforced(lane, forced)?;
+            fault_point("flusher:after-error-snapshot");
             return Err(match record_errors(lane, &remaining, &error) {
                 Ok(()) => FlushError::Forcing(error),
                 Err(recording) => FlushError::ForcingUnrecorded { forcing: error, recording },

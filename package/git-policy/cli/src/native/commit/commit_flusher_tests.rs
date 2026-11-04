@@ -10,8 +10,10 @@
 //! // test('a second flusher finds the lock held and forces nothing', ...);
 //! ```
 
-use crate::model_fixture::scratch;
+use crate::commit_helper_launch_tests::launch_code;
+use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_flusher::{FlushError, Flushed, FlusherLock, RECEIPT_DIR, RECEIPT_ERRORS, flush_lane, flush_lane_with, launch_flusher};
+use git_policy_cli::commit_helper_launch::helpers_forked;
 use std::cell::RefCell;
 use std::fs;
 use std::io;
@@ -95,10 +97,11 @@ fn a_recheck_that_finds_work_and_the_lock_taken_hands_over() {
     assert_eq!(outcome, Flushed::Handed { forced: 1 });
 }
 
-/// A forcing error: the snapshot's first receipt is forced, the second fails, and a receipt a client created meanwhile joined the lock
-/// holder. The record names the failed receipt and the joiner, not the one already forced; the flusher ends with the error.
+/// A forcing error: the snapshot's first receipt's file is forced, the second fails, and a receipt a client created meanwhile joined the
+/// lock holder. The record names all three: the first receipt's name is not forced either, because the receipt directory was never forced
+/// (review 9a section 3E), so a power loss could still lose it. The flusher ends with the error.
 #[test]
-fn a_forcing_error_records_the_failed_receipt_and_the_joiner_but_not_the_forced_one() {
+fn a_forcing_error_records_every_receipt_whose_name_is_not_forced_the_joiner_included() {
     let lane: PathBuf = lane_with("flusher-error", &["a", "b"]);
     let joiner: PathBuf = lane.join(RECEIPT_DIR).join("c");
     let result = flush_lane_with(
@@ -115,7 +118,7 @@ fn a_forcing_error_records_the_failed_receipt_and_the_joiner_but_not_the_forced_
     assert!(matches!(result, Err(FlushError::Forcing(_))), "{:?}", result);
     let record: String = fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the error record");
     let named: Vec<&str> = record.lines().map(|line| { return line.split('\t').next().expect("a name"); }).collect();
-    assert_eq!(named, ["b", "c"], "{}", record);
+    assert_eq!(named, ["a", "b", "c"], "{}", record);
 }
 
 /// The launched flusher end to end: a receipt that cannot be forced (a dangling link) makes the helper record every unforced receipt, and
@@ -124,7 +127,8 @@ fn a_forcing_error_records_the_failed_receipt_and_the_joiner_but_not_the_forced_
 fn a_launched_flusher_records_a_forcing_error_and_releases_the_lock() {
     let lane: PathBuf = lane_with("flusher-launched", &["a", "c"]);
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("b")).expect("a dangling receipt");
-    launch_flusher(&lane).expect("launch");
+    let launch_lane: PathBuf = lane.clone();
+    assert_eq!(in_single_threaded_process(move || { return launch_code(launch_flusher(&launch_lane)); }), Some(0), "the launch from a single-threaded process");
     let deadline: Instant = Instant::now() + FLUSHER_WAIT;
     let record: String = loop {
         if let Ok(text) = fs::read_to_string(lane.join(RECEIPT_ERRORS))
@@ -136,7 +140,7 @@ fn a_launched_flusher_records_a_forcing_error_and_releases_the_lock() {
         std::thread::sleep(Duration::from_millis(5));
     };
     let named: Vec<&str> = record.lines().map(|line| { return line.split('\t').next().expect("a name"); }).collect();
-    assert_eq!(named, ["b", "c"], "{}", record);
+    assert_eq!(named, ["a", "b", "c"], "{}", record);
     let freed: Instant = Instant::now() + FLUSHER_WAIT;
     loop {
         if FlusherLock::try_acquire(&lane).expect("lock").is_some() {
@@ -153,4 +157,66 @@ fn a_healthy_lane_is_flushed_and_nothing_is_recorded() {
     let lane: PathBuf = lane_with("flusher-healthy", &["a", "b"]);
     assert_eq!(flush_lane(&lane).expect("flush"), Flushed::Finished { forced: 2 });
     assert!(!lane.join(RECEIPT_ERRORS).exists());
+}
+
+/// How many clients launch a flusher in the many-receipts controls.
+const CLIENTS: usize = 4;
+
+/// A receipt that is a FIFO: forcing it blocks in `open` until a writer exists, which holds a flusher (and its lock) alive on demand.
+fn fifo_receipt(lane: &Path, name: &str) {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(lane.join(RECEIPT_DIR).join(name).as_os_str().as_bytes()).expect("a path without NUL");
+    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode.
+    assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0, "mkfifo");
+}
+
+/// Waits until the lane's flusher lock is free (the helper ended).
+fn wait_for_lock_free(lane: &Path) {
+    let freed: Instant = Instant::now() + FLUSHER_WAIT;
+    while FlusherLock::try_acquire(lane).expect("lock").is_none() {
+        assert!(Instant::now() < freed, "the helper still holds the lock");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Review 9a section 3C: the lock bounded the lock holders, not the helpers: every client forked a helper before trying the lock, so many
+/// receipts meant many live helpers. With the lock held by a flusher, clients that find it held fork nothing.
+#[test]
+fn clients_that_find_the_flusher_lock_held_start_no_helper() {
+    let lane: PathBuf = lane_with("flusher-held-launch", &["r1"]);
+    let holder = FlusherLock::try_acquire(&lane).expect("lock").expect("the holder");
+    let launch_lane: PathBuf = lane.clone();
+    let forked: Option<i32> = in_single_threaded_process(move || {
+        for _ in 0..CLIENTS {
+            if launch_flusher(&launch_lane).is_err() {
+                return 99;
+            }
+        }
+        return helpers_forked() as i32;
+    });
+    drop(holder);
+    assert_eq!(forked, Some(0), "no client forked a helper while the lock was held");
+}
+
+/// Many clients with a free lock and a flusher that is busy: one helper is forked in all, and it is the one that holds the lock.
+#[test]
+fn many_clients_start_one_helper_and_it_holds_the_lock() {
+    let lane: PathBuf = lane_with("flusher-many-launch", &[]);
+    fifo_receipt(&lane, "r1");
+    let launch_lane: PathBuf = lane.clone();
+    let forked: Option<i32> = in_single_threaded_process(move || {
+        for _ in 0..CLIENTS {
+            if launch_flusher(&launch_lane).is_err() {
+                return 99;
+            }
+        }
+        return helpers_forked() as i32;
+    });
+    let holds: bool = FlusherLock::try_acquire(&lane).expect("lock").is_none();
+    // A writer lets the helper's `open` of the FIFO return; forcing a FIFO then fails and the helper ends.
+    let opened = fs::OpenOptions::new().read(true).write(true).open(lane.join(RECEIPT_DIR).join("r1"));
+    wait_for_lock_free(&lane);
+    drop(opened);
+    assert_eq!(forked, Some(1), "one helper for all the clients");
+    assert!(holds, "the helper holds the lock while it works");
 }
