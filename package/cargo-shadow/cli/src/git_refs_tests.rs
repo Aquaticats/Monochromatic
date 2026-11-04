@@ -419,7 +419,7 @@ fn the_configuration_layers_override_in_gits_order_and_an_unreadable_file_is_ref
 
     // Borrow `&layout`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let config = read_config(&layout, &layered).expect("reads");
+    let config = read_config(&layout, &layered, root_of(&layout), &std::cell::Cell::new(0)).expect("reads");
 
     // `None`: the present or the absent value of an `Option`.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
@@ -431,7 +431,7 @@ fn the_configuration_layers_override_in_gits_order_and_an_unreadable_file_is_ref
     fs::write(home.join(".gitconfig"), "[core\n").expect("broken");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &layered).is_err());
+    assert!(read_config(&layout, &layered, root_of(&layout), &std::cell::Cell::new(0)).is_err());
 }
 
 #[test]
@@ -443,10 +443,15 @@ fn a_repository_that_asks_for_reftable_or_a_worktree_configuration_is_refused() 
     let layout: GitLayout = find_layout(&path, &environment(root.path())).expect("layout");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &environment(root.path())).unwrap_err().contains("extensions.refstorage"));
+    assert!(read_config(&layout, &environment(root.path()), root_of(&layout), &std::cell::Cell::new(0)).unwrap_err().contains("extensions.refstorage"));
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::write(path.join(".git/config"), "[extensions]\n\tworktreeConfig = true\n").expect("worktree config");
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(read_config(&layout, &environment(root.path())).unwrap_err().contains("extensions.worktreeconfig"));
+    assert!(read_config(&layout, &environment(root.path()), root_of(&layout), &std::cell::Cell::new(0)).unwrap_err().contains("extensions.worktreeconfig"));
+}
+
+/// The repository root of a layout whose git directory is `<root>/.git`.
+fn root_of(layout: &GitLayout) -> &Path {
+    return layout.git_dir.parent().unwrap_or_else(|| { return Path::new("."); });
 }

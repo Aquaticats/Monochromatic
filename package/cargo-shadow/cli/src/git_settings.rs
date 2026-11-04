@@ -12,7 +12,9 @@
 //! ```
 
 /// Imports the path types.
-use std::path::PathBuf;
+use std::cell::Cell;
+use std::path::{Path, PathBuf};
+use crate::git_base::system_config_of_git;
 
 /// Imports the configuration types and the lexer entry point.
 use crate::git_config::{ConfigEntry, ParsedConfig, parse_bool, parse_config};
@@ -163,8 +165,12 @@ pub(crate) fn check_repository_settings(config: &ParsedConfig) -> Result<(), Str
 /// ```ts
 /// export function readConfig(layout: GitLayout, env: NativeEnvironment): ParsedConfig  // throws: ask Git
 /// ```
-pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Result<ParsedConfig, String> {
-    let mut files: Vec<PathBuf> = vec![environment.system_config.clone().unwrap_or_else(|| { return PathBuf::from("/etc/gitconfig"); })];
+pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> Result<ParsedConfig, String> {
+    let system: PathBuf = match &environment.system_config {
+        Some(found) => found.clone(),
+        None => system_config_of_git(environment, root, starts)?,
+    };
+    let mut files: Vec<PathBuf> = vec![system];
     if let Some(xdg) = &environment.xdg_config_home {
         files.push(xdg.join("git/config"));
     } else if let Some(home) = &environment.home {

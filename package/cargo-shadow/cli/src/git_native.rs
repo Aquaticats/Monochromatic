@@ -130,7 +130,7 @@ fn confirmed(layout: &GitLayout, object: String) -> Result<Result<String, String
 /// ```ts
 /// function headBase(layout: GitLayout): NativeBase  // throws: ask Git
 /// ```
-fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
+fn head_base(layout: &GitLayout, git_starts: u32) -> Result<NativeBase, String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
@@ -169,7 +169,7 @@ fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
     // ```ts
     // String(value)  // JS strings are always owned values
     // ```
-    return Ok(NativeBase { spelling: "HEAD".to_string(), commit, git_starts: 0 });
+    return Ok(NativeBase { spelling: "HEAD".to_string(), commit, git_starts });
 }
 
 /// What:
@@ -196,10 +196,11 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
     // Typed binding: `layout: GitLayout`.
     let layout: GitLayout = find_layout(root, environment)?;
     // The configuration is read even for CI's `HEAD`, because a reftable store or an include changes what `HEAD` means.
-    let config: ParsedConfig = read_config(&layout, environment)?;
+    let starts: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let config: ParsedConfig = read_config(&layout, environment, root, &starts)?;
     if in_ci {
         // Borrow `&layout`: lends the value without copying or giving it away.
-        return head_base(&layout);
+        return head_base(&layout, starts.get());
     }
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
@@ -225,7 +226,7 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
     {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: confirmed(&layout, object)?, git_starts: 0 });
+        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: confirmed(&layout, object)?, git_starts: starts.get() });
     }
     for candidate in ["origin/main", "origin/master"] {
         // `Some`: the present or the absent value of an `Option`.
@@ -235,9 +236,9 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
         if let Some(object) = lookup_short(&layout, candidate)? {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            return Ok(NativeBase { spelling: candidate.to_string(), commit: confirmed(&layout, object)?, git_starts: 0 });
+            return Ok(NativeBase { spelling: candidate.to_string(), commit: confirmed(&layout, object)?, git_starts: starts.get() });
         }
     }
     // Borrow `&layout`: lends the value without copying or giving it away.
-    return head_base(&layout);
+    return head_base(&layout, starts.get());
 }

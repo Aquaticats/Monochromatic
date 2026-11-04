@@ -41,7 +41,7 @@ use std::cell::Cell;
 /// ```ts
 /// import { Path } from 'std/path';
 /// ```
-use std::path::Path;
+use std::path::{Path, PathBuf};
 /// Imports the length of time a Git call may take.
 use std::time::Duration;
 /// What:
@@ -224,7 +224,7 @@ fn commit_of_line(line: &str) -> Option<String> {
 /// ```ts
 /// function runGit(environment: NativeEnvironment, root: string, args: string[], input?: Buffer): Output  // throws a message
 /// ```
-fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &[&str], input: Option<&[u8]>) -> Result<Output, String> {
+pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &[&str], input: Option<&[u8]>) -> Result<Output, String> {
     // Borrow `&environment.git.program`: lends the value without copying or giving it away.
     // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
     // Why:      The value is built up or replaced step by step below.
@@ -534,7 +534,7 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
     }
     // The files answer for the plain layouts.
     if let Ok(native) = native_base(root, in_ci, environment) {
-        return TrustBase { spelling: native.spelling, commit: native.commit, git_starts: 0 };
+        return TrustBase { spelling: native.spelling, commit: native.commit, git_starts: native.git_starts };
     }
     // CI keeps its base.
     if in_ci {
@@ -640,4 +640,74 @@ pub fn explicit_base_from_environment() -> Option<String> {
         // `None`: the present or the absent value of an `Option`.
         _ => None,
     };
+}
+
+/// The file in which the system configuration path a Git program reported is remembered, under the repository root.
+const SYSTEM_CONFIG_CACHE: &str = ".cache/cargo-shadow/git-system-config";
+
+/// What:
+/// `fn find_program(program: &Path, search: &str) -> Option<PathBuf>` finds the executable a program name stands for.
+/// Why:
+/// The cache is keyed by the identity of the Git that will answer, so the name must be resolved the way a shell would.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function findProgram(program: string, search: string): string | undefined
+/// ```
+fn find_program(program: &Path, search: &str) -> Option<PathBuf> {
+    if program.components().count() > 1 {
+        return Some(program.to_path_buf());
+    }
+    return search.split(':').map(|directory| { return Path::new(directory).join(program); }).find(|candidate| { return candidate.is_file(); });
+}
+
+/// What:
+/// `pub(crate) fn system_config_of_git(environment, root, starts) -> Result<PathBuf, String>` returns the system configuration file
+/// the Git that will answer reads, as that Git reports it (`git var GIT_CONFIG_SYSTEM`).
+/// Why:
+/// Review finding (4a 4): an assumed `/etc/gitconfig` is wrong whenever the selected Git is built for another prefix, in both
+/// directions; the Git that answers knows.
+/// The answer is cached under the repository root, keyed by the Git program's canonical path, size and modification time, so the
+/// question costs one Git start per Git program and not one per call.
+/// A Git that cannot say makes the reader decline.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function systemConfigOfGit(environment: NativeEnvironment, root: string, starts: { count: number }): string  // throws: ask Git
+/// ```
+pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path, starts: &Cell<u32>) -> Result<PathBuf, String> {
+    let search: String = environment
+        .git
+        .environment
+        .iter()
+        .find(|(name, _)| { return name == "PATH"; })
+        .map(|(_, value)| { return value.clone(); })
+        .or_else(|| { return if environment.git.clean_environment { None } else { std::env::var("PATH").ok() }; })
+        .unwrap_or_default();
+    let program: PathBuf = find_program(&environment.git.program, &search).ok_or_else(|| { return format!("{} was not found on the search path, so its system configuration is unknown", environment.git.program.display()); })?;
+    let canonical: PathBuf = std::fs::canonicalize(&program).map_err(|error| { return format!("{} cannot be resolved: {error}", program.display()); })?;
+    let metadata = std::fs::metadata(&canonical).map_err(|error| { return format!("{} cannot be inspected: {error}", canonical.display()); })?;
+    let modified_nanos: u128 = metadata.modified().ok().and_then(|time| { return time.duration_since(std::time::UNIX_EPOCH).ok(); }).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
+    let key: String = format!("{}\t{}\t{modified_nanos}", canonical.display(), metadata.len());
+    let cache: PathBuf = root.join(SYSTEM_CONFIG_CACHE);
+    if let Ok(text) = std::fs::read_to_string(&cache) {
+        let mut lines = text.lines();
+        if lines.next() == Some(key.as_str())
+            && let Some(path) = lines.next()
+            && !path.is_empty()
+        {
+            return Ok(PathBuf::from(path));
+        }
+    }
+    starts.set(starts.get() + 1);
+    let asked = run_git(environment, root, &["var", "GIT_CONFIG_SYSTEM"], None)?;
+    let reported: String = String::from_utf8_lossy(&asked.stdout).trim().to_string();
+    if !asked.status.success() || reported.is_empty() {
+        return Err("the Git that answers does not report its system configuration, so it is not assumed".to_string());
+    }
+    if let Some(parent) = cache.parent() {
+        let _ = crate::journal::create_directories_synced(parent);
+    }
+    let _ = crate::journal::atomic_write(&cache, &format!("{key}\n{reported}\n"));
+    return Ok(PathBuf::from(reported));
 }
