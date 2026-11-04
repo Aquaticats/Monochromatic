@@ -268,11 +268,6 @@ pub fn service_command() -> Command {
     return command;
 }
 
-/// The path of the executable that runs as the service when started with the service mode words.
-pub const fn service_executable() -> &'static str {
-    return SERVICE_PROGRAM;
-}
-
 /// Numbers the runtime directories of one test process.
 static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
