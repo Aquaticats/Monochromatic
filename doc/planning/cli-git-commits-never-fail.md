@@ -2452,6 +2452,11 @@ and nothing in the plan decides it.
   departure's acknowledgment with its retry, the disposal procedure and the drain bound. Not yet: the spool and attempt data that
   recomputation needs, a real ring, the service scheduling the syncer, the `WAIT_DRAIN` constant (unmeasured), I/O-error injection at the
   departure's forcing. Details: the handover section "Round 24".
+  Round 25 (2026-11-04), after the two reviews of step 2: closed in the models branch, the departure forces the closure it acknowledges, a
+  seal never names content whose disposal line exists, a request envelope is kept until an outcome that promises nothing saved or a
+  disposed line, forcing errors are returned and never retried, crash injection at each disposal step, the establishment record (step 1's
+  row, built with the first caller of recovery), Type=exec for the unit, and strict waits. `WAIT_DRAIN` stays unshipped: there is no real
+  drain to measure; its bound is a policy value for the owner. Details: the handover section "Round 25".
 - Question 2 (owner), answered 2026-11-04 (question tool): "Systemd unit + fallback (Recommended)", option A, recorded
   as decision 22; option B is not picked. Meaning as asked: a transient systemd user unit as the primary route, the
   double fork as the fallback where no manager is present; this lifts the earlier "manager-started route, until built"
