@@ -373,15 +373,72 @@ is the owner's to weigh against the 5 s rule.
 
 ### Git's pack sync in `fast-import`
 
-For a commit the service builds itself, `git fast-import` syncs the pack it writes.
-A commit Git built (signed commits) takes another route and has no such sync.
-Option A: keep it.
-Option B: write the objects as loose files in process, as native Git does, with no sync (native default), which also
-removes a Git start and the `unpack-objects` child.
-Pro of B: one sync and two processes fewer.
-Con: the objects are not synced before the branch moves, as in native Git, and it is new code that writes into the
-object store.
-Ranking: B > A.
+What the code does now, read at `service_land.rs` (`land_batch_body`) and traced on Git 2.56.0 in disposable
+repositories (2026-11-04):
+
+- The service runs `git fast-import --done --export-marks=<file>` inside the real repository, so the objects are written
+  to the real object store, and the stream names `refs/worktree/cli-git-service/<seq>` as the branch it builds.
+  Nothing in the landing code makes a `.keep` file; a search of `src/` finds none.
+- `fast-import` writes a temporary pack, then (`builtin/fast-import.c`, `end_packfile`) either loosens it or keeps it.
+  Up to `fastimport.unpackLimit` objects (default 100; `transfer.unpackLimit` is the fallback) it pipes the pack to
+  `git unpack-objects` and deletes the pack.
+  A landing of one changed file writes three objects (the commit and the trees on the changed path; the blobs were
+  written by the client), so the common landing takes this branch.
+  Trace of a three-object stream: `fsync(pack)`, one `unpack-objects` start, loose objects left, no pack file, no `.keep`.
+- The sync that the plan calls "Git's pack sync" is therefore the sync of a temporary file that is deleted a moment later
+  (`pack-write.c`, `fixup_pack_header_footer`, `FSYNC_COMPONENT_PACK`).
+  It protects nothing, and the objects that remain are written by `unpack-objects` under the `loose-object` component,
+  which Git's default `core.fsync` does not sync.
+- Above the limit it keeps the pack: trace of a 150-file stream: two syncs (the pack and the index), a `.keep` file made
+  by `fast-import` itself and unlinked when it exits, one pack left.
+  So the `.keep` of the decision record lives only as long as the `fast-import` process.
+- What protects the new objects between the import and the compare-and-swap is the scratch reference that the same
+  `fast-import` run creates, not a `.keep` file.
+  Checked on a disposable repository with a linked worktree: after `fast-import` built
+  `refs/worktree/cli-git-service/1` in the main worktree, `git prune --expire=now` and `git gc --prune=now` run from the
+  linked worktree kept the commit and all its objects.
+- Record drift to report: `doc/decision/cli-git-concurrent-commits.md` lines 512 to 514 (a pack "kept with a `.keep`
+  file until the compare-and-swap succeeds") and lines 118 to 121 ("every landing adds one pack to the real object
+  store") describe a design this code does not have; small landings leave loose objects and no pack, and the guarantee
+  is the scratch reference.
+  The decision record is not edited here.
+- The person's configuration in the main checkout sets none of `core.fsync`, `core.fsyncObjectFiles`,
+  `core.fsyncMethod`, `fastimport.unpackLimit`, `transfer.unpackLimit`, so Git's defaults apply.
+
+Options:
+
+- Option A, keep the sync.
+  Pro: nothing to change.
+  Con: one flush of a file that is thrown away, 6 to 8 ms idle, unbounded behind a stalled disk, on the person's wait
+  of every unsigned commit, where native Git writes loose objects with no flush at all by default.
+  Visible result: unchanged, one `fsync` in the trace of a landing.
+- Option B, write the loose objects in process, no sync.
+  Pro: no `fast-import` start and no `unpack-objects` start (two Git children of the three or four per landing), no
+  sync.
+  Con: new code that writes into the object store (tree edits against the base tree, deflate, the repository's hash
+  algorithm, the rename into place), and the scratch reference must then be made some other way (a Git start, which
+  gives back one of the two starts, or an in-process reference write, which is the "scratch refs in process" item and
+  does not cover reftable repositories).
+  Without a scratch reference the new objects are unreachable until the branch moves, which is native Git's own window
+  but is weaker than what the landing has today.
+  Visible result: a landing with no import child.
+- Option C, keep `fast-import` and its scratch reference, and give that one child the `core.fsync` that native Git would
+  apply to the loose objects it would have written.
+  When the repository's effective set (or `core.fsyncObjectFiles=true`) names `loose-object`, the child is left as it is;
+  otherwise it gets the person's set without `pack` and `pack-metadata`.
+  Pro: removes the flush; keeps the protection; the person's own durability choice still decides.
+  Con: keeps the two Git starts; one more configuration lookup (already in the landing's snapshot).
+  Visible result: default configuration, zero `fsync` calls in the trace of `fast-import`, the same loose objects;
+  `core.fsync=loose-object` or `added`, one sync as before.
+- Option D, raise or lower `fastimport.unpackLimit`.
+  Not an option: it moves the sync between the temporary pack and a kept pack, and does not remove it.
+- Ranking: C > B > A. C over B: C removes the flush, which is the part of the work that a stalled disk makes unbounded,
+  keeps the recorded protection (the scratch reference) with no new code that writes objects, and is small enough to
+  prove with a control that goes red; B removes two more starts but needs the in-process reference write to keep the
+  protection, so it is the follow-up that builds on the "scratch refs in process" item.
+  B over A: B removes the same flush and two starts, and costs only the new writer.
+- Pick: C, implemented in this round (agent's pick, veto open).
+  B is not built here: it needs the in-process reference write first.
 
 ### The service unit and the host's swap
 
