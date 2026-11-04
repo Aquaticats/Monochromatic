@@ -11,8 +11,8 @@
 //! ```
 
 /// Import getenv-style lookup and the resolved repository identity.
-use super::child_environment::environment_value;
-use super::worktree_identity::WorktreeIdentity;
+use crate::child_environment::environment_value;
+use crate::worktree_identity::WorktreeIdentity;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).

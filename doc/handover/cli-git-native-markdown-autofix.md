@@ -90,7 +90,7 @@ and mise exposes installed tools on `PATH`,
 through `mise activate` or its shims directory
 (<https://mise.jdx.dev/dev-tools/shims.html>, read on 2026-10-06);
 the scanner is linked in and needs no lookup,
-and real Git is found on `PATH` the same way (`src/native/real_git.rs`).
+and real Git is found on `PATH` the same way (`src/native/invocation/real_git.rs`).
 "Beside the wrapper's own executable" was rejected:
 mise installs each `cargo:` tool in its own directory,
 so the linter is not beside the `git` launcher.

@@ -13,21 +13,21 @@ import type { PlantedControl } from './native-planted-controls.ts';
 export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'self-exclusion by identity and content',
-    file: 'src/native/real_git_candidate.rs',
+    file: 'src/native/invocation/real_git_candidate.rs',
     from: 'if same_file(candidate, own_executable) || identical_content(candidate, own_executable) {',
     to: 'if false {',
     failing: 'resolution::wrapper_never_selects_itself_or_a_copy_of_itself',
   },
   {
     name: 'forward-target marker check',
-    file: 'src/native/entry.rs',
+    file: 'src/native/invocation/entry.rs',
     from: '&& same_file(Path::new(&target), inputs.own_executable.as_path())',
     to: '&& false',
     failing: 'entry::stop_tests::forward_target_naming_this_executable_stops',
   },
   {
     name: 'dry-run commit classification',
-    file: 'src/native/wrapped_command.rs',
+    file: 'src/native/invocation/wrapped_command.rs',
     from: 'if region.dry_run {',
     to: 'if false {',
     failing: 'commit::a_dry_run_commits_nothing',
@@ -48,7 +48,7 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   },
   {
     name: 'git version minimum',
-    file: 'src/native/git_version.rs',
+    file: 'src/native/invocation/git_version.rs',
     from: 'if version < MINIMUM_GIT_VERSION {',
     to: 'if false {',
     failing: 'git_version::tests::an_older_release_is_refused',
@@ -76,7 +76,7 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   },
   {
     name: 'the hooks-off start switches the event hooks on',
-    file: 'src/native/hooks_off.rs',
+    file: 'src/native/invocation/hooks_off.rs',
     from: '        result.push(OsString::from(format!("hook.{event}.enabled=false")));',
     to: '        result.push(OsString::from(format!("hook.{event}.enabled=true")));',
     failing: 'hooks_off::tests::the_options_follow_the_global_options_of_the_caller',

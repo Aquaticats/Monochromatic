@@ -33,13 +33,13 @@
 /// import { withoutTokens } from './command_options_query.ts';
 /// import { globalLayout } from './global_arguments.ts';
 /// ```
-use super::command_add::ADD_ESCAPE_HATCH;
-use super::command_options_query::without_tokens;
-use super::escape_hatch::{
+use crate::command_add::ADD_ESCAPE_HATCH;
+use crate::command_options_query::without_tokens;
+use crate::escape_hatch::{
     BRANCH_WORKTREE_ESCAPE_HATCH, WORKTREE_COPY_ESCAPE_HATCH, WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
 };
-use super::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use super::policy_registry::PolicyId;
+use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::policy_registry::PolicyId;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might

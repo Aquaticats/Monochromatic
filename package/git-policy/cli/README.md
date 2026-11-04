@@ -1890,7 +1890,7 @@ whole CPUs of the limit, never below one.
 ```sh
 # Run from the repository top level.
 mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
-mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/startup_gate.rs
+mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/invocation/startup_gate.rs
 mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
 mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 ```

@@ -20,9 +20,9 @@
 //! ```
 
 /// The per-executable cache of the version text.
-use super::git_version_cache::{binary_identity, cache_directory, read_version_text, store_version_text};
+use crate::git_version_cache::{binary_identity, cache_directory, read_version_text, store_version_text};
 /// Running real Git.
-use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// OS strings and paths for the cache location.
 use std::ffi::OsString;
 use std::path::Path;

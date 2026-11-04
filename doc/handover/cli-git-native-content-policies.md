@@ -227,7 +227,7 @@ Commit `b7bed7111`.
   else `FORBIDDEN_STRINGS_RULES` from the invocation's environment,
   else `forbidden-strings.local.txt` in the top level.
   Only the default file may be missing beside the built-in rules.
-- `src/native/panic_notice.rs` is the executable's panic hook,
+- `src/native/invocation/panic_notice.rs` is the executable's panic hook,
   installed first thing in `main.rs`.
   It prints the source location and never the message,
   which can hold scanned bytes.

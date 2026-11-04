@@ -18,9 +18,9 @@
 ///  which decides whether the wrapper adds text.
 /// Why:
 ///   Only a child that ended with exit code 0 answered the question.
-use super::forwarding::ChildOutcome;
+use crate::forwarding::ChildOutcome;
 /// The result of the global-option scan that says where the query token sits.
-use super::global_arguments::{GlobalLayout, GlobalOutcome};
+use crate::global_arguments::{GlobalLayout, GlobalOutcome};
 /// Native argument storage;
 ///  no lossy UTF-8 conversion occurs.
 use std::ffi::OsString;

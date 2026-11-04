@@ -13,14 +13,14 @@
 //! await settleInterruptedMerges({ identity }); // throws the stop
 //! ```
 
-use super::diagnostic_log::debug;
-use super::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
-use super::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
-use super::random_id::is_canonical_uuid;
-use super::recovery_error::RecoveryError;
-use super::recovery_files::recovery_path_exists;
-use super::transaction_git::GitContext;
-use super::worktree_identity::WorktreeIdentity;
+use crate::diagnostic_log::debug;
+use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
+use crate::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
+use crate::random_id::is_canonical_uuid;
+use crate::recovery_error::RecoveryError;
+use crate::recovery_files::recovery_path_exists;
+use crate::transaction_git::GitContext;
+use crate::worktree_identity::WorktreeIdentity;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 

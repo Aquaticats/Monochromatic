@@ -14,7 +14,7 @@ const MAIN_SOURCE: &str = include_str!("main.rs");
 const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
     ("commit_conclusion.rs", include_str!("commit_conclusion.rs")),
     ("commit_preparation.rs", include_str!("commit_preparation.rs")),
-    ("hooks_off.rs", include_str!("hooks_off.rs")),
+    ("invocation/hooks_off.rs", include_str!("invocation/hooks_off.rs")),
     ("service_commit.rs", include_str!("service_commit.rs")),
     ("service_native.rs", include_str!("service_native.rs")),
     ("service_prepare.rs", include_str!("service_prepare.rs")),

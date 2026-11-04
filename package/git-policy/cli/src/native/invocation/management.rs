@@ -14,58 +14,58 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
 /// A direct command asks for the worktree files its scope selects.
-use super::candidate_prediction::CandidateRequest;
-use super::child_environment::{child_environment_overlay, environment_value};
-use super::config_error::ConfigError;
-use super::config_file::LoadedConfig;
+use crate::candidate_prediction::CandidateRequest;
+use crate::child_environment::{child_environment_overlay, environment_value};
+use crate::config_error::ConfigError;
+use crate::config_file::LoadedConfig;
 /// A scope that cannot be projected is a `transaction-failed` engine failure.
-use super::diagnostics::EngineFailureCode;
+use crate::diagnostics::EngineFailureCode;
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.
-use super::direct_fix::run_direct_fix;
+use crate::direct_fix::run_direct_fix;
 /// The traditional-hook listing of `git cli-git doctor`.
-use super::doctor::doctor_action_with_section;
-use super::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
-use super::git_system_config::with_real_git;
-use super::repo_read_layout::read_layout_after_success_for;
-use super::service_route::service_status;
-use super::management_arguments::{
+use crate::doctor::doctor_action_with_section;
+use crate::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
+use crate::git_system_config::with_real_git;
+use crate::repo_read_layout::read_layout_after_success_for;
+use crate::service_route::service_status;
+use crate::management_arguments::{
     MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand,
     parse_management_arguments,
 };
 /// The refusal of a `--policy` selection that is off.
-use super::management_selection::{selected_policies, selection_error};
+use crate::management_selection::{selected_policies, selection_error};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
-use super::policy_checks::{ShippedChecks, shipped_checks};
+use crate::policy_checks::{ShippedChecks, shipped_checks};
 /// What the direct command offers its content policies.
-use super::policy_content::LifecycleContent;
-use super::policy_engine::{StageEnd, StageRequest, pass_exit_code};
+use crate::policy_content::LifecycleContent;
+use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
 /// The events of a direct command and their rendering.
-use super::policy_events::{PolicyEvent, render_policy_events};
-use super::policy_pass::{PassResult, run_policy_pass};
-use super::policy_registry::PolicyId;
-use super::policy_trigger::Trigger;
-use super::real_git::{ResolutionInputs, ResolvedGit, resolve_real_git};
-use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
-use super::repository_location::RepositoryLocation;
+use crate::policy_events::{PolicyEvent, render_policy_events};
+use crate::policy_pass::{PassResult, run_policy_pass};
+use crate::policy_registry::PolicyId;
+use crate::policy_trigger::Trigger;
+use crate::real_git::{ResolutionInputs, ResolvedGit, resolve_real_git};
+use crate::repository_facts::{GitFacts, RepositoryFacts, git_facts};
+use crate::repository_location::RepositoryLocation;
 /// The variable that names the forbidden-strings rules file.
-use super::scanner_selection::RULES_VARIABLE;
+use crate::scanner_selection::RULES_VARIABLE;
 /// Startup recovery as a command step.
-use super::startup_gate::{Gate, recover_for_command};
-use super::transaction_git::GitContext;
-use super::subvolume_arguments::MigrateArguments;
-use super::worktree_convert_arguments::ConvertArguments;
+use crate::startup_gate::{Gate, recover_for_command};
+use crate::transaction_git::GitContext;
+use crate::subvolume_arguments::MigrateArguments;
+use crate::worktree_convert_arguments::ConvertArguments;
 #[cfg(target_os = "linux")]
-use super::subvolume_command::migrate_action;
-use super::unported::{unported_from_unavailable, unported_notice};
+use crate::subvolume_command::migrate_action;
+use crate::unported::{unported_from_unavailable, unported_notice};
 /// The worktree's top level,
 ///  where a fix installs corrected files.
-use super::worktree_identity::worktree_root;
-use super::wrapper_controls::Controls;
+use crate::worktree_identity::worktree_root;
+use crate::wrapper_controls::Controls;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -418,7 +418,7 @@ fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsStr
         .env("LC_ALL", "C")
         .stdin(std::process::Stdio::null());
     // This start of the real Git says so too, like every other (`started_as_git.rs`).
-    super::started_as_git::mark_real_git_start(&mut asking, super::started_as_git::StartMode::Child);
+    crate::started_as_git::mark_real_git_start(&mut asking, crate::started_as_git::StartMode::Child);
     let asked = asking.output();
     let output = match asked {
         Ok(found) => found,
@@ -546,7 +546,7 @@ fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
 /// ```
 fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
     let arguments: ConvertArguments = match parsed {
-        Ok(found) => ConvertArguments { command_line_attributes: super::worktree_convert_arguments::selects_attribute_source(global_arguments), ..found },
+        Ok(found) => ConvertArguments { command_line_attributes: crate::worktree_convert_arguments::selects_attribute_source(global_arguments), ..found },
         Err(reason) => {
             return Action::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
@@ -567,7 +567,7 @@ fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[Os
 /// Run the conversion command where the platform has btrfs subvolumes.
 #[cfg(target_os = "linux")]
 fn run_convert(arguments: &ConvertArguments, cwd: &Path, environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
-    return super::worktree_convert_command::convert_action(arguments, cwd, environment, real_git);
+    return crate::worktree_convert_command::convert_action(arguments, cwd, environment, real_git);
 }
 
 /// Other platforms have no btrfs subvolumes, so the command says so.
@@ -579,7 +579,7 @@ fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsSt
 /// The doctor's filesystem section read from the running system.
 #[cfg(target_os = "linux")]
 pub fn host_filesystem_section(common_directory: &Path) -> String {
-    return super::doctor_filesystem::host_section(common_directory);
+    return crate::doctor_filesystem::host_section(common_directory);
 }
 
 /// Other platforms have no btrfs or overlayfs section.

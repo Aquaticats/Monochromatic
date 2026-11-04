@@ -69,7 +69,7 @@ The run-to-run spread is zero in every scenario.
 ### Existing opt-outs
 
 The wrapper accepts `--no-worktree-copy` (skip ignored-state synchronization) and `--no-enforce-only` (do not inject
-`--only` into a commit); both are listed in `src/native/wrapper_controls.rs` and `command_commit.rs`.
+`--only` into a commit); both are listed in `src/native/invocation/wrapper_controls.rs` and `command_commit.rs`.
 Neither changes the commit path's syncs:
 
 - `commit --no-worktree-copy -- a.txt`: 36 syncs in all three runs (33 wrapper, 3 `git index-pack`).

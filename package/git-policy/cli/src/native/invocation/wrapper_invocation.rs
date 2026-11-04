@@ -33,21 +33,21 @@
 /// import { parseAddRegion } from './command_add.ts';
 /// import { withoutTokens } from './command_options_query.ts';
 /// ```
-use super::command_add::parse_add_region;
-use super::command_branch_create::{branch_creation_command, parse_branch_creation_region};
-use super::command_clean::parse_clean_region;
-use super::command_commit::parse_commit_region;
-use super::command_config::parse_config_region;
-use super::command_options::{OptionError, WrapperOccurrence};
-use super::command_options_query::{WrapperFlags, without_tokens};
-use super::command_push::parse_push_region;
-use super::command_reset::parse_reset_region;
-use super::command_stash::parse_stash_region;
-use super::command_status::parse_status_region;
-use super::command_worktree::changes_worktree_registrations;
-use super::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use super::policy_registry::PolicyId;
-use super::wrapper_controls::{
+use crate::command_add::parse_add_region;
+use crate::command_branch_create::{branch_creation_command, parse_branch_creation_region};
+use crate::command_clean::parse_clean_region;
+use crate::command_commit::parse_commit_region;
+use crate::command_config::parse_config_region;
+use crate::command_options::{OptionError, WrapperOccurrence};
+use crate::command_options_query::{WrapperFlags, without_tokens};
+use crate::command_push::parse_push_region;
+use crate::command_reset::parse_reset_region;
+use crate::command_stash::parse_stash_region;
+use crate::command_status::parse_status_region;
+use crate::command_worktree::changes_worktree_registrations;
+use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::policy_registry::PolicyId;
+use crate::wrapper_controls::{
     CONTROL_SPELLINGS, ControlMeaning, Controls, control_flags, control_meaning, no_controls,
     record_control, strip_global_controls,
 };

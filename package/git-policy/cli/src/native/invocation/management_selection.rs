@@ -17,15 +17,15 @@
 //! ```
 
 /// Import the refusal's error type.
-use super::config_error::ConfigError;
+use crate::config_error::ConfigError;
 /// Import the severities in effect.
-use super::config_schema::{PolicyConfig, PolicySetting};
+use crate::config_schema::{PolicyConfig, PolicySetting};
 /// Import the registry rows and the severity spellings.
-use super::policy_registry::{
+use crate::policy_registry::{
     POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_by_name, policy_descriptor, severity_name,
 };
 /// Import the lifecycle points and which policy runs at which.
-use super::policy_trigger::{Trigger, policy_runs_on};
+use crate::policy_trigger::{Trigger, policy_runs_on};
 
 /// What:
 ///  Turn the selected policy names into policy identities.

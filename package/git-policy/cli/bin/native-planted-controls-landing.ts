@@ -90,7 +90,7 @@ export const plantedLandingControls: readonly PlantedControl[] = [
   },
   {
     name: 'manual-push probe Git children drop the invocation environment',
-    file: 'src/native/wrapped_command.rs',
+    file: 'src/native/invocation/wrapped_command.rs',
     from: 'environment: environment_with_overlay(environment, context.overlay.as_slice()),',
     to: 'environment: environment_with_overlay(&environment[..0], context.overlay.as_slice()),',
     failing: 'push_environment::a_manual_push_probes_and_pushes_with_the_invocation_environment',

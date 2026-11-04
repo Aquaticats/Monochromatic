@@ -10,18 +10,15 @@
 //! // Internal modules used by the forthcoming native entry point and consumer verification.
 //! ```
 
-/// The decision one invocation ends in:
-///  become Git,
-///  or print and exit.
-pub mod action;
+/// What one invocation does from arguments to Git:
+///  the decision,
+///  real Git resolution,
+///  forwarding,
+///  startup and management words.
+pub mod invocation;
 
-/// The four top-level spellings after which the wrapper announces itself,
-///  and the text it prints once Git has answered.
-pub mod announced_query;
-
-/// Variables added to every real-Git child:
-///  lock PID injection and the forward-target marker.
-pub mod child_environment;
+/// Re-exports every module of `invocation` at the crate root, as above.
+pub use invocation::*;
 
 /// Reading and validating `cli-git.config.jsonc` and the Git configuration one invocation is judged by.
 pub mod config;
@@ -51,51 +48,8 @@ pub mod policy;
 /// Re-exports every module of `policy` at the crate root, as above.
 pub use policy::*;
 
-/// Worktree target classification for worktree-enforcing policies.
-pub mod effective_target;
-
-/// The per-invocation decision the thin executable performs.
-pub mod entry;
-
-/// Spellings of the wrapper-only escape hatches shared by several modules.
-pub mod escape_hatch;
-
-/// Starting real Git with unchanged arguments,
-///  streams and exit status.
-pub mod forwarding;
-
 /// Captured read-only real-Git queries over raw bytes.
 pub mod git_metadata;
-
-/// Git 2.56.0 global-argument boundaries over unchanged operating-system strings.
-pub mod global_arguments;
-
-/// The `git cli-git` decision:
-///  help,
-///  retired commands,
-///  and direct `check`/`fix`.
-pub mod management;
-
-/// The `git cli-git` argument grammar.
-pub mod management_arguments;
-
-/// The refusal of a direct command whose `--policy` selects a policy that is off.
-pub mod management_selection;
-
-/// PATH resolution of the real Git executable.
-pub mod real_git;
-
-/// Wrapper self-exclusion for one PATH candidate.
-pub mod real_git_candidate;
-
-/// The real Git that the commit service's unit file records, read as the fallback when `PATH` offers none.
-pub mod real_git_record;
-
-/// The one resolution of the real Git every start uses: `PATH`, then the Git the commit service's unit records.
-pub mod real_git_resolution;
-
-/// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
-pub mod started_as_git;
 
 /// Locks and their owners:
 ///  the index lock,
@@ -182,15 +136,6 @@ pub mod conflict;
 /// Re-exports every module of `conflict` at the crate root, as above.
 pub use conflict::*;
 
-/// Wrapper-only control spellings,
-///  their meanings,
-///  and removal before the subcommand.
-pub mod wrapper_controls;
-
-/// Removal of every wrapper control from one invocation,
-///  by position.
-pub mod wrapper_invocation;
-
 /// Slice 6: writes one corrected file into the private commit index as a blob and an index entry.
 pub mod private_index_stage;
 
@@ -250,18 +195,6 @@ pub mod markdown;
 
 /// Re-exports every module of `markdown` at the crate root, as above.
 pub use markdown::*;
-
-/// The executable's panic hook:
-///  where an internal error happened,
-///  never its message.
-pub mod panic_notice;
-
-/// The names of the commands built into Git 2.56.0.
-pub mod git_builtins;
-
-/// The lifecycle of one wrapped Git command,
-///  from refusals to forwarding.
-pub mod wrapped_command;
 
 /// Candidate content:
 ///  what a commit or push would add,
@@ -330,9 +263,6 @@ pub use lfs::*;
 /// The push of a merge that integrated a lost race, planned and run inside the running wrapper.
 pub mod stacked_merge_push;
 
-/// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
-pub mod hooks_off;
-
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 
@@ -379,23 +309,10 @@ pub mod index;
 /// Re-exports every module of `index` at the crate root, as above.
 pub use index::*;
 
-/// The startup step of a command: isolated merges whose process died, and what an earlier release left behind.
-pub mod startup_gate;
-
 /// Process start times for lock owners,
 ///  read from `/proc`,
 ///  `ps` or the Windows process table.
 pub mod process_start;
-
-/// The Git version check run once before work that depends on Git's behavior.
-pub mod git_version;
-
-/// The private per-user cache of the version text, keyed by the Git executable's identity.
-pub mod git_version_cache;
-
-/// The Git command a forwarded invocation runs,
-///  after ordinary alias expansion.
-pub mod forwarded_command;
 
 /// The service's own retry of a push it stopped or that failed: the pauses, the waiting branches, the final failure.
 pub mod push_retry;

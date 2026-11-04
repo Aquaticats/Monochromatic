@@ -20,7 +20,7 @@
 //! ```
 
 /// The global-option parser, to find the subcommand behind the caller's global options.
-use super::global_arguments::{GlobalOutcome, global_layout};
+use crate::global_arguments::{GlobalOutcome, global_layout};
 /// Owned operating-system text for the arguments.
 use std::ffi::OsString;
 /// The switch that turns the option on for the process.

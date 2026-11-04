@@ -20,15 +20,15 @@
 //! ```
 
 /// Debug diagnostics.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The built-in command names.
-use super::git_builtins::is_git_builtin;
+use crate::git_builtins::is_git_builtin;
 /// The global-option layout.
-use super::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
 /// Trimming with the incumbent's `.trim()` semantics.
-use super::js_text::trim_javascript;
+use crate::js_text::trim_javascript;
 /// Running real Git.
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.

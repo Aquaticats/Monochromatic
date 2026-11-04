@@ -18,7 +18,7 @@ const failing = 'entry::stop_tests::forward_target_naming_this_executable_stops'
 const compileFailure = [
   '   Compiling monochromatic-git-policy-cli v0.4.6 (/work/package/git-policy/cli)',
   'error[E0432]: unresolved import `super::lfs_upload_plan::settings_from_snapshot`',
-  '  --> src/native/entry.rs:24:5',
+  '  --> src/native/invocation/entry.rs:24:5',
   'warning: unused import: `super::real_git_candidate::same_file`',
   'error: could not compile `monochromatic-git-policy-cli` (lib test) due to 2 previous errors; 2 warnings emitted',
   'error: command `cargo test --no-run` exited with code 101',

@@ -202,13 +202,13 @@ The only change since `385ab5b80b` is test code in `signal_relay_tests.rs` and t
 so the same base-file findings are expected there.
 
 Clippy with `-D warnings` on the host (`native:clippy`) and in the container gives the same findings:
-- Library tests: `forward_after` is never used (`src/native/entry_tests.rs:114`);
+- Library tests: `forward_after` is never used (`src/native/invocation/entry_tests.rs:114`);
   two `missing return statement` (`src/native/lock/index_lock_wait_tests.rs:190` and `:201`);
   one `this match expression can be replaced with ?` (`src/native/index_writer_coordination_tests.rs:192`).
-- Library: one `large size difference between variants` (`src/native/action.rs:60`).
+- Library: one `large size difference between variants` (`src/native/invocation/action.rs:60`).
 - This lane's files produce no findings on the host or in the container.
 
-Windows GNU Clippy (`native:clippy:windows`, `--lib`) reports only the `src/native/action.rs:60` finding.
+Windows GNU Clippy (`native:clippy:windows`, `--lib`) reports only the `src/native/invocation/action.rs:60` finding.
 The `#[cfg(not(unix))]` branch of the signal guard and the maintenance modules type-check on that target.
 
 ## Planted-defect controls

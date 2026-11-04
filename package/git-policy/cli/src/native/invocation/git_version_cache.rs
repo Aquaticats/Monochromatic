@@ -27,9 +27,9 @@
 
 /// Debug lines for cache problems,
 ///  which never fail a command.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The environment lookup shared by the wrapper.
-use super::child_environment::environment_value;
+use crate::child_environment::environment_value;
 /// OS strings and paths.
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -248,7 +248,7 @@ pub fn read_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str)
     if !is_private_file_of_this_user(path.as_path()) {
         return None;
     }
-    let bytes: Vec<u8> = super::private_storage::read_regular_file(path.as_path(), 4096).ok()?;
+    let bytes: Vec<u8> = crate::private_storage::read_regular_file(path.as_path(), 4096).ok()?;
     let rest: &[u8] = bytes.strip_prefix(file_tag(kind).as_bytes())?;
     let rest_after_identity: &[u8] = rest.strip_prefix(identity.text.as_bytes())?;
     let text: &[u8] = rest_after_identity.strip_prefix(b"\n")?;
@@ -284,13 +284,13 @@ pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str
         debug(TAG, format!("could not create {}: {error}", parent.display()).as_str());
         return;
     }
-    if let Err(error) = super::private_storage::create_private_directory(directory)
+    if let Err(error) = crate::private_storage::create_private_directory(directory)
         && error.kind() != std::io::ErrorKind::AlreadyExists
     {
         debug(TAG, format!("could not create {}: {error}", directory.display()).as_str());
         return;
     }
-    let unique: String = match super::random_id::random_uuid() {
+    let unique: String = match crate::random_id::random_uuid() {
         Ok(id) => id,
         Err(error) => {
             debug(TAG, format!("no random name for the cache file: {}", error.0).as_str());
@@ -304,7 +304,7 @@ pub fn store_cached_text(directory: &Path, identity: &BinaryIdentity, kind: &str
     bytes.extend_from_slice(identity.text.as_bytes());
     bytes.push(b'\n');
     bytes.extend_from_slice(text);
-    if let Err(error) = super::private_storage::write_exclusive_scratch(temporary.as_path(), bytes.as_slice()) {
+    if let Err(error) = crate::private_storage::write_exclusive_scratch(temporary.as_path(), bytes.as_slice()) {
         debug(TAG, format!("could not write {}: {error}", temporary.display()).as_str());
         return;
     }

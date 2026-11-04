@@ -850,7 +850,7 @@ The user confirmed the shared understanding and the order below, after the third
   commands. In a throwaway repository a clean staged `package.json` plus a violating unstaged one made
   `check --all --policy mono/catalog-specifiers` exit 1 (`~/temp/agent/cs-policy-050-probe.ts`, case `violation-unstaged-only`).
   8c confirmed: `check` and `fix` read the worktree files their scope selects; the commit and push paths check the index or
-  commit content (`package/git-policy/cli/src/native/management.rs`). The CI checkout has index equal to worktree, so the
+  commit content (`package/git-policy/cli/src/native/invocation/management.rs`). The CI checkout has index equal to worktree, so the
   workflow is unaffected.
 
 - 2026-11-01, cli-git 0.5.0 landed in the lock and the CI workflow with the policy activation landed (task 3 done):

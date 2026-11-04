@@ -41,8 +41,8 @@
 /// ```ts
 /// import { runtimeUnitDir, SERVICE_UNIT_NAME } from './service-provision.ts';
 /// ```
-use super::real_git_candidate::MAX_SCRIPT_INSPECTION_BYTES;
-use super::service_provision::{SERVICE_UNIT_NAME, runtime_unit_dir};
+use crate::real_git_candidate::MAX_SCRIPT_INSPECTION_BYTES;
+use crate::service_provision::{SERVICE_UNIT_NAME, runtime_unit_dir};
 /// `Read` supplies `read_to_end` and `take`,
 /// the bounded read below.
 use std::io::Read;

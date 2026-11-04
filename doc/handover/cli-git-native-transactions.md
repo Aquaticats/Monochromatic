@@ -562,7 +562,7 @@ the lifted `Unported::TransactionRecovery`, the binary and interoperability test
 ### Git 2.55.0 evidence
 
 The owner accepted Git 2.55.0 on 2026-10-10, so `MINIMUM_GIT_VERSION` in
-`package/git-policy/cli/src/native/git_version.rs` is now 2.55.0.
+`package/git-policy/cli/src/native/invocation/git_version.rs` is now 2.55.0.
 The version check runs once per process on the index-writer coordination path,
 before any landing lock is taken.
 
@@ -870,7 +870,7 @@ The rerun commands, run from the worktree root, are:
 - nsactions mise run //package/git-policy/cli:native:test:container`
   rebuilds the snapshot that the mutation campaign reads, and must run before any campaign.
 - `node ${HOME}/temp/agent/gate-slot.ts env MISE_AUTO_INSTALL=0 MISE_EXEC_AUTO_INSTALL=0 GIT_POLICY_NATIVE_IMAGE_TAG=tra
-- nsactions mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/git_version.rs' --file 'src/n
+- nsactions mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/invocation/git_version.rs' --file 'src/n
 - ative/index_lock_evidence.rs' --file 'src/native/lock/index_lock_holders.rs' --file 'src/native/index_lock_wait_host.rs' --
 - file 'src/native/index_writer_coordination.rs' --file 'src/native/real_index_lock.rs'`
   reruns the six files that gained controls; expect the macOS and Windows survivors above and the timeouts.

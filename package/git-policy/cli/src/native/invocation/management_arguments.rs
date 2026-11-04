@@ -25,8 +25,8 @@
 /// ```
 use std::ffi::OsString;
 /// The grammar of the subvolume migration command, parsed apart.
-use super::subvolume_arguments::{MigrateArguments, parse_migrate_arguments};
-use super::worktree_convert_arguments::{ConvertArguments, parse_convert_arguments};
+use crate::subvolume_arguments::{MigrateArguments, parse_migrate_arguments};
+use crate::worktree_convert_arguments::{ConvertArguments, parse_convert_arguments};
 
 /// What:
 ///  The complete grammar shown when an invocation is refused.

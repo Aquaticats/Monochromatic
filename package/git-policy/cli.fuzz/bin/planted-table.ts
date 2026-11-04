@@ -63,7 +63,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a separated global value is not consumed',
-    file: 'package/git-policy/cli/src/native/global_arguments.rs',
+    file: 'package/git-policy/cli/src/native/invocation/global_arguments.rs',
     edits: [{
       from: 'is_value = true;',
       to: 'is_value = false;'
@@ -87,7 +87,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a control spelling is removed anywhere in a region read without a table',
-    file: 'package/git-policy/cli/src/native/wrapper_invocation.rs',
+    file: 'package/git-policy/cli/src/native/invocation/wrapper_invocation.rs',
     edits: [{
       from: 'break;',
       to: 'continue;'
@@ -95,7 +95,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'keep-going is removed without being recorded',
-    file: 'package/git-policy/cli/src/native/wrapper_controls.rs',
+    file: 'package/git-policy/cli/src/native/invocation/wrapper_controls.rs',
     edits: [{
       from: 'ControlMeaning::KeepGoing => controls.keep_going = true,',
       to: 'ControlMeaning::KeepGoing => controls.keep_going = false,',
@@ -103,7 +103,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a publishing push skips the manual-push gate',
-    file: 'package/git-policy/cli/src/native/wrapped_command.rs',
+    file: 'package/git-policy/cli/src/native/invocation/wrapped_command.rs',
     edits: [{
       from: 'if any_policy_applies(&gate_request, gated.as_slice()) {',
       to: 'if false {',

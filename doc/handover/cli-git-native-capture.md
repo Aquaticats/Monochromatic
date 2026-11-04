@@ -186,7 +186,7 @@ They were not run in this lane:
 - Container test gate: passes for every test, with 933 library tests passing on commit `09c4ca20e7`.
 - Container Clippy (part of the same task): fails on files this lane did not change,
   which already fail on the base commit `0faec78d77`:
-  `src/native/entry_tests.rs:114` (`forward_after` is never used),
+  `src/native/invocation/entry_tests.rs:114` (`forward_after` is never used),
   `src/native/lock/index_lock_wait_tests.rs:190` and `:201` (missing `return`),
   and `src/native/index_writer_coordination_tests.rs:192` (`match` replaceable by `?`).
   The lane's own files pass Clippy with these lines excluded.

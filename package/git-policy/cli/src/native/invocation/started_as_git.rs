@@ -31,14 +31,14 @@
 //! ```
 
 /// The one lookup of a named variable in an injected environment.
-use super::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
 /// What:
 ///  The birth identity of a process,
 /// which changes when its number is reused.
 /// Why:
 ///   A process number alone could name a later process after the first one ended;
 /// the identity cannot.
-use super::process_identity::{current_birth_identity, process_birth_identity};
+use crate::process_identity::{current_birth_identity, process_birth_identity};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes (siblings `&str`/`String` must be UTF-8).
 /// Why:

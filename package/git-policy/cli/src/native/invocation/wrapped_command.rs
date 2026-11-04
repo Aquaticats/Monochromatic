@@ -34,47 +34,47 @@
 /// ```ts
 /// import { runPolicyPass } from './policy_pass.ts';
 /// ```
-use super::action::ENGINE_FAILURE_EXIT_CODE;
-use super::auto_push_single_flight::PushGit;
-use super::child_environment::environment_with_overlay;
+use crate::action::ENGINE_FAILURE_EXIT_CODE;
+use crate::auto_push_single_flight::PushGit;
+use crate::child_environment::environment_with_overlay;
 /// `git add` asks for what it would stage.
-use super::candidate_prediction::CandidateRequest;
-use super::command_options::OptionError;
-use super::command_push::{PushRegion, parse_push_region};
-use super::config_loading::{ConfigLoading, classify_config_loading};
-use super::command_commit::{CommitRegion, parse_commit_region};
-use super::commit_command::{CommitCommand, run_commit_command};
-use super::config_schema::{CliGitConfig, PolicyConfig};
-use super::diagnostics::EngineFailureCode;
-use super::discard_audit::{AuditOutcome, record_audit};
-use super::global_arguments::GlobalOutcome;
-use super::invocation_config::{config_invalid_event, load_identity_config};
-use super::manual_push_cause::ManualPushCause;
-use super::manual_push_lifecycle::manual_push_scope;
-use super::policy_checks::ShippedChecks;
+use crate::candidate_prediction::CandidateRequest;
+use crate::command_options::OptionError;
+use crate::command_push::{PushRegion, parse_push_region};
+use crate::config_loading::{ConfigLoading, classify_config_loading};
+use crate::command_commit::{CommitRegion, parse_commit_region};
+use crate::commit_command::{CommitCommand, run_commit_command};
+use crate::config_schema::{CliGitConfig, PolicyConfig};
+use crate::diagnostics::EngineFailureCode;
+use crate::discard_audit::{AuditOutcome, record_audit};
+use crate::global_arguments::GlobalOutcome;
+use crate::invocation_config::{config_invalid_event, load_identity_config};
+use crate::manual_push_cause::ManualPushCause;
+use crate::manual_push_lifecycle::manual_push_scope;
+use crate::policy_checks::ShippedChecks;
 /// What the command offers its content policies.
-use super::policy_content::LifecycleContent;
-use super::policy_engine::{
+use crate::policy_content::LifecycleContent;
+use crate::policy_engine::{
     StageEnd, StageRequest, StageResult, any_policy_applies, pass_exit_code, run_policy_stage,
 };
-use super::event_hints::manual_push_failure_hint;
-use super::policy_events::{EngineFailureHint, PolicyEvent, render_policy_events};
-use super::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
-use super::policy_registry::PolicyId;
-use super::landed_summary::short_name;
-use super::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
-use super::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
-use super::policy_trigger::Trigger;
-use super::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
-use super::repository_facts::RepositoryFacts;
-use super::repository_location::RepositoryLocation;
+use crate::event_hints::manual_push_failure_hint;
+use crate::policy_events::{EngineFailureHint, PolicyEvent, render_policy_events};
+use crate::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
+use crate::policy_registry::PolicyId;
+use crate::landed_summary::short_name;
+use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
+use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
+use crate::policy_trigger::Trigger;
+use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
+use crate::repository_facts::RepositoryFacts;
+use crate::repository_location::RepositoryLocation;
 /// Startup recovery as a command step.
-use super::startup_gate::{Gate, recover_for_command};
+use crate::startup_gate::{Gate, recover_for_command};
 /// A valid preparation lease marks a command started by a hook of a live transaction.
-use super::unported::{Unported, unported_from_unavailable, unported_notice};
-use super::worktree_identity::worktree_root;
-use super::wrapper_controls::is_escaped;
-use super::wrapper_invocation::{StrippedInvocation, command_region, command_word};
+use crate::unported::{Unported, unported_from_unavailable, unported_notice};
+use crate::worktree_identity::worktree_root;
+use crate::wrapper_controls::is_escaped;
+use crate::wrapper_invocation::{StrippedInvocation, command_region, command_word};
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might
@@ -636,16 +636,16 @@ fn prepare_manual_push<F: RepositoryFacts>(
     checks: &mut ShippedChecks<F>,
     environment: &[(OsString, OsString)],
     post_subcommand: &[OsString],
-) -> Result<(), super::manual_push_lifecycle::ManualPushFailure> {
+) -> Result<(), crate::manual_push_lifecycle::ManualPushFailure> {
     let worktree: Option<PathBuf> = match checks.facts.location() {
         Ok(location) => worktree_root(&location.identity).map(Path::to_path_buf),
-        Err(message) => return Err(super::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, message)),
+        Err(message) => return Err(crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, message)),
     };
     let context = checks.facts.transaction_context();
     let cwd = match worktree {
         Some(root) => root,
         None => std::env::current_dir().map_err(|error| {
-            return super::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
+            return crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
                 "the working directory could not be read: {error}"
             ));
         })?,

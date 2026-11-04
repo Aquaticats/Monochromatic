@@ -33,9 +33,9 @@
 /// ```ts
 /// import { searchPathForRealGit, type RealGitNotFound } from './real-git.ts';
 /// ```
-use super::real_git::{RealGitNotFound, ResolutionInputs, SearchedCandidate, search_path_for_real_git};
-use super::real_git_candidate::{CandidateKind, classify_candidate};
-use super::real_git_record::read_recorded_git;
+use crate::real_git::{RealGitNotFound, ResolutionInputs, SearchedCandidate, search_path_for_real_git};
+use crate::real_git_candidate::{CandidateKind, classify_candidate};
+use crate::real_git_record::read_recorded_git;
 /// `OsStr` is borrowed operating-system text (siblings:
 /// `OsString` owned,
 /// `&str` UTF-8 only).

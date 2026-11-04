@@ -87,7 +87,7 @@ pub(super) struct Allowed {
 /// The exceptions. Remove an entry when its code goes; the test fails on an entry that matches nothing.
 pub(super) const ALLOWED: &[Allowed] = &[
     Allowed {
-        file: "real_git.rs",
+        file: "invocation/real_git.rs",
         rule: "own-executable",
         why: "identification only: the path is excluded from the search for the real Git, and nothing is started from it",
     },

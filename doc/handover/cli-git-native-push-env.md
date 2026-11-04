@@ -115,7 +115,7 @@ On code head `116615ad41`:
   Clippy in the container finished with no warning or error. Log: `${HOME}/temp/agent/push-env/gate-container.log`.
 - Host `native:clippy` through `gate-slot.ts`: finished clean. Log: `clippy.log`.
 - Scoped mutation with `NATIVE_MUTATION_SKIP_PLANTED=1` (the planted phase was skipped on purpose):
-  `src/native/child_environment.rs`: 50 mutants, 49 caught, 1 unviable, 0 missed, 0 timeouts.
+  `src/native/invocation/child_environment.rs`: 50 mutants, 49 caught, 1 unviable, 0 missed, 0 timeouts.
   `src/native/commit_command.rs`: 14 mutants, 10 caught, 4 unviable, 0 missed, 0 timeouts.
   Logs: `mut-child-environment.log`, `mut-commit-command.log`.
 - Lint of `bin/native-planted-controls.mjs` (oxlint with `OXLINT_THREADS=2`): three errors, all present before this
@@ -124,7 +124,7 @@ On code head `116615ad41`:
 
 ## Not done yet
 
-- Scoped mutation of `src/native/wrapped_command.rs`.
+- Scoped mutation of `src/native/invocation/wrapped_command.rs`.
 - Scoped mutation of `src/native/auto_push_single_flight.rs` (only doc comments changed there; optional).
 - The two new planted controls have never been executed. Run them with the planted phase on
   (see the Rerun commands section).
@@ -139,8 +139,8 @@ each through the slot limiter (`gate-slot.ts` in `${HOME}/temp/agent`):
 # doc/handover/cli-git-native-push-env.md
 GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:test:container
 node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:clippy
-NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/wrapped_command.rs --timeout 900
-GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/wrapped_command.rs --timeout 900
+NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/invocation/wrapped_command.rs --timeout 900
+GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/invocation/wrapped_command.rs --timeout 900
 ```
 
 The last command runs the planted phase too; both new planted controls must be reported as noticed.

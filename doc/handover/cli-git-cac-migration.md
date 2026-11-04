@@ -65,7 +65,7 @@ A later explicit adoption request is required before implementation or a decisio
   `yuku-ast`,
   and `yuku-parser`.
 - `package/git-policy/cli/src/management-parser.ts`
-  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/management_arguments.rs`)
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/invocation/management_arguments.rs`)
   describes a repository-owned management-command grammar
   that replaced
   the `@optique/core` facade.
@@ -121,12 +121,12 @@ The target does not have one replaceable parser boundary.
 The measured source map at baseline is:
 
 - `package/git-policy/cli/src/parse-global-options.ts`
-  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/global_arguments.rs`)
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/invocation/global_arguments.rs`)
   locates the real Git subcommand,
   applies ordered `-C` semantics,
   and preserves global help and version short-circuits.
 - `package/git-policy/cli/src/management-parser.ts`
-  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/management_arguments.rs`)
+  (moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/invocation/management_arguments.rs`)
   implements the closed `git cli-git` grammar.
   It is 265 physical lines,
   including declarations and TSDoc.

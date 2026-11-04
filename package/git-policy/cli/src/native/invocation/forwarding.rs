@@ -29,12 +29,12 @@ use std::path::Path;
 ///  The marker every real-Git start carries, and the two ways a start can be made.
 /// Why:
 ///   A cli-git executable that is started as "Git" finds the marker and stops instead of starting one more wrapper.
-use super::started_as_git::{StartMode, mark_real_git_start};
+use crate::started_as_git::{StartMode, mark_real_git_start};
 /// Starts that ride out a short shortage of processes.
 #[cfg(unix)]
-use super::start_retry::exec_retrying;
+use crate::start_retry::exec_retrying;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+use crate::start_retry::RetryStart;
 /// `Command` builds a child process from a program and an argument list,
 ///  with no shell.
 use std::process::Command;
@@ -90,7 +90,7 @@ pub fn git_command(
     // `mut` allows the builder to be configured step by step.
     let mut command: Command = Command::new(real_git);
     // No hook runs through the wrapper, and the options follow the caller's globals; see `hooks_off`.
-    super::hooks_off::add_arguments(&mut command, arguments);
+    crate::hooks_off::add_arguments(&mut command, arguments);
     // `for (name, value) in overlay` destructures each borrowed pair.
     for (name, value) in overlay {
         command.env(name, value);

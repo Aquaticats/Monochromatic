@@ -159,7 +159,7 @@ under test is the mounted working copy.
 ### Git floor: the native suite runs on Git 2.55.0 only
 
 The native minimum is Git 2.55.0 (user decision of 2026-10-10 in `~/temp/agent/lane-brief.md`;
-`MINIMUM_GIT_VERSION` in `src/native/git_version.rs`).
+`MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs`).
 The executable therefore refuses Git 2.39.5 and 2.40.0, observed on a real invocation in the native image
 (`git add -- added.txt` in a repository made by `/opt/git/2.39.5/bin/git`): exit 2 with the engine failure
 `cli-git: real Git at /opt/git/2.39.5/bin/git reports version 2.39.5; commits, hooks and the locks that coordinate

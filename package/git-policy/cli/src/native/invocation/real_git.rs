@@ -20,11 +20,11 @@
 /// ```ts
 /// import { classifyCandidate } from './real-git-candidate.ts';
 /// ```
-use super::child_environment::environment_value;
-use super::real_git_candidate::{CandidateKind, classify_candidate};
-use super::real_git_record::service_unit_file;
+use crate::child_environment::environment_value;
+use crate::real_git_candidate::{CandidateKind, classify_candidate};
+use crate::real_git_record::service_unit_file;
 /// `pub use` re-exports names so callers keep importing the resolution from this module.
-pub use super::real_git_resolution::{RecordedGit, ResolvedGit, resolve_real_git};
+pub use crate::real_git_resolution::{RecordedGit, ResolvedGit, resolve_real_git};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw OS bytes
 ///       (siblings `&str`/`String` must be UTF-8).
@@ -567,7 +567,7 @@ pub fn process_resolution_inputs(
         reason = "identifies the wrapper so the search for the real Git skips it; nothing is started from the path"
     )]
     let own_executable: PathBuf = std::env::current_exe()?;
-    super::service_route::remember_own_executable(own_executable.as_path());
+    crate::service_route::remember_own_executable(own_executable.as_path());
     let current_directory: PathBuf = std::env::current_dir()?;
     // `.unwrap_or_default()` substitutes an empty value when the variable is unset.
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();

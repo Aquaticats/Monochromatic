@@ -22,8 +22,8 @@
 /// ```
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
-use super::index_writer_forward::CoordinatedForward;
-use super::worktree_copy_forward::CopyFacts;
+use crate::index_writer_forward::CoordinatedForward;
+use crate::worktree_copy_forward::CopyFacts;
 use std::path::PathBuf;
 
 /// What:

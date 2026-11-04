@@ -1386,7 +1386,7 @@ is the rule.
   (a compare-and-swap) may join the steps that are ended is an open question for the owner.
 - The person's hook is never ended.
   No hook of the person runs below a step the wrapper starts, because every Git the wrapper starts carries
-  `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/hooks_off.rs`), so the watch
+  `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`), so the watch
   needs no way
   to tell a hook from Git.
   The stop signals the step and the processes it started and never a process beside it.

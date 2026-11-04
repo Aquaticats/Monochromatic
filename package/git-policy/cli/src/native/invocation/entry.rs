@@ -16,52 +16,52 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure, with_leading_notice};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure, with_leading_notice};
 #[cfg(unix)]
-use super::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
-use super::push_trigger_log::{Decision, Origin, Outcome, record_decision};
-use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
-use super::command_push::stackable_option_tokens;
-use super::external_hooks::external_hooks_warning;
-use super::lfs_pre_push::uses_lfs;
-use super::lfs_upload_plan::settings_from_snapshot;
-use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
-use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
-use super::command_push::parse_push_region;
-use super::child_environment::{
+use crate::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
+use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
+use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
+use crate::command_push::stackable_option_tokens;
+use crate::external_hooks::external_hooks_warning;
+use crate::lfs_pre_push::uses_lfs;
+use crate::lfs_upload_plan::settings_from_snapshot;
+use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
+use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
+use crate::command_push::parse_push_region;
+use crate::child_environment::{
     FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_value,
 };
-use super::effective_target::default_allowed_worktree_dirs;
-use super::forwarded_lock_notice::{forwarded_lock_notice, is_covered};
-use super::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
-use super::stale_ref_lock_judge::Judge;
-use super::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
-use super::index_writer_commands::is_index_writer;
-use super::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command};
-use super::invocation_config::{config_invalid_event, load_identity_config};
-use super::repository_location::RepositoryLocation;
-use super::transaction_git::GitContext;
-use super::worktree_identity::WorktreeIdentity;
-use super::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use super::management::{host_filesystem_section, plan_management_with_section};
+use crate::effective_target::default_allowed_worktree_dirs;
+use crate::forwarded_lock_notice::{forwarded_lock_notice, is_covered};
+use crate::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
+use crate::stale_ref_lock_judge::Judge;
+use crate::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
+use crate::index_writer_commands::is_index_writer;
+use crate::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command};
+use crate::invocation_config::{config_invalid_event, load_identity_config};
+use crate::repository_location::RepositoryLocation;
+use crate::transaction_git::GitContext;
+use crate::worktree_identity::WorktreeIdentity;
+use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::management::{host_filesystem_section, plan_management_with_section};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
-use super::policy_checks::{ShippedChecks, shipped_checks};
+use crate::policy_checks::{ShippedChecks, shipped_checks};
 /// A forwarded command starts with no candidate content.
-use super::policy_content::LifecycleContent;
-use super::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
-use super::started_as_git::refusal_when_started_as_git;
-use super::real_git_candidate::same_file;
-use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
-use super::rule_require_root::{RequireRootDecision, decide_require_root};
+use crate::policy_content::LifecycleContent;
+use crate::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
+use crate::started_as_git::refusal_when_started_as_git;
+use crate::real_git_candidate::same_file;
+use crate::repository_facts::{GitFacts, RepositoryFacts, git_facts};
+use crate::rule_require_root::{RequireRootDecision, decide_require_root};
 /// The variable that names the forbidden-strings rules list.
-use super::scanner_selection::RULES_VARIABLE;
-use super::wrapped_command::{WrappedOutcome, run_wrapped_command};
-use super::wrapper_controls::{Controls, no_controls, strip_global_controls};
-use super::worktree_add_plan::{AddPlan, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
-use super::worktree_remove_plan::{RemovePlan, parse_remove_plan};
-use super::worktree_copy_forward::{CopyFacts, ForwardedRun, copy_applies_with, run_forwarded_git};
-use super::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
+use crate::scanner_selection::RULES_VARIABLE;
+use crate::wrapped_command::{WrappedOutcome, run_wrapped_command};
+use crate::wrapper_controls::{Controls, no_controls, strip_global_controls};
+use crate::worktree_add_plan::{AddPlan, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
+use crate::worktree_remove_plan::{RemovePlan, parse_remove_plan};
+use crate::worktree_copy_forward::{CopyFacts, ForwardedRun, copy_applies_with, run_forwarded_git};
+use crate::wrapper_invocation::{StrippedInvocation, strip_wrapper_controls};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -329,7 +329,7 @@ fn plan_with_real_git(
 /// ```
 pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
     // From here on every real-Git start of this process runs with traditional hooks off.
-    super::hooks_off::activate();
+    crate::hooks_off::activate();
     let action: Action = match process_resolution_inputs(environment) {
         // A cli-git executable that a wrapper started as Git stops before it plans anything or starts anything.
         Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
