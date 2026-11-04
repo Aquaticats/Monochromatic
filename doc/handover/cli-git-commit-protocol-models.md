@@ -81,7 +81,7 @@ Revision 18 models, built to the acceptance target:
 ## Coverage of the revision 18 acceptance target
 
 Each row names the test that shows the property or control, says that the test shows a narrower control and what it leaves unshown, or says
-what it needs. A build test (`model/model_target_tests.rs`) checks that every named test exists. Counts: 70 covered by a current test, 11
+what it needs. A build test (`model/model_target_tests.rs`) checks that every named test exists. Counts: 65 covered by a current test, 16
 covered only by a narrower control (the row says what remains), 9 shown only by a labelled historical control, 17 not yet. Models review 8
 (`commit-models-sol-8.txt`, section 2) is the source of the narrower rows; the map checks inventory, not semantic coverage, and the
 classification is the author's until a review accepts it.
@@ -113,11 +113,18 @@ classification is the author's until a review accepts it.
   `a_lane_lock_the_launcher_releases_is_free_while_the_helper_lives` in `commit_helper_launch_tests.rs`. Not
   shown: the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started
   transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory
-  (a_launched_helper_inherits_no_descriptor_of_its_launcher) and the lock test.
+  (a_launched_helper_inherits_no_descriptor_of_its_launcher), the lock test, and the flusher helper that keeps
+  only the lock its launcher handed it (many_clients_start_one_helper_and_it_holds_the_lock); a descriptor a raw
+  creator keeps outside this component is not visible to it.
 - Narrower, obligation: launch is non-recursive and resource-bounded:
   `a_launched_entry_is_a_function_in_a_new_session_and_not_a_second_start_of_the_program` in
-  `commit_helper_launch_tests.rs`. Not shown: refusal by a process-count or memory cap is not injected (the
-  launch returns LaunchError::Refused, untested); the transient unit route is not built.
+  `commit_helper_launch_tests.rs`. Not shown: the transient unit route is not built; a refused fork is injected
+  by a real process limit (a_fork_refused_by_the_process_limit_is_reported_as_refused) and a memory cap is not;
+  a process with more than one thread is refused
+  (a_launch_from_a_process_with_another_thread_is_refused_before_the_fork), so that the wrapper's real call
+  sites must be single-threaded at the launch is shown only for the test copies of a process, not for call sites
+  that do not exist yet; one helper per lock holder is shown on one lane
+  (clients_that_find_the_flusher_lock_held_start_no_helper), not a resource bound for arbitrary load.
 
 ### C0 to C5, S1, C3 repair
 
@@ -149,8 +156,11 @@ classification is the author's until a review accepts it.
 - Covered, control: replay changing support:
   `a_replay_that_changes_support_is_followed_and_a_stale_decision_loses_the_selection` in
   `model_support_r18_tests.rs`.
-- Covered, control: checkpoint and recovery between rebuild steps:
-  `a_crash_between_a_checkpoint_and_a_rebuild_is_rebuilt_from_the_tail` in `model_support_r18_tests.rs`.
+- Narrower, control: checkpoint and recovery between rebuild steps:
+  `a_crash_between_a_checkpoint_and_a_rebuild_is_rebuilt_from_the_tail` in `model_support_r18_tests.rs`. Not
+  shown: persistence of the retained inputs and a complete checkpoint protocol: the model checks derived-cache
+  recovery assuming the current tip and tail survive every modeled crash unchanged, and a checkpoint stores one
+  decision bit (retained-byte sufficiency is the NotYet row below).
 - Covered, control: held requests: `a_held_head_blocks_publication_and_leaves_the_decision_alone` in
   `model_support_r18_tests.rs`.
 - Covered, control: disjoint requests: `a_disjoint_request_neither_supports_nor_overrides` in
@@ -161,7 +171,8 @@ classification is the author's until a review accepts it.
   `model_support_r18_tests.rs`.
 - Covered, control: comparison with a sequential reference interpreter:
   `the_reference_world_follows_every_operation_through_its_own_code` in `model_support_r18_tests.rs`.
-- Covered, control: the whole request family against the reference (every start, red under revision 17):
+- Covered, control: the whole request family against the reference (all two-entry combinations and four
+  selected three-entry starts, tip fixed at zero, selections 1 or 2; red under revision 17):
   `every_start_is_green_under_eighteen_and_the_family_is_red_under_seventeen` in `model_support_r18_tests.rs`.
 - Not yet, property: held-version completion cannot affect its successor. Needs: a model step where a
   superseded version's hook completes and a control that lets it publish.
@@ -210,12 +221,15 @@ classification is the author's until a review accepts it.
 - Covered, control: worker launch refused by a cap:
   `a_launch_refused_by_a_cap_is_the_stated_outside_cause_and_nothing_else_is_excused` in
   `model_receipt_r18_tests.rs`.
-- Covered, control: worker error (every unforced receipt recorded, joiners included, each retried by the next
+- Narrower, control: worker error (every unforced receipt recorded, joiners included, each retried by the next
   owner): `a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each` in
-  `model_receipt_r18_tests.rs`.
-- Covered, control: worker error on the actual lane files (the joiner is recorded, the forced receipt is not):
-  `a_forcing_error_records_the_failed_receipt_and_the_joiner_but_not_the_forced_one` in
-  `commit_flusher_tests.rs`.
+  `model_receipt_r18_tests.rs`. Not shown: the error path is now four observable phases (list, record, release,
+  list again; a_receipt_that_joins_between_the_error_listing_and_the_release_is_recorded_by_the_second_listing
+  shows the joiner), with one forcing error per run and one erroring flusher; a failure of the recording itself,
+  repeated errors and the real error file are not modeled here (the file is shown by the component tests).
+- Covered, control: worker error on the actual lane files (every receipt whose name is not forced is recorded,
+  the joiner too, also one that joins after the listing):
+  `a_receipt_that_joins_after_the_error_listing_is_recorded` in `commit_flusher_window_tests.rs`.
 - Covered, control: worker exit (one-shot, lock released and recheck sweep):
   `a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock` in `model_receipt_r18_tests.rs`.
 - Covered, control: worker exit on the actual lock (the recheck sweep forces a receipt created in the release
@@ -262,8 +276,11 @@ classification is the author's until a review accepts it.
 - Narrower, property: captured authority valid through completion or verified substitution:
   `r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support` in
   `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer (the reclamation-during-capture
-  control is not yet); the older test p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows
-  only the state-directory refusal.
+  control is not yet); succession is by the hashes of the records a checkpoint replaces
+  (a_replacement_state_that_does_not_descend... is
+  r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment), one hop only, so an
+  acknowledgment older than the previous checkpoint is not covered; the older test
+  p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows only the state-directory refusal.
 - Not yet, control: reclamation during capture. Needs: a model of capture against a concurrent reclaimer.
 - Not yet, control: every forcing error. Needs: fault injection at each forcing call of the departure, with
   the outside-fault exit checked.
@@ -301,9 +318,14 @@ classification is the author's until a review accepts it.
   `commit_state_log_tests.rs`.
 - Covered, control: predecessor deletion: `a_checkpoint_survives_the_deletion_of_its_predecessor` in
   `model_discharge_r14_tests.rs`.
-- Covered, control: mutable dependency (an existing ledger writer after capture):
+- Narrower, control: mutable dependency (an existing ledger writer after capture):
   `r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger` in
-  `commit_state_log_tests.rs`.
+  `commit_state_log_tests.rs`. Not shown: saved content is sealed at capture and refused while any process holds
+  a writable descriptor
+  (r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_content_cannot_be_reopened),
+  asked of the kernel by a read lease, so it needs a file system and an owner that grant one (otherwise it fails
+  closed) and a privileged writer or a writable parent directory can still replace sealed content, which the
+  checksum name then detects and does not prevent.
 - Covered, property: maximum-generation conflicts are rejected:
   `two_documents_at_one_generation_are_a_conflict_not_a_root` in `commit_state_log_tests.rs`.
 - Narrower, property: damaged established roots fail closed:
@@ -334,8 +356,14 @@ classification is the author's until a review accepts it.
   `model_capture_r13_tests.rs`.
 - Covered, control: conditional installation keeps displaced versions:
   `overlapping_staged_and_worktree_versions_are_all_kept` in `model_merge_r14_tests.rs`.
-- Covered, control: no foreign lock removal: `a_lock_without_a_live_creator_is_never_removed` in
-  `model_m1_split_r13_tests.rs`.
+- Narrower, control: no foreign lock removal, no live lock removed, and the lane reclaims a proven-stale lock
+  of its own dead incarnation (owner decision of 2026-11-04):
+  `a_proven_stale_lock_is_reclaimed_by_one_reclaimer_under_the_flock` in `model_m1_reclaim_r19_tests.rs`. Not
+  shown: the exact steps of the shipped mechanism: the claim chain slot protocol and the unlink-after-check
+  steps are modeled as the unreviewed branch fix/git-policy-cli-index-lock-reclaim-without-flock at b071e48f74
+  describes them, and wait for its review; the mixed-mount residue (one reclaimer with a working flock, one
+  without) is reachable and is the stated one; a person removing the lock by hand between the check and the
+  unlink is the labelled premise break; no component calls the mechanism yet.
 - Covered, control: interrupted installation and reboot:
   `a_cleanup_begun_before_the_span_ends_finishes_after_it_and_no_new_one_starts` in `model_watch_r13_tests.rs`.
 - Historical only, control: HEAD changes: `revision_seven_first_try_path_stages_on_the_switched_branch` in
@@ -362,13 +390,22 @@ classification is the author's until a review accepts it.
   preparation wait.
 - Narrower, control: recovery conflict, refusal and signing failure notices: `the_notice_follows_the_outcome`
   in `model_fresh_attempt_r19_tests.rs`. Not shown: the notice texts of the conflict, refusal and
-  signing-failure outcomes; the model checks that the stored notice follows the outcome of the fresh attempt.
+  signing-failure outcomes, which the model keeps as one Failed symbol without outcome detail or commit
+  identity; the model checks that the stored notice follows the outcome of the fresh attempt, and after a crash
+  with surviving positive authority it reconciles a notice that still says scheduled
+  (a_settled_recovery_reconciles_a_notice_that_still_says_scheduled) for the Published and Failed abstraction.
 - Narrower, control: notice crash and reclamation:
   `recovery_data_is_kept_until_the_outcome_notice_is_delivered` in `model_fresh_attempt_r19_tests.rs`. Not
-  shown: crash points of every notice kind; the model covers the fresh-attempt notice only (its second-crash and
-  printed-then-crash controls are the neighbouring tests).
-- Covered, property: decision 19, fresh attempt with a stored notice when no decisive positive authority
-  survives: `decision_nineteen_is_green_over_every_schedule` in `model_fresh_attempt_r19_tests.rs`.
+  shown: crash points of every notice kind; the model covers the fresh-attempt notice only, for one request with
+  at most two power losses; delivery is bound to the attempt and needs the forced removal, with print, remove
+  and force-removal as separate steps
+  (an_earlier_attempts_delivery_does_not_authorize_reclaiming_a_later_attempt is the neighbouring test).
+- Narrower, property: decision 19, fresh attempt with a stored notice when no decisive positive authority
+  survives: `decision_nineteen_is_green_over_every_schedule` in `model_fresh_attempt_r19_tests.rs`. Not shown:
+  one request and at most two power losses; one Failed symbol for conflict, refusal and signing failure, with no
+  outcome detail and no commit identity; the notice file is a visible and a durable content, not the real file;
+  no component implements the recovery; the reviewer found two reachable false-green schedules in the first
+  version (settled with a notice that stays scheduled, delivery of an earlier attempt), now regressions.
 - Covered, control: the notice is forced before the attempt starts:
   `the_notice_is_forced_before_the_attempt_starts` in `model_fresh_attempt_r19_tests.rs`.
 - Covered, control: a durable receipt settles the request and the attempt-again control is red:
@@ -455,17 +492,136 @@ Left:
 
 ## Round 15 state
 
-Round 15 answers `commit-models-sol-9a.txt` (components and evidence) and `commit-models-sol-9b.txt` (models and map) against the
-unchanged revision 19 acceptance target. The sections below are filled as the work lands; an item listed under "Queue" is not done.
+Round 15 answers `commit-models-sol-9a.txt` (components and evidence) and `commit-models-sol-9b.txt` (models and map)
+against the unchanged revision 19 acceptance target, and applies the owner decision of 2026-11-04 ("Reclaim it
+(Recommended)") that replaces R-never. Nothing here is wired into the live wrapper. A red-first test is committed before
+its fix; where the red is a single-defect control of a model and not a failing replay, the entry says so.
 
-### Queue
+### Review 9a section 3, launch and flusher
 
-- 9b item 1: split the receipt model's error path into observable phases (pairs with 9a 3D).
-- 9b item 2: fresh-attempt model, Settled reconciliation, attempt-bound delivery, split print/remove/force-remove.
-- 9b item 3 and 9a section 4: map status and `remains` corrections.
-- Owner decision of 2026-11-04 ("Reclaim it (Recommended)"): R-never is replaced; the lane reclaims a proven-stale `index.lock` of
-  its own dead incarnation. Change the models and the map rows that encode R-never; keep "no foreign lock is removed" and "a live lock
-  is never removed" as checks; the mechanism's steps (holder proven gone, one reclaimer, identity checked before removal, no atomic
-  remove-if-same) are modeled as stated, and the part that waits for the review of
-  `fix/git-policy-cli-index-lock-reclaim-without-flock` is named below when done.
-- 9a 2D, 2E, section 4 test limitations, the supported-scope exclusion paragraph.
+- 3A, launch success ignored a first-child failure. Red (`commit_helper_launch_fault_tests.rs`):
+  `a_failed_second_fork_is_a_failed_launch_and_no_helper_runs`,
+  `a_helper_whose_stream_setup_fails_is_reported_to_the_launcher`,
+  `a_helper_whose_descriptor_closing_fails_is_reported_to_the_launcher`, each returned success. Green: the launch waits
+  for the helper's own ready byte on a pipe and names `FirstChildFailed`, `SetupFailed` or `LostBeforeReady`.
+- 3B, the single-threaded precondition. Red: `a_launch_from_a_process_with_another_thread_is_refused_before_the_fork`
+  (the reviewer's mutex held by another launcher thread; the launch returned success and the helper stayed blocked).
+  Green: the launch reads `/proc/self/task` and refuses with `LaunchError::Threaded`. The harness runs each test on a
+  second thread, so tests launch from `in_single_threaded_process` (a forked copy with one thread).
+- 3C, one helper per client. Red: `clients_that_find_the_flusher_lock_held_start_no_helper` (four forks) and
+  `many_clients_start_one_helper_and_it_holds_the_lock` (four forks). Green: `launch_flusher` takes `flusher.lock`
+  first and hands the open file description to the single helper it forks. Options considered:
+  - Option 1, the launcher takes the lock and the helper keeps it (chosen): exact bound of one helper per holder, no new
+    lock; con: the launch needs a keep-descriptor parameter.
+  - Option 2, a non-blocking probe before the fork: no handoff; con: the bound is the probe window, not one.
+  - Option 3, an `O_EXCL` launch marker: con: stale on a crash and foreign removal is banned.
+  - Ranking: option 1 > option 2, because only option 1 gives a bound; option 2 > option 3, because a marker leaves a
+    stale file that nobody may remove.
+- 3D, a receipt that joins after the error listing. Red: `a_receipt_that_joins_after_the_error_listing_is_recorded`
+  (needs the fault point `flusher:after-error-snapshot`). Green: the error path lists, records, releases the lock and
+  lists once more.
+- 3E, a forced file whose directory entry was not forced. Red: the renamed
+  `a_forcing_error_records_every_receipt_whose_name_is_not_forced_the_joiner_included` and
+  `a_launched_flusher_records_a_forcing_error_and_releases_the_lock` (expectation `a`, `b`, `c`). Green: names enter
+  `forced` only after the directory is forced.
+
+### Review 9a section 2, components
+
+- 2A, a document and an independent list. Red:
+  `r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it`
+  and `r15_recovery_does_not_select_a_document_whose_needs_its_set_does_not_cover`. Green: a document names its
+  dependencies with `cli-git-needs <hex path>` lines (`needs_line`); the writer and recovery accept a record only when
+  its retained set covers them. This is a design choice the design does not settle. Options:
+  - Needs lines owned by the state log (implemented): the record is checkable by recovery; con: the lane's real state
+    document must adopt the line grammar.
+  - Non-reclaiming checkpoints (empty `reclaims`): no grammar; con: the log never shrinks and the reclamation rows lose
+    their evidence.
+  - A typed document parsed by the caller: con: the same independence as before.
+  - Ranking: needs lines > non-reclaiming, because reclamation stays available with a checkable obligation;
+    non-reclaiming > typed parse, because it is safe without trusting a caller. The owner or the design reviewer may
+    prefer the second; switching is one change of `reclaims`.
+- 2B, content addressing detects and does not prevent. Red:
+  `r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_content_cannot_be_reopened`.
+  Green: capture and completion seal the file (no write permission) and ask the kernel for a read lease, which is
+  granted only when no process holds a writable descriptor; the check fails closed where no lease can be asked for.
+  Remains: a privileged writer or a writable parent directory can still replace sealed content, and a raw creator
+  that writes through a descriptor it opened before capture is refused only while that descriptor is open.
+- 2C, retirement and the authoritative ledger. Red:
+  `r15_recovery_reaches_a_retirement_record_after_the_disposal_removed_the_content`
+  (`Damaged`) and `r15_a_disposal_line_in_an_unrelated_prefix_file_does_not_discharge_saved_content`. Green: recovery
+  selects the last record whose own set validates within the chain of records whose declared sets follow by non-drop or
+  by a ledger proof; only the lane's `ledger` (`LANE_LEDGER`) discharges an item.
+- 2D, forced paths, not forced prefixes. Red:
+  `r15_a_departure_forces_the_longer_ledger_prefix_of_a_state_that_grew_while_it_forced`
+  (fault point `departure:after-items-forced`). Green: a departure accounts items by path, length and checksum.
+- 2E, inclusion, not succession. Red:
+  `r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment`
+  and the flipped forged-hash assertion of
+  `r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support`.
+  Green: a replacement authority records the chain hashes of the records it replaces (`lineage`), and coverage across
+  segments needs the promised record among them. Remains: one hop, so an acknowledgment older than the previous
+  checkpoint is not covered (fail closed).
+
+### Review 9a section 4, test limitations
+
+- The three tests that were not red first keep their names where they still describe the behaviour. The joiner test was
+  renamed and its expectation corrected (3E); the launched-flusher test now launches from a single-threaded copy; the
+  healthy-lane test is unchanged.
+- `r14_every_save_is_attempted_after_a_stop_error_and_a_saved_content_error` now supplies an order file and asserts the
+  whole failure inventory (a strengthening; it passed before, so it was not red first).
+- `a_recheck_that_finds_work_and_the_lock_taken_hands_over` keeps its raw holder; the real second flusher is
+  `a_flusher_launched_in_the_release_window_carries_the_receipt_the_first_hands_over` (not red first: it needs the
+  lock-first launch to be deterministic).
+
+### Review 9b
+
+- Item 1, the receipt error path is four observable phases (list, record, release, list again). Red by control:
+  `EighteenErrorNoRelist` and `EighteenErrorIgnoresJoiners` in
+  `a_receipt_that_joins_between_the_error_listing_and_the_release_is_recorded_by_the_second_listing`; the old
+  transition could not express the schedule. A new flag (`fresh_record`) records that an error written after the last
+  startup sweep waits for the next owner.
+- Item 2, the fresh-attempt model. A: `a_settled_recovery_reconciles_a_notice_that_still_says_scheduled` (red under
+  `SettledKeepsNotice`). B: `an_earlier_attempts_delivery_does_not_authorize_reclaiming_a_later_attempt` (red under
+  `DeliveryIsRequestWide`). Delivery is the forced removal of the attempt's own final notice; print, remove and
+  force-removal are separate transitions.
+- Item 3, map corrections: the worker-error, checkpoint-and-recovery and decision 19 rows are Narrower with honest
+  remains; the notice rows' remains no longer say only "other texts"; the request-family row states the real family.
+  The reference-interpreter row stays Covered as the reviewer accepted.
+
+### Owner decision of 2026-11-04, R-never replaced
+
+`model/model_m1_reclaim_r19.rs` models the lane reclaiming a proven-stale `index.lock` of its own dead incarnation:
+holder proven gone and the judged file remembered, exactly one reclaimer (an exclusive `flock` on the stale file, or the
+claim chain where `flock` is absent), a check that the name still refers to the judged file, and an unlink that is a
+separate step. Checks kept: no foreign lock is removed, a live lock is never removed (each unless a person removed the
+stale lock by hand first), two reclaimers never hold at once, and no stale lock of the dead incarnation is left unless a
+reclaimer died holding. Red: never-remove (the superseded rule), no hold, no name check, an unproven holder, and the
+mixed-mount residue. `model_m1_split_r13.rs` stays as the split compare and unlink control and is labelled
+superseded for
+this lock in its header. What waits for the review of `fix/git-policy-cli-index-lock-reclaim-without-flock` (read at
+`b071e48f74`, not yet reviewed): the claim chain's slot protocol and its leftover handling; the map row is Narrower for
+that reason. The design file was not edited.
+
+### Supported scope: paragraph for the design, not yet placed
+
+The design lives on `fix/git-policy-cli-commits-never-fail` in another worktree, so it was not edited from here. The
+paragraph the acceptance target's "Fix the supported Git, backend and filesystem scope" needs, without a new criterion:
+
+> Supported scope for the acceptance target: Linux; Git 2.56.0; the files and reftable ref backends;
+  `update-ref --stdin`
+> with an update as the transaction invocation; a local file system that grants `flock`, directory fsync and read
+> leases. Excluded from the supported scope until a test shows them: packed refs, linked worktrees, the side-ref
+> transaction, creation, deletion and symbolic-ref updates through the transaction, other Git versions, the
+> manager-started transient unit launch route (only the double-forked fallback is built), a launch from a process with
+> more than one thread, memory-cap refusal of a launch, and level 2.
+
+### Findings and limits for the reviewer (none adds a row)
+
+- The launch refusal of a threaded process means the real call sites must be single-threaded at the launch; no call site
+  exists yet, so this is shown on test copies of a process only.
+- `r15_` in test names is the round number and is unrelated to design revision 15 (`model_submission_r15`).
+- The model-level reds for items 9b 1 and 2 are single-defect controls, not failing replays of the submitted model.
+- Contradictions with the design: none found. The design still says R-never in its choices list; the coordinator amends
+  revision 19.
+
+Gates at the tip: see the report; the full run, both clippy variants and the `source_guard` tests are green.
