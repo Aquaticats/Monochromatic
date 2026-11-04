@@ -265,3 +265,17 @@ fn a_cycle_with_no_exit_and_a_state_only_the_environment_can_leave_never_complet
     let stuck = crate::model_explore::explore_eventually(vec![20], finish_steps, at_three, limits());
     assert!(stuck.violation.is_some());
 }
+
+/// Review 3a P2: a state or depth cap that omits edges does not manufacture a liveness violation; the report is inconclusive
+/// (`exhausted == false`), and `deepest` is the deepest state reached.
+#[test]
+fn a_truncated_search_reports_no_liveness_violation_it_cannot_support() {
+    let narrow = Limits { max_states: 2, max_depth: 100 };
+    let truncated = crate::model_explore::explore_eventually(vec![0], finish_steps, at_three, narrow);
+    assert!(truncated.violation.is_none() && !truncated.exhausted);
+    let shallow = Limits { max_states: 100, max_depth: 1 };
+    let cut = crate::model_explore::explore_eventually(vec![0], finish_steps, at_three, shallow);
+    assert!(cut.violation.is_none() && !cut.exhausted);
+    let full = crate::model_explore::explore_eventually(vec![0], finish_steps, at_three, Limits { max_states: 100, max_depth: 100 });
+    assert_eq!(full.deepest, 3);
+}

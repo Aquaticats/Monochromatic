@@ -537,11 +537,13 @@ pub fn explore_bounded_by<S: Clone + Eq + Hash>(
 }
 
 /// What:
-///  Checks that the protocol can always finish: from every reachable state that is not a goal, a path of the protocol's own steps
+///  Checks AG EF goal: from every reachable state that is not a goal, a path of the protocol's own steps
 ///  (steps that are not `outside:` or `environment:`) leads to a goal state. A reachable cycle of non-goal states with no such
 ///  exit, and a non-goal state with no own step, are both reported, with the trace to the first such state.
-///  The search assumes a fair choice among own steps (an exit that is always available is eventually taken); it does not assume the
-///  environment ever helps.
+///  This is reachability of the goal from every reachable state, not weak-fair eventual completion: a model whose own steps can
+///  loop for ever beside an available exit is green here (the exit is assumed to be taken eventually). It does not assume the
+///  environment ever helps. When the state or depth cap omitted edges, a state with an omitted edge is treated as able to finish
+///  (unknown is not a counterexample) and the report says `exhausted: false`; a violation is reported only where the coverage is complete.
 /// Why:
 ///  `explore` calls its `terminal` check only at states with no own step, so a cycle of own steps that never completes (a restarter
 ///  that starts again and again against an owner it can never restart) is never examined. This is the general liveness check.
@@ -559,6 +561,7 @@ pub fn explore_eventually<S: Clone + Eq + Hash>(
     let mut nodes: Vec<Node<S>> = Vec::new();
     let mut seen: HashMap<S, usize> = HashMap::new();
     let mut edges: Vec<Vec<usize>> = Vec::new();
+    let mut omitted: Vec<bool> = Vec::new();
     let mut exhausted: bool = true;
     for initial in initials {
         if !seen.contains_key(&initial) {
@@ -573,12 +576,14 @@ pub fn explore_eventually<S: Clone + Eq + Hash>(
         let state: S = nodes[at].state.clone();
         let depth: usize = nodes[at].depth;
         let mut own: Vec<usize> = Vec::new();
+        let mut cut: bool = false;
         for (label, after) in successors(&state) {
             let index: usize = match seen.get(&after) {
                 Some(found) => *found,
                 None => {
                     if nodes.len() >= limits.max_states || depth >= limits.max_depth {
                         exhausted = false;
+                        cut = true;
                         continue;
                     }
                     seen.insert(after.clone(), nodes.len());
@@ -591,9 +596,10 @@ pub fn explore_eventually<S: Clone + Eq + Hash>(
             }
         }
         edges.push(own);
+        omitted.push(cut);
     }
     // Backward fixpoint: a state can finish if it is a goal or some own step leads to a state that can.
-    let mut can_finish: Vec<bool> = nodes.iter().map(|node| { return goal(&node.state); }).collect();
+    let mut can_finish: Vec<bool> = nodes.iter().enumerate().map(|(index, node)| { return goal(&node.state) || omitted[index]; }).collect();
     let mut changed: bool = true;
     while changed {
         changed = false;
@@ -611,5 +617,6 @@ pub fn explore_eventually<S: Clone + Eq + Hash>(
             return Report { states: nodes.len(), deepest: nodes[index].depth, exhausted: false, violation: Some(Violation { message, trace }) };
         }
     }
-    return Report { states: nodes.len(), deepest: 0, exhausted, violation: None };
+    let deepest: usize = nodes.iter().map(|node| { return node.depth; }).max().unwrap_or(0);
+    return Report { states: nodes.len(), deepest, exhausted, violation: None };
 }
