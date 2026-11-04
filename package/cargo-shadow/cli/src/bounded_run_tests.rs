@@ -44,7 +44,8 @@ fn a_child_that_outlives_its_bound_is_stopped_and_named() {
     let directory = crate::test_scratch::scratch();
     let marker = directory.path().join("started");
     let started = Instant::now();
-    let script: String = format!(": > {}; exec sleep 5", marker.display());
+    let pid_file = directory.path().join("payload-pid");
+    let script: String = format!("echo $$ > {}; : > {}; exec sleep 5", pid_file.display(), marker.display());
 
     // An attempt whose bound ended before the payload wrote its marker is repeated with a longer one (the bound counts scope startup).
     let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
@@ -54,6 +55,9 @@ fn a_child_that_outlives_its_bound_is_stopped_and_named() {
         &mut |limit| { return output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit)); },
     );
 
+    // The payload is gone the moment the run returned, before any cleanup of the test (fourth certification pass): a timeout that
+    // returned at the deadline without stopping it would leave it running here.
+    assert!(!crate::contain_counterexample_tests::is_running(pid_in(&pid_file)), "the payload still runs after the run returned at its bound");
     // With the first bound the child (five seconds) is stopped at the bound and not waited for.
     assert!(limit != Duration::from_secs(2) || started.elapsed() < Duration::from_secs(5), "the child was waited for: {:?}", started.elapsed());
     assert!(marker.exists(), "the payload never started, so the bound was not the command's lifetime");

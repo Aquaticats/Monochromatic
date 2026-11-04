@@ -175,6 +175,10 @@ fn a_timeout_returns_promptly_even_when_the_child_ignores_its_input() {
 
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
     assert!(pid_file.exists(), "the program never started, so the feeder was never blocked by a program that ignores its input");
+    // The program is gone when the run returned (fourth certification pass), not only the call: the feeder that was blocked on its
+    // input is cancelled with it.
+    let payload: i32 = crate::contain_counterexample_tests::read_pid(&pid_file);
+    assert!(!crate::contain_counterexample_tests::is_running(payload), "the program that ignores its input still runs after the timeout returned");
     assert!(started.elapsed() < Duration::from_secs(10), "{:?}", started.elapsed());
 }
 
