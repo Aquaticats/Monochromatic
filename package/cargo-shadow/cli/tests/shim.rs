@@ -570,3 +570,59 @@ fn started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_
     let real_runs: usize = log_lines(&world).iter().filter(|line| { return line.starts_with("check"); }).count();
     assert_eq!(real_runs, 1, "the real cargo ran {real_runs} times for one command: {:?}", log_lines(&world));
 }
+
+/// Acceptance row K1 (certification, third pass): the warning about kept files is on the command's real standard error on every
+/// completed run past the count, with the count, the combined size and the central folder, and the completed runs delete none of the
+/// kept files and replace none of them (content and inode are compared, not only the names).
+/// The central folder and the lockfile's directory are populated; each run is a stale lockfile that the shadow updates.
+#[test]
+fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_keeps_every_kept_file_itself() {
+    use std::os::unix::fs::MetadataExt;
+    // The count past which the warning is printed (`KEPT_FILES_WARNING_COUNT`) and the central folder (`QUARANTINE_DIR`), read from
+    // the library so the test cannot drift from them.
+    let count: usize = cargo_shadow::journal::KEPT_FILES_WARNING_COUNT;
+    let world = make_world();
+    let central: PathBuf = world.repository.join(cargo_shadow::journal::QUARANTINE_DIR);
+    std::fs::create_dir_all(&central).expect("the central folder");
+    let crate_root: PathBuf = world.repository.join(CRATE_DIR);
+    for index in 0..count {
+        std::fs::write(central.join(format!("Cargo.lock.displaced.{index}")), format!("kept {index}")).expect("a central kept file");
+    }
+    std::fs::write(crate_root.join("Cargo.lock.refused"), "refused text").expect("a kept copy beside the lockfile");
+    std::fs::write(crate_root.join(".Cargo.lock.shadow-abc.tmp"), "stranded").expect("a stranded temporary");
+    // Every kept file: path, content, inode. A directory that cannot be listed fails the test instead of reading as empty.
+    let inventory = || -> Vec<(PathBuf, Vec<u8>, u64)> {
+        let mut found: Vec<(PathBuf, Vec<u8>, u64)> = Vec::new();
+        for directory in [&central, &crate_root] {
+            for entry in std::fs::read_dir(directory).expect("lists the directory") {
+                let entry = entry.expect("reads an entry");
+                let name: String = entry.file_name().to_string_lossy().into_owned();
+                let kept_beside: bool = name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
+                if directory == &central || kept_beside {
+                    found.push((entry.path(), std::fs::read(entry.path()).expect("reads a kept file"), entry.metadata().expect("examines").ino()));
+                }
+            }
+        }
+        found.sort();
+        return found;
+    };
+
+    for run in 0..3 {
+        write_lock(&world, STALE);
+        let before = inventory();
+
+        let output = run_shadow(&world, &["check", "-q"], "", 0);
+
+        assert_eq!(output.status.code(), Some(0), "run {run}: {}", String::from_utf8_lossy(&output.stderr));
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        let bytes: usize = before.iter().map(|(_, content, _)| { return content.len(); }).sum();
+        let notices: Vec<&str> = stderr.lines().filter(|line| { return line.contains("They were moved aside instead of deleted"); }).collect();
+        assert_eq!(notices.len(), 1, "run {run}: the warning was not printed exactly once on stderr: {stderr}");
+        assert!(notices[0].contains(&format!("{} files, {bytes} bytes in all", before.len())) && notices[0].contains(&central.display().to_string()), "run {run}: {}", notices[0]);
+        // No kept file was deleted, replaced or changed by the completed run (a file with the same name but another inode or content fails).
+        let after = inventory();
+        for kept in &before {
+            assert!(after.contains(kept), "run {run}: the kept file {} was deleted, replaced or changed", kept.0.display());
+        }
+    }
+}
