@@ -15,7 +15,7 @@
 //! await putInPlace({ stage, destination, mode });
 //! ```
 
-use crate::add_timing::step as timed;
+use crate::add_timing::{begin_step, end_step};
 use crate::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, remove_at, rename_at};
 use crate::fs_btrfs_ioctl::snapshot_create_at;
 use crate::subvolume_index_files::install_index_in;
@@ -127,12 +127,18 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
     let entries: Vec<StatEntry> = if own_index.is_none() { stored_stats(bytes, source.clean.hash_length).ok_or_else(|| { return String::from("the source's index changed shape"); })? } else { Vec::new() };
     // One walk of the snapshot proves it equal to the source's index and returns the stat fields the new index takes: every
     //  file is looked at once, and the fields are the ones the verdict was given on.
-    let walked: Vec<StatFields> = timed("walkSnapshot", || { return tree_fields_beneath(&root, entries.as_slice(), source.clean.index_seconds); })
+    let walk_snapshot_entered: bool = begin_step("walkSnapshot");
+    let walk_snapshot_outcome = tree_fields_beneath(&root, entries.as_slice(), source.clean.index_seconds);
+    end_step(walk_snapshot_entered);
+    let walked: Vec<StatFields> = walk_snapshot_outcome
         .map_err(|refusal: CleanRefusal| { return format!("the source changed while it was copied ({})", refusal.reason); })?;
     let known: std::collections::HashMap<&[u8], StatFields> = entries.iter().map(|entry: &StatEntry| { return entry.path.as_slice(); }).zip(walked).collect();
     // An entry the walk did not cover (a source with changes has no walk) is looked at through a cursor that keeps its directory.
     let mut cursor: StatCursor<'_> = StatCursor::new(&root);
-    let report: String = timed("installIndexFile", || { return install_index_in(admin, bytes, &mut |path: &[u8]| { return known.get(path).copied().or_else(|| { return cursor.fields(path); }); }, source.clean.hash_length); })?;
+    let install_index_file_entered: bool = begin_step("installIndexFile");
+    let install_index_file_outcome = install_index_in(admin, bytes, &mut |path: &[u8]| { return known.get(path).copied().or_else(|| { return cursor.fields(path); }); }, source.clean.hash_length);
+    end_step(install_index_file_entered);
+    let report: String = install_index_file_outcome?;
     crate::diagnostic_log::debug("takeSnapshot", report.as_str());
     return Ok(());
 }
@@ -166,17 +172,39 @@ fn read_own_index(stage: &Path) -> Result<Vec<u8>, String> {
 /// await takeSnapshot({ source, plan, stage, admin, pointer });
 /// ```
 pub fn take_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &File, pointer: &[u8]) -> Result<Snapshotted, SnapshotFailure> {
-    timed("snapshotIoctl", || { return snapshot_create_at(source.root.as_path(), stage); }).map_err(|error| { return SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None }; })?;
+    let snapshot_ioctl_entered: bool = begin_step("snapshotIoctl");
+    let snapshot_ioctl_outcome = snapshot_create_at(source.root.as_path(), stage);
+    end_step(snapshot_ioctl_entered);
+    snapshot_ioctl_outcome.map_err(|error| { return SnapshotFailure { reason: format!("the snapshot was refused ({error})"), stage: None }; })?;
     // From here the stage exists and this process made it; its identity is what a later removal checks.
     let made: Option<ObjectId> = open_root(stage.parent().unwrap_or(stage)).ok().and_then(|parent: File| { return identity_at(&parent, stage.file_name()?).ok(); });
     let failed = |reason: String| -> SnapshotFailure { return SnapshotFailure { reason, stage: made }; };
     std::fs::set_permissions(stage, std::fs::Permissions::from_mode(0o700)).map_err(|error| { return failed(format!("the stage cannot be made private ({error})")); })?;
     // The snapshot's own index is read before its `.git` goes: it is the index of the same instant as the files.
-    let own_index: Option<Vec<u8>> = if source.dirty.is_some() { Some(timed("readOwnIndex", || { return read_own_index(stage); }).map_err(failed)?) } else { None };
-    let pruned: Pruned = timed("prune", || { return prune_snapshot(stage, source); }).map_err(failed)?;
-    timed("removeStubs", || { return remove_stubs(stage, source, plan); }).map_err(failed)?;
-    timed("replacePointer", || { return replace_git_pointer(stage, pointer); }).map_err(failed)?;
-    timed("installIndex", || { return install_index(source, stage, admin, own_index.as_deref()); }).map_err(failed)?;
+    let own_index: Option<Vec<u8>> = if source.dirty.is_some() {
+        let read_own_index_entered: bool = begin_step("readOwnIndex");
+        let read_own_index_outcome = read_own_index(stage);
+        end_step(read_own_index_entered);
+        Some(read_own_index_outcome.map_err(failed)?)
+    } else {
+        None
+    };
+    let prune_entered: bool = begin_step("prune");
+    let prune_outcome = prune_snapshot(stage, source);
+    end_step(prune_entered);
+    let pruned: Pruned = prune_outcome.map_err(failed)?;
+    let remove_stubs_entered: bool = begin_step("removeStubs");
+    let remove_stubs_outcome = remove_stubs(stage, source, plan);
+    end_step(remove_stubs_entered);
+    remove_stubs_outcome.map_err(failed)?;
+    let replace_pointer_entered: bool = begin_step("replacePointer");
+    let replace_pointer_outcome = replace_git_pointer(stage, pointer);
+    end_step(replace_pointer_entered);
+    replace_pointer_outcome.map_err(failed)?;
+    let install_index_entered: bool = begin_step("installIndex");
+    let install_index_outcome = install_index(source, stage, admin, own_index.as_deref());
+    end_step(install_index_entered);
+    install_index_outcome.map_err(failed)?;
     let stage_id: ObjectId = made.ok_or_else(|| { return failed(String::from("the stage cannot be examined")); })?;
     return Ok(Snapshotted { stage: stage_id, trash: pruned.trash });
 }

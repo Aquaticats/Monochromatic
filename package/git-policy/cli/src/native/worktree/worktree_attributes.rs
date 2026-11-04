@@ -44,9 +44,139 @@ pub struct AttributeLine {
     pub tokens: Vec<Vec<u8>>,
 }
 
+/// What:
+///  Whether a byte separates the pieces of an attribute line: a space or a tab.
+/// Why:
+///   Pieces are the words between blanks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// BLANK.includes(byte)
+/// ```
+fn is_blank(byte: &u8) -> bool {
+    return BLANK.contains(byte);
+}
+
+/// What:
+///  Whether a byte is not a blank.
+/// Why:
+///   The first byte that is not a blank starts the line's text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// !BLANK.includes(byte)
+/// ```
+fn is_not_blank(byte: &u8) -> bool {
+    return !BLANK.contains(byte);
+}
+
+/// What:
+///  Whether a piece split out of a line holds any byte.
+/// Why:
+///   Runs of blanks leave empty pieces between them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// piece.length > 0
+/// ```
+fn is_nonempty_piece(piece: &&[u8]) -> bool {
+    return !piece.is_empty();
+}
+
+/// What:
+///  Whether a byte is a line feed.
+/// Why:
+///   The file is read line by line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x0a
+/// ```
+fn is_newline(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  Whether a byte is NUL.
+/// Why:
+///   Git reads a line only up to a NUL.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether a byte is a slash.
+/// Why:
+///   Paths and patterns are split on their slashes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x2f
+/// ```
+fn is_slash(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// What:
+///  Whether a byte is an equals sign.
+/// Why:
+///   An attribute token is its name, then `=` and a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x3d
+/// ```
+fn is_equals_sign(byte: &u8) -> bool {
+    return *byte == b'=';
+}
+
+/// What:
+///  Whether a byte is neither `-` nor `!`.
+/// Why:
+///   Those two marks in front of an attribute name unset or reset it, and are not part of the name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte !== 0x2d && byte !== 0x21
+/// ```
+fn is_not_negation_mark(byte: &u8) -> bool {
+    return *byte != b'-' && *byte != b'!';
+}
+
+/// What:
+///  Whether a byte is a backslash or an opening bracket.
+/// Why:
+///   A pattern with either is not compared by the cheap rules, so the file may apply to any path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x5c || byte === 0x5b
+/// ```
+fn is_backslash_or_bracket(byte: &u8) -> bool {
+    return *byte == b'\\' || *byte == b'[';
+}
+
+/// What:
+///  Whether two bytes are `**`.
+/// Why:
+///   A double star crosses directories, so the cheap rules cannot decide such a pattern.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pair === '**'
+/// ```
+fn is_double_star(pair: &[u8]) -> bool {
+    return pair == b"**";
+}
+
 /// The pieces of `line` separated by blank bytes.
 fn blank_separated(line: &[u8]) -> Vec<Vec<u8>> {
-    return line.split(|byte: &u8| { return BLANK.contains(byte); }).filter(|piece: &&[u8]| { return !piece.is_empty(); }).map(<[u8]>::to_vec).collect();
+    return line.split(is_blank).filter(is_nonempty_piece).map(<[u8]>::to_vec).collect();
 }
 
 /// What:
@@ -62,10 +192,10 @@ fn blank_separated(line: &[u8]) -> Vec<Vec<u8>> {
 /// ```
 pub fn parse_attribute_lines(bytes: &[u8]) -> Vec<AttributeLine> {
     let mut lines: Vec<AttributeLine> = Vec::new();
-    for (number, raw) in bytes.split(|byte: &u8| { return *byte == b'\n'; }).enumerate() {
+    for (number, raw) in bytes.split(is_newline).enumerate() {
         let without_mark: &[u8] = if number == 0 { raw.strip_prefix(BYTE_ORDER_MARK).unwrap_or(raw) } else { raw };
-        let text: &[u8] = without_mark.split(|byte: &u8| { return *byte == 0; }).next().unwrap_or(&[]);
-        let start: usize = text.iter().position(|byte: &u8| { return !BLANK.contains(byte); }).unwrap_or(text.len());
+        let text: &[u8] = without_mark.split(is_nul).next().unwrap_or(&[]);
+        let start: usize = text.iter().position(is_not_blank).unwrap_or(text.len());
         let line: &[u8] = &text[start..];
         if line.is_empty() || line[0] == b'#' {
             continue;
@@ -88,9 +218,9 @@ pub fn parse_attribute_lines(bytes: &[u8]) -> Vec<AttributeLine> {
 
 /// The attribute a token sets, unsets or leaves unspecified, without the sign and the value.
 pub fn attribute_name(token: &[u8]) -> &[u8] {
-    let start: usize = token.iter().position(|byte: &u8| { return *byte != b'-' && *byte != b'!'; }).unwrap_or(token.len());
+    let start: usize = token.iter().position(is_not_negation_mark).unwrap_or(token.len());
     let rest: &[u8] = &token[start..];
-    return rest.split(|byte: &u8| { return *byte == b'='; }).next().unwrap_or(&[]);
+    return rest.split(is_equals_sign).next().unwrap_or(&[]);
 }
 
 /// What:
@@ -122,7 +252,7 @@ pub fn wildcard(pattern: &[u8], text: &[u8]) -> bool {
             }
         }
         std::mem::swap(&mut reach, &mut next);
-        if !reach.iter().any(|alive: &bool| { return *alive; }) {
+        if !reach.contains(&true) {
             return false;
         }
     }
@@ -144,18 +274,22 @@ pub fn may_apply(pattern: &[u8], base: &[u8], path: &[u8]) -> bool {
     if pattern.is_empty() {
         return false;
     }
-    if pattern[0] == b'"' || pattern.iter().any(|byte: &u8| { return *byte == b'\\' || *byte == b'['; }) || pattern.windows(2).any(|pair: &[u8]| { return pair == b"**"; }) || pattern.ends_with(b"/") {
+    if pattern[0] == b'"' || pattern.iter().any(is_backslash_or_bracket) || pattern.windows(2).any(is_double_star) || pattern.ends_with(b"/") {
         return true;
     }
     let relative: &[u8] = if base.is_empty() {
         path
     } else {
-        match path.strip_prefix(base).and_then(|rest: &[u8]| { return rest.strip_prefix(b"/"); }) {
+        let below_base: Option<&[u8]> = match path.strip_prefix(base) {
+            Some(rest) => rest.strip_prefix(b"/"),
+            None => None,
+        };
+        match below_base {
             Some(rest) => rest,
             None => return false,
         }
     };
-    let compared: &[u8] = if pattern.contains(&b'/') { relative } else { relative.rsplit(|byte: &u8| { return *byte == b'/'; }).next().unwrap_or(&[]) };
+    let compared: &[u8] = if pattern.contains(&b'/') { relative } else { relative.rsplit(is_slash).next().unwrap_or(&[]) };
     // The table has one cell per pattern byte and text byte; past the budget the comparison is not made and the answer is yes.
     if pattern.len().saturating_mul(compared.len() + 1) > MATCH_WORK_LIMIT {
         return true;

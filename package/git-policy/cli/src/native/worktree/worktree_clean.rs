@@ -15,6 +15,7 @@
 //! const clean = await checkClean({ root, gitDir, commonDir }); // { headCommit, headTree } or throws a reason
 //! ```
 
+use crate::add_timing::{begin_step, end_step};
 use crate::scoped_start::start_or_run;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::ObjectFormat;
@@ -680,8 +681,14 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
     if let Some(name) = operation_in_progress(git_dir, owned_index_lock) {
         return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
     }
-    let state: State = crate::add_timing::step("readIndexAndTree", || { return read_state(git_dir, common_dir); })?;
-    if let Some(refusal) = crate::add_timing::step("indexAgainstTree", || { return index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice()); }) {
+    let read_index_and_tree_entered: bool = begin_step("readIndexAndTree");
+    let read_index_and_tree_outcome = read_state(git_dir, common_dir);
+    end_step(read_index_and_tree_entered);
+    let state: State = read_index_and_tree_outcome?;
+    let index_against_tree_entered: bool = begin_step("indexAgainstTree");
+    let index_against_tree_outcome = index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice());
+    end_step(index_against_tree_entered);
+    if let Some(refusal) = index_against_tree_outcome {
         return Err(refusal);
     }
     let differs: Option<CleanRefusal> = match environment {

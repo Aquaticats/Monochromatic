@@ -241,7 +241,26 @@ pub fn begin(common_dir: PathBuf) {
 
 /// Run `body` as the step `name`; with no recording begun, `body` runs alone.
 pub fn step<T>(name: &str, body: impl FnOnce() -> T) -> T {
-    // The recording is taken out of its cell while it is updated and put back at once, so `body` never runs with the cell borrowed.
+    let entered: bool = begin_step(name);
+    let value: T = body();
+    end_step(entered);
+    return value;
+}
+
+/// What:
+///  Enter the step `name` and say whether a recording took it; the first half of `step` for a caller that runs the body itself.
+/// Why:
+///   A body that needs the caller's variables is written in place between `begin_step` and `end_step`, so no closure has to
+///  carry them. The answer goes to `end_step` unchanged; with no recording begun, nothing is entered and `end_step` does nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entered = beginStep('walkSource');
+/// const value = walk();
+/// endStep(entered);
+/// ```
+pub fn begin_step(name: &str) -> bool {
+    // The recording is taken out of its cell while it is updated and put back at once, so the body never runs with the cell borrowed.
     let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
     let entered: bool = match recording.as_mut() {
         Some((began, recorder)) => {
@@ -251,15 +270,26 @@ pub fn step<T>(name: &str, body: impl FnOnce() -> T) -> T {
         None => false,
     };
     ACTIVE.set(recording);
-    let value: T = body();
+    return entered;
+}
+
+/// What:
+///  Leave the step that `begin_step` entered, when it entered one.
+/// Why:
+///   The second half of `step`: it ends the step's clock at the moment the body is done, whether the body succeeded or not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// endStep(entered);
+/// ```
+pub fn end_step(entered: bool) {
     if entered {
-        let mut entered_recording: Option<(Instant, Recorder)> = ACTIVE.take();
-        if let Some((began, recorder)) = entered_recording.as_mut() {
+        let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
+        if let Some((began, recorder)) = recording.as_mut() {
             recorder.leave(began.elapsed());
         }
-        ACTIVE.set(entered_recording);
+        ACTIVE.set(recording);
     }
-    return value;
 }
 
 /// What:
@@ -316,15 +346,44 @@ pub fn git_step_label(arguments: &[OsString]) -> String {
 /// const value = work('clone', () => cloneTree());
 /// ```
 pub fn work<T>(name: &str, body: impl FnOnce() -> T) -> T {
-    let began: Instant = Instant::now();
+    let began: Instant = begin_work();
     let value: T = body();
+    end_work(name, began);
+    return value;
+}
+
+/// What:
+///  The clock reading that starts a stretch of work; the first half of `work` for a caller that runs the body itself.
+/// Why:
+///   A body that needs the caller's variables is written in place between `begin_work` and `end_work`, so no closure has to
+///  carry them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork();
+/// const value = scan();
+/// endWork('untrackedScan', began);
+/// ```
+pub fn begin_work() -> Instant {
+    return Instant::now();
+}
+
+/// What:
+///  Add the time since `began` to the work named `name`.
+/// Why:
+///   The second half of `work`: the sum per name says how much work a step held across threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// endWork('untrackedScan', began);
+/// ```
+pub fn end_work(name: &str, began: Instant) {
     let spent: Duration = began.elapsed();
     if let Ok(mut work) = WORK.lock()
         && let Some(list) = work.as_mut()
     {
         list.push((name.to_string(), spent));
     }
-    return value;
 }
 
 /// Note a fact about the add being recorded; nothing outside a recording.

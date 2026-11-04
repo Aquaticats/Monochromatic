@@ -17,6 +17,7 @@
 //! ```
 
 use crate::fs_beneath::{ObjectId, identity_of, open_file_at, open_root};
+use crate::worktree_path_failure_message::subject_failure;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
@@ -48,9 +49,33 @@ pub struct Bound {
     pub admin: File,
 }
 
+/// What:
+///  The value of the first line `<key>=<value>` of a record's text, if any line has that key.
+/// Why:
+///   A binding record is a list of `key=value` lines, and a field is looked up by key.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.split('\n').map((line) => line.startsWith(`${key}=`) ? line.slice(key.length + 1) : undefined).find((value) => value !== undefined)
+/// ```
+fn field_of<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix(key)
+            && let Some(value) = rest.strip_prefix('=')
+        {
+            return Some(value);
+        }
+    }
+    return None;
+}
+
 /// Lower-case hexadecimal of bytes.
 fn hex(bytes: &[u8]) -> String {
-    return bytes.iter().map(|byte: &u8| { return format!("{byte:02x}"); }).collect();
+    let mut spelled: String = String::new();
+    for byte in bytes {
+        spelled.push_str(format!("{byte:02x}").as_str());
+    }
+    return spelled;
 }
 
 /// The bytes of lower-case hexadecimal text.
@@ -58,7 +83,15 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
     if text.len() % 2 != 0 {
         return None;
     }
-    return (0..text.len()).step_by(2).map(|start: usize| { return u8::from_str_radix(text.get(start..start + 2)?, 16).ok(); }).collect();
+    // The first pair that is not hexadecimal ends the decoding with nothing, as collecting into an `Option` did.
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut start: usize = 0;
+    while start < text.len() {
+        let pair: &str = text.get(start..start + 2)?;
+        bytes.push(u8::from_str_radix(pair, 16).ok()?);
+        start += 2;
+    }
+    return Some(bytes);
 }
 
 /// The text of a path for a record: hexadecimal, so that a newline in a name cannot forge a field.
@@ -106,20 +139,19 @@ pub enum Recorded {
 /// function decodeRecord(text: string): Recorded | undefined;
 /// ```
 pub fn decode_record(text: &str) -> Option<Recorded> {
-    let field = |key: &str| -> Option<&str> { return text.lines().find_map(|line: &str| { return line.strip_prefix(key).and_then(|rest: &str| { return rest.strip_prefix('='); }); }); };
-    let destination: PathBuf = decode_path(field("destination")?)?;
-    if field("phase")? == "planned" {
+    let destination: PathBuf = decode_path(field_of(text, "destination")?)?;
+    if field_of(text, "phase")? == "planned" {
         return Some(Recorded::Planned(destination));
     }
-    if field("phase")? != "registered" {
+    if field_of(text, "phase")? != "registered" {
         return None;
     }
     return Some(Recorded::Registered(Binding {
         destination,
-        destination_id: ObjectId::decode(field("destination_id")?)?,
-        admin: decode_path(field("admin")?)?,
-        admin_id: ObjectId::decode(field("admin_id")?)?,
-        pointer: unhex(field("pointer")?)?,
+        destination_id: ObjectId::decode(field_of(text, "destination_id")?)?,
+        admin: decode_path(field_of(text, "admin")?)?,
+        admin_id: ObjectId::decode(field_of(text, "admin_id")?)?,
+        pointer: unhex(field_of(text, "pointer")?)?,
     }));
 }
 
@@ -150,26 +182,31 @@ pub fn path_identity(path: &Path) -> Option<ObjectId> {
 /// ```
 pub fn bind_registration(common_dir: &Path, destination: &Path) -> Result<Bound, String> {
     let shown: String = destination.display().to_string();
-    let held: File = open_root(destination).map_err(|error| { return format!("{shown} is not a real directory ({error})"); })?;
-    let pointer: Vec<u8> = read_through(&held, OsStr::new(".git")).map_err(|error| { return format!("{shown}/.git is unreadable ({error})"); })?;
+    let pointer_shown: String = format!("{shown}/.git");
+    let registration_shown: String = format!("the registration of {shown}");
+    let held: File = subject_failure(open_root(destination), &shown, "is not a real directory")?;
+    let pointer: Vec<u8> = subject_failure(read_through(&held, OsStr::new(".git")), &pointer_shown, "is unreadable")?;
     let pointer_path: PathBuf = destination.join(".git");
     let admin_path: PathBuf = pointer_target(destination, pointer.as_slice())?;
     // The target is opened as a canonical root first: a pointer through a link is refused here, with its own message.
-    let admin: File = open_root(admin_path.as_path()).map_err(|error| { return not_canonical(shown.as_str(), admin_path.as_path(), error.to_string().as_str()); })?;
-    let worktrees: PathBuf = std::fs::canonicalize(common_dir.join("worktrees")).map_err(|error| { return format!("the worktrees of the repository are unreadable ({error})"); })?;
+    let admin: File = match open_root(admin_path.as_path()) {
+        Ok(opened) => opened,
+        Err(error) => return Err(not_canonical(shown.as_str(), admin_path.as_path(), error.to_string().as_str())),
+    };
+    let worktrees: PathBuf = subject_failure(std::fs::canonicalize(common_dir.join("worktrees")), &"the worktrees of the repository", "are unreadable")?;
     if admin_path.parent() != Some(worktrees.as_path()) {
         return Err(format!("{shown} is not registered in this repository"));
     }
-    let recorded: Vec<u8> = read_through(&admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
+    let recorded: Vec<u8> = subject_failure(read_through(&admin, OsStr::new("gitdir")), &registration_shown, "is unreadable")?;
     let recorded_line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
     if recorded_destination(admin_path.as_path(), recorded_line)?.as_path() != pointer_path.as_path() {
         return Err(format!("the registration {} does not name {shown}", admin_path.display()));
     }
     let binding: Binding = Binding {
         destination: destination.to_path_buf(),
-        destination_id: identity_of(&held).map_err(|error| { return format!("{shown} cannot be examined ({error})"); })?,
+        destination_id: subject_failure(identity_of(&held), &shown, "cannot be examined")?,
         admin: admin_path,
-        admin_id: identity_of(&admin).map_err(|error| { return format!("the registration cannot be examined ({error})"); })?,
+        admin_id: subject_failure(identity_of(&admin), &"the registration", "cannot be examined")?,
         pointer,
     };
     return Ok(Bound { binding, destination: held, admin });
@@ -191,7 +228,10 @@ fn not_canonical(shown: &str, target: &Path, why: &str) -> String {
 /// resolve(adminDirectory, recordedGitdirLine) === join(destination, '.git');
 /// ```
 fn recorded_destination(admin: &Path, recorded: &[u8]) -> Result<PathBuf, String> {
-    return resolve_lexically(admin, recorded).map_err(|()| { return format!("the registration {} names a place outside the file system root", admin.display()); });
+    return match resolve_lexically(admin, recorded) {
+        Ok(resolved) => Ok(resolved),
+        Err(()) => Err(format!("the registration {} names a place outside the file system root", admin.display())),
+    };
 }
 
 /// What:
@@ -233,8 +273,13 @@ fn resolve_lexically(base: &Path, named: &[u8]) -> Result<PathBuf, ()> {
 fn pointer_target(destination: &Path, pointer: &[u8]) -> Result<PathBuf, String> {
     let shown: String = destination.display().to_string();
     let line: &[u8] = pointer.strip_suffix(b"\n").unwrap_or(pointer);
-    let named: &[u8] = line.strip_prefix(b"gitdir: ").ok_or_else(|| { return format!("{shown}/.git is not a gitdir pointer"); })?;
-    return resolve_lexically(destination, named).map_err(|()| { return format!("the pointer in {shown}/.git climbs out of the file system root"); });
+    let Some(named) = line.strip_prefix(b"gitdir: ") else {
+        return Err(format!("{shown}/.git is not a gitdir pointer"));
+    };
+    return match resolve_lexically(destination, named) {
+        Ok(resolved) => Ok(resolved),
+        Err(()) => Err(format!("the pointer in {shown}/.git climbs out of the file system root")),
+    };
 }
 
 /// The bytes of the file `name` of the held directory, read through the handle and not through a path.
@@ -266,17 +311,20 @@ pub fn verify_association(bound: &Bound) -> Result<(), String> {
     if path_identity(binding.admin.as_path()) != Some(binding.admin_id) {
         return Err(format!("the registration {} is no longer the one Git made for this add", binding.admin.display()));
     }
-    let pointer: Vec<u8> = read_through(&bound.destination, OsStr::new(".git")).map_err(|error| { return format!("{shown}/.git is unreadable ({error})"); })?;
+    let pointer: Vec<u8> = subject_failure(read_through(&bound.destination, OsStr::new(".git")), &format!("{shown}/.git"), "is unreadable")?;
     if pointer != binding.pointer {
         return Err(format!("{shown}/.git is no longer the pointer Git wrote"));
     }
     // What Git resolves the unchanged pointer to now: the target is opened without a link and must be the held registration.
     let target: PathBuf = pointer_target(binding.destination.as_path(), pointer.as_slice())?;
-    let resolved: File = open_root(target.as_path()).map_err(|error| { return not_canonical(shown.as_str(), target.as_path(), error.to_string().as_str()); })?;
+    let resolved: File = match open_root(target.as_path()) {
+        Ok(opened) => opened,
+        Err(error) => return Err(not_canonical(shown.as_str(), target.as_path(), error.to_string().as_str())),
+    };
     if identity_of(&resolved).ok() != Some(binding.admin_id) || identity_of(&bound.admin).ok() != Some(binding.admin_id) {
         return Err(format!("the pointer in {shown}/.git now resolves to another registration than the one Git made for this add"));
     }
-    let recorded: Vec<u8> = read_through(&bound.admin, OsStr::new("gitdir")).map_err(|error| { return format!("the registration of {shown} is unreadable ({error})"); })?;
+    let recorded: Vec<u8> = subject_failure(read_through(&bound.admin, OsStr::new("gitdir")), &format!("the registration of {shown}"), "is unreadable")?;
     let line: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
     if recorded_destination(binding.admin.as_path(), line)?.as_path() != binding.destination.join(".git").as_path() {
         return Err(format!("the registration {} no longer names {shown}", binding.admin.display()));

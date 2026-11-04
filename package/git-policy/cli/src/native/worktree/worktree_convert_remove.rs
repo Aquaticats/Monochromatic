@@ -18,7 +18,7 @@ use crate::subvolume_error::MigrateError;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_remove::remove_tree;
 use crate::worktree_convert_compare::first_difference;
-use crate::worktree_convert_journal::is_recorded_object;
+use crate::worktree_convert_journal::{io_step, is_recorded_object};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -60,22 +60,6 @@ pub fn remove_recorded_old_tree(platform: &dyn Platform, parent: &std::fs::File,
 /// const doNothing = () => {};
 /// ```
 fn do_nothing() {}
-
-/// What:
-///  An input or output outcome with its failure turned into a conversion error that names the action and the path.
-/// Why:
-///   Eight steps of the removal report the same way, and a named function replaces a closure at each.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function ioStep<T>(outcome: () => T, action: string, path: string): T { try { return outcome(); } catch (error) { throw migrateIo(action, path, error); } }
-/// ```
-fn io_step<T>(outcome: std::io::Result<T>, action: &str, path: &Path) -> Result<T, MigrateError> {
-    return match outcome {
-        Ok(value) => Ok(value),
-        Err(error) => Err(MigrateError::io(action, path, &error)),
-    };
-}
 
 /// `remove_recorded_old_tree` with a call right after the directory was pinned and judged to be the old tree, where a control
 ///  moves it away and puts another directory at the name.

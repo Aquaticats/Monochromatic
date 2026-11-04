@@ -20,7 +20,7 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use crate::add_timing::{begin as begin_timing, finish as finish_timing, step as timed};
+use crate::add_timing::{begin as begin_timing, begin_step, end_step, finish as finish_timing, step as timed};
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
@@ -363,8 +363,12 @@ fn settle_creation(
         .destination
         .as_deref()
         .is_some_and(|destination| { return destination_is_registered(observation.common_dir.as_path(), destination); });
-    let ladder = timed("chooseRung", || { return begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity); });
-    let ran: Result<GitStatus, WorktreeCopyError> = timed("gitAdd", || { return run_git(&ladder.first_step()); });
+    let choose_rung_entered: bool = begin_step("chooseRung");
+    let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
+    end_step(choose_rung_entered);
+    let git_add_entered: bool = begin_step("gitAdd");
+    let ran: Result<GitStatus, WorktreeCopyError> = run_git(&ladder.first_step());
+    end_step(git_add_entered);
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => Ok(timed("finishRung", || { return ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout()); })),
         Err(error) => {
@@ -376,7 +380,10 @@ fn settle_creation(
     let LadderResult { git, carried } = settled?;
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
-            match timed("copyIgnored", || { return synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr); }) {
+            let copy_ignored_entered: bool = begin_step("copyIgnored");
+            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, git.succeeded(), carried.as_deref(), stderr);
+            end_step(copy_ignored_entered);
+            match copy_ignored_outcome {
                 Ok(roots) => (None, roots),
                 // A copy that failed leaves a worktree that is not whole; repairing it would hide that.
                 Err(failure) => (Some(failure), Vec::new()),
@@ -459,7 +466,10 @@ fn settle_observed(
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.
-    timed("recover", || { return recover_pending_worktree_copies(observation.common_dir.as_path(), stderr); })?;
+    let recover_entered: bool = begin_step("recover");
+    let recover_outcome = recover_pending_worktree_copies(observation.common_dir.as_path(), stderr);
+    end_step(recover_entered);
+    recover_outcome?;
     if !invocation.creates {
         return forward_only(run_git);
     }
