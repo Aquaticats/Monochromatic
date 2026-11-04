@@ -729,7 +729,7 @@
     },
     "cargo:monochromatic-file-enforcer-cli": {
       "request": "cargo:monochromatic-file-enforcer-cli@latest",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "route": "cargo-binstall",
       "bins": [
         "file-enforcer"
@@ -1525,5 +1525,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:52d224f2e908f02f70f0fe07e4b94cdc833818c413025d3b421ae60ca1789ee7"
+  "digest": "sha256:5154610e4d819be4ae52ac9b5224cabd0fbbae34a4457ecca5275d420886f7c4"
 }
