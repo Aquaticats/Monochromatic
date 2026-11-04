@@ -528,6 +528,42 @@ fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     remove(world.root.as_path());
 }
 
+/// A Git whose reference update of the landing (`update-ref --stdin`) is slow but ends: it waits `seconds`, then does what the real
+///  one does. Finite on purpose, so a control that finds the update ended early or never fails in moments and never hangs.
+fn late_reference_git(world: &World, seconds: u64) -> PathBuf {
+    let program: PathBuf = world.root.join("late-update-ref-git");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" update-ref --stdin \"*) sleep {seconds}; exec '{real}' \"$@\";;\n  *) exec '{real}' \"$@\";;\nesac\n",
+        real = crate::test_support::REAL_GIT
+    );
+    std::fs::write(&program, script).expect("script");
+    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// Owner, 2026-11-04: "Never cut a branch write (Recommended)". A branch write that outlasts the ceiling the other steps have is not
+/// ended: the update finishes, the commit is on the branch, the answer is `Landed`, and nothing was ended, kept on a side ref or
+/// withdrawn. The control shortens the ceiling of the steps that have one to a few seconds and delays the update past it.
+#[test]
+fn a_branch_write_that_outlasts_the_step_ceiling_is_not_ended() {
+    let world: World = world("service-land-branch-write-not-ended");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    context.git.real_git = late_reference_git(&world, SHORT_STEP_CEILING.as_secs() * 2);
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    let outcomes = answered.expect("the branch write was waited for, so the commit landed");
+    let Outcome::Landed { commit } = &outcomes[0] else { panic!("{outcomes:?}") };
+    assert_eq!(&git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), commit, "the branch is at the commit the answer names");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/cli-git/kept/"]), "", "nothing was kept on a side ref: nothing was withdrawn");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    assert!(said.lock().expect("lock").iter().all(|note| { return !matches!(note, Announce::Waiting(text) if text.contains("was not made")); }), "no step was ended");
+    remove(world.root.as_path());
+}
+
 /// A Git that does what the real one does, except that the reference update of the landing (`update-ref --stdin`) never returns:
 ///  after it did its work (`after`), or instead of it (`before`). The mode is in a file, so a control can change it.
 fn slow_reference_git(world: &World, mode: &str) -> PathBuf {
