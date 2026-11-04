@@ -33,6 +33,9 @@ pub mod claim_time;
 /// The repositories the service looks at again when a claim another instance holds may have run out.
 pub mod service_retry;
 
+/// The Git directories the service looks at by itself when it starts.
+pub mod service_claim_watch;
+
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
