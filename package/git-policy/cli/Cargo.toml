@@ -145,3 +145,8 @@ serde_json = ">=1.0.154"
 similar = { version = ">=3.2.1", default-features = false }
 tempfile = ">=3.27.0"
 ureq = { version = ">=3.5.0", default-features = false }
+
+# Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]

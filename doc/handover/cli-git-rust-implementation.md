@@ -427,11 +427,36 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   63 in `bin/`),
   29 of them TypeScript tests,
   all to be ported to Rust.
-  Next:
-  break the loop,
-  compute a layer per module from the graph,
-  and put the whole tree (every folder's old name,
-  new name and a one-line explanation) before the owner before anything moves.
+  Update 2026-11-04T18:40-05:00 (main `7663284896`):
+  a group order with no upward reference is found and committed with its group map (`bb9d8f3505`,
+  `doc/planning/cli-git-source-layout.md`, section "Group order found, from the bottom");
+  a rescan of main after the branch-write merge gives the same result;
+  27 loops between files inside groups remain (79 files).
+  Branch-write round 5 is merged (`de36a92311`, gate 4927/4927 at `258e0a2e14`).
+  The three `rust/tests-in-sidecars` errors are fixed on main (`7663284896`):
+  the inline test-only helper modules moved to `*_test_support.rs` files under the same module names.
+  Four lint agents work from `7663284896`, one disjoint folder set each, on `rust/avoidable-closure` and
+  `rust/max-lines` (brief `~/temp/agent/issue-6261/lint-brief.md`):
+  `refactor/git-policy-cli-lint-worktree-folders` (worktree, worktree_copying),
+  `refactor/git-policy-cli-lint-service-landing-and-runner-folders` (landing, service, transaction, invocation,
+  process, foundation),
+  `refactor/git-policy-cli-lint-reader-push-and-lock-folders` (repo_read, subvolume, push, index, lock),
+  `refactor/git-policy-cli-lint-command-and-policy-folders` (every other folder).
+  Oversized files are split by these agents, with each folder's file-loop list so a split breaks a loop rather than
+  adding one; the layout pass renames and moves files afterwards.
+  The coordinator merges the four branches and gates the result once.
+  The owner then added AGENTS.md VGW (no vague word such as `native` alone in a name; "helper_<specific> is fine")
+  and answered the layout questions: plain-sentence folder names (the draft in
+  `doc/planning/cli-git-source-layout.md`, `src/native/` gone), "hand back 'run this next'" in place of the two
+  in-process recursions, and all four smaller call changes.
+  A fifth agent builds the LYD and LYF checks into `monochromatic-lint`, off by default
+  (branch `feat/monochromatic-lint-folder-uses-and-file-loops`, brief `~/temp/agent/issue-6261/layout-lint-brief.md`).
+  Next for the layout:
+  break the file loops with named changes,
+  split the large groups into folders,
+  name every folder and file plainly with its `uses/` list,
+  rescan after the lint branches land,
+  and put the whole tree before the owner before anything moves.
 - Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
   (https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105):
   "The current layout is still completely unacceptable and far from enough to consider this issue complete."
