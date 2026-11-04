@@ -638,3 +638,6 @@ status 0
 The three gate runs before it failed on the two intermittent controls above and, once, on a clippy finding in this
 work
 (`chunks_exact` with a constant size, fixed).
+
+The gate of the second round, on the tip that holds both merges and the owner's rule for syncs: 4703 tests run, 4703 passed,
+7 skipped, exit status 0 (unit `gpc-gate-commits-fast-under-disk-pressure-20261103T205122-0500`).
