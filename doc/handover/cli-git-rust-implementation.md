@@ -4148,8 +4148,20 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the three probe controls do not establish their interleavings,
   reap and timing wording,
   and a cutover obligation for old probe-capable clients.
-  Round 21 sent with those;
-  parts to `commit-models-16-part-<n>-<topic>.diff`.
+  Round 21 done (tip `be89e6a319`,
+  479 model tests passed,
+  map 64,
+  17,
+  9,
+  18 not yet,
+  108 rows):
+  the release-and-recheck argument with a new control,
+  three production acquisition sites listed,
+  negative controls rebuilt on a test-only legacy probe seam,
+  reap and timing wording corrected,
+  and one Not-yet cutover row for old probe-capable clients.
+  Review running:
+  `commit-models-sol-16.txt` (prompt `commit-models-prompt-16.txt`).
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
