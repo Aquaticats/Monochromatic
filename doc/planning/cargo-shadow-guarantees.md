@@ -667,7 +667,11 @@ A row is "shown" when each of its schedules has a test that fails when the guara
 result; "partly" when a named part has no test yet.
 No row is certified by this map: the cross-vendor review of round 15 has not run, and the reviews of rounds 10 to 14 said that the
 count of shown rows was not established by the attachments they saw, whose unchanged tests they could not see.
-Counts: 16 rows, 16 shown, 0 partly, 0 not yet.
+Counts: 16 rows, 10 shown, 6 partly, 0 not yet.
+The certification pass (`cargo-shadow-cert-sol-1.txt`, `cargo-shadow-cert-sol-2.txt`; group 3 is still to come) found A1, A1/V3,
+A2/R4, V2 amended c, V3/V4 and V6 partly shown: the tests named for them pass but several do not discriminate the guarantee from a
+weaker outcome (details under each row; round 16 works on them).
+The other rows of those groups, A1/A2 and V1, were judged shown by the pass.
 Suite counts at the round 15 code tip `156208a7d4`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
 (`mise run //package/cargo-shadow/cli:test`) each ran 592 tests: 592 passed, 0 failed, 12 skipped; `lint:clippy` with warnings
 denied is clean.
@@ -716,7 +720,9 @@ for the red run).
 New behavior with no old code to fail (the scope route, the acknowledgement, the two views, the boot identity as a whole) has tests
 written with the code.
 
-- **A1: shown.**
+- **A1: partly (certification group 1).**
+  Not shown yet: successful reaping of the direct child is not observed (a later wait must give `ECHILD`), and the zombie-leader fixture
+  is not driven through the timeout boundary. What follows is what the named tests show today.
   `a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns` (the fixture says when its leader is a zombie
   and records its worker's thread id; the program's group is recorded and must be a delegated scope),
   `the_thread_oracle_sees_a_live_worker_behind_a_zombie_leader_and_its_end` (the control of the oracle),
@@ -727,7 +733,9 @@ written with the code.
   `a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent`.
   Round 10 (9b 3.7): the process oracle counts only `ESRCH` as an ended process, the thread fixture publishes a complete thread id by
   rename, and the writer tests of `src/bounded_contain_tests.rs` assert the scope record of their run.
-- **A1, V3 (spawn isolation): shown.**
+- **A1, V3 (spawn isolation): partly (certification group 2).**
+  Not shown yet: the overlap holds the first run before its launch, so its launcher spawn overlaps nothing; the launch and
+  group-association boundary under a handshake is not observed. What follows is what the named tests show today.
   `two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary`,
   `probe_5_the_spawner_never_changes_group_and_an_unrelated_child_stays_out`,
   `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended`.
@@ -764,7 +772,10 @@ written with the code.
   while it lives; settled, and the journal removed, without an acknowledgement after the launcher is shown gone and the scope was
   collected),
   `a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone`.
-- **A2, R4 (7a F3): shown.**
+- **A2, R4 (7a F3): partly (certification group 2).**
+  Not shown yet: a failure of the startup completion after the child and a writer are running; fault consumption and cause are not
+  asserted for every fault (the shim fixture reports `!fires` even when the fault was never armed). What follows is what the named
+  tests show today.
   The joined runner-to-install test, the fault classes and the unstoppable member, and, round 13,
   `a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` (the shim with a user-command sentinel behind the
   refusal; round 14: the helper's journal must record a scope, the weaker-path notice must be absent, the armed scope fault must have
@@ -820,7 +831,10 @@ written with the code.
 - **V1 (7b P1-2): shown.**
   `a_journal_listing_that_fails_in_any_way_stops_the_recovery`, `a_journal_listing_that_fails_in_any_way_stops_a_new_transaction`,
   `an_absent_journal_directory_is_no_journals`.
-- **V2, amended c: shown.**
+- **V2, amended c: partly (certification group 1).**
+  Not shown yet: a malformed-only record; survivor tests that block only through a unacknowledged process group; a crash test that
+  does not exclude a zombie launcher as its cause; changed-view cases that classify but never recover. What follows is what the
+  named tests show today.
   `a_survivor_of_one_journal_stops_the_recovery_of_another`, `a_new_transaction_does_not_start_beside_a_survivor`,
   `a_killed_wrapper_with_an_escaped_writer_stops_the_recovery`, `a_group_record_that_cannot_be_read_defers_the_recovery`,
   `a_malformed_group_record_defers_the_recovery`, `a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor`,
@@ -839,7 +853,9 @@ written with the code.
   `a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace` (9b 2.4: with the cgroup namespace
   and every recorded view equal, a bind mount of another cgroup directory over the directory that held the scope is refused for the
   parent view; the control before the bind clears).
-- **V3, V4: shown.**
+- **V3, V4: partly (certification group 2).**
+  Not shown yet: the order record write, successful sync, launch; the containment kind the runner attempted at a record fault.
+  What follows is what the named tests show today.
   The record is visible, written and synced before the program starts, and the faults of the write and of the sync are each reached
   and surface as the refusal (round 10, 9b 3.6); and, round 13, `a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively`
   kills a real wrapper after each step of the preparation of the journal (the hand-built states stay as
@@ -858,7 +874,10 @@ written with the code.
   refused output), `a_second_recovery_pass_changes_nothing_and_keeps_the_refused_copy`,
   `a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too`, `a_journal_marked_done_is_removed_by_the_next_recovery`,
   the unready and ready tests of `journal_recover_tests.rs`.
-- **V6: shown.**
+- **V6: partly (certification group 1).**
+  Not shown yet: a stalled scope startup and an unsuccessful shutdown with elapsed-time bounds; prompt return of the workspace-lock
+  contenders while the holder is held; a fail-closed process oracle in the bounded-run tests; the timeout variant asserted. What
+  follows is what the named tests show today.
   `a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline`, `a_discovery_whose_descendant_holds_the_pipes_ends_at_its_deadline`
   (round 12, 11b 2.7: an observer thread establishes, before the deadline, that the descendant is ready and alive when the direct
   program has exited),
