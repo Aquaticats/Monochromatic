@@ -961,7 +961,7 @@ pub fn replace_with_seams(path: &Path, expected: &str, new_text: &str, keep: &Ke
 /// ```
 pub(crate) fn names_exhausted_message(directory: &Path, base: &str) -> String {
     return format!(
-        "{} holds {MAX_NAME_ATTEMPTS} temporary files named after {base}; those files can be the only names of data another writer produced, so keep them, and move or archive the older ones before running the command again",
+        "{} holds {MAX_NAME_ATTEMPTS} temporary files named after {base}; those files can be the only names of data another writer produced, so keep them. Renaming one inside the same file system keeps its data; copying one elsewhere and deleting the original does not, because a program that still has the original open keeps writing to it. Close every program that may have one open before you move or remove any, then run the command again",
         directory.display()
     );
 }
