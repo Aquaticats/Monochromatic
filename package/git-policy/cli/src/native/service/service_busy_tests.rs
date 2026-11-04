@@ -12,7 +12,7 @@ const NEVER: Duration = Duration::from_secs(3600);
 const A_MOMENT: Duration = Duration::from_millis(20);
 
 fn board_stuck_after(slow_after: Duration) -> Arc<LandingBoard> {
-    return LandingBoard::new(std::env::temp_dir().join("service-busy-journal-that-does-not-exist"), slow_after);
+    return LandingBoard::new(crate::test_support::fixture("service-busy-board").join("journal-that-does-not-exist"), slow_after);
 }
 
 fn board() -> Arc<LandingBoard> {

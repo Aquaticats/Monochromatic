@@ -533,10 +533,10 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
 /// ```ts
 /// const answer = await askToWithdraw(config, id); // 'landed' | 'withdrawn' | undefined
 /// ```
-fn withdraw(config: &ClientConfig, id: &str, blocker: Option<String>) -> Result<Submitted, ClientFailure> {
+fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>) -> Result<Submitted, ClientFailure> {
     let minutes: u64 = config.answer_ceiling.as_secs() / 60;
     // What the service says it is stuck in on this connection replaces what it said on the first one: it is the newer.
-    let mut blocker: Option<String> = blocker;
+    let mut blocker: Option<String> = heard_blocker;
     let mut announced: bool = true;
     let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true) else {
         return Err(ClientFailure::WithdrawalUnconfirmed { blocker });

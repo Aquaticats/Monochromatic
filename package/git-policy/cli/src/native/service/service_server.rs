@@ -772,16 +772,16 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
                 }
             }
         }
-        for (_, group) in groups {
-            let index: Option<std::path::PathBuf> = group.first().map(|(request, _, _)| { return request.index.clone(); });
+        for (_, queued_group) in groups {
+            let index: Option<std::path::PathBuf> = queued_group.first().map(|(request, _, _)| { return request.index.clone(); });
             // A request whose client was answered "withdrawn" while this thread was stuck in a write is dropped here, and the
             //  rest are marked as being landed, under one lock (`service_busy.rs`).
-            let ids: Vec<String> = group.iter().map(|(request, _, _)| { return request.id.clone(); }).collect();
+            let ids: Vec<String> = queued_group.iter().map(|(request, _, _)| { return request.id.clone(); }).collect();
             let dropped: Vec<String> = board.begin_group(ids.as_slice());
             for id in &dropped {
                 crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
             }
-            let group: Vec<Queued> = group.into_iter().filter(|(request, _, _)| { return !dropped.contains(&request.id); }).collect();
+            let group: Vec<Queued> = queued_group.into_iter().filter(|(request, _, _)| { return !dropped.contains(&request.id); }).collect();
             if group.is_empty() {
                 board.end_group();
                 continue;
