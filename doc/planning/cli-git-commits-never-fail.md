@@ -242,14 +242,14 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
 11. Staged version and file differ at a merge, "Carry the file, save staged (Recommended)" (question tool, 2026-11-03,
     answered before the commit named below records it, on the revision 13 question 5): the file you see is the edit
     that is carried and the staged-only version is saved aside. Given; asked again only because the thirteenth review
-    found an option missing (revision 14, question 5), and the answer stands unless the added option changes it.
+    found an option missing (revision 15, question 5), and the answer stands unless the added option changes it.
 12. Slow forcing at leaving, "Short wait, then say unconfirmed (Recommended)" (same date and recording, revision 13
     question 6): provisional in revision 14, and superseded by decision 14: the owner answered that the final disk
     save is never cut short, so there is no timed departure and the question is not asked again.
 13. Late `git switch` watch, "A measured span, then stop (Recommended)" (same date and recording, revision 13 question
-    7): provisional: framing corrected in revision 14. The question claimed the cleanup never undoes a later
-    intentional change, which the thirteenth review disproved. It is asked again as three questions (revision 14,
-    questions 7a, 7b and 7c). Decisions 11 to 13 were recorded by commit 1734105e9a, whose time is
+    7): provisional: framing corrected. The question claimed the cleanup never undoes a later intentional change,
+    which the thirteenth review disproved. It is asked again as three questions (revision 15, questions 7a, 7b and
+    7c). Decisions 11 to 13 were recorded by commit 1734105e9a, whose time is
 14. The final disk save at leaving, "Assume the final disk save would never be cut short." (owner, 2026-11-03,
     verbatim; answered before the commit named below records it): the departure barrier (the stop disposition and then
     the saved-content set) always runs to completion. `WAIT_STOP` and `WAIT_DEPART` are removed as limits, questions
@@ -562,10 +562,11 @@ The register (waiting process; condition; bound and its basis; action at the bou
   capture no longer sees withdrawn work; `WAIT_WITHDRAW`, starting from `STOP_GRACE` (5 s, unmeasured); at the bound
   the command goes on to its departure barrier, and C1 keeps refusing to capture while the lane has not applied the
   withdrawal.
-
 - MATERIALIZE (revision 14): a command that published waiting for the single attempt at M1 or MG3; `WAIT_MATERIALIZE`,
-  starting from `STOP_GRACE` (unmeasured); at the bound, or when a foreign `index.lock` defers the install, the
-  command exits 0 `published` saying the index and files follow, and the service finishes the install.
+  starting from `STOP_GRACE` (unmeasured); `WAIT_MATERIALIZE` bounds the start of the single attempt; a mutation
+  already begun is finished, with interrupts held off. If the attempt has not started at the bound, or a foreign
+  `index.lock` defers it, the command exits 0 `published` saying the index and files follow, with `resume = M1` or
+  `MG3` recorded, and the service runs it (see the materialization executor rule).
 - DEPARTURE (decision 14, "Assume the final disk save would never be cut short."): a departing command forcing its
   stop disposition and then its saved-content set to disk (rule V). It has no bound, and it is not a wait on another
   party: a sync that does not complete is a disk I/O error, disk full or read-only remount, which the owner's list of
@@ -710,11 +711,12 @@ Withdrawal (revision 14)
   later one is ignored by every reader); (2) one S1 replacement making the request `withdrawn` (for the unresolved
   form this step and step (3) run only when E1 resolves the attempt: `published` goes the M1 way, and `unresolved`,
   `rewritten-away` or a late F remove the request with the re-basing below), dropping its consumption entries,
-  removing it from the logical tail, and sending every request whose built commit has the withdrawn commit as an
-  ancestor in the tail back to `resume = B1` (its `ready` record is discarded; it is replayed on the new tail), so the
-  capture-visible head and tail no longer contain withdrawn work (R12-6); (3) keep the built commit on
-  `refs/cli-git/<instance>/withdrawn/<id>` best effort (the spool is the guarantee). A held hook is not ended (its
-  completion is discarded as in B3). Crash: repeated; L4 reads the marks first.
+  removing it from the logical tail, and applying the removal rule of C1 (every request whose built commit has the
+  withdrawn commit as an ancestor in the tail goes back to `resume = B1` with its deferred selections added) (its
+  `ready` record is discarded; it is replayed on the new tail), so the capture-visible head and tail no longer contain
+  withdrawn work (R12-6); (3) keep the built commit on `refs/cli-git/<instance>/withdrawn/<id>` best effort (the spool
+  is the guarantee). A held hook is not ended (its completion is discarded as in B3). Crash: repeated; L4 reads the
+  marks first.
 
 Capture and acceptance (client)
 - C0 ensure the lane. Pre: C1 finds the marker set, or an open recovery journal (defined next), or no owner and a state document that does not
@@ -751,18 +753,20 @@ Capture and acceptance (client)
   W1 returns, which is after every read of this capture, so the capture treats the request as pending (the accepted
   consumed-entry limitation while a request is pending). A request with a `withdraw-unresolved` mark is different: its
   attempt may still land, so it stays pending in the tail with its entries live, C1 does not refuse for it, and a
-  wedged Git child therefore never freezes the lane's later commits. To keep the selection a capture made under that
-  pending base (R14-6), C1 records for every path it skips because a live consumption entry of an unresolved request
-  covers it the path and that entry (its blob is in that request's spool), the deferred selection; when the unresolved
-  request is later resolved without publishing (class F, `unresolved`, `rewritten-away`), W2 re-enters each descendant
-  at B1 with its deferred selection added to its delta against the new base, so the staging the capture omitted is
-  included; if the request publishes, the skip stays correct. The cost is two sets of `stat` calls over the in-flight
-  requests and no sync. The tip is not re-read to validate: a tip that moved during capture does not invalidate the
-  capture, because the delta is relative to the logical head and is replayed on the actual tip at adoption. Foreign
-  changes to the index or the worktree after the single reads are later staging, not an inconsistency, and cause no
-  retry. Crash: nothing durable. Starvation, stated: C1 repeats only when the lane's own state changed between its two
-  reads or a mark appeared, and CAPTURE ends that delay with an error and no request; it never waits on a foreign
-  program.
+  wedged Git child therefore never freezes the lane's later commits. To keep the selection a capture made under a
+  pending base (R14-6), C1 records, for every path it skips because a live `install` entry covers it, whoever owns the
+  entry, the path and that entry (its blob is in the owner's spool): the deferred selection. The removal rule (one
+  rule, cited by W2, E1 (b), the conflict outcome and `rewritten-away`): whenever a request that P1 put in the logical
+  tail ends without publishing (a plain or late-F withdrawal, `refused` at P2, `conflicted` at replay, `unresolved`,
+  `rewritten-away`), the lane removes it from the tail, re-enters each descendant at B1, and adds that descendant's
+  deferred selections that name the removed request to its delta against the new base, so the staging the capture
+  omitted is included; if the request publishes, the skip stays correct. The cost is two sets of `stat` calls over the
+  in-flight requests and no sync. The tip is not re-read to validate: a tip that moved during capture does not
+  invalidate the capture, because the delta is relative to the logical head and is replayed on the actual tip at
+  adoption. Foreign changes to the index or the worktree after the single reads are later staging, not an
+  inconsistency, and cause no retry. Crash: nothing durable. Starvation, stated: C1 repeats only when the lane's own
+  state changed between its two reads or a mark appeared, and CAPTURE ends that delay with an error and no request; it
+  never waits on a foreign program.
 - C2 expose the request and bind (revision 14; R13-1). Pre: C1. Do, in this order: (1) draw a fresh invocation nonce
   for this invocation, build the whole request in memory (record, manifest, every captured side), compute its checksum
   and its identity (the content hash, nonce included, plus the lane instance; rule V); (2) create and `flock` the
@@ -826,8 +830,10 @@ only. `retired` is eventual, recorded in the ledger, and never awaited by the co
 Build and publication (lane)
 - B1 build. Pre: adopted (or Q1 resumed with `resume = B1`). Do: build the commit by replaying the captured delta on the logical tail (an object
   write; no ref, index or worktree change). Outcomes of the build, each recorded in one S1 replacement and each with a defined client result:
-  (i) `conflicted`: the replay on a moved tail meets a content conflict no resolver settles, the owner's "stops as any merge does": the request
-  ends `conflicted`, the conflict tree is saved on `refs/cli-git/<instance>/conflict/<id>` best effort and the spool is kept, its consumption entries are
+  (i) `conflicted`: the replay on a moved tail meets a content conflict no resolver settles, the owner's "stops as any
+      merge does": the request ends `conflicted` (the removal rule of C1 applies to its descendants), the conflict
+      tree is saved on `refs/cli-git/<instance>/conflict/<id>` best effort and the spool is kept, its consumption
+      entries are
   released (nothing was installed, so the staging stays the person's), the client result is nonzero with the conflicting paths named, and the request is
   saved until the person disposes of it with the command the message names; (ii) `refused`: a required clean filter or a hook failed, the owner's "Allowed
   refusals": the request ends `refused` with the program's own message, entries released, nonzero, nothing changed; (iii) `sign-failed`: the configured
@@ -964,27 +970,28 @@ Build and publication (lane)
   publication, which alone allows the attempt to close and a later attempt to start: `commit` was never submitted and
   the child ended (so nothing was executed); or `abort: ok` was seen; or a `child_exit` of the `reference-transaction`
   hook with a non-zero code during `preparing` or `prepared` (the hook refused: record `refused` with the hook's own
-  standard error, nothing was changed, no retry of the hook); or `prepare` failed with no `prepare: ok` and a non-zero
-  exit (the ref store refused the update: a held lock, an old value that no longer matches, or another store failure;
-  class `store-failure`, P4, retried only on a trigger). U, unresolved execution after submission: `commit` was
-  submitted, and neither P nor `abort: ok` nor a positive failure report was established (the child ended or is still
-  running, the tip does not contain `new`, there is no reflog evidence). An ended child and an absent tip do not prove
-  that nothing was published: another writer may have published `new` and reset the branch away before the child died,
-  with no `commit: ok` printed. So U is never retried by a live owner, whatever N-silent concedes (N-silent covers a
-  retry after a proven store failure, class F, and nothing else); with a client attached it is COMMITTING and then the
-  unresolved exit; with no client it is a crash at P2 by the recovery classes (R5: owner decision 3). Evidence
-  unavailable or inconsistent (no events, a signal, a result the owner could not record, the owner died) is F only if
-  `commit` was never submitted, and U otherwise. X1 never cancels P2's child (update-ref is exempt). Crash: as P2.
-  Residue stated: a refusal not yet recorded when the owner dies is later judged by the recovery classes, so the hook
-  may run again at the next attempt of a request that still lands. Backend obligations (step 1): the trace2 events and
-  the report lines exist in the shapes assumed on each supported Git version and backend; hook descendants that hold
-  the error stream cannot alter them; a nested Git process started by a hook does not write to the same trace
-  destination (isolate it explicitly); the lane-private path is not a security boundary against a same-user program;
-  result handling does not wait for end of file on standard error from descendants after `update-ref` has exited; the
-  pipe, the line order, the first-closing-line behavior (including a failing first handler), the explicit-`start`
-  end-of-input abort versus the implicit transaction, the hook phases and the lock lifetime behave as stated on the
-  files and reftable backends. The cited lines are from the 2.56.0 source read by the author; the review that follows
-  has not inspected them, so they remain gates.
+  standard error, nothing was changed, no retry of the hook; the removal rule of C1 applies to the request and its
+  descendants); or `prepare` failed with no `prepare: ok` and a non-zero exit (the ref store refused the update: a
+  held lock, an old value that no longer matches, or another store failure; class `store-failure`, P4, retried only on
+  a trigger). U, unresolved execution after submission: `commit` was submitted, and neither P nor `abort: ok` nor a
+  positive failure report was established (the child ended or is still running, the tip does not contain `new`, there
+  is no reflog evidence). An ended child and an absent tip do not prove that nothing was published: another writer may
+  have published `new` and reset the branch away before the child died, with no `commit: ok` printed. So U is never
+  retried by a live owner, whatever N-silent concedes (N-silent covers a retry after a proven store failure, class F,
+  and nothing else); with a client attached it is COMMITTING and then the unresolved exit; with no client it is a
+  crash at P2 by the recovery classes (R5: owner decision 3). Evidence unavailable or inconsistent (no events, a
+  signal, a result the owner could not record, the owner died) is F only if `commit` was never submitted, and U
+  otherwise. X1 never cancels P2's child (update-ref is exempt). Crash: as P2. Residue stated: a refusal not yet
+  recorded when the owner dies is later judged by the recovery classes, so the hook may run again at the next attempt
+  of a request that still lands. Backend obligations (step 1): the trace2 events and the report lines exist in the
+  shapes assumed on each supported Git version and backend; hook descendants that hold the error stream cannot alter
+  them; a nested Git process started by a hook does not write to the same trace destination (isolate it explicitly);
+  the lane-private path is not a security boundary against a same-user program; result handling does not wait for end
+  of file on standard error from descendants after `update-ref` has exited; the pipe, the line order, the
+  first-closing-line behavior (including a failing first handler), the explicit-`start` end-of-input abort versus the
+  implicit transaction, the hook phases and the lock lifetime behave as stated on the files and reftable backends. The
+  cited lines are from the 2.56.0 source read by the author; the review that follows has not inspected them, so they
+  remain gates.
 - Recovery classes for an attempt, in this order. R1 a receipt, a recorded `published`, or `commit: ok` in the
   attempt's `out` file: published. R2 the new commit is the tip or an ancestor of it:
   published. R3 a reflog entry after the anchor whose own recorded old value is the new commit: `rewritten-away` (saved, not republished); this
@@ -2301,10 +2308,10 @@ Adopted without a question (the coordinator may veto; each follows from a rule t
 ## Owner questions for revision 15
 
 The owner decided "Assume the final disk save would never be cut short." (decision 14), so questions 6a and 6b are not
-asked. The questions below are the only open ones; the same text is in the separate file
-`commits-never-fail-questions-<tip>.md` in the review directory so that they can be checked on their own. Each
-question states its risk plainly; the recommended option is marked and the ranking gives a reason for each adjacent
-pair. None is decided here.
+asked. The questions below are the only open ones; the same text is in a separate file in the review directory, named
+`commits-never-fail-questions-` followed by the abbreviated hash of the commit that holds this text, so that they can
+be checked on their own. Each question states its risk plainly; the recommended option is marked and the ranking gives
+a reason for each adjacent pair. None is decided here.
 
 ### Question 5: when what you staged is not what is in the file
 
