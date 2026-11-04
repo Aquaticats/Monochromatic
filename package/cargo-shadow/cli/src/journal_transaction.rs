@@ -880,6 +880,23 @@ fn is_kept_beside_a_lockfile(name: &str) -> bool {
 }
 
 /// What:
+/// `pub fn announce_kept_files_for(root: &Path, crate_roots: &[String])` prints the kept-files warning for a run that starts no
+/// transaction, when the inventory is past the count.
+/// Why:
+/// The warning is promised on every run past the count, an ordinary run that finds every lockfile already satisfied included (sixth
+/// pass, group 7); a run that begins a transaction announces through the transaction instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function announceKeptFilesFor(root: string, crateRoots: string[]): void
+/// ```
+pub fn announce_kept_files_for(root: &Path, crate_roots: &[String]) {
+    if let Some(notice) = kept_folder_notice(root, crate_roots) {
+        announce_kept_notice(&notice);
+    }
+}
+
+/// What:
 /// `fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String>` is the warning for kept files past
 /// `KEPT_FILES_WARNING_COUNT`:
 /// how many (in the central folder and beside the lockfiles of the crate roots),

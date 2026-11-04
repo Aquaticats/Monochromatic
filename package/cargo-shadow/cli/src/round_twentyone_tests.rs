@@ -124,3 +124,32 @@ fn a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step() {
 
     assert!(outcome.ok && outcome.stdout == "ran contained\n", "{outcome:?}");
 }
+
+/// Sixth pass, group 7 (K1, colliding names): copies kept under a collision-suffixed name count toward the warning. One name short of
+/// the count is already beside the lockfile; two refusals through the real recovery add the first refused copy and a collision-named
+/// second one, and only counting both crosses the count.
+#[test]
+fn refused_copies_saved_under_collision_names_count_toward_the_kept_files_warning() {
+    let root = scratch();
+    let crate_root: PathBuf = root.path().join(CRATE_DIR);
+    fs::create_dir_all(&crate_root).expect("dir");
+    let count: usize = crate::journal::KEPT_FILES_WARNING_COUNT;
+    for index in 0..count - 1 {
+        fs::write(crate_root.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a kept file");
+    }
+    let snapshot = || -> Vec<LockSnapshot> { return vec![LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() }]; };
+    let refuse = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> { return vec!["dep@1.0.1 refused".to_string()]; };
+    for run in 0..2 {
+        fs::write(crate_root.join("Cargo.lock"), format!("unchecked output of killed run {run}")).expect("the killed run's output");
+        plant(root.path(), &snapshot(), &[]);
+        crate::journal::recover(root.path(), &refuse);
+    }
+    let refused: Vec<String> = fs::read_dir(&crate_root).expect("list").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).filter(|name| { return name.starts_with("Cargo.lock.refused"); }).collect();
+    assert_eq!(refused.len(), 2, "the two refusals did not leave two saved copies, so the schedule was not built: {refused:?}");
+    assert!(refused.iter().any(|name| { return name != "Cargo.lock.refused"; }), "no copy has a collision name: {refused:?}");
+
+    let transaction = crate::journal::begin(root.path(), &snapshot(), false).expect("a kept file never refuses");
+
+    let notice: &str = transaction.kept_notice().expect("the count was crossed only by counting the collision-named copy");
+    assert!(notice.contains(&format!("{} files", count + 1)), "{notice}");
+}

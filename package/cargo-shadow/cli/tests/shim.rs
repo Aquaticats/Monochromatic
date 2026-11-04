@@ -664,6 +664,38 @@ fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_ke
     }
 }
 
+/// Acceptance row K1 (sixth pass, group 7): the warning is on the real standard error of an ordinary repeated run too, one that finds
+/// the lockfile already satisfied and changes nothing. The lockfile is made stale once; later runs leave the accepted lockfile as it is
+/// (the real cargo is not asked to update anything on them), and each still prints the warning exactly once, with the same inventory.
+#[test]
+fn the_shadow_prints_the_kept_files_warning_on_a_run_that_finds_the_lockfile_already_satisfied() {
+    let count: usize = cargo_shadow::journal::KEPT_FILES_WARNING_COUNT;
+    let world = make_world();
+    let central: PathBuf = world.repository.join(cargo_shadow::journal::QUARANTINE_DIR);
+    std::fs::create_dir_all(&central).expect("the central folder");
+    for index in 0..=count {
+        std::fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+    }
+    write_lock(&world, STALE);
+    let first = run_shadow(&world, &["check", "-q"], "", 0);
+    assert_eq!(first.status.code(), Some(0), "{}", String::from_utf8_lossy(&first.stderr));
+    let accepted: String = read_lock(&world);
+    assert_ne!(accepted, STALE, "the first run did not update the stale lockfile, so the later runs would not be unchanged ones");
+
+    for run in 1..3 {
+        std::fs::remove_file(&world.log).ok();
+        let output = run_shadow(&world, &["check", "-q"], "", 0);
+
+        assert_eq!(output.status.code(), Some(0), "run {run}: {}", String::from_utf8_lossy(&output.stderr));
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        let notices: usize = stderr.lines().filter(|line| { return line.contains("They were moved aside instead of deleted"); }).count();
+        assert_eq!(notices, 1, "run {run}: the warning was not printed exactly once on a run that changed nothing: {stderr}");
+        assert_eq!(read_lock(&world), accepted, "run {run}: an unchanged run rewrote the accepted lockfile");
+        assert!(log_lines(&world).iter().all(|line| { return !line.contains("update"); }), "run {run}: the real cargo was asked to update on a run that found the lockfile satisfied: {:?}", log_lines(&world));
+        assert_eq!(std::fs::read_dir(&central).expect("lists").count(), count + 1, "run {run}: a kept file was deleted");
+    }
+}
+
 /// A catalog repository that is a real git repository, with `ignored/` ignored by git, a tracked crate and, in the ignored directory, a
 /// staged copy of that crate (as a gate's disposable build context is). Both lockfiles are stale, so a command that the shadow takes on
 /// updates the lock to satisfied, and one it leaves alone does not.
