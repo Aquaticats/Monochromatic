@@ -182,3 +182,17 @@ fn only_lowercase_hexadecimal_that_is_not_all_zero_is_a_machine_id() {
     assert!(!is_machine_id("0123456789abcdef0123456789abcdeg"), "not hexadecimal");
     assert!(!is_machine_id("uninitialized"), "a fresh image's text");
 }
+
+/// A stamp an earlier release wrote with an uppercase or an all-zero machine ID (it accepted any 32 hexadecimal digits) still
+///  decodes, through the code that reads a claim's file name, and is judged by the wall clock beside this host's own reading
+///  (which is stricter and so may have none), never read as another host's restart and never dropped.
+#[test]
+fn a_stamp_an_earlier_release_wrote_with_a_machine_id_of_any_case_still_decodes_and_is_judged_by_the_wall_clock() {
+    for stored in ["0123456789ABCDEF0123456789ABCDEF", "00000000000000000000000000000000"] {
+        let name: String = format!("item~0123456789abcdef0123456789abcdef~00112233445566778899aabbccddeeff~5000~1700000000~{stored}");
+        let (_, stamp) = crate::work_item::parse_claim_name(name.as_str()).expect("the name still parses");
+        let now: ClaimTime = ClaimTime::from_parts("ffeeddccbbaa99887766554433221100", Duration::from_secs(9), Duration::from_secs(1_700_000_100)).on_machine("0123456789abcdef0123456789abcdef");
+        assert!(!now.is_past_the_boot_of(&stamp), "{stored}: another machine's boot is no restart");
+        assert_eq!(now.elapsed_since(&stamp), Duration::from_secs(100), "{stored}: the wall clock decides");
+    }
+}
