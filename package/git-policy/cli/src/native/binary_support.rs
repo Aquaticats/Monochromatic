@@ -1206,13 +1206,13 @@ pub fn stderr_of(observed: &Observed) -> String {
 }
 
 /// The one writer of executable fixture files, shared with the unit tests.
-#[path = "fixture_executable.rs"]
+#[path = "testing/fixture_executable.rs"]
 mod fixture_executable;
 
 pub use fixture_executable::executable;
 
 /// The shell condition that holds while the test that started a fixture script is still there.
-#[path = "test_alive.rs"]
+#[path = "testing/test_alive.rs"]
 mod test_alive;
 
 pub use test_alive::{end_processes_working_in, while_test_lives};

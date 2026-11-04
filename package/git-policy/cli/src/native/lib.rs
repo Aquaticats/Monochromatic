@@ -72,21 +72,14 @@ mod push_wait_tests;
 #[cfg(test)]
 mod push_slow_server_tests;
 
-/// A loopback HTTP server that serves `git http-backend`, for the controls of a push over HTTP.
-#[cfg(test)]
-#[cfg(unix)]
-mod smart_http_support;
-
-/// Disposable fixtures shared by unit tests;
+/// Test-only fixtures shared by many unit tests,
 ///  never part of the release executable.
 #[cfg(test)]
-mod test_support;
+pub mod testing;
 
-/// A Git stand-in that logs each start and runs the real Git;
-///  never part of the release executable.
+/// Re-exports every module of `testing` at the crate root, as above.
 #[cfg(test)]
-#[cfg(unix)]
-mod recording_git;
+pub(crate) use testing::*;
 
 /// The Git starts of the layout questions for a user whose own file holds `core.fsmonitor = true`;
 ///  never part of the release executable.
@@ -470,11 +463,6 @@ pub mod repo_read_tree;
 /// In-process repository reads: the entries of an index file, versions 2 to 4.
 pub mod repo_read_index;
 
-/// A test body run in a child process under a chosen umask; never part of the release executable.
-#[cfg(test)]
-#[cfg(target_os = "linux")]
-mod umask_child_test_support;
-
 /// In-process repository reads: the difference between two sorted entry lists and the output spellings.
 #[cfg(unix)]
 pub mod repo_read_diff;
@@ -692,10 +680,6 @@ pub mod subvolume;
 
 /// Re-exports every module of `subvolume` at the crate root, as above.
 pub use subvolume::*;
-
-/// A point where threads must all arrive, for controls that prove work overlapped.
-#[cfg(test)]
-mod parallel_test_support;
 
 /// Package-manager and toolchain repair after a worktree is created.
 pub mod repair;

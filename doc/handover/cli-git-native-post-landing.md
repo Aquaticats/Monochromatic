@@ -73,7 +73,7 @@ Controls (host test names in `*_tests.rs`):
 ### Gates
 
 Host: `landed_disposal`, `post_commit_hook` and `post_landing` tests, 27 in total, pass with the host Git 2.55.0
-(`/usr/bin/git`, which `REAL_GIT` in `src/native/test_support.rs` names), so the Git 2.55.0 evidence is the host run.
+(`/usr/bin/git`, which `REAL_GIT` in `src/native/testing/test_support.rs` names), so the Git 2.55.0 evidence is the host run.
 Clippy (`native:clippy`) exits 0 at `517a6896cb`.
 Container gate at `517a6896cb`, image tag `post-landing`, image id
 `867e6cbcf2514d6d0fa883fcc863c0798774e8fb19791d166ca534ecc7667250`, Git 2.56.0:

@@ -1725,7 +1725,7 @@ mise run //package/git-policy/cli:native:test:container
   `native:clippy` lints every target with warnings denied.
   `native:build` writes the debug executable to `package/git-policy/cli/target/debug/cli-git-native`.
 - Every process a unit test starts dies with the test thread, however the test ends:
-  start helpers with `spawn_owned` in `src/native/test_support.rs`, which gives the helper a process group of its own
+  start helpers with `spawn_owned` in `src/native/testing/test_support.rs`, which gives the helper a process group of its own
    (so what it starts dies with it) and kills the group when the thread's fixtures are removed,
    the moment a failing or panicking test unwinds (`a_loop_started_by_a_panicking_test_is_gone_when_the_test_ends`).
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.

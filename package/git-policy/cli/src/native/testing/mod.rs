@@ -1,0 +1,35 @@
+//! What:
+//!  Test-only fixtures shared by many unit tests,
+//!  never part of the release executable.
+//! Why:
+//!  Shared fixtures need one obvious home.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // testing/index.ts: one `export * from './file'` per module below.
+//! ```
+
+/// A loopback HTTP server that serves `git http-backend`, for the controls of a push over HTTP.
+#[cfg(test)]
+#[cfg(unix)]
+pub(crate) mod smart_http_support;
+
+/// Disposable fixtures shared by unit tests;
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod test_support;
+
+/// A Git stand-in that logs each start and runs the real Git;
+///  never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+pub(crate) mod recording_git;
+
+/// A test body run in a child process under a chosen umask; never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+pub(crate) mod umask_child_test_support;
+
+/// A point where threads must all arrive, for controls that prove work overlapped.
+#[cfg(test)]
+pub(crate) mod parallel_test_support;
