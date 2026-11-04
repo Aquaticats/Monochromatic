@@ -1063,7 +1063,10 @@ fn an_identity_needs_a_boot_and_a_namespace() {
 fn the_identity_in_a_marker_names_the_boot_and_the_namespace() {
     let identity: String = own_identity().expect("identity");
     let parts: Vec<&str> = identity.split('#').collect();
-    assert_eq!(parts.len(), 3, "{identity}");
+    // The machine ID of the host comes fourth when the host has a valid one.
+    let machine: &str = crate::claim_time::current_machine_id();
+    assert_eq!(parts.len(), if machine.is_empty() { 3 } else { 4 }, "{identity}");
+    assert_eq!(parts.get(3).copied().unwrap_or(""), machine, "{identity}");
     assert_eq!(parts[1].len(), 32, "{identity}");
     assert!(!parts[2].is_empty() && parts[2].bytes().all(|byte| { return byte.is_ascii_digit(); }), "{identity}");
     assert_eq!(process_birth_identity(i64::from(std::process::id())).expect("identity").as_deref(), Some(parts[0]));
