@@ -398,6 +398,26 @@ pub fn lookup(ledger: &Path, id: &str) -> Result<Option<LedgerEntry>, LedgerErro
     return Ok(None);
 }
 
+/// What:
+///  The entries of a retained ledger prefix, when the prefix is entirely complete valid lines: `None` for a torn or unterminated final
+///  fragment and for any damaged line, wherever it is.
+/// Why:
+///  A prefix kept as authority must stay a prefix after tail repair. `lookup` ignores an unterminated fragment and repair cuts it, and
+///  `lookup` fails closed on a damaged middle, so a discharge proof built from either would vanish or mislead: the proof reads what the
+///  ledger itself would read and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function completeEntries(prefix: Uint8Array): LedgerEntry[] | undefined; // every line valid and terminated
+/// ```
+pub fn complete_entries(prefix: &[u8]) -> Option<Vec<LedgerEntry>> {
+    if prefix.is_empty() {
+        return Some(Vec::new());
+    }
+    let body: &[u8] = prefix.strip_suffix(b"\n")?;
+    return body.split(|byte| { return *byte == b'\n'; }).map(parse_line).collect();
+}
+
 /// Reads the whole ledger once and refuses a damaged middle; a torn tail is allowed (an append repairs it) and a missing file is empty.
 fn validate_history(ledger: &Path) -> Result<(), LedgerError> {
     let bytes: Vec<u8> = match fs::read(ledger) {

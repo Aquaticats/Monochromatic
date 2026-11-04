@@ -17,6 +17,7 @@
 //! ```
 
 pub use super::commit_lane_state::{Consumption, ConsumptionKind, LaneState, Marker, RequestPhase, RequestState, RESUME_MAX};
+use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -149,15 +150,15 @@ fn document_needs(document: &[u8]) -> Option<Vec<PathBuf>> {
 }
 
 /// Whether the retained `items` cover every dependency `document` names.
-fn document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool {
+fn document_is_covered(lane: &Path, document: &[u8], items: &[ClosureEntry]) -> bool {
     let needs_covered: bool = document_needs(document).is_some_and(|needs| { return needs.iter().all(|need| { return items.iter().any(|entry| { return entry.path == *need; }); }); });
-    return needs_covered && checked_document_is_covered(document, items);
+    return needs_covered && checked_document_is_covered(lane, document, items);
 }
 
 /// Whether `items` hold every reference of a document in the checked representation: each request, each saved content, and a ledger prefix
 /// at least as long as the extent it relies on. A document that starts as a checked document and does not parse is not covered (a malformed
 /// reference is never no reference); any other document has no checked reference to check.
-fn checked_document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool {
+fn checked_document_is_covered(lane: &Path, document: &[u8], items: &[ClosureEntry]) -> bool {
     if !document.starts_with(LANE_DOCUMENT_MAGIC.as_bytes()) {
         return true;
     }
@@ -168,7 +169,27 @@ fn checked_document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool 
         && parsed.saved.iter().all(|name| { return held(SAVED, name); })
         && parsed.marks.iter().all(|name| { return held(DECISION, name); })
         && extent_held(LANE_LEDGER, parsed.ledger_length)
-        && extent_held(LANE_ORDER, parsed.order_length);
+        && extent_held(LANE_ORDER, parsed.order_length)
+        && positions_are_adopt_lines(lane, &parsed);
+}
+
+/// Whether each request position of `document` is the start of that request's adopt line in the order prefix the document relies on: a line
+/// boundary (the start of the prefix or the byte after a newline) whose line begins `adopt <identity> `. The check reads the order file's
+/// bytes, so it holds only for the file the closure's own identity check also validates.
+fn positions_are_adopt_lines(lane: &Path, document: &LaneDocument) -> bool {
+    let positioned: Vec<(&String, u64)> = document.state.requests.iter().filter_map(|request| { return request.position.map(|at| { return (&request.id, at); }); }).collect();
+    if positioned.is_empty() {
+        return true;
+    }
+    let Some(length) = document.order_length.and_then(|length| { return usize::try_from(length).ok(); }) else { return false };
+    let Ok(bytes) = fs::read(lane.join(LANE_ORDER)) else { return false };
+    let Some(prefix) = bytes.get(..length) else { return false };
+    return positioned.iter().all(|(id, at)| {
+        let Ok(start) = usize::try_from(*at) else { return false };
+        let boundary: bool = start == 0 || prefix.get(start - 1) == Some(&b'\n');
+        let wanted: String = format!("adopt {} ", id);
+        return boundary && prefix.get(start..).is_some_and(|rest| { return rest.starts_with(wanted.as_bytes()); });
+    });
 }
 
 /// What:
@@ -331,6 +352,11 @@ impl LaneDocument {
     /// the lane ledger nor the adoption order, which this representation cannot express.
     pub fn from_closure(closure: &[ClosureEntry]) -> Option<LaneDocument> {
         let mut document: LaneDocument = LaneDocument::default();
+        // Two captures of one path would make the document depend on the order of the inputs; a closure names a path once.
+        let paths: BTreeSet<&Path> = closure.iter().map(|entry| { return entry.path.as_path(); }).collect();
+        if paths.len() != closure.len() {
+            return None;
+        }
         for entry in closure {
             let name: String = entry.path.file_name().and_then(|name| { return name.to_str(); })?.to_string();
             match entry.kind {
@@ -970,7 +996,7 @@ fn eligible(lane: &Path, bytes: &[u8]) -> Option<(Vec<Rec>, usize, Vec<u8>, Vec<
         {
             break;
         }
-        if document_is_covered(&document, &items) && items.iter().all(|entry| { return validate_entry(lane, entry).is_ok(); }) {
+        if document_is_covered(lane, &document, &items) && items.iter().all(|entry| { return validate_entry(lane, entry).is_ok(); }) {
             last_document = document;
             last_items = items.clone();
             count = index + 1;
@@ -1041,10 +1067,7 @@ fn ledger_prefix_has(lane: &Path, items: &[ClosureEntry], id: &str, outcome: Opt
         }
         let Ok(bytes) = fs::read(lane.join(&entry.path)) else { return false };
         let Some(prefix) = usize::try_from(entry.length).ok().and_then(|length| { return bytes.get(..length); }) else { return false };
-        return prefix
-            .split(|byte| { return *byte == b'\n'; })
-            .filter_map(super::commit_ledger::parse_line)
-            .any(|line| { return line.id == id && outcome.is_none_or(|wanted| { return line.outcome == wanted; }); });
+        return super::commit_ledger::complete_entries(prefix).is_some_and(|lines| { return lines.iter().any(|line| { return line.id == id && outcome.is_none_or(|wanted| { return line.outcome == wanted; }); }); });
     });
 }
 
@@ -1113,7 +1136,7 @@ fn append(dir: &Path, generation: u64, document: &[u8], items: &[ClosureEntry], 
         }
         None => (1, genesis(), 0),
     };
-    if !document_is_covered(document, items) {
+    if !document_is_covered(&lane, document, items) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the document names a dependency that the retained set does not cover"));
     }
     for entry in items {
@@ -1243,7 +1266,7 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
     let existing: Vec<u64> = numbers(dir)?;
     // The closure is validated now, by reading each entry, and may not contain a file the authority will delete (aliases included).
     let canonical_state: PathBuf = fs::canonicalize(dir)?;
-    if !document_is_covered(document, closure) {
+    if !document_is_covered(&lane, document, closure) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the document names a dependency that the closure does not cover"));
     }
     let checked: Option<LaneDocument> = if reclaiming {

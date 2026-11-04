@@ -207,7 +207,8 @@ fn r23_a_document_naming_an_order_extent_its_set_lacks_is_not_admitted() {
     writer.append_with(1, &document, &both).expect("with the extent in its set it is admitted");
 }
 
-/// State fields are not containment obligations: a newer document with another marker, head, tail, request phase and consumption map still
+/// State fields are not containment obligations of this layer (finding D of the step 1 review: this shows the log's permissiveness, not
+/// that an installation was discharged; the transitions that may drop an `Install` entry belong to the protocol's models): a newer document with another marker, head, tail, request phase and consumption map still
 /// reclaims the predecessor and covers its acknowledgment, because the newer generation supersedes them and no file lies behind them. This is
 /// the control that shows the representation does not stop reclamation for every state change.
 #[test]

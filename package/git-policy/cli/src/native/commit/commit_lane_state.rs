@@ -6,6 +6,11 @@
 //!  file lies behind it). These are state: a newer generation supersedes them, and whether a transition may change one is the protocol's
 //!  rule, shown by the models, not the log's. The log keeps them canonical and consistent with the references they name, so a document
 //!  never mentions a request it does not adopt or a position outside the adoption order it relies on.
+//!  What this layer does not check: whether a transition from one state to the next is allowed. A checkpoint that retains the same files can
+//!  replace an outstanding `Install` entry, clear the marker or remove a request's state, and the log accepts it, because the log cannot
+//!  know that the installation happened. Those obligations (`Install`, `MergeInstall`, `AttachWatch`, the marker) are kept by the
+//!  transitions of the protocol, whose rules the models of the index replacement and the install check (`model_m1_crash`,
+//!  `model_m1_split_r13`, `model_merge`); no component calls the log with them yet.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -113,7 +118,9 @@ pub struct RequestState {
     pub phase: RequestPhase,
     /// The step to resume at after a restart (`B1`, `P1`, ...), at most `RESUME_MAX` characters of letters, digits and hyphens.
     pub resume: String,
-    /// The byte offset of the request's adopt line in the order file the document relies on; it must lie inside that extent.
+    /// The byte offset of the request's adopt line in the order file the document relies on. The document checks only that it lies inside
+    /// that extent; `commit_state_log` checks, where it reads the order file (admission, checkpoint and recovery), that it is a line boundary
+    /// whose line begins `adopt <this request> `.
     pub position: Option<u64>,
 }
 
@@ -243,7 +250,12 @@ impl LaneState {
             });
         let key = |entry: &Consumption| -> (Vec<u8>, String, u64) { return (entry.path.clone(), entry.request.clone(), entry.version); };
         let consumption_ok: bool = self.consumption.windows(2).all(|pair| { return key(&pair[0]) < key(&pair[1]); })
-            && self.consumption.iter().all(|entry| { return adopts(&entry.request) && !entry.path.is_empty() && !entry.entry.is_empty(); });
+            && self.consumption.iter().all(|entry| {
+                // A suppression is history: it outlives the envelope of the request that made it. Every other kind carries an obligation
+                // that belongs to a request the document still adopts.
+                let owner_ok: bool = entry.kind == ConsumptionKind::Suppress || adopts(&entry.request);
+                return owner_ok && !entry.path.is_empty() && !entry.entry.is_empty();
+            });
         return head_ok && tail_ok && requests_ok && consumption_ok;
     }
 }
