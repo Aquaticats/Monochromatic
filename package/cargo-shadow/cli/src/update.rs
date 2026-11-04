@@ -157,6 +157,9 @@ use crate::install::{LockBaseFactory, policy_findings};
 /// import { addManifests, begin, finish, processExists, recover, restoreIfUnchanged, runRecording } from 'crate/journal';
 /// ```
 use crate::journal::{begin, recover, restore_if_unchanged, run_recording, Transaction};
+
+/// Imports `crate::journal_finish::FinishError` for this file.
+use crate::journal_finish::FinishError;
 /// Imports `Claim`,
 /// what the ownership evidence says about a file a child wrote.
 use crate::file_owner::Claim;
@@ -1152,20 +1155,26 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Review finding (4c F1): a finish error never replaces the update's result; it is reported beside it.
-    let finish_warning: Option<String> = transaction.finish().err().map(|error| { return format!("the transaction journal could not be completed ({error}); the next run settles it"); });
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    // Borrow `&finish_warning`: lends the value without copying or giving it away.
-    if let Some(warning) = &finish_warning {
-        // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("cargo-shadow: warning: {warning}");
+    let finished: Result<(), FinishError> = transaction.finish();
+    if let Err(error) = &finished {
+        eprintln!("cargo-shadow: warning: {error}");
     }
-    // Closure `|mut report|`: an anonymous function, like a TS arrow function.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    return outcome.map(|mut report| {
+    return outcome.and_then(|mut report| {
         report.warnings.extend(recovered);
         report.warnings.extend(restore_warnings);
-        report.warnings.extend(finish_warning);
-        return report;
+        return match finished {
+            Ok(()) => Ok(report),
+            // A refusal stands; the failed barrier is one more thing to know.
+            Err(error) if !report.problems.is_empty() && !error.outputs_durable() => {
+                report.problems.push(error.to_string());
+                Ok(report)
+            }
+            // A failed barrier is a stopped run, never a clean pass.
+            Err(error) if !error.outputs_durable() => Err(other_text(format!("{error}; run the command again"))),
+            Err(error) => {
+                report.warnings.push(error.to_string());
+                Ok(report)
+            }
+        };
     });
 }

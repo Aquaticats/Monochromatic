@@ -82,6 +82,9 @@ use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST
 /// Imports `crate::manifest_edit::ManifestEdit` for this file.
 use crate::manifest_edit::ManifestEdit;
 
+/// Imports `crate::journal_finish::FinishError` for this file.
+use crate::journal_finish::FinishError;
+
 /// The most journal names tried when one exists already.
 /// Unmeasured:
 /// the names carry a clock,
@@ -597,44 +600,37 @@ impl Transaction {
     /// ```ts
     /// finish(): void
     /// ```
-    pub fn finish(self) -> io::Result<()> {
-        // Borrow `&make_durable`: lends the value without copying or giving it away.
+    pub fn finish(self) -> Result<(), FinishError> {
         return self.finish_with(&make_durable);
     }
 
     /// What:
-    /// `pub fn finish_with(self, durable) -> io::Result<()>` is `finish` with the barrier that makes an output durable given by the
-    /// caller (tests record it).
+    /// `pub fn finish_with(self, durable) -> Result<(), FinishError>` is `finish` with the barrier that makes an output durable
+    /// given by the caller (tests record the order).
     /// Why:
-    /// The order is the point:
-    /// every output is made durable before the completion marker exists.
+    /// The error says whether the outputs were forced to disk before the failure,
+    /// so a caller stops the command on a failed barrier and only warns about a journal it could not remove.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// finishWith(makeDurable: (path: string) => void): void
+    /// finishWith(durable: (path: string) => void): void
     /// ```
-    pub fn finish_with(self, durable: &dyn Fn(&Path) -> io::Result<()>) -> io::Result<()> {
+    pub fn finish_with(self, durable: &dyn Fn(&Path) -> io::Result<()>) -> Result<(), FinishError> {
         #[cfg(test)]
         if crate::failpoints::fires(crate::failpoints::Point::FinishDurability) {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            return Err(io::Error::other("injected durability failure"));
+            return Err(FinishError::before_durable(io::Error::other("injected durability failure")));
         }
-        // Borrow `&self.crate_dirs`: lends the value without copying or giving it away.
         for crate_dir in &self.crate_dirs {
-            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-            // Borrow `&self.root.join`: lends the value without copying or giving it away.
-            durable(&self.root.join(crate_dir).join(LOCKFILE_NAME))?;
+            durable(&self.root.join(crate_dir).join(LOCKFILE_NAME)).map_err(FinishError::before_durable)?;
         }
-        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         for manifest in self.manifests.borrow().iter() {
-            // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-            durable(manifest)?;
+            durable(manifest).map_err(FinishError::before_durable)?;
         }
         #[cfg(test)]
         if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
-            return Err(io::Error::other("injected cleanup failure"));
+            return Err(FinishError::after_durable(io::Error::other("injected cleanup failure")));
         }
-        return mark_done_and_remove(&self.directory);
+        return mark_done_and_remove(&self.directory).map_err(FinishError::after_durable);
     }
 }
 

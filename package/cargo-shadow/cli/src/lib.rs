@@ -74,6 +74,9 @@ pub mod journal_manifests;
 /// a journal held by a lock for the life of a run.
 pub mod journal_transaction;
 
+/// The error of finishing a transaction, told by whether the outputs were already on disk.
+pub mod journal_finish;
+
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 

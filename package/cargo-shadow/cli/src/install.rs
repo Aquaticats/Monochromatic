@@ -149,6 +149,9 @@ use crate::crates::{LockSnapshot, read_locks};
 /// import { begin, finish, run_recording, process_exists, recover, restore_if_unchanged } from 'crate/journal';
 /// ```
 use crate::journal::{begin, recover, restore_if_unchanged, run_recording};
+
+/// Imports `crate::journal_finish::FinishError` for this file.
+use crate::journal_finish::FinishError;
 /// What:
 /// `use crate::http::RegistryError;` imports `RegistryError` from another module of this crate so this file can name it unqualified.
 /// Why:
@@ -826,30 +829,37 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Review finding (4c F1): a finish error never replaces an established refusal (or any other result): it is reported beside it,
     // and the journal stays for the next recovery to settle.
-    let finish_warning: Option<String> = transaction.finish().err().map(|error| { return format!("the transaction journal could not be completed ({error}); the next run settles it"); });
-    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-    // Why:      Absence is a value the caller must check; there is no `null`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // Some(value) is  value
-    // // None        is  undefined
-    // ```
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    // Borrow `&finish_warning`: lends the value without copying or giving it away.
-    if let Some(warning) = &finish_warning {
-        // Macro `eprintln!`: builds or prints text (or a list) from a template.
-        eprintln!("cargo-shadow: warning: {warning}");
+    let finished: Result<(), FinishError> = transaction.finish();
+    if let Err(error) = &finished {
+        eprintln!("cargo-shadow: warning: {error}");
     }
-    // Closure `|mut report|`: an anonymous function, like a TS arrow function.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    return match outcome {
-        Ok(mut report) => {
+    return match (outcome, finished) {
+        (Ok(mut report), Ok(())) => {
             report.warnings.extend(recovered);
             report.warnings.extend(restore_warnings);
-            report.warnings.extend(finish_warning);
             Ok(report)
         }
-        Err(error) => Err(error),
+        // The policy refused the run: the refusal stands, and the failed barrier is one more thing the person must know.
+        (Ok(mut report), Err(error)) if !report.problems.is_empty() => {
+            report.warnings.extend(recovered);
+            report.warnings.extend(restore_warnings);
+            if error.outputs_durable() {
+                report.warnings.push(error.to_string());
+            } else {
+                report.problems.push(error.to_string());
+            }
+            Ok(report)
+        }
+        // A failed barrier is a stopped run, never a clean pass: the command must not run on a lockfile that may not survive.
+        (Ok(_), Err(error)) if !error.outputs_durable() => Err(InstallError::Unsettled {
+            message: format!("cargo-shadow: {error}; the command was not run, so run it again"),
+        }),
+        (Ok(mut report), Err(error)) => {
+            report.warnings.extend(recovered);
+            report.warnings.extend(restore_warnings);
+            report.warnings.push(error.to_string());
+            Ok(report)
+        }
+        (Err(error), _) => Err(error),
     };
 }
