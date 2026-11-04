@@ -971,8 +971,9 @@ MKY:
 
 VGW:
  Each file and folder name says what its contents do;
- a word that fits any code (`native`, `core`, `utils`, `common`, `helpers`) never stands alone:
+ a word that fits any code (`native`, `core`, `helpers`) never stands alone:
  `helpers_for_git_push`, not `helpers`.
+Package folders are exempt.
 
 LYD:
  Show who depends on whom in the tree:
