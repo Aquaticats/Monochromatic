@@ -629,7 +629,18 @@ At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
   coverage map 62 of 96 target items covered,
   9 only by historical controls,
   25 not yet.
-  Review against the acceptance target running (`commit-models-sol-8.txt`).
+  Review against the acceptance target (`commit-models-sol-8.txt`):
+  "no,
+  as submitted",
+  with "None of these requests adds an acceptance criterion";
+  a six-item path (component authority boundaries;
+  departure promises;
+  overstated controls;
+  a corrected coverage map;
+  current evidence for historical and not-yet rows;
+  decision 19's fresh attempt with a stored notice);
+  the author's two design findings are implementation obligations.
+  Round 14 started on that path.
 - Design:
   decision 19 recorded (`6d053403db`),
   no open owner question;
