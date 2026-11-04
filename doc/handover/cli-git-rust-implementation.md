@@ -2143,6 +2143,39 @@ Round 7's bar is the P1 set only,
 each closed with the reviewer's counterexample as a red-then-green test;
 the P2 and P3 findings and the missing-test lists of the four files wait for the round after,
 then a re-review of the P1 set alone.
+Round 7 done:
+tip `94226a1385`,
+508 passed and 1 skipped (the ignored escaped-writer fixture helper);
+probes,
+red tests and the fix in `e543782a4a`,
+`939dcb31d1` (11 red),
+`a47e630e12`,
+`ba620f9e1a`.
+Probe findings:
+a child of the process's own group works where that group is user-owned (not in a root-owned login session scope);
+`cgroup.kill` alone left a thread group whose leader thread exited `populated 1` for 2 to 5 s,
+so the stop adds SIGKILL through a re-checked pidfd until `populated 0`;
+a `setsid` plus double-fork escapee stays a member,
+a same-uid member writing its id into the parent's `cgroup.procs` leaves;
+children inherit membership with no `pre_exec` hook.
+A run took 6.8 ms median with a group against 6.4 ms in the weaker path (a pidfd wait replaced a 10 ms sleep poll).
+systemd.io/CGROUP_DELEGATION (read 2026-11-04):
+"Never create your own cgroups below arbitrary cgroups systemd manages,
+i.e cgroups you haven't set `Delegate=` in.",
+and systemd marks delegated groups with the `user.delegate` extended attribute;
+the built default is therefore unsupported.
+Coordinator's pick under the delegation (veto open),
+for round 8:
+a transient user scope with `Delegate=yes` by default (7.0 ms median to start,
+15 runs),
+a child of the own group only where that group carries `user.delegate`,
+else the weaker path.
+P1 re-review running in three parts (`cargo-shadow-sol-7a.txt`,
+`-7b.txt`,
+`-7c.txt`);
+round 8 (the queued P2 and P3,
+in `doc/planning/cargo-shadow-update.md` "Queued for round 8",
+plus the scope pick and a cgroup namespace for same-uid escapes) follows it.
 Picks open to veto,
 the agent's under the coordinator's delegation:
 one workspace lock (`.cache/cargo-shadow/lock`,
