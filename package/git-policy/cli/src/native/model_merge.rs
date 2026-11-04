@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: its edit-loss clause cannot fire (the edit flag is never cleared) and the pre-publication rollback it checks is retired by publish-first.
+//!
 //! What:
 //!  Model of the revision 8 finding R8-8 for merges: a merge is checked out before it is published, then its hook refuses, or
 //!  the swap is lost, while a person keeps editing a merged file.

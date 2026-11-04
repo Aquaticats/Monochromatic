@@ -226,3 +226,7 @@ mod model_pipe_r13;
 /// The controls of the pipe discipline.
 #[path = "model_pipe_r13_tests.rs"]
 mod model_pipe_r13_tests;
+
+/// The evidence labels of the model modules.
+#[path = "model_labels_tests.rs"]
+mod model_labels_tests;

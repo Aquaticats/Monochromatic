@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: compare and unlink are one transition and M1 content evidence is not modelled.
+//!
 //! What:
 //!  Model of the revision 8 finding R8-8 for M1: the process that materializes a published request into the index is killed
 //!  at each boundary, and the next owner recovers.

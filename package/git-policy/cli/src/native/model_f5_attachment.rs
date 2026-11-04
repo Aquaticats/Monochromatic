@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: acquisition, publication and application are atomic and the switch changes HEAD only.
+//!
 //! What:
 //!  Model of finding F5 (sixth review) and its seventh-review follow-up: a request is captured on `main`, the person
 //!  switches the worktree to another branch, and the lane applies the commit's index delta.

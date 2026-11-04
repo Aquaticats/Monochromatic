@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: revision 11 register whose actions complete by assignment; superseded by model_register_r13.
+//!
 //! What:
 //!  Model of revision 11's register of waits: each entry (START, FOREGROUND, MARKER, ACQUIRE, REAP, KILL, COMMITTING, STALL, PUSH) is
 //!  a process blocked on another party's progress, with a bound and an action at the bound.

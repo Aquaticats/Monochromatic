@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: revisions before the state log; the odd-generation marker it checks is retired.
+//!
 //! What:
 //!  Model of finding F6 (sixth review) and its seventh-review follow-up: a plain commit captures the staged state
 //!  while the lane materializes a published request.

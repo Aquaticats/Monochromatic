@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: assumes authentic refusal evidence; E1 kinds P, F and U are modelled in model_w1_r13.
+//!
 //! What:
 //!  Model of the ninth review's R9-8 for E1: a person's `reference-transaction` hook refuses an update, a foreign writer advances
 //!  the branch before E1 classifies the exit, and E1 runs.

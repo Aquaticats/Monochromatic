@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: a retired candidate (cancelling a stalled update-ref): identity check and removal are one transition and spawn-time classification is absent.
+//!
 //! What:
 //!  Model of finding F4 (sixth review) and its seventh-review follow-up: a ref transaction whose Git child stalls is
 //!  cancelled, and the branch's `.lock` file is cleaned up.

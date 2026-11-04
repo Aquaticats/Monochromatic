@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: a vocabulary and one demonstration; its durable evidence is a specification predicate, not a protocol that obtains the evidence.
+//!
 //! What:
 //!  A vocabulary for observations: what a reader can see of another actor's effects, which of those effects would survive a
 //!  power loss, and a claim that rests on a named piece of evidence. Plus one model that uses it, a lane that releases a

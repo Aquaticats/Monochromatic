@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: a classification model with an atomic recovery decision; it keeps no observations, never deletes future evidence and does not model message delivery.
+//!
 //! What:
 //!  Model of finding F1 (sixth review) and its seventh-review follow-up: what recovery may conclude about a publication
 //!  after an owner death, from a recorded swap failure, the branch tip and a reflog anchor.

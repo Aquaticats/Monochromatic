@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: covers R8-2 only (two lanes, one repairer).
+//!
 //! What:
 //!  Model of the revision 8 finding R8-2 ("two lanes, one repairer"): two worktrees' lanes use one ledger file, and one lane
 //!  repairs the torn tail that the other lane's append in progress shows.

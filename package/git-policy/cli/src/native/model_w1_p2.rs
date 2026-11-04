@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: revision 11 decision file, infallible recovery, a child that stops with its owner; superseded by model_w1_r13.
+//!
 //! What:
 //!  Model of revision 11's rule B for the one wait that can end a commit: the command's foreground wait (FOREGROUND), W1 (the client
 //!  withdraws at the bound) against P2 in three steps (prepare, decide, commit) and the decision file `lane/decision/<id>`, with the

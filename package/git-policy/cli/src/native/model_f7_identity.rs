@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: the binding file and the global directory counter are retired; EEXIST on the inbox file is reopened in model_barrier_r13.
+//!
 //! What:
 //!  Model of the sixth review's finding F7: two clients accept a request under the same identity with different
 //!  content, one before the lane adopts the first and one after.

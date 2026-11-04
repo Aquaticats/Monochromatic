@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: capture is enabled only after publication; the refusal and withdrawal cases are reopened in model_capture_r13.
+//!
 //! What:
 //!  Model of finding F9 (sixth review) and its seventh-review follow-ups: requests behind a request whose commit build is
 //!  held by a person's hook, with a disjoint and an overlapping successor, the held request later refusing and later

@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: owner death and protected-child death are one transition and the incarnation read is not retained.
+//!
 //! What:
 //!  Model of finding F2 (sixth review) and its seventh-review follow-ups F2A and F2B: the lifetime of an owner of a
 //!  worktree's lane, its descendants, and the cleanup a new owner does.

@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: revision ten supplies the root by rule selection and the final check, ledger append and release are one step.
+//!
 //! What:
 //!  Model of finding F8 (sixth review) and its seventh-review follow-ups: destructive maintenance the wrapper starts in
 //!  one worktree while another worktree of the same object store accepts, publishes and releases a request's spool.

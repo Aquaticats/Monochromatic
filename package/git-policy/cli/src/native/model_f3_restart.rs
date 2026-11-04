@@ -1,3 +1,5 @@
+//! Historical control, not approval evidence for revision 13: revisions seven to nine; actors are classified by label prefix and its goal exempts a wedged gate holder under every rule.
+//!
 //! What:
 //!  Model of finding F3 (sixth review) and its seventh-review follow-ups: a client restarts a quiet owner while the
 //!  owner may dispatch a person's hook, with a gate lock, a pidfd, a restarter that can die, a wedged owner and a
