@@ -399,3 +399,8 @@ mod commit_cutover_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_review3_tests.rs"]
 mod commit_review3_tests;
+
+/// Plan steps 2 and 3: the fourth round of review (revalidation against the retained set, the bounded doorbell, the false-green windows).
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_review4_tests.rs"]
+mod commit_review4_tests;
