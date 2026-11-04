@@ -179,13 +179,17 @@ fn procfs_namespace_fixture() {
     let arbitrary: u64 = recorded_start.as_ref().map_or(1, |start| { return start + 1; });
     let against_other_start: String = format!("{:?}", launcher_state(pid, arbitrary, namespace));
     let against_own_start: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
+    // The test oracle for "this process is running" (certification group 1) is fail-closed: through the procfs of another namespace it
+    // cannot tell and says so, and through a procfs of its own it tells running from ended.
+    let running: String = format!("{:?}", crate::control_group::process_is_running(pid));
     let _ = launcher.kill();
     let _ = launcher.wait();
+    let running_after: String = format!("{:?}", crate::control_group::process_is_running(pid));
     let after_end: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
     fs::write(
         root.join("fixture-result"),
         format!(
-            "{mode}\nrecorded {}\nother start {against_other_start}\nown start {against_own_start}\nafter end {after_end}\ncollision name {collision}\nstart error {start_error}\n",
+            "{mode}\nrecorded {}\nother start {against_other_start}\nown start {against_own_start}\nafter end {after_end}\ncollision name {collision}\nstart error {start_error}\nrunning {running}\nrunning after {running_after}\n",
             if recorded_start.is_ok() { "ok" } else { "err" }
         ),
     )
@@ -221,7 +225,9 @@ fn run_procfs_fixture(mode: &str) -> String {
 fn a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher() {
     let own: String = run_procfs_fixture("own");
     assert!(own.contains("recorded ok") && own.contains("other start Unknown(") && own.contains("own start Alive") && own.contains("after end Gone"), "the control did not move: {own}");
+    assert!(own.contains("running Ok(true)") && own.contains("running after Ok(false)"), "the fail-closed process oracle did not tell running from ended in a procfs of its own: {own}");
     let ancestor: String = run_procfs_fixture("ancestor");
+    assert!(ancestor.contains("running Err("), "the process oracle did not fail closed through the procfs of another namespace: {ancestor}");
     assert!(ancestor.contains("recorded err"), "a start time was read through a procfs of another namespace: {ancestor}");
     // The prerequisite (12b 3.2): the ancestor's procfs has a readable entry under the launcher's number that is another process, so a
     // lookup without the numbering guard would have read it; and the refusal is the numbering mismatch, not some other failure.

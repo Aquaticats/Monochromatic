@@ -37,55 +37,21 @@ fn bound(limit: Duration) -> Bound {
 }
 
 /// A child that outlives its bound is stopped and the error names it and the command to run again.
+/// The error is `RunError::TimedOut` and the payload had started (it wrote its marker), so it is the command's lifetime that was
+/// bounded and not a failure before the start (certification group 1).
 #[test]
 fn a_child_that_outlives_its_bound_is_stopped_and_named() {
+    let directory = crate::test_scratch::scratch();
+    let marker = directory.path().join("started");
     let started = Instant::now();
 
-    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-    // Why:      Absence is a value the caller must check; there is no `null`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // Some(value) is  value
-    // // None        is  undefined
-    // ```
-    // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-    // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
-    // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
-    // ```
-    let result = output_within(Command::new("sleep").arg("5"), None, &bound(Duration::from_millis(200)));
+    let result = output_within(Command::new("sh").args(["-c", &format!(": > {}; exec sleep 5", marker.display())]), None, &bound(Duration::from_secs(2)));
 
-    // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-    // Why:      Text building and printing are written as one call instead of string concatenation.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // `..${x}..`   // template literal
-    // console.error(text);   // eprintln!
-    // [a, b]            // vec![a, b]
-    // ```
-    assert!(started.elapsed() < Duration::from_secs(3), "the child was waited for: {:?}", started.elapsed());
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const name: Type = value;
-    // ```
-    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: string
-    // ```
-    let message: String = result.expect_err("a timeout").to_string();
-    // Macro `assert!`: builds or prints text (or a list) from a template.
+    assert!(started.elapsed() < Duration::from_secs(5), "the child was waited for: {:?}", started.elapsed());
+    assert!(marker.exists(), "the payload never started, so the bound was not the command's lifetime");
+    let error: RunError = result.expect_err("a timeout");
+    assert!(matches!(error, RunError::TimedOut { .. }), "{error:?}");
+    let message: String = error.to_string();
     assert!(message.contains("the slow command") && message.contains("slow-command --again"), "{message}");
 }
 
@@ -213,14 +179,11 @@ fn a_program_that_does_not_exist_is_an_io_error() {
     assert!(matches!(result, Err(RunError::Io(_))));
 }
 
-/// Whether a process with this id still exists.
+/// Whether a process with this id is still running (neither ended nor a zombie that waits to be reaped).
+/// The inspection fails closed (certification group 1): one that cannot tell (an unreadable entry, a procfs of another namespace)
+/// stops the test, and it reads through the pinned procfs and a pidfd of the caller's namespace.
 fn alive(pid: i32) -> bool {
-    // Closure `|text|`: an anonymous function, like a TS arrow function.
-    // Borrow `&format`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    return std::path::Path::new(&format!("/proc/{pid}")).exists() && !std::fs::read_to_string(format!("/proc/{pid}/stat")).map(|text| { return text.contains(") Z "); }).unwrap_or(true);
+    return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| { panic!("whether process {pid} runs cannot be told: {reason}"); });
 }
 
 /// Waits (a few milliseconds at a time,
@@ -233,6 +196,15 @@ fn gone_soon(pid: i32) -> bool {
         std::thread::sleep(Duration::from_millis(10));
     }
     return false;
+}
+
+/// A disposable workspace and the transaction whose journal records the scope of the next run.
+fn delegated_transaction() -> (tempfile::TempDir, crate::journal::Transaction) {
+    let workspace = crate::test_scratch::scratch();
+    std::fs::create_dir_all(workspace.path().join("package/b/one")).expect("dir");
+    std::fs::write(workspace.path().join("package/b/one/Cargo.lock"), "lock").expect("lock");
+    let transaction = crate::journal::begin(workspace.path(), &[crate::crates::LockSnapshot { crate_dir: "package/b/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+    return (workspace, transaction);
 }
 
 /// Reads the process id a script wrote to a file.
@@ -255,6 +227,10 @@ fn pid_in(path: &std::path::Path) -> i32 {
 /// still write would otherwise race the rollback.
 #[test]
 fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
+    let (workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
     // Macro `format!`: builds or prints text (or a list) from a template.
@@ -269,6 +245,9 @@ fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
     // Borrow `&pid_file`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
+    // The run used a delegated scope (certification group 1).
+    crate::cgroup_test_support::assert_scope_record(&crate::journal_support::journal_dirs(workspace.path())[0].join("groups").display().to_string());
+    drop(transaction);
 }
 
 /// Review finding (4c F2):
@@ -277,6 +256,10 @@ fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
 /// is complete.
 #[test]
 fn a_descendant_left_after_a_normal_exit_is_stopped() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
+    let (workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
     // Macro `format!`: builds or prints text (or a list) from a template.
@@ -293,6 +276,9 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
     // Borrow `&pid_file`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
+    // The run used a delegated scope (certification group 1).
+    crate::cgroup_test_support::assert_scope_record(&crate::journal_support::journal_dirs(workspace.path())[0].join("groups").display().to_string());
+    drop(transaction);
 }
 
 /// Review finding (4c F4):
@@ -305,6 +291,10 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
 /// so the output is complete and nothing of the run is left running.
 #[test]
 fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
+    let (workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
     let script = format!("setsid sh -c 'echo $$ > {}; exec sleep 30' & echo started; sleep 0.3", pid_file.display());
@@ -314,6 +304,9 @@ fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_outpu
     let output = result.expect("the holder of the pipe was stopped, so the output is complete");
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "started");
     assert!(gone_soon(pid_in(&pid_file)), "the descendant in another session still runs");
+    // The run used a delegated scope (certification group 1).
+    crate::cgroup_test_support::assert_scope_record(&crate::journal_support::journal_dirs(workspace.path())[0].join("groups").display().to_string());
+    drop(transaction);
 }
 
 /// Review finding (4c P3):
