@@ -172,25 +172,34 @@ fn r23_a_mark_is_retained_until_its_request_is_discharged_by_the_ledger() {
     assert!(state_covers(&state, &promised).expect("readable"), "the checkpoint that discharged the request did not cover the acknowledgment");
 }
 
-/// The order extent is a reference: a closure shorter than the order file the lane holds is refused, a document naming a longer extent than its
-/// set holds is not admitted, and a newer document that relies on a shorter extent does not contain the older one.
+/// The order extent is a reference the lane scan derives: a closure shorter than the order file the lane holds is refused whatever its
+/// document says. There is no predecessor here, so only the scan can refuse it (the non-drop check has nothing to compare with).
 #[test]
-fn r23_the_order_extent_is_a_reference_the_closure_and_the_newer_document_must_hold() {
-    let (lane, state, envelope) = lane_with_envelope("r23-order-extent");
+fn r23_a_closure_shorter_than_the_order_file_the_lane_holds_is_refused() {
+    let (lane, state, envelope) = lane_with_envelope("r23-order-obligation");
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
     let short: ClosureEntry = order_of(&lane, "adopt a\n");
     let long: ClosureEntry = order_of(&lane, "adopt b\n");
     assert!(long.length() > short.length());
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    let with_long: Vec<ClosureEntry> = vec![request.clone(), long];
-    writer.append_with(1, &document_with(&with_long, LaneState::default()).encode(), &with_long).expect("a record that relies on the long extent");
     let with_short: Vec<ClosureEntry> = vec![request.clone(), short];
-    assert!(writer.begin_checkpoint_reclaiming(2, &document_with(&with_short, LaneState::default()), &with_short).is_err(), "a closure shorter than the order file the lane holds was accepted");
-    let lengthened: Vec<ClosureEntry> = vec![request.clone(), order_of(&lane, "adopt c\n")];
-    let admission = writer.append_with(2, &document_with(&lengthened, LaneState::default()).encode(), std::slice::from_ref(&request));
-    assert!(admission.is_err(), "a document naming an order extent its set lacks was admitted");
-    writer.checkpoint_reclaiming(2, &document_with(&lengthened, LaneState::default()), &lengthened).expect("with the extent in its set it is accepted");
-    assert!(!state.join("state.log.1").exists(), "the contained predecessor was not reclaimed");
+    assert!(writer.begin_checkpoint_reclaiming(1, &document_with(&with_short, LaneState::default()), &with_short).is_err(), "a closure shorter than the order file the lane holds was accepted");
+    let with_long: Vec<ClosureEntry> = vec![request, long];
+    writer.checkpoint_reclaiming(1, &document_with(&with_long, LaneState::default()), &with_long).expect("the whole order file is accepted");
+}
+
+/// A document that relies on an order extent its retained set lacks is not admitted: the extent is a dependency wherever a record can become
+/// acknowledged authority. No predecessor exists, so only the covering check can refuse it.
+#[test]
+fn r23_a_document_naming_an_order_extent_its_set_lacks_is_not_admitted() {
+    let (lane, state, envelope) = lane_with_envelope("r23-order-admission");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let order: ClosureEntry = order_of(&lane, "adopt a\n");
+    let both: Vec<ClosureEntry> = vec![request.clone(), order];
+    let document: Vec<u8> = document_with(&both, LaneState::default()).encode();
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    assert!(writer.append_with(1, &document, std::slice::from_ref(&request)).is_err(), "a document naming an order extent its set lacks was admitted");
+    writer.append_with(1, &document, &both).expect("with the extent in its set it is admitted");
 }
 
 /// State fields are not containment obligations: a newer document with another marker, head, tail, request phase and consumption map still
