@@ -289,7 +289,9 @@ fn mount_in_namespace(arguments: &[&str]) {
 
 /// The helper process of the boot authority test:
 /// it runs in a new user and mount namespace (the host's `/proc` is not touched), puts a replacement over the boot id file in the way
-/// its mode says, then reads the identity and recovers the journal the test planted, and writes both results to files.
+/// its mode says, then reads the identity and asks the liveness check (`survivor_note`, not the whole `recover`) about the journal the
+/// test planted, and writes both results to files. It shows the identity rejection and the check's refusal, not an unchanged output or a
+/// retained journal under those replacements.
 /// Run on its own it does nothing.
 #[test]
 #[ignore = "the helper process of a_boot_id_put_over_the_kernels_file_is_not_an_identity"]
