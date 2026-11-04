@@ -80,9 +80,11 @@ Revision 18 models, built to the acceptance target:
 
 ## Coverage of the revision 18 acceptance target
 
-Each row names the test that shows the property or control, or says what it needs. A build test
-(`model/model_target_tests.rs`) checks that every named test exists. Counts: 62 covered by a current test, 9
-shown only by a labelled historical control, 25 not yet.
+Each row names the test that shows the property or control, says that the test shows a narrower control and what it leaves unshown, or says
+what it needs. A build test (`model/model_target_tests.rs`) checks that every named test exists. Counts: 70 covered by a current test, 11
+covered only by a narrower control (the row says what remains), 9 shown only by a labelled historical control, 17 not yet. Models review 8
+(`commit-models-sol-8.txt`, section 2) is the source of the narrower rows; the map checks inventory, not semantic coverage, and the
+classification is the author's until a review accepts it.
 
 ### L1 to L7, L5, X1, service drain
 
@@ -96,7 +98,8 @@ shown only by a labelled historical control, 25 not yet.
   `candidate_restarts_only_a_quiet_owner_and_only_the_observed_incarnation` in `model_f3_tests.rs` (a labelled
   historical control, not approval evidence).
 - Covered, control: helper parent exit (the one-shot flusher):
-  `a_flusher_in_the_owners_scope_is_ended_by_the_owner_exit` in `model_receipt_r18_tests.rs`.
+  `a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep` in
+  `model_receipt_r18_tests.rs`.
 - Not yet, control: helper parent exit (every other helper: syncer, level-2 helper). Needs: a model of each
   helper with its parent and scope; none of those helpers exists as a component yet.
 - Covered, control: hook outlasting an upgrade caller, the drain never ends the hook:
@@ -106,10 +109,15 @@ shown only by a labelled historical control, 25 not yet.
 - Covered, property: normal lifecycle never cancels a protected execution (premature drain is red):
   `p7_a_premature_drain_completion_is_red_through_the_monitor_and_the_green_is_exhaustive` in
   `model_w1_r13_tests.rs`.
-- Not yet, obligation: helpers retain no lock, gate, client-lock or pipe descriptor. Needs: the internal flush
-  entry point and a descriptor-inventory test of the launched process.
-- Not yet, obligation: launch is non-recursive and resource-bounded. Needs: the internal flush entry point and
-  a test that the launch never uses the ordinary command line.
+- Narrower, obligation: helpers retain no lock, gate, client-lock or pipe descriptor:
+  `a_lane_lock_the_launcher_releases_is_free_while_the_helper_lives` in `commit_helper_launch_tests.rs`. Not
+  shown: the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started
+  transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory
+  (a_launched_helper_inherits_no_descriptor_of_its_launcher) and the lock test.
+- Narrower, obligation: launch is non-recursive and resource-bounded:
+  `a_launched_entry_is_a_function_in_a_new_session_and_not_a_second_start_of_the_program` in
+  `commit_helper_launch_tests.rs`. Not shown: refusal by a process-count or memory cap is not injected (the
+  launch returns LaunchError::Refused, untested); the transient unit route is not built.
 
 ### C0 to C5, S1, C3 repair
 
@@ -121,8 +129,10 @@ shown only by a labelled historical control, 25 not yet.
   `model_capture_r13_tests.rs`.
 - Covered, control: failed initial read:
   `an_early_read_failure_never_reaches_the_link_and_a_fresh_acceptance_does` in `commit_inbox_tests.rs`.
-- Covered, control: competing repairers: `p1_a_quarantine_never_moves_a_file_it_did_not_inspect` in
-  `commit_inbox_tests.rs`.
+- Narrower, control: competing repairers: `p1_a_quarantine_never_moves_a_file_it_did_not_inspect` in
+  `commit_inbox_tests.rs`. Not shown: two legitimate repairers contending for authority beyond the one
+  non-blocking lock refusal the test asserts; the test replaces the file by raw writes while authority is held
+  and so shows stale-object detection.
 - Not yet, control: preservation-boundary crashes. Needs: a crash injected at every step of repair and
   quarantine, and the three-file conflict-order example.
 - Covered, property: unknown status never authorizes native fallback:
@@ -140,7 +150,7 @@ shown only by a labelled historical control, 25 not yet.
   `a_replay_that_changes_support_is_followed_and_a_stale_decision_loses_the_selection` in
   `model_support_r18_tests.rs`.
 - Covered, control: checkpoint and recovery between rebuild steps:
-  `recovery_between_rebuild_steps_rebuilds_the_same_decision` in `model_support_r18_tests.rs`.
+  `a_crash_between_a_checkpoint_and_a_rebuild_is_rebuilt_from_the_tail` in `model_support_r18_tests.rs`.
 - Covered, control: held requests: `a_held_head_blocks_publication_and_leaves_the_decision_alone` in
   `model_support_r18_tests.rs`.
 - Covered, control: disjoint requests: `a_disjoint_request_neither_supports_nor_overrides` in
@@ -150,7 +160,9 @@ shown only by a labelled historical control, 25 not yet.
 - Covered, control: superseded requests: `a_superseding_version_changes_support_only_through_its_own_entry` in
   `model_support_r18_tests.rs`.
 - Covered, control: comparison with a sequential reference interpreter:
-  `pqad_is_red_under_seventeen_and_green_under_eighteen` in `model_support_r18_tests.rs`.
+  `the_reference_world_follows_every_operation_through_its_own_code` in `model_support_r18_tests.rs`.
+- Covered, control: the whole request family against the reference (every start, red under revision 17):
+  `every_start_is_green_under_eighteen_and_the_family_is_red_under_seventeen` in `model_support_r18_tests.rs`.
 - Not yet, property: held-version completion cannot affect its successor. Needs: a model step where a
   superseded version's hook completes and a control that lets it publish.
 - Not yet, property: retained bytes suffice for recomputation (ledger never compacted). Needs: a component
@@ -178,34 +190,51 @@ shown only by a labelled historical control, 25 not yet.
   `only_a_positive_failure_allows_the_next_attempt` in `model_w1_r13_tests.rs`.
 - Covered, property: unresolved departure permits only the submitted attempt:
   `a_query_during_the_unresolved_mark_never_says_nothing_can_land` in `model_w1_r13_tests.rs`.
-- Not yet, control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend). Needs:
-  fixtures that run the installed Git for every supported invocation; the process runner exists, the experiments
-  do not.
+- Narrower, control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend):
+  `a_fifo_transaction_prepares_holds_through_a_pause_and_commits_on_commit` in `model_git_experiments_tests.rs`.
+  Not shown: every supported invocation beyond `update-ref --stdin` with an update (creation, deletion, symbolic
+  refs, the side-ref transaction), packed refs, linked worktrees, and Git versions other than the installed
+  2.56.0; the neighbouring tests cover abort, end of input, buffered commit, ENXIO, hook phases, a hook refusal
+  and two diagnostics on both the files and reftable backends.
 
 ### P2c, receipt forcing, L2 and L4, shutdown
 
 - Covered, control: delayed client after the final sweep:
   `a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen` in
   `model_receipt_r18_tests.rs`.
-- Covered, control: enqueue rejection, as the observable it has here: a ring to a service that has gone is
-  lost (the model has no refusal step):
+- Covered, control: enqueue rejection by a running service:
+  `an_enqueue_rejected_by_a_running_service_falls_back_to_a_flusher` in `model_receipt_r18_tests.rs`.
+- Covered, control: a ring to a service that has gone is lost (the delayed client):
   `a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under_eighteen` in
   `model_receipt_r18_tests.rs`.
 - Covered, control: worker launch refused by a cap:
   `a_launch_refused_by_a_cap_is_the_stated_outside_cause_and_nothing_else_is_excused` in
   `model_receipt_r18_tests.rs`.
-- Covered, control: worker error: `the_next_owner_sweeps_at_startup_and_retries_a_recorded_error` in
+- Covered, control: worker error (every unforced receipt recorded, joiners included, each retried by the next
+  owner): `a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each` in
   `model_receipt_r18_tests.rs`.
+- Covered, control: worker error on the actual lane files (the joiner is recorded, the forced receipt is not):
+  `a_forcing_error_records_the_failed_receipt_and_the_joiner_but_not_the_forced_one` in
+  `commit_flusher_tests.rs`.
 - Covered, control: worker exit (one-shot, lock released and recheck sweep):
-  `a_flusher_that_does_not_sweep_once_more_after_releasing_its_lock_loses_a_wakeup` in
-  `model_receipt_r18_tests.rs`.
-- Not yet, control: reap mid-sync. Needs: an L2 reap step for a flusher in its forcing phase, in a model that
-  has the incarnation scope.
-- Covered, control: replacement startup: `the_next_owner_sweeps_at_startup_and_retries_a_recorded_error` in
+  `a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock` in `model_receipt_r18_tests.rs`.
+- Covered, control: worker exit on the actual lock (the recheck sweep forces a receipt created in the release
+  window): `a_receipt_created_in_the_release_window_is_forced_by_the_recheck_sweep` in
+  `commit_flusher_tests.rs`.
+- Narrower, control: reap mid-sync:
+  `a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep` in
+  `model_receipt_r18_tests.rs`. Not shown: the real reap of an incarnation scope by the service (the model
+  places the flusher outside or inside the scope as a rule choice).
+- Covered, control: replacement startup:
+  `a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each` in
   `model_receipt_r18_tests.rs`.
 - Covered, control: many outstanding receipts:
-  `many_outstanding_receipts_start_one_flusher_and_the_lock_free_control_starts_more` in
+  `many_outstanding_receipts_keep_one_flusher_and_the_lock_free_control_runs_two` in
   `model_receipt_r18_tests.rs`.
+- Covered, control: the actual flusher lock admits one holder and a second flusher forces nothing:
+  `a_second_flusher_finds_the_lock_held_and_forces_nothing` in `commit_flusher_tests.rs`.
+- Covered, control: launch in the release window of the flusher lock:
+  `a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock` in `model_receipt_r18_tests.rs`.
 - Covered, control: receipt forcing paused, unrelated dispatch bounded:
   `unrelated_dispatch_does_not_wait_for_receipt_forcing` in `model_receipt_r18_tests.rs`.
 - Covered, property: seal before final sweep: `sealing_after_the_final_sweep_loses_the_delayed_receipt` in
@@ -215,21 +244,26 @@ shown only by a labelled historical control, 25 not yet.
 
 ### Rule V departure and optional level 2
 
-- Covered, control: omitted stop or namespace: `p9_a_withdrawal_with_an_unrelated_stop_file_is_refused` in
-  `commit_inbox_tests.rs`.
-- Covered, control: insufficient acknowledgment:
-  `p1_a_departure_for_a_withdrawal_forces_the_mark_and_cannot_omit_it` in `commit_inbox_tests.rs`.
-- Covered, control: terminal departure without its ledger line:
-  `p9_a_terminal_departure_needs_the_terminal_line_of_its_request` in `commit_inbox_tests.rs`.
-- Covered, control: the acknowledged state's whole closure is forced:
-  `p9_a_departure_forces_the_whole_closure_of_the_state_it_acknowledges` in `commit_inbox_tests.rs`.
-- Covered, control: stop failure still attempts the remaining saves:
-  `p9_a_stop_failure_still_attempts_the_remaining_saves` in `commit_inbox_tests.rs`.
+- Covered, control: omitted stop or namespace (one stop cannot stand for two requests; each needs its own):
+  `r14_each_departing_request_needs_its_own_stop_and_its_own_adoption` in `commit_inbox_tests.rs`.
+- Covered, control: one stop receipt cannot acknowledge two withdrawals:
+  `r14_one_stop_receipt_cannot_acknowledge_the_withdrawal_of_two_requests` in `commit_inbox_tests.rs`.
+- Covered, control: insufficient acknowledgment (content-bound, still covering after a later append):
+  `r14_a_departures_acknowledgment_still_covers_after_a_later_append` in `commit_inbox_tests.rs`.
+- Covered, control: terminal departure without its ledger line (a valid ledger of another request):
+  `r14_a_valid_ledger_of_another_request_does_not_satisfy_a_terminal_departure` in `commit_inbox_tests.rs`.
+- Covered, control: the acknowledged state's whole closure is forced (saved content of the candidate):
+  `r14_a_departure_forces_the_saved_content_of_the_candidate_it_acknowledges` in `commit_inbox_tests.rs`.
+- Covered, control: stop failure still attempts the remaining saves (a stop error and a saved-content error):
+  `r14_every_save_is_attempted_after_a_stop_error_and_a_saved_content_error` in `commit_inbox_tests.rs`.
 - Covered, control: ordinary completion cannot stand in for the final save:
   `p7_a_terminal_outcome_that_skips_its_final_save_is_red_and_the_barrier_route_is_green` in
   `model_register_r13_tests.rs`.
-- Covered, property: captured authority valid through completion or verified substitution:
-  `p9_completion_cannot_delete_a_dependency_it_validated_and_forced` in `commit_state_log_tests.rs`.
+- Narrower, property: captured authority valid through completion or verified substitution:
+  `r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support` in
+  `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer (the reclamation-during-capture
+  control is not yet); the older test p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows
+  only the state-directory refusal.
 - Not yet, control: reclamation during capture. Needs: a model of capture against a concurrent reclaimer.
 - Not yet, control: every forcing error. Needs: fault injection at each forcing call of the departure, with
   the outside-fault exit checked.
@@ -245,13 +279,17 @@ shown only by a labelled historical control, 25 not yet.
 
 - Covered, control: non-drop counterexample: `p1_a_checkpoint_never_erases_a_still_live_request` in
   `model_discharge_r14_tests.rs`.
-- Covered, control: non-drop for later appends:
-  `p9_a_later_append_cannot_drop_a_live_request_of_the_checkpoint` in `commit_state_log_tests.rs`.
+- Covered, control: non-drop for later appends (a record cannot omit what its predecessor retained):
+  `r14_a_record_cannot_omit_what_the_previous_record_retained` in `commit_state_log_tests.rs`.
+- Covered, control: retirement discharge forces the ledger prefix that proves it:
+  `r14_a_retirement_forces_the_ledger_prefix_that_discharges_it` in `commit_state_log_tests.rs`.
+- Covered, control: a later record retaining new saved content is not selected without it:
+  `r14_a_later_record_that_retains_new_saved_content_is_not_selected_without_it` in `commit_state_log_tests.rs`.
 - Covered, control: drop control isolated from the durability guard:
   `p7_the_drop_control_keeps_the_durability_guard_and_is_red_for_the_drop_alone` in
   `model_discharge_r14_tests.rs`.
-- Covered, control: torn dependencies: `p9_a_torn_envelope_captured_as_opaque_is_not_replacement_authority` in
-  `commit_state_log_tests.rs`.
+- Covered, control: torn dependencies (a prefix entry under the inbox cannot validate a torn envelope):
+  `r14_a_prefix_entry_under_the_inbox_cannot_validate_a_torn_envelope` in `commit_state_log_tests.rs`.
 - Covered, control: missing dependencies:
   `a_checkpoint_validates_and_forces_its_closure_first_and_refuses_a_missing_entry` in
   `commit_state_log_tests.rs`.
@@ -263,12 +301,15 @@ shown only by a labelled historical control, 25 not yet.
   `commit_state_log_tests.rs`.
 - Covered, control: predecessor deletion: `a_checkpoint_survives_the_deletion_of_its_predecessor` in
   `model_discharge_r14_tests.rs`.
-- Covered, control: mutable dependency (an appended ledger):
-  `p9_an_append_to_a_captured_ledger_does_not_invalidate_the_root` in `commit_state_log_tests.rs`.
+- Covered, control: mutable dependency (an existing ledger writer after capture):
+  `r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger` in
+  `commit_state_log_tests.rs`.
 - Covered, property: maximum-generation conflicts are rejected:
   `two_documents_at_one_generation_are_a_conflict_not_a_root` in `commit_state_log_tests.rs`.
-- Covered, property: damaged established roots fail closed:
-  `p9_an_established_root_with_a_lost_dependency_fails_closed` in `commit_state_log_tests.rs`.
+- Narrower, property: damaged established roots fail closed:
+  `p9_an_established_root_with_a_lost_dependency_fails_closed` in `commit_state_log_tests.rs`. Not shown:
+  telling an established damaged root from an incomplete candidate when older segments are usable; selection
+  records no establishment, and the test has no other usable segment.
 - Historical only, control: registry admission:
   `nine_withdraws_a_release_when_a_run_appears_and_loses_nothing_otherwise` in `model_f8_tests.rs` (a labelled
   historical control, not approval evidence).
@@ -282,7 +323,10 @@ shown only by a labelled historical control, 25 not yet.
   approval evidence).
 - Not yet, property: saved content survives until authorized disposal. Needs: a disposal model: the disposed
   ledger line durable before the saved content is deleted.
-- Not yet, control: push exclusion and frozen updates against actual Git. Needs: disposable Git experiments.
+- Narrower, control: push exclusion and frozen updates against actual Git:
+  `a_negative_refspec_keeps_the_internal_namespace_off_the_remote_and_a_named_object_is_pushed_as_given` in
+  `model_git_experiments_tests.rs`. Not shown: the marker the lane acknowledges and the stacked push path; the
+  test pushes to a local bare remote with plain `git push`.
 
 ### M1 to M3, MG1 to MG3, MG6c
 
@@ -308,17 +352,28 @@ shown only by a labelled historical control, 25 not yet.
 
 ### Rule B, client results, notices and costs
 
-- Covered, control: whole-command timing and sync instrumentation (plain commit makes no sync):
-  `the_waiting_path_of_a_plain_commit_makes_no_sync` in `commit_inbox_tests.rs`.
+- Narrower, control: whole-command timing and sync instrumentation:
+  `the_waiting_path_of_a_plain_commit_makes_no_sync` in `commit_inbox_tests.rs`. Not shown: whole-process
+  latency and every sync the wrapper makes; the test counts the inbox waiting path only.
 - Covered, control: notice dismissal keeps saved copies:
   `dismissing_the_reminder_deletes_no_saved_copy_and_the_restore_command_still_works` in
   `model_watch_r13_tests.rs`.
 - Not yet, control: no-manager preparation timeout. Needs: a register entry and fixture for the no-manager
   preparation wait.
-- Not yet, control: recovery conflict, refusal and signing failure notices. Needs: notice models per outcome.
-- Not yet, control: notice crash and reclamation. Needs: notice delivery state with crash points.
-- Not yet, property: question 8 recovery policy (open owner choice, no green by adopting the recommendation).
-  Needs: the owner's answer on corrected options.
+- Narrower, control: recovery conflict, refusal and signing failure notices: `the_notice_follows_the_outcome`
+  in `model_fresh_attempt_r19_tests.rs`. Not shown: the notice texts of the conflict, refusal and
+  signing-failure outcomes; the model checks that the stored notice follows the outcome of the fresh attempt.
+- Narrower, control: notice crash and reclamation:
+  `recovery_data_is_kept_until_the_outcome_notice_is_delivered` in `model_fresh_attempt_r19_tests.rs`. Not
+  shown: crash points of every notice kind; the model covers the fresh-attempt notice only (its second-crash and
+  printed-then-crash controls are the neighbouring tests).
+- Covered, property: decision 19, fresh attempt with a stored notice when no decisive positive authority
+  survives: `decision_nineteen_is_green_over_every_schedule` in `model_fresh_attempt_r19_tests.rs`.
+- Covered, control: the notice is forced before the attempt starts:
+  `the_notice_is_forced_before_the_attempt_starts` in `model_fresh_attempt_r19_tests.rs`.
+- Covered, control: a durable receipt settles the request and the attempt-again control is red:
+  `a_durable_receipt_settles_the_request_and_the_control_that_ignores_it_runs_a_second_attempt` in
+  `model_fresh_attempt_r19_tests.rs`.
 
 ## Still queued (P2 and P3 from the earlier reviews)
 
@@ -343,31 +398,57 @@ no-timeout test, the acceptance manifest checking a configuration prerequisite, 
 unauthorized-overwrite schedules, the bound model's asserted departure barrier, and the buffered-commit schedule
 that the shutdown green does not assert it reaches).
 
-## Resume point (round 14, partial)
+## Round 14 state
 
-Round 14 follows the review in `commit-models-sol-8.txt` (section 4 is the path). State at this commit: the coverage map test
-`every_covered_or_historical_row_has_its_test` in `model/model_target_tests.rs` is expected red until item 4 is done, because
-several tests it names were renamed or removed.
+Round 14 follows the review in `commit-models-sol-8.txt` (section 4 is the path). All six items of the path are worked; the review
+itself has not run on them. Nothing here is wired into the live wrapper.
 
 Done:
 
-- Item 1 and item 2 (components), committed green earlier (`ecc36c5216`): complete document-bound retained sets, path-derived kinds,
-  content-addressed saved content, ledger prefix as retirement proof, one stop per request, whole retained state forced, every save
-  attempted after errors, content-bound acknowledgment (`state_covers`, `Acknowledgment::still_covers`). Red tests have the `r14_` prefix.
-- Item 3 (models), written and passing individually, in this commit: support model with stale, rebuild, checkpoint and crash steps and a
-  separately written reference interpreter; receipt model with two flusher slots, enqueue rejection, per-receipt error recording, kill and
-  reap controls, startup retry of recorded errors.
-- Item 6: `model/model_fresh_attempt_r19.rs` and its tests (decision 19), passing.
+- Item 1 and item 2 (components), commit `ecc36c5216`: complete document-bound retained sets, path-derived kinds, content-addressed
+  saved content, ledger prefix as retirement proof, one stop per request, whole retained state forced, every save attempted after errors,
+  content-bound acknowledgment (`state_covers`, `Acknowledgment::still_covers`). Red tests have the `r14_` prefix.
+- Item 3 (models): support model with stale, rebuild, checkpoint and crash steps and a separately written reference interpreter; receipt
+  model with two flusher slots, enqueue rejection, per-receipt error recording, kill and reap controls, startup retry of recorded errors.
+- Item 4 (map): `TARGET` rewritten row by row from the review's section 2 with a `Narrower` status that carries what the test leaves
+  unshown; renamed tests fixed; the question 8 row replaced by the decision 19 rows. The map test was red on the renamed names
+  (`target1.log` to `target2.log` in the scratch directory, written by the previous run) and is green. The coverage section above is
+  generated from the map by `/var/home/user/temp/agent/scripts/gen-notes-r14.py`.
+- Item 5 (current evidence):
+  - `commit/commit_helper_launch.rs` (two forks, `setsid`, standard streams on `/dev/null`, `close_range` with a `/proc/self/fd`
+    fallback, a bounded wait for the first child) and `commit/commit_flusher.rs` (the internal flush entry point under
+    `lane/flusher.lock`, recheck sweep, `receipt-errors` record). Written against stubs first: with an inline launch and a lock that
+    always succeeds, 7 of the 10 new component tests were red (`a_launched_helper_inherits_no_descriptor_of_its_launcher`,
+    `a_lane_lock_the_launcher_releases_is_free_while_the_helper_lives`,
+    `a_launched_entry_is_a_function_in_a_new_session_and_not_a_second_start_of_the_program`,
+    `the_flusher_lock_admits_one_holder_at_a_time`, `a_second_flusher_finds_the_lock_held_and_forces_nothing`,
+    `a_receipt_created_in_the_release_window_is_forced_by_the_recheck_sweep`,
+    `a_recheck_that_finds_work_and_the_lock_taken_hands_over`) and green with the real code. The three error-record and healthy-lane tests
+    passed under the stubs because the stubs did not change that behaviour; they were not red first. A one-off control that left out
+    `close_range` made the lock and descriptor tests red again.
+  - `model/model_git_experiments_tests.rs`: real Git 2.56.0, files and reftable backends, FIFO `update-ref --stdin` built as the pipe
+    bootstrap specifies, hook phases, diagnostics, push exclusion. Two tests were red first because the author's assumption was wrong
+    (Git runs the hook in `preparing` before `prepared`; the design already says so at the P2 text); the rest recorded Git's behaviour
+    and passed on first run.
+- Item 6: `model/model_fresh_attempt_r19.rs` and its tests (decision 19), passing; the map rows name them.
 
-Next:
+Gates at the tip: the full `native:test:model` run is 411 passed, 0 failed (`/var/home/user/temp/agent/r14/full-model2.log`); both
+`native:clippy` and `native:clippy:seams` pass; the `source_guard` tests of the library pass (39 of 39).
 
-- Item 4: rewrite `TARGET` in `model/model_target_tests.rs` row by row from the review's section 2; add a `Narrower` status; fix the renamed
-  test names (receipt: `many_outstanding_receipts_keep_one_flusher_and_the_lock_free_control_runs_two`,
-  `a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each`,
-  `a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock`,
-  `a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep`; support:
-  `a_crash_between_a_checkpoint_and_a_rebuild_is_rebuilt_from_the_tail`); replace the question 8 row by the fresh attempt tests; regenerate
-  the coverage section of these notes with `/var/home/user/temp/agent/scripts/gen-notes-r13.py`.
-- Item 5: real Git experiments in disposable repositories (FIFO `update-ref --stdin`, hook phases, diagnostics), a helper launch component
-  with `close_range`, a `flusher.lock` contention test, and a non-recursive internal entry point test. Not started.
-- Then: full `native:test:model`, both clippy variants (they passed at this commit), review inputs from base `bf786b2004`, final report.
+Findings and limits for the reviewer (none adds a row):
+
+- The launch component implements only the double-forked fallback; the manager-started transient unit route is not built, so the
+  "helpers" obligations are `Narrower`. The fork-refused path (`LaunchError::Refused`) is not injected.
+- `flusher.lock` is an exclusive `flock` through `File::try_lock`, taken without waiting. The flusher records a forcing error for every
+  receipt not yet forced, and forces the receipt directory only after a sweep that forced files.
+- The helper runs Rust code after a bare `fork` (no `exec`). The design allows the fork-only fallback ("a double-forked child in its own
+  session"), which is how it stays non-recursive; the safety argument is that the wrapper's launching process is single-threaded at that
+  point, which the component cannot enforce.
+- The Git experiments cover one Git version and two backends only; packed refs, linked worktrees and the side-ref transaction are listed
+  as unshown in the P1 row.
+
+Left:
+
+- The review of these inputs (the coordinator launches it).
+- The `NotYet` rows of the map, which need components or models that do not exist yet (see the coverage section).
+- The queued P2 and P3 items listed under "Still queued".

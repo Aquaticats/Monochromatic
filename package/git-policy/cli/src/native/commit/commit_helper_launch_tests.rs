@@ -81,7 +81,7 @@ fn a_launched_helper_inherits_no_descriptor_of_its_launcher() {
     let (_left, _right) = std::os::unix::net::UnixStream::pair().expect("socket pair");
     let target: PathBuf = report.clone();
     launch_detached(move || {
-        let lines: Vec<String> = open_descriptors().into_iter().map(|(number, target)| { return format!("{}={}", number, target); }).collect();
+        let lines: Vec<String> = open_descriptors().into_iter().map(|(number, link)| { return format!("{}={}", number, link); }).collect();
         publish(&target, &lines.join("\n"));
         return 0;
     })

@@ -115,8 +115,8 @@ fn unforced(lane: &Path, forced: &BTreeSet<OsString>) -> io::Result<Vec<PathBuf>
         Err(error) => return Err(error),
     };
     let mut found: Vec<PathBuf> = Vec::new();
-    for entry in entries {
-        let entry = entry?;
+    for listed in entries {
+        let entry = listed?;
         if !forced.contains(&entry.file_name()) {
             found.push(entry.path());
         }
@@ -234,6 +234,6 @@ pub fn flusher_entry(lane: &Path) -> i32 {
 
 /// Starts the one-shot flusher for `lane` as a detached helper that holds none of this process's descriptors.
 pub fn launch_flusher(lane: &Path) -> Result<(), LaunchError> {
-    let lane: PathBuf = lane.to_path_buf();
-    return launch_detached(move || { return flusher_entry(&lane); });
+    let owned: PathBuf = lane.to_path_buf();
+    return launch_detached(move || { return flusher_entry(&owned); });
 }
