@@ -3590,8 +3590,17 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     start time and namespace are recorded,
     recovery proves it gone before reading the scope,
     and the acknowledgement stays only for what that cannot prove;
-    built as round 11 before the review,
-    which then covers rounds 10 and 11 from `16249ffe94`.
+    built as round 11 (tip `2c20baf0e6`;
+    578 passed,
+    6 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 14 shown,
+    2 partly).
+    Cross-vendor reviews running:
+    `cargo-shadow-sol-11a.txt` (production and docs) and `cargo-shadow-sol-11b.txt` (tests),
+    prompts `cargo-shadow-prompt-11a.txt` and `-11b.txt`,
+    inputs from `16249ffe94` covering rounds 10 and 11.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
