@@ -656,6 +656,66 @@ fn a_journal_whose_recorded_process_group_is_still_alive_is_left_alone() {
 
 /// Review finding (4b2 3):
 /// the outputs are made durable before the completion marker exists.
+/// Round 6 (5b2 2): a group record that cannot be read or understood is uncertainty, never "no children".
+#[test]
+fn a_group_record_that_cannot_be_read_defers_the_recovery() {
+    let root = repository("unchecked output of the killed run");
+    let journal = plant(root.path(), &[snapshot("original")], &[]);
+    fs::remove_file(journal.join("groups")).expect("remove the record");
+    fs::create_dir(journal.join("groups")).expect("a directory where the record was: reading it fails");
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("groups"); }), "{messages:?}");
+}
+
+/// Round 6 (5b2 2): a malformed group record is uncertainty too.
+#[test]
+fn a_malformed_group_record_defers_the_recovery() {
+    let root = repository("unchecked output of the killed run");
+    let journal = plant(root.path(), &[snapshot("original")], &[]);
+    fs::write(journal.join("groups"), "4242\nnot a number\n").expect("write a damaged record");
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+}
+
+/// Round 6 (5b2 1): a surviving child of one killed run stops the recovery of every other journal of the workspace,
+/// because that child still writes the same files.
+#[test]
+fn a_survivor_of_one_journal_stops_the_recovery_of_another() {
+    use std::os::unix::process::CommandExt;
+    let root = repository("unchecked output of the killed run");
+    let survivor_journal = plant(root.path(), &[snapshot("first")], &[]);
+    let _other = plant(root.path(), &[snapshot("second")], &[]);
+    let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
+    fs::write(survivor_journal.join("groups"), format!("{}\n", orphan.id())).expect("record the group");
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let _ = orphan.kill();
+    let _ = orphan.wait();
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+}
+
+/// Round 6 (5b2 1): a new transaction does not start while a child of a killed run may still be writing.
+#[test]
+fn a_new_transaction_does_not_start_beside_a_survivor() {
+    use std::os::unix::process::CommandExt;
+    let root = repository("unchecked output of the killed run");
+    let journal = plant(root.path(), &[snapshot("first")], &[]);
+    let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
+    fs::write(journal.join("groups"), format!("{}\n", orphan.id())).expect("record the group");
+
+    let started = begin(root.path(), &[snapshot("second")], false);
+    let _ = orphan.kill();
+    let _ = orphan.wait();
+
+    assert!(started.is_err(), "a transaction started beside a surviving child");
+}
+
 #[test]
 fn finish_makes_the_outputs_durable_before_the_done_marker() {
     let root = repository("final output");
