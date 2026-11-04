@@ -434,6 +434,24 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     };
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     let kept_notice: Option<String> = kept_folder_notice(root);
+    // A child of an earlier killed run may still be writing the files this transaction would snapshot:
+    // starting now would let two runs mutate one workspace, so the transaction is refused.
+    let earlier: Option<fs::ReadDir> = match fs::read_dir(root.join(JOURNAL_DIR)) {
+        Ok(listing) => Some(listing),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error),
+    };
+    if let Some(listing) = earlier {
+        for entry in listing.flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir()
+                && !path.to_string_lossy().ends_with(DONE_SUFFIX)
+                && let Some(note) = crate::journal_recover::survivor_note(&path)
+            {
+                return Err(io::Error::other(note));
+            }
+        }
+    }
     let journals: PathBuf = root.join(JOURNAL_DIR);
     create_directories_synced(&journals)?;
     let mut created: Option<PathBuf> = None;
