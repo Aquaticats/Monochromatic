@@ -394,3 +394,8 @@ mod commit_retention_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_cutover_tests.rs"]
 mod commit_cutover_tests;
+
+/// Plan step 2: the third round of review (disposal recovery, serialization, establishment identity, the error record).
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_review3_tests.rs"]
+mod commit_review3_tests;
