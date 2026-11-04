@@ -317,3 +317,23 @@ fn p7_ordinary_completion_of_foreground_and_committing_is_published_or_saved() {
         }
     }
 }
+
+/// Models review 7, 1 (mutation and green control): the control whose terminal outcome returns normally without the ledger line's final save
+/// is red for FOREGROUND and COMMITTING with the specific diagnostic; revision 15 reaches the same terminal outcome only through the
+/// barrier, so its search is green, and the published completion is the one route that returns with nothing saved.
+#[test]
+fn p7_a_terminal_outcome_that_skips_its_final_save_is_red_and_the_barrier_route_is_green() {
+    let terminal = "environment: the other party reaches a terminal outcome and the wait ends";
+    for index in [FOREGROUND, COMMITTING] {
+        let bypassed: State = replay(initial(Rules::FifteenOrdinaryBypass, single(index)), steps, &[terminal]);
+        assert_eq!(bypassed.phase, Phase::Done);
+        assert!(invariant(&bypassed).is_some_and(|message| { return message.contains("terminal outcome without the final save"); }), "{}", ENTRIES[index].name);
+        assert!(check(Rules::FifteenOrdinaryBypass, single(index)).violation.is_some());
+        let mut routed: State = replay(initial(Rules::Fifteen, single(index)), steps, &[terminal]);
+        assert!(matches!(routed.phase, Phase::Acting(_)) && !routed.saved, "{}: the terminal outcome waits for the save", ENTRIES[index].name);
+        routed = replay(routed, steps, &["environment: the other party completes the stage", "client: the command exits"]);
+        assert!(routed.phase == Phase::Done && routed.saved && invariant(&routed).is_none());
+        let report: Report = check(Rules::Fifteen, single(index));
+        assert!(report.violation.is_none() && report.exhausted);
+    }
+}
