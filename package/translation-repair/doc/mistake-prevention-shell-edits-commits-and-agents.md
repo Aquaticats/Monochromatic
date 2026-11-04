@@ -151,7 +151,7 @@ then set up.
 Every worktree added from a worktree that holds ignored files passes the flag,
 a keyless worktree most of all,
 since the wrapper copies every ignored file of a linked source
-(the `CopySelection` TSDoc in `package/git-policy/cli/src/native/worktree_copy_selection.rs`),
+(the `CopySelection` TSDoc in `package/git-policy/cli/src/native/worktree_copying/worktree_copy_selection.rs`),
 run keys and logger files included,
 and `git clean --dry-run -d -X` in the new worktree lists nothing ignored (ledger M152,
 M224).

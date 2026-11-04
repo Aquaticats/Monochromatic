@@ -94,7 +94,7 @@ function reportsFailure({
 
  @example
  ```ts
- const verdict = judgePlantedRun({ output, status: 100, failing: 'entry::stop_tests::forward_target_naming_this_executable_stops' });
+ const verdict = judgePlantedRun({ output, status: 100, failing: 'invocation::entry::stop_tests::forward_target_naming_this_executable_stops' });
  ```
  */
 export function judgePlantedRun({
