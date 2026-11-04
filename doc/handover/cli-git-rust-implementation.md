@@ -47,7 +47,16 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-None.
+0.5.28:
+base gate `gpc-gate-base-0-5-28-final-20261103T214518-0500` passed 4706 of 4706 (7 skipped) on `d9e8907ae8`;
+the base was merged into main as `920fdce60d` (2026-11-03T21:57:04-05:00,
+body `Closes #6260`);
+dispatched as run https://github.com/Aquaticats/Monochromatic/actions/runs/41764055048;
+`native:release:wait` is following it;
+next:
+`upgrade-wrapper.ts 0.5.28`,
+then time commits on main against native Git.
+Before 0.5.28:
 0.5.27 was dispatched 2026-11-03T10:28-05:00 from main after its gate passed (4264 of 4264,
 6 skipped),
 run https://github.com/Aquaticats/Monochromatic/actions/runs/41663034226,
