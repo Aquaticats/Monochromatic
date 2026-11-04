@@ -233,7 +233,7 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     // bound, and the writer's own delay follows the bound (a second after it) so that it still writes only after the stop.
     let writer_file = plain.path().join("writer-pid");
     let started = std::time::Instant::now();
-    let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
+    let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(1500),
         &|| { let _ = fs::remove_file(&ready); let _ = fs::remove_file(&marker); },
         &|| { return ready.exists(); },
@@ -253,6 +253,7 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     std::thread::sleep(limit + Duration::from_millis(1_200));
     assert!(!alive_at_return, "the writer of the process group still ran when the run returned");
     assert!(elapsed < limit * 8 + crate::bounded_run::QUIESCE_BOUND * 2, "the run returned after {elapsed:?}, long after its bound of {limit:?}");
+    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
 
     // The result is the timeout (certification group 3), the writer started, and the run was the weaker path.
     assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the run should have passed its bound: {result:?}");

@@ -45,10 +45,11 @@ fn a_child_that_outlives_its_bound_is_stopped_and_named() {
     let marker = directory.path().join("started");
     let started = Instant::now();
     let pid_file = directory.path().join("payload-pid");
-    let script: String = format!("echo $$ > {}; : > {}; exec sleep 5", pid_file.display(), marker.display());
+    // The payload lives far longer than any bound the retries reach, so a run that ends is ended by its bound.
+    let script: String = format!("echo $$ > {}; : > {}; exec sleep 600", pid_file.display(), marker.display());
 
     // An attempt whose bound ended before the payload wrote its marker is repeated with a longer one (the bound counts scope startup).
-    let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
+    let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_secs(2),
         &|| { let _ = std::fs::remove_file(&marker); },
         &|| { return marker.exists(); },
@@ -59,7 +60,8 @@ fn a_child_that_outlives_its_bound_is_stopped_and_named() {
     // returned at the deadline without stopping it would leave it running here.
     assert!(!crate::contain_counterexample_tests::is_running(pid_in(&pid_file)), "the payload still runs after the run returned at its bound");
     // With the first bound the child (five seconds) is stopped at the bound and not waited for.
-    assert!(limit != Duration::from_secs(2) || started.elapsed() < Duration::from_secs(5), "the child was waited for: {:?}", started.elapsed());
+    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}; the child was waited for or the bound was overshot");
+    let _ = started;
     assert!(marker.exists(), "the payload never started, so the bound was not the command's lifetime");
     let error: RunError = result.expect_err("a timeout");
     assert!(matches!(error, RunError::TimedOut { .. }), "{error:?}");
@@ -244,7 +246,7 @@ fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
     // Borrow `&script`: lends the value without copying or giving it away.
     // The bound counts scope startup, so an attempt in which the payload had not written its pid when the bound ended is repeated with
     // a longer one (it judges nothing about stopping a descendant at the bound).
-    let (result, _limit) = crate::cgroup_test_support::run_until_the_payload_started(
+    let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(400),
         &|| { let _ = std::fs::remove_file(&pid_file); },
         &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
@@ -253,6 +255,7 @@ fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err());
+    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
     // Borrow `&pid_file`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
@@ -379,7 +382,7 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
     let script = format!("sleep 30 & echo $! > {}; sleep 30", pid_file.display());
     let attempts: std::cell::Cell<u32> = std::cell::Cell::new(0);
 
-    let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
+    let (result, limit, _judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(400),
         &|| { let _ = std::fs::remove_file(&pid_file); },
         &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
@@ -392,7 +395,8 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
 
     assert!(attempts.get() >= 2, "the first bound of 400 ms did not end during the one-second startup, so the schedule was not built");
     assert!(limit > Duration::from_secs(1), "the judged bound {limit:?} is not longer than the startup");
-    assert!(result.is_err(), "the run should have ended at its bound");
+    // The retried run ended at its bound with the timeout, not with some other error.
+    assert!(matches!(result, Err(RunError::TimedOut { .. })), "the judged run did not end at its bound: {result:?}");
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
     drop(transaction);
 }
