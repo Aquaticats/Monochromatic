@@ -55,13 +55,14 @@ fn restored(result: (Vec<String>, Option<std::io::Error>)) -> Vec<String> {
 #[test]
 fn a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others() {
     let root = scratch();
-    let names = ["package/j/a", "package/j/b", "package/j/c"];
+    let names = ["package/j/a", "package/j/b", "package/j/c", "package/j/d"];
     for name in names {
         fs::create_dir_all(root.path().join(name)).expect("dir");
     }
     fs::write(root.path().join(names[0]).join("Cargo.lock"), "written by someone else").expect("a: changed by another process");
     fs::create_dir(root.path().join(names[1]).join("Cargo.lock")).expect("b: a directory where the lockfile should be, so reading it fails");
     fs::write(root.path().join(names[2]).join("Cargo.lock"), "produced").expect("c: still what the run produced");
+    fs::write(root.path().join(names[3]).join("Cargo.lock"), "written by yet another process").expect("d: after the failed root, changed by another process, so it needs a warning of its own");
     let snapshots: Vec<LockSnapshot> = names.iter().map(|name| { return LockSnapshot { crate_dir: name.to_string(), source: "original".to_string() }; }).collect();
     let produced: Vec<LockSnapshot> = names.iter().map(|name| { return LockSnapshot { crate_dir: name.to_string(), source: "produced".to_string() }; }).collect();
 
@@ -70,6 +71,10 @@ fn a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others() 
     assert!(failure.is_some(), "the unreadable root was not reported as a failure");
     assert!(warnings.iter().any(|warning| { return warning.contains(names[0]) && warning.contains("another process"); }), "the warning of the first root was lost: {warnings:?}");
     assert_eq!(fs::read_to_string(root.path().join(names[2]).join("Cargo.lock")).expect("c"), "original", "the root after the failed one was not restored");
+    // Certification, second pass (R5): a warning generated after the failed root is kept beside the earlier one, and that root's file
+    // is left as the other process wrote it.
+    assert!(warnings.iter().any(|warning| { return warning.contains(names[3]) && warning.contains("another process"); }), "the warning of a root after the failed one was lost: {warnings:?}");
+    assert_eq!(fs::read_to_string(root.path().join(names[3]).join("Cargo.lock")).expect("d"), "written by yet another process");
 }
 
 #[test]
