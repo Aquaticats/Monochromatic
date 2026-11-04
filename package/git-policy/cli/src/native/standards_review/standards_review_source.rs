@@ -22,6 +22,34 @@ use std::path::Path;
 pub const MAX_PATCH_BYTES: usize = 1 << 26;
 
 /// What:
+///  Whether one byte is the line feed that ends a `git cat-file --batch` header.
+///  `&u8` borrows the byte, as `position` hands it over.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLineFeedByte = (byte: number) => byte === '\n'.charCodeAt(0);
+/// ```
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
+///  Whether one byte is the NUL byte that ends each name of `git diff-tree -z`.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
 ///  Read the patch of `sha` with one `git show`.
 /// Why:
 ///   Color and external diff drivers are switched off so the text does not depend on the account's configuration.
@@ -32,7 +60,10 @@ pub const MAX_PATCH_BYTES: usize = 1 << 26;
 /// ```
 fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, String> {
     let request: GitRequest = GitRequest::new(cwd, &["show", "--format=", "--patch", "--no-color", "--no-ext-diff", sha]);
-    let output = run_git(context, &request).map_err(|error| return format!("starting git show failed: {error}"))?;
+    let output = match run_git(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(format!("starting git show failed: {error}")),
+    };
     if !output.succeeded() {
         return Err(format!("git show {sha} failed: {}", output.error_text()));
     }
@@ -55,7 +86,7 @@ pub fn parse_batch(output: &[u8], names: &[String]) -> Result<BTreeMap<String, S
     let mut texts: BTreeMap<String, String> = BTreeMap::new();
     let mut offset: usize = 0;
     for name in names {
-        let Some(relative) = output[offset..].iter().position(|byte| return *byte == b'\n') else {
+        let Some(relative) = output[offset..].iter().position(is_line_feed_byte) else {
             return Err(format!("git cat-file omitted the header for {name}"));
         };
         let header: String = String::from_utf8_lossy(&output[offset..offset + relative]).into_owned();
@@ -64,11 +95,19 @@ pub fn parse_batch(output: &[u8], names: &[String]) -> Result<BTreeMap<String, S
         if fields.len() == 2 && fields[1] == "missing" {
             continue;
         }
-        let size: usize = match (fields.len(), fields.get(1), fields.get(2).and_then(|text| return text.parse::<usize>().ok())) {
+        let announced_size: Option<usize> = match fields.get(2) {
+            Some(text) => text.parse::<usize>().ok(),
+            None => None,
+        };
+        let size: usize = match (fields.len(), fields.get(1), announced_size) {
             (3, Some(&"blob"), Some(size)) => size,
             _ => return Err(format!("git cat-file returned an unexpected header for {name}: {header}")),
         };
-        let end: usize = offset.checked_add(size).filter(|end| return *end < output.len() && output[*end] == b'\n').ok_or_else(|| return format!("git cat-file returned truncated content for {name}"))?;
+        // The content must end before the output does, and a line feed must follow it.
+        let end: usize = match offset.checked_add(size) {
+            Some(end) if end < output.len() && output[end] == b'\n' => end,
+            _ => return Err(format!("git cat-file returned truncated content for {name}")),
+        };
         texts.insert(name.clone(), String::from_utf8_lossy(&output[offset..end]).into_owned());
         offset = end + 1;
     }
@@ -87,11 +126,20 @@ pub fn parse_batch(output: &[u8], names: &[String]) -> Result<BTreeMap<String, S
 /// ```
 pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<String>, String> {
     let request: GitRequest = GitRequest::new(cwd, &["diff-tree", "--no-commit-id", "--name-only", "-r", "-z", sha]);
-    let output = run_git(context, &request).map_err(|error| return format!("starting git diff-tree failed: {error}"))?;
+    let output = match run_git(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(format!("starting git diff-tree failed: {error}")),
+    };
     if !output.succeeded() {
         return Err(format!("git diff-tree {sha} failed: {}", output.error_text()));
     }
-    return Ok(output.stdout.split(|byte| return *byte == 0).filter(|name| return !name.is_empty()).map(|name| return String::from_utf8_lossy(name).into_owned()).collect());
+    let mut names: Vec<String> = Vec::new();
+    for name in output.stdout.split(is_nul_byte) {
+        if !name.is_empty() {
+            names.push(String::from_utf8_lossy(name).into_owned());
+        }
+    }
+    return Ok(names);
 }
 
 /// What:
@@ -105,7 +153,10 @@ pub fn read_names(context: &GitContext, cwd: &Path, sha: &str) -> Result<Vec<Str
 /// ```
 pub fn read_message(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, String> {
     let request: GitRequest = GitRequest::new(cwd, &["show", "--no-patch", "--format=%B", sha]);
-    let output = run_git(context, &request).map_err(|error| return format!("starting git show failed: {error}"))?;
+    let output = match run_git(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(format!("starting git show failed: {error}")),
+    };
     if !output.succeeded() {
         return Err(format!("git show {sha} failed: {}", output.error_text()));
     }
@@ -125,10 +176,16 @@ pub fn read_message(context: &GitContext, cwd: &Path, sha: &str) -> Result<Strin
 pub fn read_landed_commit(context: &GitContext, cwd: &Path, sha: &str, subject: &str, code_files: &[String]) -> Result<LandedCommit, String> {
     let patch: String = read_patch(context, cwd, sha)?;
     let wanted: Vec<String> = code_files.iter().take(MAX_EXCERPT_FILES).cloned().collect();
-    let specs: String = wanted.iter().map(|name| return format!("{sha}:{name}\n")).collect();
+    let mut specs: String = String::new();
+    for name in &wanted {
+        specs.push_str(format!("{sha}:{name}\n").as_str());
+    }
     let mut request: GitRequest = GitRequest::new(cwd, &[OsString::from("cat-file"), OsString::from("--batch")]);
     request.input = Some(specs.into_bytes());
-    let output = run_git(context, &request).map_err(|error| return format!("starting git cat-file failed: {error}"))?;
+    let output = match run_git(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(format!("starting git cat-file failed: {error}")),
+    };
     if !output.succeeded() {
         return Err(format!("git cat-file failed: {}", output.error_text()));
     }

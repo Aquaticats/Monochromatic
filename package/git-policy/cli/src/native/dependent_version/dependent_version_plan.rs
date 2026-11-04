@@ -110,10 +110,14 @@ fn publishable_names(
     content: &mut dyn WorkspaceContent,
     tracked: &[TrackedPath],
 ) -> Result<Option<Vec<String>>, PlanError> {
-    let Some(config) = tracked
-        .iter()
-        .find(|entry: &&TrackedPath| return entry.path == PNPR_CONFIG_PATH)
-    else {
+    let mut found: Option<&TrackedPath> = None;
+    for entry in tracked {
+        if entry.path == PNPR_CONFIG_PATH {
+            found = Some(entry);
+            break;
+        }
+    }
+    let Some(config) = found else {
         return Ok(None);
     };
     let bytes: Vec<u8> = content.candidate_bytes(&config.path)?;
@@ -148,6 +152,21 @@ fn manifest_bump(planned: PlannedBump, state: &ManifestState) -> Result<Manifest
     });
 }
 
+/// What: The outcome of a plan that bumps nothing, for the named raised packages.
+/// Why:  Two early exits of `plan_workspace_bumps` end with the same empty plan, and a named function takes the
+///       place of the closure that built it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plannedWithoutBumps = (bumpedNames: string[]) => ({ kind: 'Planned', bumpedNames, bumps: [] });
+/// ```
+fn planned_without_bumps(bumped_names: Vec<String>) -> PlanOutcome {
+    return PlanOutcome::Planned(WorkspaceBumpPlan {
+        bumped_names,
+        bumps: Vec::new(),
+    });
+}
+
 /// What: Plan patch bumps for publishable dependents of raised packages.
 /// Why:  Reads every manifest at both states; the registry configuration only when a
 ///       version was raised; source files only of dependents whose development edges could
@@ -161,17 +180,11 @@ pub fn plan_workspace_bumps(content: &mut dyn WorkspaceContent) -> Result<PlanOu
     let tracked: Vec<TrackedPath> = content.tracked_paths()?;
     let states: Vec<ManifestState> = read_manifest_states(content, &tracked)?;
     let bumped: Vec<String> = bumped_names(&states);
-    let empty = |bumped_names: Vec<String>| {
-        return Ok(PlanOutcome::Planned(WorkspaceBumpPlan {
-            bumped_names,
-            bumps: Vec::new(),
-        }));
-    };
     if bumped.is_empty() {
-        return empty(bumped);
+        return Ok(planned_without_bumps(bumped));
     }
     let Some(publishable) = publishable_names(content, &tracked)? else {
-        return empty(bumped);
+        return Ok(planned_without_bumps(bumped));
     };
     // `if let Some(...)` returns the first duplicate as the failure.
     if let Some(duplicate) = duplicate_name(&states) {
@@ -179,18 +192,15 @@ pub fn plan_workspace_bumps(content: &mut dyn WorkspaceContent) -> Result<PlanOu
     }
     let bundled: Vec<Vec<String>> = bundled_development_edges(content, &tracked, &states, &bumped)?;
     // `.zip` pairs each state with its bundled edges.
-    let nodes: Vec<WorkspaceNode> = states
-        .iter()
-        .zip(bundled)
-        .map(|(state, edges): (&ManifestState, Vec<String>)| {
-            return WorkspaceNode {
-                name: state.facts.name.clone(),
-                directory: state.directory.clone(),
-                version: state.facts.version.clone(),
-                edge_names: [state.facts.runtime_dependency_names.clone(), edges].concat(),
-            };
-        })
-        .collect();
+    let mut nodes: Vec<WorkspaceNode> = Vec::new();
+    for (state, edges) in states.iter().zip(bundled) {
+        nodes.push(WorkspaceNode {
+            name: state.facts.name.clone(),
+            directory: state.directory.clone(),
+            version: state.facts.version.clone(),
+            edge_names: [state.facts.runtime_dependency_names.clone(), edges].concat(),
+        });
+    }
     let planned: Vec<PlannedBump> = match plan_dependent_bumps(&nodes, &bumped, &publishable) {
         Ok(found) => found,
         Err(unsupported) => return Ok(PlanOutcome::Unsupported(unsupported)),
@@ -198,10 +208,14 @@ pub fn plan_workspace_bumps(content: &mut dyn WorkspaceContent) -> Result<PlanOu
     let mut bumps: Vec<ManifestBump> = Vec::new();
     for bump in planned {
         // Names are unique once the duplicate check passed, so this finds the one state.
-        if let Some(state) = states
-            .iter()
-            .find(|state: &&ManifestState| return state.facts.name == bump.name)
-        {
+        let mut owner: Option<&ManifestState> = None;
+        for state in &states {
+            if state.facts.name == bump.name {
+                owner = Some(state);
+                break;
+            }
+        }
+        if let Some(state) = owner {
             bumps.push(manifest_bump(bump, state)?);
         }
     }

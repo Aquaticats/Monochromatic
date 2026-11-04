@@ -54,6 +54,34 @@ pub struct FsmonitorEntry {
 }
 
 /// What:
+///  Whether one byte is the NUL byte that ends every field of the listing.
+///  `&u8` borrows the byte, as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNulByte = (byte: number) => byte === 0;
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Whether one byte is the line feed that separates a key from its value.
+///  `&u8` borrows the byte, as `position` hands it over.
+/// Why:
+///   `position` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLineFeedByte = (byte: number) => byte === '\n'.charCodeAt(0);
+/// ```
+fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
+
+/// What:
 ///  The `core.fsmonitor` entries of a `git config --list --show-origin --show-scope -z` listing, in precedence order.
 ///  `Option<Vec<...>>` is `None` when the listing is not in the expected shape.
 /// Why:
@@ -70,12 +98,12 @@ pub fn parse_fsmonitor_entries(listing: &[u8]) -> Option<Vec<FsmonitorEntry>> {
         return Some(entries);
     }
     let body: &[u8] = listing.strip_suffix(&[0])?;
-    let mut fields = body.split(|byte| { return *byte == 0; });
+    let mut fields = body.split(is_nul_byte);
     while let Some(scope) = fields.next() {
         let origin: &[u8] = fields.next()?;
         let record: &[u8] = fields.next()?;
         // Only the first line feed separates key from value; the value may hold more of them.
-        let (key, value): (&[u8], Option<&[u8]>) = match record.iter().position(|byte| { return *byte == b'\n'; }) {
+        let (key, value): (&[u8], Option<&[u8]>) = match record.iter().position(is_line_feed_byte) {
             Some(newline) => (&record[..newline], Some(&record[newline + 1..])),
             None => (record, None),
         };

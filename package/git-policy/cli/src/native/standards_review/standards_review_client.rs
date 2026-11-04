@@ -88,7 +88,10 @@ pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
 fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, String> {
     let tls: TlsConfig = match gateway.trusted_pem {
         Some(pem) => {
-            let authority: Certificate<'static> = Certificate::from_pem(pem).map_err(|error| return format!("the trusted authority is unreadable: {error}"))?;
+            let authority: Certificate<'static> = match Certificate::from_pem(pem) {
+                Ok(parsed) => parsed,
+                Err(error) => return Err(format!("the trusted authority is unreadable: {error}")),
+            };
             TlsConfig::builder().root_certs(RootCerts::new_with_certs(&[authority])).build()
         }
         None => TlsConfig::default(),
@@ -108,14 +111,20 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
         .tls_config(tls)
         .build()
         .into();
-    let mut response = agent
+    let sent = agent
         .post(gateway.url)
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", gateway.api_key))
-        .send(body.as_bytes())
-        .map_err(|error| { return describe(error, gateway.ceiling); })?;
+        .send(body.as_bytes());
+    let mut response = match sent {
+        Ok(received) => received,
+        Err(error) => return Err(describe(error, gateway.ceiling)),
+    };
     let status: u16 = response.status().as_u16();
-    let text: String = response.body_mut().read_to_string().map_err(|error| { return describe(error, gateway.ceiling); })?;
+    let text: String = match response.body_mut().read_to_string() {
+        Ok(read) => read,
+        Err(error) => return Err(describe(error, gateway.ceiling)),
+    };
     return Ok(Reply { status, body: text });
 }
 

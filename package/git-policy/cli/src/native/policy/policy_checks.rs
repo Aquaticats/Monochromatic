@@ -354,12 +354,14 @@ fn check_linked_worktree(
             SideVerdict::NotApplicable => {}
             SideVerdict::Refused(note) => conflict_note = note,
             SideVerdict::Allowed { notice, copies } => {
-                let places: Vec<String> = copies
-                    .iter()
-                    .map(|copy| {
-                        return format!("{} => {}", copy.path, copy.saved_to.as_ref().map_or_else(|| { return String::from("none"); }, |place| { return place.display().to_string(); }));
-                    })
-                    .collect();
+                let mut places: Vec<String> = Vec::new();
+                for copy in &copies {
+                    let saved_to: String = match copy.saved_to.as_ref() {
+                        Some(place) => place.display().to_string(),
+                        None => String::from("none"),
+                    };
+                    places.push(format!("{} => {}", copy.path, saved_to));
+                }
                 record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, arguments, None, places.as_slice());
                 notices.push(notice);
                 return clean();

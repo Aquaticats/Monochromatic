@@ -37,7 +37,10 @@ fn token(sha: &str) -> String {
 
 /// Whether the log names the commit already; a log that cannot be read names nothing.
 pub fn names_commit(log: &Path, sha: &str) -> bool {
-    return std::fs::read_to_string(log).is_ok_and(|text| return text.contains(token(sha).as_str()));
+    return match std::fs::read_to_string(log) {
+        Ok(text) => text.contains(token(sha).as_str()),
+        Err(_) => false,
+    };
 }
 
 /// What:
@@ -88,7 +91,9 @@ pub fn deliver(log: &Path, sha: &str, text: &str) -> Result<Delivery, String> {
     if current.contains(token(sha).as_str()) {
         return Ok(Delivery::AlreadyThere);
     }
-    append_whole(log, text).map_err(|error| return format!("appending to {} failed: {error}", log.display()))?;
+    if let Err(error) = append_whole(log, text) {
+        return Err(format!("appending to {} failed: {error}", log.display()));
+    }
     return Ok(Delivery::Appended);
 }
 

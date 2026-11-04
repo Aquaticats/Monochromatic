@@ -76,19 +76,37 @@ fn top_level(context: &GitContext, cwd: &Path) -> Option<PathBuf> {
 /// configFindings({ context, cwd });
 /// ```
 pub fn config_findings(context: &GitContext, cwd: &Path) -> ConfigFindings {
-    let hooks: Vec<ConfiguredHook> = read_config_snapshot(context, cwd)
-        .map(|snapshot| { return configured_hooks(&snapshot); })
-        .unwrap_or_default();
+    // `match` on the `Option`: a snapshot that could not be read gives no hooks, as `.unwrap_or_default()` did.
+    let hooks: Vec<ConfiguredHook> = match read_config_snapshot(context, cwd) {
+        Some(snapshot) => configured_hooks(&snapshot),
+        None => Vec::new(),
+    };
     // A configuration that cannot be loaded is not doctor's to report: the command works beside a broken file, and
     // every other command names the problem.
-    let loaded: Option<CliGitConfig> = top_level(context, cwd).and_then(|root| { return load_repository_config(root.as_path()).ok(); }).map(|found| { return found.config; });
-    let concurrency: Option<ConcurrencyConfig> = loaded.as_ref().map(|found| { return found.concurrency; });
+    let loaded: Option<CliGitConfig> = match top_level(context, cwd) {
+        Some(root) => match load_repository_config(root.as_path()) {
+            Ok(found) => Some(found.config),
+            Err(_) => None,
+        },
+        None => None,
+    };
+    let (retired_hooks_key, retired_index_lock_key, retired_landing_key): (bool, bool, bool) = match loaded.as_ref() {
+        Some(found) => {
+            let retired: ConcurrencyConfig = found.concurrency;
+            (retired.hooks.present, retired.index_lock.present, retired.landing.present)
+        }
+        None => (false, false, false),
+    };
+    let discarded: Limits = match loaded {
+        Some(found) => found.discarded,
+        None => Limits::default(),
+    };
     return ConfigFindings {
         hooks,
-        retired_hooks_key: concurrency.is_some_and(|retired| { return retired.hooks.present; }),
-        retired_index_lock_key: concurrency.is_some_and(|retired| { return retired.index_lock.present; }),
-        retired_landing_key: concurrency.is_some_and(|retired| { return retired.landing.present; }),
-        discarded: loaded.map_or_else(Limits::default, |found| { return found.discarded; }),
+        retired_hooks_key,
+        retired_index_lock_key,
+        retired_landing_key,
+        discarded,
     };
 }
 

@@ -75,10 +75,10 @@ pub fn transitive_dependent_names(
     nodes: &[WorkspaceNode],
     bumped_names: &[String],
 ) -> HashSet<String> {
-    let workspace: HashSet<&str> = nodes
-        .iter()
-        .map(|node: &WorkspaceNode| return node.name.as_str())
-        .collect();
+    let mut workspace: HashSet<&str> = HashSet::new();
+    for node in nodes {
+        workspace.insert(node.name.as_str());
+    }
     let mut dependents: HashMap<&str, Vec<&str>> = HashMap::new();
     for node in nodes {
         for edge in &node.edge_names {
@@ -118,6 +118,17 @@ pub fn utf16_order(left: &str, right: &str) -> std::cmp::Ordering {
     return left.encode_utf16().cmp(right.encode_utf16());
 }
 
+/// What: Order two planned bumps by package name in UTF-16 order, so `sort_by` can take this function by path.
+/// Why:  The plan is sorted by name, and a named function replaces the closure that only called `utf16_order`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const compareBumpsByName = (left: PlannedBump, right: PlannedBump) => utf16Order(left.name, right.name);
+/// ```
+fn compare_bumps_by_name(left: &PlannedBump, right: &PlannedBump) -> std::cmp::Ordering {
+    return utf16_order(&left.name, &right.name);
+}
+
 /// What: The patch bumps for publishable dependents of the raised packages, sorted by name.
 ///       `Result<T, UnsupportedVersion>` is the plan, or the first dependent (in node order)
 ///       whose version cannot be bumped automatically.
@@ -149,9 +160,7 @@ pub fn plan_dependent_bumps(
         }
     }
     // `.sort_by` is stable, as `toSorted` is.
-    bumps.sort_by(|left: &PlannedBump, right: &PlannedBump| {
-        return utf16_order(&left.name, &right.name);
-    });
+    bumps.sort_by(compare_bumps_by_name);
     return Ok(bumps);
 }
 
