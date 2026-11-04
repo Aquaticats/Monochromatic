@@ -432,3 +432,27 @@ fn a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cg
     assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN);
     assert!(journal.exists());
 }
+
+/// Acceptance row V2, amended c (9b section 2, "every other check"):
+/// a reboot discharges only the liveness of the run's processes.
+/// The completion marker of the recovery still runs and still keep the journal when they fail, and the same
+/// recovery settles the journal once the barrier works (the control, so the probe can move).
+#[test]
+fn a_reboot_still_publishes_the_completion_marker_of_the_recovery_or_keeps_the_journal() {
+    for fault in [Point::CompletionRename] {
+        let root = repository();
+        let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\npgroup 2147483646\n");
+        use_identity_for_test(Some(Ok(after_a_reboot())));
+        arm(fault);
+        let failed: Vec<String> = recover(root.path(), &refusing);
+        let reached: bool = !crate::failpoints::fires(fault);
+        let kept: bool = journal.exists() && !journal.to_string_lossy().ends_with(".done");
+        let again: Vec<String> = recover(root.path(), &refusing);
+        use_identity_for_test(None);
+
+        assert!(reached, "{fault:?}: the barrier was never reached, so the reboot skipped the finish ({failed:?})");
+        assert!(kept, "{fault:?}: the journal was removed or marked done although its barrier failed ({failed:?})");
+        assert!(!failed.is_empty(), "{fault:?}: the failure of the barrier was not reported");
+        assert_eq!(live_lock(root.path()), "original", "{fault:?}: the control did not settle the journal once the barrier worked: {again:?}");
+    }
+}
