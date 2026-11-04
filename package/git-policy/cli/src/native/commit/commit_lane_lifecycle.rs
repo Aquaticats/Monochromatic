@@ -64,9 +64,9 @@ pub enum ClientError {
 /// ```ts
 /// function clientAfterAccept(lane, id, ring, route): ClientStep; // throws ClientError
 /// ```
-pub fn client_after_accept(lane: &Path, id: &str, ring: &mut dyn FnMut(&Path) -> io::Result<bool>, route: &mut dyn ManagerRoute) -> Result<ClientStep, ClientError> {
+pub fn client_after_accept(lane_as_given: &Path, id: &str, ring: &mut dyn FnMut(&Path) -> io::Result<bool>, route: &mut dyn ManagerRoute) -> Result<ClientStep, ClientError> {
     // The unit runs in the manager's working directory, not this client's: the obligation is created and launched under one absolute path.
-    let absolute: PathBuf = std::path::absolute(lane).map_err(ClientError::Receipt)?;
+    let absolute: PathBuf = std::path::absolute(lane_as_given).map_err(ClientError::Receipt)?;
     let lane: &Path = absolute.as_path();
     create_receipt(lane, id).map_err(ClientError::Receipt)?;
     if ring(lane).unwrap_or(false) {

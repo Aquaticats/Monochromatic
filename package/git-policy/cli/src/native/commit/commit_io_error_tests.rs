@@ -90,8 +90,7 @@ fn a_seal_whose_forcing_fails_leaves_the_older_root_and_can_be_repeated() {
         inject_sync_error(None);
         assert!(failed.is_err(), "a seal reported success after a forcing error ({})", errno);
         assert!(state.join("state.log.1").exists(), "the older root was removed although the seal did not complete");
-        assert_eq!(select(&state).expect("readable").expect("a root").generation >= 1, true);
-        let (lane, state) = (lane, state);
+        assert!(select(&state).expect("readable").expect("a root").generation >= 1);
         assert!(seal_for_shutdown(&lane, &state).is_ok(), "the repeated seal after the disk recovered");
     }
 }

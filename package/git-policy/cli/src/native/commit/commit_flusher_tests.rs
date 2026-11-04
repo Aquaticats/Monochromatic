@@ -165,6 +165,7 @@ fn a_healthy_lane_is_flushed_and_nothing_is_recorded() {
 /// How many clients launch a flusher in the many-receipts controls.
 const CLIENTS: usize = 4;
 
+#[cfg(feature = "test-seams")]
 thread_local! {
     /// The lane whose `release` file the helpers of this process wait for (set in the single-threaded copy that launches them; a fork inherits it).
     static HOLD_LANE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
@@ -172,6 +173,7 @@ thread_local! {
 
 /// The fault point before each forcing: waits (bounded) until `<lane>/release` exists. It holds a flusher, and its lock, alive on demand
 /// without a special file (a FIFO receipt is refused by the flusher now, as it must be).
+#[cfg(feature = "test-seams")]
 fn hold_until_released(point: &str) {
     if point != "flusher:before-force" {
         return;
@@ -184,17 +186,20 @@ fn hold_until_released(point: &str) {
 }
 
 /// Makes the flushers launched from this process hold at their first forcing until `<lane>/release` exists.
+#[cfg(feature = "test-seams")]
 pub fn hold_helpers_in(lane: &Path) {
     HOLD_LANE.with(|cell| { *cell.borrow_mut() = Some(lane.to_path_buf()); });
     git_policy_cli::commit_identity::set_fault_point(Some(hold_until_released));
 }
 
 /// Releases the held flushers.
+#[cfg(feature = "test-seams")]
 fn release(lane: &Path) {
     fs::write(lane.join("release"), b"").expect("the release");
 }
 
 /// Waits until the lane's flusher lock is free (the helper ended).
+#[cfg(feature = "test-seams")]
 fn wait_for_lock_free(lane: &Path) {
     let freed: Instant = Instant::now() + FLUSHER_WAIT;
     while FlusherLock::try_acquire(lane).expect("lock").is_none() {
@@ -225,6 +230,7 @@ fn clients_that_find_the_flusher_lock_held_fork_helpers_that_end_without_working
 }
 
 /// Many clients with a free lock and a flusher that is busy: a helper is forked per client; the first takes the lock and the rest end.
+#[cfg(feature = "test-seams")]
 #[test]
 fn many_clients_fork_a_helper_each_and_exactly_one_holds_the_lock() {
     let lane: PathBuf = lane_with("flusher-many-launch", &[]);
@@ -250,6 +256,7 @@ fn many_clients_fork_a_helper_each_and_exactly_one_holds_the_lock() {
 /// Review 10a section 3C: a launch from a process whose descriptor 0 is closed. The lock opens as descriptor 0, the helper redirects its
 /// standard streams over it, and its lock description is gone while it believes it holds the lock. The lock is moved above the standard
 /// streams when it is taken, so the helper holds it for as long as it works.
+#[cfg(feature = "test-seams")]
 #[test]
 fn a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock() {
     let lane: PathBuf = lane_with("flusher-closed-zero", &[]);

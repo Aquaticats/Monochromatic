@@ -227,14 +227,14 @@ fn departure_steps(state: &State, found: &mut Vec<(String, State)>) {
                 push_step(found, "departure: opening the old segment finds it gone and the log is selected again", after);
             }
             // The open succeeded before a concurrent unlink (or no unlink happened): the descriptor is forced either way.
-            let mut after: State = state.clone();
-            after.world = if root == Root::Old { sync(sync(after.world, PROMISE), SUPPORT) } else { sync(sync(sync(after.world, CANDIDATE), CANDIDATE_NAME), SUPPORT) };
-            after.departure = Departure::Forced(root);
-            push_step(found, if unlinked { "departure: forces the descriptor it opened before the unlink" } else { "departure: forces the file it captured and the closure" }, after);
+            let mut forced: State = state.clone();
+            forced.world = if root == Root::Old { sync(sync(forced.world, PROMISE), SUPPORT) } else { sync(sync(sync(forced.world, CANDIDATE), CANDIDATE_NAME), SUPPORT) };
+            forced.departure = Departure::Forced(root);
+            push_step(found, if unlinked { "departure: forces the descriptor it opened before the unlink" } else { "departure: forces the file it captured and the closure" }, forced);
             if state.rules == Rules::ReturnsOnVisibleCover && covers(state, visible_root(state), root) {
-                let mut after: State = state.clone();
-                after.departure = Departure::Returned;
-                push_step(found, "departure: verifies the log by name and returns success", after);
+                let mut returned: State = state.clone();
+                returned.departure = Departure::Returned;
+                push_step(found, "departure: verifies the log by name and returns success", returned);
             }
         }
         Departure::Forced(root) => {
