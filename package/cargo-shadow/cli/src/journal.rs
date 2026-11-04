@@ -168,6 +168,11 @@ pub(crate) const OWNER_FILE: &str = "owner";
 /// The file in which the process groups of the children a transaction started are recorded, one group id per line.
 pub(crate) const GROUPS_FILE: &str = "groups";
 
+/// The most files the kept directory may hold before a new transaction is refused.
+/// Unmeasured, and an owner decision: the owner's rule "never discard user data" forbids deleting kept files, so this cap only
+/// stops growth; what must be decided is how many kept files are tolerable and who clears them.
+pub const MAX_KEPT_FILES: usize = 1_000;
+
 /// The file whose exclusive lock a transaction, or a recovery, holds on the whole workspace while it lives.
 /// One lock for all roots is the fewest locks that exclude every conflict (owner rule: "Use as few locks as possible.").
 pub const WORKSPACE_LOCK: &str = ".cache/cargo-shadow/lock";

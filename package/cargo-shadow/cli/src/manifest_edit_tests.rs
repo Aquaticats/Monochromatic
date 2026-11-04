@@ -73,7 +73,7 @@ fn a_manifest_the_call_rewrote_is_recorded_and_put_back() {
     run_recording_manifests(ROOT_A, &edits, || { fs::write(&path, "cargo's edit").expect("cargo edits it"); }).expect("records");
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let warnings = restore_manifests(&edits, &keep()).expect("restores");
+    let warnings = restored(&edits);
 
     // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
     // Why:      Text building and printing are written as one call instead of string concatenation.
@@ -104,7 +104,7 @@ fn a_manifest_another_process_changed_after_the_call_is_left_alone_with_a_warnin
 
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let warnings = restore_manifests(&edits, &keep()).expect("restores");
+    let warnings = restored(&edits);
 
     assert_eq!(warnings.len(), 1);
     assert_eq!(fs::read_to_string(&path).expect("read"), "somebody else's edit");
@@ -178,7 +178,7 @@ fn an_edit_to_a_manifest_the_call_did_not_write_is_not_recorded_and_survives() {
     .expect("records");
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let warnings = restore_manifests(&edits, &keep()).expect("restores");
+    let warnings = restored(&edits);
 
     // Borrow `&first`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -222,7 +222,7 @@ fn a_change_published_after_the_call_returned_is_not_taken_for_its_output() {
     fs::write(&late, "published after the call").expect("a late writer");
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let warnings = restore_manifests(&edits, &keep()).expect("restores");
+    let warnings = restored(&edits);
 
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -243,7 +243,7 @@ fn a_manifest_whose_output_was_never_recorded_is_never_restored() {
 
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let warnings = restore_manifests(&edits, &keep()).expect("restores");
+    let warnings = restored(&edits);
 
     assert_eq!(warnings.len(), 1);
     assert_eq!(fs::read_to_string(&path).expect("read"), "unknown author");
@@ -260,7 +260,7 @@ fn an_unchanged_manifest_needs_nothing_and_a_missing_or_unreadable_one_stops_the
     // Borrow `&edits`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(restore_manifests(&edits, &keep()).expect("restores").is_empty());
+    assert!(restored(&edits).is_empty());
     // Borrow `&[`: lends the value without copying or giving it away.
     // Macro `assert!`: builds or prints text (or a list) from a template.
     // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
@@ -271,4 +271,11 @@ fn an_unchanged_manifest_needs_nothing_and_a_missing_or_unreadable_one_stops_the
     // Macro `assert!`: builds or prints text (or a list) from a template.
     // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
     assert!(snapshot_manifests(ROOT_A, &[root.path().join("binary.toml")], &RefCell::new(Vec::new())).is_err(), "invalid UTF-8 is an error, not an empty manifest");
+}
+
+/// Restores the manifests and requires that nothing failed.
+fn restored(edits: &RefCell<Vec<ManifestEdit>>) -> Vec<String> {
+    let (warnings, failure) = restore_manifests(edits, &keep());
+    assert!(failure.is_none(), "{failure:?}");
+    return warnings;
 }

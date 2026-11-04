@@ -225,8 +225,11 @@ fn a_displaced_file_that_could_not_be_linked_is_reported_with_the_snapshot_live(
     let no_link = |_existing: &Path, _new: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected link failure")); };
     // Closure `|_path: &Path|`: an anonymous function, like a TS arrow function.
     let none = |_path: &Path| {};
+    let sync_file = |path: &Path| -> std::io::Result<()> { return File::open(path)?.sync_all(); };
+    let sync_dir = |path: &Path| -> std::io::Result<()> { return crate::journal::sync_directory(path); };
     let swap = |first: &Path, second: &Path| -> std::io::Result<()> { return crate::journal_replace::exchange_paths(first, second); };
-    let seams = Seams { between: &none, after_exchange: &none, swap: &swap, link: &no_link };
+    let seams = Seams { between: &none, after_exchange: &none, swap: &swap, link: &no_link, sync_file: &sync_file, sync_dir: &sync_dir };
+
 
     // Borrow `&path`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -633,4 +636,114 @@ fn adding_manifests_twice_is_refused() {
     assert!(again.is_err());
     let journal = crate::journal_support::journal_dir(root.path());
     assert_eq!(fs::read_to_string(journal.join("m0.toml")).expect("snapshot"), "first");
+}
+
+/// Standard seams except for the ones given, for the durability tests.
+fn replace_with(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::io::Result<()>, sync_file: &dyn Fn(&Path) -> std::io::Result<()>, sync_dir: &dyn Fn(&Path) -> std::io::Result<()>) -> std::io::Result<ReplaceOutcome> {
+    let none = |_path: &Path| {};
+    let swap = |first: &Path, second: &Path| -> std::io::Result<()> { return crate::journal_replace::exchange_paths(first, second); };
+    return replace_with_seams(path, "expected", "new text", keep, &Seams { between: &none, after_exchange: &none, swap: &swap, link, sync_file, sync_dir });
+}
+
+/// The real hard link.
+fn real_link(existing: &Path, new: &Path) -> std::io::Result<()> {
+    return fs::hard_link(existing, new);
+}
+
+/// The real data barrier.
+fn real_sync_file(path: &Path) -> std::io::Result<()> {
+    return File::open(path)?.sync_all();
+}
+
+/// The real directory barrier.
+fn real_sync_dir(path: &Path) -> std::io::Result<()> {
+    return crate::journal::sync_directory(path);
+}
+
+/// Review finding (4b 2): a failed data barrier on the displaced file is not turned into a settled outcome; it is an error that
+/// says where the file stays.
+#[test]
+fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let failing = |_path: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected EIO")); };
+
+    let result = replace_with(&path, &KeepAs::next_to_target(".displaced"), &real_link, &failing, &real_sync_dir);
+
+    let message: String = result.expect_err("an unsettled replacement").to_string();
+    assert!(message.contains("injected EIO") && message.contains(".shadow-"), "{message}");
+}
+
+/// Review finding (4b 1): the kept directory and its parent are synced every time a file is linked into it, also when it existed.
+#[test]
+fn the_kept_directory_and_its_parent_are_synced_even_when_the_directory_exists() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let kept_dir = root.path().join("kept");
+    fs::create_dir_all(&kept_dir).expect("an existing kept directory");
+    let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
+
+    replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
+
+    let calls = synced.borrow();
+    assert!(calls.contains(&kept_dir), "{calls:?}");
+    assert!(calls.contains(&root.path().to_path_buf()), "the parent of the kept directory was not synced: {calls:?}");
+}
+
+/// Review finding (4b 3): a failure after the file was kept still names where it is kept.
+#[test]
+fn a_failure_after_the_file_was_kept_names_the_kept_path() {
+    let root = repository("expected");
+    let directory = root.path().join(CRATE_DIR);
+    let path = directory.join("Cargo.lock");
+    let failing_for_target = |dir: &Path| -> std::io::Result<()> {
+        if dir == directory {
+            return Err(std::io::Error::other("injected directory sync failure"));
+        }
+        return Ok(());
+    };
+
+    let result = replace_with(&path, &KeepAs::next_to_target(".displaced"), &real_link, &real_sync_file, &failing_for_target);
+
+    let message: String = result.expect_err("an error").to_string();
+    assert!(message.contains("Cargo.lock.displaced"), "the kept path is missing: {message}");
+}
+
+/// Review finding (4b 3): restoring several manifests returns what it already did when a later one fails.
+#[test]
+fn restoring_manifests_returns_the_warnings_of_those_restored_before_a_failure() {
+    use crate::manifest_edit::restore_manifests;
+    let root = repository("lock");
+    let first = root.path().join("a.toml");
+    let second = root.path().join("b.toml");
+    fs::write(&first, "first rewritten").expect("a");
+    fs::write(&second, [0xff_u8, 0xfe_u8]).expect("b, not text");
+    let edits = RefCell::new(vec![
+        ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: first.clone(), before: "first before".to_string(), produced: Some("first rewritten".to_string()) },
+        ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: second, before: "second before".to_string(), produced: None },
+    ]);
+
+    let (warnings, failure) = restore_manifests(&edits, &KeepAs::next_to_target(".displaced"));
+
+    assert!(failure.is_some());
+    assert!(warnings.iter().any(|warning| { return warning.contains("is kept as"); }), "{warnings:?}");
+}
+
+/// Review finding (4b 4): when the kept directory holds more files than the cap, a new transaction is refused and the files are
+/// listed; nothing is deleted.
+#[test]
+fn a_kept_directory_over_its_cap_refuses_a_new_transaction_and_lists_the_files() {
+    let root = repository("lock");
+    let kept = root.path().join(crate::journal::QUARANTINE_DIR);
+    fs::create_dir_all(&kept).expect("kept directory");
+    for number in 0..=crate::journal::MAX_KEPT_FILES {
+        fs::write(kept.join(format!("Cargo.lock.displaced.{number}")), "kept").expect("a kept file");
+    }
+
+    let result = begin(root.path(), &[snapshot("original")], false);
+
+    let message: String = result.err().map(|error| { return error.to_string(); }).unwrap_or_default();
+    assert!(message.contains("Cargo.lock.displaced.0") && message.contains("kept files"), "{message}");
+    assert_eq!(fs::read_dir(&kept).expect("list").count(), crate::journal::MAX_KEPT_FILES + 1, "a kept file was deleted");
 }

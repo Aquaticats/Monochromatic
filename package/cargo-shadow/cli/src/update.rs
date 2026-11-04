@@ -1172,7 +1172,11 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&edits`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings.extend(restore_manifests(&edits, &KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".manifest.displaced")).map_err(other_text)?);
+        let (manifest_warnings, manifest_failure) = restore_manifests(&edits, &KeepAs::in_directory(&request.root.join(QUARANTINE_DIR), ".manifest.displaced"));
+        restore_warnings.extend(manifest_warnings);
+        if let Some(error) = manifest_failure {
+            return Err(other_text(error));
+        }
         // Borrow `&restore_warnings`: lends the value without copying or giving it away.
         for warning in &restore_warnings {
             // Macro `eprintln!`: builds or prints text (or a list) from a template.

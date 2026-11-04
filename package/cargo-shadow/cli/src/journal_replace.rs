@@ -414,6 +414,10 @@ pub struct Seams<'a> {
     pub swap: &'a dyn Fn(&Path, &Path) -> io::Result<()>,
     /// The hard link that gives a displaced file a surviving name.
     pub link: &'a dyn Fn(&Path, &Path) -> io::Result<()>,
+    /// The barrier that makes a file's data durable.
+    pub sync_file: &'a dyn Fn(&Path) -> io::Result<()>,
+    /// The barrier that makes a directory's entries durable.
+    pub sync_dir: &'a dyn Fn(&Path) -> io::Result<()>,
 }
 
 /// What:

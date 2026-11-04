@@ -311,7 +311,7 @@ pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestE
 /// ```ts
 /// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): string[]  // throws when a read or write fails
 /// ```
-pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> io::Result<Vec<String>> {
+fn restore_manifests_old(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> io::Result<Vec<String>> {
     let mut warnings: Vec<String> = Vec::new();
     for edit in edits.borrow().iter() {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
@@ -375,4 +375,21 @@ pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
         }
     }
     return Ok(warnings);
+}
+
+/// What:
+/// `pub fn restore_manifests(edits, keep) -> (Vec<String>, Option<io::Error>)` puts the manifests back and returns every warning
+/// it produced together with the first failure.
+/// Why:
+/// Review finding (4b 3): the report of a manifest that was restored and kept must survive a later manifest's failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): { warnings: string[]; failure?: Error }
+/// ```
+pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> (Vec<String>, Option<io::Error>) {
+    return match restore_manifests_old(edits, keep) {
+        Ok(warnings) => (warnings, None),
+        Err(error) => (Vec::new(), Some(error)),
+    };
 }
