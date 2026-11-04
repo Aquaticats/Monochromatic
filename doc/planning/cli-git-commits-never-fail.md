@@ -396,25 +396,29 @@ made D first; revision 15 adds the owner's decision that this final save is neve
   creates `lane/sealed` (`O_CREAT | O_EXCL`) and only then makes its final sweep of `lane/receipt/`, and exits after
   the sweep; so for every receipt either the client's step (2) sees the seal and starts a flusher, or the service's
   sweep, which follows the seal, sees the receipt that step (1) created before it. A receipt created after the sweep
-  therefore always meets the seal and gets a flusher. Next owner: at startup its syncer is told to sweep
-  `lane/receipt/` as background work; L4 recognizes outstanding receipts, queues them first and dispatches without
-  waiting for them; no owner forces a receipt in the foreground before dispatch, and an unrelated command (a later
-  `git commit` included) never waits for another command's receipt. Until a receipt is D the recovery evidence is the
-  V receipt, which is the true state within a boot. The one-shot flusher is a launch of the internal flush entry
-  point, never the wrapper's ordinary command line (no recursive invocation). It is started through the manager as a
-  transient unit, which keeps it out of the inline incarnation's scope so that no L2 reap or owner exit ends it; else,
-  where there is no manager and therefore no incarnation scope for L2 to reap, as a double-forked child in its own
-  session that has closed every descriptor but its own (`close_range`), holding no lane lock, client lock, gate or
-  pipe description. At most one flusher runs per lane (it holds `lane/flusher.lock`); a client that finds the lock
-  held has still created its receipt first, and the holder, after its last empty sweep, releases the lock and sweeps
-  once more without it, taking the lock again if it finds work, so no wake-up is lost. It exits after a sweep that
-  finds nothing unforced; an asynchronous forcing error is recorded in `lane/receipt-errors` (V), the flusher exits,
-  and the next owner's syncer retries in the background and reports it at the next wrapper command's notice. If no
-  flusher can be started because of a process-count or memory cap set by someone else (the owner's outside list), the
-  command exits success saying the receipt is not yet forced; missing binaries or broken launch code are defects and
-  not that exception. `SYNC_LAG` is a scheduling target for the queue, not a completion bound: the time to force is
-  the disk's. The residual ambiguity (a power loss before the receipt is D, a deliberate removal that persisted, no
-  decisive evidence) is owner question 8.
+  therefore always meets the seal and gets a flusher. Next owner: it removes `lane/sealed` at L3 (a lane-owned name,
+  rule N) before its startup sweep, so a new service is again reachable by the doorbell path (in every interleaving
+  either the sweep sees the receipt that the client created before reading the seal, or the client sees the seal, or
+  both start work, which the flusher lock bounds; an owner that dies between removing the seal and sweeping is an
+  outside cause, and the next owner sweeps). At startup its syncer is told to sweep `lane/receipt/` as background
+  work; L4 recognizes outstanding receipts, queues them first and dispatches without waiting for them; no owner forces
+  a receipt in the foreground before dispatch, and an unrelated command (a later `git commit` included) never waits
+  for another command's receipt. Until a receipt is D the recovery evidence is the V receipt, which is the true state
+  within a boot. The one-shot flusher is a launch of the internal flush entry point, never the wrapper's ordinary
+  command line (no recursive invocation). It is started through the manager as a transient unit, which keeps it out of
+  the inline incarnation's scope so that no L2 reap or owner exit ends it; else, where there is no manager and
+  therefore no incarnation scope for L2 to reap, as a double-forked child in its own session that has closed every
+  descriptor but its own (`close_range`), holding no lane lock, client lock, gate or pipe description. At most one
+  flusher runs per lane (it holds `lane/flusher.lock`); a client that finds the lock held has still created its
+  receipt first, and the holder, after its last empty sweep, releases the lock and sweeps once more without it, taking
+  the lock again if it finds work, so no wake-up is lost. It exits after a sweep that finds nothing unforced; an
+  asynchronous forcing error is recorded in `lane/receipt-errors` (V), the flusher exits, and the next owner's syncer
+  retries in the background and reports it at the next wrapper command's notice. If no flusher can be started because
+  of a process-count or memory cap set by someone else (the owner's outside list), the command exits success saying
+  the receipt is not yet forced; missing binaries or broken launch code are defects and not that exception. `SYNC_LAG`
+  is a scheduling target for the queue, not a completion bound: the time to force is the disk's. The residual
+  ambiguity (a power loss before the receipt is D, a deliberate removal that persisted, no decisive evidence) is owner
+  question 8.
 - Preservation barrier (R12-5B). Before the recovery authority of a version that only the person had is replaced (the
   staged-only blob saved by MG3, a displaced inode of the carry-forward protocol, the pre-merge file `N`), the
   preserving file, its directory entry and the log record that names it are D. The carry-forward protocol's own
@@ -668,7 +672,9 @@ Lane transitions (the owner and its incarnation)
 - L4 resume. Pre: L3 done. Do: first replace the document with the marker `recovering` (fsync), so that no capture can mix the state of a half-completed mutation;
   then complete or roll back each journaled mutation; repair the torn tail of `lane/order` and of this lane's own ledger only (never
   another lane's ledger: another lane's tail may be an append in progress, and a reader of another lane's ledger treats a torn tail as not
-  yet written); replace the document with the marker `none`; then, for an owner (not for a recovery helper, which exits here), continue each request from its recorded `resume` point. Crash: repeat L4, marker first.
+  yet written); replace the document with the marker `none`; queue every outstanding receipt in `lane/receipt/` for
+  the syncer without forcing any (rule V, receipt responsibility); then, for an owner (not for a recovery helper,
+  which exits here), continue each request from its recorded `resume` point. Crash: repeat L4, marker first.
 - L5 spawn a child. Pre: L3 done. Do: start the child inside the incarnation's cgroup with the lock and gate descriptions closed at exec
   and the parent-death signal set. Crash: a child between fork and exec holds the lock description until it execs or dies (L1 waits for it).
 - L6 gate-shared. Pre: none. Do: take `lane/gate` shared before spawning any person's program (hook, filter, signer, helper) or any
