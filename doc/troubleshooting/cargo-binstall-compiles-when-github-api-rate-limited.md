@@ -184,7 +184,11 @@ Catalog that fails:
    or any transient failure,
    then fails to install instead of compiling,
    and the other `cargo:` tools rely on the fallback.
-   Not applied.
+   Applied in `mpm-shadow` (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs`) for crates this repository publishes
+   (names starting with `monochromatic-`, ignoring letter case and `_` versus `-`),
+   whose failure then names the reasons binstall printed and the ways forward;
+   third-party crates keep the fallback, because `mpm-shadow` must still be able to compile a tool this repository
+   does not control when no archive fits.
 3. Raise `BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT`.
    Tradeoff:
    the install waits through the rate-limit reset,
