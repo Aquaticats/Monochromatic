@@ -98,7 +98,8 @@ fn processes() -> io::Result<Vec<Process>> {
         };
         let text: String = match fs::read_to_string(format!("/proc/{pid}/stat")) {
             Ok(found_text) => found_text,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            // A process that ends during the scan reads as missing (ENOENT) or as gone (ESRCH).
+            Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(3) => continue,
             Err(error) => return Err(error),
         };
         let Some((parent, zombie)) = parse_stat(&text) else {
