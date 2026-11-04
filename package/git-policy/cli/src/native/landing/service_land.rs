@@ -14,6 +14,7 @@
 
 use crate::journald_native::Priority;
 use crate::service_fault::reach;
+use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, read_commit};
 use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
 use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
@@ -315,9 +316,16 @@ fn land_batch_body(
         if !still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
-        let amended_parents: Vec<String> = if alone && !unborn {
-            let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
-            listing.split_whitespace().skip(1).map(str::to_string).collect()
+        // Only an amend uses the parents of the commit it replaces; they are read from the object store, and listed by Git when the
+        //  store cannot say (the same rule as for the commit Git built).
+        let amended_parents: Vec<String> = if alone && !unborn && first.amend {
+            match read_commit(first.common_dir.as_path(), first.base.as_str()) {
+                Some(replaced) => replaced.parents,
+                None => {
+                    let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
+                    listing.split_whitespace().skip(1).map(str::to_string).collect()
+                }
+            }
         } else {
             Vec::new()
         };
@@ -359,11 +367,19 @@ fn land_batch_body(
             // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives:
             //  an amend has the replaced commit's parents, a commit on a branch that did not exist has none, and any other
             //  commit has the branch tip first (a merge conclusion has the merged commits after it).
-            let listing: GitOutput = run(&git, repository, &["rev-list", "--parents", "--max-count=1", built], None)?;
-            let text: String = String::from_utf8_lossy(listing.stdout.as_slice()).into_owned();
-            let mut words = text.split_whitespace();
-            let named_itself: bool = listing.succeeded() && words.next() == Some(built);
-            let parents: Vec<String> = words.map(str::to_string).collect();
+            // The parents are read from the object store; a commit it cannot read as a plain commit is listed by Git, whose
+            //  answer is the one that counts (a repository with grafts, a shallow history or replacement objects).
+            let read: Option<BuiltCommit> = read_commit(first.common_dir.as_path(), built);
+            let (named_itself, parents): (bool, Vec<String>) = match &read {
+                Some(commit) => (true, commit.parents.clone()),
+                None => {
+                    let listing: GitOutput = run(&git, repository, &["rev-list", "--parents", "--max-count=1", built], None)?;
+                    let text: String = String::from_utf8_lossy(listing.stdout.as_slice()).into_owned();
+                    let mut words = text.split_whitespace();
+                    let named: bool = listing.succeeded() && words.next() == Some(built);
+                    (named, words.map(str::to_string).collect())
+                }
+            };
             let acceptable: bool = if first.amend {
                 parents == amended_parents
             } else if unborn {
@@ -376,9 +392,15 @@ fn land_batch_body(
             }
             // Git moves a branch to a commit without looking at what the commit holds, so a tree or a blob that a prune took
             //  while the commit object survived would put a damaged commit on the branch.
-            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old.as_str()] };
-            if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
-                return Err(FailureCode::Unavailable);
+            reach("before-connectivity");
+            // A commit whose one parent is the tip adds the objects that differ from the tip's tree, and the object store shows
+            //  they are all there; any other commit, and any object that looks absent, is checked by the `rev-list` Git always ran.
+            let proven: bool = read.as_ref().is_some_and(|commit| { return !unborn && adds_only_present_objects(first.common_dir.as_path(), commit, old.as_str()); });
+            if !proven {
+                let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old.as_str()] };
+                if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
+                    return Err(FailureCode::Unavailable);
+                }
             }
             (vec![built.to_string()], built.to_string())
         } else {
@@ -586,3 +608,8 @@ mod head_tests;
 #[cfg(test)]
 #[path = "service_land_fsync_tests.rs"]
 mod fsync_tests;
+
+/// Controls for the checks of a commit Git built stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_built_tests.rs"]
+mod built_tests;

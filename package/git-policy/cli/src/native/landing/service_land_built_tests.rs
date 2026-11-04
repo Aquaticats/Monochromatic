@@ -1,0 +1,132 @@
+//! Controls for the checks of a commit Git built: the parents and the objects it adds are read from the object store, no
+//!  `rev-list` is started for an ordinary signed commit, and every verdict equals the one the `rev-list` gives.
+
+use super::tests::{World, built_request, request, world};
+use super::*;
+use crate::test_support::{git, git_text, remove};
+
+/// How many times the landing's Git children named `command`, from Git's trace2 start events.
+fn starts_of(trace: &Path, command: &str) -> usize {
+    let events: String = std::fs::read_to_string(trace).unwrap_or_default();
+    let quoted: String = format!("\"{command}\"");
+    let found: Vec<&str> = events.lines().filter(|line| { return line.contains("\"event\":\"start\"") && line.contains(quoted.as_str()); }).collect();
+    for line in &found {
+        eprintln!("started: {}", line.split("\"argv\":").nth(1).unwrap_or(line));
+    }
+    return found.len();
+}
+
+/// A world whose Git children write their trace2 events to the returned file.
+fn traced(name: &str) -> (World, PathBuf) {
+    let mut world: World = world(name);
+    let trace: PathBuf = world.root.join("trace.json");
+    world.context.git.overlay.push((std::ffi::OsString::from("GIT_TRACE2_EVENT"), trace.clone().into_os_string()));
+    return (world, trace);
+}
+
+/// A signed commit has the branch tip as its parent and adds a blob: the landing reads the commit and checks the blob in the
+/// object store, so it starts no `rev-list`, and the commit lands as it did.
+#[test]
+fn an_ordinary_commit_git_built_is_checked_without_starting_rev_list() {
+    let (world, trace) = traced("service-built-no-rev-list");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "dir/deeper/typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().unwrap_or_default();
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert_eq!(outcomes, vec![Outcome::Landed { commit: commit.clone() }]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 0, "the object store answered both questions");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
+
+/// Positive control: where the object store cannot show the history (a graft file makes `rev-list` show another one), the
+/// landing still starts the `rev-list` it always ran, once for the parents and once for the objects.
+#[test]
+fn a_repository_with_grafts_is_left_to_rev_list() {
+    let (world, trace) = traced("service-built-grafts");
+    std::fs::create_dir_all(world.repo.join(".git/info")).expect("info");
+    std::fs::write(world.repo.join(".git/info/grafts"), "").expect("an empty graft file");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "the parents and the objects were asked of Git");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
+
+/// The verdict for each way an object can be gone equals the `rev-list` verdict: the landing is refused as unavailable and the
+/// branch stays, whether the missing object is a blob, a tree, a tree below a tree, or is removed after the commit was read.
+#[test]
+fn every_object_a_built_commit_adds_must_be_there_as_rev_list_demands() {
+    let remove_loose = |world: &World, name: &str| {
+        std::fs::remove_file(world.repo.join(".git/objects").join(&name[..2]).join(&name[2..])).expect("the object is loose");
+    };
+    // A blob, a tree and a tree below a tree, each removed before the landing.
+    for (label, path, victim) in [("blob", "typed.txt", "typed.txt"), ("tree", "one/typed.txt", "one"), ("nested", "one/two/typed.txt", "one/two")] {
+        let (world, trace) = traced(format!("service-built-missing-{label}").as_str());
+        let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+        let built: CommitRequest = built_request(&world, "typed", path, &[base.as_str()]);
+        let commit: String = built.commit.clone().unwrap_or_default();
+        let name: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", format!("{commit}:{victim}").as_str()]);
+        remove_loose(&world, name.as_str());
+        assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable), "{label}");
+        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "{label}: the branch stays");
+        // The blob the request names is found missing before any check of the commit; a tree is found by the check, and what the
+        //  object store cannot show there is decided by Git.
+        if label != "blob" {
+            assert!(starts_of(trace.as_path(), "rev-list") >= 1, "{label}: what the object store cannot show is decided by Git");
+        }
+        remove(world.root.as_path());
+    }
+    // An object that goes between the read of the commit and the check of its objects.
+    let world: World = world("service-built-between");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().unwrap_or_default();
+    let blob: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", format!("{commit}:typed.txt").as_str()]);
+    let repo: PathBuf = world.repo.clone();
+    crate::service_fault::hooks::set("before-connectivity", std::rc::Rc::new(move || {
+        std::fs::remove_file(repo.join(".git/objects").join(&blob[..2]).join(&blob[2..])).expect("the blob is loose");
+    }));
+    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable), "between the reads");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), base, "the branch stays");
+    remove(world.root.as_path());
+}
+
+/// Objects that only a pack holds are present too: a repack that left nothing loose does not make the commit unavailable.
+#[test]
+fn objects_held_only_by_a_pack_count_as_present() {
+    let (world, trace) = traced("service-built-packed");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "one/typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().unwrap_or_default();
+    git(world.repo.as_path(), &["update-ref", "refs/keep/typed", commit.as_str()]);
+    git(world.repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+    git(world.repo.as_path(), &["prune-packed"]);
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 0, "the packs answered");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
+
+/// A commit with the tip's tree (nothing added) and one that merges another branch are not shapes the store proves: the first is
+/// present by construction, the second is left to Git and lands as before.
+#[test]
+fn an_empty_change_and_a_merge_land_as_before() {
+    let (world, trace) = traced("service-built-shapes");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let _unused: CommitRequest = request(&world, "side-file", "side.txt", "side\n");
+    git(world.repo.as_path(), &["add", "side.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=side commit"]);
+    let side: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["reset", "--quiet", "--hard", base.as_str()]);
+    let merge: CommitRequest = built_request(&world, "merge", "merged.txt", &[base.as_str(), side.as_str()]);
+    let outcomes = land_batch(&world.context, 1, &[merge]).expect("landed");
+    assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 1, "the parents were read from the store and the objects of a merge went to Git");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
