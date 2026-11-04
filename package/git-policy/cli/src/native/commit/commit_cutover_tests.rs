@@ -206,12 +206,17 @@ fn the_real_services_periodic_pass_serves_a_receipt_nobody_rang_for() {
     let lane: PathBuf = lane_with_receipts("service-periodic");
     let service = start_service("periodic", Some(&lane), Some("50"));
     service.wait_for_line("lane startup complete");
+    // The first periodic pass is observed first: one pass is due at the start, so only a pass after it shows that the loop goes on.
+    let deadline: Instant = Instant::now() + WAIT;
+    while service.count_lines("lane pass complete") < 1 {
+        assert!(Instant::now() < deadline, "no periodic pass was reported after the startup sweep");
+        std::thread::sleep(Duration::from_millis(10));
+    }
     let before: usize = service.count_lines("lane pass complete");
     unforceable(&lane, "orphan");
     wait_recorded(&lane, "orphan");
-    let deadline: Instant = Instant::now() + WAIT;
     while service.count_lines("lane pass complete") <= before {
-        assert!(Instant::now() < deadline, "no periodic pass was reported after the startup sweep");
+        assert!(Instant::now() < deadline, "no further periodic pass was reported");
         std::thread::sleep(Duration::from_millis(10));
     }
 }
