@@ -194,3 +194,11 @@ mod model_register_r13;
 /// The controls of revision 13's register.
 #[path = "model_register_r13_tests.rs"]
 mod model_register_r13_tests;
+
+/// Rule V's barriers (departure, reclamation, preservation) at the filesystem's level of detail.
+#[path = "model_barrier_r13.rs"]
+mod model_barrier_r13;
+
+/// The controls of rule V's barriers.
+#[path = "model_barrier_r13_tests.rs"]
+mod model_barrier_r13_tests;
