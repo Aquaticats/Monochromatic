@@ -4067,11 +4067,25 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   `record_errors` writes each line in one write after interleaved lines were seen);
   map and comparison claims narrowed,
   the round 18 ranking withdrawn.
-  Round 19 sent:
-  record the owner's override in the map and the target notes,
-  and fix the two save-losing schedules of review 13 (handover timeout then launcher death;
-  the intermediate child's inherited lock copy with failed cleanup);
-  parts to `commit-models-14-part-<n>-<topic>.diff`.
+  Round 19 done (tip `e514bb736d`,
+  473 model tests passed):
+  the launcher holds no lock for the launch,
+  it probes the lock and forks only when it was free,
+  and the helper takes the lock itself;
+  the handover byte and its timeouts are gone.
+  Review `commit-models-sol-14.txt`:
+  "no, as submitted":
+  the probe itself is a false owner
+  (a client holding its probe makes another client return `LockHeld`,
+  then dies before launching,
+  and nobody forces the second receipt);
+  claims about who holds the lock and for how long overstated.
+  Round 20 sent:
+  only a process that lists and forces after acquiring may hold the flusher lock
+  (drop the probe or test without acquiring),
+  the reviewer's four regressions red first,
+  claims corrected;
+  parts to `commit-models-15-part-<n>-<topic>.diff`.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
