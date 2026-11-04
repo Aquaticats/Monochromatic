@@ -594,7 +594,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "cargo:monochromatic-git-policy-cli@latest",
-      "version": "0.5.32",
+      "version": "0.5.33",
       "route": "cargo-binstall",
       "bins": [
         "cli-git-native"
@@ -1502,5 +1502,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:cf3e9b34ccea79ab7b04bb636e8bba5ec1b6448f81139168990f3695c848db17"
+  "digest": "sha256:607ad1af2f340da6056ba774d0e7f3aedccedbbd6fdc09f1be003d671de956fd"
 }
