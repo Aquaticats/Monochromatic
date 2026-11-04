@@ -311,8 +311,7 @@ pub fn run_recording_manifests<T>(crate_dir: &str, edits: &RefCell<Vec<ManifestE
 /// ```ts
 /// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): string[]  // throws when a read or write fails
 /// ```
-fn restore_manifests_old(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> io::Result<Vec<String>> {
-    let mut warnings: Vec<String> = Vec::new();
+fn restore_manifests_into(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs, warnings: &mut Vec<String>) -> io::Result<()> {
     for edit in edits.borrow().iter() {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `match`: picks the arm whose pattern fits the value.
@@ -357,13 +356,13 @@ fn restore_manifests_old(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
                 )),
                 // Macro `format!`: builds or prints text (or a list) from a template.
                 ReplaceOutcome::Displaced(kept) => warnings.push(format!(
-                    "{} was restored, but the file it displaced was not the one this run wrote; that file is kept as {}",
+                    "{} was put back to its text before the run; the file the exchange displaced is kept as {}",
                     edit.path.display(),
                     kept.display()
                 )),
                 // Macro `format!`: builds or prints text (or a list) from a template.
                 ReplaceOutcome::Undone(kept) => warnings.push(format!(
-                    "{} was changed twice by other processes while it was being restored; it was left as the last one wrote it, and the snapshot copy is kept as {}",
+                    "{} was changed again during the restore; the undo put the file it first displaced back, and the file the undo displaced is kept as {}",
                     edit.path.display(),
                     kept.display()
                 )),
@@ -374,7 +373,7 @@ fn restore_manifests_old(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
             )),
         }
     }
-    return Ok(warnings);
+    return Ok(());
 }
 
 /// What:
@@ -388,8 +387,7 @@ fn restore_manifests_old(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> i
 /// export function restoreManifests(edits: ManifestEdit[], keep: KeepAs): { warnings: string[]; failure?: Error }
 /// ```
 pub fn restore_manifests(edits: &RefCell<Vec<ManifestEdit>>, keep: &KeepAs) -> (Vec<String>, Option<io::Error>) {
-    return match restore_manifests_old(edits, keep) {
-        Ok(warnings) => (warnings, None),
-        Err(error) => (Vec::new(), Some(error)),
-    };
+    let mut warnings: Vec<String> = Vec::new();
+    let failure: Option<io::Error> = restore_manifests_into(edits, keep, &mut warnings).err();
+    return (warnings, failure);
 }

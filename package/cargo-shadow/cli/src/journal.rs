@@ -392,13 +392,13 @@ pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produc
             )),
             // Macro `format!`: builds or prints text (or a list) from a template.
             ReplaceOutcome::Displaced(copy) => warnings.push(format!(
-                "{}/{LOCKFILE_NAME} was restored, but the file it displaced was not the one this run wrote; that file is kept as {}",
+                "{}/{LOCKFILE_NAME} was put back to its snapshot; the file the exchange displaced is kept as {}",
                 snapshot.crate_dir,
                 copy.display()
             )),
             // Macro `format!`: builds or prints text (or a list) from a template.
             ReplaceOutcome::Undone(copy) => warnings.push(format!(
-                "{}/{LOCKFILE_NAME} was changed twice by other processes while the step ran; it was left as the last one wrote it, and the snapshot copy is kept as {}",
+                "{}/{LOCKFILE_NAME} was changed again during the restore; the undo put the file it first displaced back, and the file the undo displaced is kept as {}",
                 snapshot.crate_dir,
                 copy.display()
             )),

@@ -67,7 +67,7 @@ use crate::crates::LockSnapshot;
 /// Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, LOCK_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, READY_FILE, atomic_write, create_directories_synced, sync_directory, write_synced}` for this file.
 use crate::bounded_run::set_group_log;
 use crate::constants::LOCKFILE_NAME;
-use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced};
+use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, MAX_KEPT_FILES, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced};
 // Imports `crate::manifest_edit::ManifestEdit`.
 /// Imports `crate::manifest_edit::ManifestEdit` for this file.
 use crate::manifest_edit::ManifestEdit;
@@ -332,6 +332,7 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         Ok(held) => held,
         Err(message) => return Err(io::Error::other(message)),
     };
+    refuse_over_cap(root)?;
     let journals: PathBuf = root.join(JOURNAL_DIR);
     create_directories_synced(&journals)?;
     let mut created: Option<PathBuf> = None;
@@ -480,4 +481,40 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
     sync_directory(&parent)?;
     fs::remove_dir_all(&done)?;
     return sync_directory(&parent);
+}
+
+/// What:
+/// `fn refuse_over_cap(root: &Path) -> io::Result<()>` refuses a new transaction when the kept directory holds more than
+/// `MAX_KEPT_FILES` files, and lists them (path, size, age).
+/// Why:
+/// Review finding (4b 4): kept files are other writers' data and are never deleted by this tool, so growth is stopped here by
+/// refusing to mutate further until a person has looked at them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refuseOverCap(root: string): void  // throws with the listing when over the cap
+/// ```
+fn refuse_over_cap(root: &Path) -> io::Result<()> {
+    let directory: PathBuf = root.join(QUARANTINE_DIR);
+    let Ok(listing) = fs::read_dir(&directory) else {
+        return Ok(());
+    };
+    let mut entries: Vec<(PathBuf, u64, u64)> = Vec::new();
+    for entry in listing.flatten() {
+        let metadata = entry.metadata()?;
+        let age: u64 = metadata.modified().ok().and_then(|modified| { return modified.elapsed().ok(); }).map(|elapsed| { return elapsed.as_secs() / 86_400; }).unwrap_or(0);
+        entries.push((entry.path(), metadata.len(), age));
+    }
+    if entries.len() <= MAX_KEPT_FILES {
+        return Ok(());
+    }
+    entries.sort();
+    let shown: Vec<String> = entries.iter().take(20).map(|(path, size, age)| { return format!("  {} ({size} bytes, {age} days old)", path.display()); }).collect();
+    return Err(io::Error::other(format!(
+        "{} holds {} kept files (more than {MAX_KEPT_FILES}): files this tool moved aside instead of deleting them because they may be someone's work. Look at them, move or archive what you no longer need, then run the command again. The first {}:\n{}",
+        directory.display(),
+        entries.len(),
+        shown.len(),
+        shown.join("\n")
+    )));
 }
