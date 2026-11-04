@@ -2704,8 +2704,8 @@ holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed
   directory to the `PATH` of the program that ran the command, or remove an entry that should not be used. The wrapper
   does not search outside `PATH` except for the promotion of a conventional location that `PATH` already exposes and
   this record.
-- `cli-git-service` is never started by the wrapper and refuses a `--git` that is a launcher of the wrapper (a unit
-  written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
+- The service mode (`cli-git-native cli-git service run`) is never started by the wrapper and refuses a `--git` that is the
+  wrapper itself, a link or copy of it, or a launcher of it (a unit written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
   provisions the unit writes it again. Its Git starts go through the marked builders.
 - Not covered: a user script named `git` that starts the wrapper as a child, with no launch record and no marker
   string. The parent of the arriving wrapper is the script, not the starter; the message of a wrapper that cannot find
@@ -2745,7 +2745,7 @@ section "Falling back to the Git the commit service was set up with".
   The service takes the resolved path in the `--git` of its unit as before; a fallback path is therefore written into
   the unit it came from, unchanged.
 - Limits: the unit is in the runtime directory, so it exists only after a commit has provisioned the service in this
-  login and is gone after the account's last logout; before that, the stop stays. A `cli-git-service` started with no
+  login and is gone after the account's last logout; before that, the stop stays. A service started with no
   `--git` still defaults to `/usr/bin/git`; that is a development path, since the wrapper always writes `--git`.
 
 ### Git LFS upload before a push
@@ -3460,7 +3460,7 @@ Three things enforce that:
     `recover_selected`),
     are called only from the serve loop and,
     before it starts,
-    from `service_main.rs`.
+    from `service/service_main.rs`.
     Connection threads only queue jobs,
     and the work thread (push and upkeep) never touches an index.
     The calls are sequential on that one thread.
@@ -3482,7 +3482,7 @@ Three things enforce that:
 
 The commit route of the wrapper that took a marked lock of its own (transactions) was deleted with task 4d part 2,
 and no other code writes the marker.
-The tests that start `cli-git-service` directly start one service for each Git directory
+The tests that start the service mode directly start one service for each Git directory
 (`binary_support.rs`,
 `serve`,
 keeps one child for each;
@@ -3923,7 +3923,7 @@ the wait requires the Git directory's ancestry to stay in place while it lasts.
 A commit on a machine where no socket answers and no user service manager can be asked to start one
 (no runtime directory,
 no session bus,
-no service program beside the wrapper)
+no executable of the wrapper's own to name in a unit)
 changes nothing and ends with exit `1` and a plain message for the platform:
 Linux without user services names `loginctl enable-linger` and the requirement of a systemd user manager,
 and Windows,

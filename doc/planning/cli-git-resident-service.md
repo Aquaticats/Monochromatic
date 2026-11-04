@@ -796,8 +796,8 @@ Supersedes the install command, the installed-or-not default and the `CLI_GIT_CO
 The owner's correction (verbatim above) is the requirement: the first commit that needs the service makes socket activation
 exist, as Bazel's client starts its server.
 
-What the wrapper does, in order, whenever the session bus socket and the `cli-git-service` program beside the wrapper
-exist (an existing socket does not end it: see "Upgrades heal on the first commit" below). The first two steps and the
+What the wrapper does, in order, whenever the session bus socket and the wrapper's own executable (which is also the service,
+see "One executable") exist (an existing socket does not end it: see "Upgrades heal on the first commit" below). The first two steps and the
 bus calls are skipped when the check there finds nothing to change:
 1. Remove units of an earlier release from `~/.config/systemd/user` (they outrank runtime units in the unit search path),
    recognized by content, plus the enabling link they left. A file of the same name that something else wrote is never
@@ -1238,3 +1238,66 @@ index-writer coordination waits, the phase-marker replay controls of non-UTF-8 n
 `binary_service_replay_tests.rs`), the migration `index-pack` budgets, and the maintenance-after-landing control (the
 service writes loose objects, so nothing reaches `gc.autoPackLimit`). The budgets of `binary_budget_tests.rs` are restated
 for the wrapper's side of a commit. The push controls read the failure from the notice the next command shows.
+
+## One executable (2026-11-04T16:30:00-05:00)
+
+Owner requirement, verbatim (2026-11-04): "Bazel doesn't need to distribute as 2 bins." The crate declared two `[[bin]]`
+targets from 2026-11-01 (`e9eaf63d14`): `cli-git-native` and `cli-git-service`. The release job builds and archives only the
+first, and cargo-binstall requires every `[[bin]]` of a crate to be in the archive, so the `catalog-specifiers` workflow
+(`--disable-strategies compile`) has failed since 2026-11-01T14:34:19Z with `When resolving monochromatic-git-policy-cli bin
+cli-git-service is not found. This binary is not optional`. Machines that compile from source did not see it.
+
+What changed. The service is a mode of `cli-git-native`, selected by the three leading arguments `cli-git service run`
+(`src/native/service/service_main.rs`, dispatched first in `main.rs`, before the wrapper's own setup). The options are the
+ones the standalone program took (`--journal`, `--git`, `--instance`, `--abstract`, `--path`, `--idle-seconds`, `--release`,
+`--lock-ceiling-millis`). The generated `cli-git@.service` unit starts `<wrapper's own executable> cli-git service run
+--journal ... --git ... --instance %i` and sets `SyslogIdentifier=cli-git-service`. The route names the wrapper's own path
+(`current_exe`, identification only) in the unit instead of a sibling file.
+
+Choices open to the owner's veto (the coordinator's brief called the mode form a suggestion):
+- The form `cli-git service run`, inside the wrapper's existing `cli-git` namespace and apart from `status`. Not `--service`
+  or a name-based dispatch (the self-invocation rules ban dispatch on `argv[0]`).
+- The mode words count only first. Behind a global option of Git (`git -C x cli-git service run`) they are an unknown
+  management command, refused with the usage.
+- The unit keeps the journal identifier `cli-git-service`: `journald_native.rs` sends `SYSLOG_IDENTIFIER=cli-git-service`
+  natively, independent of the executable's name, and the unit's `SyslogIdentifier` covers the lines the manager captures from
+  standard error.
+- On-disk and wire names are unchanged because earlier releases read and write them: the scratch reference
+  `refs/worktree/cli-git-service/<seq>`, the index-lock marker `cli-git-service v2 ...` (`service_index_marker.rs`), the
+  client scratch directory `cli-git-service-<id>`, the log prefix `cli-git-service: `, and the journal identifier.
+- The unit still names the versioned toolchain path. Naming `.../current/bin/cli-git-native` would shorten the window in which
+  a pruned path can be activated, but it is a different design and is not done here.
+
+Invariants, each with a control:
+- The wrapper never starts the service (the manager does). The process setup of the service (`service_signal::install`,
+  `mark_service_process`, the mode words) is referenced by the service mode and the dispatch only, and the three setup calls
+  come first in `run` (`service_main_tests.rs`). `hooks_off::activate` also runs in the wrapper's own start (`entry.rs`), so
+  it is the one setup the two modes share.
+- A start with no socket from the manager and no `--path` or `--abstract` is refused before anything is read or created
+  (exit 3, no directory, no listener): `binary_service_mode_tests.rs`, `a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing`.
+- A `--git` that is the wrapper (the built file, a hard link, a symbolic link, a byte copy, or a launcher) is refused (exit 2):
+  `a_git_that_is_the_wrapper_is_refused`. The service uses the wrapper's candidate classification, so the executable's own file
+  is now a case, where the standalone program checked launchers only.
+- Nothing identifies the service by its process name or executable path. The one process-name test in the crate is the stale
+  reference-lock judge's `git` prefix on `/proc/<pid>/comm`; `cli-git-native` is not Git, as `cli-git-service` was not
+  (`a_process_named_like_the_one_executable_is_not_git`). `open_by=[42 (cli-git-native)]` in a wait note is display.
+
+Upgrade from a two-program release (0.5.34 and earlier). The unit a 0.5.34 wrapper wrote names
+`<toolchain>/0.5.34/bin/cli-git-service`, a file the install of the next release removes. The first commit that goes to the
+service already compares the installed units with what the wrapper would write (`in_place`), so the new unit text differs and
+the commit rewrites the units, reloads the manager, clears failed state and starts the socket before it connects. A service of
+the older release that still runs is sent `retire` by the release mismatch in the welcome; it finishes its batch and exits with
+success, and the next connection starts the program the rewritten unit names. Controls:
+`binary_service_upgrade_one_executable_tests.rs` (a manager stand-in that owns the socket, an old service on it, two commits at
+once; the unit is rewritten before the socket start, the old service exits with success, the successor is started from the
+rewritten unit's own command line with the socket passed in as the manager passes it, both commits land) and the same against
+the real 0.5.34 `cli-git-service` program, which needs a build of another version than 0.5.34 (a service of the same release
+is not asked to retire). Run once on this branch with a temporary version 0.5.35 build: passed. Not repairable by the wrapper:
+a service of the old release that exits after the install removed its program and before the first commit of the new release
+is activated by a connection that arrives first; only a connection from the new wrapper arrives in practice, and it
+rewrites the unit first. `git cli-git service status` connects without provisioning; under an unrewritten unit it can trigger
+the failed activation, which the next commit's `reset-failed` clears.
+
+Release plumbing. The release job keeps `--bin cli-git-native`. `source_guard/release_bins_tests.rs` (in the gate) fails when
+`Cargo.toml` declares any other `[[bin]]`, and `bin/native-release-bins.unit.test.ts` fails when the release job, the
+release list `releasable-crates.json` and the lock `toolchain.lock.json` differ from `Cargo.toml`.

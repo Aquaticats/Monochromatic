@@ -54,6 +54,12 @@ are from the commit before this change (`5561c8b7cb`) unless a path says "now".
 - `real_git.rs` `process_resolution_inputs` calls `std::env::current_exe`. Identification: the path is excluded from the
   search for the real Git so that the wrapper never selects itself. Nothing is started from it. It carries
   `#[allow(clippy::disallowed_methods)]` with that reason.
+- `service_route.rs` `remember_own_executable` and the generated unit (2026-11-04). The commit service is a mode of the
+  wrapper's executable, so the unit the wrapper writes names the wrapper's own path in `ExecStart` followed by `cli-git
+  service run`. This is identification: the wrapper writes the path into a file the user's service manager reads, and starts
+  nothing; the manager starts the service. The mode is chosen by those arguments (`service/service_main.rs`), never by the name
+  the program was started as. Service mode refuses a `--git` that is the wrapper itself, a link or copy of it, or a launcher
+  (`doc/planning/cli-git-resident-service.md`, "One executable"). Veto-open.
 - `entry.rs` `forwarded_to_self` and `FORWARD_TARGET_VARIABLE`. A guard that reports a wrapper found as its own
   real Git. It prevents an accidental loop; it starts nothing. It covered only a target that is the running
   executable; the launcher incident of 2026-11-03 showed that it was not enough, and `started_as_git.rs` was added

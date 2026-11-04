@@ -65,8 +65,8 @@ mise run //package/git-policy/cli:e2e:concurrent:trace
 
 ## Commit service
 
-Every commit the scenarios make lands through the resident `cli-git-service`.
-The image build compiles it beside the wrapper as `/opt/native/cli-git-service`.
+Every commit the scenarios make lands through the resident commit service, the wrapper's own `/opt/native/cli-git-native`
+started with the words `cli-git service run` (`SERVICE_MODE_WORDS` in `service-launch-fixture.ts`).
 Each scenario starts its own service (`service-fixture.ts`) with its own runtime directory (`XDG_RUNTIME_DIR`)
 and journal under `<scenario root>/service/`,
 and stops it when the scenario ends,

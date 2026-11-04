@@ -17,7 +17,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { instanceOf } from '../e2e/service-launch-fixture.ts';
+import {
+  instanceOf,
+  SERVICE_MODE_WORDS,
+} from '../e2e/service-launch-fixture.ts';
 import {
   assertServiceAnswers,
   makeService,
@@ -34,7 +37,7 @@ const scratchParent = join(
 
 /**
  A fake service program: it records its arguments next to its socket and listens on the `--path` it is given, as the
- real `cli-git-service` does.
+ real service mode (`cli-git service run`) does.
  */
 const FAKE_SERVICE = `#!${process.execPath}
 const { createServer } = require('node:net');
@@ -245,6 +248,7 @@ await describe({
             'utf8',
           ));
           expect(recorded).toEqual([
+            ...SERVICE_MODE_WORDS,
             '--journal',
             join(
               root,

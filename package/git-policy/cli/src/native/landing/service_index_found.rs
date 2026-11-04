@@ -15,7 +15,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const found = describeLock(lockPath, true); // 'service seq=7 pid=42 state=running age_ms=5000 open_by=[42 (cli-git-service)]'
+//! const found = describeLock(lockPath, true); // 'service seq=7 pid=42 state=running age_ms=5000 open_by=[42 (cli-git-native)]'
 //! ```
 
 use crate::index_lock_holders::{Holder, HolderEvidence};
