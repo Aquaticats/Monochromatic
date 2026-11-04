@@ -3191,7 +3191,7 @@ There are six answers, and each has its own consequence:
   again after the poll pause, because the end of a hold leaves no event in the directory, and the ceiling ends the wait; a
   restart leaves the batch open.
 - Unguarded: neither the `flock` nor the claim chain below could be had (no `flock` on the file system and no claim file can be
-  placed, or this process cannot name itself in a claim). Nothing is removed, because an unlink without exclusion could remove a
+  placed, or this process cannot name itself in a claim), or the `flock` failed in a way that does not say the file system has none. Nothing is removed, because an unlink without exclusion could remove a
   live lock. A landing waits as for any held lock to its ceiling and withdraws the commit to its side ref; its notice is written
   from the marker of the file that was judged (never a second read of the name, which a live landing may hold by then), names
   the lock, the batch and the dead process, and says to remove the lock by hand once no git command and no commit of the service
@@ -3236,7 +3236,8 @@ It is on the lock inventory (`source_guard/service_lock_inventory_tests.rs`) wit
 Two reclaimers, and a reclaimer against a landing, are kept apart; Git takes no part and never reclaims.
 What stays open: a person's `rm index.lock` between the check of the name and the unlink, when Git then places its own lock in
 the two system calls between, because no system call unlinks a name only if it still names a given file; a file system that
-gives no `flock` and no claim file can be placed (the stale lock is then left for the person, and the log says so); two mounts of
+gives no `flock` and takes no claim file, or a `flock` that fails in an unrecognised way (the stale lock is then left for the person,
+and the log says so); two mounts of
 one file system on one machine that differ in `flock` support; and reclaimers on different hosts over a shared file system, which the
 `flock` does not reach, and the claim chain does not either, because it reads a claimer of another host (another boot ID) as gone.
 Release 0.5.28's reclaim could leave a file at a taken-aside name (`<lock>.aside-<process>-<time>`) beside the lock, when a third
