@@ -318,3 +318,16 @@ fn a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged() {
     // Settling is the completed journal, not only the restored text (12b 3.3).
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "the recovery after the second acknowledgement left a journal behind: {again:?}");
 }
+
+/// Third certification pass (A1, the thread oracle): equal process numbers do not show that a procfs belongs to the caller's
+/// namespace. A status file of an ancestor procfs whose first and last `NSpid` numbers coincide is refused, the status of the
+/// process's own namespace (one number) and one without the line (a kernel before 4.1) are accepted.
+#[test]
+fn a_procfs_whose_nspid_lists_two_namespaces_is_refused_even_when_the_numbers_coincide() {
+    use crate::control_group::nspid_shows_own_namespace;
+    assert!(nspid_shows_own_namespace("Name:\tx\nNSpid:\t4242\nPid:\t4242\n").is_ok(), "the own namespace's single entry was refused");
+    assert!(nspid_shows_own_namespace("Name:\tx\nPid:\t4242\n").is_ok(), "a kernel without the line was refused");
+    let coinciding = nspid_shows_own_namespace("Name:\tx\nNSpid:\t4242\t4242\nPid:\t4242\n");
+    assert!(coinciding.is_err_and(|reason| { return reason.contains("ancestor"); }), "an ancestor procfs with coinciding numbers was accepted");
+    assert!(nspid_shows_own_namespace("NSpid:\t9001\t77\t1\n").is_err(), "a deeper nesting was accepted");
+}

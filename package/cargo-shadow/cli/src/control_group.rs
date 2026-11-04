@@ -560,7 +560,38 @@ fn open_proc_root() -> Result<ProcRoot, String> {
     if named != own {
         return Err(format!("the mounted procfs numbers this process {named} and this process is {own}, so it serves another process id namespace than this process is in"));
     }
-    return Ok(ProcRoot { directory, own });
+    let root: ProcRoot = ProcRoot { directory, own };
+    // Equal numbers do not prove the same namespace: an ancestor's procfs can number this process, by coincidence, as the process
+    // numbers itself. The `NSpid` line lists the process's id in every namespace from the one the procfs belongs to down to its own,
+    // so a procfs of the process's own namespace lists exactly one (certification, third pass).
+    match read_in_proc(&root, &format!("{own}/status")) {
+        Ok(status) => nspid_shows_own_namespace(&status)?,
+        Err(error) => return Err(format!("the status of this process cannot be read to check its namespace ({error})")),
+    }
+    return Ok(root);
+}
+
+/// What:
+/// `fn nspid_shows_own_namespace(status: &str) -> Result<(), String>` accepts a status file whose `NSpid` line has one entry (or that
+/// has no such line, a kernel before 4.1) and refuses one that lists the process in more than one namespace.
+/// Why:
+/// A procfs of an ancestor namespace lists the process in its namespace and in each below it, even when two of the numbers coincide.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nspidShowsOwnNamespace(status: string): void  // throws the reason
+/// ```
+pub(crate) fn nspid_shows_own_namespace(status: &str) -> Result<(), String> {
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix("NSpid:") {
+            let entries: usize = rest.split_whitespace().count();
+            if entries != 1 {
+                return Err(format!("the mounted procfs lists this process in {entries} process id namespaces, so it belongs to an ancestor namespace"));
+            }
+            return Ok(());
+        }
+    }
+    return Ok(());
 }
 
 /// What:
