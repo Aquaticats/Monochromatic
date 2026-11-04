@@ -757,3 +757,25 @@ What the new design does not do, so a later review does not read it as done:
   first form recorded only after the start and left a window in which a killed wrapper's child had no record); a journal with the
   first line alone is a possible survivor (`a_started_child_whose_process_group_was_never_recorded_is_a_possible_survivor`).
 - The tests that need the thread-leader fixture compile a small C file with `cc`.
+
+## Round 8 (2026-11-04): the contract first, then the code
+
+The contract is `doc/planning/cargo-shadow-guarantees.md`; its acceptance list is the reviewer's finite checklist, and its coverage map
+says which test shows each row.
+Where the sections of rounds 5 to 7 above say otherwise, the contract and this section are current:
+
+- The wrapper no longer enters a group around a spawn (7a F1, F2, F3 gone by construction); the program is started through
+  `systemd-run --user --scope --property=Delegate=yes`, and the child-of-the-own-group route is dropped (it needs `clone3` with
+  `CLONE_INTO_CGROUP`).
+- The weaker path no longer lets a recovery go ahead on the disappearance of the recorded process group: it waits for
+  `cargo-shadow acknowledge <journal directory>` (7c F1, 7a F4).
+- Recovery compares the mount id and inode of the journal and of the directory that held the recorded scope with what it sees, and
+  refuses, naming the journal, when they differ (7a F6).
+- An entry-level `NotFound` while listing the journals stops a recovery and a new transaction (7b P1-2); any failure on the
+  containment path after the program started is `NotQuiescent` (7a F3).
+- The kept-directory walk stops at the first directory that existed before the transaction, and goes through one this process knows
+  it left unsynchronized (assumption b).
+- The kept-files warning counts the names kept beside the lockfiles and the stranded temporaries too (row K1; this was queued in
+  round 7).
+- The queue of round 7 stays queued except what a row of the list needed: the K1 inventory above and the real completion rename and
+  sync tests.
