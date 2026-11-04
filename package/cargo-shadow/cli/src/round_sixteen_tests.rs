@@ -177,11 +177,11 @@ fn two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wr
 #[test]
 #[ignore = "the helper process of a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees"]
 fn moved_wrapper_fixture() {
-    let Ok(directory) = std::env::var(FIXTURE_GATES) else {
+    let Ok(gates) = std::env::var(FIXTURE_GATES) else {
         return;
     };
     let procs: PathBuf = PathBuf::from(std::env::var(FIXTURE_MOVE_INTO).expect("a group to move into"));
-    let directory: PathBuf = PathBuf::from(directory);
+    let directory: PathBuf = PathBuf::from(gates);
     let seen: Seen = at_the_launch_boundary(&directory, Some(procs));
     fs::write(directory.join("seen"), format!("{}\n{}\n{}\n", seen.original, seen.launcher_first, seen.wrapper_first)).expect("write what was seen");
 }
@@ -542,5 +542,88 @@ fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_a
             assert_eq!(judged.get(), 0, "{fault:?}: a journal that was already marked done was judged again");
         }
     }
+}
+//endregion
+
+//region the weaker path (certification group 3)
+// What the region covers: the capability classes that were not exercised, recovery with one of two journals acknowledged.
+
+/// A stand-in for `systemd-run` that the manager refuses: it says so and exits, and never runs the program.
+fn refusing_systemd_run(directory: &Path) -> PathBuf {
+    let script: PathBuf = directory.join("refusing-systemd-run");
+    fs::write(&script, "#!/bin/sh\necho 'Failed to start transient scope unit: delegation refused' >&2\nexit 1\n").expect("write the stand-in");
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    return script;
+}
+
+/// Acceptance row "Weaker path" (certification group 3), the capability classes the other tests omit:
+/// a kernel whose cgroup directory has no `cgroup.kill` (the manager reports the root group, which has none) is told apart and the
+/// run takes the weaker path with its record before the start;
+/// and a scope that the manager refuses to start (an actual delegation failure, after discovery succeeded) is not the weaker path and
+/// not a program that ran: the program does not run, the run's end is recorded (nothing could have started), and a recovery then
+/// needs no acknowledgement.
+#[test]
+fn a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_runs_nothing() {
+    if delegated_route().is_none() {
+        return;
+    }
+    // No cgroup.kill: discovery names it.
+    let no_kill: RouteSettings = RouteSettings { systemctl: "sh".to_string(), question: Some(vec!["-c".to_string(), "echo /".to_string()]), ..RouteSettings::default() };
+    let refused = crate::control_group::detect_route(&no_kill).expect_err("the root group has no cgroup.kill");
+    assert!(refused.to_string().contains("cgroup.kill"), "{refused}");
+
+    let root = repository();
+    let transaction = crate::journal::begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+    use_route_settings_for_test(Some(no_kill));
+    let weaker = output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30)));
+    use_route_settings_for_test(None);
+    weaker.expect("runs in a process group");
+    let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
+    assert!(record.starts_with("pgroup starting\npgroup "), "the kernel without cgroup.kill did not take the weaker path: {record:?}");
+    drop(transaction);
+
+    // A scope that the manager refuses.
+    let other = repository();
+    let directory = scratch();
+    let second = crate::journal::begin(other.path(), &[snapshot("original")], false).expect("begin");
+    let second_journal: PathBuf = crate::journal_support::journal_dirs(other.path()).into_iter().next().expect("a journal");
+    use_route_settings_for_test(Some(RouteSettings { systemd_run: refusing_systemd_run(directory.path()).display().to_string(), ..RouteSettings::default() }));
+    let marker: PathBuf = directory.path().join("payload-ran");
+    let _ = take_trace_for_test();
+    let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound(Duration::from_secs(30)));
+    use_route_settings_for_test(None);
+    let trace: Vec<String> = take_trace_for_test();
+    drop(second);
+
+    assert!(!marker.exists(), "the program ran although the manager refused its scope");
+    assert!(result.as_ref().map_or(true, |output| { return !output.status.success(); }), "a refused scope was read as a successful run: {result:?}");
+    assert_eq!(trace[..2], ["attempt scope", "written scope"], "the run did not record a scope before the refusal: {trace:?}");
+    let groups: String = fs::read_to_string(second_journal.join("groups")).expect("the record");
+    assert!(groups.lines().any(|line| { return line.starts_with("settled "); }), "the run's end was not recorded: {groups:?}");
+    let messages: Vec<String> = crate::journal::recover(other.path(), &refusing);
+    assert!(crate::journal_support::journal_dirs(other.path()).is_empty(), "a refused scope needed an acknowledgement: {messages:?}");
+}
+
+/// Acceptance row "Weaker path" (certification group 3): recovery, not only admission, with two journals of the weaker path of which
+/// one is acknowledged: the recovery restores nothing while the other blocks, and settles both once the other is acknowledged too.
+#[test]
+fn recovery_with_one_of_two_weaker_path_journals_acknowledged_restores_nothing_until_both_are() {
+    let root = repository();
+    let first: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
+    let second: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
+    fs::write(first.join("groups"), "pgroup starting\n").expect("record");
+    fs::write(second.join("groups"), "pgroup starting\n").expect("record");
+    crate::acknowledge::acknowledge(&first).expect("acknowledges the first");
+
+    let blocked: Vec<String> = crate::journal::recover(root.path(), &refusing);
+
+    assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "a recovery restored files while an unacknowledged weaker-path journal stood: {blocked:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 2, "a journal was removed: {blocked:?}");
+    assert!(blocked.iter().any(|message| { return message.contains(&second.display().to_string()) && message.contains("cargo-shadow acknowledge"); }), "the refusal does not name the unacknowledged journal: {blocked:?}");
+    crate::acknowledge::acknowledge(&second).expect("acknowledges the second");
+    let settled: Vec<String> = crate::journal::recover(root.path(), &refusing);
+    assert_eq!(live_lock(root.path()), "original", "the control: with both acknowledged the recovery did not restore: {settled:?}");
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "{settled:?}");
 }
 //endregion

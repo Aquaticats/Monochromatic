@@ -1047,7 +1047,7 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             run_start_hook();
             let mut launch: Command = group.launcher(route, command, clean_environment);
             configure_stdio(&mut launch, has_input);
-            trace(|| "launch scope".to_string());
+            trace(|| { return "launch scope".to_string(); });
             let child: Child = launch.spawn().map_err(RunError::Io)?;
             if let Some(state) = scope {
                 note_launcher(&state.log, group.directory(), &child);
@@ -1067,7 +1067,7 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
                 })?;
             }
             run_start_hook();
-            trace(|| "launch pgroup".to_string());
+            trace(|| { return "launch pgroup".to_string(); });
             let mut child: Child = command.spawn().map_err(RunError::Io)?;
             let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
             if let Some(state) = scope

@@ -140,15 +140,25 @@ fn each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_be
 fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     let plain = scratch();
     use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
     let marker = plain.path().join("late");
-    let script: String = format!("(sleep 2; : > {}) & sleep 30", marker.display());
+    let ready = plain.path().join("writer-ready");
+    // A writer of the process group is running and ready (a handshake) before the bound passes; it would write after the stop.
+    let script: String = format!("(: > {ready}; sleep 2; : > {late}) & while [ ! -e {ready} ]; do sleep 0.02; done; sleep 30", ready = ready.display(), late = marker.display());
 
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &Bound { limit: Duration::from_millis(400), ..bound() });
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &Bound { limit: Duration::from_millis(1500), ..bound() });
     use_route_settings_for_test(None);
+    let ready_before: bool = ready.exists();
     std::thread::sleep(Duration::from_millis(2_700));
 
-    assert!(result.is_err(), "the run should have passed its bound");
+    // The result is the timeout (certification group 3), the writer started, and the run was the weaker path.
+    assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the run should have passed its bound: {result:?}");
+    assert!(ready_before, "the writer never ran, so a failure before the spawn would also leave no late marker");
+    assert!(fs::read_to_string(journal.join("groups")).expect("the record").starts_with("pgroup starting\npgroup "), "the run was not the weaker path");
     assert!(!marker.exists(), "a member of the process group wrote after the stop");
+    drop(transaction);
 }
 
 /// Acceptance row "Weaker path":
