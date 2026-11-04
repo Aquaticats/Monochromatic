@@ -1321,3 +1321,31 @@ fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_
         }
     }
 }
+
+/// Acceptance row K1 (fifth certification pass): on a completed run the command warns exactly when the kept files counted at its start
+/// are past the count: nothing below it, nothing at it, a warning one past it. Each case is its own repository and one completed run;
+/// the count is the files kept in the central folder plus the two kept beside the lockfile.
+#[test]
+fn a_completed_run_warns_exactly_past_the_count_and_not_at_or_below_it() {
+    use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
+    let beside: usize = 2;
+    for kept in [KEPT_FILES_WARNING_COUNT - 1, KEPT_FILES_WARNING_COUNT, KEPT_FILES_WARNING_COUNT + 1] {
+        let root = repository(STALE);
+        let start = root.path().join(CRATE_DIR);
+        let central = root.path().join(QUARANTINE_DIR);
+        fs::create_dir_all(&central).expect("the central folder");
+        for index in 0..(kept - beside) {
+            fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+        }
+        fs::write(start.join("Cargo.lock.refused"), "refused text").expect("a kept copy beside the lockfile");
+        fs::write(start.join(".Cargo.lock.shadow-abc.tmp"), "stranded").expect("a stranded temporary");
+        let _ = crate::bounded_run::take_trace_for_test();
+        let runner: FakeCargo = cargo(SATISFIED);
+
+        let outcome = step(&start, false, &runner, &registry());
+
+        assert!(matches!(outcome, StepOutcome::Updated { .. }), "{kept} kept files: {outcome:?}");
+        let emitted: usize = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("kept notice "); }).count();
+        assert_eq!(emitted, usize::from(kept > KEPT_FILES_WARNING_COUNT), "{kept} kept files (count {KEPT_FILES_WARNING_COUNT}): the warning was {emitted} times");
+    }
+}
