@@ -578,36 +578,20 @@ fn replace_loose_second(fixture: &Fixture, stored: &[u8]) -> PathBuf {
     return common;
 }
 
-/// Review finding (4a 1):
-/// a commit body whose `parent` line is not an object name is rejected by Git's commit parser.
-#[test]
 fn a_malformed_parent_line_is_not_a_commit() {
     use crate::git_objects::confirm_commit;
     let fixture = fixture("topic");
-    // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    // Typed binding: `tree: String`.
     let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
-    // Typed binding: `good: String`.
-    // Macro `format!`: builds or prints text (or a list) from a template.
     let good: String = format!("tree {tree}\nparent {}\nauthor A <a@b> 1 +0000\ncommitter A <a@b> 1 +0000\n\nmessage\n", fixture.first);
-    // Typed binding: `bad: String`.
-    // Macro `format!`: builds or prints text (or a list) from a template.
     let bad: String = format!("tree {tree}\nparent zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nauthor A <a@b> 1 +0000\ncommitter A <a@b> 1 +0000\n\nmessage\n");
-    // Closure `|body: &str|`: an anonymous function, like a TS arrow function.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    let stored = |body: &str| { return deflate(format!("commit {}\0{body}", body.len()).as_bytes()); };
+    // Both bodies are stored under their own true names (round 6, 5a F3 B), so only the parent line differs between them.
+    let good_name: String = hash_commit(&fixture, &good);
+    let bad_name: String = hash_commit(&fixture, &bad);
+    let common: PathBuf = fixture.work.join(".git");
 
-    // Borrow `&fixture`: lends the value without copying or giving it away.
-    let common = replace_loose_second(&fixture, &stored(&good));
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    // Borrow `&common`: lends the value without copying or giving it away.
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(confirm_commit(&common, &fixture.second), Ok(()), "control: a well-formed body is accepted");
-    // Borrow `&fixture`: lends the value without copying or giving it away.
-    replace_loose_second(&fixture, &stored(&bad));
-    // Borrow `&common`: lends the value without copying or giving it away.
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(confirm_commit(&common, &fixture.second).is_err(), "a malformed parent line was accepted");
+    assert_eq!(confirm_commit(&common, &good_name), Ok(()), "control: a well-formed body under its own name is accepted");
+    assert!(!git_peels(&fixture, &bad_name), "oracle: Git rejects the malformed parent line");
+    assert!(confirm_commit(&common, &bad_name).is_err(), "a malformed parent line was accepted");
 }
 
 /// Review finding (4a 1):

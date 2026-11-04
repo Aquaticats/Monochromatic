@@ -354,53 +354,21 @@ pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
     return Ok(file);
 }
 
-/// What:
-/// `fn looks_like_commit(body: &[u8]) -> bool` applies the conditions of Git's commit parser to a body:
-/// a `tree ` line with a
-/// full object name,
-/// then any number of `parent ` lines that each carry a full object name.
-/// Why:
-/// Review finding (4a 1):
-/// these are the lines Git must parse for `X^{commit}`;
-/// nothing stricter (that would be `git fsck`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const looksLikeCommit = (body: Buffer): boolean => /^tree [0-9a-f]{40}\n(parent [0-9a-f]{40}\n)*/.test(body.toString('latin1'));
-/// ```
 fn looks_like_commit(body: &[u8]) -> bool {
-    /// A helper of the function it sits in.
-    fn name_line(rest: &[u8], word: &[u8]) -> Option<usize> {
-        // Typed binding: `length: usize`.
-        let length: usize = word.len() + OBJECT_NAME_DIGITS + 1;
-        if rest.len() < length || !rest.starts_with(word) {
-            // `None`: the present or the absent value of an `Option`.
-            return None;
-        }
-        // Borrow `&rest`: lends the value without copying or giving it away.
-        // Typed binding: `name: &[u8]`.
-        let name: &[u8] = &rest[word.len()..word.len() + OBJECT_NAME_DIGITS];
-        // `Some`: the present or the absent value of an `Option`.
-        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        return if name.iter().all(u8::is_ascii_hexdigit) && rest[length - 1] == b'\n' { Some(length) } else { None };
-    }
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    let Some(tree) = name_line(body, b"tree ") else {
+    // Git's `parse_commit_buffer` (commit.c): the tree line must be followed by at least one more byte, and so must every
+    // parent line (`tail <= bufptr + entry_len + 1` is an error). Mirrored exactly, never loosened (round 6, 5a F3 A).
+    let hex_name = |bytes: &[u8]| -> bool { return bytes.len() == OBJECT_NAME_DIGITS && bytes.iter().all(u8::is_ascii_hexdigit); };
+    let tree_entry: usize = "tree ".len() + OBJECT_NAME_DIGITS;
+    if body.len() <= tree_entry + 1 || !body.starts_with(b"tree ") || !hex_name(&body[5..tree_entry]) || body[tree_entry] != b'\n' {
         return false;
-    };
-    // `let mut`: a binding that may change.
-    // Typed binding: `position: usize`.
-    let mut position: usize = tree;
-    while body[position..].starts_with(b"parent ") {
-        // `match`: picks the arm whose pattern fits the value.
-        // Borrow `&body`: lends the value without copying or giving it away.
-        match name_line(&body[position..], b"parent ") {
-            // `Some`: the present or the absent value of an `Option`.
-            Some(length) => position += length,
-            // `None`: the present or the absent value of an `Option`.
-            None => return false,
+    }
+    let parent_entry: usize = "parent ".len() + OBJECT_NAME_DIGITS;
+    let mut position: usize = tree_entry + 1;
+    while position + parent_entry < body.len() && body[position..].starts_with(b"parent ") {
+        if body.len() <= position + parent_entry + 1 || !hex_name(&body[position + 7..position + parent_entry]) || body[position + parent_entry] != b'\n' {
+            return false;
         }
+        position += parent_entry + 1;
     }
     return true;
 }
@@ -418,7 +386,7 @@ fn looks_like_commit(body: &[u8]) -> bool {
 /// ```ts
 /// function inflateComplete(source: Readable, outputLimit: number, inputLimit: number): Buffer  // throws unless the stream ended
 /// ```
-fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64) -> Result<Vec<u8>, String> {
+fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64) -> Result<(Vec<u8>, u64), String> {
     // `let mut`: a binding that may change.
     // Typed binding: `inflater: Decompress`.
     let mut inflater: Decompress = Decompress::new(true);
@@ -496,7 +464,7 @@ fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64
         // `match`: picks the arm whose pattern fits the value.
         match status {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            Status::StreamEnd => return Ok(produced_all),
+            Status::StreamEnd => return Ok((produced_all, inflater.total_in())),
             Status::Ok | Status::BufError => {
                 if at_end && produced == 0 && inflater.total_in() == before_in {
                     // `Err(...)`: builds the success or the failure variant of a `Result`.
@@ -548,7 +516,7 @@ fn canonical_size(text: &str) -> Option<usize> {
 /// ```ts
 /// function looseCommit(path: string): void  // throws when the object is not a whole commit
 /// ```
-fn loose_commit(path: &Path) -> Result<(), String> {
+fn loose_commit(path: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<(), String> {
     let file: File = open_regular(path)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|message|`: an anonymous function, like a TS arrow function.
@@ -556,7 +524,8 @@ fn loose_commit(path: &Path) -> Result<(), String> {
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Typed binding: `inflated: Vec<u8>`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let inflated: Vec<u8> = inflate_complete(file, usize::try_from(MAX_COMMIT_BYTES).unwrap_or(usize::MAX), MAX_COMMIT_BYTES).map_err(|message| { return format!("{}: {message}", path.display()); })?;
+    let length: u64 = file.metadata().map_err(|error| { return format!("{} cannot be inspected: {error}", path.display()); })?.len();
+    let (inflated, consumed): (Vec<u8>, u64) = inflate_complete(file, usize::try_from(MAX_COMMIT_BYTES).unwrap_or(usize::MAX), MAX_COMMIT_BYTES).map_err(|message| { return format!("{}: {message}", path.display()); })?;
     let Some(end) = inflated.iter().position(|byte| { return *byte == 0; }) else {
         return Err(format!("{} has no object header", path.display()));
     };
@@ -571,6 +540,13 @@ fn loose_commit(path: &Path) -> Result<(), String> {
     // `Some`: the present or the absent value of an `Option`.
     if canonical_size(size) != Some(body.len()) || !looks_like_commit(body) {
         return Err(format!("{} is not a well-formed commit", path.display()));
+    }
+    // Git rejects bytes after the end of a loose object's stream ("garbage at end of loose object") and checks the signature.
+    if consumed != length {
+        return Err(format!("{} has bytes after its compressed stream, which only Git judges", path.display()));
+    }
+    if crate::git_sha1::object_name("commit", body) != *name {
+        return Err(format!("{} does not hash to its own name, which only Git judges", path.display()));
     }
     return Ok(());
 }
@@ -679,7 +655,7 @@ fn check_pack_opens(pack: &File, index: &File) -> Result<(), String> {
 /// ```ts
 /// function packedEntryIsCommit(pack: number, offset: number): boolean  // throws when the entry cannot be read
 /// ```
-fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String> {
+fn packed_entry_is_commit(pack: &File, offset: u64, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String> {
     let first: Vec<u8> = read_at(pack, offset, 1).map_err(pack_failure)?;
     let mut byte: u8 = first[0];
     let kind: u8 = (byte >> 4) & 0x7;
@@ -704,8 +680,9 @@ fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Typed binding: `body: Vec<u8>`.
-    let body: Vec<u8> = inflate_complete(At { file: pack, offset: position }, usize::try_from(size).unwrap_or(usize::MAX), MAX_COMMIT_BYTES)?;
-    return Ok(body.len() as u64 == size && looks_like_commit(&body));
+    let (body, _consumed): (Vec<u8>, u64) = inflate_complete(At { file: pack, offset: position }, usize::try_from(size).unwrap_or(usize::MAX), MAX_COMMIT_BYTES)?;
+    // A packed entry is the commit whose name the index lists only if its bytes hash to that name.
+    return Ok(body.len() as u64 == size && looks_like_commit(&body) && crate::git_sha1::object_name("commit", &body) == *name);
 }
 
 /// What:
@@ -749,7 +726,7 @@ fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool,
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&pack`: lends the value without copying or giving it away.
         check_pack_opens(&pack, &index)?;
-        return packed_entry_is_commit(&pack, offset);
+        return packed_entry_is_commit(&pack, offset, name);
     }
     return Ok(false);
 }
@@ -840,7 +817,7 @@ pub fn confirm_commit(common_dir: &Path, object: &str) -> Result<(), String> {
     let loose: PathBuf = objects.join(&object[..2]).join(&object[2..]);
     if loose.exists() {
         // Borrow `&loose`: lends the value without copying or giving it away.
-        return loose_commit(&loose);
+        return loose_commit(&loose, &name);
     }
     if packed_commit(&objects, &name)? {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
