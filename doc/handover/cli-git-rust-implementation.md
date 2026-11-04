@@ -93,6 +93,41 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
+Update after the last list:
+the integration branch (`fix/git-policy-cli-commits-fast-under-disk-pressure` tip `c7ce91581e`,
+gate 4703 of 4703) was fast-forwarded into the 0.5.28 base,
+then the batch-number fix (`fix/git-policy-cli-service-batch-numbers-unique` tip `9c3d279e1a`,
+gate 4666 of 4666) merged as `d9e8907ae8`;
+the base gate `gpc-gate-base-0-5-28-final-20261103T214518-0500` is running,
+and 0.5.28 is released from that tip when it passes.
+Measured on that integration tip,
+median of 19 warm paired rounds:
+signed commits wrapped 207 ms against native 118 ms (1.75 times),
+unsigned 171 against 115 ms (1.45 times);
+0 wrapper syncs waited on a publishing landing (7 queued to a background thread),
+3 forced on a withdrawal;
+Git's own defaults (`core.fsync` read from Git 2.56.0 source) are followed.
+The batch-number bug was real for services sharing a journal (development runs and the test harness;
+production gives each instance its own journal):
+two landings could share a number and one landing's records overwrite the other's;
+fixed with an `O_EXCL` claim file per number.
+Models round 9 done (`feat/git-policy-cli-commit-protocol-models` tip `3e86918e4c`,
+252 of 252):
+W1 and the register rebuilt for revision 13 (red under 12),
+controls 1 to 6,
+9 to 17 and F7/F9 re-opened,
+historical models labelled by a guard test,
+state log distinguishes absent,
+damaged and unreadable,
+legacy pair and binding removed (spool kept).
+cargo-shadow fifth review:
+all four parts "not correct";
+round 6 running with the owner's kept-files answer.
+Thirteenth design review:
+"Approve continued model work only";
+revision 14 running,
+reframing questions 6 and 7.
+
 At 2026-11-03T20:14:48-05:00 (the owner's cap is five delegate agents at once),
 five running:
 - Integration and the owner's power-cut answer on today's landing,
@@ -154,7 +189,31 @@ five running:
   append reading only the tail,
   replay without the quadratic scan,
   and a replay from a closure rebuilt after pruning.
-- cargo-shadow round 5,
+- cargo-shadow round 5 done:
+  tip `8e42ae47c9`,
+  428 of 428 tests,
+  clippy clean,
+  103 `avoidable-closure` warnings.
+  One workspace lock (`.cache/cargo-shadow/lock`,
+  non-waiting `flock`,
+  close-on-exec) replaces the per-journal lock (agent's pick,
+  veto open);
+  cargo children run in a recorded process group and `bounded_run` stops the whole group;
+  the reader asks the answering Git for its system configuration;
+  kept copies capped at `MAX_KEPT_FILES` 1,000 (unmeasured;
+  past it a new transaction is refused with a listing,
+  nothing deleted):
+  an owner question.
+  Bounds now cite measurements from this repository (cargo calls 0.05 to 0.91 s against 30 min;
+  Git 0.006 to 0.018 s against 60 s),
+  the rest labelled unmeasured.
+  A pnpm 12.16.1 oracle confirmed pnpm also refuses an unchanged update that leaves a too-young version locked.
+  The agent used Python and shell scratch scripts (`bench_bounds.py`,
+  `t.sh`),
+  against AGENTS.md's TypeScript-only script rule;
+  to be said in its next brief.
+  Fifth review running in four parts (`cargo-shadow-sol-5a/5b/5b2/5c.txt`).
+- (Earlier entry) cargo-shadow round 5,
   `feat/cargo-shadow-cli` (from `e4451f1a75`),
   answering the fourth review (all four parts "not correct":
   4a Git-equivalent object acceptance;
@@ -2780,7 +2839,27 @@ section "Owner questions for revision 12"):
   as with native Git).
   The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
 
+### cargo-shadow kept files
+
+The owner,
+through the question tool:
+"Warn past a count, never refuse (Recommended)"
+(past a threshold every run prints how many kept files there are,
+their total size and the folder to review;
+cargo keeps working;
+nothing is deleted).
+Replaces the agent's refusal at `MAX_KEPT_FILES`.
+
 ### Commit protocol revision 13 answers
+
+The thirteenth review (`commits-never-fail-sol-13.txt`) found questions 6 and 7 framed inaccurately:
+question 6 omitted that a departure cut short by its limit can lose the record that forbids further attempts (so a withdrawn request could still land after a power cut),
+and question 7's option A claimed it never undoes a later intentional change,
+which a `reset --soft` plus switch disproves.
+Answers 6 and 7 are therefore provisional until revision 14 asks them again;
+answer 5 stands,
+with its missing option to be shown.
+
 
 The owner,
 through the question tool,
