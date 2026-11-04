@@ -890,15 +890,29 @@ fn a_refusal_with_a_failed_durability_barrier_keeps_the_refusal_and_names_the_ba
 fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions() {
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
-    let runner = cargo_that_writes_a_refused_release();
+    let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let inner = cargo_that_writes_a_refused_release();
+    // The runner notes that cargo wrote the refused lockfile (certification group 3): the refusal below must follow from that write.
+    let wrote = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen_by_runner = std::sync::Arc::clone(&wrote);
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        let answer = inner(cwd, arguments);
+        if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--locked" || argument == "--precise"; }) {
+            seen_by_runner.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        return answer;
+    };
     crate::failpoints::arm(crate::failpoints::Point::Restore);
 
-    // `None`: the present or the absent value of an `Option`.
-    // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
 
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
+    assert!(wrote.load(std::sync::atomic::Ordering::Relaxed), "cargo never wrote the refused lockfile, so the test shows nothing");
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore: an earlier refusal left the fault armed");
+    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        other => panic!("the command would build the refused lockfile: {other:?}"),
+    }
 }
 
 /// A cargo whose update writes the given lockfile and leaves a process that could not be stopped.
