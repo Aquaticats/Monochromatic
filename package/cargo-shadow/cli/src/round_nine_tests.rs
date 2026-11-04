@@ -680,9 +680,14 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
         .collect();
     let journal: PathBuf = plant(root.path(), &snapshots, &manifests);
     let failing_directory: PathBuf = root.path().join(failing);
+    // The first replacement in the failing directory (its lockfile) finds the directory read-only and fails; any later one (its manifest,
+    // if the recovery wrongly tried it) finds the directory writable, so only the coupling rule, not the permission, keeps the manifest.
+    let attempts: std::cell::Cell<u32> = std::cell::Cell::new(0);
     let hook = |target: &Path| {
         if target.starts_with(&failing_directory) {
-            fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o555)).expect("make the crate directory read-only");
+            attempts.set(attempts.get() + 1);
+            let mode: u32 = if attempts.get() == 1 { 0o555 } else { 0o755 };
+            fs::set_permissions(&failing_directory, fs::Permissions::from_mode(mode)).expect("set the crate directory mode");
         }
     };
     let refuse_all = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> { return vec!["dep@1.0.1 refused".to_string()]; };
