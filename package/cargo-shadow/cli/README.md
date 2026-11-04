@@ -642,30 +642,44 @@ and an HTTP 429 is retried after its `Retry-After`.
   The lock is close-on-exec,
   so a program that cargo starts (a compiler cache daemon,
   say) cannot keep it held forever.
-  A killed wrapper's cargo is found another way, by the control group it ran in (round 7, replacing the process group of round 5
-  and the subreaper with a `/proc` scan of round 6, which both failed to show that every process had stopped):
-  before a child starts, the wrapper makes an empty cgroup v2 group inside its own group, writes the group's id, cgroup namespace
-  and path to the journal's `groups` file and syncs it (a child whose record cannot be written is not started), and the child is
-  started with the wrapper inside the group for the span of one `spawn` (so no hook runs between `fork` and `exec`).
-  A recovery or a new transaction stops while any journal of the workspace names a group with a thread left (`cgroup.events` says
-  `populated 1`), or holds a record it cannot read or understand, or has lost its record while other files remain, or lies in
-  another cgroup namespace than the one the record was made in; it names the journal, and a recorded group that is gone, or whose
-  id is different now, had no member (the kernel refuses to remove a group that has one).
+  What the wrapper promises, what it assumes, and which test shows each: `doc/planning/cargo-shadow-guarantees.md`
+  (guarantees, assumptions a to d, the weaker path, the acceptance list and the coverage map).
+  A killed wrapper's cargo is found another way, by the delegated scope it ran in (round 8; round 7 used a group the wrapper entered
+  around each spawn, and rounds 5 and 6 a process group and a subreaper, which failed to show that every process had stopped):
+  the program is started as `systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect -- <program>`,
+  so the user manager, not a thread of this program, moves it into a scope of its own before it runs, and the wrapper never changes
+  its own group.
+  The name carries a 128-bit random token and the manager is asked where its slice is (`systemctl --user show app.slice`), once per
+  process.
+  Before the program starts the wrapper writes the scope's path, its cgroup namespace and the mount id and inode of the directory that
+  holds it to the journal's `groups` file and syncs it (a program whose record cannot be written is not started).
+  A recovery or a new transaction stops while any journal of the workspace names a scope with a thread left (`populated 1`), or a
+  record it cannot read or understand, or a journal that lost its record while other files remain, or a journal or a scope seen
+  with another mount id or inode or in another cgroup namespace than the record was made in (assumption c);
+  it names the journal.
+  A recorded scope that is absent counts as gone only when the directory that held it is seen as it was recorded, because the manager
+  removes a scope only when it is empty (probed).
   A journal directory that holds nothing at all is what a cut-off `begin` leaves and is removed.
-  The record file is created first in every journal, so a directory without it that holds other files is uncertain, never empty.
-  The group is killed with `cgroup.kill`, and then each listed process gets `SIGKILL` through a pidfd, because `cgroup.kill`
-  alone left a thread group alive whose leader had already exited (measured on Linux 7.2.15,
-  `doc/planning/cargo-shadow-update.md`, "Round 7: control group probes"); the stop ends only when the kernel says `populated 0`.
-  What the group cannot do: a member of the same user that writes its own id into another group's `cgroup.procs` leaves the group
-  (probed: it does), so the group contains `setsid`, `setpgid`, double forks, closed pipes and daemons, not a process that
-  deliberately moves itself out. A cgroup namespace closer is not built and is the owner's decision.
-  Where no group can be had (the own group is owned by someone else, as a login session's is, or there is no cgroup v2, or the
-  kernel is older than 5.14), the run goes on in a process group of its own, prints one line naming the missing capability, and
-  claims no quiescence for what leaves the process group; the journal records "pgroup starting" before the child starts and its
-  process group after, a recovery that finds the first line alone treats the run as one that may have a child, and a recovery only
-  asks the recorded group (the weaker path, the coordinator's pick of round 7, open to the owner's veto).
-  A trivial run (`true`, debug build, 39 runs after one warm-up) took 6.8 ms at the median with a control group and 6.4 ms in the
-  weaker path, because the wait for the child ends at its exit through a pidfd instead of a 10 ms sleep.
+  The scope is stopped by killing the direct child, reaping it, and writing `cgroup.kill`, and then each listed process gets
+  `SIGKILL` through a pidfd, because `cgroup.kill` alone left a thread group alive whose leader had already exited (measured on
+  Linux 7.2.15); the stop ends only when the kernel says `populated 0` or the absence of the scope is verified, and every failure on
+  this path after the program started is "not quiescent".
+  `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
+  variable name), so every argument is encoded for that before it is handed over, and a command with a cleared environment runs
+  through `env --ignore-environment`.
+  Assumption a of the contract: the run's processes do not leave the scope and do not arrange workspace writes through a service outside
+  it; a same-user process that does is outside what any wrapper can stop.
+  Where no scope can be had (no `systemd-run`, no reachable user manager, no cgroup v2 mount, an unknown slice, a kernel before 5.14),
+  the run goes on in a process group of its own and prints one line naming the missing capability.
+  Its journal holds `pgroup starting` before the child starts and the process group after, and every recovery and every new
+  transaction refuses such a journal, naming it, until a person runs `cargo-shadow acknowledge <journal directory>`, which asserts
+  that every process or worker of that run that can modify the workspace has stopped.
+  The acknowledgement is written under the workspace lock to that one journal; it overrides only the uncertainty of the containment
+  (a weaker-path record, a record that is damaged or missing, a view that differs), never a recorded group that is observed to have a
+  member, and the recovery's other checks still run.
+  A trivial run took 23.6 ms median in the test build, which asks the manager every time (18.4 minimum, 33.5 maximum, 30 runs), and
+  6.3 ms in the weaker path; the production build asks once per process, so its figure is lower by the cost of the question, which was
+  not measured separately.
   Every run keeps a journal under `.cache/cargo-shadow/journal/<unique name>/`,
   created exclusively (a journal is never reused or truncated),
   with the snapshots synced and a `ready` record written last that lists every file with its length;
@@ -699,13 +713,13 @@ and an HTTP 429 is retried after its `Retry-After`.
   Data is synced before it is relied on:
   the displaced file (a failed data barrier is an error,
   never a settled outcome),
-  every directory from the resolved kept directory up to the root of its file system (the mount root),
+  every directory from the resolved kept directory up to the first directory that existed before the transaction (assumption b of
+  the contract),
   every time a file is linked into it
-  (round 7: the directory that holds the replaced file is not a durable anchor just because the file is there, since its own
-  entry in its parent may not be durable; the path is resolved first, so a symbolic link and a relative path name the directories
-  that really hold the entries; an entry above the mount root belongs to another file system, and the walk stops there; an
-  ancestor on the way that the user cannot open for reading, such as a shared directory of mode 711, makes the preservation fail
-  as "kept but not made durable" instead of finishing short).
+  (the directory that holds the replaced file is not an anchor just because the file is there, since its own entry in its parent may
+  not be durable; the path is resolved first, so a symbolic link and a relative path name the directories that really hold the
+  entries; a pre-existing directory and its path are assumed durable, except one this process knows it left unsynchronized after a
+  failed sync, which the walk goes through; nothing above the anchor is opened).
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
   The kept directory is never capped and never emptied by the tool.
   Owner answer of round 6,
@@ -726,8 +740,12 @@ and an HTTP 429 is retried after its `Retry-After`.
   "nothing should ever wait forever or indefinitely").
   Locks are tried,
   never waited for.
-  Every child process runs in a control group of its own under a bound (above, "A killed wrapper's cargo"; the weaker path is a
+  Every child process runs in a delegated scope of its own under a bound (above, "A killed wrapper's cargo"; the weaker path is a
   process group).
+  Every wait this program controls has a deadline: the question to the manager, the lifetime of a command, the draining of its pipes,
+  the reaping of its child, the stop of a scope, and every lock (tried, never waited for).
+  An ordinary blocking call of the operating system (`read`, `write`, `fsync`, `rename`) has no deadline of its own; the contract
+  assumes such calls make progress, as the owner's "Assume the final disk save would never be cut short." does for the disk.
   At the bound the group and every process in it are killed and the run waits for `populated 0`;
   the error names the call and the command the user ran (quoted so it can be copied);
   after a normal exit any process left is killed too.
@@ -737,7 +755,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   and the command is not run.
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
-  Two runs of one process do not wait for each other: only the span of one `spawn` is serialized, with a bound.
+  Two runs of one process do not wait for each other and share no lock: each has its own scope.
   The bounds,
   with what was measured in this repository on 2026-11-04 (load average 6.2 to 6.9 on 32 CPUs,
   3 runs each):
