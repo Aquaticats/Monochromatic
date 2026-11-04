@@ -3612,7 +3612,32 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     byte-prefix cuts,
     discovery handshake);
     no row added.
-    Round 12 running on both.
+    Round 12 done (tip `a8c7fbf8c2`;
+    584 passed,
+    8 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 14 shown,
+    2 partly;
+    the writer-side sync fault and a real interrupted publication now tested).
+    Cross-vendor reviews running:
+    `cargo-shadow-sol-12a.txt` and `cargo-shadow-sol-12b.txt`,
+    inputs from `2c20baf0e6`.
+- 0.5.30 published (crates.io 2026-11-04T14:27:24Z,
+  run 41846701765) and installed (`5c2fb3a5b2`):
+  it ships the claim chain;
+  the sample commit took 1690 ms,
+  1197 ms of it provisioning the upgraded service;
+  the landing took 29 ms.
+- Models round 15 review part 10b:
+  "no, as submitted":
+  the fresh-attempt model binds delivery to the current attempt counter,
+  so an older stored notice printed after a new attempt starts authorizes reclaiming that attempt;
+  bind notice,
+  printing and removal to the producing attempt;
+  the reclaim row should point to the claim-chain evidence;
+  no criterion added.
+  Round 16 starts when part 10a returns.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
