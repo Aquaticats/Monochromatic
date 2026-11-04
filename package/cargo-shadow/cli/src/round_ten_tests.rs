@@ -410,6 +410,7 @@ fn a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so() 
     let refused = detect_route(&settings).expect_err("a manager that does not answer is a missing capability");
     let elapsed: Duration = started.elapsed();
 
+    assert!(!crate::failpoints::fires(Point::ReapStuck), "the reaping fault was never reached, so the report did not come from it");
     assert!(refused.to_string().contains("did not answer"), "{refused}");
     assert!(refused.to_string().contains("could not be reaped"), "the unreaped child was not reported: {refused}");
     assert!(elapsed >= bound, "the discovery returned after {elapsed:?}, before its deadline of {bound:?}");

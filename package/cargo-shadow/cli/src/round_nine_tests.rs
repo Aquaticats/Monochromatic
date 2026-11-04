@@ -537,6 +537,8 @@ fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
 
     let result = output_within(&mut Command::new("true"), None, &bound());
 
+    // The reaping fault was the one reached (fourth certification pass): an unrelated containment failure would leave it armed.
+    assert!(!crate::failpoints::fires(Point::ReapStuck), "the reaping fault was never reached, so another failure produced the result");
     assert_scope_record(&journal.join("groups").display().to_string());
     assert!(matches!(result, Err(crate::bounded_run::RunError::NotQuiescent { .. })), "{result:?}");
     assert!(transaction.writers_may_remain(), "the scope was not told that writers may remain");
@@ -545,6 +547,16 @@ fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
     let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
     assert!(!record.lines().any(|line| { return line.starts_with("settled "); }), "a run that could not show its end recorded one: {record:?}");
     drop(transaction);
+
+    // The control: the same run without the fault is quiescent and records its end, so the result above is the fault's.
+    let control_root = repository();
+    let control_transaction = begin(control_root.path(), &[snapshot("original")], false).expect("begin");
+    let control_journal: PathBuf = journal_dirs(control_root.path()).into_iter().next().expect("a journal");
+    let control = output_within(&mut Command::new("true"), None, &bound());
+    assert!(control.is_ok(), "the control run without the reaping fault failed: {control:?}");
+    assert!(!control_transaction.writers_may_remain());
+    assert!(fs::read_to_string(control_journal.join("groups")).expect("the record").lines().any(|line| { return line.starts_with("settled "); }), "the control run did not record its end");
+    drop(control_transaction);
 }
 
 /// Acceptance rows V3 and V4 (8b 2.5):
