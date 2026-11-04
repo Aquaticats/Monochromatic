@@ -167,6 +167,11 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   with `thread 'cli-git-durable' ... panicked at library/std/src/thread/scoped.rs:206:46: failed to spawn thread: ... Resource temporarily unavailable`
   and the same panic on `main`;
   the test passed on the round 3 and startup-wake gates.
+  Not a round 4 change (its diff adds no scoped spawn):
+  `landing/service_durable.rs` `sync_batch` (line 60) and `force` (line 132) call `scope.spawn`,
+  which panics when a thread cannot start;
+  shipped since `eaad11a3a6` (0.5.28 and later).
+  The fix and an audit of every production `std::thread::scope` site go out in the next release.
   Sent to the branch-write agent first,
   before the review fixes,
   on its round 5 branch (`fix/git-policy-cli-side-ref-proof-round5`,
