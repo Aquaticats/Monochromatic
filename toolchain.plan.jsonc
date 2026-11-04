@@ -278,35 +278,6 @@
         }
       }
     },
-    // The postinstall links `cargo-shadow` as `cargo` under `.cache/cargo-shadow-bin`, which precedes
-    // `.cache/toolchain-bin` (the real cargo) on PATH (.config/mise/conf.d/20-env.toml). Started as `cargo`, the shadow
-    // answers `cargo update` as `pnpm update` and runs an install step before every cargo command that resolves
-    // dependencies (doc/decision/rust-dependency-catalog.md, "Update and tightening"). Before this row was added,
-    // 0.1.0 was started as `cargo` from a throwaway directory first on PATH in a throwaway worktree, under
-    // `strace --follow-forks --trace=execve`: `cargo --version` and `cargo metadata` exited 0, the shadow link ran once
-    // per command and the real cargo through `.cache/toolchain-bin/cargo` (the rustup proxy), so it never runs itself
-    // ("We should never invoke ourselves recursively."); the worktree stayed clean. Linux only: the release publishes
-    // x86_64 and aarch64 Linux archives.
-    "cargo:monochromatic-cargo-shadow": {
-      "request": "cargo:monochromatic-cargo-shadow@latest",
-      "route": "cargo-binstall",
-      "bins": [
-        "cargo-shadow"
-      ],
-      "os": [
-        "linux"
-      ],
-      "options": {
-        "postinstall": {
-          "when": "always",
-          "link": {
-            "sourceBin": "cargo-shadow",
-            "linkName": "cargo",
-            "linkDir": ".cache/cargo-shadow-bin"
-          }
-        }
-      }
-    },
     // The postinstall links `pnpm-shadow` as `pnpm` under `.cache/pnpm-shadow-bin`, which precedes
     // `.cache/toolchain-bin` (the real pnpm) on PATH (.config/mise/conf.d/20-env.toml). Owner 2026-11-01, relayed by
     // the catalog-specifier session: "Yes, ask the toolchain session to link it". 0.1.0 took its own
