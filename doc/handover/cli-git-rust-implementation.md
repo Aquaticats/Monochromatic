@@ -201,10 +201,21 @@ two delegate agents and four cross-vendor reviews running:
   3 to 6,
   8 to 12 and 16.
   The component tests were written with their fixes and not run against the old code.
-  Reviews running:
-  `commit-components-sol-8.txt`,
-  `commit-models-sol-6a.txt`,
-  `commit-models-sol-6b.txt`.
+  Reviews:
+  `commit-components-sol-8.txt` "Not correct" (checkpoint dependencies are paths,
+  not validated replacement-root authority,
+  and their ancestry is not made durable;
+  a candidate is recovery-authoritative before its dependencies are forced;
+  departure is a caller-assembled flush list;
+  quarantine is an unowned destructive mutation;
+  selection races reclamation;
+  "Non-reclaiming component and model work can continue");
+  `commit-models-sol-6a.txt` "sound after named fixes" (the register has an unchecked route around its barrier stages;
+  final forcing cannot repair a failed disposition creation;
+  planned shutdown can still end a protected hook);
+  `commit-models-sol-6b.txt` "Not sound" (a checkpoint can erase a still-live R1 and the invariant accepts it).
+  Design revision 17 started from these and review 16a (the design agent resumed);
+  review 16b goes to it when it lands.
 - cargo-shadow sixth review,
   four parts (`cargo-shadow-sol-6a.txt`,
   `-6b.txt`,
