@@ -156,13 +156,55 @@ two delegate agents and four cross-vendor reviews running:
   the discharge green is tautological and its checkpoint rule is unsafe),
   applies decisions 14 to 18,
   and adds the fifteenth review's model controls.
-  Not done at round 10:
-  dependency discharge in a component,
-  T1's phased observations,
-  the keeper write end inside the W1 model,
-  components 4.2,
+  Done in part:
+  tip `57c0fb3c9b`,
+  319 of 319,
+  both clippy tasks clean;
+  main merged (`eaacff58bc`;
+  components in `native/commit/`,
+  models in `native/model/`,
+  the `native_models` test root at `model/mod.rs`);
+  decision 14 as `Rules::Fifteen` in the barrier and register models (barrier stage exempt from the wait bound,
+  `BARRIER_ENTRIES` FOREGROUND,
+  COMMITTING,
+  DEPART,
+  STOP);
+  decisions 16 to 18 in the watch model (its one reachable violation is the accepted 7a concession);
+  discharge rebuilt as a crash-state machine (`UnsafeCheckpoint` red,
+  `Fifteen` green;
+  R2 the only live dependency modelled);
+  components review 7 items 2.1,
+  2.2,
+  3.1,
+  3.2,
+  3.4,
+  4.1,
+  4.3,
   4.4,
-  4.6 and 4.7.
+  4.6,
+  4.7 and a `Departure` order.
+  Not done:
+  models 5a #2A,
+  #3,
+  #4,
+  #5,
+  #6,
+  #8;
+  the 5b pipe,
+  T1 and merge items;
+  components 2.4,
+  3.3,
+  4.2,
+  unknown-version preservation,
+  the wall-clock replay test;
+  fifteenth-review controls 1,
+  3 to 6,
+  8 to 12 and 16.
+  The component tests were written with their fixes and not run against the old code.
+  Reviews running:
+  `commit-components-sol-8.txt`,
+  `commit-models-sol-6a.txt`,
+  `commit-models-sol-6b.txt`.
 - cargo-shadow sixth review,
   four parts (`cargo-shadow-sol-6a.txt`,
   `-6b.txt`,
@@ -369,7 +411,10 @@ in order:
   R16a-10)
   and review 16b when it is in.
   Question 8 is asked only after revision 17 settles what it depends on.
-- Models round 12 with review 16.
+- Models round 12 with reviews 16a and 16b,
+  revision 17,
+  and the round-11 reviews (components 8,
+  models 6a and 6b).
 - Lint task 88 once the open branches of this package merge.
 - Native-layer removal (#6261 option A,
   veto open).
