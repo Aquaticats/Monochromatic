@@ -273,8 +273,8 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     decision 13's family and replaces its provisional framing.
 17. Window of that cleanup, "A measured span (Recommended)" (same date and recording, question 7b): the window starts
     when the merge's files are written into the folder (MG3 installation), not at command return; at its end no new
-    cleanup may start and one already started finishes; the value is measured from real switch times and returns to
-    the owner for approval before shipping.
+    cleanup may start and one already started finishes (started means `index.lock` is held and the marker is set); the
+    value is measured from real switch times and returns to the owner for approval before shipping.
 18. After the window, "Keep a reminder (Recommended)" (same date and recording, question 7c): a small reminder record;
     a later wrapper command in that worktree prints "possible leftover" and a restore command only when the branch has
     moved and a file still matches what the wrapper wrote; the restore command re-checks and saves the current
@@ -427,10 +427,10 @@ made D first; revision 15 adds the owner's decision that this final save is neve
 - Reclamation barrier (R12-5A, R15-1, R15-2). Nothing a request's recovery or its identity depends on is released
   until the syncer has made D, up to a confirmed watermark (below): the terminal ledger line and its directory entry,
   the log record that removes the request, and the success receipt of a published request (receipts are forced in the
-  syncer's first pass after the stop dispositions, so a receipt is D within `SYNC_LAG` of the success). T1 has this in
-  its Pre. Disposal follows the same order: a `disposed` ledger line is made D before the saved content it discharges
-  is deleted, so a power loss cannot leave a durable root that claims a saved item whose only copy was released. It is
-  background work.
+  syncer's first pass after the stop dispositions: within `SYNC_LAG` when a service runs, otherwise at the next
+  wrapper command in that worktree). T1 has this in its Pre. Disposal follows the same order: a `disposed` ledger line
+  is made D before the saved content it discharges is deleted, so a power loss cannot leave a durable root that claims
+  a saved item whose only copy was released. It is background work.
 - Preservation barrier (R12-5B). Before the recovery authority of a version that only the person had is replaced (the
   staged-only blob saved by MG3, a displaced inode of the carry-forward protocol, the pre-merge file `N`), the
   preserving file, its directory entry and the log record that names it are D. The carry-forward protocol's own
@@ -707,9 +707,11 @@ kept apart.
   class. Everything else is handed off: the command records `resume = M1` or `MG3`, asks the manager to start the
   service, and returns `published` saying the files follow; the service acquires the lane and L4 runs the install,
   which is idempotent by the rule of M1. With no service and no manager the install stays deferred and the next
-  wrapper command in that worktree runs it, inline if it is of the class and through a service otherwise. This keeps
-  the foreground from acquiring an unbounded phase, and it keeps the preservation barriers; no mutation is abandoned
-  and no version is discarded to meet a deadline.
+  wrapper command in that worktree runs it inline: for the ineligible-index fallback the Git child works on a private
+  copy before the real index is renamed, X1 may cancel it (a `reset` on a copy dispatches no protected program), and
+  the person's interrupt stays available until the rename; the interrupt hold-off covers only the rename through the
+  closing replacement. This keeps the foreground from acquiring an unbounded phase, and it keeps the preservation
+  barriers; no mutation is abandoned and no version is discarded to meet a deadline.
 - Hooks that the client runs in its own build before handover (the person's `pre-commit`, `commit-msg`) are the
   person's foreground programs, not the lane's (see the register: the person's own programs).
 
@@ -975,25 +977,28 @@ Build and publication (lane)
   or having it as an ancestor (R2); the client creates the receipt `lane/receipt/<id>` (an empty file,
   `O_CREAT | O_EXCL`, V) on the first of them and only then prints `published`; recovery treats a receipt as published
   (R1), so a successful return cannot be followed by a fresh attempt after a process crash (R13-1). The syncer forces
-  receipts in its first pass after the stop dispositions (rule V), so a receipt is D within `SYNC_LAG` of the success.
-  A replay after a successful return therefore needs a power loss inside that window and a tip that lacks `new`; if
-  the ref write was lost the replay restores the commit the person was told succeeded, and the only bad case is a
-  deliberate reset that persisted together with an erased reflog. Owner question 8 asks whether to accept that window,
-  force the receipt before success returns, or keep and ask. The owner records the end of the child in `result` and
-  then `closed a` or `unresolved a` (E1). `commit` failing makes `update-ref` die on standard error with no line on
-  standard output (`update-ref.c:645-658`). The exception the owner approved (decision 7): the client has submitted
-  `commit` and neither the landing evidence nor a positive close has been seen when its COMMITTING bound passes. That
-  is an instruction already submitted, whether Git has read it or not, and not only a disk write already begun. The
-  client leaves by the unresolved exit of W1. The extra wait `WAIT_COMMITTING` improves the observed outcome of a slow
-  write; it is not a correctness bound. Owner death: the child is ended by the parent-death signal that L5 sets and is
-  reaped by L2; Git removes its own lock files when it ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`),
-  a backend obligation to check for the signal L5 sets; a lock stranded by an uncatchable kill is the residue of
-  choice R (the lane never removes a ref lock). End of input aborts a prepared transaction only when every write end
-  is closed and the buffered input is consumed, and a `commit` already in the buffer is not cancelled by later end of
-  input. After `commit` was written, `update-ref` finishes on its own; recovery classes R1 to R5 decide what happened,
-  and the mark rule above forbids a new attempt after a normal exit. Nothing but L6 and the lifetime owner lock
-  `lane/owner` is held across P2. Crash: the recovery classes apply; a request with an attached client waits as in
-  FOREGROUND for the next attempt (Q1) only when its last attempt closed by class F, and W1 stays available.
+  receipts in its first pass after the stop dispositions (rule V), so a receipt is D within `SYNC_LAG` of the success
+  when a service runs, and otherwise at the next wrapper command in that worktree, which forces it first (the syncer
+  is the service's thread, and an inline owner that exits forces nothing). A replay after a successful return
+  therefore needs a power loss before the receipt is D (a few seconds with a service, unbounded without one) and a tip
+  that lacks `new`; if the ref write was lost the replay restores the commit the person was told succeeded, and the
+  only bad case is a deliberate reset that persisted together with an erased reflog. Owner question 8 asks whether to
+  accept the windows, force the receipt before success returns when no service runs, force it always, or keep and ask.
+  The owner records the end of the child in `result` and then `closed a` or `unresolved a` (E1). `commit` failing
+  makes `update-ref` die on standard error with no line on standard output (`update-ref.c:645-658`). The exception the
+  owner approved (decision 7): the client has submitted `commit` and neither the landing evidence nor a positive close
+  has been seen when its COMMITTING bound passes. That is an instruction already submitted, whether Git has read it or
+  not, and not only a disk write already begun. The client leaves by the unresolved exit of W1. The extra wait
+  `WAIT_COMMITTING` improves the observed outcome of a slow write; it is not a correctness bound. Owner death: the
+  child is ended by the parent-death signal that L5 sets and is reaped by L2; Git removes its own lock files when it
+  ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`), a backend obligation to check for the signal L5 sets;
+  a lock stranded by an uncatchable kill is the residue of choice R (the lane never removes a ref lock). End of input
+  aborts a prepared transaction only when every write end is closed and the buffered input is consumed, and a `commit`
+  already in the buffer is not cancelled by later end of input. After `commit` was written, `update-ref` finishes on
+  its own; recovery classes R1 to R5 decide what happened, and the mark rule above forbids a new attempt after a
+  normal exit. Nothing but L6 and the lifetime owner lock `lane/owner` is held across P2. Crash: the recovery classes
+  apply; a request with an attached client waits as in FOREGROUND for the next attempt (Q1) only when its last attempt
+  closed by class F, and W1 stays available.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
 - P4 swap-failed. Pre: E1 classified the attempt as class F (positive evidence only: owner death and an enqueued
   `abort` do not establish it), for example `store-failure`. Do: in one S1 replacement record
@@ -1281,15 +1286,16 @@ is a FOREGROUND wait with `resume = MG1`; at its bound it is W1, which changes n
   of it or dismisses it, and keeping it is not permission to undo. Conditional liveness: the restoration happens at a
   lane event or while the service runs, inside the span. Operative text of decisions 16 to 18: the window starts when
   MG3's installation writes the merge's files (not at command return); at its end no new cleanup may start and one
-  already started finishes; within the window and under `index.lock`, if the fingerprint, the entry, the file and the
-  new-branch tests all still hold, the wrapper restores the old file after saving the current version under a printed
-  name, and a matching fingerprint does not prove that nothing wrote the index in between; on any failed test, a lock
-  that is not free, or no check in the window, nothing is undone and a line names a "possible leftover".
-  `ATTACH_WATCH_SPAN` is measured from real switch times and returns to the owner for approval before shipping. A
-  small reminder record is written at MG3's closing replacement: a later wrapper command in that worktree prints
-  "possible leftover" and a restore command only when the branch has moved and a file still matches what the wrapper
-  wrote; the restore command re-checks under the lock and saves the current versions first; dismissing stops reminders
-  and deletes no saved copy; saved copies and their metadata stay until explicit disposal.
+  already started finishes (started means `index.lock` is held and the marker is set); within the window and under
+  `index.lock`, if the fingerprint, the entry, the file and the new-branch tests all still hold, the wrapper restores
+  the old file after saving the current version under a printed name, and a matching fingerprint does not prove that
+  nothing wrote the index in between; on any failed test, a lock that is not free, or no check in the window, nothing
+  is undone and a line names a "possible leftover". `ATTACH_WATCH_SPAN` is measured from real switch times and returns
+  to the owner for approval before shipping. A small reminder record is written at MG3's closing replacement: a later
+  wrapper command in that worktree prints "possible leftover" and a restore command only when the branch has moved and
+  a file still matches what the wrapper wrote; the restore command re-checks under the lock and saves the current
+  versions first; dismissing stops reminders and deletes no saved copy; saved copies and their metadata stay until
+  explicit disposal.
 - MG-A, the checkout-first order, is retired: the owner chose "Branch first, files after" (decision 8), and its text
   is in the history record.
 
@@ -2286,8 +2292,9 @@ review did not inspect the cited Git source lines.
 
 - Policy errors at error severity, an empty message, and a content conflict no resolver settles (the merge stops with the
   conflict recorded, and a replay conflict keeps the captured inputs).
-- `withdrawn` at a bound (owner, 2026-11-03T12:45, "Return with an error"): any wait of a command ends with an error naming the blocker, the commit is kept on a side
-  ref for a retry and nothing lands by itself; the register in the state machine lists each wait and its bound.
+- `withdrawn` at a bound (owner, 2026-11-03T12:45, "Return with an error"): any wait of a command ends with an error
+  naming the blocker, the captured intent is always kept, the exact commit only when level 2 of rule V was verified,
+  and nothing lands by itself; the register in the state machine lists each wait and its bound.
 - A failing hook or a failing required clean filter (owner): the commit ends with its own message and changes nothing.
 - `sign-failed` (the configured signer failed, an outside cause; B1 (iii)): a command with a client waits for the
   signer to recover within FOREGROUND and then ends `withdrawn` by W1 naming the signer, nonzero, with the work on
@@ -2384,25 +2391,35 @@ Plain context. When a commit succeeds, the wrapper writes a tiny receipt that sa
 If the power fails shortly afterwards, the receipt can be lost before it reaches the disk. On restart the wrapper
 decides from the branch: if the branch still holds the commit, nothing happens; if the branch lost it (the branch
 write itself did not reach the disk), the wrapper lands it again, which restores the commit you were told succeeded.
-The one bad case needs all of these together: the power fails within a few seconds after a successful command (the
-syncer's lag), the receipt is lost, you had deliberately removed the commit from the branch in that same short span
-(for example `git reset --hard HEAD~1`), and the log that records that removal was also erased. Then the wrapper
-cannot tell your removal from a lost write, and it lands the commit again with a notice that names it and the command
-to drop it (your earlier decision 3, "Land it", covers exactly an indistinguishable publication, but it was not asked
-about a command that had already returned success). Example: you run `git commit`, it prints success, you reset the
-branch two seconds later, the power fails one second after that.
-- Option A, accept the narrow window; land it again with the notice (Recommended). Visible here: after the reboot the
-  commit reappears on the branch with a line saying so and how to drop it. Risk: in the conjunction above a commit you
-  removed on purpose comes back once. Pros: no extra wait on any commit.
-- Option B, force the receipt to disk before the command returns success. Visible here: the window does not exist.
-  Cost: two forced writes (the file and its directory) wait on every successful commit, which can take seconds under
-  disk pressure, against your rule that commits should not take 5 s longer than native Git.
-- Option C, in this indistinguishable case do not land it; keep it and ask. Visible here: after the reboot a line says
+The one bad case needs all of these together: the power fails before the receipt reaches the disk, you had
+deliberately removed the commit from the branch in that same span (for example `git reset --hard HEAD~1`), and the log
+that records that removal was also erased. Then the wrapper cannot tell your removal from a lost write, and it lands
+the commit again with a notice that names it and the command to drop it (your earlier decision 3, "Land it", covers
+exactly an indistinguishable publication, but it was not asked about a command that had already returned success). How
+long the span is depends on whether a background service is running. With the service running it forces receipts
+within a few seconds (the syncer's lag, a named constant that is not yet measured). With no service running (a plain
+command that started no service), nothing forces the receipt until the next wrapper command in that worktree, which
+has no time limit. Example: you run `git commit`, it prints success, you reset the branch two seconds later, the power
+fails one second after that.
+- Option A, accept both windows; land it again with the notice. Visible here: after the reboot the commit reappears on
+  the branch with a line saying so and how to drop it. Risk: in the conjunction above a commit you removed on purpose
+  comes back once; with no service running the window has no time limit. Pros: no extra wait on any commit.
+- Option B, force the receipt to disk before the command returns success only when no service is running
+  (Recommended). Visible here: with the service the ordinary path is unchanged; with no service the command waits for
+  two forced writes (the receipt file and its directory) and the unbounded window does not exist; the few-second
+  window of the service path remains. Cost: that wait on plain commands made with no service, which can take seconds
+  under disk pressure, against your rule that commits should not take 5 s longer than native Git. Pros: the longest
+  window is closed on the only path where nothing else would ever close it, and the common path keeps zero forced
+  writes.
+- Option C, force the receipt before success returns on every commit. Visible here: no window at all. Cost: two forced
+  writes wait on every successful commit, which can take seconds under pressure.
+- Option D, in this indistinguishable case do not land it; keep it and ask. Visible here: after the reboot a line says
   a commit may or may not have been published, and the wrapper waits for you to confirm or drop it. Risk: a commit
   whose write was really lost needs your confirmation to come back, which changes decision 3 for after-power-loss
   cases.
-- Ranking: A > C > B. A beats C because it restores a lost write without a step from you and the bad case needs a
-  conjunction of rare events; C beats B because C costs nothing on the success path, while B puts forced writes on
+- Ranking: B > A > D > C. B beats A because it closes the unbounded window at a cost only where no background process
+  exists to do it; A beats D because A restores a lost write without a step from you and the bad case needs a
+  conjunction of rare events; D beats C because D costs nothing on the success path, while C puts forced writes on
   every commit.
 
 ## Verification plan and build order
