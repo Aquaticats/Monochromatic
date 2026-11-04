@@ -135,6 +135,16 @@ pub(crate) fn is_running(pid: i32) -> bool {
     return !state.starts_with('Z') && !state.starts_with('X');
 }
 
+/// Asserts that the wrapper (this process) can no longer wait for the child with this id: a checked `waitpid` gives `ECHILD`, which
+/// is what a successful reap leaves behind.
+/// Why:
+/// Killing a child, or seeing it exit, does not show that it was reaped: a zombie still answers a wait (certification group 1).
+pub(crate) fn assert_reaped(pid: i32, what: &str) {
+    use rustix::process::{WaitOptions, waitpid};
+    let result = waitpid(Pid::from_raw(pid), WaitOptions::NOHANG);
+    assert!(matches!(result, Err(rustix::io::Errno::CHILD)), "{what}: the direct child {pid} can still be waited for, so it was not reaped: {result:?}");
+}
+
 /// Stops a helper process the test started and does not mind if it is gone.
 pub(crate) fn stop_quietly(pid: i32) {
     if let Some(found) = Pid::from_raw(pid) {
@@ -199,6 +209,19 @@ fn the_thread_oracle_sees_a_live_worker_behind_a_zombie_leader_and_its_end() {
 /// The program waits for the fixture's own statement that its leader is a zombie, and after the run the process has no live thread.
 #[test]
 fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns() {
+    zombie_leader_run(false);
+}
+
+/// Certification group 1 (A1): the same fixture driven through the timeout boundary, with the same readiness handshake, worker oracle
+/// and recorded-scope assertion: the program waits after the fixture's leader is a zombie, the bound passes, and the run is stopped
+/// with the live worker behind the zombie.
+#[test]
+fn a_zombie_leader_with_a_live_writer_thread_is_stopped_at_the_bound() {
+    zombie_leader_run(true);
+}
+
+/// The run of the zombie-leader fixture: to a normal exit (`at_the_bound` false) or to the bound (true).
+fn zombie_leader_run(at_the_bound: bool) {
     if crate::cgroup_test_support::delegated_route().is_none() {
         return;
     }
@@ -207,26 +230,34 @@ fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_ret
     let ready: PathBuf = directory.path().join("ready");
     let pid_file: PathBuf = directory.path().join("pid");
     let group_file: PathBuf = directory.path().join("group");
+    let direct_file: PathBuf = directory.path().join("direct");
     let workspace = recorded_workspace();
     let transaction = begin(workspace.path(), &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "lock".to_string() }], false).expect("begin");
     let journal: PathBuf = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
     let wrapper: String = wrapper_group();
+    let finish: &str = if at_the_bound { "sleep 600" } else { "echo done" };
     let script: String = format!(
-        "cat /proc/self/cgroup > {}; setsid {} {} </dev/null >/dev/null 2>&1 & echo $! > {}; while [ ! -e {} ]; do sleep 0.02; done; echo done",
-        group_file.display(),
-        leader.display(),
-        ready.display(),
-        pid_file.display(),
-        ready.display()
+        "echo $$ > {direct}; cat /proc/self/cgroup > {group}; setsid {leader} {ready} </dev/null >/dev/null 2>&1 & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; {finish}",
+        direct = direct_file.display(),
+        group = group_file.display(),
+        leader = leader.display(),
+        ready = ready.display(),
+        pid = pid_file.display(),
     );
+    let limit: Duration = if at_the_bound { Duration::from_secs(8) } else { Duration::from_secs(30) };
 
-    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(30))).expect("runs");
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
 
     let tid: i32 = worker_tid(&ready);
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
-    assert!(!thread_is_alive(tid), "the worker thread of a process whose leader had ended is still alive after the run returned");
+    if at_the_bound {
+        assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the program was not stopped at the bound: {result:?}");
+    } else {
+        assert_eq!(String::from_utf8_lossy(&result.expect("runs").stdout).trim(), "done");
+    }
+    assert!(!thread_is_alive(tid), "the worker thread of a process whose leader had ended is still alive after the run returned (at the bound: {at_the_bound})");
     let _ = read_pid(&pid_file);
     assert_ran_in_recorded_scope(&journal.join("groups").display().to_string(), &fs::read_to_string(&group_file).expect("the program's group"), &wrapper);
+    assert_reaped(read_pid(&direct_file), if at_the_bound { "at the bound" } else { "after a normal exit" });
     drop(transaction);
 }
 

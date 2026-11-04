@@ -273,3 +273,37 @@ fn the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_ab
     assert!(outcome.is_err(), "an unreadable journal directory was read as an empty listing");
 }
 //endregion
+
+//region reaping of the direct child
+// What the region covers: the direct child is reaped, observed by a checked wait (certification group 1, A1).
+
+/// Acceptance row A1 (certification group 1): after an ordinary return and after a timeout, the program the wrapper started (the
+/// direct child, which publishes its own process id) can no longer be waited for: a checked `waitpid` gives `ECHILD`.
+/// The run used a delegated scope (its journal records one).
+#[test]
+fn the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout() {
+    if delegated_route().is_none() {
+        return;
+    }
+    for at_the_bound in [false, true] {
+        let root = scratch();
+        fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
+        fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
+        let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+        let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+        let direct: PathBuf = root.path().join("direct");
+        let script: String = format!("echo $$ > {file}.part; mv {file}.part {file}; {finish}", file = direct.display(), finish = if at_the_bound { "exec sleep 600" } else { "echo done" });
+
+        let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(if at_the_bound { 3 } else { 30 })));
+
+        crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
+        if at_the_bound {
+            assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
+        } else {
+            result.expect("runs");
+        }
+        crate::contain_counterexample_tests::assert_reaped(crate::contain_counterexample_tests::read_pid(&direct), if at_the_bound { "at the bound" } else { "after a normal return" });
+        drop(transaction);
+    }
+}
+//endregion
