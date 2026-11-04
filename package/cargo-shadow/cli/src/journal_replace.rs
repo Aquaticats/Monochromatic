@@ -422,15 +422,11 @@ pub struct Seams<'a> {
 
 /// The most names tried when a kept file's name is taken,
 /// and the most temporary names tried.
-/// Unmeasured:
-/// collisions were not counted;
-/// the names carry the process id,
-/// a nanosecond clock and a counter,
-/// so one try is the normal case.
-/// What must be measured is the collision count over many concurrent runs;
-/// the cap only ends a search that something else is filling.
-/// The owner's rule of 2026-11-03 justifies that a bound exists,
-/// not this number.
+/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// Collisions were not counted; the names carry the process id, a nanosecond clock and a counter, so one try is the normal case
+/// and the cap only ends a search that something else is filling.
+/// The number is a ceiling that a directory this tool does not fill cannot reach.
 const MAX_NAME_ATTEMPTS: u32 = 10_000;
 
 /// What:

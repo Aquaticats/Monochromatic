@@ -193,25 +193,23 @@ const API_URL: &str = "https://crates.io/api/v1";
 pub const API_MIN_INTERVAL: Duration = Duration::from_millis(1_100);
 
 /// How many times a rate-limited request is tried.
-/// Unmeasured:
-/// the number of 429 answers crates.io gives in a row must be observed.
+/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// The number of 429 answers crates.io gives in a row was not observed.
 const RATE_LIMIT_ATTEMPTS: u32 = 5;
 
 /// The longest pause for an HTTP 429 that cargo-shadow sits through.
-/// Unmeasured:
-/// no `Retry-After` value was observed in this repository's logs or runs;
-/// what must be measured is the distribution of `Retry-After` values crates.io sends.
-/// Two minutes is a guess that crates.io asks for seconds;
-/// a longer request ends the call.
-/// The owner's rule of 2026-11-03 justifies that a bound exists,
-/// not this number.
+/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// No `Retry-After` value was observed in this repository's logs or runs.
+/// Two minutes assumes crates.io asks for seconds; a longer request ends the call, so the wait never grows past this.
 const MAX_PAUSE: Duration = Duration::from_secs(120);
 
 /// The first backoff when a 429 carries no `Retry-After`;
 /// it doubles each attempt.
-/// Unmeasured:
-/// used only when a 429 carries no `Retry-After`;
-/// the values crates.io sends must be observed.
+/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// Used only when a 429 carries no `Retry-After`; the values crates.io sends were not observed.
 const RATE_LIMIT_BACKOFF: Duration = Duration::from_secs(30);
 
 /// The HTTP status for "too many requests".

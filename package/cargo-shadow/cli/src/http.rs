@@ -56,14 +56,16 @@ pub const USER_AGENT: &str = "monochromatic-cargo-shadow (https://github.com/Aqu
 /// The longest response body read,
 /// in bytes.
 /// A crate's whole version list is the largest response (a few megabytes).
-/// Unmeasured:
-/// the largest response of the crates.io API in this repository's use must be measured.
+/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// The cap is a ceiling far above that, so it only ends a response that is not a version list; it is not a measured worst case.
 const MAX_BODY_BYTES: u64 = 128 * 1024 * 1024;
 
 /// How long one request may take before it counts as failed.
-/// Unmeasured:
-/// set before the owner's rule of 2026-11-03 and not revisited;
-/// the slowest single request (the largest crate version list) must be measured.
+/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// Chosen as a ceiling on one request that is long against a version list over an ordinary link and short against a person's patience;
+/// the slowest real request was not measured.
 /// A per-request limit is not an end-to-end limit:
 /// five requests with four pauses can take about 18 minutes.
 const REQUEST_TIMEOUT_SECONDS: u64 = 120;

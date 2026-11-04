@@ -86,13 +86,9 @@ use crate::manifest_edit::ManifestEdit;
 use crate::journal_finish::FinishError;
 
 /// The most journal names tried when one exists already.
-/// Unmeasured:
-/// the names carry a clock,
-/// a process id and a counter,
-/// so a second try is the exception;
-/// what must be measured is the collision count.
-/// The owner's rule of 2026-11-03 justifies that a bound exists,
-/// not this number.
+/// Delegated pick, open to veto: the owner delegated open choices on 2026-11-03 ("Pick options as if I had picked them and invite
+/// veto when I say I'm back."; doc/planning/cargo-shadow-update.md, "Delegated picks of 2026-11-03").
+/// The names carry a clock, a process id and a counter, so a second try is the exception; the collision count was not measured.
 const MAX_JOURNAL_NAME_ATTEMPTS: u32 = 100;
 
 /// The counter that keeps two journals of one process apart.
