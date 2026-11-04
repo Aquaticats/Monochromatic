@@ -266,16 +266,19 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing
         // The second entry is the one a test makes fail, so the first is already in the partial listing.
         #[cfg(test)]
         if index == 1 && iteration_fault {
+            crate::bounded_run::trace(|| { return format!("listing fault iteration at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
             return Err(io::Error::other("injected failure to read an entry of the journal directory"));
         }
         let entry: fs::DirEntry = found?;
         let path: PathBuf = entry.path();
         #[cfg(test)]
         if index == 1 && inspection_fault {
+            crate::bounded_run::trace(|| { return format!("listing fault inspection at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
             return Err(io::Error::other("injected failure to examine an entry of the journal directory"));
         }
         #[cfg(test)]
         if index == 1 && vanished_fault {
+            crate::bounded_run::trace(|| { return format!("listing fault entry-not-found at entry {index} after {} accumulated", listing.open.len() + listing.done.len()); });
             return Err(io::Error::from(io::ErrorKind::NotFound));
         }
         if path.to_string_lossy().ends_with(DONE_SUFFIX) {
