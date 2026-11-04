@@ -613,25 +613,40 @@ pub(crate) fn decode_path(text: &str) -> Option<PathBuf> {
 /// export function makeDurable(path: string): void  // fsync the file, then its directory
 /// ```
 pub fn make_durable(path: &Path) -> io::Result<()> {
-    // A test build traces the barrier by the name of the file it makes durable, so a test of the ordinary `finish` sees the real
-    // output barrier and not a callback of its own (certification, third pass, A4).
-    #[cfg(test)]
-    crate::bounded_run::trace(|| { return format!("durable {}", path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default()); });
     // `match`: picks the arm whose pattern fits the value.
     match fs::File::open(path) {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        Ok(file) => file.sync_all()?,
+        Ok(file) => {
+            #[cfg(test)]
+            if crate::failpoints::fires(crate::failpoints::Point::OutputFileSync) {
+                return Err(io::Error::other("injected failure to sync an output file"));
+            }
+            file.sync_all()?;
+        }
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         // `Err(...)`: builds the success or the failure variant of a `Result`.
         Err(error) => return Err(error),
     }
     // `match`: picks the arm whose pattern fits the value.
-    return match path.parent() {
+    let directory_synced: io::Result<()> = match path.parent() {
         // `Some`: the present or the absent value of an `Option`.
-        Some(parent) if !parent.as_os_str().is_empty() => sync_directory(parent),
+        Some(parent) if !parent.as_os_str().is_empty() => {
+            #[cfg(test)]
+            if crate::failpoints::fires(crate::failpoints::Point::OutputDirectorySync) {
+                return Err(io::Error::other("injected failure to sync the directory of an output file"));
+            }
+            sync_directory(parent)
+        }
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         _ => Ok(()),
     };
+    // A test build traces the barrier by the name of the file once both syncs returned, so a test of the ordinary `finish` or of a
+    // recovery sees the real output barrier succeed, and not a callback of its own (certification, third and fourth passes, A4, V5).
+    #[cfg(test)]
+    if directory_synced.is_ok() {
+        crate::bounded_run::trace(|| { return format!("durable {}", path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default()); });
+    }
+    return directory_synced;
 }

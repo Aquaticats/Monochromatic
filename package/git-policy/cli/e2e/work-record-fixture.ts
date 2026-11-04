@@ -120,12 +120,18 @@ export async function waitForPushRecord({
    */
   const deadline = Date.now() + RECORD_TIMEOUT_MS;
   for await (const _tick of ticks(POLL_MILLISECONDS,)) {
+    /**
+     Whether a record is there, read after the wrapper's state was read:
+     the wrapper can exit between a look at the records and a look at the process,
+     and a record the service claimed in that gap exists by the time the process is seen to have ended.
+     */
+    const settled = running.isSettled();
     if ((await pushRecordNames({
       repository,
       states,
     },)).length > 0)
       return 'record';
-    if (running.isSettled())
+    if (settled)
       return 'settled';
     if (Date.now() >= deadline)
       return 'timeout';
@@ -199,6 +205,119 @@ export async function waitForBranchMove({
       return 'timeout';
   }
   return 'timeout';
+}
+
+/**
+ Where one work item is in the work directories.
+ */
+export type WorkRecordPlacement = Readonly<{
+  /**
+   Work directory holding the record.
+   */
+  state: string;
+  /**
+   File name, which a claim extends with the claiming service's token and clock reading.
+   */
+  name: string;
+  /**
+   How many times the service took the item back from a holder that did not renew its claim,
+   which the service writes into the record each time;
+   absent when the file holds no such count.
+   */
+  tries?: number;
+}>;
+
+/**
+ Reads the `tries` count of a work record's text.
+
+ @param text - the record, one JSON line
+
+ @returns the count, absent when the text holds none
+
+ @example
+ ```ts
+ triesOf('{"tries":1}\n');
+ ```
+ */
+function triesOf(text: string,): number | undefined {
+  try {
+    /**
+     The parsed record.
+     */
+    const parsed: unknown = JSON.parse(text,);
+    if ((typeof parsed === 'object') && (parsed !== null) && ('tries' in parsed)
+      && (typeof parsed.tries === 'number'))
+      return parsed.tries;
+    return undefined;
+  }
+  catch {
+    // A record that is not JSON has no count; the caller reports the placement without it.
+    return undefined;
+  }
+}
+
+/**
+ Finds every file of one work item in every work directory.
+
+ @param repository - scenario repository
+
+ @param id - the item's id, its kind and the landed commit joined by a hyphen
+
+ @returns one placement per file; a claim's file name starts with the id and a tilde
+
+ @example
+ ```ts
+ await workRecordPlacements({ repository, id: `push-${oid}` });
+ ```
+ */
+export async function workRecordPlacements({
+  repository,
+  id,
+}: Readonly<{
+  repository: ScenarioRepository;
+  id: string;
+}>,): Promise<readonly WorkRecordPlacement[]> {
+  return (await Promise.all(STATES.map(async function placementsIn(state,) {
+    /**
+     Work directory of the state.
+     */
+    const directory = join(
+      repository.gitDir,
+      'cli-git',
+      'work',
+      state,
+    );
+    try {
+      return await Promise.all((await readdir(directory,))
+        .filter(function isItem(name,) {
+          return (name === id) || name.startsWith(`${id}~`,);
+        },)
+        .map(async function placement(name,) {
+          /**
+           The count the record holds.
+           */
+          const tries = triesOf(await readFile(
+            join(
+              directory,
+              name,
+            ),
+            'utf8',
+          ),);
+          return {
+            state,
+            name,
+            ...tries === undefined ? {} : { tries, },
+          };
+        },),);
+    }
+    catch (error: unknown) {
+      // The work directory appears with the first landing.
+      if (Error.isError(error,) && ('code' in error)
+        && (error.code === 'ENOENT'))
+        return [];
+      throw error;
+    }
+  },),)).flat();
 }
 
 //endregion Observation

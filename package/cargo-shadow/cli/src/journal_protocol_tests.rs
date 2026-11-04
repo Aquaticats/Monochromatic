@@ -1549,3 +1549,82 @@ fn the_ordinary_finish_makes_the_lockfile_and_the_manifest_durable_before_the_ma
     let expected: Vec<&str> = vec!["durable Cargo.lock", "durable Cargo.toml", "marker renamed", "marker parent synced", "cleanup attempted"];
     assert_eq!(seen, expected, "the ordinary finish did not make both outputs durable, in order, before the marker");
 }
+
+/// Acceptance row A4 (certification, fourth pass): the real output-file barrier and the real output-directory barrier of the
+/// ordinary `finish()` are each failed on their own. The fault is consumed at the production operation, the failure is a mandatory
+/// failure of the output phase, no marker is renamed and no cleanup is attempted, and the journal stays active. The control without a
+/// fault reaches the marker, so the stop is the fault's.
+#[test]
+fn a_failed_output_file_or_directory_sync_of_the_ordinary_finish_is_mandatory_and_publishes_no_marker() {
+    use crate::failpoints::{Point, arm, fires};
+    for fault in [Point::OutputFileSync, Point::OutputDirectorySync] {
+        let root = repository("final output");
+        let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+        fs::write(&manifest, "final manifest").expect("manifest");
+        let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+        transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+        arm(fault);
+        let _ = crate::bounded_run::take_trace_for_test();
+
+        let outcome = transaction.finish();
+
+        assert!(!fires(fault), "{fault:?}: the fault was never reached");
+        let error = outcome.expect_err("a failed output barrier must fail the finish");
+        assert!(!error.cleanup_only(), "{fault:?}: a failed output barrier was read as a cleanup: {error}");
+        let seen: Vec<String> = crate::bounded_run::take_trace_for_test();
+        assert!(!seen.iter().any(|event| { return event.starts_with("marker ") || event.starts_with("cleanup "); }), "{fault:?}: the marker or the cleanup went on after a failed output barrier: {seen:?}");
+        let journals = crate::journal_support::journal_dirs(root.path());
+        assert_eq!(journals.len(), 1, "{fault:?}");
+        assert!(!journals[0].to_string_lossy().ends_with(".done"), "{fault:?}: the journal was marked done");
+    }
+}
+
+/// The environment variable that gives the syscall helper the file it makes durable.
+const FIXTURE_DURABLE_FILE: &str = "CARGO_SHADOW_FIXTURE_DURABLE_FILE";
+
+/// The helper process of the syscall test: it makes one file durable through the production barrier and exits.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of the_output_barrier_syncs_the_file_and_then_its_directory_as_the_kernel_sees_it"]
+fn make_durable_fixture() {
+    let Ok(file) = std::env::var(FIXTURE_DURABLE_FILE) else {
+        return;
+    };
+    crate::journal::make_durable(Path::new(&file)).expect("makes the file durable");
+}
+
+/// Acceptance rows A4 and V5 (certification, fourth pass): the output barrier is observed at the system call. No in-process
+/// instrumentation can show that a regression kept its traces and failpoints and dropped the `fsync`, so a helper process runs
+/// `make_durable` under `strace` and the test reads the calls the kernel was given: `fsync` of the file, then `fsync` of the directory
+/// that lists it, in that order.
+/// A host without `strace` cannot show this; the test says so and stops (this host has it).
+#[test]
+fn the_output_barrier_syncs_the_file_and_then_its_directory_as_the_kernel_sees_it() {
+    let found = std::process::Command::new("strace").arg("--version").output();
+    if found.is_err() {
+        eprintln!("skipped: strace is not installed, so the system calls of the barrier cannot be observed here");
+        return;
+    }
+    let root = repository("final output");
+    let file: PathBuf = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let log: PathBuf = root.path().join("strace.log");
+
+    let status = std::process::Command::new("strace")
+        .args(["-f", "-y", "-e", "trace=fsync,fdatasync", "-o"])
+        .arg(&log)
+        .arg(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "journal_protocol_tests::make_durable_fixture", "--nocapture"])
+        .env(FIXTURE_DURABLE_FILE, &file)
+        .status()
+        .expect("strace runs the helper");
+
+    assert!(status.success(), "the helper or strace failed: {status:?}");
+    let text: String = fs::read_to_string(&log).expect("the strace log");
+    let calls: Vec<&str> = text.lines().filter(|line| { return line.contains("fsync(") || line.contains("fdatasync("); }).collect();
+    let file_at: Option<usize> = calls.iter().position(|line| { return line.contains(&format!("<{}>", file.display())) && line.contains("= 0"); });
+    let directory_at: Option<usize> = calls.iter().position(|line| { return line.contains(&format!("<{}>", file.parent().expect("a parent").display())) && line.contains("= 0"); });
+    let (Some(first), Some(second)) = (file_at, directory_at) else {
+        panic!("the kernel was not given an fsync of the file and of its directory: {calls:?}");
+    };
+    assert!(first < second, "the directory was synchronized before the file: {calls:?}");
+}

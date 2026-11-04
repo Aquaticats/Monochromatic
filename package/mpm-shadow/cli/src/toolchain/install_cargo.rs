@@ -43,9 +43,11 @@ use super::runner::{RunOutcome, RunRequest};
 /// Installs one crate with `cargo binstall --root <version directory>` into the crate's own version-keyed cargo
 /// root,
 /// passing the GitHub token when one is available.
-/// A crate this repository publishes also gets `--disable-strategies compile`:
-/// it installs from its release archive or fails with a message naming what to do,
-/// and only a third-party crate may fall back to compiling.
+/// A crate this repository publishes also gets `--disable-strategies compile,quick-install`
+/// (owner decision 2026-11-04, "A: one flag, our crates"):
+/// cargo-binstall resolves the release archive from the crate's own published metadata (no URL is passed here),
+/// and the install fails with a message naming what to do when none fits;
+/// only a third-party crate may fall back to compiling or to the third-party quick-install host.
 /// For a repository-published crate it then points `current` at the newest installed version and deletes every
 /// older one.
 /// Why:
@@ -77,11 +79,12 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
         "--version".to_string(),
         tool.version.clone(),
     ];
-    // A crate this repository publishes installs from its release archive or fails loudly, never from source.
+    // A crate this repository publishes installs from its own release archive or fails loudly: never from source,
+    // never from the third-party quick-install host.
     let repository_crate: bool = is_repository_published(tool);
     if repository_crate {
         args.push("--disable-strategies".to_string());
-        args.push("compile".to_string());
+        args.push("compile,quick-install".to_string());
     }
     for feature in tool.declaration.options.cargo_features.clone().unwrap_or_default() {
         args.push(format!("--features={feature}"));

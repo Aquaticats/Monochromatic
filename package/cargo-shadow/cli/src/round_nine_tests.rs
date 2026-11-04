@@ -537,6 +537,8 @@ fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
 
     let result = output_within(&mut Command::new("true"), None, &bound());
 
+    // The reaping fault was the one reached (fourth certification pass): an unrelated containment failure would leave it armed.
+    assert!(!crate::failpoints::fires(Point::ReapStuck), "the reaping fault was never reached, so another failure produced the result");
     assert_scope_record(&journal.join("groups").display().to_string());
     assert!(matches!(result, Err(crate::bounded_run::RunError::NotQuiescent { .. })), "{result:?}");
     assert!(transaction.writers_may_remain(), "the scope was not told that writers may remain");
@@ -545,6 +547,16 @@ fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
     let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
     assert!(!record.lines().any(|line| { return line.starts_with("settled "); }), "a run that could not show its end recorded one: {record:?}");
     drop(transaction);
+
+    // The control: the same run without the fault is quiescent and records its end, so the result above is the fault's.
+    let control_root = repository();
+    let control_transaction = begin(control_root.path(), &[snapshot("original")], false).expect("begin");
+    let control_journal: PathBuf = journal_dirs(control_root.path()).into_iter().next().expect("a journal");
+    let control = output_within(&mut Command::new("true"), None, &bound());
+    assert!(control.is_ok(), "the control run without the reaping fault failed: {control:?}");
+    assert!(!control_transaction.writers_may_remain());
+    assert!(fs::read_to_string(control_journal.join("groups")).expect("the record").lines().any(|line| { return line.starts_with("settled "); }), "the control run did not record its end");
+    drop(control_transaction);
 }
 
 /// Acceptance rows V3 and V4 (8b 2.5):
@@ -691,20 +703,53 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
         }
     };
     let refuse_all = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> { return vec!["dep@1.0.1 refused".to_string()]; };
+    // The prerequisite is decided while the directory really is read-only and before the recovery: a user that can write there
+    // (root) cannot build the failure this way, and the test says so and stops; for anyone else the failure must be reached.
+    fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o555)).expect("make the crate directory read-only");
+    let bypassed: bool = fs::write(failing_directory.join(".probe"), "x").is_ok();
+    fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o755)).expect("make it writable again");
+    let _ = fs::remove_file(failing_directory.join(".probe"));
+    if bypassed {
+        eprintln!("skipped: permissions do not stop this user, so a failed restore cannot be built this way");
+        return;
+    }
 
     let messages: Vec<String> = crate::journal::recover_with(root.path(), &refuse_all, &hook);
     fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o755)).expect("make it writable again");
 
     let read = |crate_dir: &str, name: &str| -> String { return fs::read_to_string(root.path().join(crate_dir).join(name)).expect("a file"); };
-    if fs::write(failing_directory.join(".probe"), "x").is_ok() && messages.iter().all(|message| { return !message.contains("could not recover a killed run"); }) {
-        // The user can write into a read-only directory (root): the failure cannot be built here.
-        eprintln!("skipped: permissions do not stop this user, so a failed restore cannot be built this way");
-        return;
-    }
     assert!(messages.iter().any(|message| { return message.contains(failing) && message.contains("could not recover a killed run"); }), "the failed root was not reported: {messages:?}");
     assert_eq!(read(failing, "Cargo.lock"), format!("output of {failing}"), "the failed root's lockfile changed");
     assert_eq!(read(failing, "Cargo.toml"), format!("edited manifest of {failing}"), "the manifest of a root whose lockfile could not be restored was put back, splitting the pair");
     assert_eq!(read(fine, "Cargo.lock"), format!("snapshot of {fine}"), "the other root was not restored: {messages:?}");
     assert_eq!(read(fine, "Cargo.toml"), format!("manifest of {fine}"), "the other root's manifest was not restored with its lockfile");
     assert_eq!(journal_dirs(root.path()), vec![journal], "the journal of an unsettled recovery was not kept");
+}
+
+/// Acceptance rows V3 and V4 (certification, fourth pass): a record write that returns having written only part of the line starts no
+/// program, in the delegated path and in the weaker path. The cut-short write is the real result of the write call (half the line
+/// reaches the file), so the length check after it is what refuses; a regression that drops the check lets the program start.
+#[test]
+fn a_record_that_is_written_only_in_part_starts_no_program() {
+    for weaker in [false, true] {
+        let plain = scratch();
+        if weaker {
+            crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+        } else if delegated_route().is_none() {
+            return;
+        }
+        let root = repository();
+        let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+        let marker: PathBuf = root.path().join("ran");
+        arm(Point::RecordShortWrite);
+
+        let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
+        crate::bounded_run::use_route_settings_for_test(None);
+
+        assert!(!crate::failpoints::fires(Point::RecordShortWrite), "weaker={weaker}: the short write was never reached");
+        let refusal: String = result.expect_err("the program ran although its record was cut short").to_string();
+        assert!(refusal.contains("cut short"), "weaker={weaker}: the refusal is not the cut-short record: {refusal}");
+        assert!(!marker.exists(), "weaker={weaker}: the program started after an incomplete record");
+        drop(transaction);
+    }
 }
