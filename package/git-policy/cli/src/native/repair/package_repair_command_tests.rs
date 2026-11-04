@@ -139,20 +139,44 @@ fn a_program_that_keeps_working_is_never_stopped_however_long_it_runs() {
 /// The ceiling of the control below: well past the quiet window, well short of the fixture's length.
 const SHORT_CEILING: Duration = Duration::from_secs(2);
 
+/// Whether the process of this number exists and is not a zombie waiting to be reaped.
+fn is_running(pid: i32) -> bool {
+    // SAFETY: signal 0 only asks whether the process exists.
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        return false;
+    }
+    return std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| { return !stat.rsplit(')').next().unwrap_or("").trim_start().starts_with('Z'); });
+}
+
+/// Waits a moment for a process to be gone: the stop reaches it with a signal, and its end is seen a moment later.
+fn is_gone_soon(pid: i32) -> bool {
+    let waiting_since: Instant = Instant::now();
+    while is_running(pid) {
+        if waiting_since.elapsed() > Duration::from_secs(10) {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    return true;
+}
+
 /// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a tool that keeps printing is ended at the ceiling, with its whole
-/// process group, though it is never quiet. The fixture starts a helper that prints too, so a stop of the leader alone would leave
-/// output flowing and the control would see the helper outlive the run.
+/// process group. The fixture starts two helpers, one that prints and one that has its output redirected away, and the control
+/// records each by the number the shell gives the background job (`$!`), which names the helper and not the shell that started it
+/// (sol-2: `$$` in a subshell is the parent's number), then checks that both are gone.
 #[test]
 fn a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_group() {
     let root: PathBuf = fixture("runs-ceiling");
     let program: PathBuf = root.join("tool");
-    let helper_record: PathBuf = root.join("helper-pid");
+    let printing_record: PathBuf = root.join("printing-helper-pid");
+    let silent_record: PathBuf = root.join("silent-helper-pid");
     let rounds: u32 = 100;
     executable(
         program.as_path(),
         format!(
-            "#!/bin/sh\n(echo $$ > '{record}'; n=0; while [ $n -lt {rounds} ]; do echo helper; sleep 0.2; n=$((n + 1)); done) &\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n",
-            record = helper_record.display()
+            "#!/bin/sh\n(n=0; while [ $n -lt {rounds} ]; do echo helper; sleep 0.2; n=$((n + 1)); done) &\necho $! > '{printing}'\n(sleep 60) >/dev/null 2>&1 &\necho $! > '{silent}'\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n",
+            printing = printing_record.display(),
+            silent = silent_record.display()
         )
         .as_bytes(),
     );
@@ -160,11 +184,54 @@ fn a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_g
     let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: WORKING_WINDOW, ceiling: SHORT_CEILING });
     assert_eq!(run.end, ToolEnd::CeilingReached(SHORT_CEILING), "ran {} ms", run.millis);
     assert!(run.millis >= SHORT_CEILING.as_millis() && run.millis < u128::from(SLOW_SECONDS) * 1000 / 2, "the run lasted {} ms against a ceiling of {SHORT_CEILING:?}", run.millis);
-    let helper: String = std::fs::read_to_string(&helper_record).expect("the helper recorded its process number");
-    let helper_pid: i32 = helper.trim().parse().expect("a process number");
-    // SAFETY: `kill` with signal 0 only asks whether the process exists.
-    let alive: bool = unsafe { libc::kill(helper_pid, 0) } == 0;
-    assert!(!alive, "the helper of the tool outlived the stop of its group");
+    for record in [&printing_record, &silent_record] {
+        let pid: i32 = std::fs::read_to_string(record).expect("the helper's number").trim().parse().expect("a process number");
+        assert!(is_gone_soon(pid), "the helper {pid} of the tool outlived the stop of its group");
+    }
+    remove(&root);
+}
+
+/// The leader exits and a helper it started keeps the tool's output open (sol-2, A): the run ends with the leader's status, and does
+/// not wait for the helper to close what it inherited. The control has a deadline of its own around the run.
+#[test]
+fn a_helper_that_keeps_the_output_open_after_the_leader_exits_does_not_hold_the_run() {
+    let root: PathBuf = fixture("runs-helper-holds-output");
+    let program: PathBuf = root.join("tool");
+    let record: PathBuf = root.join("helper-pid");
+    executable(program.as_path(), format!("#!/bin/sh\nsleep 40 &\necho $! > '{}'\necho leader-output\n", record.display()).as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let started_in: PathBuf = program.clone();
+    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS })); });
+    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the run ended without waiting for the helper to close the output");
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    assert!(String::from_utf8_lossy(run.stdout.as_slice()).contains("leader-output"));
+    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    // SAFETY: the control ends the helper it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    remove(&root);
+}
+
+/// The ceiling ends the run even when a helper left the tool's process group while it holds the output (sol-2, A): the stop of the
+/// group does not reach it, and the run must not wait for it either.
+#[test]
+fn a_helper_outside_the_process_group_that_holds_the_output_does_not_hold_the_ceiling() {
+    let root: PathBuf = fixture("runs-helper-outside-group");
+    let program: PathBuf = root.join("tool");
+    let record: PathBuf = root.join("helper-pid");
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nsetsid sleep 40 &\necho $! > '{}'\nn=0\nwhile [ $n -lt 100 ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n", record.display()).as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let started_in: PathBuf = program.clone();
+    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: WORKING_WINDOW, ceiling: SHORT_CEILING })); });
+    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the ceiling ended the run without waiting for the helper");
+    assert_eq!(run.end, ToolEnd::CeilingReached(SHORT_CEILING));
+    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    // SAFETY: the control ends the helper it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
     remove(&root);
 }
 
