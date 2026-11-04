@@ -341,3 +341,41 @@ fn a_checkpoint_forces_its_live_dependencies_first_and_refuses_a_missing_one() {
     let removal: usize = events.iter().position(|event| { return event.starts_with("remove:"); }).expect("the older file was removed");
     assert!(dependency_sync < removal, "{:?}", events);
 }
+
+/// Components 8, 2.1 (P1): a path that exists and is forced is not a satisfied dependency. The checkpoint adopts a request whose envelope is
+/// torn; the caller supplies that exact path; opening and syncing it succeed. Completion must refuse (the envelope does not decode) and keep
+/// the older root.
+#[test]
+fn p1_a_torn_envelope_named_as_a_dependency_is_not_a_satisfied_dependency() {
+    let dir: PathBuf = scratch("p1-torn-dependency");
+    let torn: PathBuf = scratch("p1-torn-dependency-inbox").join("request");
+    std::fs::write(&torn, b"cli-git-inbox 1\nrecord 40\ntorn").expect("write a torn envelope");
+    append(&dir, 1, b"first").expect("append");
+    let mut writer: StateWriter = StateWriter::acquire(&dir).expect("writer");
+    let candidate: Candidate = writer.begin_checkpoint(2, b"document adopting the request").expect("begin");
+    let outcome = writer.complete_checkpoint(&candidate, &[torn.as_path()]);
+    assert!(outcome.is_err(), "completion forced a torn envelope and removed the fallback");
+    assert!(dir.join("state.log.1").exists());
+}
+
+/// Components 8, 2.2 (P1): a dependency under a name chain that is only visible. `root/saved` exists and its name in `root` was never synced;
+/// completion syncs the dependency and `saved` but must also sync `root` (the chain through the durable anchor), after `saved`.
+#[test]
+fn p1_a_dependency_under_an_unsynced_name_chain_is_forced_through_the_anchor() {
+    let root: PathBuf = scratch("p1-ancestry");
+    let dir: PathBuf = root.join("state");
+    std::fs::create_dir(&dir).expect("state directory");
+    let saved: PathBuf = root.join("saved");
+    std::fs::create_dir(&saved).expect("saved directory whose name in the root was never synced");
+    let input: PathBuf = saved.join("input");
+    std::fs::write(&input, b"a valid dependency").expect("write");
+    append(&dir, 1, b"first").expect("append");
+    let mut writer: StateWriter = StateWriter::acquire(&dir).expect("writer");
+    let candidate: Candidate = writer.begin_checkpoint(2, b"document").expect("begin");
+    start_events();
+    writer.complete_checkpoint(&candidate, &[input.as_path()]).expect("complete");
+    let events: Vec<String> = take_events();
+    let saved_sync: usize = events.iter().position(|event| { return *event == format!("dir:{}", saved.display()); }).expect("saved synced");
+    let root_sync: Option<usize> = events.iter().position(|event| { return *event == format!("dir:{}", root.display()); });
+    assert!(root_sync.is_some_and(|at| { return at > saved_sync; }), "the root was not synced after saved: {:?}", events);
+}

@@ -410,3 +410,48 @@ fn a_departure_forces_the_stop_first_and_alone_then_the_closure_and_the_ancestry
     assert!(2 <= request_sync && request_sync < saved_sync, "{:?}", events);
     assert!(events.iter().any(|event| { return *event == format!("dir:{}", root.display()); }), "the ancestry reaches the anchor");
 }
+
+/// Components 8, 2.4 (P1): the helper `depart_closure` is a caller-assembled flush list. A withdrawal's mark sits in `decision/`; the
+/// departure returns success and never forced it, so a power loss can remove the prohibition on later attempts.
+#[test]
+fn p1_a_departure_for_a_withdrawal_forces_the_mark() {
+    let root: PathBuf = scratch("p1-departure-mark");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    let mark: PathBuf = lane.join("decision").join(&request.id);
+    std::fs::create_dir(lane.join("decision")).expect("decision");
+    std::fs::write(&mark, b"").expect("the mark");
+    start_events();
+    git_policy_cli::commit_inbox::depart_closure(&lane.join("inbox"), std::slice::from_ref(&request.id), None, &lane.join("state"), None).expect("depart");
+    let events: Vec<String> = take_events();
+    assert!(events.contains(&format!("file-sync:{}", mark.display())), "the mark was not forced: {:?}", events);
+}
+
+/// Components 8, 2.5 (P1): quarantine is an unowned destructive mutation. Q1 inspects the torn final and pauses; the file is replaced by a
+/// complete accepted request (here the pause writes it); Q1 resumes and renames the file at the name, which is not the object it inspected.
+#[test]
+fn p1_a_quarantine_never_moves_a_file_it_did_not_inspect() {
+    static REPLACEMENT: std::sync::Mutex<Option<(PathBuf, Vec<u8>)>> = std::sync::Mutex::new(None);
+    fn replace_the_final(point: &str) {
+        if point == "inbox:after-inspect" {
+            let (path, bytes) = REPLACEMENT.lock().expect("lock").clone().expect("replacement");
+            std::fs::remove_file(&path).expect("the inspected object leaves");
+            std::fs::write(&path, bytes).expect("a complete request takes the name");
+        }
+    }
+    let root: PathBuf = scratch("p1-quarantine-race");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let inbox: PathBuf = lane.join("inbox");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&inbox, INSTANCE, &request, &new_files, &old_files).expect("accept");
+    let whole: Vec<u8> = std::fs::read(inbox.join(&request.id)).expect("read");
+    std::fs::write(inbox.join(&request.id), &whole[..whole.len() / 2]).expect("tear");
+    *REPLACEMENT.lock().expect("lock") = Some((inbox.join(&request.id), whole.clone()));
+    set_fault_point(Some(replace_the_final));
+    let outcome = git_policy_cli::commit_inbox::quarantine_damaged(&inbox, &request.id);
+    set_fault_point(None);
+    assert!(outcome.is_err(), "the accepted request was moved into damaged/");
+    assert_eq!(std::fs::read(inbox.join(&request.id)).expect("the accepted request is still in place"), whole);
+}

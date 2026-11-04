@@ -285,6 +285,7 @@ pub fn quarantine_damaged(inbox: &Path, id: &str) -> Result<PathBuf, InboxError>
     if decode_inbox_file(&existing).is_ok() {
         return Err(InboxError::Invalid("the file decodes; it is a request and is not moved"));
     }
+    fault_point("inbox:after-inspect");
     let directory: PathBuf = inbox.join("damaged");
     match fs::create_dir(&directory) {
         Ok(()) => {}
