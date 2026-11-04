@@ -555,12 +555,15 @@ fn journal_states(root: &Path) -> Vec<bool> {
 fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart() {
     use crate::failpoints::{Point, arm};
     // (fault, journal is `.done` after the failed recovery)
-    for (fault, done_afterwards) in [(Point::RecoverDurability, false), (Point::CompletionRename, false), (Point::CompletionSync, true), (Point::FinishCleanup, true)] {
+    // (fault, journal is `.done` after the failed recovery, the failure is a mandatory phase that stops the caller)
+    for (fault, done_afterwards, mandatory) in [(Point::RecoverDurability, false, true), (Point::CompletionRename, false, true), (Point::CompletionSync, true, true), (Point::FinishCleanup, true, false)] {
         let root = repository();
         let _journal = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
         arm(fault);
 
-        let failed: Vec<String> = crate::journal::recover(root.path(), &refusing);
+        let report = crate::journal::recover_report(root.path(), &refusing);
+        assert_eq!(report.mandatory_failure, mandatory, "{fault:?}: the report does not tell a mandatory phase from the cleanup: {:?}", report.messages);
+        let failed: Vec<String> = report.messages;
 
         assert!(!crate::failpoints::fires(fault), "{fault:?}: the fault was never reached");
         assert_eq!(live_lock(root.path()), "original", "{fault:?}: the files were not restored before the finish: {failed:?}");

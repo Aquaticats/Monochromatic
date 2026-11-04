@@ -156,7 +156,7 @@ use crate::install::{LockBaseFactory, policy_findings};
 /// ```ts
 /// import { addManifests, begin, finish, processExists, recover, restoreIfUnchanged, runRecording } from 'crate/journal';
 /// ```
-use crate::journal::{begin, recover, restore_if_unchanged, run_recording, Transaction};
+use crate::journal::{begin, recover_report, restore_if_unchanged, run_recording, Transaction};
 
 /// Imports `crate::journal_finish::FinishError` for this file.
 use crate::journal_finish::{FinishError, settle_finish};
@@ -1081,13 +1081,20 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // Closure `|old, live|`: an anonymous function, like a TS arrow function.
     // Borrow `&process_exists`: lends the value without copying or giving it away.
     // Typed binding: `recovered: Vec<String>`.
-    let recovered: Vec<String> = recover(request.root, &|old, live| {
+    let recovery = recover_report(request.root, &|old, live| {
         return policy_findings(request.settings, request.registry, request.now, old, live);
     });
+    let mandatory_recovery_failure: bool = recovery.mandatory_failure;
+    let recovered: Vec<String> = recovery.messages;
     // Borrow `&recovered`: lends the value without copying or giving it away.
     for message in &recovered {
         // Macro `eprintln!`: builds or prints text (or a list) from a template.
         eprintln!("cargo-shadow: warning: {message}");
+    }
+    // A mandatory phase of finishing an earlier run's journal failed: that journal is not finished, so this command does not go on.
+    // A failed removal of a journal already marked done only warns.
+    if mandatory_recovery_failure {
+        return Err(other("cargo-shadow: the recovery of an earlier run could not finish its journal (see the warnings above), so nothing was changed by this command and it was not run; fix the cause and run the command again".to_string()));
     }
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
@@ -1102,7 +1109,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // started stops the update here, before the first cargo call.
     let transaction = begin(request.root, &before, matches!(kind, UpdateKind::Targeted { cargo_args } if cargo_args.iter().map(String::as_str).any(is_breaking_option))).map_err(other_text)?;
     if let Some(notice) = transaction.kept_notice() {
-        eprintln!("{notice}");
+        crate::journal_transaction::announce_kept_notice(notice);
     }
     // What:     `RefCell<Vec<LockSnapshot>>` is a list that can be added to through a shared reference (sibling: `&mut Vec`, which needs exclusive access); `RefCell::new(Vec::new())` makes an empty one.
     // Why:      `produced` starts empty because cargo has not written yet; each cargo write is recorded the moment it succeeded.

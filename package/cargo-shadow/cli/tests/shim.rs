@@ -507,3 +507,63 @@ fn a_launcher_that_leads_back_to_the_shadow_is_skipped_for_add_which_the_shadow_
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} add serde"));
 }
+
+/// A toolchain-style launcher (certification of 0.1.0 behind the repository's launcher, 2026-11-04):
+/// the link directory holds `cargo`, a symlink to an executable in a launchers directory that starts the shadow through the `current`
+/// link of the tool's tree and has a `<name>.launch` record beside it naming that real binary, as `mpm-shadow` writes it.
+/// The launcher appends a line to a file for each of its runs.
+/// Returns the directory with the `cargo` link and the count file.
+fn write_recorded_launcher(world: &World) -> (PathBuf, PathBuf) {
+    let root: PathBuf = world.shadow_directory.parent().expect("a parent").join("recorded");
+    let launchers: PathBuf = root.join("toolchain-launchers");
+    let tree: PathBuf = root.join("tree");
+    let links: PathBuf = root.join("cargo-shadow-bin");
+    for directory in [&launchers, &tree.join("0.1.0").join("bin"), &links] {
+        std::fs::create_dir_all(directory).expect("make a directory");
+    }
+    symlink(SHADOW_BINARY, tree.join("0.1.0").join("bin").join("cargo-shadow")).expect("the real binary of the tree");
+    symlink("0.1.0", tree.join("current")).expect("the current link");
+    let real: PathBuf = tree.join("current").join("bin").join("cargo-shadow");
+    let count: PathBuf = root.join("count");
+    // The launcher keeps the name it was started under for the program it starts (`exec -a`), as the toolchain launcher does.
+    let script: String = format!(
+        "#!/bin/bash\necho run >> '{count}'\nexec -a cargo '{real}' \"$@\"\n",
+        count = count.display(),
+        real = real.display()
+    );
+    let launcher: PathBuf = launchers.join("cargo-shadow");
+    std::fs::write(&launcher, script).expect("write the launcher");
+    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // Built field by field because the `json!` macro unwraps a conversion that clippy.toml disallows.
+    let mut fields = serde_json::Map::new();
+    fields.insert("toolId".to_string(), serde_json::Value::String("cargo:monochromatic-cargo-shadow".to_string()));
+    fields.insert("lockFile".to_string(), serde_json::Value::String(root.join("toolchain.lock.json").to_string_lossy().to_string()));
+    fields.insert("real".to_string(), serde_json::Value::String(real.to_string_lossy().to_string()));
+    fields.insert("scope".to_string(), serde_json::Value::String("repo".to_string()));
+    let record: String = serde_json::Value::Object(fields).to_string();
+    std::fs::write(launchers.join("cargo-shadow.launch"), record).expect("write the record");
+    symlink(&launcher, links.join("cargo")).expect("link the launcher as cargo");
+    return (links, count);
+}
+
+/// The shadow started through a launcher that execs it runs once per command and the real cargo runs once for the command:
+/// no PATH entry that leads back to the shadow (its own binary, a launcher whose record names it, a link to either) is taken for the
+/// real cargo, so there is no second run to stop with a marker.
+#[test]
+fn started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo() {
+    let world = make_world();
+    write_lock(&world, SATISFIED);
+    let (links, count) = write_recorded_launcher(&world);
+    let path: String = path_of(&[&links, &world.fake_directory]);
+    let mut command = Command::new(links.join("cargo"));
+    command.args(["check", "-q"]).current_dir(world.repository.join(CRATE_DIR)).env("PATH", path).env("CI", "").env("FAKE_CARGO_LOG", &world.log);
+
+    let output = output_within(&mut command, 20).expect("the command timed out");
+
+    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
+    let runs: usize = std::fs::read_to_string(&count).expect("the launcher counted its runs").lines().count();
+    assert_eq!(runs, 1, "the launcher ran {runs} times: the shadow took it for the real cargo and ran itself again");
+    let real_runs: usize = log_lines(&world).iter().filter(|line| { return line.starts_with("check"); }).count();
+    assert_eq!(real_runs, 1, "the real cargo ran {real_runs} times for one command: {:?}", log_lines(&world));
+}

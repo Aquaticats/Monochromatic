@@ -164,7 +164,7 @@ thread_local! {
 /// function trace(event: () => string): void
 /// ```
 #[cfg(test)]
-fn trace(event: impl FnOnce() -> String) {
+pub(crate) fn trace(event: impl FnOnce() -> String) {
     let text: String = event();
     TRACE.with(|slot| { slot.borrow_mut().push(text); });
 }

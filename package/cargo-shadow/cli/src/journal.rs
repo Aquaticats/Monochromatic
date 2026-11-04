@@ -105,7 +105,7 @@ use std::path::{Path, PathBuf};
 pub use crate::journal_replace::{create_directories_synced, create_directories_with, create_exclusive, unique_suffix, KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
 /// Re-exports the recovery entry points,
 /// which live in `journal_recover.rs`.
-pub use crate::journal_recover::{recover, recover_with};
+pub use crate::journal_recover::{RecoveryReport, recover, recover_report, recover_report_with, recover_with};
 /// Re-exports the transaction handle,
 /// which lives in `journal_transaction.rs`.
 pub use crate::journal_transaction::{Transaction, begin};

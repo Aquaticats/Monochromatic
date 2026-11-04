@@ -113,3 +113,93 @@ fn every_resolved_path_in_the_skip_list_is_skipped_not_only_the_first() {
 
     assert_eq!(found, Some(expected));
 }
+
+/// The text of a launch record (`mpm-shadow`'s format) whose `real` binary is `real`; built field by field because the `json!` macro
+/// unwraps a conversion that clippy.toml disallows.
+fn launch_record(real: &Path) -> String {
+    let mut fields = serde_json::Map::new();
+    fields.insert("toolId".to_string(), serde_json::Value::String("x".to_string()));
+    fields.insert("lockFile".to_string(), serde_json::Value::String("/x".to_string()));
+    fields.insert("real".to_string(), serde_json::Value::String(real.to_string_lossy().to_string()));
+    fields.insert("scope".to_string(), serde_json::Value::String("repo".to_string()));
+    return serde_json::Value::Object(fields).to_string();
+}
+
+/// A launcher in `directory`: an executable named `launcher_name` with a `<launcher_name>.launch` record whose `real` is `target`,
+/// and a `cargo` link to it in `links`; returns the link.
+fn write_launcher_link(directory: &Path, links: &Path, launcher_name: &str, target: &Path) -> PathBuf {
+    let launcher: PathBuf = directory.join(launcher_name);
+    std::fs::write(&launcher, "#!/bin/sh\n").expect("write the launcher");
+    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    let record: String = launch_record(target);
+    std::fs::write(directory.join(format!("{launcher_name}.launch")), record).expect("write the record");
+    let link: PathBuf = links.join(NAME);
+    symlink(&launcher, &link).expect("link the launcher");
+    return link;
+}
+
+/// A candidate that is a launcher whose record names the shadow (through a `current` link, as the toolchain's tree has it) is skipped
+/// before it is run, and so is a launcher that leads to the shadow through another launcher.
+#[test]
+fn a_launcher_whose_record_names_the_shadow_is_skipped_directly_and_through_another_launcher() {
+    let tree = scratch();
+    let launchers = scratch();
+    let links = scratch();
+    let other_links = scratch();
+    let real_directory = scratch();
+    std::fs::create_dir_all(tree.path().join("0.1.0").join("bin")).expect("the tree");
+    let shadow: PathBuf = tree.path().join("0.1.0").join("bin").join("cargo-shadow");
+    std::fs::write(&shadow, "shadow").expect("the shadow binary");
+    symlink("0.1.0", tree.path().join("current")).expect("the current link");
+    let named: PathBuf = tree.path().join("current").join("bin").join("cargo-shadow");
+    let skip: Vec<PathBuf> = vec![std::fs::canonicalize(&shadow).expect("resolves")];
+    let expected: PathBuf = write_program(real_directory.path(), EXECUTABLE_MODE);
+
+    write_launcher_link(launchers.path(), links.path(), "direct", &named);
+    let direct = find_in_path(NAME, &path_value(&[links.path(), real_directory.path()]), &skip);
+    assert_eq!(direct, Some(expected.clone()), "a launcher whose record names the shadow was taken for the real cargo");
+
+    // A second launcher whose record names the first one.
+    let first_launcher: PathBuf = launchers.path().join("direct");
+    write_launcher_link(launchers.path(), other_links.path(), "outer", &first_launcher);
+    let through = find_in_path(NAME, &path_value(&[other_links.path(), real_directory.path()]), &skip);
+    assert_eq!(through, Some(expected), "a launcher that leads to the shadow through another launcher was taken for the real cargo");
+}
+
+/// A launcher whose record names another program is a real cargo for this purpose, a record that cannot be read is not a launcher,
+/// and a record chain that never ends is skipped instead of followed without end.
+#[test]
+fn a_launcher_of_another_program_a_broken_record_and_a_record_loop() {
+    let launchers = scratch();
+    let links = scratch();
+    let elsewhere = scratch();
+    let shadow = scratch();
+    let shadow_binary: PathBuf = shadow.path().join("cargo-shadow");
+    std::fs::write(&shadow_binary, "shadow").expect("the shadow binary");
+    let skip: Vec<PathBuf> = vec![std::fs::canonicalize(&shadow_binary).expect("resolves")];
+    let other_program: PathBuf = write_program(elsewhere.path(), EXECUTABLE_MODE);
+
+    // Names another program: not skipped.
+    let link: PathBuf = write_launcher_link(launchers.path(), links.path(), "other", &other_program);
+    assert_eq!(find_in_path(NAME, &path_value(&[links.path()]), &skip), Some(link.clone()), "a launcher of another program was skipped");
+
+    // A record that is not JSON: not a launcher, so not skipped.
+    std::fs::write(launchers.path().join("other.launch"), "not json").expect("break the record");
+    assert_eq!(find_in_path(NAME, &path_value(&[links.path()]), &skip), Some(link), "a broken record made the candidate skipped");
+
+    // Two launchers whose records name each other: the walk ends and the candidate is skipped.
+    let looping = scratch();
+    let loop_links = scratch();
+    let a: PathBuf = looping.path().join("a");
+    let b: PathBuf = looping.path().join("b");
+    for (launcher, target) in [(&a, &b), (&b, &a)] {
+        std::fs::write(launcher, "#!/bin/sh\n").expect("write a launcher");
+        std::fs::set_permissions(launcher, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+        let record: String = launch_record(target);
+        let mut name = launcher.as_os_str().to_os_string();
+        name.push(".launch");
+        std::fs::write(name, record).expect("write the record");
+    }
+    symlink(&a, loop_links.path().join(NAME)).expect("link");
+    assert_eq!(find_in_path(NAME, &path_value(&[loop_links.path()]), &skip), None, "a loop of launcher records was followed or taken for a real cargo");
+}

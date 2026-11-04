@@ -573,7 +573,10 @@ the shadow starts the PATH candidate under its own name,
 so rustup's `+toolchain`,
 `RUSTUP_TOOLCHAIN` and `rust-toolchain` files select the toolchain as before.
 The search skips every candidate that resolves to the shadow,
-and a loop guard bound to the process stops a launcher that leads back to it.
+and every candidate that is a toolchain launcher whose record (`<launcher>.launch`, its `real` binary)
+names the shadow, directly or through further launchers, before it is run:
+the shadow does not start itself a second time.
+A loop guard bound to the process stays as the last stop for a link that leads back by some other means.
 
 Settings (`minimumReleaseAge`,
 `minimumReleaseAgeExclude`,

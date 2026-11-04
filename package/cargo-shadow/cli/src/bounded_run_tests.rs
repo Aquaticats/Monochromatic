@@ -289,6 +289,10 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
 /// Round 6 (5a F1):
 /// a descendant that left the process group while holding the pipes is stopped,
 /// so the output is complete and nothing of the run is left running.
+/// Certification, second pass (V6): the call answers within its bound although the descendant would hold the pipes for a multiple
+/// of that bound, so the answer cannot come from the descendant ending by itself; the descendant is known to hold the pipes before
+/// the direct program ends (a readiness handshake through its pid file), and the descendant lives for a multiple of the bound so
+/// that a drain that waits for the pipes to close before the scope is stopped cannot finish inside it.
 #[test]
 fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete() {
     if crate::cgroup_test_support::delegated_route().is_none() {
@@ -297,11 +301,21 @@ fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_outpu
     let (workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
-    let script = format!("setsid sh -c 'echo $$ > {}; exec sleep 30' & echo started; sleep 0.3", pid_file.display());
+    let limit: Duration = Duration::from_secs(10);
+    let lifetime: u64 = limit.as_secs() * 4;
+    // The descendant writes its pid, and the direct program waits (with a cap of its own) for that file before it ends.
+    let script = format!(
+        "setsid sh -c 'echo $$ > {pid}.part; mv {pid}.part {pid}; exec sleep {lifetime}' & i=0; while [ ! -s {pid} ] && [ $i -lt 500 ]; do sleep 0.01; i=$((i+1)); done; echo started",
+        pid = pid_file.display()
+    );
 
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(10)));
+    let started = Instant::now();
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
+    let elapsed: Duration = started.elapsed();
 
     let output = result.expect("the holder of the pipe was stopped, so the output is complete");
+    assert!(pid_file.exists(), "the descendant was not established before the direct program ended");
+    assert!(elapsed < limit, "the call answered after {elapsed:?}, not within its bound {limit:?}: it waited for the holder of the pipes");
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "started");
     assert!(gone_soon(pid_in(&pid_file)), "the descendant in another session still runs");
     // The run used a delegated scope (certification group 1).

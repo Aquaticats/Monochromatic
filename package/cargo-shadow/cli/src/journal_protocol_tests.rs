@@ -934,9 +934,15 @@ fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
     // barriers of the new directory chain made before it do not do that.
     let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
     let events: RefCell<Vec<Event>> = RefCell::new(Vec::new());
+    // What each barrier's directory listed at the moment of the barrier (certification, second pass, K2): a barrier of a parent
+    // makes the entry of a new child durable only if the child already exists in it.
+    let listed: RefCell<Vec<(usize, PathBuf, Vec<String>)>> = RefCell::new(Vec::new());
     let record = |directory: &Path| -> std::io::Result<()> {
         synced.borrow_mut().push(directory.to_path_buf());
+        let position: usize = events.borrow().len();
         events.borrow_mut().push(Event::Barrier(directory.to_path_buf(), true));
+        let names: Vec<String> = fs::read_dir(directory).map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); }).unwrap_or_default();
+        listed.borrow_mut().push((position, directory.to_path_buf(), names));
         return Ok(());
     };
     let logging_link = |existing: &Path, new: &Path| -> std::io::Result<()> {
@@ -954,6 +960,27 @@ fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
         log[preserved_at..].iter().any(|event| { return matches!(event, Event::Barrier(directory, true) if *directory == kept_dir || *directory == resolved_kept); }),
         "no successful barrier of the kept directory came after the link that preserved the file: {log:?}"
     );
+    // Each new child directory entry is published and then covered, before the file is linked into the kept directory, by a barrier of
+    // its parent that already lists it: `c` in the anchor, `d` in `c`. A parent that is synchronized only before the child exists
+    // leaves the child's entry unprotected, and the climb after the link is a second, separate protection.
+    let barriers = listed.borrow();
+    for (parent, child) in [(anchor.clone(), "c"), (anchor.join("c"), "d")] {
+        let resolved_parent: PathBuf = fs::canonicalize(&parent).expect("resolves");
+        assert!(
+            barriers.iter().any(|(position, directory, names)| { return *position < preserved_at && (*directory == parent || *directory == resolved_parent) && names.iter().any(|name| { return name == child; }); }),
+            "no barrier of {} came after {child} was created in it and before the link: {barriers:?}",
+            parent.display()
+        );
+    }
+    // The climb after the preservation link covers the kept directory and every new directory above it up to the anchor.
+    for needed in [kept_dir.clone(), anchor.join("c"), anchor.clone()] {
+        let resolved: PathBuf = fs::canonicalize(&needed).expect("resolves");
+        assert!(
+            log[preserved_at..].iter().any(|event| { return matches!(event, Event::Barrier(directory, true) if *directory == needed || *directory == resolved); }),
+            "no barrier of {} came after the link that preserved the file: {log:?}",
+            needed.display()
+        );
+    }
     let calls = synced.borrow();
     let resolved_anchor: PathBuf = fs::canonicalize(&anchor).expect("resolves");
     for needed in [kept_dir.clone(), anchor.join("c"), anchor.clone()] {
@@ -1322,8 +1349,59 @@ fn a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named() {
     assert!(shown.contains("Displaced"), "a read-only file system was reported as settled: {shown}");
     assert!(!names_of_inode(other.path(), displaced).is_empty(), "the displaced inode lost its last name");
     assert_eq!(fs::read_to_string(&other_path).expect("the live file"), "new text", "the replacement is not live");
-    let replacement: u64 = fs::metadata(&other_path).expect("examines").ino();
-    assert!(names_of_inode(other.path(), replacement).contains(&other_path), "the replacement inode has no name");
+    // The replacement inode is the one captured at the exchange (not read from the live path afterwards, which would only show that
+    // whatever is live is named where it is): a faulty cleanup that replaced it with a fresh inode of the same text would pass the
+    // latter and fail this (certification, second pass).
+    let captured: Cell<Option<u64>> = Cell::new(None);
+    let capture = |live: &Path| { captured.set(Some(fs::metadata(live).expect("examines the live path at the exchange").ino())); };
+    let third = repository("expected");
+    let third_path = third.path().join(CRATE_DIR).join("Cargo.lock");
+    let third_displaced: u64 = fs::metadata(&third_path).expect("examines").ino();
+    let _ = replace_with_seams(&third_path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &Seams { between: &none, after_exchange: &capture, swap: &swap, link: &read_only, sync_file: &real_sync_file, sync_dir: &real_sync_dir });
+    let replacement: u64 = captured.get().expect("the exchange was reached");
+    assert_ne!(replacement, third_displaced, "the exchange put the displaced inode back");
+    assert_eq!(fs::metadata(&third_path).expect("examines").ino(), replacement, "the live path holds another inode than the one exchanged in");
+    assert!(names_of_inode(third.path(), replacement).contains(&third_path), "the replacement inode that was live lost its name");
+    assert!(!names_of_inode(third.path(), third_displaced).is_empty(), "the displaced inode lost its last name");
+}
+
+/// Acceptance row R2 (relevant rename failure after a conflict):
+/// another writer changes the target between the comparison and the exchange, the exchange succeeds, and the undo exchange fails:
+/// the other writer's inode (now at the temporary name) and the replacement (live) both keep a name,
+/// and the outcome names where the other writer's file stays.
+#[test]
+fn a_conflict_whose_undo_exchange_fails_keeps_the_other_writers_inode_named_and_reports_where() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let writers: u64 = fs::metadata(&path).expect("examines").ino();
+    // Another writer changes the file in place (same inode) after the first comparison.
+    let other_writer = |live: &Path| { fs::write(live, "another writer's text").expect("the other writer writes"); };
+    let captured: Cell<Option<u64>> = Cell::new(None);
+    let capture = |live: &Path| { captured.set(Some(fs::metadata(live).expect("examines the live path at the exchange").ino())); };
+    let calls: Cell<usize> = Cell::new(0);
+    // The first exchange is real; the undo exchange (the second call) fails.
+    let swap = |first: &Path, second: &Path| -> std::io::Result<()> {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            return crate::journal_replace::exchange_paths(first, second);
+        }
+        return Err(std::io::Error::other("injected undo failure"));
+    };
+
+    let outcome = replace_with_seams(&path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &Seams { between: &other_writer, after_exchange: &capture, swap: &swap, link: &real_link, sync_file: &real_sync_file, sync_dir: &real_sync_dir }).expect("a failed undo is an outcome, not an error");
+
+    assert_eq!(calls.get(), 2, "the undo exchange was not attempted");
+    let ReplaceOutcome::Displaced(kept) = outcome else {
+        panic!("expected the other writer's file reported as displaced, got {outcome:?}");
+    };
+    let replacement: u64 = captured.get().expect("the exchange was reached");
+    assert_ne!(replacement, writers);
+    assert_eq!(fs::read_to_string(&path).expect("the live file"), "new text", "the replacement is not live");
+    assert_eq!(fs::metadata(&path).expect("examines").ino(), replacement);
+    assert_eq!(fs::metadata(&kept).expect("the reported path exists").ino(), writers, "the reported path is not the other writer's inode");
+    assert_eq!(fs::read_to_string(&kept).expect("reads the kept file"), "another writer's text", "the other writer's text was not kept");
+    assert!(names_of_inode(root.path(), writers).contains(&kept), "the other writer's inode does not survive under the reported name");
+    assert!(names_of_inode(root.path(), replacement).contains(&path), "the replacement inode lost its name");
 }
 
 /// Acceptance row K2 (each barrier of the creation chain):
@@ -1343,7 +1421,10 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
         let total: usize = *calls.borrow();
         total
     };
-    assert!(counted >= 4, "the chain should have several barriers: {counted}");
+    // Independent of the implementation's own count: the chain makes three new directories (b, c, d under the existing a), and each is
+    // synchronized itself and listed by a synchronized parent, before the kept file is linked and synchronized.
+    let new_directories: usize = 3;
+    assert!(counted >= 2 * new_directories, "the chain should have a barrier for each new directory and for its parent: {counted}");
     let mut reported_preserved: usize = 0;
     for failing in 0..counted {
         let root = repository("expected");
@@ -1393,4 +1474,55 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
     }
     // The branch that checks the protected copy must have been exercised by at least one barrier of the chain.
     assert!(reported_preserved > 0, "no failed barrier ended in a reported preservation, so the fallback was never checked");
+}
+
+/// Acceptance rows A3 and A4 (certification, second pass): the whole order of finishing is observed in one ordered trace:
+/// the output barriers, the completion rename, the successful barrier of the directory that lists the marker, and only then the
+/// removal (the cleanup).
+/// A failure at each step stops the trace at that step, with the failure kind the contract names: the output barrier, the rename and
+/// the marker's directory barrier are mandatory failures that attempt no cleanup, and a failed cleanup is cleanup-only and comes
+/// after the successful barrier.
+#[test]
+fn finishing_is_observed_as_outputs_then_marker_then_marker_barrier_then_removal() {
+    use crate::failpoints::{Point, arm};
+    let outputs = ["output Cargo.lock", "output Cargo.toml"];
+    let marker = ["marker renamed", "marker parent synced"];
+    let cleanup = "cleanup attempted";
+    // (fault, the events that must be seen, the failure is cleanup-only; None: the finish succeeds)
+    let cases: Vec<(Option<Point>, Vec<&str>, Option<bool>)> = vec![
+        (None, [outputs.to_vec(), marker.to_vec(), vec![cleanup]].concat(), None),
+        (Some(Point::FinishDurability), vec![], Some(false)),
+        (Some(Point::CompletionRename), outputs.to_vec(), Some(false)),
+        (Some(Point::CompletionSync), [outputs.to_vec(), vec![marker[0]]].concat(), Some(false)),
+        (Some(Point::FinishCleanup), [outputs.to_vec(), marker.to_vec(), vec![cleanup]].concat(), Some(true)),
+    ];
+    for (fault, expected, failure) in cases {
+        let root = repository("final output");
+        let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+        fs::write(&manifest, "final manifest").expect("manifest");
+        let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+        transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+        if let Some(point) = fault {
+            arm(point);
+        }
+        let _ = crate::bounded_run::take_trace_for_test();
+        let record = |path: &Path| {
+            let name: String = path.file_name().map(|found| { return found.to_string_lossy().into_owned(); }).unwrap_or_default();
+            crate::bounded_run::trace(|| { return format!("output {name}"); });
+            return Ok(());
+        };
+
+        let outcome = transaction.finish_with(&record);
+
+        let seen: Vec<String> = crate::bounded_run::take_trace_for_test();
+        assert_eq!(seen, expected, "{fault:?}: the finishing steps are not in the order outputs, marker, marker barrier, removal");
+        if let Some(point) = fault {
+            assert!(!crate::failpoints::fires(point), "{point:?}: the fault was never reached");
+        }
+        match (outcome, failure) {
+            (Ok(()), None) => {}
+            (Err(error), Some(cleanup_only)) => assert_eq!(error.cleanup_only(), cleanup_only, "{fault:?}: {error}"),
+            (unexpected, _) => panic!("{fault:?}: the finish ended as {unexpected:?}"),
+        }
+    }
 }

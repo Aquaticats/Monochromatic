@@ -428,11 +428,15 @@ kernel is not an emulation.
 ### The weaker path
 
 When no delegated control group can be had
-(the user manager is not running, `systemd-run` is missing, the own group is not delegated, cgroup v2 is absent,
-the kernel is older than 5.14),
+(the user manager is not running or cannot be reached, `systemd-run` is missing, cgroup v2 is absent, the manager's cgroup
+directory has no `cgroup.kill`, the kernel is older than 5.14),
 the run goes on in a process group of its own.
 It promises what pnpm promises:
 the process group is killed at the bound and at the exit, and no proof is claimed that a process that left the group has stopped.
+A scope that the manager refuses to start after discovery succeeded is not this path: the program does not run, the run's end is
+recorded, and a recovery needs no acknowledgement (`a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_runs_nothing`).
+"The own group is not delegated" was a class of the dropped second route (a child of the own group, see "The spawn route");
+delegation is requested for each scope with `Delegate=yes`, so no separate class names it.
 The notice says so in one line that names the missing capability, for example
 "cargo-shadow: no delegated control group (the user manager cannot be reached); a process that leaves the process group cannot be
 stopped or found, so quiescence is not shown".
@@ -674,6 +678,9 @@ the tests that discriminate; the planted regressions that turned the old asserti
 to judge them again: no row is certified by this map.
 The shared helper `journal_dirs` now stops on every listing error except the initial absence of the journal directory
 (`the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty`, red against the old helper).
+Suite counts at the round 17 code tip `8e009bc256` (written 2026-11-04T14:50:00-05:00): the debug run and the release gate each ran
+618 tests: 618 passed, 0 failed, 13 skipped (the same thirteen `#[ignore]` helper entries); `lint:clippy` with warnings denied is
+clean; logs `/home/user/temp/agent/r17-debug.log`, `r17-gate.log`, `r17-clippy.log`.
 Suite counts at the round 16 code tip `9cbee37b52`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
 (`mise run //package/cargo-shadow/cli:test`) each ran 609 tests: 609 passed, 0 failed, 13 skipped; `lint:clippy` with warnings
 denied is clean.
@@ -965,6 +972,89 @@ written with the code.
   `an_acknowledgement_does_not_override_a_live_group_or_unrelated_validation`,
   `acknowledge_refuses_what_is_not_an_open_journal_of_a_workspace` (also a finished journal),
   `the_acknowledge_subcommand_acknowledges_the_journal_the_refusal_named`, `the_weaker_path_still_stops_the_process_group_at_the_bound`.
+
+### Round 17 additions (second certification pass, 2026-11-04T14:36:06-05:00)
+
+The second certification pass (`cargo-shadow-cert2-sol-1.txt` to `-4.txt`) judged every group not certified, with no production
+defect, only test-discrimination and bundle defects.
+Each item below names the test that now carries it and says whether a planted regression turned an earlier assertion red; where no
+cheap plant exists the entry says so.
+No row is certified by this map.
+
+- **A1, V3 (spawn isolation).**
+  `two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wrappers_group` and
+  `two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary` compare each payload's control group path
+  with the scope its own run launched (the `launch scope <name>` event of that run's trace), with the `0::` prefix removed from every
+  path, and against the wrapper's own group; `group_of` stops the test on a read error.
+  No cheap plant: the mixed-format comparison of the earlier tests could not go red, and a production plant that runs one payload in
+  the wrapper's group is the moved-wrapper control of round 16 (`a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees`).
+- **R2.**
+  `a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named` takes the replacement inode at the exchange (no cheap plant: a
+  cleanup that swaps in a fresh inode of the same text needs a new production path), and
+  `a_conflict_whose_undo_exchange_fails_keeps_the_other_writers_inode_named_and_reports_where` fails the second (undo) exchange after
+  another writer changed the file; red when the stranded inode is unlinked (planted).
+- **V3, V4.**
+  `a_nonempty_journal_that_lost_its_records_is_kept_by_recovery_and_refuses_admission` (`round_seventeen_tests.rs`) runs the real
+  recovery and the real admission on a nonempty journal without its `groups` record; red with a planted shortcut in recovery.
+- **V5.**
+  `recover_report` returns whether a mandatory phase of finishing failed (the output barrier, the completion rename, the sync of the
+  marker's directory); `an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart` asserts the flag for each
+  fault and `a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_cleanup_does_not` runs the install step with the
+  cargo runner as the continuation sentinel (red with the flag never set, planted).
+  The three malformed ready-record tests in `journal_recover_tests.rs` now run the real recovery on a journal whose live lockfile
+  changed, with `a_journal_with_a_valid_ready_record_is_restored_by_the_same_recovery` as the control (red with the rejection
+  ignored, planted), and `an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable` requires the fault to be consumed
+  and the same state to complete once the fault is gone (no plant: removing the fault branch fails the consumption assertion).
+- **V6.**
+  `a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete` requires the answer within the bound
+  while the descendant lives for a multiple of it, with a readiness handshake; red with the output drained before the scope is
+  stopped (planted, 40 s).
+  The helpers the V6 tests call (`answers_within`, `assert_reaped`, `is_running`) are in the certification packets whole.
+  Qualifications the reviewers asked for: `probe_2_a_scope_that_is_collected_at_once_is_accepted_as_empty_by_verified_absence` shows
+  the acceptance of an already collected scope by verified absence, not collection speed; the time-namespace tests call
+  `survivor_note`, so they show the refusal and its diagnostic of the recovery's liveness gate, not a complete recovery; a delegated
+  test returns early when `delegated_route` finds no delegation and `CARGO_SHADOW_ALLOW_NO_CGROUP` is set, so a count of passed tests
+  shows execution only with the log of a host that has a delegated route (the logs of this host are named in the report).
+- **Weaker path.**
+  `each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_before_the_start` reads the notice from the trace of
+  the run itself (`notice <text>`), one per run and per class (red when the run gives none, planted);
+  `an_acknowledgement_whose_file_cannot_be_synced_is_not_published` is the writer-side file-sync fault of this row;
+  The process and thread oracles of the tests fail closed: `is_running` and `thread_is_alive` stop on any error, and
+  `thread_is_alive` first requires a procfs that matches the namespace.
+- **V2, amended c.**
+  The tests of the unsettled scope and the launcher lifecycle belong to this row:
+  `an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended`,
+  `a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended`,
+  `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty`, `a_gone_launcher_lets_the_recovery_read_the_scope_as_final` and
+  `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended`.
+- **A3, A4.**
+  `a_refusal_survives_a_journal_that_cannot_be_finished` requires the fault to be consumed and the refusal to carry both the policy
+  diagnostic and the failed output barrier (red when the finish error is dropped from the refusal, planted);
+  `finishing_is_observed_as_outputs_then_marker_then_marker_barrier_then_removal` reads one ordered trace of the output barriers, the
+  marker rename, the successful barrier of the marker's directory and the removal attempt for the success and for each fault (red when
+  the barrier call is removed, planted).
+- **R5.**
+  `a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others` has a root after the failed one that needs its own
+  warning (red when warnings after a failure are dropped, planted).
+- **K1.**
+  `the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_file` runs the install step three times past the count
+  with the central folder and the lockfile's directory populated, reads the emitted warning (count, size, folder) at its emission, and
+  inventories the kept files after each run (red when the command does not print the notice, and red when finishing deletes the
+  central folder, both planted).
+- **K2.**
+  `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction` requires, for each new child directory, a barrier of its
+  parent that already lists the child, before the link of the kept file, and the climb barriers after it (red when the creation-time
+  parent barrier is removed, and red when the climb is removed, both planted);
+  `failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name_or_reports_the_unsynced_chain` has a lower bound that
+  does not come from the implementation.
+- **A2, R4, V1, R1.**
+  No change; the pass found them shown.
+- **0.1.0 behind the toolchain launcher.**
+  The PATH search skips a candidate that is a launcher whose `.launch` record names the shadow, directly or through further
+  launchers, so the shadow starts once
+  (`started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`, red with the skip removed,
+  planted; `a_launcher_whose_record_names_the_shadow_is_skipped_directly_and_through_another_launcher`,
+  `a_launcher_of_another_program_a_broken_record_and_a_record_loop`).
 
 ### What the map does not claim
 

@@ -828,8 +828,14 @@ fn a_refusal_survives_a_journal_that_cannot_be_finished() {
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
 
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(outcome, StepOutcome::Refused(_)), "the refusal was replaced: {outcome:?}");
+    // Certification, second pass (A3, A4): the fault was reached, and the refusal carries both the policy diagnostic and the failure of
+    // the output barrier; an earlier error that hid the mandatory failure, or a finish that was skipped, would show only one.
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::FinishDurability), "the output barrier of the finish was never reached");
+    let StepOutcome::Refused(message) = &outcome else {
+        panic!("the refusal was replaced: {outcome:?}");
+    };
+    assert!(message.contains("could not be forced to disk (injected durability failure)"), "the failure of the output barrier is hidden behind the refusal: {message}");
+    assert!(message.contains("dep@1.0.1 has trust level"), "the policy diagnostic is missing: {message}");
 }
 
 /// Review finding (4c,
@@ -1186,4 +1192,89 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
     let log: Vec<String> = calls.lock().expect("the call log").clone();
     assert!(log.last().is_some_and(|last| { return last.starts_with("update") && !last.contains("--locked"); }), "something ran after the run that could not be stopped: {log:?}");
+}
+
+/// Acceptance row V5 (certification, second pass): the caller of a recovery stops when a mandatory phase of finishing the recovered
+/// journal fails and goes on after a cleanup-only failure.
+/// An earlier run's journal is planted, a fault is armed for one phase of its finish, and the continuation sentinel is the cargo
+/// the command would run: the output barrier, the completion rename and the sync of the marker's directory stop the command before
+/// any cargo call, with the failure named; a removal that fails after the marker only warns and the command runs its cargo.
+#[test]
+fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_cleanup_does_not() {
+    use crate::failpoints::{Point, arm, fires};
+    // (fault, the command must stop)
+    for (fault, stops) in [(Point::RecoverDurability, true), (Point::CompletionRename, true), (Point::CompletionSync, true), (Point::FinishCleanup, false)] {
+        let root = repository(STALE);
+        let start = root.path().join(CRATE_DIR);
+        let _journal = crate::journal_support::plant(root.path(), &[crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: STALE.to_string() }], &[]);
+        let runner: FakeCargo = cargo(SATISFIED);
+        arm(fault);
+
+        let outcome = step(&start, false, &runner, &registry());
+
+        assert!(!fires(fault), "{fault:?}: the fault was never reached");
+        if stops {
+            match &outcome {
+                StepOutcome::Refused(message) => assert!(message.contains("recovery of an earlier run could not finish its journal"), "{fault:?}: {message}"),
+                other => panic!("{fault:?}: a recovery that could not finish its journal read as {other:?}"),
+            }
+            assert!(runner.commands.borrow().is_empty(), "{fault:?}: the command went on to cargo after a mandatory failure: {:?}", runner.commands.borrow());
+        } else {
+            assert!(!runner.commands.borrow().is_empty(), "{fault:?}: a cleanup-only failure stopped the command");
+            assert!(!matches!(&outcome, StepOutcome::Refused(message) if message.contains("recovery of an earlier run")), "{fault:?}: {outcome:?}");
+        }
+    }
+}
+
+/// Acceptance row K1 (certification, second pass): the warning about kept files is emitted by the command on every completed run
+/// past the count, with the count, the combined size and the folder, and the completed runs delete none of the kept files.
+/// The central folder and the lockfile's directory are both populated; each run is a stale lockfile that the step updates and
+/// finishes, and the inventory is taken by the test from the directories before and after each run.
+#[test]
+fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_file() {
+    use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let central = root.path().join(QUARANTINE_DIR);
+    fs::create_dir_all(&central).expect("the central folder");
+    for index in 0..KEPT_FILES_WARNING_COUNT {
+        fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+    }
+    fs::write(start.join("Cargo.lock.refused"), "refused text").expect("a kept copy beside the lockfile");
+    fs::write(start.join(".Cargo.lock.shadow-abc.tmp"), "stranded").expect("a stranded temporary");
+    // The kept files of the case: the central folder and the beside-target names, as the test lists them.
+    let inventory = || -> Vec<(std::path::PathBuf, u64)> {
+        let beside = |name: &str| -> bool { return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp")); };
+        let mut found: Vec<(std::path::PathBuf, u64)> = Vec::new();
+        for directory in [&central, &start] {
+            for entry in fs::read_dir(directory).expect("lists").flatten() {
+                let name: String = entry.file_name().to_string_lossy().into_owned();
+                if directory == &central || beside(&name) {
+                    found.push((entry.path(), entry.metadata().expect("size").len()));
+                }
+            }
+        }
+        found.sort();
+        return found;
+    };
+
+    for run in 0..3 {
+        fs::write(start.join("Cargo.lock"), STALE).expect("a stale lockfile for this run");
+        let before = inventory();
+        let _ = crate::bounded_run::take_trace_for_test();
+        let runner: FakeCargo = cargo(SATISFIED);
+
+        let outcome = step(&start, false, &runner, &registry());
+
+        assert!(matches!(outcome, StepOutcome::Updated { .. }), "run {run}: {outcome:?}");
+        let emitted: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("kept notice "); }).collect();
+        assert_eq!(emitted.len(), 1, "run {run}: the warning was not emitted exactly once: {emitted:?}");
+        let bytes: u64 = before.iter().map(|(_, size)| { return *size; }).sum();
+        assert!(emitted[0].contains(&format!("{} files, {bytes} bytes in all", before.len())) && emitted[0].contains(&central.display().to_string()), "run {run}: {}", emitted[0]);
+        // The completed run deleted none of the files that were kept before it.
+        let after = inventory();
+        for (path, _size) in &before {
+            assert!(after.iter().any(|(kept, _)| { return kept == path; }), "run {run}: the completed run deleted the kept file {}", path.display());
+        }
+    }
 }
