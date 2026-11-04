@@ -186,7 +186,11 @@ fn shim_with_a_scope_that_cannot_be_stopped_fixture() {
         }
     })));
     let code: i32 = crate::shim::run_shim(vec![OsString::from("check")]);
-    fs::write(PathBuf::from(root_text).join("shim-exit-code"), code.to_string()).expect("write the exit code");
+    // The fault must have been reached: an armed fault that was never used is still armed here.
+    let reached: bool = !crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck);
+    let root: PathBuf = PathBuf::from(root_text);
+    fs::write(root.join("shim-fault-reached"), reached.to_string()).expect("write whether the fault was reached");
+    fs::write(root.join("shim-exit-code"), code.to_string()).expect("write the exit code");
 }
 
 /// Acceptance rows A2, R4 (12b, the shim and a user-command sentinel):
@@ -212,7 +216,7 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     let sentinel: PathBuf = root.path().join("users-command-ran");
     let log: PathBuf = root.path().join("fake-cargo.log");
 
-    let status = Command::new(std::env::current_exe().expect("this test executable"))
+    let output = Command::new(std::env::current_exe().expect("this test executable"))
         .args(["--ignored", "--exact", "round_thirteen_tests::shim_with_a_scope_that_cannot_be_stopped_fixture", "--nocapture"])
         .current_dir(&crate_root)
         .env(FIXTURE_ROOT, root.path())
@@ -221,13 +225,23 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
         .env("CI", "")
         .env("FAKE_CARGO_LOG", &log)
         .env("FAKE_CARGO_SENTINEL", &sentinel)
-        .status()
+        .output()
         .expect("the shim helper");
+    let status = output.status;
+    let said: String = String::from_utf8_lossy(&output.stderr).to_string();
 
-    assert!(status.success(), "the helper failed: {status:?}");
+    assert!(status.success(), "the helper failed: {status:?}: {said}");
     let code: i32 = fs::read_to_string(root.path().join("shim-exit-code")).expect("the exit code").trim().parse::<i32>().expect("a number");
     let calls: String = fs::read_to_string(&log).unwrap_or_default();
     let journals: Vec<PathBuf> = journal_dirs(&root.path().join("repository"));
+    // The helper's run used a delegated scope (13 section 1): the journal's record names one, and the weaker path's notice is absent.
+    assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    crate::cgroup_test_support::assert_scope_record(&journals[0].join("groups").display().to_string());
+    assert!(!said.contains("no delegated control group"), "the helper fell back to the weaker path: {said}");
+    // The intended containment fault was reached and is the refusal: the writers-may-remain refusal of a run that could not be shown
+    // empty, not some other failure of the finishing.
+    assert_eq!(fs::read_to_string(root.path().join("shim-fault-reached")).expect("whether the fault was reached").trim(), "true", "the scope fault was never reached: {said}");
+    assert!(said.contains("could not be stopped, so it may still write the lockfiles"), "the refusal is not the not-quiescent one: {said}");
     assert_eq!(code, INSTALL_FAILED_EXIT_CODE, "the shim did not stop the command: {calls:?}");
     assert!(!sentinel.exists(), "the user's command was started: {calls:?}");
     assert!(!calls.lines().any(|line| { return line.starts_with("check"); }), "the user's command reached cargo: {calls:?}");
