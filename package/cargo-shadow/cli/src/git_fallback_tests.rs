@@ -1090,3 +1090,85 @@ fn opening_a_fifo_for_reading_returns_without_waiting() {
     // Release a reader that may still be blocked, so no thread outlives the test.
     let _ = fs::OpenOptions::new().write(true).custom_flags(0o4000).open(&fifo);
 }
+
+/// Writes a commit object with the given body through Git and returns its name.
+/// `literally` skips Git's format check, so malformed bodies can be stored under their true name.
+fn hash_commit(fixture: &Fixture, body: &str) -> String {
+    use std::io::Write;
+    let mut git = Command::new(SYSTEM_GIT)
+        .arg("-C")
+        .arg(&fixture.work)
+        .args(["hash-object", "-t", "commit", "-w", "--literally", "--stdin"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("git hash-object");
+    git.stdin.take().expect("stdin").write_all(body.as_bytes()).expect("write the body");
+    let output = git.wait_with_output().expect("git ends");
+    return String::from_utf8_lossy(&output.stdout).trim().to_string();
+}
+
+/// Whether Git itself peels the name to a commit.
+fn git_peels(fixture: &Fixture, name: &str) -> bool {
+    let status = Command::new(SYSTEM_GIT).arg("-C").arg(&fixture.work).args(["rev-parse", "--verify", "--quiet", &format!("{name}^{{commit}}")]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().expect("git");
+    return status.success();
+}
+
+/// Round 6 (5a F3 B): object files hold what their name says.
+#[test]
+fn a_commit_stored_under_another_name_is_not_confirmed() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let common: PathBuf = fixture.work.join(".git");
+    let other: PathBuf = common.join("objects").join(&fixture.first[..2]).join(&fixture.first[2..]);
+    let bytes: Vec<u8> = fs::read(&other).expect("a valid commit");
+    assert_eq!(confirm_commit(&common, &fixture.first), Ok(()), "control: the commit under its own name is confirmed");
+    replace_loose_second(&fixture, &bytes);
+
+    assert!(confirm_commit(&common, &fixture.second).is_err(), "a commit under another commit's name was confirmed");
+}
+
+/// Round 6 (5a F3 A): Git needs bytes after the tree line.
+#[test]
+fn a_tree_only_commit_body_is_not_a_commit() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
+    let name: String = hash_commit(&fixture, &format!("tree {tree}\n"));
+    assert!(!git_peels(&fixture, &name), "oracle: Git rejects a tree-only commit");
+
+    let common: PathBuf = fixture.work.join(".git");
+    assert!(confirm_commit(&common, &name).is_err(), "a tree-only commit was confirmed");
+}
+
+/// Round 6 (5a F3 A): Git needs bytes after the last parent line too.
+#[test]
+fn a_commit_body_that_ends_with_a_parent_line_is_not_a_commit() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
+    let name: String = hash_commit(&fixture, &format!("tree {tree}\nparent {}\n", fixture.first));
+    assert!(!git_peels(&fixture, &name), "oracle: Git rejects a commit that ends with its parent line");
+
+    let common: PathBuf = fixture.work.join(".git");
+    assert!(confirm_commit(&common, &name).is_err(), "a commit that ends with a parent line was confirmed");
+}
+
+/// Round 6 (5a F3 C): a loose object file ends where its zlib stream ends.
+#[test]
+fn bytes_after_the_stream_of_a_loose_commit_are_not_confirmed() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
+    let name: String = hash_commit(&fixture, &format!("tree {tree}\nauthor A <a@b> 1 +0000\ncommitter A <a@b> 1 +0000\n\nmessage\n"));
+    let common: PathBuf = fixture.work.join(".git");
+    assert_eq!(confirm_commit(&common, &name), Ok(()), "control: the well-formed commit is confirmed");
+    let loose: PathBuf = common.join("objects").join(&name[..2]).join(&name[2..]);
+    fs::set_permissions(&loose, fs::Permissions::from_mode(0o644)).expect("writable");
+    let mut bytes: Vec<u8> = fs::read(&loose).expect("loose");
+    bytes.extend_from_slice(b"garbage");
+    fs::write(&loose, bytes).expect("append garbage");
+    assert!(!git_peels(&fixture, &name), "oracle: Git rejects garbage at the end of a loose object");
+
+    assert!(confirm_commit(&common, &name).is_err(), "a loose commit with trailing bytes was confirmed");
+}
