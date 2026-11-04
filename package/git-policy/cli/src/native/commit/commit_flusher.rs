@@ -98,12 +98,8 @@ impl FlusherLock {
         }
         let opened: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(&path)?;
         // The lock is handed to a helper that redirects descriptors 0 to 2; a process with one of them closed would otherwise hold it there.
-        let file: File = {
-            use std::os::fd::{FromRawFd, IntoRawFd};
-            let moved: libc::c_int = move_above_streams(opened.into_raw_fd())?;
-            // SAFETY: `moved` is the descriptor that `opened` owned (or a copy of it), now owned by nothing else.
-            unsafe { File::from_raw_fd(moved) }
-        };
+        // The descriptor has an owner at every step: a failed move closes it.
+        let file: File = File::from(move_above_streams(std::os::fd::OwnedFd::from(opened))?);
         return match file.try_lock() {
             Ok(()) => Ok(Some(FlusherLock { file })),
             Err(std::fs::TryLockError::WouldBlock) => Ok(None),

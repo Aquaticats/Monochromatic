@@ -18,6 +18,7 @@
 
 use std::fmt;
 use std::io;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
@@ -279,8 +280,17 @@ fn read_report(report: libc::c_int, deadline: Instant) -> Result<(Option<u8>, bo
     }
 }
 
+/// The report byte of a helper that has the handover and runs its entry.
+const ACKNOWLEDGED: u8 = 3;
+
+/// How long the launcher waits, after the first child was killed, for it to be reaped (the kill cannot be caught; this only bounds a
+/// process stuck in the kernel). A launch is bounded by three of these limits: the report, the intermediate child's exit and the
+/// helper's acknowledgment, plus this.
+const KILL_REAP_LIMIT: Duration = Duration::from_secs(5);
+
 /// What the helper's grandchild does before its entry: points its streams at `/dev/null`, closes every descriptor but `keep` and `report`,
-/// and writes the one report byte (the failed step, or `READY`); false when a setup step failed (it then ends).
+/// and writes the one report byte (the failed step, or `READY`); false when a setup step failed (it then ends). The report descriptor
+/// stays open after `READY`: the acknowledgment of the handover goes through it.
 fn helper_setup(report: libc::c_int, keep: &[libc::c_int]) -> bool {
     // `keep` and `report` are numbered above the standard streams (checked before the fork), so the redirection below cannot overwrite them.
     let step: u8 = if injected(2) || !null_the_standard_streams() {
@@ -290,11 +300,12 @@ fn helper_setup(report: libc::c_int, keep: &[libc::c_int]) -> bool {
         kept.push(report);
         if injected(3) || close_descriptors_except(3, &kept).is_err() { DESCRIPTORS_FAILED } else { READY }
     };
-    // SAFETY: `step` is one live byte; `write` and `close` take plain integers. A launcher that stopped waiting closed its end; the
-    // write then fails and the helper goes on or ends by its step.
-    unsafe {
-        libc::write(report, (&raw const step).cast::<libc::c_void>(), 1);
-        libc::close(report);
+    // SAFETY: `step` is one live byte; `write` takes plain integers. A launcher that stopped waiting closed its end; the write then fails
+    // and the helper ends by its step.
+    unsafe { libc::write(report, (&raw const step).cast::<libc::c_void>(), 1) };
+    if step != READY {
+        // SAFETY: the report end is this process's own.
+        unsafe { libc::close(report) };
     }
     return step == READY;
 }
@@ -313,24 +324,39 @@ impl Holding for () {
 }
 
 /// Moves `descriptor` above the standard streams (a copy numbered 3 or higher, the original closed), so that a process whose descriptor 0, 1
-/// or 2 was closed does not give it to a file the helper must keep.
-pub fn move_above_streams(descriptor: libc::c_int) -> io::Result<libc::c_int> {
-    if descriptor > 2 {
+/// or 2 was closed does not give it to a file the helper must keep. The descriptor has an owner throughout: on failure it is closed by
+/// being dropped here.
+pub fn move_above_streams(descriptor: OwnedFd) -> io::Result<OwnedFd> {
+    if descriptor.as_raw_fd() > 2 {
         return Ok(descriptor);
     }
     // SAFETY: `fcntl` with `F_DUPFD_CLOEXEC` takes a descriptor and an integer argument and touches no memory.
-    let moved: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_DUPFD_CLOEXEC, 3) };
+    let moved: libc::c_int = unsafe { libc::fcntl(descriptor.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
     if moved < 0 {
         return Err(io::Error::last_os_error());
     }
-    // SAFETY: closing the descriptor that was copied; the caller owns it.
-    unsafe { libc::close(descriptor) };
-    return Ok(moved);
+    // SAFETY: `moved` was just returned by `fcntl` and nothing else owns it; the original closes when `descriptor` drops.
+    return Ok(unsafe { OwnedFd::from_raw_fd(moved) });
 }
 
-/// Waits, until `deadline`, for the launcher's handover byte on `go` (or its end of input, which means the launcher is gone and so is its
-/// copy of what it held).
-fn await_handover(go: libc::c_int, deadline: Instant) {
+/// A pipe whose two ends are owned from the moment they exist and numbered above the standard streams: (read end, write end).
+fn make_pipe() -> Result<(OwnedFd, OwnedFd), LaunchError> {
+    let mut ends: [libc::c_int; 2] = [-1, -1];
+    // SAFETY: `ends` is a live array of two integers the call fills.
+    if unsafe { libc::pipe(ends.as_mut_ptr()) } != 0 {
+        return Err(LaunchError::Refused(io::Error::last_os_error()));
+    }
+    // SAFETY: both numbers were just returned by `pipe` and nothing else owns them.
+    let (read, write): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
+    let read: OwnedFd = move_above_streams(read).map_err(LaunchError::Refused)?;
+    let write: OwnedFd = move_above_streams(write).map_err(LaunchError::Refused)?;
+    return Ok((read, write));
+}
+
+/// Waits, until `deadline`, for the launcher's handover byte on `go`; true only when the byte arrived. A timeout, an end of input (the
+/// launcher is gone) or a read failure is not a handover, and the helper then ends without running its entry. `go` is closed here.
+fn await_handover(go: libc::c_int, deadline: Instant) -> bool {
+    let mut granted: bool = false;
     loop {
         let left: Duration = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
@@ -349,12 +375,63 @@ fn await_handover(go: libc::c_int, deadline: Instant) {
         let mut byte: u8 = 0;
         // SAFETY: `byte` is one live byte the call writes through.
         let count: isize = unsafe { libc::read(go, (&raw mut byte).cast::<libc::c_void>(), 1) };
-        if count >= 0 || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted {
-            break;
+        if count < 0 && io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+            continue;
         }
+        granted = count == 1;
+        break;
     }
     // SAFETY: the handover end is this process's own.
     unsafe { libc::close(go) };
+    return granted;
+}
+
+/// Kills the intermediate child and reaps it, within `KILL_REAP_LIMIT`. A refused kill (other than "no such process", which means it
+/// already left), a failed wait and a child that does not die in time are errors; an interrupted wait is repeated.
+fn kill_and_reap(child: libc::pid_t) -> Result<(), LaunchError> {
+    if injected(6) {
+        return Err(LaunchError::Wait(io::Error::from_raw_os_error(libc::EPERM)));
+    }
+    // SAFETY: `kill` takes plain integers.
+    if unsafe { libc::kill(child, libc::SIGKILL) } != 0 {
+        let error: io::Error = io::Error::last_os_error();
+        if error.raw_os_error() != Some(libc::ESRCH) {
+            return Err(LaunchError::Wait(error));
+        }
+    }
+    let deadline: Instant = Instant::now() + KILL_REAP_LIMIT;
+    loop {
+        let mut status: libc::c_int = 0;
+        // SAFETY: `status` is a live local the call writes through.
+        let reaped: libc::pid_t = unsafe { libc::waitpid(child, &raw mut status, libc::WNOHANG) };
+        if reaped == child {
+            return Ok(());
+        }
+        if reaped < 0 {
+            let error: io::Error = io::Error::last_os_error();
+            match error.raw_os_error() {
+                Some(libc::EINTR) => continue,
+                Some(libc::ECHILD) => return Ok(()),
+                _ => return Err(LaunchError::Wait(error)),
+            }
+        }
+        if Instant::now() >= deadline {
+            return Err(LaunchError::IntermediateNotReaped);
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// Waits for the intermediate child to leave until `deadline`; one that does not is killed and reaped. `Some(status)` when it left by
+/// itself, `None` when it had to be killed.
+fn reap_or_kill(child: libc::pid_t, deadline: Instant) -> Result<Option<libc::c_int>, LaunchError> {
+    return match reap_first_child(child, deadline)? {
+        Some(status) => Ok(Some(status)),
+        None => {
+            kill_and_reap(child)?;
+            Ok(None)
+        }
+    };
 }
 
 /// What:
@@ -375,13 +452,15 @@ pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> 
 }
 
 /// What:
-///  As `launch_detached`, and `holding` (a lock, say) goes to the helper: the helper keeps its descriptors and nothing else, the launcher
-///  closes its own copy as soon as the helper reported ready, and only then sends the handover byte the helper waits for before it runs
-///  `entry`. A failed launch drops `holding` before it returns.
+///  As `launch_detached`, and `holding` (a lock, say) goes to the helper, by a handover in this order: the helper reports ready; the
+///  launcher reaps the intermediate child (killing it if it does not leave) so that no other copy exists; the launcher closes its own
+///  copy; only then it sends the handover byte; the helper acknowledges it and runs `entry`. A helper that does not get the byte (a wait
+///  that expires, an end of input) runs nothing and the launch fails with `HandoverNotAcknowledged`. A failed launch drops `holding`
+///  before it returns.
 /// Why:
-///  An `flock` belongs to the open file description, which a fork shares: a launcher that keeps its copy after the helper finished and
-///  released its own would still hold the lock, and a client that found it held would start nothing. With the handover the helper cannot
-///  release before the launcher's copy is gone, so the launcher never holds a lock the helper believes it released.
+///  An `flock` belongs to the open file description, which a fork shares: a copy that outlives the helper's release makes a client that
+///  found the lock held start nothing. With the handover, the helper is the only holder when it starts to work, and a launch that did not
+///  transfer ownership is a failure its caller accounts for (every receipt recorded), never an execution without the handover.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -393,48 +472,19 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
     if let Some(low) = kept.iter().copied().find(|number| { return *number <= 2; }) {
         return Err(LaunchError::LowDescriptor(low));
     }
-    let mut report: [libc::c_int; 2] = [-1, -1];
-    let mut handover: [libc::c_int; 2] = [-1, -1];
-    // SAFETY: both arrays are live arrays of two integers the calls fill.
-    let made: bool = unsafe { libc::pipe(report.as_mut_ptr()) == 0 && libc::pipe(handover.as_mut_ptr()) == 0 };
-    if !made {
-        let error: io::Error = io::Error::last_os_error();
-        // SAFETY: closing descriptors that this call made or left at -1.
-        unsafe {
-            for number in report.into_iter().chain(handover) {
-                if number >= 0 {
-                    libc::close(number);
-                }
-            }
-        }
-        return Err(LaunchError::Refused(error));
-    }
-    let moved: io::Result<[libc::c_int; 4]> = (|| {
-        return Ok([move_above_streams(report[0])?, move_above_streams(report[1])?, move_above_streams(handover[0])?, move_above_streams(handover[1])?]);
-    })();
-    let [read_end, write_end, go_read, go_write] = match moved {
-        Ok(numbers) => numbers,
-        Err(error) => return Err(LaunchError::Refused(error)),
-    };
+    let (report_read, report_write): (OwnedFd, OwnedFd) = make_pipe()?;
+    let (go_read, go_write): (OwnedFd, OwnedFd) = make_pipe()?;
     // SAFETY: the child branches below call only `close`, `setsid`, `fork`, `_exit` and, in the grandchild, the helper functions of this
     // module; this process has one thread, so no lock a vanished thread held is copied.
     let first: libc::pid_t = unsafe { libc::fork() };
     if first < 0 {
-        let error: io::Error = io::Error::last_os_error();
-        // SAFETY: all four descriptors are this call's own.
-        unsafe {
-            libc::close(read_end);
-            libc::close(write_end);
-            libc::close(go_read);
-            libc::close(go_write);
-        }
-        return Err(LaunchError::Refused(error));
+        return Err(LaunchError::Refused(io::Error::last_os_error()));
     }
     if first == 0 {
         // SAFETY: as above; every path of this branch ends in `_exit` or becomes the helper, which ends in `_exit`.
         unsafe {
-            libc::close(read_end);
-            libc::close(go_write);
+            libc::close(report_read.as_raw_fd());
+            libc::close(go_write.as_raw_fd());
             if libc::setsid() < 0 {
                 libc::_exit(1);
             }
@@ -453,60 +503,74 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
             }
         }
         let mut with_handover: Vec<libc::c_int> = kept.clone();
-        with_handover.push(go_read);
-        if !helper_setup(write_end, &with_handover) {
+        with_handover.push(go_read.as_raw_fd());
+        if !helper_setup(report_write.as_raw_fd(), &with_handover) {
             // SAFETY: `_exit` takes an integer and never returns.
             unsafe { libc::_exit(3) };
         }
-        await_handover(go_read, Instant::now() + if injected(5) { Duration::from_millis(100) } else { LAUNCH_CONFIRM_LIMIT });
+        let wait: Duration = if injected(5) { Duration::from_millis(100) } else { LAUNCH_CONFIRM_LIMIT };
+        if !await_handover(go_read.as_raw_fd(), Instant::now() + wait) {
+            // SAFETY: closing the report end tells the launcher that no handover happened; `_exit` never returns.
+            unsafe {
+                libc::close(report_write.as_raw_fd());
+                libc::_exit(4);
+            }
+        }
+        let acknowledged: u8 = ACKNOWLEDGED;
+        // SAFETY: `acknowledged` is one live byte; the report end is this process's own and closes after the write.
+        unsafe {
+            libc::write(report_write.as_raw_fd(), (&raw const acknowledged).cast::<libc::c_void>(), 1);
+            libc::close(report_write.as_raw_fd());
+        }
         let code: i32 = catch_unwind(AssertUnwindSafe(move || { return entry(holding); })).unwrap_or(PANICKED_EXIT);
         // SAFETY: the helper ends here without unwinding into the launcher's stack.
         unsafe { libc::_exit(code) };
     }
     FORKED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    // SAFETY: the launcher's copies of the helper's ends are closed so that end of input means every writer is gone.
-    unsafe {
-        libc::close(write_end);
-        libc::close(go_read);
-    }
+    // The launcher's copies of the helper's ends are closed so that end of input means every writer is gone.
+    drop(report_write);
+    drop(go_read);
     let deadline: Instant = Instant::now() + if injected(4) || injected(6) { Duration::from_millis(200) } else { LAUNCH_CONFIRM_LIMIT };
-    let outcome = read_report(read_end, deadline);
+    let outcome = read_report(report_read.as_raw_fd(), deadline);
     super::commit_identity::fault_point("launch:after-report");
-    // SAFETY: the read end is this call's own.
-    unsafe { libc::close(read_end) };
-    // The launcher's copy of what it held goes first; only then does the helper hear that it may start (and so may finish and release).
-    drop(holding);
     let ready: bool = matches!(outcome, Ok((Some(READY), _)));
-    if ready {
-        let go: u8 = 1;
-        // SAFETY: `go` is one live byte; a helper that is gone makes the write fail, which is harmless.
-        unsafe { libc::write(go_write, (&raw const go).cast::<libc::c_void>(), 1) };
+    // The intermediate child goes first, on every path: reaped when it left, killed and reaped when it did not.
+    let status: Result<Option<libc::c_int>, LaunchError> = reap_or_kill(first, deadline);
+    if !ready {
+        drop(holding);
+        drop(go_write);
+        let (byte, timed_out) = outcome?;
+        let status: Option<libc::c_int> = status?;
+        return match (byte, timed_out) {
+            (Some(step), _) => Err(LaunchError::SetupFailed(step)),
+            (None, true) => Err(LaunchError::NotConfirmed),
+            (None, false) => match status {
+                None => Err(LaunchError::NotConfirmed),
+                Some(code) if libc::WIFEXITED(code) && libc::WEXITSTATUS(code) != 0 => Err(LaunchError::FirstChildFailed(libc::WEXITSTATUS(code))),
+                Some(code) if libc::WIFSIGNALED(code) => Err(LaunchError::FirstChildFailed(128 + libc::WTERMSIG(code))),
+                Some(_) => Err(LaunchError::LostBeforeReady),
+            },
+        };
     }
-    // SAFETY: the handover write end is this call's own; closing it also tells a waiting helper that the launcher is gone.
+    if let Err(error) = status {
+        // The helper is waiting for a handover that will not come: closing the handover end tells it so, and it runs nothing.
+        drop(holding);
+        drop(go_write);
+        return Err(error);
+    }
+    // Every copy but the helper's is gone once the launcher's own copy is closed; only then does the helper hear that it may start.
+    drop(holding);
+    let go: u8 = 1;
+    // SAFETY: `go` is one live byte; a helper that is gone makes the write fail, which is the failure reported below.
+    let sent: isize = unsafe { libc::write(go_write.as_raw_fd(), (&raw const go).cast::<libc::c_void>(), 1) };
     super::commit_identity::fault_point("launch:after-handover");
-    unsafe { libc::close(go_write) };
-    let (byte, timed_out) = outcome?;
-    let mut status: Option<libc::c_int> = reap_first_child(first, deadline)?;
-    if status.is_none() {
-        // The intermediate child did not leave in time and still holds every inherited description: it is killed and reaped here, so that
-        // a launch that reports success leaves no child of the launcher behind.
-        let mut waited: libc::c_int = 0;
-        // SAFETY: `kill` and `waitpid` take plain integers and a live local; SIGKILL cannot be caught, so the wait ends.
-        unsafe {
-            libc::kill(first, libc::SIGKILL);
-            libc::waitpid(first, &raw mut waited, 0);
-        }
-        status = None;
+    drop(go_write);
+    if sent != 1 {
+        return Err(LaunchError::HandoverNotAcknowledged);
     }
-    return match (byte, timed_out) {
-        (Some(READY), _) => Ok(()),
-        (Some(step), _) => Err(LaunchError::SetupFailed(step)),
-        (None, true) => Err(LaunchError::NotConfirmed),
-        (None, false) => match status {
-            None => Err(LaunchError::NotConfirmed),
-            Some(code) if libc::WIFEXITED(code) && libc::WEXITSTATUS(code) != 0 => Err(LaunchError::FirstChildFailed(libc::WEXITSTATUS(code))),
-            Some(code) if libc::WIFSIGNALED(code) => Err(LaunchError::FirstChildFailed(128 + libc::WTERMSIG(code))),
-            Some(_) => Err(LaunchError::LostBeforeReady),
-        },
+    let acknowledgment_deadline: Instant = Instant::now() + LAUNCH_CONFIRM_LIMIT;
+    return match read_report(report_read.as_raw_fd(), acknowledgment_deadline)? {
+        (Some(ACKNOWLEDGED), _) => Ok(()),
+        _ => Err(LaunchError::HandoverNotAcknowledged),
     };
 }
