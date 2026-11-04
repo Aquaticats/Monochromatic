@@ -26,12 +26,44 @@ use crate::lfs_upload::run_upload_bounded;
 use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout_after_success;
 use crate::lfs_pre_push::plan_failed_message;
-use crate::lfs_upload_plan::{Query, plan_upload, read_settings};
+use crate::lfs_upload_plan::{GitQuery, PlanError, Settings, UploadPlan, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
 /// Exit status of a push the wrapper refused before anything started.
 const REFUSED_EXIT_CODE: i64 = 1;
+
+/// What:
+///  The read-only Git questions of the upload plan, asked through the coordinator's own bounded queries.
+///  `&'a PushGit` lends the coordinator's Git for as long as this value lives.
+/// Why:
+///   The plan asks through the `GitQuery` trait, and the state a question needs (the real Git, the directory, the
+///  environment) is one borrowed value, so a struct stands where a closure that captured it stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PushQuery implements GitQuery { constructor(readonly git: PushGit) {} ask(args: string[]): string {} }
+/// ```
+struct PushQuery<'a> {
+    /// The coordinator's Git, whose queries are bounded.
+    git: &'a PushGit,
+}
+
+impl GitQuery for PushQuery<'_> {
+    fn ask(&mut self, query_arguments: &[&str]) -> Result<String, String> {
+        let owned: Vec<OsString> = query_arguments.iter().map(OsString::from).collect();
+        let output = match run_query(self.git, owned.as_slice()) {
+            Ok(done) => done,
+            Err(error) => return Err(error.to_string()),
+        };
+        let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        return match output.code {
+            Some(0) => Ok(text),
+            Some(1) if text.is_empty() => Ok(text),
+            code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+        };
+    }
+}
 
 /// What:
 ///  Run `git <arguments>` (a `push`) as a bounded child, after the upload when the repository has LFS keys.
@@ -51,21 +83,12 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
                 output: strip_one_line_break(refusal.as_str()).to_owned(),
             });
         }
-        let mut query = |query_arguments: &[&str]| -> Result<String, String> {
-            let owned: Vec<OsString> = query_arguments.iter().map(OsString::from).collect();
-            let output = run_query(git, owned.as_slice()).map_err(|error| {
-                return error.to_string();
-            })?;
-            let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-            return match output.code {
-                Some(0) => Ok(text),
-                Some(1) if text.is_empty() => Ok(text),
-                code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
-            };
+        let mut query: PushQuery<'_> = PushQuery { git };
+        let read: Result<Settings, PlanError> = read_settings(&mut query);
+        let planned: Result<Option<UploadPlan>, PlanError> = match read {
+            Ok(settings) => plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), &mut query),
+            Err(error) => Err(error),
         };
-        let planned = read_settings(&mut query as Query<'_>).and_then(|settings| {
-            return plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), settings.as_slice(), &mut query);
-        });
         match planned {
             Ok(Some(plan)) => {
                 // The plan came from Git queries that exited with status 0,

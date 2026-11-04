@@ -27,7 +27,7 @@ use crate::lfs_upload::{run_upload_interactive, submodule_notice};
 use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout_after_success_for;
 /// What to upload.
-use crate::lfs_upload_plan::{Query, Settings, plan_upload, read_settings};
+use crate::lfs_upload_plan::{GitQuery, PlanError, Settings, UploadPlan, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard error as a writable stream.
@@ -57,6 +57,39 @@ pub struct InteractiveUpload<'a> {
 }
 
 /// What:
+///  The read-only Git questions of the upload plan, asked by starting the real Git with the invocation's prefix and
+///  overlay. `&'a InteractiveUpload<'a>` lends the invocation's facts for as long as this value lives.
+/// Why:
+///   The plan asks through the `GitQuery` trait, and the state a question needs is one borrowed value, so a struct
+///  stands where a closure that captured it stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class InteractiveQuery implements GitQuery { constructor(readonly request: InteractiveUpload) {} ask(args: string[]): string {} }
+/// ```
+struct InteractiveQuery<'a> {
+    /// The invocation whose prefix, real Git and overlay every question uses.
+    request: &'a InteractiveUpload<'a>,
+}
+
+impl GitQuery for InteractiveQuery<'_> {
+    fn ask(&mut self, query_arguments: &[&str]) -> Result<String, String> {
+        let mut arguments: Vec<OsString> = self.request.prefix.to_vec();
+        arguments.extend(query_arguments.iter().map(OsString::from));
+        let output = match git_command(self.request.real_git, arguments.as_slice(), self.request.overlay).output() {
+            Ok(done) => done,
+            Err(error) => return Err(error.to_string()),
+        };
+        let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+        return match output.status.code() {
+            Some(0) => Ok(text),
+            Some(1) if text.is_empty() => Ok(text),
+            code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
+        };
+    }
+}
+
+/// What:
 ///  Run the step; the status to stop with when the push must not start, or nothing when it may.
 /// Why:
 ///   A missing `git-lfs`, a plan that cannot be worked out and a failed upload each end the push before it starts.
@@ -71,30 +104,17 @@ pub fn upload_first(request: &InteractiveUpload<'_>) -> Option<i32> {
         let _written = std::io::stderr().write_all(refusal.as_bytes());
         return Some(1);
     }
-    let mut query = |query_arguments: &[&str]| -> Result<String, String> {
-        let mut arguments: Vec<OsString> = request.prefix.to_vec();
-        arguments.extend(query_arguments.iter().map(OsString::from));
-        let output = git_command(request.real_git, arguments.as_slice(), request.overlay)
-            .output()
-            .map_err(|error| {
-                return error.to_string();
-            })?;
-        let text: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
-        return match output.status.code() {
-            Some(0) => Ok(text),
-            Some(1) if text.is_empty() => Ok(text),
-            code => Err(format!("exited with {code:?}: {}", String::from_utf8_lossy(output.stderr.as_slice()).trim())),
-        };
-    };
+    let mut query: InteractiveQuery<'_> = InteractiveQuery { request };
     let directory: std::path::PathBuf =
         effective_directory(std::env::current_dir().unwrap_or_default().as_path(), request.prefix);
-    let read: Result<Settings, _> = match request.settings {
+    let read: Result<Settings, PlanError> = match request.settings {
         Some(held) => Ok(held.to_vec()),
-        None => read_settings(&mut query as Query<'_>),
+        None => read_settings(&mut query),
     };
-    let planned = read.and_then(|settings| {
-        return plan_upload(request.prefix, request.region, request.environment, directory.as_path(), settings.as_slice(), &mut query);
-    });
+    let planned: Result<Option<UploadPlan>, PlanError> = match read {
+        Ok(settings) => plan_upload(request.prefix, request.region, request.environment, directory.as_path(), settings.as_slice(), &mut query),
+        Err(error) => Err(error),
+    };
     match planned {
         Ok(Some(plan)) => {
             // The layout is read from the files; a repository the readers decline keeps the plan, which `git-lfs` scans.
