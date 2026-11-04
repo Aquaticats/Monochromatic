@@ -102,6 +102,10 @@ const BODY_MAGIC: &str = "cli-git-body 2\n";
 /// The directory of the lane that holds request envelopes, one file per identity.
 const INBOX: &str = "inbox";
 
+/// The lane's authoritative ledger, relative to the lane: the only append-only file whose lines discharge a retained item. A line in any
+/// other retained file, however well formed, is not evidence that a request or saved content was settled.
+pub const LANE_LEDGER: &str = "ledger";
+
 /// The directory of the lane that holds immutable saved content, one file per content, named by the SHA-256 of its bytes.
 const SAVED: &str = "saved";
 
@@ -401,8 +405,11 @@ pub struct Selected {
     pub dropped_suffix: bool,
 }
 
-/// The eligible part of a file: its records up to the first one whose retained set does not validate, with the decoded document and set of
-/// the last. Every record carries its complete set, so a record never leans on another record's closure.
+/// The eligible part of a file: the chain of its records up to the first whose retained set does not follow from its predecessor's by
+/// non-drop (every item kept, or discharged by a ledger prefix inside the new set), and within that chain the last record whose own
+/// retained set validates now. Every record carries its complete set, so a record's own validity never leans on another record's closure;
+/// the chain rule is on the declared sets only, which is what lets recovery reach a retirement record whose predecessor's item a disposal
+/// has since removed, and keeps a record that dropped an undischarged item from outrunning the dependencies its predecessor declared.
 fn eligible(lane: &Path, bytes: &[u8]) -> Option<(Vec<Rec>, usize, Vec<u8>, Vec<ClosureEntry>)> {
     let all: Vec<Rec> = records(bytes);
     if all.is_empty() {
@@ -411,19 +418,25 @@ fn eligible(lane: &Path, bytes: &[u8]) -> Option<(Vec<Rec>, usize, Vec<u8>, Vec<
     let mut count: usize = 0;
     let mut last_document: Vec<u8> = Vec::new();
     let mut last_items: Vec<ClosureEntry> = Vec::new();
-    for record in &all {
+    let mut previous: Option<Vec<ClosureEntry>> = None;
+    for (index, record) in all.iter().enumerate() {
         let (items, document): (Vec<ClosureEntry>, Vec<u8>) = match parse_payload(&record.payload) {
             Payload::Plain(plain) => (Vec::new(), plain),
             Payload::Body { items, document } => (items, document),
             Payload::Authority(authority) => (authority.items, authority.document),
             Payload::Damaged => break,
         };
-        if !items.iter().all(|entry| { return validate_entry(lane, entry).is_ok(); }) {
+        if let Some(before) = &previous
+            && check_non_drop(lane, before, &items, None).is_err()
+        {
             break;
         }
-        last_document = document;
-        last_items = items;
-        count += 1;
+        if items.iter().all(|entry| { return validate_entry(lane, entry).is_ok(); }) {
+            last_document = document;
+            last_items = items.clone();
+            count = index + 1;
+        }
+        previous = Some(items);
     }
     if count == 0 {
         return None;
@@ -480,9 +493,13 @@ pub fn read(dir: &Path) -> Result<Option<(u64, Vec<u8>)>, StateError> {
     return Ok(select(dir)?.map(|selected| { return (selected.generation, selected.payload); }));
 }
 
-/// The ledger lines of the first `length` bytes of the prefix item for `ledger_path`, among `items`.
+/// Whether the lane's authoritative ledger, as identified by the entry in `items` that names it, holds a line for `id` (with `outcome` when
+/// given) inside the identified prefix. The entry's prefix must still be the file's prefix; no other retained file counts.
 fn ledger_prefix_has(lane: &Path, items: &[ClosureEntry], id: &str, outcome: Option<&str>) -> bool {
-    return items.iter().filter(|entry| { return entry.kind == EntryKind::AppendPrefix; }).any(|entry| {
+    return items.iter().filter(|entry| { return entry.kind == EntryKind::AppendPrefix && entry.path == Path::new(LANE_LEDGER); }).any(|entry| {
+        if validate_entry(lane, entry).is_err() {
+            return false;
+        }
         let Ok(bytes) = fs::read(lane.join(&entry.path)) else { return false };
         let Some(prefix) = usize::try_from(entry.length).ok().and_then(|length| { return bytes.get(..length); }) else { return false };
         return prefix
@@ -505,8 +522,9 @@ fn retirement_key(entry: &ClosureEntry) -> Option<String> {
 /// Checks the non-drop obligation: every item of the previous record is in the new set (an append-only prefix may have grown, and its
 /// identified prefix must still be the file's prefix) or is discharged. A request is discharged by a ledger line for it in a prefix item of
 /// the new set, so the proof is part of what completion forces; saved content only by a `disposed` line. A retirement the caller names but the
-/// new set cannot prove is refused.
-fn check_non_drop(lane: &Path, previous: &[ClosureEntry], new: &[ClosureEntry], retired: &[String]) -> io::Result<()> {
+/// new set cannot prove is refused. `retired` is the writer's stated intent; recovery passes `None` and accepts any drop the new set's own
+/// ledger prefix proves.
+fn check_non_drop(lane: &Path, previous: &[ClosureEntry], new: &[ClosureEntry], retired: Option<&[String]>) -> io::Result<()> {
     for old in previous {
         let kept: bool = new.iter().any(|entry| {
             return entry.path == old.path
@@ -524,7 +542,7 @@ fn check_non_drop(lane: &Path, previous: &[ClosureEntry], new: &[ClosureEntry], 
         }
         let discharged: bool = retirement_key(old).is_some_and(|key| {
             let outcome: Option<&str> = if old.kind == EntryKind::Opaque { Some("disposed") } else { None };
-            return retired.contains(&key) && ledger_prefix_has(lane, new, &key, outcome);
+            return retired.is_none_or(|names| { return names.contains(&key); }) && ledger_prefix_has(lane, new, &key, outcome);
         });
         if !discharged {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "the new document drops a retained item that is not discharged by a ledger line inside its own retained set"));
@@ -550,7 +568,7 @@ fn append(dir: &Path, generation: u64, document: &[u8], items: &[ClosureEntry], 
             if chosen.dropped_suffix {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "records after the eligible prefix were dropped for a missing dependency; repair first"));
             }
-            check_non_drop(&lane, &chosen.items, items, retired)?;
+            check_non_drop(&lane, &chosen.items, items, Some(retired))?;
             (chosen.number, chosen.hash.clone(), chosen.length)
         }
         None => (1, genesis(), 0),
@@ -620,7 +638,7 @@ pub fn state_covers(dir: &Path, prefix: &Prefix) -> Result<bool, StateError> {
         }
     }
     let lane: PathBuf = lane_of(dir);
-    return Ok(check_non_drop(&lane, &prefix.items, &current.items, &[]).is_ok());
+    return Ok(check_non_drop(&lane, &prefix.items, &current.items, Some(&[])).is_ok());
 }
 
 /// A checkpoint candidate the writer started: its file number, generation and chain hash, so completion acts on exactly this file.
@@ -658,7 +676,7 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
         }
         // Non-drop: the document is the replay of the predecessor's valid prefix, so every item retained there is retained here or discharged
         // by a ledger prefix that is itself part of this closure (and so is forced at completion).
-        check_non_drop(&lane, &chosen.items, closure, retired)?;
+        check_non_drop(&lane, &chosen.items, closure, Some(retired))?;
     }
     let next: u64 = existing
         .last()
