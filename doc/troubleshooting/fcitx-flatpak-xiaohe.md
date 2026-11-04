@@ -130,4 +130,76 @@ the documented extension installation and migration of existing settings restore
 The repository's `.out-of-scope/` search found no Fcitx or Flatpak entry.
 No upstream issue or comment was drafted or sent.
 
+## Process shutdown investigation, 2026-11-04T09:36:00-05:00
+
+The user asked whether Fcitx had been killed or had failed to start automatically.
+This is a separate incident from the missing Chinese Addons extension.
+The installed application remained version `5.1.23`,
+with the application commit recorded in Verification.
+
+### Observed lifecycle
+
+The current boot's system journal retained the initial launch,
+the later shutdown,
+and the current launch:
+
+- At `2026-11-02T13:29:06-05:00`,
+  `kwin_wayland_wrapper[7192]` logged `Starting fcitx5 5.1.23` during desktop startup.
+- At `2026-11-02T14:03:22-05:00`,
+  the documented configuration recovery restarted Fcitx as PID `2749765`.
+- At `2026-11-02T15:33:58-05:00`,
+  that process began logging `Unloading addon` messages.
+  The final message was `Unloading addon wayland` at `2026-11-02T15:34:02-05:00`.
+  Its Flatpak scope ended at `2026-11-02T15:34:03-05:00`.
+- The next matching launch record was `2026-11-04T09:30:38-05:00`,
+  PID `3976727`,
+  before this investigation began.
+  Its process name was `fcitx5-bin`.
+
+These records establish that automatic startup had worked and that a later process stopped.
+The add-on unloading sequence suggests an orderly shutdown.
+It does not identify the requester or exclude a handled termination signal.
+No Fcitx kill or crash record was found in the current boot's inspected journal;
+absence of such a record does not establish the shutdown's cause.
+The initiating action remains unknown.
+
+### Current configuration and verification
+
+`~/.config/kwinrc:310` still selected the existing Flatpak desktop entry:
+`/var/lib/flatpak/exports/share/applications/org.fcitx.Fcitx5.desktop`.
+`systemctl --user status` reported its current Flatpak scope active since `09:30:38 EST`.
+Read-only D-Bus calls with `--auto-start=no` returned:
+
+- `CurrentInputMethod`: `shuangpin`.
+- `InputMethodGroupInfo`: `keyboard-us` and `shuangpin`.
+- Pinyin `GetConfig`: `ShuangpinProfile=Xiaohe`.
+
+The process and controller were responsive;
+typing in an application was not tested.
+No restart or configuration change was performed during this investigation.
+An exact-name process search for `fcitx5` missed the actual name `fcitx5-bin`,
+so that search alone was not evidence of absence.
+
+The shutdown evidence was queried with:
+
+```sh
+# Current boot journal: the previous Fcitx process's shutdown window.
+systemd-run --user --scope --quiet \
+  --property=CPUQuota=100% --property=MemoryMax=512M \
+  --property=TasksMax=32 --property=IOWeight=10 \
+  journalctl --boot --since='2026-11-02 15:33:45' --until='2026-11-02 15:34:15' \
+  --no-pager --output=short-iso-precise _PID=2749765 _PID=6906 _PID=6887 _PID=5698
+```
+
+### Recovery and upstream disposition
+
+The service had already resumed before inspection,
+so no new recovery procedure was tested.
+The shutdown was not reproduced and no regression test or upstream patch was attempted.
+Upstream fault and fixability remain unestablished.
+The supported Flatpak installation remains documented in the installation guide.
+Contribution policy and maintainer intent were not reassessed because no upstream change is proposed.
+There is nothing to file from this evidence;
+no issue or comment was drafted or sent.
+
 [install]: https://fcitx-im.org/wiki/Install_Fcitx_5#:~:text=flatpak%20install%20org.fcitx.Fcitx5.Addon.ChineseAddons
