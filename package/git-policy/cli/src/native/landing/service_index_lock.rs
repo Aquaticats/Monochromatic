@@ -302,6 +302,11 @@ fn acquire_placing(
 #[path = "service_index_reclaim_tests.rs"]
 mod reclaim_tests;
 
+/// Controls for the claim chain stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_claim_tests.rs"]
+mod claim_tests;
+
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_index_lock_tests.rs"]

@@ -19,6 +19,7 @@
 //! ```
 
 use crate::service_index_lock::lock_path_of;
+use crate::service_index_claim::{Claim, ClaimHold, take_claim};
 use crate::service_index_marker::{LOCK_MARKER, Marked, holder_is_gone, marker_of_file};
 use crate::service_index_placement::{Platform, SYSTEM};
 use std::os::fd::AsRawFd;
@@ -38,9 +39,9 @@ pub enum Reclaimed {
     Kept,
     /// The file is stale and cannot be removed; the log says why.
     Stuck,
-    /// The file is stale, but the hold a safe removal needs could not be taken (no `flock` on the file system, or the kernel
-    ///  refused it): the file is left where it is, and the person is told how to remove it. It carries the marker read from the
-    ///  very file that was judged, so the notice never describes a file that replaced it.
+    /// The file is stale, but no exclusion for its removal could be had, neither the `flock` nor a claim file (the file system
+    ///  gives no `flock` and refuses to place the claim): the file is left where it is, and the person is told how to remove it.
+    ///  It carries the marker read from the very file that was judged, so the notice never describes a file that replaced it.
     Unguarded(Marked),
 }
 
@@ -86,30 +87,47 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
         return Reclaimed::Kept;
     }
     crate::service_fault::reach("reclaim-judged");
+    // The exclusion this reclaimer is under until it is done: the `flock` on the file (held by the descriptor), or, where the
+    //  file system gives none, the claim chain beside the lock.
+    let mut claim: Option<ClaimHold> = None;
     match hold(platform, &file) {
         Hold::Taken => {}
         Hold::Busy => return Reclaimed::Busy,
-        Hold::Unavailable(error) => {
-            crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: the hold that keeps two reclaimers apart could not be taken ({error}), so a removal could take a live lock; \
+        Hold::Failed(error) => {
+            crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: the hold that keeps two reclaimers apart failed in a way that does not say the file system has no flock ({error}), so a removal could take a live lock; \
                  remove it by hand once no git command runs in this repository",
                 lock.display()
             );
             return Reclaimed::Unguarded(marked);
         }
+        Hold::NotThere(error) => match take_claim(platform, lock, &file, &marked) {
+            Claim::Held(held) => {
+                crate::service_log!("the index lock {} is reclaimed under the claim chain, because the file system gives no flock on it ({error})", lock.display());
+                claim = Some(held);
+            }
+            Claim::Busy => return Reclaimed::Busy,
+            Claim::Unavailable(why) => {
+                crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: neither the flock ({error}) nor a claim file ({why}) \
+                     could be had to keep two reclaimers apart, so a removal could take a live lock; remove it by hand once no git command runs in this repository",
+                    lock.display()
+                );
+                return Reclaimed::Unguarded(marked);
+            }
+        },
     }
     crate::service_fault::reach("reclaim-held");
     match same_file(lock, &file) {
         Ok(true) => {}
-        Ok(false) => return Reclaimed::Changed,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Reclaimed::Removed,
+        Ok(false) => return cleared(claim, Reclaimed::Changed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return cleared(claim, Reclaimed::Removed),
         Err(error) => {
             crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be looked at ({error})", lock.display());
             return Reclaimed::Stuck;
         }
     }
     return match (platform.unlink)(lock) {
-        Ok(()) => Reclaimed::Removed,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Reclaimed::Removed,
+        Ok(()) => cleared(claim, Reclaimed::Removed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => cleared(claim, Reclaimed::Removed),
         Err(error) => {
             crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
                  remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
@@ -118,6 +136,15 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
             Reclaimed::Stuck
         }
     };
+}
+
+/// `answer`, after the claims of a reclaimer that saw the stale file leave its name are removed (a reclaimer under the `flock`
+///  has none).
+fn cleared(claim: Option<ClaimHold>, answer: Reclaimed) -> Reclaimed {
+    if let Some(held) = claim {
+        held.clear_all();
+    }
+    return answer;
 }
 
 /// Opens `lock` to read its marker without following a link or waiting on a pipe, and without a descriptor a child could inherit.
@@ -131,8 +158,13 @@ enum Hold {
     Taken,
     /// Another reclaimer holds it.
     Busy,
-    /// The file system gives no `flock`, or the call failed for a reason that waiting does not change: nothing is removed.
-    Unavailable(std::io::Error),
+    /// The file system answered that it gives no `flock` (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`, `EBADF`: what the file
+    ///  systems that define the operation return, `fs/nfs/file.c`, `fs/9p/vfs_file.c`, `fs/smb/client/file.c`): the claim chain
+    ///  takes the `flock`'s place.
+    NotThere(std::io::Error),
+    /// The call failed for a reason that is neither a hold by another nor a refusal known to mean "no `flock` here" (an I/O
+    ///  error, a stale handle, a timeout): another reclaimer may hold it, so nothing is removed and the person is told.
+    Failed(std::io::Error),
 }
 
 /// What:
@@ -147,9 +179,14 @@ enum Hold {
 fn hold(platform: &Platform, file: &std::fs::File) -> Hold {
     return match (platform.flock)(file) {
         Ok(()) => Hold::Taken,
-        // An interrupted call is asked again by the wait, like a hold another reclaimer has taken.
-        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted) => Hold::Busy,
-        Err(error) => Hold::Unavailable(error),
+        // An interrupted call, and one that found no memory for the kernel's lock record (`ENOMEM` from `fs/locks.c`), are asked
+        //  again by the wait, like a hold another reclaimer has taken: neither says the file system has no `flock`, and a
+        //  reclaimer that took the claim path beside one that holds the `flock` would not be kept apart from it.
+        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted | std::io::ErrorKind::OutOfMemory) => Hold::Busy,
+        Err(error) if matches!(error.raw_os_error(), Some(libc::ENOLCK | libc::EOPNOTSUPP | libc::ENOSYS | libc::EINVAL | libc::EBADF)) => Hold::NotThere(error),
+        // Any other answer could be a lock manager that is failing for one call while it works for another reclaimer, which
+        //  holds the `flock` without a claim: taking the claim path beside it would not keep the two apart.
+        Err(error) => Hold::Failed(error),
     };
 }
 
@@ -204,7 +241,7 @@ pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
         None => (format!("cli-git-service batch {}", marked.seq), format!("{LOCK_MARKER}{}", marked.seq)),
     };
     return format!(
-        "The index lock {} was left by {who} and is not removed here, because the file lock that makes its removal safe could not be taken on this file system. \
+        "The index lock {} was left by {who} and is not removed here, because neither the file lock that makes its removal safe nor a claim file beside it could be had on this file system. \
          The commit waits as for any held lock. Once no git command and no commit of this service is running in this repository, and the first line of the file \
          still reads `{first_line}`, remove it yourself (`rm {}`).",
         lock.display(),

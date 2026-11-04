@@ -3086,6 +3086,10 @@ Kept, each with its reason in the code and here:
 - The mutex on the pending bytes of the journal's stream (`journald_native.rs`):
   a stream may take a line in parts and two lines must never run together, so the unfinished rest of a line and the write that
   finishes it are one critical section of one non-blocking write; the waiter waits for one system call, never for the journal.
+- The reclaim of a stale `index.lock`:
+  one reclaimer at a time, by a non-blocking `flock` on the stale lock's own file (`service_index_reclaim.rs`) or, where the file system
+  refuses `flock`, by the claim chain of placed files and process-identity judgements (`service_index_claim.rs`, reason in `take_claim`);
+  the claim chain has no lock primitive for the scan above to find, so it is listed here and nowhere else (see "One reclaimer per stale lock").
 - The claim and its lease on work items (`work_item.rs`, `service_claim_renewal.rs`):
   rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
 
@@ -3200,6 +3204,13 @@ batches, and the wait of a landing) goes through `reclaim_if`, which opens the l
 a non-blocking exclusive `flock` on it, checks that the name still refers to that file (device and inode), and only then
 unlinks the name.
 Nothing is moved aside, so a live lock is never off its name.
+Where the `flock` answers that the file system gives none (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`, `EBADF`: what the file systems
+that define the operation return in `fs/nfs/file.c`, `fs/9p/vfs_file.c` and `fs/smb/client/file.c`), the same steps run under the claim chain
+instead of the `flock` (`service_index_claim.rs`; "The claim chain" below). `EWOULDBLOCK`, `EINTR` and `ENOMEM` (the kernel's lock record)
+are back-offs. Any other error (an I/O error from a lock manager, a timeout) is neither: another reclaimer may hold the `flock` while
+this call fails, a claim beside it would not keep the two apart, so the answer is Unguarded. A local file system always takes the `flock`
+path: `fs/locks.c` takes a local lock for every file system that defines no `flock` operation of its own, and only file systems that
+define one (for example NFS, 9p, CIFS, Ceph, and FUSE when its daemon refuses) can refuse.
 There are six answers, and each has its own consequence:
 
 - Removed: the stale file was removed, or was already gone; the placement is tried again.
@@ -3208,14 +3219,44 @@ There are six answers, and each has its own consequence:
 - Busy: another reclaimer holds the stale file (or the call was interrupted); a landing waits as for any held lock and looks
   again after the poll pause, because the end of a hold leaves no event in the directory, and the ceiling ends the wait; a
   restart leaves the batch open.
-- Unguarded: the hold could not be taken for any other reason (no `flock` on the file system, the kernel refused it). Nothing is
-  removed, because an unlink without the hold could remove a live lock. A landing waits as for any held lock to its ceiling and
-  withdraws the commit to its side ref; its notice is written from the marker of the file that was judged (never a second read
-  of the name, which a live landing may hold by then), names the lock, the batch and the dead process, and says to remove the lock
-  by hand once no git command and no commit of the service is running and the file's first line still reads as quoted. A restart
-  leaves the batch open.
+- Unguarded: neither the `flock` nor the claim chain below could be had (no `flock` on the file system and no claim file can be
+  placed, or this process cannot name itself in a claim), or the `flock` failed in a way that does not say the file system has none. Nothing is removed, because an unlink without exclusion could remove a
+  live lock. A landing waits as for any held lock to its ceiling and withdraws the commit to its side ref; its notice is written
+  from the marker of the file that was judged (never a second read of the name, which a live landing may hold by then), names
+  the lock, the batch and the dead process, and says to remove the lock by hand once no git command and no commit of the service
+  is running and the file's first line still reads as quoted. A restart leaves the batch open.
 - Kept: the file is not a stale lock of the service (a live holder's, Git's, or unreadable); it is left where it is.
 - Stuck: the file is stale and cannot be removed; the log says why, and the landing fails as before.
+
+#### The claim chain
+
+Used instead of the `flock` on the stale file when the file system refuses it, and it needs no `flock` anywhere.
+A claim is a file named `<lock>.cli-reclaim-<key>-<slot>`, where the key is made from the marker of the stale lock (its batch, process,
+and the birth identity in hexadecimal), so that every reclaimer reaching the file by any mount derives one name: the device number of
+one remote tree can differ between two mounts of it. The process that marker names is gone and places no further lock with that marker,
+so a claim left under a key is inert; a marker that names no process (an earlier release's) falls back to the device and inode.
+A claim is mode 0644 whatever the umask, so that a reclaimer of another account can read it (one that cannot read a claim takes its
+maker to run). It holds the service marker of its maker with a random token in the batch field, is written to a staging file and placed
+whole by a rename that does not replace (else a hard link), and is judged as a lock holder is (`holder_state_in`): a maker that is gone
+is passed over; a maker that runs, cannot be judged or whose claim cannot be read makes the reclaimer back off (`Busy`). A placement
+that answers with an error although it took effect (a network file system can lose the answer) is recognised by the claim's text
+and is the reclaimer's own.
+The reclaimer places its claim at the first slot not taken by a running claimer, then reads every slot below its own again: all
+must still exist and name a gone maker, or it removes its own claim and backs off. It then runs the same name check and unlink as
+under the `flock`, and removes the claims from zero to its own once the name no longer refers to the stale file; when the unlink
+fails it removes only its own.
+A claim of a dead maker is never removed while the stale file stands at its name, so a slot read as gone stays gone and in
+place, and no reclaimer can be placed below it; two holders would need one slot to be read as gone by the other, which its own
+claim or the exclusive placement prevents. The rule needs no birth time of the file, because a claim left by an earlier file with
+the same key is a gone claim at a low slot and is passed over. A file at a claim's name that holds no whole marker is passed
+over too, since a placed claim is whole.
+Limits: a claimer killed after the unlink and before its cleanup leaves inert `<lock>.cli-reclaim-*` files, which the next reclaim of
+a file with that key removes and which a person may remove with `rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*`
+once no commit of the service runs (an alternate index: the directory of that index); a claimer alive on another host over a shared
+file system reads as gone, as a lock holder does (a boot ID that differs reads as gone); a reclaimer on the `flock` path and one on the claim path of one file system are not kept apart, because neither path sees the other (it
+takes two mounts of one file system that differ in `flock` support, or a lock manager that answers "no locks" to one call and grants the
+next; an I/O error or timeout is not read as "no `flock`" for this reason); and a claim cannot be placed on a full disk,
+where the landing's own lock cannot be either.
 
 The lock is the one that `doc/planning/cli-git-one-reclaimer-per-index.md` argues for: the unit is the one file being
 reclaimed, the hold lasts a few system calls, and the kernel drops it when the descriptor closes or the process dies, so no
@@ -3224,8 +3265,10 @@ It is on the lock inventory (`source_guard/service_lock_inventory_tests.rs`) wit
 Two reclaimers, and a reclaimer against a landing, are kept apart; Git takes no part and never reclaims.
 What stays open: a person's `rm index.lock` between the check of the name and the unlink, when Git then places its own lock in
 the two system calls between, because no system call unlinks a name only if it still names a given file; a file system that
-gives no `flock` (the stale lock is then left for the person, and the log says so); and reclaimers on different hosts over a
-shared file system, which `flock` does not reach.
+gives no `flock` and takes no claim file, or a `flock` that fails in an unrecognised way (the stale lock is then left for the person,
+and the log says so); two mounts of
+one file system on one machine that differ in `flock` support; and reclaimers on different hosts over a shared file system, which the
+`flock` does not reach, and the claim chain does not either, because it reads a claimer of another host (another boot ID) as gone.
 Release 0.5.28's reclaim could leave a file at a taken-aside name (`<lock>.aside-<process>-<time>`) beside the lock, when a third
 program took the name while it was off it. This release makes none, and nothing removes the ones already there: a scan of the
 visible processes does not prove that no process holds one, and the file may hold a native Git's pending index. Once no git
@@ -4546,14 +4589,26 @@ so it cannot end the line or hide a field.
 
 ### Compatibility and degradation
 
-The executable requires real Git 2.55.0 or newer for commits.
-It asks Git for its version once per invocation before that work,
-and on an older Git it runs nothing and emits an `engine-failure` event with code `content-unavailable` and exit `2`,
-whose message names the real Git it found,
-the version Git reported and the remedy (upgrade Git,
+The executable is tested with real Git 2.56.0, the release the gate image's distribution package carried on 2026-11-04,
+and `MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs` names it.
+It asks Git for its version once per invocation before commits, hooks and locks,
+and on an older Git it prints one warning to standard error
+that names the real Git it found,
+the version Git reported,
+the version the wrapper was tested with,
+and that the command continues,
+then runs the command as usual
+(owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+Only a version that cannot be read,
+or a Git that cannot start,
+stops the command with an `engine-failure` event with code `content-unavailable` and exit `2`,
+whose message names the real Git and the remedy (point the wrapper at a working Git,
  then run the command again).
 Read-only commands are never checked.
-Features that Git introduced after 2.55.0 are not assumed.
+The constant moves with the test image's Git: when the gate image's `git` package moves to a newer release,
+the constant is raised to it with the first gate run on that release.
+Code written while the minimum was 2.55.0 assumed no feature introduced after 2.55.0,
+and no test now runs on an older Git, so behavior on one is untested.
 
 The retired TypeScript wrapper had no version gate and degraded one feature at a time on Git 2.39.5 and 2.40.0:
 a probe of `git merge-tree --write-tree --merge-base` (fail fast with `concurrent-commit/head-moved` without it),

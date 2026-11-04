@@ -5,21 +5,22 @@
  Three subcommands, selected by the first argument:
 
  - `base` builds `localhost/cli-git-concurrent-e2e:<CachyOS image>-<Containerfile>` from
-   `e2e/concurrent-commits.Containerfile`: CachyOS, Node 24.11.0, Git 2.55.0 under `/opt/git`, and `ssh-keygen`.
+   `e2e/concurrent-commits.Containerfile`: CachyOS with pacman's current `git`, `nodejs` and `openssh` (`ssh-keygen`).
    It pulls the CachyOS `latest` tag first (one small request when nothing changed) and builds only when that pull
    or the Containerfile is new to the host, so the tag changes with either input and no run reuses a stale base.
-   The build needs a network (package manager and downloads); the suite itself does not.
+   The build needs a network (the package manager); the suite itself does not.
  - `image` builds `localhost/cli-git-concurrent-e2e-native:<tag>` in two stages.
    The first compiles the release `cli-git-native` from a mount-free snapshot of this checkout in the gate's base
    image (`native-test-base.Containerfile`: the same CachyOS image the end-to-end base starts from, plus Rust),
    so the executable runs there without a glibc mismatch.
    The second starts from the end-to-end base image (built first when it does not exist) and links the executable as
    `/opt/native/bin/git`.
-   That image has no `/usr/bin/git`, so the native wrapper can only find the scenario's Git through `PATH` order.
+   The scenario's `PATH` puts the wrapper's directory before `/usr/bin`, so the wrapper finds the packaged Git behind
+   itself.
  - `run` starts the suite in that image with `E2E_WRAPPER=native` (the container limits, no network, `e2e/` mounted
    read-only).
    `usage_seed`, `usage_scenario` and `usage_git` (set by mise from `--seed`, `--scenario` and `--git`)
-   select the seed, the scenario names and the Git versions.
+   select the seed, the scenario names and the Git release (the installed Git's only).
 
  Every subcommand accepts `--memory <size>` and `--cpus <count>` after it (2 GiB and 2 CPUs unless given);
  mise passes the `run` task's flags as `usage_memory` and `usage_cpus`.
@@ -170,7 +171,7 @@ async function buildImage(): Promise<void> {
     source: pulled,
   });
   /**
-   The base the executable is linked into: CachyOS with Node and the Git versions under test.
+   The base the executable is linked into: CachyOS with Node and the Git under test.
    */
   const endToEndBase = await ensureEndToEndBase({
     limits: containerLimits,

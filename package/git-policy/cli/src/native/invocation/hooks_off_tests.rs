@@ -231,9 +231,9 @@ fn events_from_manual() -> Option<Vec<String>> {
 /// The events the AsciiDoc source of the page lists: each is a line of event spelling followed by a line of tildes.
 ///  `None` when no installed copy of the source exists.
 fn events_from_source() -> Option<Vec<String>> {
-    // The gate image keeps the source tree Git 2.56.0 was built from, so the list always matches the Git under test;
-    //  a host's own documentation comes second.
-    let directories: [&str; 3] = ["/work/git-source/Documentation", "/usr/share/doc/git", "/usr/share/doc/git-doc"];
+    // A host's own documentation source. The gate image installs the distribution's Git, which ships the rendered page
+    //  and not this source, so there the rendered page (through `man-db`) answers instead.
+    let directories: [&str; 2] = ["/usr/share/doc/git", "/usr/share/doc/git-doc"];
     let text: String = directories
         .iter()
         .find_map(|directory| { return std::fs::read_to_string(Path::new(directory).join("githooks.adoc")).ok(); })?;

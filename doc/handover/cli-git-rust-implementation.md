@@ -3522,8 +3522,321 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the minimum rises to the tests' Git,
   and an older Git gets a warning and the command runs.
   Both sent to the agent on `feat/git-policy-cli-test-images-from-pacman`.
+  CM7's wording:
+  the owner chose "Leave CM7 unchanged" with the note "Record this carve-out for whatever the git wrapper needs.";
+  so `AGENTS.md` stays as it is,
+  and the package docs of `package/git-policy/cli` record the carve-out (its test images take tools from pacman).
   The other container picks (resolve `latest` once per run,
   run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
+- After the check of the older delegated picks (report of 2026-11-04,
+  live picks listed under "Older picks still live"):
+  - Branch writes:
+    "Never cut a branch write (Recommended)":
+    the shipped 60 s ceiling on `git update-ref` goes;
+    steps that can run twice keep their ceilings;
+    the command still returns at its own bound with the "Short extra wait" text.
+  - Non-Git tools during `git worktree add` (package repair,
+    Markdown linter,
+    standards review):
+    "Silence plus a ceiling (Recommended)":
+    keep ending on silence and add a measured overall ceiling per tool that ends it with an error naming the tool.
+  - The commit design's R-never (the lane never removes an `index.lock` its own dead process left):
+    "Reclaim it (Recommended)":
+    the new protocol reclaims a proven-stale lock of its own dead incarnation through the shipped mechanism once that passes review;
+    revision 19 is to be amended (coordinator),
+    and the models agent was told.
+  The first two are built on `fix/git-policy-cli-branch-write-and-tool-ceilings`,
+  with the never-run follow-up of shipped-limits pick 7 (re-derive the one-hour namespace-record block from the 10-minute lock ceiling).
+  Built (tip `607e568e7d`,
+  gate r3 4780/4780,
+  clippy clean,
+  not merged,
+  no cross-vendor review yet):
+  `update-ref` and the other in-place writers have no step ceiling;
+  queued commits are told what the service is stuck in and withdrawn at their own ceiling;
+  `FOREIGN_OWNER_PATIENCE` is 1200 s (twice `LOCK_CEILING`);
+  repair tool 18 min (whole process group),
+  Markdown linter 4 min,
+  review call 1 min,
+  whole review 2 min,
+  each five times the longest measured run (warm stores only).
+  Follow-up sent to the agent (`aa0fee0c2cf70bb31`),
+  decided by the owner's own wording:
+  the commit inside the stuck write returns at its own bound plus the short extra wait ("a few more seconds,
+  a constant to be measured"),
+  not at the 10-minute `WITHDRAW_CEILING`;
+  a step keeps its ceiling exactly when it can run twice,
+  decided per step by cutting it on a throwaway repository and comparing with an uncut run;
+  every step without a ceiling still lets the person's command return at its own bound with a not-known error,
+  the step left running;
+  the service never restarts itself out of a stuck write;
+  cold-store `pnpm install` and Cargo stage measured before the ceilings are fixed.
+  Asked of the owner:
+  the multiple for the tool ceilings and the length of the short extra wait.
+  Then the cross-vendor review of the whole branch,
+  merge,
+  and release 0.5.31.
+  - Every other live pick in `doc/planning/cli-git-delegated-picks-status.md`,
+    asked in seven grouped questions,
+    each answered "Keep all (Recommended)":
+    waits and bounds (150 s connected-push quiet window,
+    10-minute foreign `index.lock` ceiling,
+    a quiet Git step redone once,
+    the 20-minute,
+    60 s,
+    10-minute and 150 s numbers,
+    to be replaced by measured values);
+    the commit design's stuck-Git and hook picks (A-kill,
+    B-hand,
+    C-kind,
+    H-version,
+    H-episode);
+    its edge-case picks (rev 6 Q1,
+    Q3,
+    Q4,
+    G-order,
+    N-silent);
+    cargo-shadow's first-round picks with its own-call limits and the 1,000-file warning;
+    reference-lock removal Q1 to Q3;
+    the merge and pull picks;
+    and the smaller shipped limits (picks 1,
+    2 remnants,
+    3,
+    5 remnants,
+    8,
+    11,
+    12,
+    13,
+    14,
+    15).
+    No delegated pick is left open.
+- cargo-shadow round 10 (tip `5be23af4b7`;
+  debug and release 571 passed,
+  5 skipped helpers;
+  map 14 rows shown,
+  2 partly) flagged two choices:
+  - A killed run whose start was not fully recorded:
+    "Record the launcher (Recommended)":
+    the launcher's process id,
+    start time and namespace are recorded,
+    recovery proves it gone before reading the scope,
+    and the acknowledgement stays only for what that cannot prove;
+    built as round 11 (tip `2c20baf0e6`;
+    578 passed,
+    6 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 14 shown,
+    2 partly).
+    Cross-vendor reviews returned:
+    `cargo-shadow-sol-11a.txt` "Does not meet the list for this part" (the launcher check's `kill` and `/proc/<pid>/stat` can address different processes when the mounted procfs serves another PID namespace;
+    the boot-id authority check follows symlinks and races with the read;
+    a `try_wait` error counted as a reap;
+    the `view` header not validated)
+    and `cargo-shadow-sol-11b.txt` "Meets it after named fixes" (D3 tolerance,
+    K2 barrier order,
+    real-launcher identity not compared,
+    missing gone-launcher-with-member case,
+    reboot control,
+    byte-prefix cuts,
+    discovery handshake);
+    no row added.
+    Round 12 done (tip `a8c7fbf8c2`;
+    584 passed,
+    8 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 14 shown,
+    2 partly;
+    the writer-side sync fault and a real interrupted publication now tested).
+    Reviews returned:
+    `cargo-shadow-sol-12a.txt` "Does not meet the list for this part" (the pidfd fdinfo check is not bound to the later stat read: a `/proc` replaced or overmounted between them makes a live launcher read as gone;
+    a changed positive number after a failed stat read as gone;
+    boot-id,
+    reap and view-header fixes accepted)
+    and `cargo-shadow-sol-12b.txt` "Meets it after named fixes" (scope comparison circular,
+    procfs fixture not discriminating,
+    publication control without completion);
+    no row added.
+    Round 13 running (suggested fix:
+    one pinned procfs directory descriptor and `openat2` with `RESOLVE_NO_XDEV`).
+    Owner,
+    asked whether deliberate tampering with `/proc` and mounts by a program running as the user is in scope (rounds 10 to 12 each found a deeper such schedule):
+    "Out of scope, keep cheap guards (Recommended)";
+    assumption a is extended to exclude it,
+    cheap guards stay,
+    and the reviews judge against that premise.
+    Round 13 done (tip `f463a87151`;
+    588 passed,
+    10 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 16 shown,
+    0 partly:
+    real kills after each step of `begin` for V3/V4 and a real shim run with a user-command sentinel for A2/R4;
+    pinned procfs reads with `openat2`;
+    only fdinfo `-1` reads as gone).
+    Review `cargo-shadow-sol-13.txt`:
+    "Does not meet the list":
+    12a findings closed or excluded,
+    12b repairs closed;
+    a new counterexample needing no tampering:
+    `/proc/<pid>/stat` field 22 is offset by the reader's time namespace,
+    so a recovery in another time namespace reads a live launcher as gone;
+    the shim test does not prove the delegated route and the intended fault;
+    no row added.
+    Round 14 done (tip `2530e617f4`,
+    2026-11-04T10:02:46-05:00;
+    590 run,
+    590 passed,
+    11 skipped;
+    clippy clean):
+    the launcher line carries the writer's time namespace inode and recovery answers Unknown on a mismatch,
+    an unreadable side or an older line without one
+    (measured: `unshare --time --boottime 7200` moves the same process's field 22 by 720000 ticks);
+    the shim test now asserts the delegated scope,
+    the consumed `ContainmentStopStuck` fault and the not-quiescent refusal.
+    Change review `cargo-shadow-sol-14.txt`:
+    "Does not meet the list for the changes; not ready for the certification pass":
+    the distinct-time-namespace schedule and the shim evidence are closed;
+    namespace inode numbers are recycled,
+    and a writer's current time namespace can differ from its children's,
+    so a recorded number can name a later namespace and a live launcher reads as gone;
+    the shifted-start prerequisite accepts a read error,
+    and the recovery assertion does not name its refusal.
+    Round 15 sent to the agent (`ae0fbdf78c31bd757`):
+    a namespace-independent launcher identity (suggested:
+    the pidfs inode of the launcher's pidfd,
+    to be verified from the kernel source),
+    else Unknown on any start mismatch whose basis is unproven;
+    both test assertions tightened.
+    Queued after a change review with no defect:
+    a certification pass that attaches the test bodies the map names,
+    split by row group under 250 KB per review,
+    because the sources total 2.36 MB and every change review so far called the unchanged rows unavailable.
+- Test images from pacman merged to main (`85984b790e`;
+  branch tip `4bafaa418d`;
+  gate 4754/4754 with passing names identical to a main control except the tests the owner's older-Git decision changed;
+  e2e identical to main,
+  same seed,
+  the known `sigkill-service-during-work` failure unchanged;
+  `native:clippy` on main clean):
+  Git 2.56.0,
+  Node 26.12.1,
+  pnpm 12.17.0,
+  strace 7.3,
+  cargo-nextest 0.9.150 and Rust 1.99.1 all from pacman with signatures checked;
+  the wrapper warns on a Git older than `MINIMUM_GIT_VERSION` 2.56.0 and continues.
+  Follow-ups:
+  `bin/native-nextest-snapshot.ts` stays because the fuzz sidecars import it;
+  the minimum is raised by hand when `test:git-image` reports a newer Git (no automated check yet).
+  Ships in the next release with the branch-write and tool-ceiling fixes.
+- 0.5.30 published (crates.io 2026-11-04T14:27:24Z,
+  run 41846701765) and installed (`5c2fb3a5b2`):
+  it ships the claim chain;
+  the sample commit took 1690 ms,
+  1197 ms of it provisioning the upgraded service;
+  the landing took 29 ms.
+- Models round 15 review part 10b:
+  "no, as submitted":
+  the fresh-attempt model binds delivery to the current attempt counter,
+  so an older stored notice printed after a new attempt starts authorizes reclaiming that attempt;
+  bind notice,
+  printing and removal to the producing attempt;
+  the reclaim row should point to the claim-chain evidence;
+  no criterion added.
+  Part 10a:
+  "does not meet the claimed items as submitted" (2A closure still caller-declared;
+  2B adoption of an existing read-only inode;
+  2E ancestry is not a covering relation;
+  3A the launcher's lock copy blocks the handover;
+  3B helpers unbounded after release;
+  3C descriptors 0 to 2;
+  3D ready byte with an unreaped first child);
+  no criterion added.
+  Round 16 done (tip `93dbc86b80`;
+  451 model tests passed;
+  map unchanged at 64,
+  17,
+  9,
+  17);
+  every 10a and 10b finding fixed except 3B,
+  recorded as a coordinator pick (veto open):
+  helpers stopped from outside after their lock release are not bounded,
+  because no release-then-recheck protocol found bounds them without missing a receipt or adding a wait;
+  the launch row is Narrower.
+  Disclosed:
+  a round 15 test had been cut by a later round 15 edit and is restored;
+  the map check only tests names in its test column.
+  Review `commit-models-sol-11.txt`:
+  "no, as submitted":
+  2B,
+  3C and 10b closed;
+  2A closure still lets a dependency outside the scanned places (an order file without its needs line) reclaim a predecessor;
+  2E head equality credits every record in the chain,
+  so one checkpoint can drop an acknowledged promise whose hash lands in the lineage;
+  3A a handover timeout still runs the helper,
+  and the intermediate child still holds a lock copy when GO is sent;
+  the forced cleanup ignores `kill` and `waitpid` results;
+  descriptor normalization leaks on an `EMFILE` path;
+  3B as a Narrower row does not meet the target's resource bound,
+  and the reviewer names a bounded protocol with no wait and no second lock:
+  keep the admission token until process exit and hand a contender's receipt to the persisted syncer retry path.
+  Coordinator pick,
+  decided by the fixed acceptance target:
+  build that protocol,
+  so the 3B narrowing is withdrawn.
+  Round 17 sent to the models agent (`a9c775c9196f1d836`) with all of these;
+  its parts go to `commit-models-12-part-<n>-<topic>.diff`.
+  - Trusting the boot id:
+    "Check and state premise (Recommended)":
+    procfs magic and no mount on top of `boot_id`,
+    plus the stated premise that the serving kernel ran the old run.
+- Index reclamation without `flock`:
+  merged to main `38de589e7a` (branch tip `ceafded580`,
+  gate 4769/4769,
+  its own cross-vendor review `claim-chain-sol-1.txt` folded in);
+  the claim chain of placed files where `flock` is refused.
+  Owner,
+  asked about the mixed-mount race it left (a `flock` reclaimer and a claim reclaimer on one file):
+  "Claim files always (Recommended)";
+  so every reclaimer takes the claim chain and the `flock` path for this is retired.
+  Follow-up running on `fix/git-policy-cli-index-lock-claims-always`:
+  that change,
+  plus the machine id in markers and claims (a different machine is unknown,
+  never gone;
+  same machine with a different boot is gone),
+  the coordinator's application of the rule the owner kept for cargo-shadow.
+- Models round 15 done (tip `d650198dcf`;
+  440 model tests passed;
+  map 64 covered,
+  17 narrower,
+  9 historical,
+  17 not yet);
+  coordinator picks under the owner's rules sent back before its review (veto open):
+  saved content made immutable by its creator (O_TMPFILE or a private name,
+  read-only before it is named) instead of depending on read leases;
+  the running syncer retries recorded receipt errors;
+  linked worktrees,
+  packed refs,
+  the side-ref transaction and create,
+  delete and symbolic-ref updates are obligations to demonstrate,
+  not exclusions (exclusions:
+  level 2,
+  a threaded launcher,
+  the memory or process cap,
+  the transient-unit route until built).
+  Applied at tip `249589f623` (442 model tests passed;
+  map unchanged at 64,
+  17,
+  9,
+  17);
+  the scope paragraph and the two picks are in the design (`f8f129af86` on `fix/git-policy-cli-commits-never-fail`,
+  section "Acceptance target").
+  Cross-vendor reviews running:
+  `commit-models-sol-10a.txt` (components,
+  launch and flusher) and `commit-models-sol-10b.txt` (models and map),
+  prompts `commit-models-prompt-10a.txt` and `-10b.txt`.
 - #6261 native-layer move:
   "Defer until branches merge (Recommended)".
 - Fallback to the installed real Git (four picks):
