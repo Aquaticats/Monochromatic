@@ -499,3 +499,64 @@ fn a_quiet_step_is_not_reported_as_the_ceiling() {
         .expect_err("the quiet window ended it");
     assert!(!is_ceiling(&error), "{error}");
 }
+
+/// The variable that makes `left_running_helper` do its work: the test that spawns it names a directory.
+const HELPER_DIRECTORY: &str = "CLI_GIT_LEFT_RUNNING_DIRECTORY";
+
+/// The command that leaves a step running and then exits, run in a process of its own by the control below. A test run without the
+/// variable does nothing, so this is a no-op in a normal run.
+#[test]
+fn left_running_helper() {
+    let Some(directory) = std::env::var_os(HELPER_DIRECTORY) else { return };
+    let directory: PathBuf = PathBuf::from(directory);
+    let script: PathBuf = directory.join("step.sh");
+    let mut command: Command = Command::new("sh");
+    command.arg(script.as_path());
+    let sink: SharedSink = SharedSink::default();
+    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(300) };
+    let error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound).expect_err("the command stopped waiting");
+    assert!(is_not_known(&error), "{error}");
+    // The command exits now, with the step still running, as the wrapper does after it reports that the result is not known.
+    std::process::exit(0);
+}
+
+/// "Left running" survives the exit of the command (sol-1: the pipes the command held closed with it, and the step died of SIGPIPE
+/// when it wrote): the step is started with output that outlives the command, the command is a real process that exits, and the step
+/// writes after that and finishes. The control runs the command as a separate process of this test binary.
+#[test]
+fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
+    let directory: PathBuf = crate::test_support::fixture("child-watch-survives-exit");
+    let release: PathBuf = directory.join("release");
+    let finished: PathBuf = directory.join("finished");
+    let pid_file: PathBuf = directory.join("pid");
+    std::fs::write(
+        directory.join("step.sh"),
+        format!(
+            "echo $$ > '{pid}'\nwhile [ ! -e '{release}' ] && [ -d '{directory}' ]; do sleep 0.05; done\necho late-output || exit 3\necho late-error >&2 || exit 4\n: > '{finished}'\n",
+            pid = pid_file.display(),
+            release = release.display(),
+            directory = directory.display(),
+            finished = finished.display()
+        ),
+    )
+    .expect("the step");
+    let test_binary: PathBuf = std::env::current_exe().expect("this test binary");
+    let helper = Command::new(test_binary)
+        .args(["--exact", "push::child_watch::tests::left_running_helper", "--nocapture"])
+        .env(HELPER_DIRECTORY, directory.as_os_str())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .expect("the command runs");
+    assert!(helper.success(), "the command that left the step running exited cleanly: {helper:?}");
+    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    // SAFETY: signal 0 only asks whether the process exists.
+    assert_eq!(unsafe { libc::kill(pid, 0) }, 0, "the step outlived the command");
+    std::fs::write(&release, b"").expect("let the step go on");
+    let waiting_since: Instant = Instant::now();
+    while !finished.exists() {
+        assert!(waiting_since.elapsed() < Duration::from_secs(20), "the step died when it wrote after the command had exited");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    crate::test_support::remove(directory.as_path());
+}
