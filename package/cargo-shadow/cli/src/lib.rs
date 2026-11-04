@@ -372,6 +372,8 @@ mod survivor_discovery_tests;
 #[cfg(test)]
 mod round_nine_tests;
 #[cfg(test)]
+mod round_ten_tests;
+#[cfg(test)]
 mod acceptance_rows_tests;
 #[cfg(test)]
 mod quiescence_failure_tests;

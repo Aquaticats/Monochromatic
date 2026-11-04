@@ -156,6 +156,28 @@ pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// A hook that runs inside `assess` after every record was queried and before the unsettled scopes are judged,
+    /// so a test can make a launcher create its scope in the gap between the two observations (round 10, 9a D1).
+    static AFTER_QUERY: std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+/// `pub(crate) fn after_query_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs between the queries of a check and its
+/// judgement of unsettled scopes.
+/// Why:
+/// The schedule of 9a D1 puts a launcher's scope creation exactly there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function afterQueryForTest(hook?: () => void): void
+/// ```
+#[cfg(test)]
+pub(crate) fn after_query_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
+    AFTER_QUERY.with(|slot| { *slot.borrow_mut() = hook; });
+}
+
 /// What a check of one journal found.
 enum Finding {
     /// A recorded scope or process group is positively observed to have a member:
@@ -360,6 +382,10 @@ fn assess(directory: &Path) -> Option<Finding> {
                 }
             }
         }
+    }
+    #[cfg(test)]
+    if let Some(hook) = AFTER_QUERY.with(|slot| { return slot.borrow().clone(); }) {
+        hook();
     }
     for open in unsettled {
         // A scope that exists and is empty has run its program to the end. One that is absent is either collected after its run or not
