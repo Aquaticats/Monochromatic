@@ -787,3 +787,64 @@ fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() 
     }
     remove(root.as_path());
 }
+
+/// Forms the cut experiment did not run get no ceiling (sol-1: the classifier failed open). Each is a form of a step the experiment
+/// did run, or a step it did not, that a rule by the name of the step would have ended at a ceiling.
+#[test]
+fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
+    let ends = |arguments: &[&str]| -> bool { return matches!(step_bound(&GitRequest::new(Path::new("/repo"), arguments)), StepBound::EndAt(_)); };
+    for unrun in [
+        // `config --add` appends a second time when the first run had installed its update.
+        &["config", "--add", "a.b", "c"][..],
+        &["config", "--unset", "a.b"],
+        &["config", "--replace-all", "a.b", "c"],
+        // `stash -m list` is a push of a stash with the message "list".
+        &["stash", "-m", "list"],
+        &["stash", "list", "--stat"],
+        &["stash", "push", "-m", "x"],
+        // A reflog introduced on a side ref is the doubling that made a branch write different.
+        &["update-ref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "-m", "message", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        // A ref under the prefix is not any ref under it: the wrapper makes numbered ones, and `..` is not a number.
+        &["update-ref", "refs/cli-git/../heads/main", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "refs/cli-git/kept/1/../../heads/x", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "refs/cli-git/kept/1", "refs/heads/main"],
+        // Other forms of steps that have a proven form.
+        &["clean", "--force", "-d", "-x"],
+        &["clean", "--force", "-d", "--", "dir"],
+        &["read-tree", "--reset", "-u", "a", "b"],
+        &["add", "--intent-to-add", "--", "a.txt"],
+        &["add", "--update", "--all"],
+        &["checkout-index", "--all"],
+        &["restore", "--staged", "a.txt"],
+        &["reset", "--mixed", "abc"],
+        &["update-index", "--chmod=+x", "a.txt"],
+        // Steps nobody listed.
+        &["gc", "--prune=now"],
+        &["maintenance", "run"],
+        &["repack", "-a", "-d"],
+        &["worktree", "add", "x"],
+        &["tag", "-f", "t", "abc"],
+        &["branch", "-f", "b", "abc"],
+        &["symbolic-ref", "HEAD", "refs/heads/other"],
+        &[],
+    ] {
+        assert!(!ends(unrun), "{unrun:?} was not run in the experiment and has no ceiling");
+    }
+    // The forms that were run are exact: the same words with the proven options, and nothing else, keep the ceiling.
+    for proven in [
+        &["update-ref", "refs/cli-git/kept/12", "0123456789abcdef0123456789abcdef01234567"][..],
+        &["update-ref", "-d", "refs/worktree/cli-git-service/1793"],
+        &["stash", "list", "--format=%H"],
+        &["clean", "--force", "-d"],
+        &["read-tree", "--reset", "-u", "abc"],
+        &["config", "--local", "a.b", "c"],
+        &["reset", "--quiet", "abc", "--", "a.txt"],
+        &["restore", "--staged", "--worktree", "--source=HEAD", "--", "a.txt"],
+        &["add", "--all"],
+        &["add", "--update", "--", ":/"],
+    ] {
+        assert!(ends(proven), "{proven:?} is a form the experiment ran and keeps its ceiling");
+    }
+}
