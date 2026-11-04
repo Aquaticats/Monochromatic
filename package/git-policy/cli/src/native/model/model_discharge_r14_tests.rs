@@ -84,3 +84,29 @@ fn the_completion_guard_is_the_safety_of_the_checkpoint_rule() {
     let ready = replay(guarded, steps, &["lane: forces R2's request file"]);
     assert!(enabled(&ready, removal));
 }
+
+/// Models review 6b (P1): two live requests. R1 and R2 are adopted, R1 has no terminal outcome, a checkpoint is written, forced and completed,
+/// and power is lost. The surviving facts hold R1's request and adopt line and no outcome; recovery selects the checkpoint and must not drop R1.
+/// Revision 17's non-drop obligation: the checkpoint's document is the replay of the predecessor's valid prefix, so every request that is live
+/// there is live in it.
+#[test]
+fn p1_a_checkpoint_never_erases_a_still_live_request() {
+    let schedule = [
+        "lane: writes the request file of R1",
+        "lane: writes the request file of R2",
+        "lane: appends the adopt line of R1 to the segment",
+        "lane: appends the adopt line of R2 to the segment",
+        "lane: forces R1's request file",
+        "lane: forces R2's request file",
+        "lane: forces R1's adopt line",
+        "lane: forces R2's adopt line",
+        "lane: writes the checkpoint whose document names R2 as live",
+        "lane: forces the checkpoint",
+        "lane: completes the checkpoint and removes the old segment",
+        "lane: forces the old segment's removal",
+        "environment: power is lost",
+    ];
+    let reached = replay(initial(Rules::Fifteen), steps, &schedule);
+    let message = invariant(&reached).expect("R1 is live in the surviving facts and the checkpoint dropped it");
+    assert!(message.contains("live"), "{}", message);
+}
