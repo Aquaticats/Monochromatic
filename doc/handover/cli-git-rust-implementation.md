@@ -134,8 +134,17 @@ all four parts "not correct";
 round 6 running with the owner's kept-files answer.
 Thirteenth design review:
 "Approve continued model work only";
-revision 14 running,
-reframing questions 6 and 7.
+revision 14 written (`fc28bb5219`);
+fourteenth review (`commits-never-fail-sol-14.txt`):
+owner questions "accurate after the edits below,
+not accurate as written",
+6a to be rewritten (it omitted fail-closed recovery),
+and planned shutdown added a hook-cancellation exception the owner never approved (R14-9);
+revision 15 running,
+with the corrected questions in a separate file to be checked before they are asked.
+Models round 10 running on revision 14 and the three latest reviews (components 6 "not correct",
+models 4a "sound after named fixes",
+models 4b "not sound").
 
 At 2026-11-03T20:14:48-05:00 (the owner's cap is five delegate agents at once),
 five running:
