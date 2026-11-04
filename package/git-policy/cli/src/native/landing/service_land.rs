@@ -28,7 +28,7 @@ use crate::service_land_finish::finish_after_move;
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
 use crate::service_timing::{LandTiming, wait_line};
-use crate::config_snapshot::read_config_snapshot;
+use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use crate::service_land_follow::{classify, storage_failure};
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
@@ -236,13 +236,13 @@ pub fn land_batch_timed(
     // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
     //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
     //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
-    let hardens_index: bool = requests
-        .first()
-        .and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); })
-        .and_then(|snapshot| { return snapshot.hardens_index(); })
-        .unwrap_or(true);
+    let snapshot = requests.first().and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); });
+    let hardens_index: bool = snapshot.as_ref().and_then(ConfigSnapshot::hardens_index).unwrap_or(true);
+    // Native Git writes a commit's objects as loose objects and flushes none by default; the import of a small batch writes a
+    //  temporary pack, flushes it and deletes it, so the flush is dropped unless the repository asks for flushed objects.
+    let import_fsync: Option<String> = snapshot.as_ref().and_then(ConfigSnapshot::import_fsync_value);
     let deferral = crate::service_durable::begin(hardens_index);
-    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing);
+    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, import_fsync.as_deref());
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
     if result == Err(FailureCode::StepTooSlow)
@@ -273,6 +273,7 @@ fn land_batch_body(
     requests: &[CommitRequest],
     announce: &dyn Fn(Announce),
     timing: &mut LandTiming,
+    import_fsync: Option<&str>,
 ) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
     if requests.iter().any(|request| {
@@ -383,7 +384,15 @@ fn land_batch_body(
         } else {
             let marks: PathBuf = context.journal.join(format!("marks-{seq}"));
             let marks_argument: String = format!("--export-marks={}", marks.display());
-            let imported: GitOutput = run(&git, repository, &["fast-import", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
+            // The `core.fsync` of the import is a global option of this one start; it reaches the `unpack-objects` child too, where
+            //  it names the same loose-object flush the repository has.
+            let fsync_setting: String = import_fsync.map(|value| { return format!("core.fsync={value}"); }).unwrap_or_default();
+            let mut import_arguments: Vec<&str> = Vec::new();
+            if import_fsync.is_some() {
+                import_arguments.extend(["-c", fsync_setting.as_str()]);
+            }
+            import_arguments.extend(["fast-import", "--done", marks_argument.as_str()]);
+            let imported: GitOutput = run(&git, repository, import_arguments.as_slice(), Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
             if !imported.succeeded() {
                 return Err(classify(&imported));
             }

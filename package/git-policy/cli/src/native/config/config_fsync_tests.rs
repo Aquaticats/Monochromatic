@@ -50,15 +50,16 @@ fn history_pack(repo: &Path) -> Vec<u8> {
 }
 
 /// The flushes of the import step of a landing, which also updates a reference: `fast-import` with `fastimport.unpackLimit=0`,
-///  which keeps even a small pack, so the pack and its index are written.
+///  which keeps even a small pack, so the pack and its index are written. The message and the file hold `name`, so no earlier
+///  probe wrote the same objects (an object that exists is not written again, and a pack of none is not made).
 fn import_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str) -> u64 {
-    let stream: String = format!("commit refs/probe/import-{name}\nmark :1\ncommitter T <t@example.invalid> 1793535889 +0000\ndata 1\nm\nM 100644 inline f\ndata 1\nx\n\ndone\n");
+    let stream: String = format!("commit refs/probe/import-{name}\nmark :1\ncommitter T <t@example.invalid> 1793535889 +0000\ndata {length}\n{name}\nM 100644 inline f\ndata {length}\n{name}\n\ndone\n", length = name.len());
     return flushes(repo, trace, value, &["-c", "fastimport.unpackLimit=0", "fast-import", "--quiet", "--done"], Some(stream.as_bytes()));
 }
 
 /// The flushes of one loose object written by `hash-object`.
 fn loose_flushes(repo: &Path, trace: &Path, value: Option<&str>, name: &str) -> u64 {
-    return flushes(repo, trace, value, &["hash-object", "-w", "--stdin"], Some(name.as_bytes()));
+    return flushes(repo, trace, value, &["hash-object", "-w", "--stdin"], Some(format!("loose object {name}").as_bytes()));
 }
 
 /// The flushes of one reference written by `update-ref`.
@@ -114,7 +115,7 @@ fn the_value_without_packs_keeps_the_other_components_and_flushes_no_pack() {
         let set: FsyncComponents = FsyncComponents::parse(value);
         let spelled: String = set.without_packs().value();
         let name: String = format!("w{position}");
-        assert_eq!(FsyncComponents::parse(spelled.as_str()), set.without_packs(), "{value:?} spelled as {spelled:?} reads back the same");
+        assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.without_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?} reads back the same, but for the mapping between hash algorithms that no word names alone");
         assert_eq!(pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()), 0, "no pack flush under {spelled:?} (from {value:?})");
         if !set.names_reference() {
             assert_eq!(import_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()), 0, "the import flushes nothing under {spelled:?} (from {value:?})");
