@@ -194,3 +194,21 @@ fn a_claimant_with_a_stale_listing_withdraws_when_a_newer_generation_exists() {
     assert_eq!(present(directory.as_path()), vec![newer], "the stale claimant left nothing of its own");
     remove(directory.as_path());
 }
+
+/// A claim of another PID namespace older than the patience is neither alive nor dead (owner, 2026-11-04, "Refuse and name it
+/// (Recommended)"): taking the claim stops with an error that names the claim file, the owner and its namespace, its age and the
+/// `rm`, and the claim is left as it was, with no newer generation made.
+#[test]
+fn a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes() {
+    let directory: PathBuf = fixture("claim-foreign-expired");
+    let record: Record = Record::Owned { pid: unused_pid_for_tests(), birth: String::from(NO_SUCH_BIRTH), namespace: Some(String::from("pid:[not-this-namespace]")) };
+    let claim: PathBuf = path_of(directory.as_path(), prefix(), FIRST);
+    std::fs::write(&claim, encode(&record)).expect("planted claim");
+    std::fs::File::options().write(true).open(&claim).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
+    let refused = take_claim(directory.as_path(), prefix());
+    let Err(MigrateError::Journal(text)) = refused else { panic!("an expired foreign claim is refused: {refused:?}") };
+    assert!(text.contains(claim.to_string_lossy().as_ref()) && text.contains("pid:[not-this-namespace]") && text.contains(unused_pid_for_tests().to_string().as_str()), "{text}");
+    assert!(text.contains("minutes old") && text.contains("another container") && text.contains("rm -- ") && text.contains("left running"), "{text}");
+    assert_eq!(present(directory.as_path()), vec![FIRST], "no newer generation was made and the claim stays");
+    remove(directory.as_path());
+}

@@ -328,3 +328,29 @@ fn the_recovery_checks_files_out_without_quiet() {
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(world.parent.as_path());
 }
+
+/// A record whose owner is in another PID namespace and older than the patience is neither alive nor dead (owner, 2026-11-04,
+/// "Refuse and name it (Recommended)"): recovery stops with an error that names the record, the owner, the namespace, the age and
+/// the `rm`, and changes nothing: the record stays, the branch stays, the staged entries and the worktree stay.
+#[test]
+fn an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes() {
+    let world: World = world("merge-recovery-foreign-expired");
+    let mut owner: TransactionOwner = dead_owner("11111111-0000-4000-8000-000000000042");
+    owner.owner_pid_namespace = Some(String::from("pid:[4026531999]"));
+    owner.owner_pid = 31337;
+    let record: PathBuf = record_of(&world, owner, Some("refs/heads/main"));
+    std::fs::File::options().write(true).open(record.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age the record");
+    let before = snapshot(&world);
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect_err("an expired foreign record is refused");
+    let text: String = refused.0;
+    assert!(text.contains(record.to_string_lossy().as_ref()), "the record file is named: {text}");
+    assert!(text.contains("31337") && text.contains("pid:[4026531999]"), "the owner and its namespace are named: {text}");
+    assert!(text.contains("minutes old") && text.contains("another container") && text.contains("rm -- "), "age, the live-owner possibility and the rm: {text}");
+    assert!(text.contains("left running"), "the condition covers Git processes the wrapper left running, not only a cli-git command: {text}");
+    assert!(record.exists(), "the record is untouched");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
+    assert_eq!(snapshot(&world), before);
+    assert!(merge_intents_to_recover(world.git_dir.as_path()).is_err(), "the check that decides whether recovery is needed refuses as well");
+    remove(world.parent.as_path());
+}

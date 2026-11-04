@@ -74,3 +74,22 @@ fn an_owner_of_another_namespace_stays_while_its_item_is_recent() {
     crate::test_support::remove(root.as_path());
     assert!(judged.expect("answer"));
 }
+
+/// An owner of another namespace whose item is older than the patience is neither alive nor dead (owner, 2026-11-04, "Refuse and
+/// name it (Recommended)"): judging it is an error that names the item, the owner, its namespace, the age and the `rm`; the callers
+/// stop, and the item is not touched.
+#[test]
+fn an_owner_of_another_namespace_with_an_old_item_is_refused_and_named() {
+    let root: PathBuf = crate::test_support::fixture("owner-foreign-expired");
+    let item: PathBuf = root.join("item");
+    std::fs::write(item.as_path(), b"x").expect("item");
+    std::fs::File::options().write(true).open(item.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
+    let foreign: CopyOwner = CopyOwner { pid: UNUSED_PID, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    let judged: Result<bool, WorktreeCopyError> = foreign.is_alive(item.as_path());
+    let refused: WorktreeCopyError = judged.expect_err("an expired foreign item is refused");
+    let text: String = refused.0;
+    assert!(text.contains(item.to_string_lossy().as_ref()) && text.contains("pid:[1]") && text.contains(UNUSED_PID.to_string().as_str()), "{text}");
+    assert!(text.contains("minutes old") && text.contains("another container") && text.contains("rm -- ") && text.contains("left running"), "{text}");
+    assert!(item.exists(), "the item is untouched");
+    crate::test_support::remove(root.as_path());
+}
