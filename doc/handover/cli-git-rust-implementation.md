@@ -3656,8 +3656,24 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     so a recovery in another time namespace reads a live launcher as gone;
     the shim test does not prove the delegated route and the intended fault;
     no row added.
-    Round 14 running (record and compare the time namespace;
-    Unknown on mismatch).
+    Round 14 done (tip `2530e617f4`,
+    2026-11-04T10:02:46-05:00;
+    590 run,
+    590 passed,
+    11 skipped;
+    clippy clean):
+    the launcher line carries the writer's time namespace inode and recovery answers Unknown on a mismatch,
+    an unreadable side or an older line without one
+    (measured: `unshare --time --boottime 7200` moves the same process's field 22 by 720000 ticks);
+    the shim test now asserts the delegated scope,
+    the consumed `ContainmentStopStuck` fault and the not-quiescent refusal.
+    Change review running:
+    `cargo-shadow-sol-14.txt` (prompt `cargo-shadow-prompt-14.txt`,
+    contract snapshot `cargo-shadow-guarantees-2530e617f4.md`).
+    Queued after a change review with no defect:
+    a certification pass that attaches the test bodies the map names,
+    split by row group under 250 KB per review,
+    because the sources total 2.36 MB and every change review so far called the unchanged rows unavailable.
 - Test images from pacman merged to main (`85984b790e`;
   branch tip `4bafaa418d`;
   gate 4754/4754 with passing names identical to a main control except the tests the owner's older-Git decision changed;
@@ -3712,9 +3728,26 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   Disclosed:
   a round 15 test had been cut by a later round 15 edit and is restored;
   the map check only tests names in its test column.
-  Cross-vendor review running:
-  `commit-models-sol-11.txt` (one part,
-  prompt `commit-models-prompt-11.txt`).
+  Review `commit-models-sol-11.txt`:
+  "no, as submitted":
+  2B,
+  3C and 10b closed;
+  2A closure still lets a dependency outside the scanned places (an order file without its needs line) reclaim a predecessor;
+  2E head equality credits every record in the chain,
+  so one checkpoint can drop an acknowledged promise whose hash lands in the lineage;
+  3A a handover timeout still runs the helper,
+  and the intermediate child still holds a lock copy when GO is sent;
+  the forced cleanup ignores `kill` and `waitpid` results;
+  descriptor normalization leaks on an `EMFILE` path;
+  3B as a Narrower row does not meet the target's resource bound,
+  and the reviewer names a bounded protocol with no wait and no second lock:
+  keep the admission token until process exit and hand a contender's receipt to the persisted syncer retry path.
+  Coordinator pick,
+  decided by the fixed acceptance target:
+  build that protocol,
+  so the 3B narrowing is withdrawn.
+  Round 17 sent to the models agent (`a9c775c9196f1d836`) with all of these;
+  its parts go to `commit-models-12-part-<n>-<topic>.diff`.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
