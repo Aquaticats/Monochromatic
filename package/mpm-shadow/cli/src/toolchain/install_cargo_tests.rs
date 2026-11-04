@@ -8,6 +8,8 @@ use crate::constants::OWN_CRATE_PREFIX;
 
 use super::cargo_installs::{is_repository_published, version_directory};
 use super::fakes::Rig;
+use super::binstall_no_archive::COMPILE_DISABLED_TEXT;
+use super::error::ErrorKind;
 use super::install::install_tool;
 
 /// The sample lock's repository-published crate.
@@ -100,4 +102,74 @@ fn every_spelling_crates_io_treats_as_a_repository_crate_disables_the_compile_st
     for name in spellings {
         assert!(install_disables_compile(&name), "{name} is a repository crate");
     }
+}
+
+/// What cargo-binstall 1.26.2 printed for the wrapper at 0.5.34 (measured in `cargo binstall --dry-run`):
+/// the archive was found but lacked a program the crate declares.
+/// The report wraps the sentence at the terminal width, as the real one did.
+const MISSING_PROGRAM_OUTPUT: &str = "\
+cargo-binstall:  INFO resolve: Resolving package: 'monochromatic-git-policy-cli@=0.5.34'
+cargo-binstall: ERROR resolve: When resolving monochromatic-git-policy-cli bin cli-git-service is not found. This binary is not optional so it must be included in the archive, please contact with upstream to fix this
+cargo-binstall:  WARN resolve: Error while downloading and extracting from fetcher github.com: failed to find or install binaries: bin file /x/cli-git-service not found
+cargo-binstall: ERROR Fatal error:
+  \u{d7} For crate monochromatic-git-policy-cli: Fallback to cargo-install is
+  \u{2502} disabled
+  \u{2570}\u{2500}\u{25b6} Fallback to cargo-install is disabled
+";
+
+/// The message of the error a failing install of `id` returns when `cargo binstall` prints `output`.
+fn failure_message(id: &str, output: &str) -> String {
+    let rig = Rig::new();
+    rig.runner.fail("cargo binstall", output);
+    let error = install_tool(&rig.context(), &rig.tool(id)).expect_err("the install fails");
+    assert_eq!(error.kind, ErrorKind::Failure);
+    return error.message;
+}
+
+#[test]
+fn a_repository_crate_without_a_fitting_archive_fails_naming_the_tool_the_reason_and_every_remedy() {
+    let message = failure_message(PUBLISHED, MISSING_PROGRAM_OUTPUT);
+    let version = Rig::new().tool(PUBLISHED).version;
+    for expected in [
+        PUBLISHED,
+        "crate monochromatic-mpm-shadow",
+        &format!("version {version}"),
+        "no prebuilt release archive",
+        "never compiled from source",
+        "ERROR resolve: When resolving monochromatic-git-policy-cli bin cli-git-service is not found.",
+        "WARN resolve: Error while downloading and extracting from fetcher github.com",
+        COMPILE_DISABLED_TEXT,
+        "Publish a release of the crate",
+        "Lock a version whose release archive fits",
+        &format!("mpm-shadow update {PUBLISHED}"),
+        "GITHUB_TOKEN",
+        "gh auth login",
+        "BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT",
+    ] {
+        assert!(message.contains(expected), "missing {expected:?} in:\n{message}");
+    }
+}
+
+#[test]
+fn repeated_timeout_reasons_are_quoted_once() {
+    let line = "cargo-binstall:  WARN resolve: Timeout reached while checking fetcher invalid url: deadline has elapsed";
+    let output = format!("{line}\n{line}\n{line}\ncargo-binstall: ERROR Fatal error:\n  \u{d7} For crate c: {COMPILE_DISABLED_TEXT}\n");
+    let message = failure_message(PUBLISHED, &output);
+    assert_eq!(message.matches("Timeout reached while checking fetcher").count(), 1, "{message}");
+}
+
+#[test]
+fn a_repository_crate_failing_for_another_reason_keeps_the_generic_failure() {
+    assert_eq!(
+        failure_message(PUBLISHED, "crate not found"),
+        format!("cargo binstall failed for {PUBLISHED}: crate not found")
+    );
+}
+
+#[test]
+fn a_third_party_crate_keeps_the_generic_failure_even_when_compiling_was_disabled_from_outside() {
+    assert_eq!(
+        failure_message(THIRD_PARTY, MISSING_PROGRAM_OUTPUT),
+        format!("cargo binstall failed for {THIRD_PARTY}: {}", MISSING_PROGRAM_OUTPUT.trim())
+    );
 }
