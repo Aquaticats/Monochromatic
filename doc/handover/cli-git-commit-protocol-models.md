@@ -114,12 +114,18 @@ classification is the author's until a review accepts it.
   shown: the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started
   transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory
   (a_launched_helper_inherits_no_descriptor_of_its_launcher), the lock test, and the flusher helper that keeps
-  only the lock its launcher handed it: the launcher closes its own copy before the helper is told to start
-  (a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor), the lock and the pipes are
-  moved above the standard streams (a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock),
-  and an intermediate child that does not leave is killed and reaped
-  (a_ready_helper_does_not_make_the_launch_succeed_while_the_intermediate_child_is_unreaped); a descriptor a raw
-  creator keeps outside this component is not visible to it.
+  only the lock its launcher handed it: the handover goes in one order, intermediate child reaped (killed if it
+  does not leave, with the kill and the wait checked), launcher copy closed, handover byte sent, helper
+  acknowledges and only then works (a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor,
+  no_copy_of_the_lock_but_the_executors_exists_when_the_handover_is_sent,
+  a_refused_kill_of_the_intermediate_child_is_a_failed_launch); a helper that gets no handover runs nothing and
+  the launch fails with every receipt recorded
+  (a_helper_whose_handover_wait_expires_runs_nothing_and_the_launch_accounts_for_every_receipt); the lock and
+  the pipes are above the standard streams and every descriptor has an owner on every path, driven through
+  EMFILE (a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock,
+  a_launch_whose_descriptor_normalization_fails_leaks_no_descriptor,
+  a_lock_acquisition_whose_descriptor_move_fails_leaks_no_descriptor); a descriptor a raw creator keeps outside
+  this component is not visible to it.
 - Narrower, obligation: launch is non-recursive and resource-bounded:
   `a_launched_entry_is_a_function_in_a_new_session_and_not_a_second_start_of_the_program` in
   `commit_helper_launch_tests.rs`. Not shown: the transient unit route is not built; a refused fork is injected
@@ -127,9 +133,14 @@ classification is the author's until a review accepts it.
   copies of a process and not at real call sites, which do not exist yet; the bound on helpers is one lock
   holder (clients_that_find_the_flusher_lock_held_start_no_helper,
   many_clients_start_one_helper_and_it_holds_the_lock) and NOT a bound on live helpers: a helper that released
-  the lock and is in its recheck or exit step holds nothing, a launch in that step starts another, and processes
-  stopped from outside can pile up (options in the handover, round 16); a launch that fails records every
-  receipt of the lane, joiners included (a_client_that_joined_a_launch_whose_setup_failed_is_recorded).
+  the lock and is in its recheck or exit step holds nothing, and a launch in that step starts another; the
+  reviewer's protocol (the token kept until exit, a client that finds it held left to a continuing retry) was
+  modeled and misses a receipt when no owner runs to retry it, with and without the client starting the owner
+  (a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it,
+  a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown), so it
+  is not built and the obligation stays open; the launch is bounded by three limits (report, intermediate child,
+  acknowledgment) plus the bounded reap of a killed child; a launch that fails records every receipt of the
+  lane, joiners included.
 
 ### C0 to C5, S1, C3 repair
 
@@ -284,11 +295,15 @@ classification is the author's until a review accepts it.
 - Narrower, property: captured authority valid through completion or verified substitution:
   `r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support` in
   `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer (the reclamation-during-capture
-  control is not yet); across segments only a compaction of the head covers an acknowledgment
-  (r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowledgment,
-  r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment): a checkpoint that
-  changes the document records no lineage, so an acknowledgment before it is not covered and the caller forces
-  again; one hop only, so an acknowledgment older than the previous checkpoint is not covered; the older test
+  control is not yet); a checkpoint covers an earlier acknowledgment only when its document is shown to contain
+  the state that acknowledgment promised: both are documents in the checked representation (LaneDocument) and
+  the new one names every request, saved content and ledger extent of the old or discharges it
+  (r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation); an opaque
+  document is never shown to contain anything, so an opaque checkpoint reclaims no segment and records no
+  lineage (r17_a_compaction_of_a_later_opaque_record_does_not_reclaim_or_cover_an_earlier_acknowledgment,
+  r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowledgment,
+  r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment); one hop only, so an
+  acknowledgment older than the previous checkpoint is not covered; the older test
   p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows only the state-directory refusal.
 - Not yet, control: reclamation during capture. Needs: a model of capture against a concurrent reclaimer.
 - Not yet, control: every forcing error. Needs: fault injection at each forcing call of the departure, with
@@ -307,14 +322,19 @@ classification is the author's until a review accepts it.
   `model_discharge_r14_tests.rs`.
 - Narrower, control: non-drop for later appends (a record cannot omit what its predecessor retained):
   `r14_a_record_cannot_omit_what_the_previous_record_retained` in `commit_state_log_tests.rs`. Not shown:
-  complete closure: a reclaiming checkpoint derives its obligations from the lane (every request in inbox/,
-  every saved content, the ledger up to its length now) and refuses a closure that omits one, whatever its
-  document declares
-  (r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_document_declares); a dependency
-  outside those places, such as an order file, is declared by needs lines
-  (r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it) and a writer that omits
-  that line is still accepted; a plain append reclaims nothing and keeps only the non-drop check; the
-  alternative for such documents is a non-reclaiming checkpoint (handover, round 16).
+  complete closure: only a document in the checked representation (LaneDocument: requests, saved content and the
+  ledger extent, nothing else) can be checkpointed with reclamation, its closure must equal what the document
+  names and hold everything the lane holds
+  (r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_document_declares,
+  r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation); a document the
+  component cannot read, one that depends on a file outside the representation such as an order file, is opaque
+  and its checkpoints never reclaim
+  (r17_an_opaque_document_that_needs_a_file_outside_the_derived_places_never_reclaims_its_predecessor), and a
+  checkpoint that compacts an opaque append reclaims nothing
+  (r17_a_checkpoint_cannot_compact_an_opaque_append_and_reclaim_its_segment); the real lane state document is
+  not implemented, so whether it fits the checked representation is open; needs lines
+  (r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it) remain a check for
+  opaque records.
 - Covered, control: retirement discharge forces the ledger prefix that proves it:
   `r14_a_retirement_forces_the_ledger_prefix_that_discharges_it` in `commit_state_log_tests.rs`.
 - Covered, control: a later record retaining new saved content is not selected without it:
@@ -813,3 +833,130 @@ The full `native:test:model` run is 451 passed, 0 failed (`/var/home/user/temp/a
 `native:clippy` and `native:clippy:seams` are clean (`/var/home/user/temp/agent/r16/clippy.log` and
 `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the map has 64 covered, 17 narrower, 9 historical and
 17 not yet.
+
+## Round 17 state
+
+Round 17 answers `commit-models-sol-11.txt` ("no, as submitted"). Nothing here is wired into the live wrapper.
+Finding 7 is
+modeled and not built, because the model finds schedules where the proposal misses a receipt.
+
+### Findings 3 to 6, launch and descriptors
+
+- 3 (window A, the handover wait expires). Red:
+  `a_helper_whose_handover_wait_expires_runs_nothing_and_the_launch_accounts_for_every_receipt`. Green: the helper
+  waits for the
+  handover byte and an expired wait, an end of input or a read failure is not a handover; it closes its report end
+  and ends
+  without running its entry. The launcher waits for the helper's acknowledgment after it sends the byte; no
+  acknowledgment is
+  `LaunchError::HandoverNotAcknowledged`, and `launch_flusher` then records every receipt of the lane, joiners included.
+- 4 (window B, the intermediate child holds a copy). Red:
+  `no_copy_of_the_lock_but_the_executors_exists_when_the_handover_is_sent`. Green: the order is fixed: the helper
+  reports ready,
+  the launcher reaps the intermediate child (killing it when it does not leave), closes its own copy, and only then
+  sends the
+  handover byte.
+- 5 (the unchecked kill and wait). Red: `a_refused_kill_of_the_intermediate_child_is_a_failed_launch`. Green:
+  `kill_and_reap`
+  reports a refused kill (not "no such process"), repeats an interrupted wait, accepts "no child" as reaped, and is
+  bounded by
+  `KILL_REAP_LIMIT`; a child that is not reaped is `LaunchError::IntermediateNotReaped`. The launch is bounded by
+  three limits
+  (report, the intermediate child, the acknowledgment) plus this one.
+- 6 (descriptor ownership). Red: `a_launch_whose_descriptor_normalization_fails_leaks_no_descriptor` and
+  `a_lock_acquisition_whose_descriptor_move_fails_leaks_no_descriptor` (both drive `EMFILE` with the standard
+  descriptors closed
+  and a small `RLIMIT_NOFILE`). Green: the pipes and the lock are `OwnedFd` from the moment they exist, and
+  `move_above_streams` takes and returns an owner, so a failure closes what it holds.
+
+### Findings 1 and 2, closure and covering
+
+- Choice (veto open): a document is reclaiming only in a checked representation the component can read.
+  `LaneDocument` names
+  the requests, the saved content and the ledger extent a state relies on and nothing else; a dependency outside
+  it, such as an
+  order file, cannot be written in it. Opaque documents (`begin_checkpoint`, `checkpoint`,
+  `begin_checkpoint_retiring`) never
+  reclaim. `begin_checkpoint_reclaiming` and `checkpoint_reclaiming` take a `LaneDocument` that equals what the
+  closure holds,
+  the closure must hold everything the lane holds, and a segment is reclaimed only when every record of it is a
+  checked document
+  that the new one contains (each request and saved content kept or discharged, the ledger no longer). The lineage
+  names the
+  records of the reclaimed segments only, so it never stands in for preservation.
+- 1. Red: `r17_an_opaque_document_that_needs_a_file_outside_the_derived_places_never_reclaims_its_predecessor` and
+  `r17_a_checkpoint_cannot_compact_an_opaque_append_and_reclaim_its_segment`. Green: opaque checkpoints reclaim nothing.
+- 2. Red: `r17_a_compaction_of_a_later_opaque_record_does_not_reclaim_or_cover_an_earlier_acknowledgment` (the
+  reviewer's one
+  checkpoint schedule). Green: the segment that holds the acknowledged record stays and `state_covers` is false.
+  The positive
+  case is `r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation`.
+- Remains: the lane's real state document is not implemented, so whether it fits the representation is open; a
+  state that does
+  not fit stays on the non-reclaiming path and its log grows. Options: extend `LaneDocument` with the references
+  the real state
+  needs (ranked first, because the log stays bounded and the references stay derivable), or keep such states
+  non-reclaiming.
+
+### Finding 7, the token kept until exit: modeled, not built
+
+The proposal (the admission token kept until process exit, no release and no recheck; a client that finds it held
+leaves its
+receipt to the continuing retry of the running owner's syncer) was added to `model_receipt_r18.rs` as
+`EighteenTokenToExitWithSyncerRetry`, with the syncer retrying receipts that are still V as well as recorded
+errors. It misses a
+receipt. Schedule one (`a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it`):
+
+1. client 0 creates its receipt; a planned shutdown creates `lane/sealed`; client 0 starts a flusher (the token is
+   taken);
+2. the service's final sweep enumerates and forces, and the service exits;
+3. flusher 0 lists the receipts and finds none unforced;
+4. client 1 creates its receipt, reads the lane (no service), finds the token held and starts nothing;
+5. flusher 0 exits with the token. Receipt 1 is V, no service runs, and nothing retries it until some later command
+   starts an
+   owner, which can be never.
+
+Schedule two
+(`a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown`), with
+the retry owner started by the client itself when it finds no service (the `EighteenTokenToExitClientStartsOwner`
+variant): the
+same, except client 1 reads while the service is still in its shutdown (sealed, the lane held), so it cannot start
+an owner;
+the flusher exits, the service exits, and no owner starts.
+
+Why the proposal cannot be repaired inside its terms: the retry owner must be a process that outlives the
+contender. With a
+service it exists, and the built protocol already uses it (the running syncer retries recorded errors and V
+receipts on its
+wakes). Without a service, a contender can start one only by starting a long-lived process per contender, which is the
+resource bound again, or by waiting, which is forbidden. Release-then-recheck is the one step that makes a no-service
+schedule sound, and it is exactly what lets a helper that released the lock stay alive and unaccounted. Checked
+against "We
+should never invoke ourselves recursively.": starting the retry owner through the wrapper's command line would be
+recursive;
+starting it as the service component is not, but it is the start of a long-lived process by a contender, and the
+schedule
+above shows it is not always possible.
+
+Options, ranking (the owner decides; the narrowed row stays, with these schedules):
+
+- Keep release, recheck and exit with the bound stated (built): sound in every modeled schedule; con: live helpers
+  are bounded
+  only by the launches that arrive in the release, recheck and exit step.
+- Token to exit with the running syncer's retry: bounded helpers; con: misses a receipt when no owner runs (the two
+  schedules).
+- Token to exit and the contender waits or hands the receipt back: con: a wait.
+- Ranking: the built protocol > token to exit, because a missed receipt breaks "never discard user data" and an
+  unbounded
+  step breaks only a resource bound that no stopped-process-free run reaches; token to exit > waiting, because it
+  waits for
+  nothing.
+
+### Gates at the tip
+
+The full `native:test:model` run is 462 passed, 0 failed (`/var/home/user/temp/agent/r17/full-model.log`; nextest
+reports one
+leaky test, the stalled intermediate child that its own alarm ends); `native:clippy` and `native:clippy:seams` are clean
+(`/var/home/user/temp/agent/r17/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
+map has 64
+covered, 17 narrower, 9 historical and 17 not yet.
