@@ -67,7 +67,11 @@ pub struct EntryRemoval<'a> {
 pub fn remove_entries(request: &EntryRemoval<'_>) -> Vec<String> {
     let EntryRemoval { inside, trash, manifest, host, remove } = *request;
     let indices: Vec<usize> = (0..manifest.entries.len()).collect();
-    let lanes: Vec<Vec<usize>> = indices.iter().map(|index: &usize| { return vec![*index]; }).collect();
+    // One lane per entry, so no entry waits for another.
+    let mut lanes: Vec<Vec<usize>> = Vec::new();
+    for index in &indices {
+        lanes.push(vec![*index]);
+    }
     let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host });
     let mut left: Vec<String> = Vec::new();
     run_ordered(OrderedRun {

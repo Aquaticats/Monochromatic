@@ -42,9 +42,17 @@ pub const FAILED_EXIT_CODE: i32 = 2;
 fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Vec<PathBuf>, String> {
     if arguments.all {
         let root: PathBuf = main_checkout_root(cwd)?;
-        return Ok(linked_worktrees_inside(root.as_path()).into_iter().map(|linked| { return linked.worktree; }).collect());
+        let mut inside: Vec<PathBuf> = Vec::new();
+        for linked in linked_worktrees_inside(root.as_path()) {
+            inside.push(linked.worktree);
+        }
+        return Ok(inside);
     }
-    return Ok(arguments.paths.iter().map(|word: &std::ffi::OsString| { return cwd.join(word); }).collect());
+    let mut named: Vec<PathBuf> = Vec::new();
+    for word in &arguments.paths {
+        named.push(cwd.join(word));
+    }
+    return Ok(named);
 }
 
 /// What:
@@ -131,7 +139,11 @@ fn lanes_of(list: &[PathBuf]) -> Vec<Vec<usize>> {
     let mut lanes: Vec<Vec<usize>> = Vec::new();
     let mut lane_of: HashMap<PathBuf, usize> = HashMap::new();
     for (index, path) in list.iter().enumerate() {
-        let real: PathBuf = std::fs::canonicalize(path).unwrap_or_else(|_error: std::io::Error| { return path.clone(); });
+        // A path that cannot be resolved stands for itself, so it still gets a lane of its own.
+        let real: PathBuf = match std::fs::canonicalize(path) {
+            Ok(resolved) => resolved,
+            Err(_unresolved) => path.clone(),
+        };
         match lane_of.get(&real) {
             Some(&lane) => lanes[lane].push(index),
             None => {
@@ -210,6 +222,20 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
 }
 
 /// What:
+///  Say one line of progress on standard error.
+/// Why:
+///   The command prints progress as it goes; a write that fails (a closed pipe) must not stop the conversion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sayOnStandardError = (text: string) => { try { process.stderr.write(`${text}\n`); } catch {} };
+/// ```
+fn say_on_standard_error(text: &str) {
+    let mut stderr = std::io::stderr().lock();
+    let _written = writeln!(stderr, "{text}");
+}
+
+/// What:
 ///  The action of the command: help, a refusal, or the run on the real platform with progress on standard error.
 /// Why:
 ///   The command reads `.git` itself and calls the filesystem, and starts no Git. It still needs to know which Git the wrapper
@@ -224,11 +250,7 @@ pub fn convert_action(arguments: &ConvertArguments, cwd: &Path, environment: &[(
     if arguments.help {
         return Action::Exit { code: 0, stdout: String::from(CONVERT_HELP), stderr: String::new() };
     }
-    let mut say = |text: &str| {
-        let mut stderr = std::io::stderr().lock();
-        let _written = writeln!(stderr, "{text}");
-    };
-    let code: i32 = execute(&LinuxPlatform::forwarding_to(environment, real_git), arguments, cwd, &Interrupt::never(), &mut say);
+    let code: i32 = execute(&LinuxPlatform::forwarding_to(environment, real_git), arguments, cwd, &Interrupt::never(), &mut say_on_standard_error);
     return Action::Exit { code, stdout: String::new(), stderr: String::new() };
 }
 

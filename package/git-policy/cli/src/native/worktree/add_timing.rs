@@ -59,6 +59,66 @@ struct Spent {
 }
 
 /// What:
+///  Add `own` to the time of the step named `name`, as one more call, or start the name's entry at the end of `list`.
+/// Why:
+///   Steps and worker-thread work both sum their time per name, in the order the names first appeared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const known = list.find((each) => each.name === name);
+/// if (known) { known.own += own; known.calls += 1; } else { list.push({ name, own, calls: 1 }); }
+/// ```
+fn add_spent(list: &mut Vec<Spent>, name: &str, own: Duration) {
+    for known in list.iter_mut() {
+        if known.name == name {
+            known.own += own;
+            known.calls += 1;
+            return;
+        }
+    }
+    list.push(Spent { name: name.to_string(), own, calls: 1 });
+}
+
+/// What:
+///  A duration as milliseconds with three decimals, the spelling of the record's `ms` fields.
+/// Why:
+///   Microsecond resolution matters for steps that take less than a millisecond.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (micros / 1000).toFixed(3)
+/// ```
+fn micros_to_ms(time: Duration) -> String {
+    return format!("{:.3}", time.as_micros() as f64 / 1000.0);
+}
+
+/// What:
+///  One step or work entry as its JSON member value `"name":{"ms":..,"calls":..}`.
+/// Why:
+///   The record lists steps and work in the same shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${quote(each.name)}:{"ms":${ms(each.own)},"calls":${each.calls}}`
+/// ```
+fn spent_json(each: &Spent) -> String {
+    return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(each.name.as_str()), micros_to_ms(each.own), each.calls);
+}
+
+/// What:
+///  One note as its JSON member `"key":"value"`.
+/// Why:
+///   Notes are words, so both halves are quoted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${quote(key)}:${quote(value)}`
+/// ```
+fn note_json((key, value): &(String, String)) -> String {
+    return format!("{}:{}", quote(key.as_str()), quote(value.as_str()));
+}
+
+/// What:
 ///  The steps of one add, filled as the add runs and written when it ends.
 /// Why:
 ///   The accounting is separate from the clock so that the controls can drive it with chosen times.
@@ -88,7 +148,11 @@ pub struct Recorder {
 impl Recorder {
     /// A recorder for an add in the repository whose common Git directory is `common_dir`.
     pub fn new(common_dir: PathBuf) -> Self {
-        let start_millis: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed: Duration| { return elapsed.as_millis(); }).unwrap_or_default();
+        // A clock before the Unix epoch gives zero, as `unwrap_or_default` did.
+        let start_millis: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(elapsed) => elapsed.as_millis(),
+            Err(_before_epoch) => 0,
+        };
         return Self { common_dir, open: Vec::new(), spent: Vec::new(), notes: Vec::new(), start_millis, work: Vec::new(), quiet: Vec::new() };
     }
 
@@ -105,32 +169,24 @@ impl Recorder {
         if let Some(outer) = self.open.last_mut() {
             outer.inside += whole;
         }
-        match self.spent.iter_mut().find(|known: &&mut Spent| { return known.name == frame.name; }) {
-            Some(known) => {
-                known.own += own;
-                known.calls += 1;
-            }
-            None => self.spent.push(Spent { name: frame.name, own, calls: 1 }),
-        }
+        add_spent(&mut self.spent, frame.name.as_str(), own);
     }
 
     /// Note a fact about the add; a later note of the same key replaces the earlier one.
     pub fn note(&mut self, key: &str, value: &str) {
-        match self.notes.iter_mut().find(|known: &&mut (String, String)| { return known.0 == key; }) {
-            Some(known) => known.1 = value.to_string(),
-            None => self.notes.push((key.to_string(), value.to_string())),
+        // Replace the value of a key that is already noted; the loop stops at the first match, as `find` did.
+        for known in &mut self.notes {
+            if known.0 == key {
+                known.1 = value.to_string();
+                return;
+            }
         }
+        self.notes.push((key.to_string(), value.to_string()));
     }
 
     /// Add `own` to the work named `name`, as one call.
     pub fn add_work(&mut self, name: &str, own: Duration) {
-        match self.work.iter_mut().find(|known: &&mut Spent| { return known.name == name; }) {
-            Some(known) => {
-                known.own += own;
-                known.calls += 1;
-            }
-            None => self.work.push(Spent { name: name.to_string(), own, calls: 1 }),
-        }
+        add_spent(&mut self.work, name, own);
     }
 
     /// The record as one line of JSON ending in a newline; `total` is the add's whole time.
@@ -138,11 +194,13 @@ impl Recorder {
     /// One `write` per line keeps the lines of concurrent adds from interleaving; a word with a quote or a newline is escaped
     /// by `quote`, so the line stays one line.
     pub fn line(&self, total: Duration, exit_code: i32) -> String {
-        let micros_to_ms = |time: Duration| -> String { return format!("{:.3}", time.as_micros() as f64 / 1000.0); };
-        let covered: Duration = self.spent.iter().map(|each: &Spent| { return each.own; }).sum();
-        let steps: Vec<String> = self.spent.iter().map(|each: &Spent| { return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(each.name.as_str()), micros_to_ms(each.own), each.calls); }).collect();
-        let work: Vec<String> = self.work.iter().map(|each: &Spent| { return format!("{}:{{\"ms\":{},\"calls\":{}}}", quote(each.name.as_str()), micros_to_ms(each.own), each.calls); }).collect();
-        let notes: Vec<String> = self.notes.iter().map(|(key, value): &(String, String)| { return format!("{}:{}", quote(key.as_str()), quote(value.as_str())); }).collect();
+        let mut covered: Duration = Duration::ZERO;
+        for each in &self.spent {
+            covered += each.own;
+        }
+        let steps: Vec<String> = self.spent.iter().map(spent_json).collect();
+        let work: Vec<String> = self.work.iter().map(spent_json).collect();
+        let notes: Vec<String> = self.notes.iter().map(note_json).collect();
         return format!(
             "{{\"schemaVersion\":{ADD_TIMING_SCHEMA_VERSION},\"time\":{},\"startMillis\":{},\"pid\":{},\"release\":{},\"exitCode\":{exit_code},\"totalMs\":{},\"steps\":{{{}}},\"otherMs\":{},\"work\":{{{}}},\"notes\":{{{}}},\"quiet\":{}}}\n",
             quote(now_iso().as_str()),
@@ -175,7 +233,7 @@ thread_local! {
 /// Begin recording the add of the repository whose common Git directory is `common_dir`, replacing any earlier recording
 ///  of this thread.
 pub fn begin(common_dir: PathBuf) {
-    ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| { *active.borrow_mut() = Some((Instant::now(), Recorder::new(common_dir))); });
+    ACTIVE.set(Some((Instant::now(), Recorder::new(common_dir))));
     if let Ok(mut work) = WORK.lock() {
         *work = Some(Vec::new());
     }
@@ -183,24 +241,43 @@ pub fn begin(common_dir: PathBuf) {
 
 /// Run `body` as the step `name`; with no recording begun, `body` runs alone.
 pub fn step<T>(name: &str, body: impl FnOnce() -> T) -> T {
-    let entered: bool = ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| {
-        return match active.borrow_mut().as_mut() {
-            Some((began, recorder)) => {
-                recorder.enter(name, began.elapsed());
-                true
-            }
-            None => false,
-        };
-    });
+    // The recording is taken out of its cell while it is updated and put back at once, so `body` never runs with the cell borrowed.
+    let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
+    let entered: bool = match recording.as_mut() {
+        Some((began, recorder)) => {
+            recorder.enter(name, began.elapsed());
+            true
+        }
+        None => false,
+    };
+    ACTIVE.set(recording);
     let value: T = body();
     if entered {
-        ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| {
-            if let Some((began, recorder)) = active.borrow_mut().as_mut() {
-                recorder.leave(began.elapsed());
-            }
-        });
+        let mut entered_recording: Option<(Instant, Recorder)> = ACTIVE.take();
+        if let Some((began, recorder)) = entered_recording.as_mut() {
+            recorder.leave(began.elapsed());
+        }
+        ACTIVE.set(entered_recording);
     }
     return value;
+}
+
+/// What:
+///  Whether a global Git option is followed by its value as the next word.
+/// Why:
+///   The subcommand is the first word that is neither an option nor the value of one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path'].includes(word)
+/// ```
+fn option_takes_value(word: &OsStr) -> bool {
+    for known in ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"] {
+        if word == OsStr::new(known) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -214,10 +291,9 @@ pub fn step<T>(name: &str, body: impl FnOnce() -> T) -> T {
 /// git_step_label(['-C', dir, '--no-optional-locks', 'status']) // 'git status'
 /// ```
 pub fn git_step_label(arguments: &[OsString]) -> String {
-    let takes_value = |word: &OsStr| -> bool { return ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"].iter().any(|known: &&str| { return word == OsStr::new(known); }); };
     let mut words = arguments.iter().map(OsString::as_os_str);
     while let Some(word) = words.next() {
-        if takes_value(word) {
+        if option_takes_value(word) {
             words.next();
             continue;
         }
@@ -253,11 +329,11 @@ pub fn work<T>(name: &str, body: impl FnOnce() -> T) -> T {
 
 /// Note a fact about the add being recorded; nothing outside a recording.
 pub fn note(key: &str, value: &str) {
-    ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| {
-        if let Some((_began, recorder)) = active.borrow_mut().as_mut() {
-            recorder.note(key, value);
-        }
-    });
+    let mut recording: Option<(Instant, Recorder)> = ACTIVE.take();
+    if let Some((_began, recorder)) = recording.as_mut() {
+        recorder.note(key, value);
+    }
+    ACTIVE.set(recording);
 }
 
 /// What:
@@ -271,8 +347,11 @@ pub fn note(key: &str, value: &str) {
 /// finish(exitCode);
 /// ```
 pub fn finish(exit_code: i32) {
-    let taken: Option<(Instant, Recorder)> = ACTIVE.with(|active: &RefCell<Option<(Instant, Recorder)>>| { return active.borrow_mut().take(); });
-    let drained: Option<Vec<(String, Duration)>> = WORK.lock().ok().and_then(|mut work: std::sync::MutexGuard<'_, Option<Vec<(String, Duration)>>>| { return work.take(); });
+    let taken: Option<(Instant, Recorder)> = ACTIVE.take();
+    let drained: Option<Vec<(String, Duration)>> = match WORK.lock() {
+        Ok(mut work) => work.take(),
+        Err(_poisoned) => None,
+    };
     let Some((began, mut recorder)) = taken else { return };
     for (name, spent) in drained.unwrap_or_default() {
         recorder.add_work(name.as_str(), spent);

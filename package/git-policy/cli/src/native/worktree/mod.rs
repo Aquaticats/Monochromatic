@@ -56,6 +56,9 @@ pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
 
+/// The one message shape of a failed step on a path: `<path> <what> (<error>)`.
+pub mod worktree_path_failure_message;
+
 /// Fixtures shared by the controls of the cheap-worktree ladder.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod worktree_ladder_test_support;
