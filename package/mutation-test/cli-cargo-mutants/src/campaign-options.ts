@@ -268,7 +268,9 @@ export type ScopeRules = {
  
  @param rules - the product's prefix and suffix
  
- @returns true when the name between prefix and suffix is non-empty and uses only glob-safe characters
+ @returns true when the name between prefix and suffix is non-empty and every `/`-separated segment of it is non-empty,
+   is not `.` or `..`, and uses only glob-safe characters, so a subdirectory of the product directory is a valid scope
+   and a path out of it is not
  
  @example
  ```ts
@@ -284,16 +286,23 @@ function isSourceGlob({
 }): boolean {
   if ((!scope.startsWith(rules.prefix)) || (!scope.endsWith(rules.suffix)))
     return false;
-  return usesOnly({
-    text: scope.slice(
-      rules.prefix
+  /**
+   The part between prefix and suffix, which may name subdirectories of the product directory.
+   */
+  const name = scope.slice(
+    rules.prefix
+      .length,
+    scope.length
+      - rules.suffix
         .length,
-      scope.length
-        - rules.suffix
-          .length,
-    ),
-    allowed: scopeNameCharacters,
-  });
+  );
+  return name.split('/')
+    .every(function isSegment(segment) {
+      return (segment !== '') && (segment !== '.') && (segment !== '..') && usesOnly({
+        text: segment,
+        allowed: scopeNameCharacters,
+      });
+    });
 }
 
 /**
