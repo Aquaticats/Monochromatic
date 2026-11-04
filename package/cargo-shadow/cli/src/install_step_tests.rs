@@ -900,3 +900,49 @@ fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permiss
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
 }
+
+/// A cargo whose update writes the given lockfile and leaves a process that could not be stopped.
+struct CargoThatLeavesWriters {
+    /// The lockfile text its update writes.
+    after: String,
+}
+
+/// How the fake runs.
+impl CargoRunner for CargoThatLeavesWriters {
+    /// What:
+    /// `fn run(&self, cwd, args)` writes the lockfile on `update` and reports that its descendants could not be stopped.
+    /// Why:
+    /// The command must stop when writers may remain, whatever the policy says about the bytes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// run(cwd: string, args: string[]): CargoOutcome
+    /// ```
+    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+        if args[0] == "update" && !args.iter().any(|argument| { return argument == "--locked"; }) {
+            fs::write(cwd.join("Cargo.lock"), &self.after).map_err(|error| { return error.to_string(); })?;
+            crate::bounded_run::mark_scope_lost_for_test();
+            return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        }
+        return cargo(&self.after).run(cwd, args);
+    }
+}
+
+/// Round 6 (5c N2): when a descendant of cargo could not be stopped, the lockfiles are neither rolled back nor accepted,
+/// the journal is kept, and the command does not run.
+#[test]
+fn a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = CargoThatLeavesWriters { after: SATISFIED.to_string() };
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("may still") && message.contains("journal"), "{message}"),
+        other => panic!("a run with writers that may remain read as {other:?}"),
+    }
+    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile was rolled back under a writer that may still write it");
+    let journals = crate::journal_support::journal_dirs(root.path());
+    assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+}

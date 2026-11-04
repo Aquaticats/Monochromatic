@@ -482,6 +482,20 @@ pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound)
 }
 
 /// What:
+/// `pub fn mark_scope_lost_for_test()` marks the innermost open scope of this thread as one whose writers may remain.
+/// Why:
+/// Tests of the callers need the verdict a run gives when a descendant cannot be stopped, which a real run cannot be made to give.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function markScopeLostForTest(): void
+/// ```
+#[cfg(test)]
+pub fn mark_scope_lost_for_test() {
+    lose(&current_scope());
+}
+
+/// What:
 /// `pub fn set_rerun(command: Option<String>)` names the command the user ran,
 /// for the errors of runs started by this thread.
 /// Why:
