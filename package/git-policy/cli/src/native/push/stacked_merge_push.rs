@@ -14,19 +14,19 @@
 //! ```
 
 /// The coordinator's Git and its error type.
-use super::auto_push_single_flight::{PushGit, SingleFlightError};
+use crate::auto_push_single_flight::{PushGit, SingleFlightError};
 /// The planned action and the engine failure status.
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 /// The diagnostic log of the wrapper.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The planner of an invocation.
-use super::entry::plan_invocation;
+use crate::entry::plan_invocation;
 /// The pushes run as children.
-use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
+use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 /// The facts a planner needs about this process.
-use super::real_git::process_resolution_inputs;
+use crate::real_git::process_resolution_inputs;
 /// The settled or plain run of the planned Git.
-use super::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard streams as writable values.

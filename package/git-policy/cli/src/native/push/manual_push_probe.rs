@@ -15,18 +15,18 @@
 //! ```
 
 /// The probe's Git runner, its bounded queries and its environment.
-use super::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
+use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
 /// The destination Git would pick for a bare push, and the porcelain report's parser.
-use super::lfs_upload_plan::resolve_push_remote;
+use crate::lfs_upload_plan::resolve_push_remote;
 /// Removes userinfo from text that may name a remote, and the cause a failure carries.
-use super::lfs_output_mask::mask_userinfo_text;
-use super::manual_push_cause::ManualPushCause;
-use super::manual_push_porcelain::{PorcelainBlock, PorcelainUpdate, RemoteBefore, parse_porcelain};
-use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use super::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::lfs_output_mask::mask_userinfo_text;
+use crate::manual_push_cause::ManualPushCause;
+use crate::manual_push_porcelain::{PorcelainBlock, PorcelainUpdate, RemoteBefore, parse_porcelain};
+use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_runner::{Event, OrderedRun, run_ordered};
 /// The push's own reading of its destination.
-use super::command_options::{Boundary, DEFAULT_MODE, parse_options};
-use super::command_push::{PUSH_TABLE, push_shape};
+use crate::command_options::{Boundary, DEFAULT_MODE, parse_options};
+use crate::command_push::{PUSH_TABLE, push_shape};
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
 
@@ -182,7 +182,7 @@ pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString])
     let insertion = separator.unwrap_or(post_subcommand.len());
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
     for setting in [
-        format!("core.hooksPath={}", super::hooks_off::NO_HOOKS_DIRECTORY),
+        format!("core.hooksPath={}", crate::hooks_off::NO_HOOKS_DIRECTORY),
         String::from("hook.pre-push.enabled=false"),
         String::from("core.abbrev=no"),
     ] {

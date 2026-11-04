@@ -18,25 +18,25 @@
 //! ```
 
 /// The reconcile loop that auto-push shares, and what it needs.
-use super::auto_push_reconcile::{Destination, Integrated, Reconcile, integrate_and_push};
+use crate::auto_push_reconcile::{Destination, Integrated, Reconcile, integrate_and_push};
 /// The coordinator's Git, its read-only query runner and its error type.
-use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
 /// The action data of a stacked push.
-use super::action::PushForward;
+use crate::action::PushForward;
 /// The environment of a Git child.
-use super::child_environment::environment_with_overlay;
+use crate::child_environment::environment_with_overlay;
 /// The table-driven read of a push's options.
-use super::command_push::stackable_option_tokens;
+use crate::command_push::stackable_option_tokens;
 /// The diagnostic log of the wrapper.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The check that the upload can start, what the upload sends, and its run.
-use super::lfs_interactive::{InteractiveUpload, upload_first};
+use crate::lfs_interactive::{InteractiveUpload, upload_first};
 /// The merge push, planned and run inside this process.
-use super::stacked_merge_push::gated_merge_push;
+use crate::stacked_merge_push::gated_merge_push;
 /// The destination and object names the push would send.
-use super::manual_push_probe::probe_manual_push_updates;
+use crate::manual_push_probe::probe_manual_push_updates;
 /// The settled or plain run of the forwarded command.
-use super::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard error as a writable stream.

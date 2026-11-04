@@ -19,13 +19,13 @@ import type {
 const NON_FAST_FORWARD = 'non-fast-forward';
 
 /**
- Note the wrapper prints after every failed auto-push (`PUSH_FAILED_NOTE` in `src/native/auto_push.rs`).
+ Note the wrapper prints after every failed auto-push (`PUSH_FAILED_NOTE` in `src/native/push/auto_push.rs`).
  */
 const PUSH_FAILED_NOTE = 'auto-push to origin failed';
 
 /**
  Line the wrapper prints instead of that note when its reconcile of a stale push cannot publish, for example after a
- conflicting merge (`RECONCILE_FAILED_PREFIX` in `src/native/auto_push_reconcile.rs`).
+ conflicting merge (`RECONCILE_FAILED_PREFIX` in `src/native/push/auto_push_reconcile.rs`).
  */
 const RECONCILE_FAILED_LINE = 'auto-push: not published:';
 

@@ -16,11 +16,11 @@
 //! ```
 
 /// The positive-seconds reading shared by the wait limits.
-use super::bounded_push::positive_seconds;
+use crate::bounded_push::positive_seconds;
 /// The plan on disk.
-use super::push_retry_store::{StoredPlan, load, remove, save};
+use crate::push_retry_store::{StoredPlan, load, remove, save};
 /// What the retry pushes again.
-use super::work_item::WorkItem;
+use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 

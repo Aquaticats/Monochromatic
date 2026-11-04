@@ -11,14 +11,14 @@
 //! ```
 
 /// The probe, the published set and the range, and the candidate request they feed.
-use super::auto_push_single_flight::PushGit;
-use super::candidate_object::parse_object_id;
-use super::candidate_prediction::PushedScope;
-use super::manual_push_cause::ManualPushCause;
-use super::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
-use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use super::parallel_runner::{Event, OrderedRun, run_ordered};
-use super::manual_push_range::{
+use crate::auto_push_single_flight::PushGit;
+use crate::candidate_object::parse_object_id;
+use crate::candidate_prediction::PushedScope;
+use crate::manual_push_cause::ManualPushCause;
+use crate::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
+use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::manual_push_range::{
     ManualPushRangeError, UpdateScope, peel_commits, published_tips, tracking_commits, update_scope,
 };
 /// Maps keyed by remote name and by object name.
@@ -67,7 +67,7 @@ impl std::error::Error for ManualPushFailure {}
 /// ```ts
 /// caughtValueText(error)
 /// ```
-fn from_probe(error: &super::manual_push_probe::ManualPushProbeError) -> ManualPushFailure {
+fn from_probe(error: &crate::manual_push_probe::ManualPushProbeError) -> ManualPushFailure {
     return ManualPushFailure {
         message: error.message.clone(),
         refusal: error.refusal.clone(),
@@ -168,8 +168,8 @@ pub fn scopes_of_updates_on(
 /// function candidateTargets(scopes: UpdateScope[]): { commits: string[]; trees: string[] };
 /// ```
 pub fn pushed_scope(scopes: &[UpdateScope]) -> Result<PushedScope, ManualPushFailure> {
-    let mut commits: Vec<super::candidate_object::ObjectId> = Vec::new();
-    let mut trees: Vec<super::candidate_object::ObjectId> = Vec::new();
+    let mut commits: Vec<crate::candidate_object::ObjectId> = Vec::new();
+    let mut trees: Vec<crate::candidate_object::ObjectId> = Vec::new();
     for scope in scopes {
         match scope {
             UpdateScope::None => {}

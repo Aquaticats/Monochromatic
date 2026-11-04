@@ -15,13 +15,13 @@
 //! await appendFile(join(commonDir, 'cli-git-push-trigger.jsonl'), JSON.stringify({ command, outcome, reason }) + '\n');
 //! ```
 
-use super::diagnostic_log::debug;
-use super::discard_audit::append_line;
-use super::iso_time::now_iso;
-use super::json_record::ObjectWriter;
-use super::lfs_output_mask::mask_userinfo_text;
-use super::service_instance::instance_of;
-use super::service_protocol::RELEASE;
+use crate::diagnostic_log::debug;
+use crate::discard_audit::append_line;
+use crate::iso_time::now_iso;
+use crate::json_record::ObjectWriter;
+use crate::lfs_output_mask::mask_userinfo_text;
+use crate::service_instance::instance_of;
+use crate::service_protocol::RELEASE;
 use std::path::Path;
 
 /// The file inside the common Git directory that collects the trigger records of every worktree of the repository.

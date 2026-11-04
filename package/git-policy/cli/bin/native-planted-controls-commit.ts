@@ -132,7 +132,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: 'manual-push confirmation refuses a remote ref changed after negotiation',
-    file: 'src/native/manual_push_probe.rs',
+    file: 'src/native/push/manual_push_probe.rs',
     from: 'RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),',
     to: 'RemoteBefore::Known(_reported) => false,',
     failing: 'manual_push_probe::tests::confirmation_refuses_a_remote_ref_that_changed_after_the_report',
@@ -146,7 +146,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: 'manual-push scope reads the final tree when no base is published',
-    file: 'src/native/manual_push_range.rs',
+    file: 'src/native/push/manual_push_range.rs',
     from: '    if published.is_empty() {',
     to: '    if published.is_empty() && false {',
     failing: 'manual_push_range::tests::an_unknown_base_scans_the_final_tree',

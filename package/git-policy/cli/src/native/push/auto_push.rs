@@ -15,15 +15,15 @@
 //! ```
 
 /// Where a plain push of a named branch goes.
-use super::auto_push_destination::{NamedPush, named_push};
+use crate::auto_push_destination::{NamedPush, named_push};
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
-use super::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push};
+use crate::auto_push_reconcile::{RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push};
 /// The service's Git, the failed attempt it reports and its error type.
-use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, run_query};
 /// The auto-push's bounded `git push` with the Git LFS upload.
-use super::lfs_bounded_push::run_push;
+use crate::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// `Write` is the stderr sink the terminal lines go to.

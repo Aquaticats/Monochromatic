@@ -15,7 +15,7 @@
 //! ```
 
 /// Diagnostic output to standard error for each refused start.
-use super::diagnostic_log::warn;
+use crate::diagnostic_log::warn;
 /// Error kinds, and the result type of a start.
 use std::io::{Error, ErrorKind, Result};
 /// The child process types a start produces.

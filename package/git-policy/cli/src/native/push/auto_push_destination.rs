@@ -15,8 +15,8 @@
 //! const named: NamedPush = await namedPush({ git, branchRef }); // push | remote-must-have | skip
 //! ```
 
-use super::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
-use super::config_snapshot::{ConfigSnapshot, Lookup};
+use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
+use crate::config_snapshot::{ConfigSnapshot, Lookup};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 

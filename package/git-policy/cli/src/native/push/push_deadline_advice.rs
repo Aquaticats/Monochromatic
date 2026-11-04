@@ -11,8 +11,8 @@
 //! const advice = inService ? 'run `systemctl --user set-environment ...` and then `systemctl --user restart ...`' : 'set VARIABLE';
 //! ```
 
-use super::bounded_push::PUSH_DEADLINE_VARIABLE;
-use super::service_messages::RESTART_COMMAND;
+use crate::bounded_push::PUSH_DEADLINE_VARIABLE;
+use crate::service_messages::RESTART_COMMAND;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The stall window the service advice gives as its example, in seconds.

@@ -174,7 +174,7 @@ Proof:
   The image was built before a comment-only edit above `run_relayed`; the host run above covers that edit.
 
 Windows: `native:clippy:windows` on `4a525a744c` exits 101 before it reaches the signal files.
-It reports six errors in `src/native/auto_push_single_flight.rs` and `src/native/manual_push_probe.rs`, which call
+It reports six errors in `src/native/push/auto_push_single_flight.rs` and `src/native/push/manual_push_probe.rs`, which call
 unix-only `std::os::unix` APIs without a `cfg`.
 Both files are unchanged from `c2f4219acb`, so the failure is on the base branch and is not this fix.
 No reported error names `signal_relay.rs` or `signal_relay_tests.rs`, and the `#[cfg(not(unix))]` guard branch

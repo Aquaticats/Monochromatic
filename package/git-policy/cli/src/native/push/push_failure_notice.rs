@@ -18,11 +18,11 @@
 //! await recordPushFailure(gitDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(gitDir));
 //! ```
 
-use super::auto_push::PUSH_FAILED_NOTE;
-use super::auto_push_branch_key::encode_branch_key;
-use super::lfs_output_mask::mask_userinfo_text;
-use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use super::service_messages::RESTART_COMMAND;
+use crate::auto_push::PUSH_FAILED_NOTE;
+use crate::auto_push_branch_key::encode_branch_key;
+use crate::lfs_output_mask::mask_userinfo_text;
+use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::service_messages::RESTART_COMMAND;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 

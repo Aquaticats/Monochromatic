@@ -23,7 +23,7 @@ that needs `HOME` and `PATH`.
 
 ## Cause
 
-`git_command` in `package/git-policy/cli/src/native/auto_push_single_flight.rs` starts every coordination query,
+`git_command` in `package/git-policy/cli/src/native/push/auto_push_single_flight.rs` starts every coordination query,
 the manual-push probe and the push with `.env_clear().envs(git.environment)`.
 That is the intended contract of `PushGit.environment` (a complete environment), but the two places that built a
 `PushGit` passed only the child-environment overlay (lock PID injection and forward-target marker):
@@ -125,7 +125,7 @@ On code head `116615ad41`:
 ## Not done yet
 
 - Scoped mutation of `src/native/invocation/wrapped_command.rs`.
-- Scoped mutation of `src/native/auto_push_single_flight.rs` (only doc comments changed there; optional).
+- Scoped mutation of `src/native/push/auto_push_single_flight.rs` (only doc comments changed there; optional).
 - The two new planted controls have never been executed. Run them with the planted phase on
   (see the Rerun commands section).
 - Nothing was published and nothing was installed on the live PATH.

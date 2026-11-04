@@ -20,9 +20,9 @@
 //! ```
 
 /// Positive-seconds parsing shared with the lock wait limits.
-use super::bounded_push::positive_seconds;
+use crate::bounded_push::positive_seconds;
 /// The name of the subcommand a request runs.
-use super::transaction_git::subcommand_of;
+use crate::transaction_git::subcommand_of;
 /// Operating-system text of the arguments and of the environment value.
 use std::ffi::{OsStr, OsString};
 /// Time spans.

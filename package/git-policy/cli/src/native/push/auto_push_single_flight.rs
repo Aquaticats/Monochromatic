@@ -10,10 +10,10 @@
 //! const output = await nanoSpawn(gitPath, args, { cwd, env });
 //! ```
 
-use super::bounded_push::STOP_GRACE;
-use super::push_deadline_advice::limit_clause;
-use super::bounded_query::{QueryOutput, query_window, run_bounded_query};
-use super::js_text::trim_javascript;
+use crate::bounded_push::STOP_GRACE;
+use crate::push_deadline_advice::limit_clause;
+use crate::bounded_query::{QueryOutput, query_window, run_bounded_query};
+use crate::js_text::trim_javascript;
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path.
@@ -131,10 +131,10 @@ pub struct PushGit {
 /// ```
 pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
     let mut command = Command::new(&git.real_git);
-    super::hooks_off::add_arguments(&mut command, arguments);
+    crate::hooks_off::add_arguments(&mut command, arguments);
     let mut in_place = in_push_environment(command, git);
     // The push environment is built from nothing, so the marker is added after it: this start says it is Git's too.
-    super::started_as_git::mark_real_git_start(&mut in_place, super::started_as_git::StartMode::Child);
+    crate::started_as_git::mark_real_git_start(&mut in_place, crate::started_as_git::StartMode::Child);
     return in_place;
 }
 
@@ -207,7 +207,7 @@ pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, Singl
 /// ```
 pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, SingleFlightError> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some((code, stdout, stderr)) = super::repo_read_hook::try_complete(arguments, git.cwd.as_path(), super::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice()) {
+    if let Some((code, stdout, stderr)) = crate::repo_read_hook::try_complete(arguments, git.cwd.as_path(), crate::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice()) {
         return Ok(QueryOutput { code, stdout, stderr });
     }
     return run_bounded_query(

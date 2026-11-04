@@ -39,12 +39,12 @@
 //! ```
 
 /// The patience a clock keeps, and what a stop reports.
-use super::bounded_push::{Patience, StopCause, StopReport};
+use crate::bounded_push::{Patience, StopCause, StopReport};
 /// The processes below the push, and the identity of each.
-use super::process_tree::{TreeMember, descendants_of, member_of};
+use crate::process_tree::{TreeMember, descendants_of, member_of};
 /// The connected sockets of the machine with their byte counts, and the sockets a process holds.
-use super::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
-use super::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
+use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
+use crate::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
 /// What each process of the tree was last seen to have moved.
 use std::collections::HashMap;
 /// Time spans and the monotonic clock.
@@ -95,7 +95,7 @@ fn bytes_moved_by(_pid: i32) -> Option<u64> {
 /// ```ts
 /// const [state, , , , , , , , , , , utime, stime] = text.slice(text.lastIndexOf(')') + 2).split(' ');
 /// ```
-pub(super) fn parse_activity(stat: &str) -> Option<(char, u64)> {
+pub(crate) fn parse_activity(stat: &str) -> Option<(char, u64)> {
     let after_name: &str = stat.get(stat.rfind(')')? + 2..)?;
     let fields: Vec<&str> = after_name.split(' ').collect();
     let state: char = fields.first()?.chars().next()?;
@@ -105,7 +105,7 @@ pub(super) fn parse_activity(stat: &str) -> Option<(char, u64)> {
 }
 
 /// Whether a state letter is one of a task that is at work: able to run (`R`) or waiting for the disk (`D`).
-pub(super) fn is_working(state: char) -> bool {
+pub(crate) fn is_working(state: char) -> bool {
     return state == 'R' || state == 'D';
 }
 

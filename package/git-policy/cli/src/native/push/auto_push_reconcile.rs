@@ -14,26 +14,26 @@
 //!  commits stay in the remote history beside the new ones.
 
 /// The coordinator's Git, its command builder, queries and error type.
-use super::auto_push_single_flight::{
+use crate::auto_push_single_flight::{
     PushAttempt, PushGit, SingleFlightError, git_command, git_output, run_query,
 };
 /// The deadline-bound runner of network commands and the limits it applies.
-use super::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
-use super::bounded_push::{STOP_GRACE, push_patience, run_bounded_push};
+use crate::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
+use crate::bounded_push::{STOP_GRACE, push_patience, run_bounded_push};
 /// The auto-push's bounded `git push` with the Git LFS upload.
-use super::lfs_bounded_push::run_push;
+use crate::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
-use super::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{debug, warn};
 /// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
-use super::merge_second_pass::{GitReply, GitRunner, Merged, conflicts_of_merge_tree};
-use super::journald_native::{CLIENT_IDENTIFIER, IDENTIFIER};
-use super::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, report, resolve_tree};
-use super::path_bytes::path_message_text;
+use crate::merge_second_pass::{GitReply, GitRunner, Merged, conflicts_of_merge_tree};
+use crate::journald_native::{CLIENT_IDENTIFIER, IDENTIFIER};
+use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, report, resolve_tree};
+use crate::path_bytes::path_message_text;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 /// Where Git's words go now that the fetch and the fast-forward carry no `--quiet`.
-use super::inner_git_words::{record_streams, record_text};
+use crate::inner_git_words::{record_streams, record_text};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
@@ -58,18 +58,18 @@ const REJECTED_MARKER: &str = "[rejected]";
 const REMOTE_REJECTED_MARKER: &str = "[remote rejected]";
 
 /// Where the plain push goes, as `auto_push_destination` decides it.
-pub use super::auto_push_destination::Destination;
+pub use crate::auto_push_destination::Destination;
 /// The destination of the plain push of a branch, from the settings alone.
-use super::auto_push_destination::read_destination;
+use crate::auto_push_destination::read_destination;
 /// The record of a fast-forward in flight, its settling, and the identity of the process that made it.
-use super::iso_time::now_iso;
-use super::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
-use super::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
-use super::random_id::random_uuid;
-use super::transaction_git::GitContext;
-use super::transaction_owner::current_transaction_owner;
+use crate::iso_time::now_iso;
+use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
+use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
+use crate::random_id::random_uuid;
+use crate::transaction_git::GitContext;
+use crate::transaction_owner::current_transaction_owner;
 /// The words that name a conflict in the report.
-use super::push_retry::CONFLICT_PHRASE;
+use crate::push_retry::CONFLICT_PHRASE;
 
 /// What:
 ///  Whether a push's output shows a refusal that a moved remote branch can explain: Git's stale `[rejected]`, or the

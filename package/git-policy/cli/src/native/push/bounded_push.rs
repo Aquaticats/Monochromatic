@@ -17,21 +17,21 @@
 //! ```
 
 /// The attempt record a finished or stopped push produces.
-use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
+use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
-use super::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{debug, warn};
 /// How to allow a push longer, in the words of the program that runs it.
-use super::push_deadline_advice::extend_clause;
+use crate::push_deadline_advice::extend_clause;
 /// The clock that stops a push on a stall, and the wait it lets pass instead.
-use super::push_progress::{Clock, WaitReport};
+use crate::push_progress::{Clock, WaitReport};
 /// The helpers and hooks a stopped push leaves running.
-use super::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
+use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The lock files a stopped push leaves, and the ledger that finds them.
-use super::stopped_git_locks::LockLedger;
+use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output file of the push, made in the per-user scratch directory.
-use super::scratch_location::scratch_file;
-use super::start_retry::RetryStart;
+use crate::scratch_location::scratch_file;
+use crate::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
 use std::ffi::{OsStr, OsString};
 /// `File` is the shared anonymous output file; `Read`, `Seek` and `SeekFrom` read it back from its start.
@@ -548,7 +548,7 @@ pub fn run_bounded_push(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
-    return super::push_lock_clearing::run_clearing_locks(command, patience, grace, environment, &super::stale_ref_lock_judge::Judge::here());
+    return crate::push_lock_clearing::run_clearing_locks(command, patience, grace, environment, &crate::stale_ref_lock_judge::Judge::here());
 }
 
 /// What:

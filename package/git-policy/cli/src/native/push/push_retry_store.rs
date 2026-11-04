@@ -14,9 +14,9 @@
 //! await save(dir, plan); const plans = await load(dir); await remove(dir, gitDir, branchRef);
 //! ```
 
-use super::push_failure_notice::fnv_hex;
-use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use super::work_item::WorkItem;
+use crate::push_failure_notice::fnv_hex;
+use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::work_item::WorkItem;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;

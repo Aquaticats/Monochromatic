@@ -11,11 +11,11 @@
 //! ```
 
 /// The Git runner, the probe's update type, and the object name helpers.
-use super::auto_push_single_flight::{PushGit, git_command};
-use super::manual_push_cause::ManualPushCause;
-use super::manual_push_probe::PushUpdate;
+use crate::auto_push_single_flight::{PushGit, git_command};
+use crate::manual_push_cause::ManualPushCause;
+use crate::manual_push_probe::PushUpdate;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+use crate::start_retry::RetryStart;
 /// Maps from remote names and peeled object names.
 use std::collections::BTreeMap;
 /// Owned OS strings for Git arguments and the stdin of batch queries.

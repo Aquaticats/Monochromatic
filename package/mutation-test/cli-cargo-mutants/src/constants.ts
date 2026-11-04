@@ -218,7 +218,7 @@ export const defaultPollIntervalMs = 15_000;
 
 /**
  Milliseconds between the notices a waiting gate writes, as the wrapper's lock-wait notices are spaced
- (`package/git-policy/cli/src/native/wait_progress.rs`, ten seconds).
+ (`package/git-policy/cli/src/native/push/wait_progress.rs`, ten seconds).
  */
 export const defaultNoticeIntervalMs = 10_000;
 

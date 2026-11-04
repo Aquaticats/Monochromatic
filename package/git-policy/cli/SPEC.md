@@ -1327,18 +1327,18 @@ the merge tree comes from `git merge-tree --write-tree`, the commit from `git co
 A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
 content, and the merge is computed again on the moved head (`src/native/merge/merge_isolation_moved.rs`).
 A push the service stopped or that failed is tried again by the service on its own, with doubling pauses from
-`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push_retry.rs`).
+`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push/push_retry.rs`).
 The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
 (owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
 these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
 Being offline, a stall, an HTTP 5xx answer of the LFS server and a held lock are tried again.
 A rejection by the server with a reason no rule names is tried again, and the journal names its line.
-The classification reads Git's own words, which are cited beside the rules in `src/native/push_retry.rs`.
+The classification reads Git's own words, which are cited beside the rules in `src/native/push/push_retry.rs`.
 The plan is owned by the service's work loop alone: a round takes what is due for each repository out of it before the
 repositories are drained side by side, hands it to that repository's worker as a value, and applies the plans and forgets the
 workers return, so the workers share it with no lock (`src/native/service_work.rs`, `src/native/service_round.rs`).
 The plan survives a restart of the service: it is kept on disk, a file per branch, in the instance's own journal
-(`src/native/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
+(`src/native/push/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
 
 #### Git steps, tools and checks end only on no progress
 
@@ -1353,7 +1353,7 @@ The coordinator added the read-only queries of the auto-push to the same rule.
 
 The rule: no run ends because it has taken long.
 A run ends when it has shown no sign of work for its quiet window.
-The signs are the ones the push reads (`src/native/push_progress.rs`): bytes moved by the process and everything it
+The signs are the ones the push reads (`src/native/push/push_progress.rs`): bytes moved by the process and everything it
 started,
 processor time, a task able to run or waiting for the disk, and, for a run that holds a connection to a remote, the open
 connection itself.
@@ -1365,7 +1365,7 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured and a run 
 bound
 is the rule.
 
-- A Git step of a commit (`src/native/child_watch.rs`, `src/native/transaction_git.rs`) is judged by the push meter on
+- A Git step of a commit (`src/native/push/child_watch.rs`, `src/native/transaction_git.rs`) is judged by the push meter on
   the
   process the wrapper started.
   A step that has shown no sign of work for the window, 60 seconds for a quick query step and 300 seconds for a bulk
@@ -1396,7 +1396,7 @@ is the rule.
 - The long-lived object reader (`git cat-file --batch`) is judged the same way per request; a request that stalls ends
   the
   reader and fails with the same sentence. Starting the reader again is not built.
-- A read-only Git query before the push (`src/native/bounded_query.rs`) has no wall-clock ceiling: it is judged by the
+- A read-only Git query before the push (`src/native/push/bounded_query.rs`) has no wall-clock ceiling: it is judged by the
   same
   meter with the push's stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`), and `QUERY_CEILING` (120 seconds) no longer
   exists.

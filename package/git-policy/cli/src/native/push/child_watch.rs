@@ -30,19 +30,19 @@
 //! ```
 
 /// The bound variable shared by every class of step, and the classes themselves.
-use super::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
 /// The longest one step runs.
-use super::wait_ceilings::OBJECT_STEP_CEILING;
+use crate::wait_ceilings::OBJECT_STEP_CEILING;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+use crate::start_retry::RetryStart;
 /// The notice cadence, its ticker and the child-wait line.
-use super::wait_progress::{Cadence, ChildWaitFacts, Ticker, child_wait_line};
+use crate::wait_progress::{Cadence, ChildWaitFacts, Ticker, child_wait_line};
 /// The patience of a run that ends on a stall, and the stop it reports.
-use super::bounded_push::{Patience, StopCause};
+use crate::bounded_push::{Patience, StopCause};
 /// The clock that reads the signs of work of a process tree, and how often it reads.
-use super::push_progress::{Clock, SAMPLE_INTERVAL};
+use crate::push_progress::{Clock, SAMPLE_INTERVAL};
 /// The longest quiet gap of each step, kept for the timing records.
-use super::quiet_ledger;
+use crate::quiet_ledger;
 /// The child and command types of the one-shot run.
 use std::process::{Child, Command, Output, Stdio};
 /// The sink a notice goes to.
@@ -53,11 +53,11 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 /// The marks the waiting thread sends the watcher; the watcher owns every other piece of state.
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 /// The lock files a stopped step leaves.
-use super::stopped_git_locks::LockLedger;
+use crate::stopped_git_locks::LockLedger;
 /// How long a stopped step may take to end after the polite request.
-use super::bounded_push::STOP_GRACE;
+use crate::bounded_push::STOP_GRACE;
 /// The processes below the step, and the identity checks that make signalling them safe.
-use super::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
+use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
 /// The watcher thread.
 use std::thread::JoinHandle;
 /// Time spans and the monotonic clock.

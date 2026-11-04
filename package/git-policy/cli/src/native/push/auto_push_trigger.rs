@@ -17,22 +17,22 @@
 
 #![cfg(unix)]
 
-use super::git_system_config::with_real_git;
-use super::repo_read_config_list::list_config;
-use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_layout::{RepoLayout, read_layout_after_success};
-use super::repo_read_object::{ObjectKind, from_hex};
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_query_refs::tracking_ref;
-use super::repo_read_refs::{RefValue, Refs};
-use super::repo_read_tree::parse_commit;
-use super::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
-use super::service_protocol::HEARTBEAT_SILENCE;
-use super::service_handoff::{ServiceHandoff, hand_over_push};
-use super::service_messages::{ClientFailure, render};
-use super::push_trigger_log::{Decision, Origin, Outcome, record_decision};
-use super::service_provision::platform_without_manager;
-use super::service_route::{Route, route_from_environment};
+use crate::git_system_config::with_real_git;
+use crate::repo_read_config_list::list_config;
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_layout::{RepoLayout, read_layout_after_success};
+use crate::repo_read_object::{ObjectKind, from_hex};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_query_refs::tracking_ref;
+use crate::repo_read_refs::{RefValue, Refs};
+use crate::repo_read_tree::parse_commit;
+use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for};
+use crate::service_protocol::HEARTBEAT_SILENCE;
+use crate::service_handoff::{ServiceHandoff, hand_over_push};
+use crate::service_messages::{ClientFailure, render};
+use crate::push_trigger_log::{Decision, Origin, Outcome, record_decision};
+use crate::service_provision::platform_without_manager;
+use crate::service_route::{Route, route_from_environment};
 use std::collections::{HashSet, VecDeque};
 use std::ffi::OsString;
 use std::io::Write;

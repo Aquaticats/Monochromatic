@@ -15,17 +15,17 @@
 //! ```
 
 /// The failure type of the auto-push coordination.
-use super::auto_push_single_flight::SingleFlightError;
+use crate::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push, and its stop causes.
-use super::bounded_push::{MAX_PUSH_OUTPUT, Patience, StopCause, push_deadline, stop_push, wait_until_done};
+use crate::bounded_push::{MAX_PUSH_OUTPUT, Patience, StopCause, push_deadline, stop_push, wait_until_done};
 /// The longest quiet gap of each step, kept for the timing records.
-use super::quiet_ledger;
+use crate::quiet_ledger;
 /// The lock files a stopped query leaves, and the ledger that finds them.
-use super::stopped_git_locks::LockLedger;
+use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output files of the query, made in the per-user scratch directory.
-use super::scratch_location::scratch_file;
-use super::start_retry::RetryStart;
+use crate::scratch_location::scratch_file;
+use crate::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
 /// The anonymous output files and their reading back.
