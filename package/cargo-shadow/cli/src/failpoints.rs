@@ -42,6 +42,10 @@ thread_local! {
     static ACKNOWLEDGEMENT_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next sync of the directory that lists the acknowledgement, by a reader on this thread, fails.
     static ACKNOWLEDGEMENT_DIRECTORY_SYNC: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next wait for a killed discovery program on this thread fails with an error.
+    static REAP_ERROR: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next sync of a file that is about to be published whole, on this thread, fails.
+    static PUBLICATION_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static RECORD_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
@@ -89,6 +93,10 @@ pub enum Point {
     AcknowledgementFileSync,
     /// The sync of the directory that lists the acknowledgement, by a reader (a recovery), fails.
     AcknowledgementDirectorySync,
+    /// The wait for a killed discovery program reports an error instead of a status.
+    ReapError,
+    /// The sync of the temporary file of an atomic publication (the writer's side of an acknowledgement) fails.
+    PublicationFileSync,
     /// The sync that makes a containment record durable fails.
     RecordSync,
     /// The write of a containment record fails.
@@ -151,6 +159,8 @@ pub fn arm(point: Point) {
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| { slot.set(true); }),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(|slot| { slot.set(true); }),
         Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
+        Point::ReapError => REAP_ERROR.with(|slot| { slot.set(true); }),
+        Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(|slot| { slot.set(true); }),
         Point::RecordSync => RECORD_SYNC.with(|slot| { slot.set(true); }),
         Point::RecordWrite => RECORD_WRITE.with(|slot| { slot.set(true); }),
         Point::ReapStuck => REAP_STUCK.with(|slot| { slot.set(true); }),
@@ -188,6 +198,8 @@ pub fn fires(point: Point) -> bool {
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(Cell::take),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(Cell::take),
         Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(Cell::take),
+        Point::ReapError => REAP_ERROR.with(Cell::take),
+        Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(Cell::take),
         Point::RecordSync => RECORD_SYNC.with(Cell::take),
         Point::RecordWrite => RECORD_WRITE.with(Cell::take),
         Point::ReapStuck => REAP_STUCK.with(Cell::take),

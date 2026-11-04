@@ -240,6 +240,28 @@ pub(crate) fn write_synced(path: &Path, text: &str) -> io::Result<()> {
     return file.sync_all();
 }
 
+#[cfg(test)]
+thread_local! {
+    /// A hook that runs inside `atomic_write` after the temporary file is whole and synced and before the rename publishes it, so a
+    /// test can stop or kill a real publisher at that boundary.
+    static BEFORE_PUBLISH: std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+/// `pub(crate) fn before_publish_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs between the temporary file and the
+/// rename of an atomic publication on this thread.
+/// Why:
+/// An interrupted publication is made by a real publisher that is killed there, not built by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function beforePublishForTest(hook?: () => void): void
+/// ```
+#[cfg(test)]
+pub(crate) fn before_publish_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
+    BEFORE_PUBLISH.with(|slot| { *slot.borrow_mut() = hook; });
+}
+
 /// What:
 /// `pub fn atomic_write(target: &Path, text: &str) -> io::Result<()>` publishes a file whole:
 /// written and synchronized under a unique sibling name,
@@ -297,6 +319,10 @@ pub fn atomic_write(target: &Path, text: &str) -> io::Result<()> {
     // if (value !== undefined) { const inner = value; ... }
     // ```
     // Borrow `&temp`: lends the value without copying or giving it away.
+    #[cfg(test)]
+    if let Some(hook) = BEFORE_PUBLISH.with(|slot| { return slot.borrow().clone(); }) {
+        hook();
+    }
     if let Err(error) = fs::rename(&temp, target) {
         let _ = fs::remove_file(&temp);
         // `Err(...)`: builds the success or the failure variant of a `Result`.

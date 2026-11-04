@@ -693,8 +693,13 @@ fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool {
     let stuck: bool = crate::failpoints::fires(crate::failpoints::Point::ReapStuck);
     #[cfg(not(test))]
     let stuck: bool = false;
+    #[cfg(test)]
+    let injected_error: bool = crate::failpoints::fires(crate::failpoints::Point::ReapError);
+    #[cfg(not(test))]
+    let injected_error: bool = false;
     loop {
-        if !stuck && !matches!(child.try_wait(), Ok(None)) {
+        let waited: io::Result<Option<std::process::ExitStatus>> = if injected_error { Err(io::Error::other("injected wait failure")) } else { child.try_wait() };
+        if !stuck && !matches!(waited, Ok(None)) {
             return true;
         }
         let now: Instant = Instant::now();

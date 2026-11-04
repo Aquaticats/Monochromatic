@@ -612,6 +612,10 @@ pub fn create_exclusive(directory: &Path, base: &str, text: &str, mode: u32, nex
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 file.write_all(text.as_bytes())?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
+                #[cfg(test)]
+                if crate::failpoints::fires(crate::failpoints::Point::PublicationFileSync) {
+                    return Err(io::Error::other("injected file sync failure"));
+                }
                 file.sync_all()?;
                 // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
                 let metadata = file.metadata()?;

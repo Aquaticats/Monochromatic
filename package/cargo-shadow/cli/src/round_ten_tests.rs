@@ -279,6 +279,17 @@ fn boot_authority_fixture() {
             mount_in_namespace(&["--bind", "/proc/sys/kernel/random", "/proc/sys/kernel/random"]);
             mount_in_namespace(&["-o", "remount,bind,ro", "/proc/sys/kernel/random"]);
         }
+        "symlink" => {
+            // The genuine directory is saved at another path, and a replacement directory whose `boot_id` is a symbolic link to the
+            // genuine `uuid` file is put over it (11a: a path check that follows links finds procfs and no mount root).
+            let saved: PathBuf = root.join("saved");
+            let replacement: PathBuf = root.join("replacement");
+            fs::create_dir_all(&saved).expect("saved");
+            fs::create_dir_all(&replacement).expect("replacement");
+            mount_in_namespace(&["--bind", "/proc/sys/kernel/random", &saved.display().to_string()]);
+            std::os::unix::fs::symlink(saved.join("uuid"), replacement.join("boot_id")).expect("the link");
+            mount_in_namespace(&["--bind", &replacement.display().to_string(), "/proc/sys/kernel/random"]);
+        }
         "tmpfs-directory" => {
             mount_in_namespace(&["-t", "tmpfs", "tmpfs", "/proc/sys/kernel/random"]);
             fs::write(boot_file, fs::read_to_string(&fake).expect("fake")).expect("a boot id file on the tmpfs");
@@ -307,7 +318,7 @@ fn boot_authority_fixture() {
 fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
     let now: Identity = current_identity().expect("this host's boot id is the kernel's, which the test needs");
     let replacement: String = format!("{}\n", after_a_reboot().boot);
-    for (mode, replaced) in [("baseline", false), ("file", true), ("uuid", true), ("tmpfs-directory", true), ("masked-directory", false)] {
+    for (mode, replaced) in [("baseline", false), ("file", true), ("uuid", true), ("symlink", true), ("tmpfs-directory", true), ("masked-directory", false)] {
         let root = repository();
         fs::write(root.path().join("fake-boot-id"), &replacement).expect("write the replacement");
         let group = live_group();
