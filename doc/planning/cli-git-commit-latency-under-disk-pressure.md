@@ -880,3 +880,9 @@ work
 The gate of the second round, on the tip that holds both merges and the owner's rule for syncs: 4703 tests run, 4703
 passed,
 7 skipped, exit status 0 (unit `gpc-gate-commits-fast-under-disk-pressure-20261103T205122-0500`).
+
+The gate of the third round, on the branch `perf/git-policy-cli-less-foreground-work` at `5baabfe665` (the commits after it
+change documents and a module header only): 4727 tests run, 4727 passed, 7 skipped, Clippy clean, exit status 0
+(unit `gpc-gate-less-foreground-work-20261104T050534-0500`). On the host before it, the new and touched controls ran as
+457 landing controls, 171 `repo_read` controls, 33 cache-tree and query controls, 127 snapshot, landing-sync and durable
+controls, and 17 timing controls.
