@@ -1159,7 +1159,7 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     let calls: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&calls);
     let script: String = format!(
-        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
         ready = ready.display()
     );
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
@@ -1187,6 +1187,15 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     if let Some(scope) = &scope_path {
         let _ = fs::write(scope.join("cgroup.kill"), "1");
     }
+    // Sixth certification pass: the armed fault was consumed by the stop of this run, the writer was ready before the payload ended, and
+    // the payload ran in the very scope the journal recorded (not merely a scope that was planned).
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck), "the stop fault was never reached, so the refusal has another cause");
+    assert!(root.path().join("writer-ready.seen").exists(), "the payload ended without having seen the writer ready");
+    crate::cgroup_test_support::assert_ran_in_recorded_scope(
+        &journals[0].join("groups").display().to_string(),
+        &fs::read_to_string(root.path().join("writer-ready.group")).expect("the payload's group"),
+        &crate::cgroup_test_support::wrapper_group(),
+    );
     match outcome {
         StepOutcome::Refused(message) => assert!(message.contains("may still") && message.contains("journal"), "{message}"),
         other => panic!("a run that could not show quiescence read as {other:?}"),
