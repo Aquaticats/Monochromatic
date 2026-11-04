@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 use crate::cgroup_test_support::delegated_route;
-use crate::control_group::{ControlGroup, LauncherState, Record, launcher_state, parse_record, pid_namespace_id, process_start, time_namespace_id};
+use crate::control_group::{ControlGroup, Record, launcher_state, parse_record, pid_namespace_id, process_start, time_namespace_id};
 use crate::crates::LockSnapshot;
 use crate::journal_recover::survivor_note;
 use crate::journal_support::plant;
