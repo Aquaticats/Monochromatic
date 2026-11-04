@@ -167,7 +167,7 @@ impl Context {
     }
 
     /// The index entries.
-    fn index(&self) -> Option<Vec<IndexEntry>> {
+    pub(super) fn index(&self) -> Option<Vec<IndexEntry>> {
         let bytes: Vec<u8> = super::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
         return parse_index(bytes.as_slice(), self.layout.object_format);
     }
@@ -220,6 +220,10 @@ fn list_files(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
 
 /// `diff-index --cached` and `diff --cached --name-only`.
 fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Option<Answer> {
+    // The exit status alone, for the checks of the wrapper that print nothing.
+    if !porcelain && parsed.flags.contains(&"--quiet") {
+        return super::repo_read_query_quiet::diff_index_quiet(context, parsed);
+    }
     let raw: bool = parsed.flags.contains(&"--raw");
     let mut required: Vec<&str> = vec!["--cached", "-z"];
     required.push(if raw { "--raw" } else { "--name-only" });
@@ -270,19 +274,23 @@ fn diff_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if commit.parents.len() > 1 {
         return None;
     }
-    let new: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, commit.tree.as_slice(), context.layout.object_format)?;
-    let old: Rc<Vec<FlatEntry>> = match commit.parents.first() {
+    let changes = match commit.parents.first() {
         Some(parent) => {
             let parent_object = database.read(parent.as_slice())?;
             if parent_object.kind != ObjectKind::Commit {
                 return None;
             }
             let parent_tree = parse_commit(parent_object.bytes.as_slice(), context.layout.object_format)?.tree;
-            flatten_tree_shared(&database, parent_tree.as_slice(), context.layout.object_format)?
+            // Only the entries that differ are listed, so a subtree both trees share is not read: a commit that changes one
+            //  file of a large checkout reads the few trees along the path, not every directory of both sides.
+            let (before, after): (Vec<FlatEntry>, Vec<FlatEntry>) = flatten_pair(&database, parent_tree.as_slice(), commit.tree.as_slice(), context.layout.object_format)?;
+            diff_sorted(before.as_slice(), after.as_slice())?
         }
-        None => Rc::new(Vec::new()),
+        None => {
+            let new: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, commit.tree.as_slice(), context.layout.object_format)?;
+            diff_sorted(&[], new.as_slice())?
+        }
     };
-    let changes = diff_sorted(old.as_slice(), new.as_slice())?;
     return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), stderr: Vec::new(), code: 0 });
 }
 

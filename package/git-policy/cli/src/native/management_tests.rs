@@ -42,6 +42,7 @@ fn no_git(root: &Path) -> ResolutionInputs {
         current_directory: root.to_path_buf(),
         common_paths: Vec::<PathBuf>::new(),
         own_executable: root.join("own-wrapper"),
+        service_unit: None,
     };
 }
 
@@ -587,16 +588,19 @@ fn direct_commands_go_on_beside_records_an_earlier_release_left() {
 #[test]
 fn direct_commands_report_git_failures() {
     let root: PathBuf = fixture("management-git-failure");
-    assert_eq!(
-        plan(&["check", "--all"], root.as_path(), &no_git(root.as_path())),
-        exit(
-            2,
-            "",
+    // The evidence is long (every candidate and every remedy); the head names the counts and the PATH it read.
+    let stopped: Action = plan(&["check", "--all"], root.as_path(), &no_git(root.as_path()));
+    let Action::Exit { code: stop_code, stdout: stop_out, stderr: stop_err } = stopped else { panic!("expected a stop") };
+    assert_eq!(stop_code, 2);
+    assert_eq!(stop_out, "");
+    assert!(
+        stop_err.starts_with(
             "cli-git: Could not find a real Git executable after examining 1 PATH candidates and \
-             skipping 0 cli-git wrappers. Ensure Git is installed and PATH/PATHEXT expose its \
-             executable.\n"
-        )
+             skipping 0 cli-git wrappers, so no Git command was run. PATH is "
+        ),
+        "{stop_err}"
     );
+    assert!(stop_err.contains("install Git"), "{stop_err}");
     let mut fake: ResolutionInputs = with_git(root.as_path());
     std::fs::create_dir(root.join("fake")).expect("directory");
     executable(

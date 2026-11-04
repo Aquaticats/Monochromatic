@@ -302,6 +302,9 @@ pub fn synchronize_created_worktree(
 }
 
 /// How many unreadable paths the notice names before it says how many more there are.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const NOTICE_PATHS: usize = 3;
 
 /// What:

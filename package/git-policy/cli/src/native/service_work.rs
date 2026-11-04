@@ -28,7 +28,7 @@ use super::push_failure_notice::{clear_push_failures_before, record_push_failure
 use super::push_retry::{Due, PushRetries, RetryChange, Retrying, final_failure, pause_before, plain_words, unrecognised_rejection};
 use super::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
 use super::service_claim_renewal::{ClaimRenewal, HeldClaims, Renewal, held_claims, renewal_interval};
-use super::service_review::{BUDGET, options_for, review_item, review_variables};
+use super::service_review::{options_for, review_item, review_variables};
 use super::parallel_budget::HostResources;
 use super::service_review_key::ReviewKey;
 use super::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directories};
@@ -57,7 +57,7 @@ pub enum Verdict {
     Failed(String),
     /// Nothing was done and nothing is left to retry, but the person should be told why; the text is what they are told.
     Skipped(String),
-    /// The push failed for a reason that can pass (a stall, the ceiling, the network, a held lock, a remote that advanced again);
+    /// The push failed for a reason that can pass (a stall, the network, an LFS server error, a held lock, a remote that advanced again);
     /// the text is what the person should be told, and the service tries the push again on its own, with growing pauses.
     Retry(String),
 }
@@ -332,6 +332,14 @@ fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, candidates:
 /// How long a claim goes without a renewal before another instance runs its item again; the holder renews it three times in this
 /// span while it works (`service_claim_renewal.rs`), so a holder that is slow keeps its claim and one that died loses it
 /// after this long.
+///  Measured by killing a throwaway service during a claim: the service binary in a fixture repository claimed a push held by the
+///  remote's hook, was killed with SIGKILL 1.5 s after the claim (with its process group), and a new service was started and woken;
+///  the push was made again 119.57, 119.56 and 119.55 s after the kill in three runs (2026-11-03), so the cost of a kill is the lease
+///  to within half a second. No kill of a commit service appears in the user journal of this host (19 boots), so the kills a person
+///  meets were not counted. The renewal thread is independent of the landing (`service_claim_renewal.rs`), so a landing that stalled for
+///  119.8 s (the longest `total_ms` in the service journal) does not stop renewals; a stall of the whole process longer than the
+///  80 s a renewal may be late would. Kept at 120 s as the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", batch size and claim lease, option B).
 pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
 
 /// What:
@@ -790,7 +798,7 @@ impl WorkHandlers for GitHandlers {
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
             // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
-            //  (a stall, the ceiling, the network, a held lock).
+            //  (a stall, the network, an LFS server error, a held lock).
             Ok(result) => match final_failure(result.shown.as_str()) {
                 Some(cause) => Verdict::Failed(match plain_words(cause) {
                     Some(words) => format!("{words}\n{}", result.shown),
@@ -828,7 +836,7 @@ impl WorkHandlers for GitHandlers {
         if let Some(endpoint) = self.review_endpoint.as_ref() {
             options.endpoint = endpoint.clone();
         }
-        return review_item(&self.context, item, options, BUDGET);
+        return review_item(&self.context, item, options);
     }
 }
 

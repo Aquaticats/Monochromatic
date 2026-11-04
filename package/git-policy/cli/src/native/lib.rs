@@ -100,6 +100,15 @@ pub mod real_git;
 /// Wrapper self-exclusion for one PATH candidate.
 pub mod real_git_candidate;
 
+/// The real Git that the commit service's unit file records, read as the fallback when `PATH` offers none.
+pub mod real_git_record;
+
+/// The one resolution of the real Git every start uses: `PATH`, then the Git the commit service's unit records.
+pub mod real_git_resolution;
+
+/// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
+pub mod started_as_git;
+
 /// Controls for the lock files a stopped Git child must not leave behind.
 #[cfg(test)]
 mod git_stop_lock_tests;
@@ -363,6 +372,12 @@ pub mod discard_audit;
 /// The record of where one wrapped commit spent its time,
 /// appended beside the discard audit.
 pub mod commit_timing;
+
+/// The longest quiet gap of every Git step and tool this process ran, kept until a timing record takes it.
+pub mod quiet_ledger;
+
+/// Whether a thread of this process is at work, and the clock that says when it has been quiet for a window.
+pub mod thread_quiet;
 
 /// The record of where one wrapped `git worktree add` spent its time, step by step,
 /// appended beside the commit timing record.
@@ -683,8 +698,6 @@ pub mod lfs_upload_settings;
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;
 
-/// Which failed `git-lfs push` runs are tried again (server errors only), after how long, and the notice.
-pub mod lfs_server_retry;
 
 /// Whether a blob is a Git LFS pointer, decided as `git-lfs` decides it.
 pub mod lfs_pointer;
@@ -857,6 +870,21 @@ pub mod landing_location;
 ///  the landing lock held while real Git runs as a child.
 pub mod index_writer_forward;
 
+/// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
+pub mod word_merge;
+
+/// The conflicted files a merge left, which of them the word pass may re-merge, and the lines that list each merged part.
+pub mod merge_second_pass;
+
+/// The word-level second pass for merges computed from objects, and the attribute tree those merges read.
+pub mod merge_second_pass_tree;
+
+/// The word-level second pass after a forwarded merge, rebase, cherry-pick or revert that Git stopped with a conflict.
+pub mod merge_second_pass_worktree;
+
+/// The finish of a stopped operation, like a clean run, after the second pass resolved every conflicted file.
+pub mod merge_second_pass_finish;
+
 /// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
 pub mod merge_options;
 
@@ -875,6 +903,9 @@ pub mod merge_isolation_recovery;
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 
+/// A pull that merges, read as its fetch and its merge of `FETCH_HEAD`.
+pub mod pull_isolation;
+
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 
@@ -892,9 +923,6 @@ pub mod signal_relay;
 
 /// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
 pub mod auto_push_branch_key;
-
-/// How long a command waits for the commit service's hold on the index, and the variable that sets it.
-pub mod wait_limit;
 
 /// The shared clock of every wait notice: the grace, the repeat interval and a queued commit's place in line.
 pub mod wait_progress;
@@ -935,6 +963,9 @@ pub mod stale_ref_lock_judge;
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
 
+/// The processes that carry a number inside a PID namespace nested in the reader's, which a pid file may name.
+pub mod stale_ref_lock_nested_numbers;
+
 /// The wrapper's own fetch and push, started after the stale reference locks of their repository are cleared.
 pub mod push_lock_clearing;
 
@@ -948,7 +979,7 @@ pub mod stale_ref_lock_message;
 #[cfg(test)]
 mod stale_ref_lock_killed_git;
 
-/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall or at its ceiling.
+/// The bytes a push and its processes move, sampled, and the clock that stops it on a stall.
 pub mod push_progress;
 
 /// The processes of this host that use a directory or a file.
@@ -1112,6 +1143,63 @@ pub mod repo_read_tree;
 /// In-process repository reads: the entries of an index file, versions 2 to 4.
 pub mod repo_read_index;
 
+/// In-process index update: Git's EWAH bitmap, for the untracked-cache and fsmonitor extensions.
+pub mod index_ewah;
+
+/// In-process index update: the cache-tree extension.
+pub mod index_cache_tree;
+
+/// In-process index update: the resolve-undo extension.
+pub mod index_resolve_undo;
+
+/// In-process index update: stat fields and Git's varint.
+pub mod index_stat;
+
+/// In-process index update: the untracked-cache extension as directories, and its invalidation.
+pub mod index_untracked;
+
+/// In-process index update: reading and writing the untracked-cache extension.
+pub mod index_untracked_io;
+
+/// In-process index update: the fsmonitor extension.
+pub mod index_fsmonitor;
+
+/// In-process index update: a whole index file read into entries and kept extensions.
+pub mod index_full;
+
+/// In-process index update: a whole index file written as Git writes it.
+pub mod index_full_write;
+
+/// In-process index update: the configuration that decides the extensions and the decline cases.
+#[cfg(unix)]
+pub mod index_settings;
+
+/// In-process index update: a path-limited mixed reset of an index held in memory.
+#[cfg(unix)]
+pub mod index_reset;
+
+/// In-process index update: the trees a path-limited reset reads.
+#[cfg(unix)]
+pub mod index_reset_tree;
+
+/// In-process index update: the lock proof, the temporary file and the file mode of the landing's private index.
+#[cfg(target_os = "linux")]
+pub mod index_reset_publish;
+
+/// In-process index update: the landing's follow-up on an index file.
+#[cfg(target_os = "linux")]
+pub mod index_reset_file;
+
+/// A test body run in a child process under a chosen umask; never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+mod umask_child_test_support;
+
+/// Index files real Git wrote, for the controls of the readers and writers; never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+mod index_reset_support_probe;
+
 /// In-process repository reads: the difference between two sorted entry lists and the output spellings.
 #[cfg(unix)]
 pub mod repo_read_diff;
@@ -1130,6 +1218,10 @@ pub mod repo_read_query;
 /// In-process repository reads: answers for the reference and configuration command lines.
 #[cfg(unix)]
 pub mod repo_read_query_refs;
+
+/// In-process repository reads: the exit status of `diff-index --cached --quiet`.
+#[cfg(unix)]
+pub mod repo_read_query_quiet;
 
 /// In-process repository reads: the two runner entry points that try the answers before starting Git.
 pub mod repo_read_hook;
@@ -1178,6 +1270,15 @@ pub mod service_protocol;
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
+/// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
+pub mod wait_ceilings;
+
+/// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
+pub mod service_reply;
+
+/// Where the landing's own syncs wait: queued for a background thread when the landing publishes, made before return otherwise.
+pub mod service_durable;
+
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;
 
@@ -1188,7 +1289,10 @@ pub mod service_fault;
 pub mod service_land;
 
 /// What the commit service's landing does once the branch has moved: index entries and conclusion state.
+pub mod service_land_copy;
+pub mod service_land_finish;
 pub mod service_land_follow;
+pub mod service_land_start;
 
 /// The commit service's hold on Git's index lock across a landing.
 pub mod service_index_lock;
@@ -1219,6 +1323,12 @@ pub mod service_index_staging;
 
 /// How the service's marked file becomes the index lock, and the cleanup of staging files.
 pub mod service_index_placement;
+
+/// The removal of a stale index lock, by a rename and a second look.
+pub mod service_index_reclaim;
+
+/// Whether a new index file holds the live index's bytes.
+pub mod service_index_same;
 
 /// The inotify watch the wait for the index lock blocks on.
 pub mod service_index_watch;
@@ -1264,6 +1374,12 @@ pub mod service_hold_retry;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
+
+/// The marker lines a committed file still holds, and the line about an operation a commit left open.
+pub mod conflict_markers;
+
+/// The stash and conflict stages Git's apply of an autostash left in the commit's scratch repository, carried back.
+pub mod autostash_carry;
 
 /// The service's memory of when the bytes of the commits it landed were captured, per worktree.
 pub mod service_captures;
@@ -1402,6 +1518,11 @@ mod no_self_invocation_tests;
 #[cfg(test)]
 mod standards_review_boundary_tests;
 
+/// The shared base of the checks that read the crate's own source text: a strict walk and the module tree, so a check
+/// is right for nested module directories; never in the release build.
+#[cfg(test)]
+mod source_scan_tests;
+
 /// The standards-review shadow run: appending an entry to the shared log without a lock, once per commit, with repair.
 pub mod standards_review_append;
 
@@ -1485,6 +1606,10 @@ pub mod subvolume_remove_walk;
 /// The migration journal beside the checkout.
 #[cfg(target_os = "linux")]
 pub mod subvolume_journal;
+
+/// The count of the entries under a checkout, from which the free space a migration needs follows.
+#[cfg(target_os = "linux")]
+pub mod subvolume_entry_count;
 
 /// The paths of a migration and the refusals that stop it before anything is created.
 #[cfg(target_os = "linux")]

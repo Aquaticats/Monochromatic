@@ -14,7 +14,7 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
+use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
 /// A direct command asks for the worktree files its scope selects.
 use super::candidate_prediction::CandidateRequest;
 use super::child_environment::{child_environment_overlay, environment_value};
@@ -49,7 +49,7 @@ use super::policy_events::{PolicyEvent, render_policy_events};
 use super::policy_pass::{PassResult, run_policy_pass};
 use super::policy_registry::PolicyId;
 use super::policy_trigger::Trigger;
-use super::real_git::{ResolutionInputs, resolve_real_git};
+use super::real_git::{ResolutionInputs, ResolvedGit, resolve_real_git};
 use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
 use super::repository_location::RepositoryLocation;
 /// The variable that names the forbidden-strings rules file.
@@ -410,13 +410,16 @@ fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsStr
     let Some(real) = real_git else {
         return Selection::Unresolved(String::from("no real Git was found to ask"));
     };
-    let asked = std::process::Command::new(real)
+    let mut asking = std::process::Command::new(real);
+    asking
         .args(global_arguments)
         .args(["rev-parse", "--path-format=absolute", "--absolute-git-dir"])
         .envs(environment.iter().map(|(name, value)| { return (name, value); }))
         .env("LC_ALL", "C")
-        .stdin(std::process::Stdio::null())
-        .output();
+        .stdin(std::process::Stdio::null());
+    // This start of the real Git says so too, like every other (`started_as_git.rs`).
+    super::started_as_git::mark_real_git_start(&mut asking, super::started_as_git::StartMode::Child);
+    let asked = asking.output();
     let output = match asked {
         Ok(found) => found,
         Err(error) => return Selection::Unresolved(format!("Git could not be started: {error}")),
@@ -446,10 +449,46 @@ const NOT_A_REPOSITORY_EXIT_CODE: i32 = 128;
 /// function planService(globalArguments, environment, inputs): Action;
 /// ```
 fn plan_service(global_arguments: &[OsString], environment: &[(OsString, OsString)], inputs: &ResolutionInputs) -> Action {
+    let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
+    let action: Action = plan_service_with(global_arguments, environment, real_git.as_deref());
+    return with_leading_notice(action, notice.as_deref());
+}
+
+/// What:
+///  Resolve the real Git for a command that can run without one.
+///  The pair is the path,
+///  if any,
+///  and the notice owed when it came from the commit service's record.
+/// Why:
+///   The status and conversion commands answer from what they can read when Git is missing,
+///  but a recorded fallback is the same resolution every other start uses,
+///  so its notice is given here too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function optionalRealGit(inputs: ResolutionInputs): [string | undefined, string | undefined];
+/// ```
+fn optional_real_git(inputs: &ResolutionInputs) -> (Option<PathBuf>, Option<String>) {
+    // `match` on the resolution: both parts when found, neither when not.
+    match resolve_real_git(inputs) {
+        Ok(found) => return (Some(found.path), found.notice),
+        Err(_) => return (None, None),
+    }
+}
+
+/// What:
+///  Decide the action of `git cli-git service status` once the optional real Git is known.
+/// Why:
+///   `plan_service` adds the notice of a recorded fallback to the action this returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planServiceWith(globalArguments, environment, realGit?: string): Action;
+/// ```
+fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
     let runtime: Option<PathBuf> = environment_value(environment, "XDG_RUNTIME_DIR").filter(|text| { return !text.is_empty(); }).map(PathBuf::from);
-    let real_git: Option<PathBuf> = resolve_real_git(inputs).ok();
     // The worktree the command runs in has its own service; outside a repository the answer counts any.
-    let git_dir: Option<PathBuf> = match status_git_dir(global_arguments, environment, real_git.as_deref()) {
+    let git_dir: Option<PathBuf> = match status_git_dir(global_arguments, environment, real_git) {
         Selection::Found(found) => Some(found),
         Selection::Outside => None,
         Selection::Unresolved(reason) => {
@@ -520,8 +559,9 @@ fn plan_convert(parsed: Result<ConvertArguments, String>, global_arguments: &[Os
         Ok(found) => found,
         Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
     };
-    let real_git: Option<PathBuf> = resolve_real_git(inputs).ok();
-    return run_convert(&arguments, cwd.as_path(), environment, real_git.as_deref());
+    let (real_git, notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
+    let action: Action = run_convert(&arguments, cwd.as_path(), environment, real_git.as_deref());
+    return with_leading_notice(action, notice.as_deref());
 }
 
 /// Run the conversion command where the platform has btrfs subvolumes.
@@ -566,10 +606,11 @@ fn plan_doctor(
     inputs: &ResolutionInputs,
     filesystem_section: &dyn Fn(&Path) -> String,
 ) -> Action {
-    let real_git: PathBuf = match resolve_real_git(inputs) {
+    let resolved: ResolvedGit = match resolve_real_git(inputs) {
         Ok(found) => found,
         Err(error) => return failure(error.to_string().as_str()),
     };
+    let real_git: PathBuf = resolved.path;
     let cwd: PathBuf = match std::env::current_dir() {
         Ok(found) => found,
         Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
@@ -582,7 +623,8 @@ fn plan_doctor(
         // The doctor sends no input, so no scratch directory is needed.
         common_dir: None,
     };
-    return doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
+    let action: Action = doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
+    return with_leading_notice(action, resolved.notice.as_deref());
 }
 
 /// What:
@@ -686,10 +728,42 @@ pub fn plan_management_with_section(
         // `&error` lends the error to the renderer.
         Err(error) => return direct_config_failure(&error),
     };
-    let real_git: PathBuf = match resolve_real_git(inputs) {
+    let resolved: ResolvedGit = match resolve_real_git(inputs) {
         Ok(found) => found,
         Err(error) => return failure(error.to_string().as_str()),
     };
+    let action: Action = plan_direct(
+        fix,
+        selected,
+        scope,
+        controls,
+        environment,
+        git_global_arguments,
+        resolved.path,
+    );
+    // `.as_deref()` lends the optional owned notice as an optional borrowed one.
+    return with_leading_notice(action, resolved.notice.as_deref());
+}
+
+/// What:
+///  Plan a direct command (`git cli-git check` and its kin) once the real Git is known.
+/// Why:
+///   `plan_management_with_section` adds the notice of a recorded fallback to whatever action this returns,
+///  so the many early stops of the planning carry it without repeating it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planDirect(fix, selected, scope, controls, environment, gitGlobalArguments, realGit): Action;
+/// ```
+fn plan_direct(
+    fix: bool,
+    selected: Vec<PolicyId>,
+    scope: Vec<OsString>,
+    controls: &Controls,
+    environment: &[(OsString, OsString)],
+    git_global_arguments: &[OsString],
+    real_git: PathBuf,
+) -> Action {
     let overlay: Vec<(OsString, OsString)> =
         child_environment_overlay(environment, real_git.as_path());
     // `mut` lets the pass cache facts it asks Git for.

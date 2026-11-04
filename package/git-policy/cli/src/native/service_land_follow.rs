@@ -13,18 +13,31 @@
 //! await updateIndex(git, repository, newCommit, paths); await removeConclusionState(git, repository, cleanup);
 //! ```
 
+use super::autostash_carry::carry_stash;
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::warn;
+use super::index_holder_wait::{IndexWait, wait_for_index_release_within};
+use super::wait_ceilings::LOCK_CEILING;
+use super::wait_progress::Cadence;
 use super::inner_git_words::record_words;
+use super::service_index_lock::IndexLock;
+pub use super::service_land_copy::PrivateCopy;
 use super::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use super::transaction_journal::RefFormat;
 use std::path::Path;
 
-/// How many times the index update is tried while another program holds the index.
+/// How many times the index update is tried again when the lock was gone by the time it was looked at: the holder let go
+///  between Git's refusal and the look, so the next try is expected to take the lock.
+///  Measured on 2026-11-03 on this host, on a copy of this repository's index (20,739 tracked files, 2.9 MB), with 20 runs each
+///  of `git status`, `git add -A`, `git reset -q` and `git update-index --refresh`: Git held `index.lock` for at most 100 ms
+///  (`add -A`; medians 26 to 53 ms, `status` at most 55 ms, `reset` at most 71 ms, `update-index` at most 77 ms). Five tries
+///  of that hold cover five holds in a row. A holder that is still there is waited for by `index_holder_wait.rs`, with no bound,
+///  and does not use these tries.
 const INDEX_ATTEMPTS: usize = 5;
 
-/// The pause between index tries.
+/// The pause between index tries when the lock was gone: the longest hold measured for one of Git's own short commands (see
+///  `INDEX_ATTEMPTS`).
 const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// Which index entries a landing updates.
@@ -103,7 +116,7 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     let output: GitOutput = match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(|path| { return format!(":(top,literal){path}"); }).collect();
-            let mut arguments: Vec<&str> = vec!["reset", new, "--"];
+            let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
             run(git, repository, &arguments, None, index)?
         }
@@ -113,14 +126,14 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
         IndexPaths::Derived { old } => {
             let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
     };
     if !output.succeeded() {
@@ -133,31 +146,52 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 }
 
 /// What:
-///  Updates the index entries of the commit's paths to the commit `new`, trying again while another program holds the
-///  index.
+///  Updates the index entries of the commit's paths to the commit `new`, waiting while another program holds the index.
 /// Why:
-///   Only Git's own index lock can make this fail for a moment, and the bound is the smallest that rides out a concurrent
-///  `git add`; an empty list changes nothing, because `reset` with no path would reset the whole index.
+///   Only Git's own index lock can make this fail for a moment. A holder proven alive is waited for with no bound, one that
+///  nothing proves alive for the short backoff, and a dead one not at all (`index_holder_wait.rs`); a lock that was gone by the
+///  time it was looked at is tried again a few times. An empty list changes nothing, because `reset` with no path would
+///  reset the whole index.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await updateIndex(git, repository, newCommit, paths)
+/// await updateIndex(git, repository, index, newCommit, paths)
 /// ```
-pub fn update_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
+pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
+    return update_index_within(git, repository, index, LOCK_CEILING, new, paths);
+}
+
+/// `update_index` that gives up on a holder of the index lock after `ceiling`, with the lock's code.
+///
+/// # Errors
+///
+/// As `update_index`.
+pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ceiling: std::time::Duration, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
     if matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty()) {
         return Ok(());
     }
-    let mut last: FailureCode = FailureCode::Unavailable;
-    for attempt in 0..INDEX_ATTEMPTS {
-        match reset_once(git, repository, new, paths, None) {
+    // Tries that met no holder to wait for: a refusal with the lock already gone, or a failure that is not the lock's.
+    let mut tries: usize = 0;
+    loop {
+        let code: FailureCode = match reset_once(git, repository, new, paths, None) {
             Ok(()) => return Ok(()),
-            Err(code) => last = code,
+            Err(code) => code,
+        };
+        if code == FailureCode::IndexInUse {
+            match wait_for_index_release_within(index, "commit", ceiling, Cadence::from_environment(), &mut std::io::stderr()) {
+                // The diagnostic of a wait that ended on a dead owner is already written.
+                IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) => return Err(code),
+                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well.
+                IndexWait::Released(_) => continue,
+                IndexWait::NotHeld => {}
+            }
         }
-        if attempt + 1 < INDEX_ATTEMPTS {
-            std::thread::sleep(INDEX_PAUSE);
+        tries += 1;
+        if tries >= INDEX_ATTEMPTS {
+            return Err(code);
         }
+        std::thread::sleep(INDEX_PAUSE);
     }
-    return Err(last);
 }
 
 /// What:
@@ -171,18 +205,27 @@ pub fn update_index(git: &GitContext, repository: &Path, new: &str, paths: Index
 /// ```ts
 /// const built = await buildIndex(git, repository, newCommit, paths, indexPath, seq)
 /// ```
-pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: &Path, seq: u64) -> Result<std::path::PathBuf, FailureCode> {
-    let built: std::path::PathBuf = index.with_file_name(format!("index.cli-git-{seq}"));
-    let _stale = std::fs::remove_file(&built);
-    if index.exists() {
-        std::fs::copy(index, &built).map_err(|error| { return storage_failure(&error); })?;
-    }
+pub fn build_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, lock: &IndexLock, seq: u64) -> Result<PrivateCopy, FailureCode> {
+    let copy: PrivateCopy = PrivateCopy::make(lock, seq)?;
+    let built: std::path::PathBuf = copy.path().to_path_buf();
     let empty: bool = matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty());
-    if !empty && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
-        let _removed = std::fs::remove_file(&built);
+    if !empty && !reset_in_process(git, repository, new, paths, (lock, &copy)) && let Err(code) = reset_once(git, repository, new, paths, Some(built.as_path())) {
         return Err(code);
     }
-    return Ok(built);
+    return Ok(copy);
+}
+
+/// Whether the private copy (made from the live index while `lock` is held) was reset to
+///  the commit without starting Git; Git's own command follows when it was not.
+#[cfg(target_os = "linux")]
+fn reset_in_process(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, (lock, copy): (&IndexLock, &PrivateCopy)) -> bool {
+    return super::index_reset_file::reset_index_file(git, repository, new, paths, lock, copy);
+}
+
+/// Without the in-process update on this platform, Git's own command always runs.
+#[cfg(not(target_os = "linux"))]
+fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: IndexPaths<'_>, _landing: (&IndexLock, &PrivateCopy)) -> bool {
+    return false;
 }
 
 /// The failure a storage error stands for.
@@ -211,6 +254,11 @@ pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cl
     }
     let format: RefFormat = if cleanup.reftable { RefFormat::Reftable } else { RefFormat::Files };
     let shadow = cleanup.scratch.join("shadow");
+    // The stash Git stored in the scratch repository when its apply conflicted is stored in the repository before the cleanup
+    //  removes the pseudoref that named it; if that fails the state stays, so the cleanup runs again.
+    if !carry_stash(git, repository, cleanup) {
+        return false;
+    }
     return match reproduce_conclusion_cleanup(git, repository, cleanup.git_dir.as_path(), shadow.as_path(), cleanup.scratch.as_path(), format) {
         Ok(()) => true,
         Err(error) => {

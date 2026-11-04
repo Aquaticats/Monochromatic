@@ -59,15 +59,15 @@ fn a_git_step_past_its_bound_fails_the_commit_and_names_the_class() {
     let text: String = ran.text();
     assert!(ran.injected(), "no start was delayed, so nothing was tested: {text}");
     assert_ne!(ran.code(), 0, "a stopped step must fail the commit: {text}");
-    assert!(text.contains(format!("did not finish within {BOUND_SECONDS} seconds and was stopped").as_str()), "{text}");
+    assert!(text.contains(format!("showed no sign of work for {BOUND_SECONDS} seconds and was stopped").as_str()), "{text}");
     assert!(text.contains(CHILD_WAIT_VARIABLE), "{text}");
-    // The sentence is "<command>, <class label> did not finish within ...": the label must be the one the production
+    // The sentence is "<command>, <class label> showed no sign of work for ...": the label must be the one the production
     // classification gives that command.
     let (before, found): (&str, ChildClass) = [ChildClass::Plumbing, ChildClass::Object]
         .iter()
         .filter_map(|class| {
             return text
-                .find(format!(", {} did not finish within", class.label()).as_str())
+                .find(format!(", {} showed no sign of work for", class.label()).as_str())
                 .map(|at| { return (at, *class); });
         })
         .min_by_key(|(at, _)| { return *at; })

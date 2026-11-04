@@ -171,6 +171,56 @@ pub enum Action {
 }
 
 /// What:
+///  Put a notice in front of the standard-error text an action already carries.
+///       `Option<&str>` is the notice or nothing (`string | undefined`).
+/// Why:
+///   The notice that the real Git came from the unit's record and not from `PATH` is owed to the person
+///  before anything else the invocation says,
+///  whichever way the invocation ends;
+///  every variant carries its standard-error text,
+///  so the one prefix covers them all
+///  and no start of Git has to know about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withLeadingNotice(action: Action, notice?: string): Action { return notice ? { ...action, stderr: notice + action.stderr } : action; }
+/// ```
+pub fn with_leading_notice(action: Action, notice: Option<&str>) -> Action {
+    // `let Some(x) = ... else { return ...; }` returns the action unchanged when there is no notice.
+    let Some(lead) = notice else {
+        return action;
+    };
+    // `match` picks the variant and binds the fields it carries;
+    //  `stderr: text` binds the field under a new name, `..` leaves the other fields as they are.
+    match action {
+        Action::Forward { real_git, arguments, overlay, stderr } => {
+            return Action::Forward { real_git, arguments, overlay, stderr: format!("{lead}{stderr}") };
+        }
+        Action::ForwardCoordinated { forward, stderr } => {
+            return Action::ForwardCoordinated { forward, stderr: format!("{lead}{stderr}") };
+        }
+        Action::ForwardSettled { real_git, arguments, overlay, copy, stderr } => {
+            return Action::ForwardSettled { real_git, arguments, overlay, copy, stderr: format!("{lead}{stderr}") };
+        }
+        Action::ForwardPush { forward, stderr } => {
+            return Action::ForwardPush { forward, stderr: format!("{lead}{stderr}") };
+        }
+        Action::ForwardAnnounced { real_git, arguments, overlay, announcement, stderr } => {
+            return Action::ForwardAnnounced {
+                real_git,
+                arguments,
+                overlay,
+                announcement,
+                stderr: format!("{lead}{stderr}"),
+            };
+        }
+        Action::Exit { code, stdout, stderr } => {
+            return Action::Exit { code, stdout, stderr: format!("{lead}{stderr}") };
+        }
+    }
+}
+
+/// What:
 ///  Build the stop action for a wrapper failure described in prose.
 ///       `&str` borrows the message;
 ///  the action owns its formatted copy.

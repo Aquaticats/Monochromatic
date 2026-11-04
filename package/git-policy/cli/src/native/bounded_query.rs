@@ -1,19 +1,25 @@
 //! What:
-//!  Run one read-only Git query with a deadline and separate output streams.
+//!  Run one read-only Git query that is ended only when it shows no sign of work, with separate output streams.
 //! Why:
 //!  The auto-push asks Git a handful of questions before it pushes,
 //!  and a question that never returns would hold the service's push for good.
-//!  A query that outlives its deadline is stopped and reported, so the commit stays saved.
+//!  A query that shows no sign of work for the quiet window is stopped and reported, so the commit stays saved. A query that
+//!  works is never stopped for being slow: no total time bounds it (owner, 2026-11-03: "Stop only on no progress"; the
+//!  coordinator's scope addition to picks 4 and 9 of `doc/planning/cli-git-shipped-limits-audit.md`, open to the owner's
+//!  veto). Before this, a query shared the push's wall-clock stop and the journal showed a `git status` stopped at
+//!  2026-11-03T08:28 with `outcome=retrying push_ms=97398`. The longest quiet gap of every query is kept in the ledger.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const { exitCode, stdout, stderr } = await nanoSpawn(gitPath, args, { cwd, signal: AbortSignal.timeout(deadlineMs) });
+//! const { exitCode, stdout, stderr } = await nanoSpawn(gitPath, args, { cwd, signal: quietFor(windowMs) }); // quiet, not slow
 //! ```
 
 /// The failure type of the auto-push coordination.
 use super::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push, and its stop causes.
 use super::bounded_push::{MAX_PUSH_OUTPUT, Patience, StopCause, push_deadline, stop_push, wait_until_done};
+/// The longest quiet gap of each step, kept for the timing records.
+use super::quiet_ledger;
 /// The lock files a stopped query leaves, and the ledger that finds them.
 use super::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
@@ -29,10 +35,6 @@ use std::io::{Read, Seek, SeekFrom};
 use std::process::{Command, ExitStatus, Stdio};
 /// Time spans.
 use std::time::Duration;
-
-/// The longest a query may run whatever the push deadline is:
-///  queries read local repository state and finish in milliseconds.
-pub const QUERY_CEILING: Duration = Duration::from_secs(120);
 
 /// What:
 ///  What a finished query printed and how it ended.
@@ -54,16 +56,17 @@ pub struct QueryOutput {
 }
 
 /// What:
-///  The deadline of a query: the push deadline, but never more than the ceiling.
+///  The quiet window of a query: the push's stall window.
 /// Why:
-///   One setting bounds every Git child of the auto-push, and a long push deadline must not stretch queries.
+///   One setting bounds how long every Git child of the auto-push may show no sign of work. The cap of 120 seconds a query
+///  used to have is gone with the wall-clock stop it belonged to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// Math.min(pushDeadlineMs(env), QUERY_CEILING_MS)
+/// pushStallMs(env)
 /// ```
-pub fn query_deadline(environment: &[(OsString, OsString)]) -> Duration {
-    return push_deadline(environment).min(QUERY_CEILING);
+pub fn query_window(environment: &[(OsString, OsString)]) -> Duration {
+    return push_deadline(environment);
 }
 
 /// Read one output file back from its start, up to the output cap.
@@ -83,19 +86,19 @@ fn read_back(file: &mut File) -> Result<Vec<u8>, SingleFlightError> {
 }
 
 /// What:
-///  Run a query command to its end or its deadline.
+///  Run a query command to its end, or until it has shown no sign of work for the quiet window.
 /// Why:
 ///   Both streams go to anonymous files, so no reader thread can outlive a stopped query.
-///  A query past its deadline is a coordination failure, not an answer.
+///  A query that was stopped for being quiet is a coordination failure, not an answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function runBoundedQuery({ command, arguments, deadlineMs, graceMs }): Promise<QueryOutput>;
+/// async function runBoundedQuery({ command, arguments, windowMs, graceMs }): Promise<QueryOutput>;
 /// ```
 pub fn run_bounded_query(
     mut command: Command,
     arguments: &str,
-    deadline: Duration,
+    window: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
@@ -111,8 +114,13 @@ pub fn run_bounded_query(
     let locks = LockLedger::before_start(&command);
     let mut child = command.spawn_retrying().map_err(SingleFlightError::Start)?;
     drop(command);
+    let mut quiet: Option<Duration> = None;
     let ended: Result<ExitStatus, StopCause> =
-        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Fixed(deadline))?;
+        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, &mut quiet)?;
+    let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
+    if let Some(gap) = quiet {
+        quiet_ledger::note(step.as_str(), gap, ended.is_err());
+    }
     return match ended {
         Ok(status) => Ok(QueryOutput {
             code: status.code(),
@@ -122,10 +130,10 @@ pub fn run_bounded_query(
         Err(cause) => {
             stop_push(child, grace, locks);
             Err(match cause {
-                // A query waits under a fixed deadline, so only a deadline reaches here; the others are the same wait.
-                StopCause::Deadline | StopCause::Stalled(_) | StopCause::Ceiling(_) => SingleFlightError::TimedOut {
+                // A query waits on its signs of work, so only a stall reaches here; a deadline is the same wait.
+                StopCause::Deadline | StopCause::Stalled(_) => SingleFlightError::TimedOut {
                     arguments: arguments.to_owned(),
-                    seconds: deadline.as_secs(),
+                    seconds: window.as_secs(),
                 },
                 StopCause::Flood => SingleFlightError::Git {
                     arguments: arguments.to_owned(),
@@ -139,7 +147,7 @@ pub fn run_bounded_query(
     };
 }
 
-/// Query deadlines are controlled in the test module.
+/// Query windows are controlled in the test module.
 #[cfg(test)]
 #[path = "bounded_query_tests.rs"]
 mod tests;

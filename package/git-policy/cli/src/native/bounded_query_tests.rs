@@ -11,30 +11,19 @@ fn shell(script: &str) -> Command {
     return command;
 }
 
-/// The query deadline follows the push deadline and never passes the ceiling.
+/// The query window is the push's stall window, set by the same variable, with no ceiling of its own.
 #[test]
-fn the_query_deadline_follows_the_push_deadline_up_to_the_ceiling() {
+fn the_query_window_is_the_push_stall_window() {
     let set = |value: &str| -> Vec<(OsString, OsString)> {
         return vec![(
             OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE),
             OsString::from(value),
         )];
     };
-    let ceiling: u64 = QUERY_CEILING.as_secs();
-    // Without the variable the query follows the push default, capped by the ceiling.
-    assert_eq!(
-        query_deadline(&[]),
-        crate::bounded_push::DEFAULT_PUSH_DEADLINE.min(QUERY_CEILING)
-    );
-    // A push deadline below the ceiling is followed exactly.
-    let below: u64 = ceiling - 1;
-    assert_eq!(
-        query_deadline(&set(below.to_string().as_str())),
-        Duration::from_secs(below)
-    );
-    // The ceiling itself and anything above it give the ceiling.
-    assert_eq!(query_deadline(&set(ceiling.to_string().as_str())), QUERY_CEILING);
-    assert_eq!(query_deadline(&set((ceiling + 1).to_string().as_str())), QUERY_CEILING);
+    assert_eq!(query_window(&[]), crate::bounded_push::DEFAULT_PUSH_DEADLINE);
+    // A window above what used to be the query ceiling is followed exactly.
+    let high: u64 = crate::bounded_push::DEFAULT_PUSH_DEADLINE.as_secs() * 10;
+    assert_eq!(query_window(&set(high.to_string().as_str())), Duration::from_secs(high));
 }
 
 /// A finished query keeps its exit code and its two streams apart.
@@ -74,7 +63,7 @@ fn a_query_ended_by_a_signal_has_no_code() {
     assert_eq!(output.code, None);
 }
 
-/// A stalled query is stopped at its deadline and reported as a timeout naming its arguments.
+/// A silent query is stopped when it has shown no sign of work for the window and reported as a stall naming its arguments.
 #[cfg(unix)]
 #[test]
 fn a_stalled_query_is_stopped_and_reported() {
@@ -98,7 +87,7 @@ fn a_stalled_query_is_stopped_and_reported() {
     assert!(
         failure
             .to_string()
-            .starts_with("git rev-parse HEAD did not finish within 0 seconds and was stopped; CLI_GIT_PUSH_DEADLINE_SECONDS"),
+            .starts_with("git rev-parse HEAD showed no sign of work for 0 seconds and was stopped; CLI_GIT_PUSH_DEADLINE_SECONDS"),
         "{failure}"
     );
 }
@@ -142,4 +131,23 @@ fn a_program_that_cannot_start_is_a_start_failure() {
     )
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");
+}
+
+/// A query that keeps writing is never stopped however long it runs: the window judges quiet time, not wall time.
+///  The fixture writes a line every pause for a multiple of the window, with no busy loop.
+#[cfg(unix)]
+#[test]
+fn a_query_that_keeps_working_is_never_stopped_however_long_it_runs() {
+    let window: Duration = Duration::from_millis(1200);
+    let started = std::time::Instant::now();
+    let output: QueryOutput = run_bounded_query(
+        shell("n=0; while [ $n -lt 15 ]; do echo line; sleep 0.2; n=$((n + 1)); done"),
+        "log",
+        window,
+        Duration::from_secs(5),
+        scratch_environment().as_slice(),
+    )
+    .expect("a query that keeps working is never stopped");
+    assert_eq!(output.code, Some(0));
+    assert!(started.elapsed() > window * 2, "the fixture ran only {:?}", started.elapsed());
 }

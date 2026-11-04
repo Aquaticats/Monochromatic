@@ -1,0 +1,5 @@
+[package]
+name = "x"
+
+[dependencies]
+a = "1"

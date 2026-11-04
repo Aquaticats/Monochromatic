@@ -47,6 +47,7 @@ pub(super) fn inputs(root: &Path) -> ResolutionInputs {
         current_directory: root.to_path_buf(),
         common_paths: Vec::<PathBuf>::new(),
         own_executable: own,
+        service_unit: None,
     };
 }
 

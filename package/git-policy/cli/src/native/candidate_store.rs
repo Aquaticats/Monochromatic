@@ -102,9 +102,25 @@ pub struct CandidateStore {
     baseline: Option<Option<ObjectId>>,
 }
 
+/// What:
+///  The last commit any store listed with its files, kept for the rest of the process.
+/// Why:
+///   See `CandidateStore::commit_tree_records`. One entry bounds the memory to one commit's listing, and a commit's listing is
+///  the same whichever store asks, so no store has to be told about another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let lastListed: { commit: ObjectId; records: TreeRecord[] } | undefined;
+/// ```
+static LISTED: std::sync::Mutex<Option<(ObjectId, std::sync::Arc<Vec<TreeRecord>>)>> = std::sync::Mutex::new(None);
+
 /// The most commits one `git rev-list` receives.
 ///  `usize` is the type of counts; 2,048 object names stay far below any argument limit.
-const COMMIT_CHUNK_SIZE: usize = 2_048;
+///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
+///  command, so the result is the same and only the number of starts changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
+const COMMIT_CHUNK_SIZE: usize = super::candidate_prediction::PATHSPEC_CHUNK_SIZE;
 
 /// What:
 ///  Build the failure of a listing command that could not be started or exited unsuccessfully.
@@ -517,6 +533,29 @@ impl CandidateStore {
         &mut self,
         commit: &ObjectId,
     ) -> Result<Vec<TreeRecord>, CandidateError> {
+        // What:  `LISTED` holds the last listing of any store in this process, keyed by the commit it listed.
+        // Why:   A commit's name fixes its tree, so the listing of one commit never changes; the policies before a commit and
+        //        the gate after it list the same base commit with two stores, and each listing starts Git over every tree of a
+        //        repository with tens of thousands of files.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (lastListed?.commit === commit) return lastListed.records;
+        // ```
+        if let Some((listed, records)) = LISTED.lock().ok().and_then(|held| { return held.clone(); })
+            && listed == *commit
+        {
+            return Ok(records.as_ref().clone());
+        }
+        let records: Vec<TreeRecord> = self.list_commit_tree(commit)?;
+        if let Ok(mut held) = LISTED.lock() {
+            *held = Some((commit.clone(), std::sync::Arc::new(records.clone())));
+        }
+        return Ok(records);
+    }
+
+    /// The listing of one commit's files by Git, as `commit_tree_records` asks for it when it has no answer kept.
+    fn list_commit_tree(&mut self, commit: &ObjectId) -> Result<Vec<TreeRecord>, CandidateError> {
         let output: Vec<u8> = self.run_listing(
             "ls-tree",
             &[

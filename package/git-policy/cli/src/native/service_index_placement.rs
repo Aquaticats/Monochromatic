@@ -84,7 +84,7 @@ pub const SYSTEM: Platform<'static> = Platform {
 };
 
 pub fn sync_file(file: &std::fs::File) -> std::io::Result<()> {
-    return file.sync_all();
+    return super::service_durable::flush_file(file, "lock-marker");
 }
 
 fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {
@@ -254,15 +254,7 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
 /// when it is still there;
 /// a lock that is already gone counts as removed.
 pub fn reclaim(platform: &Platform, lock: &Path) -> bool {
-    return match (platform.unlink)(lock) {
-        Ok(()) => true,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
-        Err(error) => {
-            crate::service_error!("the index lock {} was left by a service that is gone, and it cannot be removed ({error}); \
-                 remove it by hand, and clear its immutable attribute or fix the directory's permissions first if that is why it stays",
-                lock.display()
-            );
-            false
-        }
-    };
+    return reclaim_if(platform, lock, &super::service_index_marker::is_reclaimable);
 }
+
+pub use super::service_index_reclaim::reclaim_if;

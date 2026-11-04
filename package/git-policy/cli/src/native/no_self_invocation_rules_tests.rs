@@ -73,9 +73,10 @@ pub(super) const RULES: &[Rule] = &[
     },
 ];
 
-/// One justified exception: the file, the rule, and why it stays.
+/// One justified exception: the file's relative path, the rule, and why it stays.
 pub(super) struct Allowed {
-    /// The file name under `src/native`.
+    /// The file's path relative to `src/native`, `/`-separated (`real_git.rs`, or `git/real_git.rs` for a nested one);
+    ///  a file name alone excuses nothing in a subdirectory.
     pub(super) file: &'static str,
     /// The rule that file is excused from.
     pub(super) rule: &'static str,

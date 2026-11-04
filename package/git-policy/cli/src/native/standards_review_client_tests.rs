@@ -7,12 +7,12 @@ use std::time::Instant;
 /// A stand-in credential; it names no real key.
 const KEY: &str = "test-key-not-a-secret";
 
-/// A deadline long enough for loopback and short enough for a timeout test.
+/// A quiet window long enough for loopback and short enough for a timeout test.
 const SHORT: Duration = Duration::from_millis(400);
 
 /// A gateway at `url` with the given deadline.
-fn gateway(url: &str, deadline: Duration) -> Gateway<'_> {
-    return Gateway { url, api_key: KEY, deadline, trusted_pem: None };
+fn gateway(url: &str, quiet_window: Duration) -> Gateway<'_> {
+    return Gateway { url, api_key: KEY, quiet_window, trusted_pem: None };
 }
 
 /// The request has the method, path, JSON content type, bearer header and the exact body bytes.
@@ -64,10 +64,10 @@ fn a_redirect_is_not_followed() {
     mock.finish();
 }
 
-/// A server that never answers ends the call at the deadline with the timeout wording, not later.
-/// The server holds the connection until the call closes it, so only the deadline can end the call in time.
+/// A server that never answers ends the call when it has been silent for the quiet window, with the timeout wording, not later.
+/// The server holds the connection until the call closes it, so only the window can end the call in time.
 #[test]
-fn a_silent_server_ends_at_the_deadline() {
+fn a_silent_server_ends_after_the_quiet_window() {
     let mock: Mock = Mock::start(Answer::Silent(SILENT_AT_MOST));
     let url: String = mock.url.clone();
     let started: Instant = Instant::now();
@@ -101,4 +101,20 @@ fn an_unreadable_authority_is_refused() {
     let mut bad: Gateway = gateway("https://127.0.0.1:1/", SHORT);
     bad.trusted_pem = Some(b"not a certificate");
     assert!(post_decision(&bad, "{}").expect_err("authority").starts_with("the trusted authority is unreadable"));
+}
+
+/// A reply that keeps arriving is never cut off however long it takes: the window judges quiet time, not wall time.
+///  The mock sends one byte a pause for a multiple of the window, so it is never silent for the window.
+#[test]
+fn a_reply_that_keeps_arriving_is_never_cut_off() {
+    let window: Duration = Duration::from_millis(1200);
+    let pause: Duration = Duration::from_millis(200);
+    let bytes: usize = 15;
+    let mock: Mock = Mock::start(Answer::Trickle { bytes, pause });
+    let url: String = mock.url.clone();
+    let started: Instant = Instant::now();
+    let reply: Reply = post_decision(&gateway(url.as_str(), window), "{}").expect("a reply that keeps arriving is read whole");
+    assert_eq!(reply.body.len(), bytes);
+    assert!(started.elapsed() > window * 2, "the reply took only {:?}", started.elapsed());
+    mock.finish();
 }

@@ -190,7 +190,7 @@ fn a_restart_says_each_batch_it_settled() {
         git: GitContext { real_git: std::path::PathBuf::from("/usr/bin/git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None },
         journal,
         on_objects_written: None,
-        index_wait: std::time::Duration::from_secs(1),
+        lock_ceiling: crate::wait_ceilings::LOCK_CEILING,
     };
     let entries = crate::service_timing::capture::entries_of(|| { let _reports = settle_open_batches(&context, None); });
     assert_eq!(entries.len(), 1, "{entries:?}");
@@ -198,4 +198,10 @@ fn a_restart_says_each_batch_it_settled() {
     assert!(entries[0].message.starts_with("settled the batch an earlier service left open batch=41 decision="), "{}", entries[0].message);
     assert!(entries[0].fields.contains(&(String::from("CLI_GIT_BATCH"), String::from("41"))), "{:?}", entries[0].fields);
     crate::test_support::remove(root.as_path());
+}
+
+/// The batch cap is the size the measured landing cost had not yet doubled at, so a change of either is made with the other.
+#[test]
+fn the_batch_cap_is_the_measured_cost_knee() {
+    assert_eq!(MAX_BATCH, BATCH_COST_KNEE);
 }

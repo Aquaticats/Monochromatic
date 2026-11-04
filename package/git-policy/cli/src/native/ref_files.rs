@@ -24,10 +24,18 @@ use std::path::Path;
 
 /// The longest `HEAD` file this reader looks at;
 ///  a real one is a short line.
+///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
+///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 const HEAD_LIMIT: u64 = 512;
 
 /// The longest loose branch file this reader looks at;
 ///  a real one is an object name and a newline.
+///  Exempt from a citation under `LQM` (class: reader fallback): a file, chain or count past this bound makes the reader
+///  decline and real Git answer, so a Git start is added and no result changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
 const LOOSE_REF_LIMIT: u64 = 256;
 
 /// What:

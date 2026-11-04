@@ -12,7 +12,8 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use super::service_journal::{DONE_RETAINED, Recovery, landed_commits, prune_done};
+use super::service_journal::{BatchClaim, DONE_RETAINED, Recovery, claim_batch, landed_commits, prune_done};
+use super::service_land_follow::storage_failure;
 use super::service_index_lock::{Announce, unsettled_locks};
 use super::service_index_prestage::{PrestageGuard, start as start_prestage};
 use super::service_captures::CaptureMemory;
@@ -25,8 +26,9 @@ use super::claim_time::ClaimTime;
 use super::service_retry::RetrySchedule;
 use super::push_retry::{PLAN_DIRECTORY, PushRetries};
 use super::service_work::{GitHandlers, Wake, run_round};
+use super::service_reply::{Reply, write_until_answered};
 use super::service_protocol::{
-    ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
+    ClientMessage, CommitRequest, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -37,14 +39,32 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-/// The most requests landed as one batch.
-pub const MAX_BATCH: usize = 64;
+/// The largest batch whose landing still costs about what its size predicts: 256. Measured with the service binary on throwaway
+///  repositories, 2026-11-03, bursts of simultaneous commit requests (`MAX_BATCH` raised to 4096 for the probe, three rounds
+///  alternating over 64, 128, 256, 512 and 1024 clients, other sessions running, a debug build): a landing took 71 to 76 ms for
+///  62 to 63 requests, 82 to 85 ms for 126, 104 to 109 ms for 253 to 255, 193 to 204 ms for 509 to 511 (once 2,002 ms, a host stall)
+///  and 525 to 547 ms for 1,021 to 1,023. The cost of each added request is 0.16 ms up to 254 requests, 0.36 ms from there to
+///  510, and 0.66 ms to 1,022, so the cost per request has not yet doubled at 256. The time a client waits for a burst of 128 was
+///  176 to 206 ms in one landing and 243 to 249 ms in three at the old cap of 64.
+pub const BATCH_COST_KNEE: usize = 256;
+
+/// The most requests landed as one batch: `BATCH_COST_KNEE`. A batch is answered all at once and holds the index lock while it
+///  lands, so the cap bounds both. The prototype's burst reached 64, and production never reached more than one request in a
+///  batch (1,302 answered requests, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z), so the cap bites only in a burst. Option B of the
+///  batch size question, picked by the coordinator under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups").
+pub const MAX_BATCH: usize = BATCH_COST_KNEE;
 
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// How long the service waits with nothing to do before it exits; the manager's socket stays, so the next connection starts it
 ///  again. Bazel's server does the same with `--max_idle_secs`, whose default is three hours, which is this value's precedent.
+///  Measured cost of exceeding it: of 1,051 commits in the commit timing log (2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z), the 10
+///  that followed an idle gap of more than three hours reached the service in at most 70 ms (`reachMs`) after a start wait of at
+///  most 47 ms (`startWaitMs`); 110 idle exits happened in that window. The 28 running services held 212 MiB together (7.9 MiB each,
+///  `systemctl --user show --property=MemoryCurrent`). A shorter exit would trade at most that start for that memory; the owner's
+///  bound is that a commit should not take 5 s longer than native Git (`SPEC.md`). Kept at three hours as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 
 /// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).
@@ -178,7 +198,7 @@ fn peer_user(stream: &UnixStream) -> Option<u32> {
 /// what the client sent,
 /// the connection to answer it on,
 /// and how it arrived.
-type Queued = (Box<CommitRequest>, UnixStream, Arrival);
+type Queued = (Box<CommitRequest>, Reply, Arrival);
 
 /// What a landing group shares:
 /// the common Git directory,
@@ -214,8 +234,11 @@ fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, membe
 }
 
 enum Job {
-    Commit(Box<CommitRequest>, UnixStream, Arrival),
+    Commit(Box<CommitRequest>, Reply, Arrival),
     Retire,
+    /// The client stopped waiting for the commit of this identity (its ceiling passed): answered with the landed commit, or
+    ///  withdrawn so that it never lands.
+    Withdraw(String, Reply),
     /// After-commit work was announced; it only restarts the idle clock.
     Activity,
     /// A client that held a commit's scratch directory is gone; the directory is removed between batches, never during a
@@ -250,6 +273,10 @@ fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
         std::process::exit(4);
     }
 }
+
+/// How many withdrawn identities the service remembers before it forgets them all: the same count as the finished batches it
+///  remembers (`DONE_RETAINED`), since a client that withdrew sends nothing more for its request.
+const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 
 /// How long the acceptor waits after a connection it could not give a thread.
 const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
@@ -288,8 +315,19 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
         }
         Ok(ClientMessage::Commit(request)) => {
             let id: String = request.id.clone();
-            let _queued = queue.send(Job::Commit(request, stream, Arrival { accepted, read: accepted.elapsed() }));
+            let (reply, messages) = Reply::new();
+            let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
             super::service_fault::queued(id.as_str());
+            // This thread has nothing else to do until the request is answered, so it writes the answers the landing thread
+            //  queues and keeps the client told that the service lives.
+            write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
+        }
+        Ok(ClientMessage::Withdraw { id }) => {
+            // The landing thread answers between two landings, so the answer is either that the commit landed or that it never
+            //  will; meanwhile this thread keeps the client told that the service lives.
+            let (reply, messages) = Reply::new();
+            let _queued = queue.send(Job::Withdraw(id, reply));
+            write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
         }
         Ok(ClientMessage::Retire) => {
             log(retire_line(release).as_str());
@@ -367,6 +405,8 @@ impl BatchTimes {
 /// from the acceptance of its connection to the answer.
 fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
+    // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
+    let quiet: Vec<(String, Duration)> = super::quiet_ledger::drain();
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.as_str(),
@@ -381,6 +421,7 @@ fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, po
         land_total: times.land_total,
         answer: times.landed_at.elapsed(),
         total: arrival.accepted.elapsed(),
+        quiet: quiet.as_slice(),
     });
     // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
     let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
@@ -399,7 +440,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _, _)| { return landed.contains_key(&request.id); });
     let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
     for (request, stream, arrival) in again {
-        send(&stream, &ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
+        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
         log_answer(&unlanded, &request, &arrival, 1, "already");
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
@@ -413,22 +454,38 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     let settling: Instant = Instant::now();
     let _settled = settle_open_batches(context, instance);
     let settle: Duration = settling.elapsed();
-    *seq += 1;
+    // The number is taken from the journal, not from this service's count alone: another service of the same journal may count
+    //  from the same clock reading, and two landings with one number would overwrite each other's records.
+    let claim: BatchClaim = match claim_batch(context.journal.as_path(), *seq + 1) {
+        Ok(claim) => claim,
+        Err(error) => {
+            let code: FailureCode = storage_failure(&error);
+            crate::service_error!("no batch number could be taken in {}: {error}", context.journal.display());
+            for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
+                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
+                log_answer(&unlanded, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
+            }
+            return;
+        }
+    };
+    *seq = claim.seq();
     for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
-        send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
+        stream.send(&ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
     let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _, _)| { return (**request).clone(); }).collect();
     let announce = |note: Announce| {
         for (_, stream, _) in &fresh {
             match &note {
-                Announce::Waiting(text) => send(stream, &ServiceMessage::Waiting { text: text.clone() }),
-                Announce::Holder(who) => send(stream, &ServiceMessage::Holder { who: who.clone() }),
+                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting { text: text.clone() }),
+                Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
             }
         }
     };
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
+    // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
+    drop(claim);
     let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
     match result {
         Ok(outcomes) => {
@@ -442,7 +499,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
                 if let Outcome::Landed { commit } = outcome {
                     for (repeat, stream, arrival) in repeats.iter().filter(|(repeat, _, _)| { return repeat.id == request.id; }) {
-                        send(stream, &ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
+                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
                         log_answer(&times, repeat, arrival, 1, "already");
                     }
                 }
@@ -451,16 +508,16 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
                 let word: &str = match outcome {
                     Outcome::Landed { commit } => {
                         landed.insert(request.id.clone(), commit.clone());
-                        send(stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
+                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                         "landed"
                     }
                     Outcome::RetryPrepare { base } => {
                         let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
-                        send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
+                        stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
                         "retry-prepare"
                     }
                     Outcome::BranchMoved => {
-                        send(stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
+                        stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
                         "branch-moved"
                     }
                 };
@@ -469,7 +526,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
         }
         Err(code) => {
             for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
-                send(stream, &ServiceMessage::Failed { id: request.id.clone(), code });
+                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
                 log_answer(&times, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
             }
         }
@@ -558,6 +615,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
+    // The identities of the requests their clients withdrew; a request with one of these is never landed.
+    let mut withdrawn: std::collections::HashSet<String> = std::collections::HashSet::new();
     // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.
     let mut captures: CaptureMemory = CaptureMemory::default();
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
@@ -595,8 +654,10 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
     });
-    // Microseconds, so that instances started at nearly the same time do not number their batches alike in a shared journal.
-    let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
+    // Microseconds, so that instances started at different times count from different numbers; the number each batch takes is
+    //  still claimed in the journal (`claim_batch`), because equal readings and counts that overtake another's are possible.
+    let clock_seed: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
+    let mut seq: u64 = super::service_fault::pinned_first_batch().unwrap_or(clock_seed);
     // The marker made ahead is removed whichever way this loop ends.
     let _prestaged = PrestageGuard;
     let mut retiring: bool = false;
@@ -606,10 +667,14 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
             Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) > 0 => continue,
             Err(RecvTimeoutError::Timeout) => {
+                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
+                super::service_durable::drain();
                 log(exit_line(ExitReason::Idle, serving_since.elapsed()).as_str());
                 return;
             }
             Err(RecvTimeoutError::Disconnected) => {
+                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
+                super::service_durable::drain();
                 log(exit_line(ExitReason::Error, serving_since.elapsed()).as_str());
                 return;
             }
@@ -621,11 +686,32 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
                 Err(_) => break,
             }
         }
+        // Withdrawals are answered before anything lands, on this one thread, so each is either after a landing that is over (the
+        //  commit is on the branch, and that is the answer) or before the landing of its request begins (the request is dropped
+        //  and remembered, so it can never land, not even when it reaches the queue after the withdrawal).
+        if withdrawn.len() > WITHDRAWN_RETAINED {
+            withdrawn.clear();
+        }
+        for job in &jobs {
+            if let Job::Withdraw(id, reply) = job {
+                match landed.get(id) {
+                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true }),
+                    None => {
+                        withdrawn.insert(id.clone());
+                        reply.send(&ServiceMessage::Withdrawn { id: id.clone() });
+                    }
+                }
+            }
+        }
         // Branches in order of first arrival; within a branch, arrival order.
         let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
         let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
+                Job::Withdraw(..) => {}
+                Job::Commit(request, _dropped, _arrival) if withdrawn.contains(&request.id) => {
+                    crate::service_log!("dropped the request {} that its client withdrew", request.id);
+                }
                 Job::Retire => retiring = true,
                 Job::Activity => {}
                 Job::Release(path) => releases.push(path),
@@ -663,6 +749,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
     }
+    // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
+    super::service_durable::drain();
     log(exit_line(ExitReason::Retire, serving_since.elapsed()).as_str());
 }
 

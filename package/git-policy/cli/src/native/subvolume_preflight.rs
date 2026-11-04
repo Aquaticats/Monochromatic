@@ -6,7 +6,8 @@
 //!  filesystem, the checkout and the state left by an earlier run allow it. The conditions are those of the proven
 //!  script (`doc/handover/cli-git-subvolume-migration-script.md`, "Refusals") with the rest of the owner's rules:
 //!  nothing is spawned, and a refusal is text a person can act on. A condition checks only metadata (the dry run reads
-//!  `.git` and `.git/worktrees/*/gitdir` and never walks the tree).
+//!  `.git` and `.git/worktrees/*/gitdir`, and lists every directory of the tree once to count its entries for the free-space
+//!  check, without opening a file).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,15 +16,47 @@
 
 use super::fs_kind::FilesystemKind;
 use super::single_owner_claim::live_owner_of;
+use super::subvolume_entry_count::count_entries;
 use super::subvolume_journal::Journal;
 use super::subvolume_lock::{is_ours, token_of};
 use super::subvolume_platform::Platform;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-/// The free space the parent filesystem must have: the copy shares data blocks but still writes one metadata record
-///  per entry (the script's bound, 5 GiB; about 1 KiB per entry is an assumption, not a measurement).
-pub const MIN_FREE_BYTES: u64 = 5 * 1024 * 1024 * 1024;
+/// The metadata the copy writes for one entry, in bytes of the filesystem's own accounting: the `Metadata, DUP` figure of
+///  `btrfs filesystem df --block-size=1` read before and after reflink-copying a tree of 22,719 entries eight times
+///  (181,752 entries) on this host, three alternating rounds against a no-copy control of the same wall time:
+///  957.9, 979.0 and 984.8 bytes per entry, while the control moved by at most 9.9 MB against 174 MB to 179 MB for a copy.
+///  Rounded up to one kibibyte. Recorded in `doc/planning/cli-git-shipped-limits-audit.md`, "The free-space preflight". This is
+///  the coordinator's pick under the owner's delegation ("Pick options as if I had picked them"), open to the owner's veto.
+pub const METADATA_BYTES_PER_ENTRY: u64 = 1024;
+
+/// How many physical copies of the metadata the filesystem keeps: the `DUP` profile of this host writes each metadata byte twice
+///  (`Metadata ratio: 2.00` in `btrfs filesystem usage`), and the free space the check reads is physical. A filesystem with a
+///  single copy is over-estimated by this factor, which only refuses earlier.
+pub const METADATA_COPIES: u64 = 2;
+
+/// What:
+///  The free bytes the migration needs for the metadata of `entries` entries.
+/// Why:
+///   The copy shares data blocks and writes one metadata record per entry, so the need grows with the entries, not with a fixed
+///  floor; the measured cost of an entry and the copies of the metadata are the two named constants above. A count so large
+///  that the product overflows saturates at the largest `u64`, which no filesystem has free, so it refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const needed = Math.min(Number.MAX_SAFE_INTEGER, entries * METADATA_BYTES_PER_ENTRY * METADATA_COPIES);
+/// ```
+pub fn required_free_bytes(entries: u64) -> u64 {
+    // What: `saturating_mul` multiplies two `u64` values and gives the largest `u64` instead of wrapping around when the product is too big.
+    // Why: An absurd entry count must refuse, never wrap to a small number that passes.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return Math.min(U64_MAX, entries * (METADATA_BYTES_PER_ENTRY * METADATA_COPIES));
+    // ```
+    return entries.saturating_mul(METADATA_BYTES_PER_ENTRY.saturating_mul(METADATA_COPIES));
+}
 
 /// The names whose presence in `.git` or in a linked worktree's administrative directory means Git is mid-operation.
 pub const IN_PROGRESS_NAMES: [&str; 12] = [
@@ -159,11 +192,22 @@ pub fn migrate_refusals(platform: &dyn Platform, layout: &Layout, journal: &Jour
         )),
         Err(error) => found.push(refuse(format!("the filesystem of {} cannot be identified: {error}", root.display()), "Check that the path exists and that this user can read it.")),
     }
-    if let Ok((_, free)) = platform.filesystem_facts(layout.parent.as_path()) && free < MIN_FREE_BYTES {
-        found.push(refuse(
-            format!("{} has {free} bytes free, fewer than the {MIN_FREE_BYTES} bytes the migration requires for its metadata", layout.parent.display()),
-            "Free space on that filesystem (the copy shares data blocks but writes one metadata record per entry), then run the command again.",
-        ));
+    // The need is the metadata of btrfs, so the tree is counted and the space compared only where the checkout is on btrfs.
+    let on_btrfs: bool = matches!(platform.filesystem_facts(root), Ok((FilesystemKind::Btrfs, _)));
+    if on_btrfs && let Ok((_, free)) = platform.filesystem_facts(layout.parent.as_path()) {
+        // Counting reads directory listings only; it is the one walk of the tree this check makes.
+        let entries: u64 = count_entries(root);
+        let needed: u64 = required_free_bytes(entries);
+        if free < needed {
+            found.push(refuse(
+                format!(
+                    "{} has {free} bytes free, fewer than the {needed} bytes the migration requires for the metadata of the {entries} entries of {} ({METADATA_COPIES} copies of {METADATA_BYTES_PER_ENTRY} bytes each)",
+                    layout.parent.display(),
+                    root.display(),
+                ),
+                "Free space on that filesystem (the copy shares data blocks but writes one metadata record per entry), then run the command again.",
+            ));
+        }
     }
     if let Ok(parent_metadata) = std::fs::metadata(layout.parent.as_path()) && parent_metadata.dev() != metadata.dev() && !platform.is_subvolume_root(root).unwrap_or(false) {
         found.push(refuse(

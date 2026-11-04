@@ -85,17 +85,23 @@ fn missing_real_git_stops_with_resolution_evidence() {
         .expect("symlink");
     resolution.path = OsString::from("only-wrapper:missing");
     for arguments in [vec!["status"], vec!["add", "x"]] {
-        assert_eq!(
-            stopped(plan_invocation(
-                text(arguments.as_slice()).as_slice(),
-                &[],
-                &resolution
-            )),
-            "cli-git: Could not find a real Git executable after examining 2 PATH candidates and \
-             skipping 1 cli-git wrappers. Ensure Git is installed and PATH/PATHEXT expose its \
-             executable.\n",
-            "{arguments:?}"
+        let said: String = stopped(plan_invocation(
+            text(arguments.as_slice()).as_slice(),
+            &[],
+            &resolution,
+        ));
+        assert!(
+            said.starts_with(
+                "cli-git: Could not find a real Git executable after examining 2 PATH candidates and \
+                 skipping 1 cli-git wrappers, so no Git command was run. PATH is only-wrapper:missing."
+            ),
+            "{arguments:?}: {said}"
         );
+        // Every candidate is listed with its verdict, and the fix names the PATH of the program that ran the command.
+        assert!(said.contains(root.join("only-wrapper/git").to_string_lossy().as_ref()), "{said}");
+        assert!(said.contains("leads back to cli-git"), "{said}");
+        assert!(said.contains("is missing, not an executable file, or unreadable"), "{said}");
+        assert!(said.contains("To fix it, install Git"), "{said}");
     }
     remove(root.as_path());
 }

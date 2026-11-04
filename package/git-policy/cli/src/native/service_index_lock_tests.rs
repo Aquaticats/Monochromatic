@@ -1,5 +1,5 @@
 //! Controls for the service's hold on the index lock: exclusive creation with the marker in place, a wait that ends when the
-//!  holder lets go and is not woken by anything else, a limit that ends the wait with nothing changed, release by rename, and
+//!  holder lets go and is not woken by anything else, no bound on the wait for a holder proven alive or one nothing proves alive, release by rename, and
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
@@ -57,7 +57,7 @@ fn leftovers(index: &Path) -> Vec<String> {
 #[test]
 fn the_lock_is_exclusive_and_its_release_installs_the_new_index() {
     let (root, index) = index_in("index-lock-release");
-    let lock = acquire(&index, 7, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 7, &|_| {}).expect("taken");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(7));
     assert!(parse_marker(own_marker(7).as_str()).is_some_and(|marked| { return marked.holder.is_some(); }), "the marker names its holder");
     assert!(try_acquire(&index, 70).is_none(), "a live holder's lock is not taken over");
@@ -76,7 +76,7 @@ fn the_lock_is_exclusive_and_its_release_installs_the_new_index() {
 fn the_release_renames_the_built_index_into_place_before_the_lock_goes() {
     use std::os::unix::fs::MetadataExt;
     let (root, index) = index_in("index-lock-rename");
-    let lock = acquire(&index, 8, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 8, &|_| {}).expect("taken");
     let built: PathBuf = index.with_file_name("index.cli-git-8");
     std::fs::write(&built, "new index").expect("built");
     let built_inode: u64 = std::fs::metadata(&built).expect("built").ino();
@@ -100,7 +100,7 @@ fn staging_files_of_killed_attempts_are_removed_and_a_live_writers_stays() {
     std::fs::write(&dead_staged, marker_of_holder(41, dead, "gone")).expect("a killed writer's staging file");
     let live_staged: PathBuf = staged_path_for(&lock_path, 40, "token");
     std::fs::write(&live_staged, own_marker(40)).expect("a live writer's staging file");
-    let lock = acquire(&index, 42, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 42, &|_| {}).expect("taken");
     assert_eq!(std::fs::read_to_string(&lock_path).expect("marker"), own_marker(42));
     assert!(!fixed.exists() && !dead_staged.exists(), "{:?}", leftovers(&index));
     assert!(live_staged.exists(), "a live writer's staging file stays");
@@ -123,7 +123,7 @@ fn a_dead_holders_lock_with_a_linked_alias_is_taken_over_without_emptying_it() {
     std::fs::write(&lock_path, marker_of_holder(50, dead, "gone")).expect("a killed holder's lock");
     let alias: PathBuf = PathBuf::from(format!("{}{STAGED_INFIX}-{dead}-50", lock_path.display()));
     std::fs::hard_link(&lock_path, &alias).expect("the alias a kill left");
-    let lock = acquire(&index, 51, Duration::from_secs(5), &|_| {}).expect("taken at once");
+    let lock = acquire(&index, 51, &|_| {}).expect("taken at once");
     assert_eq!(std::fs::read_to_string(&lock_path).expect("marker"), own_marker(51));
     assert!(!alias.exists(), "{:?}", leftovers(&index));
     drop(lock);
@@ -134,7 +134,7 @@ fn a_dead_holders_lock_with_a_linked_alias_is_taken_over_without_emptying_it() {
 #[test]
 fn a_lock_that_is_not_released_leaves_the_index_as_it_was() {
     let (root, index) = index_in("index-lock-drop");
-    drop(acquire(&index, 1, Duration::from_secs(1), &|_| {}).expect("taken"));
+    drop(acquire(&index, 1, &|_| {}).expect("taken"));
     assert!(!lock_path_of(&index).exists());
     assert_eq!(std::fs::read_to_string(&index).expect("index"), "old index");
     remove(root.as_path());
@@ -163,7 +163,7 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     };
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
     let began: Instant = Instant::now();
-    let lock = acquire_on(&platform, &index, 2, Duration::from_secs(30), &|note| {
+    let lock = acquire_on(&platform, &index, 2, &|note| {
         let _sent = looked.send(());
         heard.lock().expect("lock").push(note);
     }).expect("taken after the wait");
@@ -180,20 +180,104 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
     remove(root.as_path());
 }
 
-/// A holder that outlives the limit ends the wait with the plain failure, and nothing was changed: the foreign lock and the
-///  index stand, and the clients are told who held it.
+/// An owner nothing proves alive is waited for like one proven alive: the lock is taken the moment it goes, however long that
+///  is, and the clients are told what is known and how to remove the lock if no program uses the repository.
 #[test]
-fn a_holder_that_outlives_the_limit_ends_the_wait_with_nothing_changed() {
-    let (root, index) = index_in("index-lock-limit");
+fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
+    let (root, index) = index_in("index-lock-unproven-unbounded");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let holding: Duration = LONG_HOLD;
+    let foreign: PathBuf = lock_path_of(&index);
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(holding);
+        std::fs::remove_file(foreign).expect("the foreign lock goes");
+    });
     let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
     let began: Instant = Instant::now();
-    let failure = acquire(&index, 3, Duration::from_millis(500), &|note| { heard.lock().expect("lock").push(note); }).expect_err("refused");
-    assert_eq!(failure.code, FailureCode::IndexInUse);
-    assert!(began.elapsed() >= Duration::from_millis(500), "{:?}", began.elapsed());
+    let lock = acquire(&index, 4, &|note| { heard.lock().expect("lock").push(note); }).expect("taken once the lock went");
+    release.join().expect("thread");
+    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("cannot be proven alive") && text.contains("removing the file") && text.contains("has the lock open")); }), "{said:?}");
+    assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("not made")); }), "{said:?}");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// Where no watch can be set (the watch limit is reached, or the file system gives none), the wait polls: a foreign lock that goes
+///  after a while is followed by the service's own lock, where the wait used to fail the commit at once.
+#[test]
+fn where_no_watch_can_be_set_the_wait_polls_until_the_lock_goes() {
+    let (root, index) = index_in("index-lock-no-watch-poll");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let foreign: PathBuf = lock_path_of(&index);
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(foreign).expect("the foreign lock goes");
+    });
+    let unwaitable: Platform = Platform { watch: &|_| { return None; }, ..SYSTEM };
+    let lock = acquire_on(&unwaitable, &index, 12, &|_| {}).expect("taken once the lock went, without a watch");
+    release.join().expect("thread");
+    drop(lock);
+    remove(root.as_path());
+}
+
+/// How long the controls keep a foreign lock: far more than the old backoff of an owner nothing proves alive, which was one
+///  second, so only a wait with no bound lasts through it.
+const LONG_HOLD: Duration = Duration::from_millis(2500);
+
+/// A PID file that names a process which no longer runs ends the wait at once, with the process named, and nothing is removed.
+/// The wait runs on a thread and the control gives it a few seconds, so a dead owner waited for like a live one fails the control
+///  instead of hanging it.
+#[test]
+fn a_dead_owner_ends_the_wait_at_once() {
+    let (root, index) = index_in("index-lock-dead-owner");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let gone: i64 = dead_pid();
+    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {gone}\n")).expect("PID file");
+    let heard: std::sync::Arc<Mutex<Vec<Announce>>> = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let (finished, ended) = std::sync::mpsc::channel::<FailureCode>();
+    let waiter_index: PathBuf = index.clone();
+    let waiter_heard: std::sync::Arc<Mutex<Vec<Announce>>> = std::sync::Arc::clone(&heard);
+    std::thread::spawn(move || {
+        let failure = acquire(&waiter_index, 5, &|note| { waiter_heard.lock().expect("lock").push(note); }).expect_err("refused");
+        let _sent = finished.send(failure.code);
+    });
+    let code: FailureCode = ended.recv_timeout(DEAD_OWNER_PATIENCE).expect("a dead owner was waited for like a live one");
+    assert_eq!(code, FailureCode::IndexInUse);
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {gone}, which no longer runs").as_str())); }), "{said:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("foreign lock stands"), "foreign");
-    assert_eq!(std::fs::read_to_string(&index).expect("index"), "old index");
-    assert!(heard.lock().expect("lock").iter().any(|note| { return matches!(note, Announce::Holder(_)); }), "the holder was announced");
+    remove(root.as_path());
+}
+
+/// The time a control gives a wait that must end at once before it calls it hung.
+const DEAD_OWNER_PATIENCE: Duration = Duration::from_secs(10);
+
+/// A holder proven alive is waited for with no bound: the wait goes on through the whole hold with the holder named and no line
+///  that gives up, and the service's lock is taken the moment the holder lets go.
+#[test]
+fn a_holder_proven_alive_is_waited_for_with_no_bound() {
+    let (root, index) = index_in("index-lock-proven-alive");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    // The PID file names this process, which runs and started before the lock was made.
+    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {}\n", std::process::id())).expect("PID file");
+    let holding: Duration = LONG_HOLD;
+    let foreign: PathBuf = lock_path_of(&index);
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(holding);
+        std::fs::remove_file(foreign).expect("the foreign holder lets go");
+    });
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let began: Instant = Instant::now();
+    let lock = acquire(&index, 6, &|note| { heard.lock().expect("lock").push(note); }).expect("taken once the holder let go");
+    release.join().expect("thread");
+    assert!(began.elapsed() >= holding, "{:?}", began.elapsed());
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("proven by its Git lock PID file")); }), "{said:?}");
+    assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("giving up") || text.contains("not made")); }), "{said:?}");
+    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(6));
+    drop(lock);
     remove(root.as_path());
 }
 
@@ -209,7 +293,7 @@ fn a_dead_service_instances_lock_does_not_block_the_next_landing() {
     // whatever the host's load,
     // and a landing that deferred the removal to the end of a wait would be refused here.
     let unwaitable: Platform = Platform { watch: &|_| { return None; }, ..SYSTEM };
-    let lock = acquire_on(&unwaitable, &index, 100, Duration::from_secs(30), &|_| {}).expect("taken at once");
+    let lock = acquire_on(&unwaitable, &index, 100, &|_| {}).expect("taken at once");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(100));
     drop(lock);
     std::fs::write(lock_path_of(&index), marker_of_holder(7, dead_pid(), "gone")).expect("a killed holder's lock");
@@ -236,15 +320,35 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     let pid: i64 = i64::from(holder.0.id());
     let birth: String = process_birth_identity(pid).expect("identity").expect("running");
     std::fs::write(lock_path_of(&index), marker_of_holder(9, pid, birth.as_str())).expect("a live holder's lock");
-    let failure = acquire(&index, 10, Duration::from_millis(300), &|_| {}).expect_err("waited for");
-    assert_eq!(failure.code, FailureCode::IndexInUse);
+    // The wait has no bound, so it runs on a thread; it must still be waiting after a while and must not have touched the lock.
+    let (finished, ended) = std::sync::mpsc::channel::<()>();
+    let waiter_index: PathBuf = index.clone();
+    let waiter = std::thread::spawn(move || {
+        let lock = acquire(&waiter_index, 10, &|_| {}).expect("taken once the holder is gone");
+        let _sent = finished.send(());
+        drop(lock);
+    });
+    assert!(ended.recv_timeout(Duration::from_millis(600)).is_err(), "a live holder's lock was taken over");
     assert!(try_acquire(&index, 10).is_none());
     remove_stale(&index, 9);
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), marker_of_holder(9, pid, birth.as_str()));
     drop(holder);
+    // The removal of the stale lock wakes the waiting acquisition, which may take the lock before this one does: this one asks
+    //  again until the waiter has let go, and either way the waiter took the lock once the holder was gone.
     let unwaitable: Platform = Platform { watch: &|_| { return None; }, ..SYSTEM };
-    let lock = acquire_on(&unwaitable, &index, 11, Duration::from_secs(30), &|_| {}).expect("taken once the holder is gone, without a wait");
+    let asking_until: Instant = Instant::now() + Duration::from_secs(30);
+    let lock = loop {
+        match acquire_on(&unwaitable, &index, 11, &|_| {}) {
+            Ok(taken) => break taken,
+            Err(failure) => {
+                assert!(Instant::now() < asking_until, "the lock was not taken once the holder was gone: {failure:?}");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    };
     drop(lock);
+    ended.recv_timeout(Duration::from_secs(30)).expect("the waiting acquisition took the lock once the holder was gone");
+    waiter.join().expect("waiter");
     remove(root.as_path());
 }
 
@@ -337,7 +441,7 @@ fn a_filesystem_that_can_place_no_lock_atomically_gets_none() {
     let rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EINVAL); };
     let link = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EPERM); };
     let platform: Platform = bare_filesystem(&rename, &link);
-    let failure = acquire_on(&platform, &index, 20, Duration::from_secs(1), &|_| {}).expect_err("refused");
+    let failure = acquire_on(&platform, &index, 20, &|_| {}).expect_err("refused");
     assert_eq!(failure.code, FailureCode::Unavailable);
     assert!(!lock_path_of(&index).exists(), "no lock, so none can be left empty");
     assert!(try_acquire_on(&platform, &index, 21).is_none());
@@ -355,7 +459,7 @@ fn a_filesystem_with_links_but_no_exclusive_rename_gets_the_lock_by_link() {
     let (root, index) = index_in("index-lock-link");
     let rename = |_: &Path, _: &Path| -> std::io::Result<()> { return refusal(libc::EINVAL); };
     let platform: Platform = Platform { rename: &rename, ..SYSTEM };
-    let lock = acquire_on(&platform, &index, 22, Duration::from_secs(1), &|_| {}).expect("taken by link");
+    let lock = acquire_on(&platform, &index, 22, &|_| {}).expect("taken by link");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(22));
     assert!(leftovers(&index).is_empty(), "{:?}", leftovers(&index));
     drop(lock);
@@ -372,7 +476,7 @@ fn a_process_without_an_identity_takes_no_lock() {
     let missing = || -> Result<String, ProcessIdentityError> { return Err(ProcessIdentityError::CurrentUnavailable); };
     let platform: Platform = Platform { identity: &missing, ..SYSTEM };
     assert!(marker_text(23, &missing).is_err(), "no marker is written without an identity");
-    let failure = acquire_on(&platform, &index, 23, Duration::from_secs(1), &|_| {}).expect_err("refused");
+    let failure = acquire_on(&platform, &index, 23, &|_| {}).expect_err("refused");
     assert_eq!(failure.code, FailureCode::Unavailable);
     assert!(try_acquire_on(&platform, &index, 24).is_none());
     assert!(!lock_path_of(&index).exists());
@@ -394,7 +498,7 @@ fn a_recycled_process_number_does_not_reopen_a_dead_holders_alias() {
     std::fs::write(&lock_path, marker_of_holder(60, dead, "gone")).expect("a killed holder's lock");
     let alias: PathBuf = staged_by_the_last_release(&lock_path, std::process::id(), 60);
     std::fs::hard_link(&lock_path, &alias).expect("the alias a kill left");
-    let lock = acquire(&index, 60, Duration::from_secs(2), &|_| {}).expect("taken over, not refused");
+    let lock = acquire(&index, 60, &|_| {}).expect("taken over, not refused");
     assert_eq!(std::fs::read_to_string(&lock_path).expect("marker"), own_marker(60));
     // The alias is never opened for writing: it is unchanged, or removed with the dead holder (a whole marker that names a gone
     //  holder under a process number that runs now is what the cleanup takes for a killed service's file).
@@ -456,7 +560,7 @@ fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_conte
     std::fs::write(&legacy, "").expect("an empty file an earlier release named without a namespace");
     let unnamed: PathBuf = PathBuf::from(format!("{}{STAGED_INFIX}-not-a-process", lock_path.display()));
     std::fs::write(&unnamed, "").expect("a file that names no process");
-    let lock = acquire(&index, 67, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 67, &|_| {}).expect("taken");
     assert!(live_empty.exists() && live_half.exists(), "a running writer's file stays whatever it holds: {:?}", leftovers(&index));
     assert!(!dead_empty.exists(), "a dead writer's file of this namespace goes: {:?}", leftovers(&index));
     assert!(other_namespace.exists(), "a number of another namespace is not looked up here");
@@ -486,7 +590,7 @@ fn a_whole_marker_decides_a_staging_files_fate_over_its_name() {
     std::fs::write(&elsewhere, format!("{LOCK_MARKER}71 {} {}#{}#1\n", std::process::id(), parts[0], parts[1])).expect("a marker of another namespace");
     let gone: PathBuf = named("72-gone");
     std::fs::write(&gone, marker_of_holder(72, std::process::id().into(), "linux:1")).expect("a marker of a holder that is gone");
-    let lock = acquire(&index, 73, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 73, &|_| {}).expect("taken");
     assert!(running.exists(), "a writer that runs keeps its file: {:?}", leftovers(&index));
     assert!(elsewhere.exists(), "a writer of another namespace keeps its file");
     assert!(!gone.exists(), "a holder that is gone loses it");
@@ -592,7 +696,7 @@ fn a_stale_lock_that_cannot_be_removed_ends_the_wait_instead_of_repeating_it() {
         return refusal(libc::EPERM);
     };
     let platform: Platform = Platform { unlink: &unlink, ..SYSTEM };
-    let failure = acquire_on(&platform, &index, 67, Duration::from_secs(30), &|_| {}).expect_err("refused");
+    let failure = acquire_on(&platform, &index, 67, &|_| {}).expect_err("refused");
     assert_eq!(failure.code, FailureCode::Unavailable);
     assert_eq!(calls.get(), 1, "removal is tried once");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), marker_of_holder(66, dead, "gone"));
@@ -614,7 +718,7 @@ fn a_stale_lock_that_vanishes_before_its_removal_is_taken_at_once() {
         return Err(std::io::Error::from(std::io::ErrorKind::NotFound));
     };
     let platform: Platform = Platform { unlink: &vanished, ..SYSTEM };
-    let lock = acquire_on(&platform, &index, 70, Duration::from_secs(5), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 70, &|_| {}).expect("taken");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(70));
     drop(lock);
     remove(root.as_path());
@@ -630,7 +734,7 @@ fn attempts_are_counted_per_acquisition() {
     let (other_root, other_index) = index_in("index-lock-attempts-other");
     let busy = std::thread::spawn(move || {
         for seq in 0..40 {
-            drop(acquire(&other_index, 1000 + seq, Duration::from_secs(1), &|_| {}).expect("taken"));
+            drop(acquire(&other_index, 1000 + seq, &|_| {}).expect("taken"));
         }
     });
     let attempts_made: Cell<usize> = Cell::new(0);
@@ -640,7 +744,7 @@ fn attempts_are_counted_per_acquisition() {
     };
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
     for seq in 0..40 {
-        drop(acquire_on(&platform, &index, seq, Duration::from_secs(1), &|_| {}).expect("taken"));
+        drop(acquire_on(&platform, &index, seq, &|_| {}).expect("taken"));
     }
     busy.join().expect("thread");
     assert_eq!(attempts_made.get(), 40, "one attempt for each of the acquisitions that met no holder");
@@ -657,7 +761,7 @@ fn attempts_are_counted_per_acquisition() {
 fn a_lock_another_program_replaced_is_neither_released_nor_removed() {
     let (root, index) = index_in("index-lock-replaced");
     let lock_path: PathBuf = lock_path_of(&index);
-    let lock = acquire(&index, 71, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 71, &|_| {}).expect("taken");
     std::fs::remove_file(&lock_path).expect("a person deletes the lock");
     std::fs::write(&lock_path, marker_of_holder(72, 1, "another service")).expect("another program takes it");
     let built: PathBuf = index.with_file_name("index.built");
@@ -676,12 +780,12 @@ fn a_lock_another_program_replaced_is_neither_released_nor_removed() {
 fn a_lock_that_is_not_the_holders_own_is_left_when_the_holder_goes_out_of_scope() {
     let (root, index) = index_in("index-lock-replaced-drop");
     let lock_path: PathBuf = lock_path_of(&index);
-    let lock = acquire(&index, 73, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire(&index, 73, &|_| {}).expect("taken");
     std::fs::write(&lock_path, "foreign").expect("replaced");
     drop(lock);
     assert_eq!(std::fs::read_to_string(&lock_path).expect("stands"), "foreign");
     std::fs::remove_file(&lock_path).expect("cleanup");
-    let gone = acquire(&index, 74, Duration::from_secs(1), &|_| {}).expect("taken");
+    let gone = acquire(&index, 74, &|_| {}).expect("taken");
     std::fs::remove_file(&lock_path).expect("removed by someone");
     let built: PathBuf = index.with_file_name("index.built");
     std::fs::write(&built, "new index").expect("built");
@@ -779,7 +883,7 @@ fn a_check_that_cannot_be_made_leaves_the_lock_and_marks_it_unsettled() {
     let (root, index) = index_in("index-lock-unreadable-drop");
     let platform: Platform = Platform { inspect: unreadable, ..SYSTEM };
     let before: usize = unsettled_locks();
-    let lock = acquire_on(&platform, &index, 81, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 81, &|_| {}).expect("taken");
     drop(lock);
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(81));
     assert_eq!(unsettled_locks(), before + 1);
@@ -796,7 +900,7 @@ fn a_check_that_cannot_be_made_leaves_the_lock_and_marks_it_unsettled() {
 fn a_release_whose_check_cannot_be_made_keeps_the_lock_and_the_old_index() {
     let (root, index) = index_in("index-lock-unreadable-release");
     let platform: Platform = Platform { inspect: unreadable, ..SYSTEM };
-    let lock = acquire_on(&platform, &index, 82, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 82, &|_| {}).expect("taken");
     let built: PathBuf = index.with_file_name("index.built");
     std::fs::write(&built, "new index").expect("built");
     let error = lock.release_with(&built).expect_err("refused");
@@ -841,7 +945,7 @@ fn an_ended_watch_is_dropped_before_the_next_is_set() {
     };
     let slow_flush = |_: &std::fs::File| -> std::io::Result<()> { std::thread::sleep(Duration::from_millis(600)); return Ok(()); };
     let platform: Platform = Platform { watch: &quota_of_one, sync: &slow_flush, ..SYSTEM };
-    let lock = acquire_on(&platform, &index, 90, Duration::from_secs(30), &|_| {}).expect("taken once the foreign holder let go");
+    let lock = acquire_on(&platform, &index, 90, &|_| {}).expect("taken once the foreign holder let go");
     assert_eq!(calls.get(), 2, "a second watch was set");
     drop(lock);
     remove(root.as_path());
@@ -858,7 +962,7 @@ fn a_lock_free_at_the_first_attempt_sets_one_watch() {
         return Watch::on(directory);
     };
     let platform: Platform = Platform { watch: &counting, ..SYSTEM };
-    let lock = acquire_on(&platform, &index, 92, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 92, &|_| {}).expect("taken");
     assert_eq!(calls.get(), 1, "one watch, set before the attempt");
     drop(lock);
     remove(root.as_path());
@@ -892,7 +996,7 @@ fn a_hold_is_as_old_as_its_placement_not_its_staging() {
     let long_ago: std::time::SystemTime = std::time::SystemTime::now() - Duration::from_secs(3600);
     let aging = |file: &std::fs::File| -> std::io::Result<()> { return file.set_modified(long_ago); };
     let platform: Platform = Platform { sync: &aging, ..SYSTEM };
-    let lock = acquire_on(&platform, &index, 91, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 91, &|_| {}).expect("taken");
     let age: Duration = std::fs::metadata(lock_path_of(&index)).and_then(|metadata| { return metadata.modified(); }).expect("modified")
         .elapsed().expect("not in the future");
     assert!(age < Duration::from_secs(60), "the lock is {age:?} old");
@@ -1048,11 +1152,11 @@ fn the_staged_marker_is_flushed_before_it_becomes_the_lock() {
         return rename_noreplace(from, to);
     };
     let platform: Platform = Platform { sync: &sync, rename: &rename, ..SYSTEM };
-    drop(acquire_on(&platform, &index, 93, Duration::from_secs(1), &|_| {}).expect("taken"));
+    drop(acquire_on(&platform, &index, 93, &|_| {}).expect("taken"));
     assert_eq!(order.borrow().as_slice(), ["sync", "rename"]);
     let failing = |_: &std::fs::File| -> std::io::Result<()> { return refusal(libc::EIO); };
     let broken: Platform = Platform { sync: &failing, ..SYSTEM };
-    let failure = acquire_on(&broken, &index, 94, Duration::from_secs(1), &|_| {}).expect_err("refused");
+    let failure = acquire_on(&broken, &index, 94, &|_| {}).expect_err("refused");
     assert_eq!(failure.code, FailureCode::Unavailable);
     assert!(try_acquire_on(&broken, &index, 95).is_none());
     assert!(!lock_path_of(&index).exists());
@@ -1122,7 +1226,7 @@ fn an_owned_lock_that_cannot_be_removed_is_unsettled() {
     let (root, index) = index_in("index-lock-unremovable-owned");
     let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
     let before: usize = unsettled_locks();
-    let lock = acquire_on(&platform, &index, 100, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 100, &|_| {}).expect("taken");
     drop(lock);
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(100));
     assert_eq!(unsettled_locks(), before + 1);
@@ -1138,7 +1242,7 @@ fn a_release_whose_lock_cannot_be_removed_is_unsettled() {
     let (root, index) = index_in("index-lock-unremovable-release");
     let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
     let before: usize = unsettled_locks();
-    let lock = acquire_on(&platform, &index, 101, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 101, &|_| {}).expect("taken");
     let built: PathBuf = index.with_file_name("index.built");
     std::fs::write(&built, "new index").expect("built");
     let error = lock.release_with(&built).expect_err("the removal failed");
@@ -1156,7 +1260,7 @@ fn an_owned_lock_that_is_already_gone_is_not_unsettled() {
     let (root, index) = index_in("index-lock-vanished-owned");
     let platform: Platform = Platform { release: vanished_removal, ..SYSTEM };
     let before: usize = unsettled_locks();
-    let lock = acquire_on(&platform, &index, 102, Duration::from_secs(1), &|_| {}).expect("taken");
+    let lock = acquire_on(&platform, &index, 102, &|_| {}).expect("taken");
     drop(lock);
     assert!(!lock_path_of(&index).exists());
     assert_eq!(unsettled_locks(), before);
@@ -1176,7 +1280,7 @@ fn a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisiti
     let pid: u32 = std::process::id();
     std::fs::write(lock_path_of(&index), format!("{LOCK_MARKER}103 {pid} {}#{}#{}\n", parts[0], "0".repeat(32), parts[2])).expect("the lock that came back");
     let began: Instant = Instant::now();
-    let lock = acquire(&index, 104, Duration::from_secs(30), &|_| {}).expect("taken at once");
+    let lock = acquire(&index, 104, &|_| {}).expect("taken at once");
     assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("marker"), own_marker(104));
     drop(lock);
@@ -1192,7 +1296,7 @@ fn a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisiti
 fn a_free_lock_leaves_no_description() {
     let (root, index) = index_in("index-lock-notes-free");
     let mut notes: WaitNotes = WaitNotes::default();
-    let lock = acquire_noting_wait(&index, 110, Duration::from_secs(1), &|_| {}, &mut notes).expect("taken");
+    let lock = acquire_noting_wait(&index, 110, &|_| {}, &mut notes).expect("taken");
     assert_eq!((notes.looks, notes.found.as_ref(), notes.last.as_ref()), (0, None, None));
     assert!(notes.staging > Duration::ZERO, "the flush of the marker is timed");
     drop(lock);
@@ -1231,7 +1335,7 @@ fn a_foreign_lock_is_described_with_the_process_that_has_it_open() {
         }
     });
     let mut notes: WaitNotes = WaitNotes::default();
-    let lock = acquire_noting_wait(&index, 111, Duration::from_secs(60), &|_| { let _sent = looked.send(()); }, &mut notes).expect("taken after the wait");
+    let lock = acquire_noting_wait(&index, 111, &|_| { let _sent = looked.send(()); }, &mut notes).expect("taken after the wait");
     release.join().expect("thread");
     assert!(notes.looks >= 1, "{notes:?}");
     let found: &str = notes.found.as_deref().expect("a description of the first look");
@@ -1350,7 +1454,7 @@ fn a_check_is_repeated_only_while_it_cannot_be_made() {
     let measure = |check: fn(&Path, &std::fs::File, &str) -> Ownership| -> usize {
         CHECKS.with(|checks| { checks.set(0); });
         let platform: Platform = Platform { inspect: check, ..SYSTEM };
-        let lock = acquire_on(&platform, &index, 120, Duration::from_secs(1), &|_| {}).expect("taken");
+        let lock = acquire_on(&platform, &index, 120, &|_| {}).expect("taken");
         let built: PathBuf = index.with_file_name("index.built");
         std::fs::write(&built, "new index").expect("built");
         let _released = lock.release_with(&built);

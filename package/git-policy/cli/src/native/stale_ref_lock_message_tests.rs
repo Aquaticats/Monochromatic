@@ -109,7 +109,6 @@ fn a_removed_lock_and_a_held_lock_are_worded_as_printed() {
         cleared: vec![
             found("/r/.git/refs/heads/a.lock", Verdict::Stale(Proof::PidGone(41)), PidFile::Names(41), &[]),
             found("/r/.git/refs/heads/b.lock", Verdict::Stale(Proof::PidReused { pid: 42, command: String::from("sleep") }), PidFile::Names(42), &[]),
-            found("/r/.git/refs/heads/c.lock", Verdict::Stale(Proof::BeforeBoot), PidFile::Absent, &[]),
             found("/r/.git/packed-refs.new", Verdict::Stale(Proof::OrphanStaging), PidFile::Absent, &[]),
         ],
         left: vec![found("/r/.git/refs/heads/d.lock", Verdict::Held(String::from("process 43 (git), which the pid file beside it names, is running")), PidFile::Names(43), &[])],
@@ -117,7 +116,6 @@ fn a_removed_lock_and_a_held_lock_are_worded_as_printed() {
     };
     let expected: &str = "cli-git: removed the reference lock /r/.git/refs/heads/a.lock, left by a Git that is gone: process 41, named by the pid file beside it, has ended.\n\
 cli-git: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.\n\
-cli-git: removed the reference lock /r/.git/refs/heads/c.lock, left by a Git that is gone: it was made before this boot of the machine, so no process that exists now can hold it.\n\
 cli-git: removed the packed-references staging file /r/.git/packed-refs.new, left by a Git that is gone: Git makes this staging file only while it holds `packed-refs.lock`, and that lock is gone.\n\
 cli-git: the reference lock /r/.git/refs/heads/d.lock is in use: process 43 (git), which the pid file beside it names, is running; it was left alone.\n\
 cli-git: a lock file was set aside while a new lock took its place, and is left at /r/.git/cli-git-stale-lock-1-0-ff; look at it before removing it.\n";

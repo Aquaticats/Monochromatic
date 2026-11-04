@@ -46,7 +46,8 @@ fn the_inert_index_lock_and_landing_keys_are_named_with_the_remedy() {
     assert!(lock_only.retired_index_lock_key && !lock_only.retired_landing_key && !lock_only.retired_hooks_key);
     let lock_notes: String = render_notes(&lock_only);
     assert!(lock_notes.contains("`indexLock.unprovenOwnerTimeoutMs`") && lock_notes.contains("does nothing"), "{lock_notes}");
-    assert!(lock_notes.contains("CLI_GIT_LOCK_WAIT_SECONDS") && lock_notes.contains("Remove the key"), "{lock_notes}");
+    assert!(lock_notes.contains("for as long as the lock stays there") && lock_notes.contains("Remove the key"), "{lock_notes}");
+    assert!(!lock_notes.contains("CLI_GIT_LOCK_WAIT_SECONDS"), "the variable no longer exists: {lock_notes}");
     assert!(!lock_notes.contains("landing.reserveAfterLostRaces"), "{lock_notes}");
     std::fs::write(&config, "{ \"landing\": { \"reserveAfterLostRaces\": 3 } }\n").expect("config");
     let landing_only: ConfigFindings = config_findings(&git_context(), repo.as_path());

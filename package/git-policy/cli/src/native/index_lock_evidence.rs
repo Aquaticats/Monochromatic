@@ -23,8 +23,6 @@
 
 /// Open-holder scans.
 use super::index_lock_holders::{HolderEvidence, scan_platform_holders};
-/// The variable that sets how long the wait for a live holder lasts.
-use super::wait_limit::LIVE_WAIT_VARIABLE;
 /// Process start times.
 use super::process_start::{ProcessStart, resolve_process_start};
 /// Git's PID file path.
@@ -34,6 +32,9 @@ use std::path::{Path, PathBuf};
 
 /// Longest PID file text quoted in evidence,
 ///  in UTF-16 code units for ASCII text.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const QUOTED_TEXT_LIMIT: usize = 64;
 
 /// What:
@@ -429,23 +430,18 @@ fn holder_name(pid: i64, command: Option<&str>) -> String {
 ///  The one standard-error line naming a proven-alive holder.
 /// Why:
 ///   `provenHolderLine`:
-///  the person learns what the wait is for and where it gives up.
+///  the person learns what the wait is for and that it lasts as long as the holder holds the lock; a holder proven alive
+///  will let go, so no time is named at which the wait ends.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function provenHolderLine({ verdict, lockPath, limitSeconds }): string;
+/// function provenHolderLine({ verdict, lockPath }): string;
 /// ```
-pub fn proven_holder_line(
-    pid: i64,
-    by_descriptor: bool,
-    command: Option<&str>,
-    lock_path: &Path,
-    limit_seconds: u64,
-) -> String {
+pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path) -> String {
     let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
     return format!(
-        "cli-git: waiting for {}, which holds {} (proven by {proof}); giving up after {limit_seconds} seconds \
-         ({LIVE_WAIT_VARIABLE} changes this), leaving the lock in place.\n",
+        "cli-git: waiting for {}, which holds {} (proven by {proof}); this waits for as long as that process holds the lock \
+         and leaves the lock in place.\n",
         holder_name(pid, command),
         lock_path.display()
     );
@@ -454,27 +450,120 @@ pub fn proven_holder_line(
 /// What:
 ///  The line that repeats while a proven-alive holder keeps the lock.
 /// Why:
-///   Each repeat names the holder, the proof, how long the wait has lasted and where it gives up,
-///  so a reader of the last line alone knows what is going on.
+///   Each repeat names the holder, the proof and how long the wait has lasted, so a reader of the last line alone knows what
+///  is going on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function provenHolderProgressLine({ verdict, lockPath, waitedSeconds, limitSeconds }): string;
+/// function provenHolderProgressLine({ verdict, lockPath, waitedSeconds }): string;
 /// ```
-pub fn proven_holder_progress_line(
-    pid: i64,
-    by_descriptor: bool,
-    command: Option<&str>,
-    lock_path: &Path,
-    waited_seconds: u64,
-    limit_seconds: u64,
-) -> String {
+pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path, waited_seconds: u64) -> String {
     let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
     return format!(
-        "cli-git: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; giving up \
-         after {limit_seconds} seconds ({LIVE_WAIT_VARIABLE} changes this), leaving the lock in place.\n",
+        "cli-git: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; this waits for as \
+         long as that process holds the lock and leaves the lock in place.\n",
         holder_name(pid, command),
         lock_path.display()
+    );
+}
+
+/// What the evidence says about the lock's owner, in words that fit after "found".
+fn evidence_words(evidence: &Evidence) -> String {
+    let descriptors: String = match &evidence.holders {
+        Some(scan) if scan.partial.is_empty() => String::from("no process has the lock open"),
+        Some(scan) => format!("no process the scan could see has the lock open (the scan could not see everything: {})", scan.partial.join("; ")),
+        None => String::from("the open descriptors were not scanned"),
+    };
+    let pid_file: String = match &evidence.pid_file {
+        PidFile::Absent => String::from("no Git lock PID file beside it (`core.lockfilePid` is off for the program that made it, or it is not Git)"),
+        PidFile::Malformed(text) => format!("a Git lock PID file whose text is not `pid <number>` ({text:?})"),
+        PidFile::Unreadable(reason) => format!("a Git lock PID file that could not be read ({reason})"),
+        PidFile::Owner(pid, PidOwner::StartedAfterLock(_)) => format!("a Git lock PID file naming PID {pid}, which started after the lock was made (the number was reused)"),
+        PidFile::Owner(pid, PidOwner::StartUnknown(reason)) => format!("a Git lock PID file naming PID {pid}, whose start time could not be read ({reason})"),
+        PidFile::Owner(pid, PidOwner::Missing) => format!("a Git lock PID file naming PID {pid}, which no longer runs"),
+        PidFile::Owner(pid, PidOwner::StartedBeforeLock(_)) => format!("a Git lock PID file naming PID {pid}, which runs"),
+    };
+    return format!("{descriptors}, and {pid_file}");
+}
+
+/// What:
+///  The line that says a lock's owner cannot be proven alive, what is known about it, and what a person can do.
+/// Why:
+///   An owner nothing proves alive is waited for like one proven alive, with no bound, because the person's own `git commit`
+///  with its editor open holds the lock exactly so; the line says what was looked at and names the file to remove if no program
+///  is using the repository, which is the only case the wait cannot end by itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unprovenWaitLine({ lockPath, evidence }): string;
+/// ```
+pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>) -> String {
+    let known: String = match evidence {
+        Some(found) => format!(" ({})", evidence_words(found)),
+        None => String::from(" (the evidence about its owner could not be read)"),
+    };
+    return format!(
+        "cli-git: waiting for {lock}, whose owner cannot be proven alive{known}; this waits for as long as the lock stays there. \
+         If no program is using this repository, the lock was left by a program that was killed, and removing the file {lock} \
+         lets the command run.\n",
+        lock = lock_path.display()
+    );
+}
+
+/// What:
+///  The line that names who still holds a lock when the wait for it reaches its ceiling, and what becomes of the command.
+/// Why:
+///   The owner's rule is that nothing waits for ever: at the bound the command stops and says what blocked it, with the evidence
+///  there is, and what to run again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ceilingLine({ lockPath, blocker, waitedSeconds, consequence }): string;
+/// ```
+pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, consequence: &str) -> String {
+    return format!(
+        "cli-git: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was changed and the lock was \
+         left in place. Run the command again once that program is done.\n",
+        lock = lock_path.display()
+    );
+}
+
+/// What:
+///  The words for the owner of a lock that is held, from the evidence: a process proven alive, or an owner nothing proves alive
+///  with what was looked at.
+/// Why:
+///   The line at the ceiling names the blocker, whatever the proof.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function blockerWords(evidence, verdict): string;
+/// ```
+pub fn blocker_words(evidence: &Evidence) -> String {
+    return match classify_index_lock(evidence) {
+        Verdict::ProvenAlive { pid, by_descriptor, command } => {
+            let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
+            format!("{} (proven by {proof})", holder_name(pid, command.as_deref()))
+        }
+        Verdict::Dead(pid) => format!("{}, which no longer runs", holder_name(pid, None)),
+        Verdict::EvidenceFree => format!("an owner nothing proves alive ({})", evidence_words(evidence)),
+    };
+}
+
+/// What:
+///  The diagnostic for a lock whose Git lock PID file names a process that no longer runs.
+/// Why:
+///   That owner can never let go, so there is nothing to wait for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deadOwnerDiagnostic({ lockPath, pid, consequence }): string;
+/// ```
+pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str) -> String {
+    return format!(
+        "cli-git: {lock} was left by PID {pid}, which no longer runs, so nothing will release it. {consequence}; nothing was \
+         changed and the lock was left in place. If no other program is using this repository, removing the file {lock} lets \
+         the command run.\n",
+        lock = lock_path.display()
     );
 }
 

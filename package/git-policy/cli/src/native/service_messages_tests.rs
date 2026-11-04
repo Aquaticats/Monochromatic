@@ -19,7 +19,11 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/cli-git-saved-message-ab12"), amend: true },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/cli-git-saved-message-ab12")) },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
-        ClientFailure::WaitedTooLong { minutes: 10 },
+        ClientFailure::ServiceSilent,
+        ClientFailure::StepTooSlow,
+        ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("a landing behind another program's index lock")) },
+        ClientFailure::StillWithService { minutes: 20, blocker: None },
+        ClientFailure::WithdrawalUnconfirmed,
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
         ClientFailure::Unavailable,
@@ -46,7 +50,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::RepositoryFull(_) => 5,
         ClientFailure::RepositoryReadOnly(_) => 6,
         ClientFailure::BranchKeepsChanging { .. } => 7,
-        ClientFailure::WaitedTooLong { .. } => 8,
+        ClientFailure::ServiceSilent => 8,
         ClientFailure::Refused => 9,
         ClientFailure::IndexInUse(_) => 10,
         ClientFailure::Unavailable => 11,
@@ -58,7 +62,10 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::BranchMovedMessageSaved { .. } => 17,
         ClientFailure::OtherRelease => 18,
         ClientFailure::BranchSwitched { .. } => 19,
-        ClientFailure::ContentPruned => 20,
+        ClientFailure::ContentPruned => 23,
+        ClientFailure::StepTooSlow => 22,
+        ClientFailure::StillWithService { .. } => 20,
+        ClientFailure::WithdrawalUnconfirmed => 21,
     };
 }
 
@@ -171,7 +178,11 @@ fn messages_quote_their_constants_and_facts() {
     let unsaved: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: None });
     assert!(!unsaved.contains("saved in"), "{unsaved}");
     assert!(render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo"));
-    assert!(render(&ClientFailure::WaitedTooLong { minutes: 13 }).contains("13 minutes"));
+    let silent: String = render(&ClientFailure::ServiceSilent);
+    for command in CHECK_COMMANDS.into_iter().chain([LOG_COMMAND, RESTART_COMMAND]) {
+        assert!(silent.contains(command), "{silent}");
+    }
+    assert!(!silent.contains("raise") && !silent.contains("setting"), "the text must not name a setting that does not exist: {silent}");
     assert!(render(&ClientFailure::IndexInUse(String::from("the editor"))).contains("the editor"));
 }
 
@@ -180,7 +191,7 @@ fn messages_quote_their_constants_and_facts() {
 fn only_the_unsure_failure_does_not_claim_nothing_changed() {
     for failure in samples() {
         let claims: bool = render(&failure).contains(NOTHING_CHANGED);
-        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::WorkNotHandedOver(_));
+        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::ServiceSilent | ClientFailure::WithdrawalUnconfirmed | ClientFailure::WorkNotHandedOver(_));
         assert_eq!(!claims, may_have_landed, "{failure:?}");
     }
 }

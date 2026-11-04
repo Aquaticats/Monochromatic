@@ -18,10 +18,16 @@ use super::worktree_trash_remove::Removal;
 use std::fs::File;
 use std::path::Path;
 
-/// The bytes the removal of one trash entry holds at its peak, estimated for a flat directory of a million names: the listing of
-///  a directory is held while its entries are removed, at most about sixty-four bytes a name (the name, its allocation and the
-///  directory flag), so about 64 MiB.
-const ENTRY_MEMORY: u64 = 64 << 20;
+/// The peak resident growth of removing one flat directory of a million names (`remove_tree_beneath`, names of 42 characters,
+///  a fresh process, a throwaway directory on btrfs, one run): 97,320 KiB, which is 99,655,680 bytes. Runs of 100,000, 200,000
+///  (twice) and 400,000 names grew by 131, 113, 113 and 104 bytes a name, so the figure per name falls as the count rises and
+///  the one-million run is the case the estimate is for.
+const MEASURED_MILLION_NAME_PEAK: u64 = 99_655_680;
+
+/// The bytes the removal of one trash entry holds at its peak: `MEASURED_MILLION_NAME_PEAK` rounded up to a power of two. The
+///  listing of a directory is held whole while its entries are removed. The coordinator's pick under the owner's delegation,
+///  open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
+const ENTRY_MEMORY: u64 = MEASURED_MILLION_NAME_PEAK.next_power_of_two();
 
 /// The removal of one entry beneath the trash handle, replaceable so a control can watch or delay it.
 pub type RemoveOne<'a> = dyn Fn(&Path, &File, &std::ffi::OsStr, Option<super::fs_beneath::ObjectId>) -> Result<super::worktree_trash_remove::Removal, String> + Sync + 'a;

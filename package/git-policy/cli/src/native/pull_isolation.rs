@@ -1,0 +1,408 @@
+//! What:
+//!  A `git pull` that merges, turned into the fetch it starts with and the `git merge FETCH_HEAD` it ends with, so the merge
+//!  half goes through the same isolated merge as a typed `git merge`.
+//! Why:
+//!  Native Git's `git pull` runs its merge as a child of Git (`builtin/pull.c`, `run_merge`, `cmd.git_cmd = 1`), so the
+//!  wrapper never saw it and the merge kept native Git's failures: a staged index, a held `index.lock`, a late ref
+//!  update. The owner's rules are "Auto merging should never fail." and "Manual merge should never fail too."; the
+//!  pull's own decisions (which options, whether it rebases, whether `HEAD` moved under the fetch, how many heads
+//!  `FETCH_HEAD` holds) are mirrored here only where they can be mirrored exactly, and every other pull is left to native Git.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const plan = planPull(region); // undefined for anything not read exactly
+//! if (plan && mergeIsStated(plan, config)) { await fetch(plan); return merge(['--no-edit', 'FETCH_HEAD']); }
+//! return nativePull();
+//! ```
+
+/// The wait for any program's hold on the index lock, and for the commit service's own hold.
+use super::index_holder_wait::wait_for_index_release_here;
+use super::service_index_wait::wait_for_service_hold_here;
+/// The inherited environment, which decides whether the reflog message is already set.
+use super::child_environment::environment_value;
+/// Diagnostics for the log.
+use super::diagnostic_log::debug;
+/// The command a pull becomes.
+use super::forwarded_command::ResolvedCommand;
+/// The forward being run and how it ended.
+use super::index_writer_forward::{CoordinatedForward, CoordinatedRun};
+/// The heads `FETCH_HEAD` lists for merging.
+use super::merge_isolation_message::fetch_head_merge_heads;
+/// Running real Git for the queries.
+use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+/// Running real Git as a child that owns the terminal, for the fetch.
+use super::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+/// The repository shape of the invocation.
+use super::worktree_identity::WorktreeIdentity;
+/// Owned operating-system text.
+use std::ffi::OsString;
+/// Standard error for the pull's own warning.
+use std::io::Write;
+/// Borrowed filesystem paths.
+use std::path::Path;
+
+/// Module tag for diagnostics.
+const TAG: &str = "pullIsolation";
+
+/// Files and directories of the Git directory that show another operation is in progress; native Git's pull reports those.
+const IN_PROGRESS_MARKERS: [&str; 6] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "sequencer"];
+
+/// The options of `git pull` that go to its merge as typed (`builtin/pull.c`, `run_merge`).
+const MERGE_OPTIONS: [&str; 17] = [
+    "--no-edit", "--edit", "--ff", "--no-ff", "--stat", "--no-stat", "-n", "--log", "--no-log", "--commit", "--no-commit",
+    "--squash", "--no-squash", "--signoff", "--no-signoff", "--verify", "--no-verify",
+];
+
+/// The options of `git pull` that go to its fetch as typed (`builtin/pull.c`, `run_fetch`).
+const FETCH_OPTIONS: [&str; 13] = [
+    "--all", "--prune", "-p", "--no-prune", "--tags", "-t", "--no-tags", "--force", "-f", "--ipv4", "-4", "--ipv6", "-6",
+];
+
+/// The options that go to both halves (`argv_push_verbosity`).
+const SHARED_OPTIONS: [&str; 4] = ["-q", "--quiet", "-v", "--verbose"];
+
+/// The settings that make the wrapper leave the pull to native Git: they add steps this does not mirror (a stash around the
+/// pull, the update of submodules after it).
+const NATIVE_ONLY_SETTINGS: [&str; 3] = ["pull.autostash", "submodule.recurse", "fetch.recursesubmodules"];
+
+/// What:
+///  What a pull reads from its command line: the arguments of its fetch, of its merge, and where the choice of merging
+///  was stated.
+/// Why:
+///   The two halves of a pull take different options, and a pull merges only when the command line or the settings say so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PullPlan = { fetch: string[]; merge: string[]; places: string[]; mergeStated: boolean; fastForwardStated: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PullPlan {
+    /// Options for `git fetch`, as typed.
+    pub fetch: Vec<OsString>,
+    /// Options for `git merge`, as typed.
+    pub merge: Vec<OsString>,
+    /// The repository and refspecs, after the options.
+    pub places: Vec<OsString>,
+    /// `--no-rebase` or `--rebase=false` was typed, which overrides every setting.
+    pub merge_stated: bool,
+    /// `--ff` or `--no-ff` was typed, which is a stated way of reconciling divergent branches.
+    pub fast_forward_stated: bool,
+}
+
+/// What:
+///  Read the arguments after `pull`, by exact spelling, or nothing when any of them is not read exactly.
+/// Why:
+///   Git accepts unambiguous abbreviations and options this does not mirror (`--rebase`, `--ff-only`, `-s`, `-X`,
+///  `--autostash`, `--dry-run`, `--recurse-submodules`); a pull with one of them is native Git's whole, and so is a refspec
+///  that could move the checked-out branch (it holds a colon).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planPull(region: string[]): PullPlan | undefined;
+/// ```
+pub fn plan_pull(region: &[OsString]) -> Option<PullPlan> {
+    // The plan being built; `Vec::new()` is an empty list like `[]`.
+    let mut plan: PullPlan = PullPlan { fetch: Vec::new(), merge: Vec::new(), places: Vec::new(), merge_stated: false, fast_forward_stated: false };
+    // `for ... in` walks the tokens in order, like `for (const token of region)`.
+    for token in region {
+        // `?` returns nothing at once when the token is not text, like an early `return undefined`.
+        let text: &str = token.to_str()?;
+        if text == "--no-rebase" || text == "--rebase=false" {
+            plan.merge_stated = true;
+        } else if MERGE_OPTIONS.contains(&text) {
+            plan.fast_forward_stated |= text == "--ff" || text == "--no-ff";
+            plan.merge.push(token.clone());
+        } else if FETCH_OPTIONS.contains(&text) {
+            plan.fetch.push(token.clone());
+        } else if SHARED_OPTIONS.contains(&text) {
+            plan.fetch.push(token.clone());
+            plan.merge.push(token.clone());
+        } else if text.starts_with('-') {
+            // An option this does not read exactly, `--` included.
+            return None;
+        } else if !plan.places.is_empty() && text.contains(':') {
+            // A refspec that names a destination could update the branch that is checked out.
+            return None;
+        } else {
+            plan.places.push(token.clone());
+        }
+    }
+    return Some(plan);
+}
+
+/// What:
+///  Whether a boolean setting says "no", the way Git reads `false`, `no`, `off`, `0` and the empty value.
+/// Why:
+///   `pull.rebase` and `branch.<name>.rebase` are booleans or one of `merges` and `interactive`; only a "no" is a merge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNo = (value: string) => ['false', 'no', 'off', '0', ''].includes(value.toLowerCase());
+/// ```
+fn says_no(value: &str) -> bool {
+    return matches!(value.to_ascii_lowercase().as_str(), "false" | "no" | "off" | "0" | "");
+}
+
+/// What:
+///  Whether the command line and the settings state that this pull merges and mirror nothing else the pull would do.
+/// Why:
+///   Git's pull merges when `--no-rebase` is typed or `pull.rebase` / `branch.<name>.rebase` say no, or, with neither set, when
+///  a way of reconciling is typed (`--ff`, `--no-ff`); with nothing stated it refuses divergent branches with its advice, and
+///  that refusal stays native Git's. `pull.ff` is left to Git, because with `--no-rebase` it is rewritten by rules of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mergeIsStated(plan: PullPlan, settings: Map<string, string>, branch: string): boolean;
+/// ```
+pub fn merge_is_stated(plan: &PullPlan, settings: &[(String, String)], branch: &str) -> bool {
+    // The settings that add steps this does not mirror.
+    if settings.iter().any(|(key, _)| { return NATIVE_ONLY_SETTINGS.contains(&key.as_str()); }) {
+        return false;
+    }
+    // `pull.ff` is Git's to combine with the rest.
+    if !plan.fast_forward_stated && settings.iter().any(|(key, _)| { return key == "pull.ff"; }) {
+        return false;
+    }
+    // The branch's own setting wins over the general one, as in Git's `config_get_rebase`.
+    let branch_key: String = format!("branch.{branch}.rebase");
+    let chosen: Option<&String> = settings
+        .iter()
+        .find(|(key, _)| { return *key == branch_key; })
+        .or_else(|| { return settings.iter().find(|(key, _)| { return key == "pull.rebase"; }); })
+        .map(|(_, value)| { return value; });
+    if plan.merge_stated {
+        return true;
+    }
+    return match chosen {
+        Some(value) => says_no(value.as_str()),
+        None => plan.fast_forward_stated,
+    };
+}
+
+/// What:
+///  Run a read-only query against the invocation's repository.
+/// Why:
+///   Each query is one Git start; the answer is the output whatever its status, so a caller reads the code.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function ask(context: GitContext, args: string[]): Promise<GitOutput | undefined>;
+/// ```
+fn ask(context: &GitContext, arguments: &[&str]) -> Option<GitOutput> {
+    // `.ok()` turns a failed start into nothing, which the callers treat as "leave the pull to native Git".
+    return run_git(context, &GitRequest::new(Path::new("."), arguments)).ok();
+}
+
+/// What:
+///  The settings that decide whether a pull merges, as key and value pairs.
+/// Why:
+///   One `git config` call reads them all; a value-less key reads as `true` like Git does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function pullSettings(context): Promise<[string, string][] | undefined>;
+/// ```
+fn pull_settings(context: &GitContext) -> Option<Vec<(String, String)>> {
+    let output: GitOutput = ask(
+        context,
+        &[
+            "config",
+            "--null",
+            "--get-regexp",
+            "^(pull\\.(rebase|ff|autostash)|submodule\\.recurse|fetch\\.recursesubmodules|branch\\..*\\.rebase)$",
+        ],
+    )?;
+    // Status 1 means no setting matched.
+    if output.code != Some(0) && output.code != Some(1) {
+        return None;
+    }
+    // A list of key and value pairs, built entry by entry.
+    let mut settings: Vec<(String, String)> = Vec::new();
+    for entry in output.stdout.split(|byte| { return *byte == 0; }).filter(|entry| { return !entry.is_empty(); }) {
+        let text: String = String::from_utf8_lossy(entry).into_owned();
+        let (key, value): (&str, &str) = text.split_once('\n').unwrap_or((text.as_str(), "true"));
+        settings.push((key.to_owned(), value.to_owned()));
+    }
+    return Some(settings);
+}
+
+/// What:
+///  The first line of a query's output, trimmed, when the query succeeded.
+/// Why:
+///   Names and object names are one line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = (output) => output.code === 0 ? output.stdout.trim() : undefined;
+/// ```
+fn line_of(output: Option<GitOutput>) -> Option<String> {
+    let found: GitOutput = output?;
+    if found.code != Some(0) {
+        return None;
+    }
+    return Some(String::from_utf8_lossy(&found.stdout).trim().to_owned());
+}
+
+/// What:
+///  How a pull is handled: native Git's whole, already ended, or the merge that follows its fetch.
+/// Why:
+///   The caller either forwards the pull unchanged, returns the end, or runs the merge forward it is given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PullStep = { kind: 'native' } | { kind: 'ended'; run: CoordinatedRun } | { kind: 'merge'; forward: CoordinatedForward; makesCommit: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PullStep {
+    /// Native Git runs the whole pull.
+    Native,
+    /// The pull ended here (its fetch failed, or the working tree could not follow the fetch).
+    Ended(CoordinatedRun),
+    /// The fetch is done and this merge forward finishes the pull; boxed because a forward is large.
+    Merge {
+        /// The `git merge FETCH_HEAD` that ends the pull.
+        forward: Box<CoordinatedForward>,
+        /// Whether the merge creates a commit, and so is worth the isolated attempt; a fast-forward or a merge of nothing is not.
+        makes_commit: bool,
+    },
+}
+
+/// What:
+///  The merge forward that finishes a pull: `git merge <options> FETCH_HEAD` with the invocation's global options.
+/// Why:
+///   That is the command `run_merge` starts, so the isolated merge, the lock wait and the second pass handle it as they
+///  handle a typed merge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function mergeForward(forward: CoordinatedForward, plan: PullPlan, overlay): CoordinatedForward;
+/// ```
+fn merge_forward(forward: &CoordinatedForward, plan: &PullPlan, overlay: Vec<(OsString, OsString)>) -> CoordinatedForward {
+    // The global options stay in front of the subcommand, as the caller typed them.
+    let mut arguments: Vec<OsString> = forward.command.arguments[..forward.command.subcommand_index].to_vec();
+    arguments.push(OsString::from("merge"));
+    arguments.extend(plan.merge.iter().cloned());
+    arguments.push(OsString::from("FETCH_HEAD"));
+    let command: ResolvedCommand = ResolvedCommand {
+        arguments: arguments.clone(),
+        subcommand: Some(OsString::from("merge")),
+        ..forward.command.clone()
+    };
+    return CoordinatedForward { arguments, command, overlay, ..forward.clone() };
+}
+
+/// What:
+///  Decide what to do with a `git pull`, and run its fetch when the merge half can be completed here; `real_index` is the index
+///  the working tree update waits on.
+/// Why:
+///   Everything before the fetch decides from the command line, the settings and the repository's state, so a pull this
+///  cannot mirror starts nothing; after the fetch, a `FETCH_HEAD` that does not list exactly one head goes back to native
+///  Git's whole pull, which fetches again and words the refusal itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function pullStep(forward: CoordinatedForward, realIndex: string): Promise<PullStep>;
+/// ```
+pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
+    let Some(plan) = plan_pull(forward.command.region()) else {
+        debug(TAG, "native Git runs this pull: an option or operand is not read exactly");
+        return PullStep::Native;
+    };
+    let (git_dir, root): (&Path, &Path) = match &forward.identity {
+        WorktreeIdentity::MainWorktree { git_dir, worktree_root, .. } | WorktreeIdentity::LinkedWorktree { git_dir, worktree_root, .. } => {
+            (git_dir.as_path(), worktree_root.as_path())
+        }
+        _ => return PullStep::Native,
+    };
+    if IN_PROGRESS_MARKERS.iter().any(|name| { return git_dir.join(name).exists(); }) || root.join(".gitmodules").exists() {
+        debug(TAG, "native Git runs this pull: another operation is in progress, or the repository has submodules");
+        return PullStep::Native;
+    }
+    let context: GitContext = GitContext {
+        real_git: forward.real_git.clone(),
+        overlay: forward.overlay.clone(),
+        global_prefix: forward.command.arguments[..forward.command.subcommand_index].to_vec(),
+        common_dir: None,
+    };
+    let (Some(branch), Some(settings), Some(orig_head)) = (
+        line_of(ask(&context, &["symbolic-ref", "--quiet", "--short", "HEAD"])),
+        pull_settings(&context),
+        line_of(ask(&context, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])),
+    ) else {
+        debug(TAG, "native Git runs this pull: no branch is checked out, or its head is unborn");
+        return PullStep::Native;
+    };
+    if !merge_is_stated(&plan, settings.as_slice(), branch.as_str()) {
+        debug(TAG, "native Git runs this pull: it is not stated to merge, or a setting adds steps this does not mirror");
+        return PullStep::Native;
+    }
+    // An unmerged entry makes native Git's pull refuse with its own advice.
+    let unmerged: Option<GitOutput> = ask(&context, &["ls-files", "--unmerged", "-z"]);
+    if unmerged.as_ref().is_none_or(|found| { return found.code != Some(0) || !found.stdout.is_empty(); }) {
+        debug(TAG, "native Git runs this pull: the index holds unmerged entries");
+        return PullStep::Native;
+    }
+    // Git names the pull in the reflog of every ref the pull moves, unless the caller already did.
+    let mut overlay: Vec<(OsString, OsString)> = forward.overlay.clone();
+    if environment_value(forward.environment.as_slice(), "GIT_REFLOG_ACTION").is_none() {
+        let mut action: OsString = OsString::from("pull");
+        for token in forward.command.region() {
+            action.push(" ");
+            action.push(token);
+        }
+        overlay.push((OsString::from("GIT_REFLOG_ACTION"), action));
+    }
+    // `git fetch --update-head-ok <options> <repository> <refspecs>`, as `run_fetch` builds it.
+    let mut fetch: Vec<OsString> = forward.command.arguments[..forward.command.subcommand_index].to_vec();
+    fetch.push(OsString::from("fetch"));
+    fetch.push(OsString::from("--update-head-ok"));
+    fetch.extend(plan.fetch.iter().cloned());
+    fetch.extend(plan.places.iter().cloned());
+    debug(TAG, "the fetch of a pull that merges runs, then the merge goes through the isolated merge");
+    match run_forwarded_git(forward.real_git.as_path(), fetch.as_slice(), overlay.as_slice(), None) {
+        ForwardedRun::Ran(0) => {}
+        // A failed fetch ends the pull with status 1, as `cmd_pull` does.
+        ForwardedRun::Ran(_) => return PullStep::Ended(CoordinatedRun::Ran(1)),
+        ForwardedRun::Failed { stderr, code } => return PullStep::Ended(CoordinatedRun::Failed { stderr, code }),
+    }
+    // The fetch can update the branch that is checked out; Git then moves the working tree along with it before it merges.
+    let Some(curr_head) = line_of(ask(&context, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])) else {
+        return PullStep::Native;
+    };
+    if curr_head != orig_head {
+        let _noted = std::io::stderr().write_all(
+            format!("warning: fetch updated the current branch head.\nfast-forwarding your working tree from\ncommit {orig_head}.\n").as_bytes(),
+        );
+        // The update takes `index.lock` like any writer; the pull waits for a holder, bounded and naming it, where Git's step dies.
+        wait_for_service_hold_here(real_index, "pull's merge");
+        wait_for_index_release_here(real_index, "pull's merge");
+        let moved: Option<GitOutput> = ask(&context, &["read-tree", "-u", "-m", orig_head.as_str(), curr_head.as_str()]);
+        if moved.is_none_or(|found| { return found.code != Some(0); }) {
+            return PullStep::Ended(CoordinatedRun::Failed {
+                stderr: format!(
+                    "fatal: Cannot fast-forward your working tree.\nAfter making sure that you saved anything precious from\n$ git diff {orig_head}\noutput, run\n$ git reset --hard\nto recover.\n"
+                ),
+                code: 128,
+            });
+        }
+    }
+    let fetched: String = std::fs::read_to_string(git_dir.join("FETCH_HEAD")).unwrap_or_default();
+    let heads: Vec<String> = fetch_head_merge_heads(fetched.as_str());
+    if heads.len() != 1 {
+        debug(TAG, "native Git runs the whole pull again: FETCH_HEAD does not list exactly one head to merge");
+        return PullStep::Native;
+    }
+    // One start tells a merge that makes a commit from a fast-forward (the merge base is `HEAD`) and from nothing to merge (the
+    // merge base is the head); only the first is worth the isolated attempt, whose queries the other two would only waste.
+    let bases: Option<GitOutput> = ask(&context, &["merge-base", "--all", "HEAD", heads[0].as_str()]);
+    let makes_commit: bool = bases.is_none_or(|found| {
+        let listed: String = String::from_utf8_lossy(&found.stdout).trim().to_owned();
+        return found.code != Some(0) || (listed != curr_head && listed != heads[0]);
+    });
+    return PullStep::Merge { forward: Box::new(merge_forward(forward, &plan, overlay)), makes_commit };
+}
+
+/// Controls for the pull's reading stay out of the release executable.
+#[cfg(test)]
+#[path = "pull_isolation_tests.rs"]
+mod tests;

@@ -190,3 +190,15 @@ fn child_reaches_service_staged() {
     reach_transaction_phase(Phase::ServiceStaged, None).expect("marker is armed in the environment");
     panic!("the kill marker did not end the process");
 }
+
+/// A pause that nothing releases ends with an error at its patience, though its directory still exists.
+#[test]
+fn a_pause_nothing_releases_ends_at_its_patience() {
+    let root: PathBuf = fixture("phase-patience");
+    let release: PathBuf = root.join("service-prepared.release");
+    let error = await_release_within(root.as_path(), release.as_path(), std::time::Duration::from_millis(200)).expect_err("nothing released it");
+    assert!(matches!(error, PhaseMarkerError::Io(ref io) if io.kind() == std::io::ErrorKind::TimedOut), "{error:?}");
+    std::fs::write(&release, b"").expect("release");
+    assert!(await_release_within(root.as_path(), release.as_path(), std::time::Duration::from_millis(200)).is_ok(), "a released pause ends well");
+    remove(&root);
+}

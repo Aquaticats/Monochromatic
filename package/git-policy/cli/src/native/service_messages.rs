@@ -29,6 +29,9 @@ pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 /// Printed once when the service takes longer than the grace to answer.
 pub const STARTING_NOTICE: &str = "Starting the commit service...";
 
+/// Printed each time the service goes silent while a commit waits, before the same request is sent to it again.
+pub const SILENT_NOTICE: &str = "The commit service stopped answering; asking it again with the same commit, which cannot land twice.";
+
 /// Printed once when the service is being replaced by a newer one.
 pub const UPDATING_NOTICE: &str = "Updating the commit service...";
 
@@ -89,8 +92,14 @@ pub enum ClientFailure {
     /// The worktree switched from `branch` to `now` while the commit was prepared; the message the person wrote, if any, is
     ///  saved in `file`.
     BranchSwitched { branch: String, now: String, file: Option<String> },
-    /// The commit waited `minutes` minutes behind others.
-    WaitedTooLong { minutes: u64 },
+    /// The service sent nothing for longer than it ever stays silent while it works, on every try to ask it again.
+    ServiceSilent,
+    /// The service kept the request for `minutes` minutes without answering, and the client withdrew it: it will not land.
+    StillWithService { minutes: u64, blocker: Option<String> },
+    /// The client stopped waiting and could not confirm the service withdrew the request.
+    WithdrawalUnconfirmed,
+    /// A Git step of the landing ran longer than the wrapper allows and was ended; the commit was withdrawn and kept.
+    StepTooSlow,
     /// The request was refused as malformed or unsafe.
     Refused,
     /// Another program holds the repository's index.
@@ -179,9 +188,30 @@ pub fn render(failure: &ClientFailure) -> String {
                 None => String::new(),
             }
         ),
-        ClientFailure::WaitedTooLong { minutes } => format!(
-            "This commit waited {minutes} minutes behind other commits and was not made. Run it again later, or raise \
-             the waiting limit in the settings for the wrapper. {NOTHING_CHANGED}"
+        ClientFailure::ServiceSilent => format!(
+            "The commit service stopped answering while this commit waited, and it did not answer when asked again, so it is \
+             not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to see what is still \
+             staged. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, restart it with \
+             `{RESTART_COMMAND}`, and run the commit again.",
+            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        ),
+        ClientFailure::StillWithService { minutes, blocker } => format!(
+            "This commit waited {minutes} minutes for the commit service and was withdrawn, so it will not land later by itself.{} \
+             Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
+             `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`. {NOTHING_CHANGED}",
+            blocker.as_ref().map_or_else(String::new, |text| { return format!(" It was waiting for: {text}."); })
+        ),
+        ClientFailure::WithdrawalUnconfirmed => format!(
+            "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \
+             that it withdrew it, so it is not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to \
+             see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
+             `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
+            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        ),
+        ClientFailure::StepTooSlow => format!(
+            "A Git step of this commit ran longer than the commit service allows and was ended, so this commit was not made and will not \
+             land later by itself. The step is named above, and the commit built for you is kept on the side ref named there when one \
+             is. Run the commit again; if it happens again, look at why with `{LOG_COMMAND}`. {NOTHING_CHANGED}"
         ),
         ClientFailure::Refused => format!(
             "The commit service refused this commit because it names a path or a value that cannot be committed, so it \

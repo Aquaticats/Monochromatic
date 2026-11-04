@@ -4,7 +4,6 @@
 
 use super::*;
 use crate::test_support::scratch_environment;
-use std::ffi::OsStr;
 
 /// An environment holding the given pairs.
 fn environment(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
@@ -72,60 +71,19 @@ fn a_non_text_deadline_falls_back_to_the_default() {
     assert_eq!(push_deadline(&pairs), DEFAULT_PUSH_DEADLINE);
 }
 
-/// The low-speed defaults are added when absent and each is left alone when the person set it.
+/// A run goes by the file name of its program and its first word that is not an option, with the values of `-c` and `-C`
+///  skipped; a program with no such word goes by its name alone.
 #[test]
-fn low_speed_defaults_never_override_the_environment() {
+fn a_run_goes_by_its_program_and_its_first_subcommand() {
+    let mut push: Command = Command::new("/nonexistent/bin/git");
+    push.args(["-c", "core.example=1", "-C", "/nonexistent/repository", "--no-pager", "push", "origin", "main"]);
+    assert_eq!(command_label(&push), "git push");
+    let mut upload: Command = Command::new("git-lfs");
+    upload.args(["push", "--all", "origin"]);
+    assert_eq!(command_label(&upload), "git-lfs push");
     let mut bare: Command = Command::new("git");
-    apply_low_speed_defaults(&mut bare, &[]);
-    let added: Vec<(&OsStr, Option<&OsStr>)> = bare.get_envs().collect();
-    assert_eq!(
-        added,
-        vec![
-            (
-                OsStr::new("GIT_HTTP_LOW_SPEED_LIMIT"),
-                Some(OsStr::new(LOW_SPEED_LIMIT))
-            ),
-            (
-                OsStr::new("GIT_HTTP_LOW_SPEED_TIME"),
-                Some(OsStr::new(LOW_SPEED_TIME))
-            ),
-        ]
-    );
-    let mut limited: Command = Command::new("git");
-    apply_low_speed_defaults(
-        &mut limited,
-        &environment(&[("GIT_HTTP_LOW_SPEED_LIMIT", "1")]),
-    );
-    let only_time: Vec<(&OsStr, Option<&OsStr>)> = limited.get_envs().collect();
-    assert_eq!(
-        only_time,
-        vec![(
-            OsStr::new("GIT_HTTP_LOW_SPEED_TIME"),
-            Some(OsStr::new(LOW_SPEED_TIME))
-        )]
-    );
-    let mut both: Command = Command::new("git");
-    apply_low_speed_defaults(
-        &mut both,
-        &environment(&[
-            ("GIT_HTTP_LOW_SPEED_LIMIT", "1"),
-            ("GIT_HTTP_LOW_SPEED_TIME", "2"),
-        ]),
-    );
-    assert_eq!(both.get_envs().count(), 0);
-    let mut only_limit: Command = Command::new("git");
-    apply_low_speed_defaults(
-        &mut only_limit,
-        &environment(&[("GIT_HTTP_LOW_SPEED_TIME", "2")]),
-    );
-    let remaining: Vec<(&OsStr, Option<&OsStr>)> = only_limit.get_envs().collect();
-    assert_eq!(
-        remaining,
-        vec![(
-            OsStr::new("GIT_HTTP_LOW_SPEED_LIMIT"),
-            Some(OsStr::new(LOW_SPEED_LIMIT))
-        )]
-    );
+    bare.args(["--version"]);
+    assert_eq!(command_label(&bare), "git");
 }
 
 /// Exactly one trailing line break goes, of either kind.
@@ -347,9 +305,10 @@ fn a_child_released_late_has_its_lock_swept_when_it_ends() {
     let heads: std::path::PathBuf = root.join(".git").join("refs").join("heads");
     std::fs::create_dir_all(heads.as_path()).expect("ref directory");
     let lock: std::path::PathBuf = heads.join("late.lock");
-    let mut command: Command = shell(": > \"$LOCK\"; exec sleep 1");
-    command.current_dir(root.as_path()).env("LOCK", lock.as_os_str());
-    let locks: LockLedger = LockLedger::before_start(&command);
+    // The child takes its lock and writes the pid file Git writes beside it, then keeps running as the same process.
+    let mut command: Command = shell(": > \"$LOCK\"; echo \"pid $$\" > \"$PIDFILE\"; exec sleep 1");
+    command.current_dir(root.as_path()).env("LOCK", lock.as_os_str()).env("PIDFILE", heads.join("late~pid.lock").as_os_str());
+    let locks: LockLedger = LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
     let child: Child = command.spawn().expect("start the child");
     let member: TreeMember = member_of(i32::try_from(child.id()).expect("pid")).expect("a running child");
     let sweeper = sweep_after_exit(child, vec![member], locks).expect("the sweeping thread starts");
@@ -372,11 +331,12 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
     let lock: std::path::PathBuf = heads.join("lingering.lock");
     let mut command: Command = Command::new("true");
     command.current_dir(root.as_path());
-    let locks: LockLedger = LockLedger::before_start(&command).with_settle(Duration::from_millis(100));
+    let locks: LockLedger = LockLedger::before_start(&command).with_judge(crate::stale_ref_lock_killed_git::judge());
     let mut ended: Child = command.spawn().expect("start the collected child");
     let mut lingering: Child = Command::new("sleep").arg(LINGERING_MEMBER_SECONDS).spawn().expect("start the member");
     let member: TreeMember = member_of(i32::try_from(lingering.id()).expect("pid")).expect("a running member");
     std::fs::write(lock.as_path(), "").expect("an empty lock the tree left");
+    std::fs::write(heads.join("lingering~pid.lock"), format!("pid {}\n", member.pid)).expect("the pid file of the member");
     ended.wait().expect("the child is collected");
     let started = settle_locks(ended, true, vec![member], locks, Duration::from_millis(100));
     assert!(lock.exists(), "a tree that still runs is not swept");

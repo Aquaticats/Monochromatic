@@ -136,7 +136,7 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
     let Some(program) = find_program(PROGRAM, environment.path()).or_else(|| { return own_link.is_file().then_some(own_link.clone()); }) else {
         return Some(missing_tool(Tool::Toolchain, PROGRAM, MANUAL_COMMAND));
     };
-    let installed: ToolRun = run_tool(program.as_path(), &mpm_command(destination, &["install", "--frozen-lockfile"]), environment.tool_limit);
+    let installed: ToolRun = run_tool(program.as_path(), &mpm_command(destination, &["install", "--frozen-lockfile"]), environment.quiet_window);
     debug(TAG, format!("{}: install ended {:?} after {} ms", destination.display(), installed.end, installed.millis).as_str());
     let detail: String = match install_summary(installed.stdout.as_slice()) {
         Some(summary) => format!("mpm-shadow rebuilt the toolchain links ({summary})"),

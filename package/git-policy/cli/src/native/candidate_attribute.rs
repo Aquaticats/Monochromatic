@@ -40,7 +40,11 @@ use std::path::PathBuf;
 
 /// How many paths one `git check-attr` command names,
 ///  as many as one pathspec command of the candidate layer.
-pub const ATTRIBUTE_CHUNK_SIZE: usize = 2_048;
+///  Exempt from a citation under `LQM` (class: chunk size): it splits one command into several starts of the same
+///  command, so the result is the same and only the number of starts changes. Classed once in
+///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
+///  open to the owner's veto.
+pub const ATTRIBUTE_CHUNK_SIZE: usize = super::candidate_prediction::PATHSPEC_CHUNK_SIZE;
 
 /// What:
 ///  Where the attributes of the candidates are read from.

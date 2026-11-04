@@ -163,3 +163,9 @@ fn a_readable_tree_leaves_nothing_out() {
     assert_eq!(clone_tree(&source, &root.join("destination"), 1).expect("clone").left_out, Vec::<PathBuf>::new());
     remove(&root);
 }
+
+/// A clone goes parallel from the measured break-even number of leaves and not before.
+#[test]
+fn the_clone_threshold_is_the_measured_break_even() {
+    assert_eq!(PARALLEL_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
+}

@@ -462,6 +462,10 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
 
 /// The number of copies of an index file one rewrite holds at once: the bytes read, the parsed entries, and the bytes written.
 ///  The budget multiplies the largest index file by it to estimate what one rewrite holds.
+///  Measured with `refresh_index_file` on throwaway repositories of this repository's tracked files, resident size read every 0.2 ms
+///  in a fresh process (2026-11-03): an index of 2,786,564 bytes grew the process by 13,123,584 bytes (4.7 copies) and one of
+///  1,066,894 bytes by 7,929,856 bytes (7.4 copies), which is 3.0 copies of the index plus about 4.7 MB that does not grow with
+///  it. Four copies cover the growth for an index over 4.7 MB, the indexes this estimate exists for. Kept at 4 as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
 const INDEX_REWRITE_COPIES: u64 = 4;
 
 /// What one rewrite of an index file is: the file, the tree it describes, and the trees its entries were copied from.

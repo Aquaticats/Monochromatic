@@ -20,6 +20,10 @@ use super::private_index_request::indexed_request;
 use super::commit_transaction::{TransactionResult, TransactionStop, failed};
 use super::path_bytes::{os_from_path_bytes, path_message_text};
 use super::policy_events::PolicyEvent;
+use super::merge_second_pass::{Conflict, ContextRunner, Merged as MergedFile};
+use super::child_environment::environment_with_overlay;
+use super::journald_native::CLIENT_IDENTIFIER;
+use super::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
 use super::replay_capture_order::CaptureOrderDecision;
 use super::replay_merge::{ReplayMerge, merge_replay_tree};
 use super::replay_shared_paths::{SharedPath, list_shared_paths};
@@ -111,6 +115,14 @@ pub struct ReplayConflict {
 pub enum Merged {
     /// The change applies; the merged tree exists in the repository.
     Tree(String),
+    /// The change applies after the word-level second pass merged every file Git's line merge left in conflict; the tree
+    ///  exists in the repository, and the files are listed to the person and in the journal.
+    Combined {
+        /// The merged tree.
+        tree: String,
+        /// The files the word pass merged, with their parts.
+        files: Vec<MergedFile>,
+    },
     /// The change overlaps what landed.
     Conflict(Vec<Vec<u8>>),
 }
@@ -179,9 +191,9 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
         return merge_replay_tree(site.context, site.common_dir, site.cwd, base, tip, captured.tree.as_str())
             .map_err(|error| { return failed(format!("merging the commit onto the branch failed: {error:?}")); });
     };
-    let conflicting: Vec<Vec<u8>> = match merge(captured.base.as_str())? {
+    let (conflicting, first_tree, first_conflicts) = match merge(captured.base.as_str())? {
         ReplayMerge::Merged { tree_oid } => return Ok(Merged::Tree(tree_oid)),
-        ReplayMerge::Conflict { paths } => paths,
+        ReplayMerge::Conflict { paths, tree_oid, conflicts } => (paths, tree_oid, conflicts),
     };
     let names: Vec<String> = conflicting.iter().map(|path| { return latin1(path.as_slice()); }).collect();
     let shared: Vec<SharedPath> = list_shared_paths(site.context, site.common_dir, site.cwd, captured.base.as_str(), tip, captured.tree.as_str())
@@ -207,11 +219,65 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
     )
     .map_err(|error| { return failed(format!("comparing the commit with what landed failed: {error:?}")); })?;
     if settled.subsumed_paths.is_empty() && settled.kept_landed_paths.is_empty() {
-        return Ok(Merged::Conflict(conflicting));
+        return Ok(word_pass(site, tip, (first_tree.as_str(), first_conflicts.as_slice()), conflicting));
     }
     return match merge(settled.merge_base.as_str())? {
         ReplayMerge::Merged { tree_oid } => Ok(Merged::Tree(tree_oid)),
-        ReplayMerge::Conflict { paths } => Ok(Merged::Conflict(paths)),
+        ReplayMerge::Conflict { paths, tree_oid, conflicts } => Ok(word_pass(site, tip, (tree_oid.as_str(), conflicts.as_slice()), paths)),
+    };
+}
+
+/// What:
+///  The event that tells the person which files the word pass merged for a replayed commit, or nothing when none were.
+/// Why:
+///   The replayed commit carries the person's own message, which is not changed; the parts are told next to the commit's other
+///  events, and the journal gets one entry per file at the same time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordMergeNotice(files) // { type: 'word-merged', lines } | undefined
+/// ```
+pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
+    if files.is_empty() {
+        return None;
+    }
+    return Some(PolicyEvent::WordMerged { lines: announce("", (CLIENT_IDENTIFIER, "commit-replay"), files) });
+}
+
+/// What:
+///  The last resort for a merge that still conflicts: the word-level second pass over its conflicted files.
+/// Why:
+///   Git's line merge and the subsumption rules have both had their say; what is left is conflicts of adjacent lines and
+///  of different words, which the owner decided (2026-11-03) the wrapper's own merges re-merge by word, all or none. The
+///  attributes of the landed tip apply, because the merge reads no worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wordPass(site, tip, { tree, conflicts }, paths) // { combined: { tree, files } } | { conflict: paths }
+/// ```
+fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths: Vec<Vec<u8>>) -> Merged {
+    let (tree, conflicts): (&str, &[Conflict]) = merge;
+    // The commit may have been run from a subdirectory; the second pass reads paths from the top of the worktree.
+    let mut top_request: GitRequest = GitRequest::new(site.cwd, &["rev-parse", "--show-toplevel"]);
+    top_request.without_prefix = true;
+    let top: PathBuf = match run_git_checked(site.context, &top_request) {
+        Ok(found) => PathBuf::from(String::from_utf8_lossy(found.stdout.as_slice()).trim()),
+        Err(_) => return Merged::Conflict(paths),
+    };
+    let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    let variables: Vec<(OsString, OsString)> = environment_with_overlay(process_environment.as_slice(), site.context.overlay.as_slice());
+    let probing: ContextRunner<'_> = ContextRunner { context: site.context, cwd: top.as_path(), without_prefix: true, object_directory: None, environment: Vec::new() };
+    let probe: AttributeProbe<'_> = AttributeProbe { directory: top.as_path(), global_prefix: &[], variables: variables.as_slice(), runner: &probing };
+    let runner: ContextRunner<'_> = ContextRunner {
+        context: site.context,
+        cwd: top.as_path(),
+        without_prefix: true,
+        object_directory: Some(site.object_directory),
+        environment: attribute_tree_variables(tip, &probe),
+    };
+    return match resolve_tree(&runner, site.common_dir, tree, conflicts) {
+        Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
+        None => Merged::Conflict(paths),
     };
 }
 

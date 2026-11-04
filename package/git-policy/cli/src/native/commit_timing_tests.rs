@@ -271,11 +271,16 @@ fn whole_milliseconds_drop_the_part_of_a_millisecond() {
 #[test]
 fn the_holder_kind_follows_what_the_notice_says() {
     use super::holder_kind_of;
-    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"), 1800);
+    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"));
     assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
     assert_eq!(
-        holder_kind_of("cli-git: waiting for /r/.git/index.lock, whose owner cannot be proven alive, after 3 seconds; giving up after 1800 seconds.\n"),
+        holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None).as_str()),
         "unproven"
+    );
+    assert_eq!(
+        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made").as_str()),
+        "unproven",
+        "the diagnostic that ends a wait is not a holder proven alive"
     );
     let root: PathBuf = fixture("timing-holder-null");
     let (mut timing, covered) = filled(root.as_path());
@@ -315,5 +320,26 @@ fn the_line_states_its_end_time_and_a_level() {
     assert_eq!(parsed(timing.line(covered, 1).as_str())["level"], "info");
     timing.outcome = "stopped";
     assert_eq!(parsed(timing.line(covered, 2).as_str())["level"], "warn");
+    remove(root.as_path());
+}
+
+/// The record states the longest quiet gap of the steps that ended by themselves, and every step's gap by name, with a step that
+///  was ended for being quiet listed apart and left out of the longest.
+#[test]
+fn the_record_carries_the_quiet_gaps_of_the_steps() {
+    let root: PathBuf = fixture("timing-quiet");
+    let (mut timing, covered) = filled(root.as_path());
+    timing.quiet = vec![
+        (String::from("git add"), Duration::from_millis(250)),
+        (String::from("git rev-parse"), Duration::from_millis(40)),
+        (format!("git reset{}", crate::quiet_ledger::ENDED_SUFFIX), Duration::from_millis(9000)),
+    ];
+    let value: serde_json::Value = parsed(timing.line(covered, 0).as_str());
+    assert_eq!(value["longestQuietMs"].as_f64(), Some(250.0), "only steps that ended by themselves count: {value}");
+    assert_eq!(value["quietMs"]["git rev-parse"].as_f64(), Some(40.0));
+    assert_eq!(value["quietMs"]["git reset [ended for being quiet]"].as_f64(), Some(9000.0));
+    let empty: serde_json::Value = parsed(filled(root.as_path()).0.line(covered, 0).as_str());
+    assert_eq!(empty["quietMs"], serde_json::json!({}));
+    assert_eq!(empty["longestQuietMs"].as_f64(), Some(0.0));
     remove(root.as_path());
 }

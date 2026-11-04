@@ -35,8 +35,18 @@ struct Entry {
     kind: Kind,
 }
 
-/// The entries per worker below which a clone stays on one thread; starting threads costs more than a small clone.
-const PARALLEL_MIN_ENTRIES: usize = 512;
+/// The entries below which a clone stays on one thread, `PARALLEL_BREAK_EVEN_ENTRIES`; starting threads costs more than a very small
+///  clone. Measured with `clone_tree` itself forced to 1, 2, 4 and 8 workers (2026-11-03, five runs each in alternating orders,
+///  other sessions running, a debug build): 0.6 ms on every count for 10 entries, 1.2 ms on 8 workers against 1.8 ms on one for 30,
+///  8.1 ms against 20.7 ms for 296, and 13.4 ms against 39.2 ms for 555, so the old threshold of 512 left clones of up to 511 leaves
+///  on one thread for up to 12 ms more. Picked by the coordinator under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PARALLEL_MIN_ENTRIES = PARALLEL_BREAK_EVEN_ENTRIES;
+/// ```
+const PARALLEL_MIN_ENTRIES: usize = super::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What a clone made and what it left out.
 #[derive(Debug, Eq, PartialEq)]

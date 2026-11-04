@@ -89,7 +89,7 @@ pub fn finding_from(tool: Tool, run: &ToolRun, detail: &str, run_instead: &str) 
     let outcome: Outcome = match &run.end {
         ToolEnd::Succeeded => Outcome::Repaired { detail: detail.to_owned(), millis: run.millis },
         ToolEnd::Failed(reason) => Outcome::Failed { reason: reason.clone(), run_instead: run_instead.to_owned() },
-        ToolEnd::TimedOut => Outcome::Failed { reason: String::from("it ran past its time limit and was stopped"), run_instead: run_instead.to_owned() },
+        ToolEnd::TimedOut => Outcome::Failed { reason: String::from("it showed no sign of work for the quiet window and was stopped"), run_instead: run_instead.to_owned() },
     };
     return Finding { tool, outcome };
 }

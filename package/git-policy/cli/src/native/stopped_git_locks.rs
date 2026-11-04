@@ -1,5 +1,6 @@
 //! What:
-//!  The lock files a stopped Git child leaves behind, found and removed once the child and what it started are gone.
+//!  The reference locks a stopped Git child may have left behind, judged and reported once the child and what it started
+//!  are gone.
 //! Why:
 //!  Git removes its `.lock` files when it ends normally or on a catchable signal, but a child that is killed, or that is
 //!  in an uninterruptible call when the stop arrives, cannot. On 2026-11-03 two pushes were stopped at their deadline;
@@ -8,13 +9,19 @@
 //!  ... File exists". The service had started those pushes without `core.lockfilePid`, so no pid file was written. That
 //!  the creators were the stopped pushes, released by the kernel late, is the inference that fits these facts; nothing
 //!  observed the processes themselves.
-//!  Two kinds of file are removed, and nothing else:
-//!       a lock whose `~pid.lock` file (written by `core.lockfilePid`, which the wrapper turns on for every Git it starts)
-//!       names a process of the stopped tree that has ended, with that pid file;
-//!       an empty lock with no pid file, born after the child started and still empty after a settle time, because the
-//!       child can die between creating the lock and writing the pid file, and an empty file holds nothing.
-//!  A lock another Git process holds is never matched: its pid file names a process outside the stopped tree, or it
-//!  has content, or it is older than the child. No lock of the wrapper's own is taken to do this.
+//!  Releases 0.5.23 to 0.5.26 removed two kinds of file after the stop: a lock whose pid file named an ended member of the
+//!  stopped tree, and an empty lock without a pid file that was born after the child started and stayed empty for a settle
+//!  time. A cross-vendor review of 2026-11-03T11:33:50-05:00 (finding S-1) showed that neither is an ownership proof: a
+//!  live writer of another Git that does not write pid files holds its lock empty with no descriptor open, for as long as
+//!  its transaction lasts, and a pid file older than a lock names an earlier holder, so both rules could delete the lock
+//!  of a Git that is running, and two writers could then update one reference. The sweep removes nothing on those rules.
+//!  It hands the repository to the same judgement that runs before every fetch and push (`stale_ref_locks.rs`), which
+//!  removes a reference lock only on a proof and through a conditional removal, and it says what it found and which
+//!  command clears a lock it will not remove. The judgement is given one proof of its own, which a container's view of the
+//!  machine cannot give it: the numbers of the processes of the stopped tree that have ended. A pid file born at or after a
+//!  lock that was itself born after the child started, naming one of them, names a process the wrapper started and saw end, in
+//!  its own namespace (the container gate found the sweep leaving its own child's locks without it).
+//!  Locks of other protocols (the index, the shallow file, object and pack locks) are not touched or mentioned.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,18 +31,20 @@
 
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::warn;
-/// The processes of the stopped tree and whether each still runs.
-use super::process_tree::{TreeMember, still_running};
 /// The Git directories a command works in.
 use super::git_directory_roots::roots_of_command;
-/// Owned OS strings, for the names of directories the walk skips.
-use std::ffi::OsStr;
+/// How reference locks are judged, and what the judge knows of the wrapper's own stopped child.
+use super::stale_ref_lock_judge::{Judge, OwnEnded};
+/// The processes of the stopped tree and whether each still runs.
+use super::process_tree::{TreeMember, still_running};
+/// The judgement and conditional removal of the reference locks below some Git directories.
+use super::stale_ref_locks::clear_stale_ref_locks;
 /// Paths of the repository.
 use std::path::{Path, PathBuf};
 /// The command whose children are stopped.
 use std::process::Command;
-/// Time spans and the wall clock the kernel stamps files with.
-use std::time::{Duration, SystemTime};
+/// The wall clock the kernel stamps files with.
+use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cli-git";
@@ -49,29 +58,15 @@ pub(crate) const PID_LOCK_SUFFIX: &str = "~pid.lock";
 /// What a pid file's text starts with, before the number.
 const PID_TEXT_PREFIX: &str = "pid ";
 
-/// How far a file's birth may precede the clock reading taken before the child started.
-///  The kernel stamps files from a coarse clock that lags the one `SystemTime` reads by up to one tick.
-pub(crate) const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
-
-/// How long an empty lock without a pid file must have stayed empty before it counts as left behind.
-///  Git creates a ref lock empty and fills it a moment later, so a lock that a live process just made is empty for
-///  milliseconds; one that is still empty after this long has no writer. The sweep waits out what remains of it.
-const EMPTY_LOCK_SETTLE: Duration = Duration::from_secs(1);
-
-/// The directory inside `objects` that Git locks files in; the other directories there hold only loose objects.
-const SEARCHED_OBJECT_DIRECTORIES: [&str; 2] = ["info", "pack"];
-
-/// Directories that never hold a Git lock file and can hold very many files.
-const SKIPPED_DIRECTORIES: [&str; 1] = ["hooks"];
-
 /// What:
-///  Where a command's Git child can leave lock files, and when the child started.
+///  Where a command's Git child can leave reference locks.
 /// Why:
-///   Taken before the child starts, so a lock born earlier is never taken for the child's.
+///   The sweep after a stop judges the locks of this repository, the one the child worked in; the time taken before the
+///  child started tells a lock born in its life from an older one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LockLedger = { roots: string[]; since: Date };
+/// type LockLedger = { roots: string[]; since: Date; judge?: Judge };
 /// ```
 #[derive(Clone, Debug)]
 pub struct LockLedger {
@@ -79,95 +74,53 @@ pub struct LockLedger {
     roots: Vec<PathBuf>,
     /// The wall-clock time read before the child started.
     since: SystemTime,
-    /// How long an empty lock without a pid file must have stayed empty before it is removed.
-    settle: Duration,
+    /// The judge of this process, unless a control sets another.
+    judge: Option<Judge>,
 }
 
 impl LockLedger {
     /// A ledger that finds nothing: for a child that holds no Git lock, such as a reader of objects.
     pub fn none() -> Self {
-        return Self { roots: Vec::new(), since: SystemTime::now(), settle: EMPTY_LOCK_SETTLE };
+        return Self { roots: Vec::new(), since: SystemTime::now(), judge: None };
     }
 
     /// The ledger of a command that has not started yet: its repository comes from `GIT_DIR` in its environment, or from
     ///  its working directory (the process's own when the command sets none).
     pub fn before_start(command: &Command) -> Self {
         let since: SystemTime = SystemTime::now();
-        return Self { roots: roots_of_command(command), since, settle: EMPTY_LOCK_SETTLE };
+        return Self { roots: roots_of_command(command), since, judge: None };
     }
 
-    /// When a file was born; a file system that keeps no birth time still stamps a never-written file with its creation time.
-    fn born_at(path: &Path) -> Option<SystemTime> {
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
-        return metadata.created().or_else(|_| { return metadata.modified(); }).ok();
-    }
-
-    /// Whether a file was born at or after the child started.
-    fn born_since(&self, path: &Path) -> bool {
-        return Self::born_at(path).is_some_and(|born| { return born + COARSE_CLOCK_SLACK >= self.since; });
-    }
-
-    /// Whether `path` is a regular file with nothing in it.
-    fn is_empty_file(path: &Path) -> bool {
-        return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.is_file() && metadata.len() == 0; });
-    }
-
-    /// The same ledger with another settle time, so a test does not wait out the real one.
+    /// The same ledger with another judge, so a control does not wait out the margin of a real one.
     #[cfg(test)]
-    pub fn with_settle(mut self, settle: Duration) -> Self {
-        self.settle = settle;
+    pub fn with_judge(mut self, judge: Judge) -> Self {
+        self.judge = Some(judge);
         return self;
     }
 
-    /// Whether an empty lock without a pid file is the stopped child's: born after it started, and still empty after the
-    ///  settle time, which this waits out.
-    fn left_empty(&self, path: &Path) -> bool {
-        if !self.born_since(path) || !Self::is_empty_file(path) {
-            return false;
-        }
-        let age: Duration = Self::born_at(path).and_then(|born| { return born.elapsed().ok(); }).unwrap_or_default();
-        if age < self.settle {
-            std::thread::sleep(self.settle - age);
-        }
-        return Self::is_empty_file(path);
-    }
-
     /// What:
-    ///  Remove the locks the stopped tree left, and return the paths removed.
+    ///  Judge the reference locks of the repository once the child is gone, remove the ones whose holder is proven gone,
+    ///  say what was found about the rest, and return the paths removed.
     /// Why:
-    ///   Called once the child is gone. A pid file counts only when the process it names belongs to `tree` and has ended;
-    ///  an empty lock without a pid file counts only when the whole tree has ended.
+    ///   Nothing ties a lock to the stopped child except a proof about its holder: the stopped child's tree, a time of
+    ///  birth and an empty file all fit a live writer of another Git as well. The judgement is the one that runs before
+    ///  every fetch and push, so the proof, the notice and the conditional removal are the same everywhere.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// function sweep(tree: TreeMember[]): string[];
     /// ```
     pub fn sweep(&self, tree: &[TreeMember]) -> Vec<PathBuf> {
-        let tree_ended: bool = !tree.is_empty() && tree.iter().all(|member| { return !still_running(member); });
-        let mut removed: Vec<PathBuf> = Vec::new();
-        for path in lock_files(self.roots.as_slice()) {
-            let name: String = path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
-            if let Some(stem) = name.strip_suffix(PID_LOCK_SUFFIX) {
-                let Some(pid) = pid_named_by(path.as_path()) else {
-                    continue;
-                };
-                let Some(member) = tree.iter().find(|member| { return member.pid == pid; }) else {
-                    continue;
-                };
-                if still_running(member) || !self.born_since(path.as_path()) {
-                    continue;
-                }
-                let lock: PathBuf = path.with_file_name(format!("{stem}{LOCK_SUFFIX}"));
-                remove_recording(lock.as_path(), &mut removed);
-                remove_recording(path.as_path(), &mut removed);
-            } else if tree_ended
-                && !path.with_file_name(format!("{}{PID_LOCK_SUFFIX}", name.trim_end_matches(LOCK_SUFFIX))).exists()
-                && self.left_empty(path.as_path())
-            {
-                remove_recording(path.as_path(), &mut removed);
-            }
+        let mut judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
+        // The one proof that is the wrapper's own: the numbers of the stopped tree's processes that have ended.
+        let pids: Vec<i64> = tree.iter().filter(|member| { return !still_running(member); }).map(|member| { return i64::from(member.pid); }).collect();
+        judge.own_ended = Some(OwnEnded { pids, since: self.since });
+        let outcome = clear_stale_ref_locks(self.roots.as_slice(), &judge);
+        let notice: String = outcome.notice();
+        if !notice.is_empty() {
+            warn(TAG, notice.trim_end());
         }
-        return removed;
+        return outcome.cleared.iter().map(|found| { return found.lock.clone(); }).collect();
     }
 }
 
@@ -180,55 +133,6 @@ impl LockLedger {
 pub(crate) fn pid_named_by(path: &Path) -> Option<i32> {
     let text: String = std::fs::read_to_string(path).ok()?;
     return text.trim().strip_prefix(PID_TEXT_PREFIX)?.trim().parse::<i32>().ok();
-}
-
-/// Remove one file and record it when it was removed; a file that is already gone is not an error.
-fn remove_recording(path: &Path, removed: &mut Vec<PathBuf>) {
-    match std::fs::remove_file(path) {
-        Ok(()) => {
-            warn(TAG, &format!("removed {}, a lock file the stopped Git process left behind", path.display()));
-            removed.push(path.to_path_buf());
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            warn(TAG, &format!("could not remove {}, a lock file the stopped Git process left behind: {error}", path.display()));
-        }
-    }
-}
-
-/// Every regular file below `roots` whose name ends in `.lock`, in one pass over the directories that can hold one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// walk(roots, { skip: ['hooks', 'objects/xx'] }).filter((path) => path.endsWith('.lock'))
-/// ```
-fn lock_files(roots: &[PathBuf]) -> Vec<PathBuf> {
-    let mut found: Vec<PathBuf> = Vec::new();
-    let mut pending: Vec<PathBuf> = roots.to_vec();
-    while let Some(directory) = pending.pop() {
-        let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
-            continue;
-        };
-        let in_objects: bool =
-            directory.file_name() == Some(OsStr::new("objects")) && directory.parent().is_some_and(|parent| { return roots.iter().any(|root| { return root == parent; }); });
-        for entry in entries.flatten() {
-            let Ok(kind) = entry.file_type() else {
-                continue;
-            };
-            let name: String = entry.file_name().to_string_lossy().into_owned();
-            if kind.is_dir() {
-                let searched: bool = if in_objects { SEARCHED_OBJECT_DIRECTORIES.contains(&name.as_str()) } else { !SKIPPED_DIRECTORIES.contains(&name.as_str()) };
-                if searched {
-                    pending.push(entry.path());
-                }
-            } else if kind.is_file() && name.ends_with(LOCK_SUFFIX) {
-                found.push(entry.path());
-            }
-        }
-    }
-    found.sort();
-    found.dedup();
-    return found;
 }
 
 /// Lock-sweep behavior is controlled in the test module.

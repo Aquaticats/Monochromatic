@@ -192,11 +192,11 @@ fn watched_step_leaves_no_lock(kind: Holder, name: &str) {
     remove(stage.root.as_path());
 }
 
-/// A push stopped on no progress, under a ceiling, leaves no lock either.
+/// A push stopped on no progress leaves no lock either.
 #[test]
 fn a_stall_stop_of_an_unresponsive_holder_leaves_no_lock() {
     let stage: Stage = stage("stop-lock-push-stall");
-    let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE, ceiling: Duration::from_secs(120) };
+    let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE };
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), patience, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped on no progress");
     assert_clean_after_stop(&stage, Holder::Unresponsive, "stalled run");
@@ -228,6 +228,8 @@ fn a_watched_stop_of_an_unresponsive_holder_leaves_no_lock() {
 }
 
 /// The watched path asks with a catchable signal before it kills: a shell with a `TERM` trap runs the trap.
+///  The shell sits silent in a bounded `sleep` it waits for (a loop that starts a process every pause would show work at every
+///  look, and a step that works is never stopped), so the quiet window is what stops it.
 #[test]
 fn a_watched_stop_gives_a_catchable_signal_first() {
     let root: PathBuf = fixture("stop-lock-watched-catchable");
@@ -235,7 +237,7 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
     let mut command: Command = Command::new("sh");
     command
         .arg("-c")
-        .arg(format!("trap ': > \"$MARKER\"; exit 0' TERM; while {}; do sleep 0.05; done", while_test_lives(root.as_path())))
+        .arg("trap ': > \"$MARKER\"; exit 0' TERM; sleep 30 & wait")
         .env("MARKER", marker.as_os_str());
     let terms: WatchTerms = WatchTerms {
         limit: Duration::from_millis(500),
@@ -243,7 +245,7 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
         notices: Box::new(std::io::sink()),
     };
     let ended = output_watched(&mut command, "a trapping shell", terms);
-    assert_eq!(ended.expect_err("stopped at the bound").kind(), std::io::ErrorKind::TimedOut);
+    assert_eq!(ended.expect_err("stopped for being quiet").kind(), std::io::ErrorKind::TimedOut);
     assert!(marker.exists(), "the stop reached the TERM trap before any kill");
     remove(root.as_path());
 }

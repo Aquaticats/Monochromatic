@@ -1,30 +1,39 @@
 //! What:
-//!  The one HTTPS call of the standards-review shadow run, made in-process with a total deadline.
+//!  The one HTTPS call of the standards-review shadow run, made in-process and ended only when it shows no sign of work.
 //! Why:
 //!  The root `mise.toml` task `shadow-review` calls `fetch` with a 30 s signal. This port calls the same endpoint from
-//!  the wrapper itself, so no `node` or `mise` is started. The deadline covers connecting, TLS, sending and reading
-//!  the body, so the call can never hold a caller longer than the deadline. The trust roots are a parameter: production
-//!  uses the roots embedded in the binary, a test passes the fixture authority of its local TLS server.
+//!  the wrapper itself, so no `node` or `mise` is started. A call that keeps moving bytes is never cut off for being slow
+//!  (owner, 2026-11-03: "Stop only on no progress"; pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`, the
+//!  coordinator's under the owner's delegation and open to the owner's veto). The transport's own idle timeouts do the
+//!  judging: resolving, connecting, and each read and each write of the connection (TLS handshake, request, response head and
+//!  body) may stay silent for the quiet window and no longer, and there is no total deadline. The longest quiet gap of every
+//!  call is measured beside the call and kept in the ledger (`quiet_ledger.rs`, `thread_quiet.rs`). The trust roots are a
+//!  parameter: production uses the roots embedded in the binary, a test passes the fixture authority of its local TLS server.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const response = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.timeout(30000) });
+//! const response = await fetch(url, { method: 'POST', headers, body, dispatcher: new Agent({ bodyTimeout: 30000, headersTimeout: 30000 }) });
 //! ```
 
+/// The measuring of a call's quiet gap, beside the call.
+use super::thread_quiet::measured_quiet;
 use std::time::Duration;
 use ureq::tls::{Certificate, RootCerts, TlsConfig};
 
-/// The script's timeout.
-pub const SCRIPT_DEADLINE: Duration = Duration::from_secs(30);
+/// How long a call may stay silent before it is ended, when the caller sets nothing else (the script's own figure, which
+///  was a total timeout there).
+///  Citation: none, and **unmeasured as a quiet window**: the script's 30 seconds was inherited and no quiet gap of the call was
+///  logged before `quiet_ledger.rs` kept one; the number waits for that measurement.
+pub const SCRIPT_QUIET_WINDOW: Duration = Duration::from_secs(30);
 
 /// What:
-///  Where and how to call: the URL, the bearer key, the deadline, and optionally the one trusted authority (PEM).
+///  Where and how to call: the URL, the bearer key, the quiet window, and optionally the one trusted authority (PEM).
 /// Why:
-///   Tests point `url` at a loopback server; production passes `ENDPOINT`, the script's deadline and no authority.
+///   Tests point `url` at a loopback server; production passes `ENDPOINT`, a quiet window and no authority.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Gateway = { url: string; apiKey: string; deadline: number; trustedPem?: Uint8Array };
+/// type Gateway = { url: string; apiKey: string; quietWindow: number; trustedPem?: Uint8Array };
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Gateway<'a> {
@@ -32,8 +41,8 @@ pub struct Gateway<'a> {
     pub url: &'a str,
     /// The bearer credential.
     pub api_key: &'a str,
-    /// The total time the call may take.
-    pub deadline: Duration,
+    /// How long the call may stay silent (resolving, connecting, one read, one write) before it is ended.
+    pub quiet_window: Duration,
     /// A PEM authority that replaces the embedded roots; `None` keeps them.
     pub trusted_pem: Option<&'a [u8]>,
 }
@@ -56,7 +65,8 @@ pub struct Reply {
 }
 
 /// What:
-///  POST `body` as JSON with the bearer key, within the deadline; any HTTP status is a reply, not an error.
+///  POST `body` as JSON with the bearer key; the call ends when it is silent for the quiet window, never for being slow. Any
+///  HTTP status is a reply, not an error.
 ///  Redirects are not followed and no proxy variable is read.
 /// Why:
 ///   The script's failure line names timeouts and transport failures; a redirect or a proxy would send the key and the
@@ -67,6 +77,12 @@ pub struct Reply {
 /// const response = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key }, body, signal });
 /// ```
 pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
+    // The quiet gap of the call is measured beside it; the call itself ends on the transport's idle timeouts below.
+    return measured_quiet("standards review gateway call", || { return post_decision_unmeasured(gateway, body); });
+}
+
+/// `post_decision` without the measuring thread.
+fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, String> {
     let tls: TlsConfig = match gateway.trusted_pem {
         Some(pem) => {
             let authority: Certificate<'static> = Certificate::from_pem(pem).map_err(|error| return format!("the trusted authority is unreadable: {error}"))?;
@@ -75,7 +91,11 @@ pub fn post_decision(gateway: &Gateway, body: &str) -> Result<Reply, String> {
         None => TlsConfig::default(),
     };
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(gateway.deadline))
+        // Each phase and each transport read or write may be silent for the window; no timeout covers the call as a whole.
+        .timeout_resolve(Some(gateway.quiet_window))
+        .timeout_connect(Some(gateway.quiet_window))
+        .timeout_per_read(Some(gateway.quiet_window))
+        .timeout_per_write(Some(gateway.quiet_window))
         .http_status_as_error(false)
         .max_redirects(0)
         .proxy(None)

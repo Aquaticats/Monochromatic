@@ -16,18 +16,46 @@ use super::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 7;
 
 /// The release of this build: the crate version, which the wrapper and the service program share because they are built
 ///  and installed together. A service from another release is retired even when it speaks the same protocol, since the
 ///  program its unit names, and the behavior behind the same messages, may differ.
 pub const RELEASE: &str = env!("CARGO_PKG_VERSION");
 
-/// The longest line either side accepts, in bytes.
+/// How often the service tells each waiting client that it is alive, while the client's request is queued or landing.
+///  One second is the pace of the other waiting notices (`service_client::START_NOTICE_GRACE`), so a client that waits sees
+///  proof of life as often as it sees any other line. Measured on 2026-11-03 on this host: 300 timers of one second fired a
+///  median of 1.0 ms and at most 2.2 ms late (`doc/planning/cli-git-shipped-limits-audit.md`, "Waits on the commit service
+///  itself"), so a beat is never missed by the clock alone.
+pub const HEARTBEAT_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// How long a client hears nothing from the service, heartbeats included, before it takes the service for stopped.
+///  Five beats: the measured lateness of a beat is a few milliseconds, so five missing beats are a stopped or frozen
+///  process and not a late timer, and a wrong call costs one resend of the same request, which the service recognizes by
+///  its identity and answers without landing it twice.
+pub const HEARTBEAT_SILENCE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The 99th percentile of the lengths of the paths changed by the 21,696 non-merge commits of this repository since 2026-09-01
+///  (176,042 changed paths read with `git log --no-merges --format=@%H --name-only --all`): 118 characters. The median was 58, the
+///  90th percentile 86, the 99.9th percentile 159 and the longest 189.
+pub const P99_CHANGED_PATH_CHARACTERS: usize = 118;
+
+/// The longest line either side accepts, in bytes: one mebibyte, the size at which a request of `MAX_CHANGES` changes of the
+///  99th-percentile path length (`P99_CHANGED_PATH_CHARACTERS`) still fits (a control in `service_protocol_tests.rs` encodes
+///  one). A request with 4,096 paths of the longest length seen (189) would need about
+///  1.06 MB and is refused as a decode failure. The coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const MAX_LINE_BYTES: usize = 1 << 20;
 
-/// The most paths one request may change.
+/// The most paths one request may change: 4,096. Of the 21,696 non-merge commits of this repository since 2026-09-01 (median 2
+///  changed paths, 99th percentile 38, 99.9th percentile 377) 10 changed more than 4,096 paths (0.05 percent; the largest 8,178),
+///  and those commits take the native path instead of the service. The coordinator's pick under the owner's delegation, open to
+///  the owner's veto.
 pub const MAX_CHANGES: usize = 4096;
+
+/// The longest request identity either side accepts, in bytes (a random identity is 36 bytes). A display and input cap.
+pub const MAX_ID_BYTES: usize = 128;
 
 /// Modes a change may give a file.
 pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
@@ -162,6 +190,8 @@ pub enum FailureCode {
     BranchKeepsChanging,
     /// The branch is no longer where the commit was prepared, and the commit cannot be made again on another tip.
     BranchMoved,
+    /// A Git step of the landing ran longer than the wrapper lets one step run and was ended; the batch was withdrawn.
+    StepTooSlow,
     /// Anything else the service could not resolve.
     Unavailable,
 }
@@ -176,18 +206,20 @@ impl FailureCode {
             Self::Rejected => "rejected",
             Self::BranchKeepsChanging => "branch-keeps-changing",
             Self::BranchMoved => "branch-moved",
+            Self::StepTooSlow => "step-too-slow",
             Self::Unavailable => "unavailable",
         };
     }
 
     /// Every code, so a test reaches all of them.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
         Self::IndexInUse,
         Self::Rejected,
         Self::BranchKeepsChanging,
         Self::BranchMoved,
+        Self::StepTooSlow,
         Self::Unavailable,
     ];
 
@@ -204,6 +236,12 @@ pub enum ClientMessage {
     Commit(Box<CommitRequest>),
     /// Finish the queue and exit, so the manager starts the current binary.
     Retire,
+    /// The sender stopped waiting for the commit of this identity (its ceiling passed): the service answers `Landed` when the
+    ///  commit is on the branch, and otherwise withdraws it so it can never land, and answers `Withdrawn`.
+    Withdraw {
+        /// The identity of the request, as the client sent it.
+        id: String,
+    },
     /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open; the
     ///  service removes the directory when the connection closes, whatever closed it.
     Scratch {
@@ -238,8 +276,13 @@ pub enum ServiceMessage {
     Failed { id: String, code: FailureCode },
     /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
     Waiting { text: String },
+    /// The request of this identity was withdrawn at the client's asking and will never land.
+    Withdrawn { id: String },
     /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
     Holder { who: String },
+    /// The service is alive and the request is still waiting for its answer: sent on a fixed beat while a request is queued
+    ///  or landing, so the client can wait for the answer with no clock of its own and end the wait on silence alone.
+    Heartbeat,
 }
 
 fn field<'a>(value: &'a Value, name: &str) -> Result<&'a str, String> {
@@ -320,6 +363,11 @@ pub fn encode_retire(version: u32) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
+        ClientMessage::Withdraw { id } => object(vec![
+            ("type", Value::from("withdraw")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("id", Value::from(id.as_str())),
+        ]),
         ClientMessage::Scratch { git_dir, path } => object(vec![
             ("type", Value::from("scratch")),
             ("version", Value::from(PROTOCOL_VERSION)),
@@ -408,6 +456,13 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     }
     match field(&value, "type")? {
         "retire" => return Ok(ClientMessage::Retire),
+        "withdraw" => {
+            let id: &str = field(&value, "id")?;
+            if id.is_empty() || id.len() > MAX_ID_BYTES {
+                return Err(String::from("withdraw request is not acceptable"));
+            }
+            return Ok(ClientMessage::Withdraw { id: id.to_string() });
+        }
         "scratch" => {
             let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
             let path: PathBuf = PathBuf::from(field(&value, "path")?);
@@ -553,6 +608,8 @@ pub fn encode_service(message: &ServiceMessage) -> String {
         ]),
         ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
         ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
+        ServiceMessage::Heartbeat => object(vec![("type", Value::from("heartbeat"))]),
+        ServiceMessage::Withdrawn { id } => object(vec![("type", Value::from("withdrawn")), ("id", Value::from(id.as_str()))]),
         ServiceMessage::Failed { id, code } => {
             object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
         }
@@ -610,6 +667,8 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
         }),
         "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
         "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
+        "heartbeat" => Ok(ServiceMessage::Heartbeat),
+        "withdrawn" => Ok(ServiceMessage::Withdrawn { id: field(&value, "id")?.to_string() }),
         "failed" => Ok(ServiceMessage::Failed {
             id: field(&value, "id")?.to_string(),
             code: FailureCode::from_word(field(&value, "code")?).ok_or("unknown failure code")?,

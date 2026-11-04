@@ -1,13 +1,13 @@
 //! What:
 //!  Remote trouble: a connection that is refused, a host name that does not resolve, a server that hangs up, a server
-//!  that never answers and a `git-lfs` that never exits, met by the push after a landed commit and by an explicit
+//!  that holds the connection and never answers, and a `git-lfs` that never exits, met by the push after a landed commit and by an explicit
 //!  `git push`.
 //! Why:
 //!  The README promises that DNS or mirror trouble does not wedge the wrapper: the commit stays saved, the failure
 //!  is reported in words, no lock stays held and no process the push started stays running.
-//!  The server side is a local socket (refused: nothing listens; hung up: it accepts and closes; silent: it accepts
-//!  and reads), and the unresolvable name is under `.invalid`, which resolvers answer with "no such name" without
-//!  asking anyone; no outside address is ever contacted.
+//!  The server side is a local socket (refused: nothing listens; hung up: it accepts and closes; silent: it accepts,
+//!  reads, and hangs up after a while), and the unresolvable name is under `.invalid`, which resolvers answer with
+//!  "no such name" without asking anyone; no outside address is ever contacted.
 //!  A pipe whose write end the child hands on to everything it starts proves that no descendant survives: its read
 //!  end reports the hang-up only when the last holder has exited, which needs no sleep and no process listing.
 //!
@@ -87,15 +87,22 @@ impl Tripwire {
 enum Behavior {
     /// Accept and close at once: the server hangs up.
     HangUp,
-    /// Accept and read without ever answering, until the client goes away.
-    Silent,
+    /// Accept and read without ever answering, and hang up after `HOLD`: the push is not stopped by the wrapper while the
+    ///  connection is open (pick 5 of the shipped-limits audit, the coordinator's under the owner's delegation), so it is the
+    ///  server that ends it.
+    SilentThenHangUp,
 }
+
+/// How long the silent server holds the connection before it hangs up: several stall windows of the one second the controls
+///  set, so a push that the wrapper stopped for a stall would be gone before then.
+const HOLD: Duration = Duration::from_secs(4);
 
 /// A local server on an ephemeral port that handles one connection.
 struct Server {
     /// The port it listens on.
     port: u16,
-    /// Ends with whether the client went away (an end of stream), or `None` when no client ever connected.
+    /// Ends with whether the connection was still open when the server was done with it (the hang-up was the server's),
+    ///  or `None` when no client ever connected.
     handled: JoinHandle<Option<bool>>,
 }
 
@@ -114,13 +121,19 @@ fn serve(behavior: Behavior) -> Server {
         if matches!(behavior, Behavior::HangUp) {
             return Some(true);
         }
-        connection.set_read_timeout(Some(Duration::from_millis(u64::try_from(DEADLINE_MILLISECONDS).expect("positive")))).expect("read timeout");
+        connection.set_read_timeout(Some(HOLD)).expect("read timeout");
+        let began: std::time::Instant = std::time::Instant::now();
         let mut chunk: [u8; 4096] = [0; 4096];
         loop {
             match connection.read(&mut chunk) {
-                Ok(0) => return Some(true),
+                // The client closed first: the wrapper stopped the push.
+                Ok(0) => return Some(false),
                 Ok(_) => {}
-                Err(_) => return Some(false),
+                // The hold is over with the client still connected.
+                Err(_) => return Some(true),
+            }
+            if began.elapsed() >= HOLD {
+                return Some(true);
             }
         }
     });
@@ -246,16 +259,23 @@ fn an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing() {
     remove_settled(&fixture);
 }
 
-/// A server that never answers is waited for until the push deadline and no longer: the push is stopped, the commit
-///  stays, and the connection is closed by the stopped client (so no descendant survives).
+/// A server that holds the connection and never answers is waited for, not stopped by the wrapper at the one second stall
+///  window: the push ends when the server hangs up, the commit stays, and no descendant survives (pick 5 of the shipped-limits
+///  audit, the coordinator's under the owner's delegation, open to the owner's veto).
 #[test]
-fn an_auto_push_to_a_server_that_never_answers_is_stopped_at_the_deadline() {
+fn an_auto_push_to_a_server_that_holds_the_connection_is_waited_for_until_it_hangs_up() {
     let fixture: Fixture = fixture("remote-silent");
-    let server: Server = serve(Behavior::Silent);
+    let server: Server = serve(Behavior::SilentThenHangUp);
     let repo: PathBuf = world(&fixture, format!("http://127.0.0.1:{}/never.git", server.port).as_str(), false);
     let (landed, tripwire) = commit_with_tripwire(&fixture, repo.as_path(), "1");
-    assert_push_failure_is_contained(&fixture, repo.as_path(), &landed, tripwire, &["made no progress for 1 seconds and was stopped"]);
-    assert_eq!(server.handled.join().expect("server thread"), Some(true), "the client closed the connection when it was stopped");
+    assert_push_failure_is_contained(
+        &fixture,
+        repo.as_path(),
+        &landed,
+        tripwire,
+        &["Empty reply", "RPC failed", "Connection reset", "unable to access", "hung up"],
+    );
+    assert_eq!(server.handled.join().expect("server thread"), Some(true), "the server hung up first: the wrapper did not stop the push");
     remove_settled(&fixture);
 }
 

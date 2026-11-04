@@ -66,12 +66,10 @@ run = "cargo clippy --locked --offline --lib --target x86_64-pc-windows-gnu -- -
 
 [tasks."native:test:host"]
 description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git 2.56.0"
-env = { CLI_GIT_LOCK_WAIT_SECONDS = "20" }
 run = "cargo nextest run --locked --offline --lib"
 
 [tasks."native:test:binary:host"]
 description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git 2.56.0 stays the authority"
-env = { CLI_GIT_LOCK_WAIT_SECONDS = "20" }
 run = "cargo nextest run --locked --offline --test native_binary"
 
 [tasks."test:git-image"]

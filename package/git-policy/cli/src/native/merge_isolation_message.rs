@@ -49,6 +49,33 @@ pub fn describe_merge_source(reference: &str, full_name: &str, oid: &str) -> Opt
 }
 
 /// What:
+///  The object names that `.git/FETCH_HEAD` lists for merging: its lines whose name is followed by two tabs.
+/// Why:
+///   `handle_fetch_head` in Git's `builtin/merge.c` takes every line that starts with a full hexadecimal name and two tabs
+///  as a head to merge and skips the lines marked `not-for-merge`; a pull merges `FETCH_HEAD`, and this wrapper completes
+///  that merge only when exactly one head is listed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fetchHeadMergeHeads(text: string): string[];
+/// ```
+pub fn fetch_head_merge_heads(text: &str) -> Vec<String> {
+    // The list of names found, in file order.
+    let mut heads: Vec<String> = Vec::new();
+    // `lines()` splits at line feeds like `text.split('\n')`.
+    for line in text.lines() {
+        // A name is as long as the hash: 40 hexadecimal digits for SHA-1, 64 for SHA-256.
+        let Some((name, rest)) = line.split_once('\t') else { continue };
+        let is_name: bool = (name.len() == 40 || name.len() == 64) && name.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
+        // Two tabs mean the head is for merging; a word after the first tab (`not-for-merge`) means it is not.
+        if is_name && rest.starts_with('\t') {
+            heads.push(String::from(name));
+        }
+    }
+    return heads;
+}
+
+/// What:
 ///  The default merge message for a described commit: Git's own `fmt-merge-msg`, with the shortlog choice given.
 /// Why:
 ///   The subject depends on the checked-out branch and on the `merge.log`, `merge.suppressDest` and

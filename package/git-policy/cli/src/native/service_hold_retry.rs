@@ -16,7 +16,9 @@
 
 use super::forwarding::{exit_code, git_command, outcome_of, run_real_git};
 use super::scratch_location::scratch_file;
-use super::service_index_wait::{foreign_holds, wait_for_service_hold_here};
+use super::service_index_wait::{foreign_holds, wait_for_service_hold_within};
+use super::wait_ceilings::SERVICE_HOLD_CEILING;
+use super::wait_progress::Cadence;
 use super::start_retry::RetryStart;
 use super::worktree_copy_forward::ForwardedRun;
 use std::ffi::OsString;
@@ -109,6 +111,22 @@ pub fn run_again_while_service_holds(
     name: &str,
     shown: &mut dyn Write,
 ) -> ForwardedRun {
+    return run_again_within(real_git, arguments, overlay, environment, real_index, name, SERVICE_HOLD_CEILING, shown);
+}
+
+/// `run_again_while_service_holds` whose whole series of reruns and waits ends after `ceiling`, whatever the count: the last
+///  attempt's words are shown and its status is the command's.
+pub fn run_again_within(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    environment: &[(OsString, OsString)],
+    real_index: &Path,
+    name: &str,
+    ceiling: std::time::Duration,
+    shown: &mut dyn Write,
+) -> ForwardedRun {
+    let began: std::time::Instant = std::time::Instant::now();
     for attempt in 1..=ATTEMPTS {
         // Without a place to keep the output the command runs as it always did, and its refusal, if any, is Git's own.
         let Ok(mut file) = scratch_file(environment) else { return run_plainly(real_git, arguments, overlay) };
@@ -125,8 +143,8 @@ pub fn run_again_while_service_holds(
             && read_back.is_ok()
             && String::from_utf8_lossy(said.as_slice()).contains(LOCK_REFUSAL)
             && !foreign_holds(real_index);
-        if lost_to_service && attempt < ATTEMPTS {
-            wait_for_service_hold_here(real_index, name);
+        if lost_to_service && attempt < ATTEMPTS && began.elapsed() < ceiling {
+            wait_for_service_hold_within(real_index, name, ceiling.saturating_sub(began.elapsed()), Cadence::from_environment(), &mut std::io::stderr());
             continue;
         }
         // A closed terminal is not a reason to stop the command the person asked for.

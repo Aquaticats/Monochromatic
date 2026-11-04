@@ -213,8 +213,8 @@ pub struct HooksConfig {
 ///  The retired `indexLock` key.
 /// Why:
 ///   `indexLock.unprovenOwnerTimeoutMs` was how long the wrapper backed off for an `index.lock` whose owner is dead or
-///  unproven. The commit service waits for a foreign `index.lock` as long as `CLI_GIT_LOCK_WAIT_SECONDS` allows and reads no
-///  such value, so the key does nothing.
+///  unproven. The commit service waits for a foreign `index.lock` for as long as the lock stays there, whether its owner is
+///  proven to hold it or not, and reads no such value, so the key does nothing.
 ///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
 ///
 /// In TS you'd write (pseudocode):

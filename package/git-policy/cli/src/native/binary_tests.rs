@@ -68,6 +68,15 @@ mod announced;
 #[path = "binary_resolution_tests.rs"]
 mod resolution;
 
+/// The wrapper never starts itself as Git: launchers, links, copies and other releases behind counting stand-ins.
+#[path = "binary_never_self_start_tests.rs"]
+mod never_self_start;
+
+/// With no real Git after the wrapper on `PATH`, the wrapper falls back to the Git its commit service was set up with
+///  when that record passes the `PATH` candidate checks, and otherwise keeps its stop.
+#[path = "binary_installed_git_fallback_tests.rs"]
+mod installed_git_fallback;
+
 /// Configuration loading and the read-only fast path.
 #[path = "binary_policy_tests.rs"]
 mod policy;
@@ -130,6 +139,22 @@ mod dependent_version;
 /// clean copy, nothing of the other work disturbed, refusals that change nothing, and recovery after a kill.
 #[path = "binary_merge_isolation_tests.rs"]
 mod merge_isolation;
+
+/// The word-level second merge pass after a merge, rebase, cherry-pick or revert that Git stops with a conflict.
+#[path = "binary_word_merge_tests.rs"]
+mod word_merge;
+
+/// The finish after the second pass: the operation ends like a clean run, and `--no-commit`, `--squash` and `--edit` stop it.
+#[path = "binary_word_merge_finish_tests.rs"]
+mod word_merge_finish;
+
+/// The harness that acts on a repository when a running command shows a line on standard error.
+#[path = "binary_held_lock_support.rs"]
+mod held_lock_support;
+
+/// A `git pull` that merges: completed in isolation like `git merge`, and every other pull left to native Git.
+#[path = "binary_pull_isolation_tests.rs"]
+mod pull_isolation;
 
 /// A merge that waits for a held `index.lock` and lands on a branch that moved underneath it.
 #[path = "binary_merge_never_fails_tests.rs"]
@@ -344,6 +369,14 @@ mod service_lane;
 /// The scratch directory of a commit in preparation, removed by the service when the client's connection closes.
 #[path = "binary_service_scratch_tests.rs"]
 mod service_scratch;
+
+/// The ends of the waits on the commit path: a commit withdrawn at its bound never lands, not even after a restart of the service.
+#[path = "binary_service_withdraw_tests.rs"]
+mod service_withdraw;
+
+/// The client's wait for the commit service: heartbeats, silence, a start the manager reports failed, a late start.
+#[path = "binary_service_heartbeat_tests.rs"]
+mod service_heartbeat;
 
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]

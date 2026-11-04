@@ -212,13 +212,12 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     remove(root.as_path());
 }
 
-/// The staleness bound outlasts every wait the wrapper runs: a live process must never lose its file.
+/// The staleness bound outlasts every Git child step the wrapper runs: a live process must never lose its file.
 #[test]
 fn the_staleness_bound_outlasts_the_longest_wait() {
     for class in [crate::child_class::ChildClass::Plumbing, crate::child_class::ChildClass::Object] {
         assert!(SCRATCH_STALE_AFTER > class.default_limit(), "{class:?}");
     }
-    assert!(SCRATCH_STALE_AFTER > crate::wait_limit::DEFAULT_LIVE_WAIT);
 }
 
 /// An entry exactly as old as the bound is kept; one a second older goes.
@@ -271,4 +270,28 @@ fn a_private_directory_is_left_untouched() {
     prepare_repository_scratch(common.as_path()).expect("preparation");
     assert_eq!(mode_of(scratch.as_path()), 0o1700);
     remove(root.as_path());
+}
+
+/// A directory whose modification time is renewed is not swept however old it was, and one that is not renewed is.
+#[test]
+fn a_renewed_entry_survives_the_sweep_and_an_unrenewed_one_does_not() {
+    let root: std::path::PathBuf = fixture("scratch-renew");
+    let kept: std::path::PathBuf = root.join("kept");
+    let left: std::path::PathBuf = root.join("left");
+    std::fs::create_dir_all(&kept).expect("kept");
+    std::fs::create_dir_all(&left).expect("left");
+    let long_ago: SystemTime = SystemTime::now() - SCRATCH_STALE_AFTER * 2;
+    for directory in [&kept, &left] {
+        std::fs::File::open(directory).expect("open").set_modified(long_ago).expect("age");
+    }
+    renew(kept.as_path());
+    assert_eq!(sweep_stale(root.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER), 1);
+    assert!(kept.exists() && !left.exists());
+    remove(root.as_path());
+}
+
+/// The renewal comes many times in the stale age, so a sweep at any moment finds a waiter's entry well inside it.
+#[test]
+fn the_renewal_pace_is_far_inside_the_stale_age() {
+    assert!(SCRATCH_REFRESH_EVERY * 2 < SCRATCH_STALE_AFTER, "{SCRATCH_REFRESH_EVERY:?}");
 }

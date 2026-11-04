@@ -41,9 +41,39 @@ const TAG: &str = "cli-git";
 pub const REPOSITORY_SCRATCH_NAME: &str = "cli-git-scratch";
 
 /// How old an entry must be before a preparation removes it:
-///  far longer than any command of the wrapper runs (its longest bound is minutes),
-///  so a live process never loses a file.
+///  far longer than any command of the wrapper runs, so a live process never loses a file. Measured: the longest command in the
+///  commit timing log (1,051 commits, 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z) took 750.6 s and the longest worktree add in the
+///  add timing log (48 adds) 539.7 s; a day is about a hundred times the longest. The patience for an owner of another namespace
+///  (3,600 s) is far under a day. A wait for a live program's lock has no bound of its own, so a command that waits on one for
+///  more than a day is the case this age does not cover (none in the logs came near).
+///  Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const SCRATCH_STALE_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// How many times in the stale age a command that waits renews the modification time of its scratch directory.
+const REFRESHES_PER_STALE_AGE: u64 = 24;
+
+/// How often a command that waits renews its scratch directory: a twenty-fourth of `SCRATCH_STALE_AFTER`, so a sweep that
+///  runs at any moment finds a waiter's directory at most an hour old, and a directory whose waiter died stops being renewed
+///  and ages out as before. The renewal is one `utimensat` call an hour.
+pub const SCRATCH_REFRESH_EVERY: Duration = Duration::from_secs(SCRATCH_STALE_AFTER.as_secs() / REFRESHES_PER_STALE_AGE);
+
+/// What:
+///  Sets the modification time of `path` to now.
+/// Why:
+///   A command that waits for a lock holder or for the commit service with no bound can outlast `SCRATCH_STALE_AFTER`, and the
+///  sweep removes entries by modification time; renewing the time while the command lives ties the entry's age to the
+///  command's liveness, with no lock and no record of the process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await utimes(path, new Date(), new Date())
+/// ```
+pub fn renew(path: &Path) {
+    let renewed: std::io::Result<()> = std::fs::File::open(path).and_then(|opened| { return opened.set_modified(SystemTime::now()); });
+    if let Err(error) = renewed {
+        debug(TAG, format!("could not renew {}: {error}", path.display()).as_str());
+    }
+}
 
 /// What:
 ///  The per-user state directory of the wrapper:

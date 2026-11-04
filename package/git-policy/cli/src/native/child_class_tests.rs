@@ -59,7 +59,7 @@ fn an_unknown_step_gets_the_longer_bound() {
 /// The variable sets the bound of every class to the same whole seconds.
 #[test]
 fn the_variable_sets_every_class_to_the_same_bound() {
-    let seconds: u64 = OBJECT_CHILD_WAIT.as_secs() + PLUMBING_CHILD_WAIT.as_secs() + 1;
+    let seconds: u64 = OBJECT_QUIET_WINDOW.as_secs() + PLUMBING_QUIET_WINDOW.as_secs() + 1;
     let text: String = seconds.to_string();
     for class in CLASSES {
         assert_eq!(class.limit_from(Some(OsStr::new(text.as_str()))), Duration::from_secs(seconds), "{class:?}");
@@ -81,7 +81,7 @@ fn an_unusable_value_falls_back_to_the_class_default() {
 ///  would already have been stopped.
 #[test]
 fn the_object_class_is_the_more_patient_one_and_every_notice_precedes_its_bound() {
-    assert!(OBJECT_CHILD_WAIT > PLUMBING_CHILD_WAIT);
+    assert!(OBJECT_QUIET_WINDOW > PLUMBING_QUIET_WINDOW);
     assert!(OBJECT_NOTICE_GRACE >= PLUMBING_NOTICE_GRACE);
     for class in CLASSES {
         assert!(class.notice_grace() < class.default_limit(), "{class:?}");

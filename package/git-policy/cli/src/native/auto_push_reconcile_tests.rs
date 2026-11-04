@@ -245,6 +245,38 @@ fn a_divergent_branch_is_published_as_a_merge_and_the_worktree_is_not_touched() 
     remove(&s.root);
 }
 
+/// The reconcile's fetch runs without a low-speed abort of the wrapper's own: like the push, it waits while its connection is
+///  open (owner, 2026-11-03: "Wait while connected (Recommended)"; pick 5 of the shipped-limits audit, the coordinator's under
+///  the owner's delegation). A stand-in for Git records the two variables the fetch is started with, then runs the real Git.
+#[test]
+fn the_reconcile_fetch_sets_no_low_speed_abort() {
+    let s = scenario("ar-fetch-no-low-speed");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let record = s.root.join("fetch-environment.txt");
+    let stand_in = s.root.join("git-stand-in");
+    std::fs::write(
+        &stand_in,
+        format!(
+            "#!/bin/sh\nfor word in \"$@\"; do\n[ \"$word\" = fetch ] && echo \"$GIT_HTTP_LOW_SPEED_LIMIT|$GIT_HTTP_LOW_SPEED_TIME\" >> '{}'\ndone\nexec /usr/bin/git \"$@\"\n",
+            record.display()
+        ),
+    )
+    .expect("stand-in");
+    std::fs::set_permissions(&stand_in, std::fs::Permissions::from_mode(0o755)).expect("mode");
+    let mut coordinator = push_git(&s.local);
+    coordinator.real_git = stand_in;
+    let mut err: Vec<u8> = Vec::new();
+    let result = push_once(&coordinator, "refs/heads/main", &landed, &mut err).expect("auto-push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{}", String::from_utf8_lossy(&err));
+    assert_eq!(
+        std::fs::read_to_string(&record).expect("the fetch ran"),
+        "|\n",
+        "neither variable is set for the fetch"
+    );
+    remove(&s.root);
+}
+
 /// A conflicting merge publishes nothing, names the paths and does not recommend a push that cannot work.
 #[test]
 fn a_conflicting_merge_is_kept_unpublished_with_the_conflicting_paths() {
@@ -685,7 +717,8 @@ fn unrelated_histories_are_merged() {
     let main = text_of(&s.local, &["rev-parse", "main"]);
     let merged = commit_merge(&push_git(&s.local), &island, &main, "message")
         .expect("git")
-        .expect("no conflict");
+        .expect("no conflict")
+        .oid;
     assert_eq!(
         text_of(&s.local, &["rev-list", "--parents", "--max-count=1", &merged]),
         format!("{merged} {island} {main}")
@@ -1444,6 +1477,112 @@ fn an_explicit_push_whose_merge_push_is_refused_as_stale_is_retried() {
     assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
     assert!(delivered, "the landed commit was published");
 }
+
+//region word-level second pass and attribute source
+// What: the reconcile merge falls back to the word-level pass for a file Git's line merge leaves in conflict, publishes the
+//  merge only when every conflicted file resolves, lists each merged part with the merge commit, and honours the union line
+//  of the local tip's `.gitattributes` although the worktree holds no such file.
+// Why: the owner decided on 2026-11-03 that the wrapper's unattended merges use the same second pass and log every part.
+
+/// A stored corpus file of the word-level merge.
+fn corpus(name: &str, extension: &str) -> Vec<u8> {
+    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/word_merge_corpus").join(format!("{name}.{extension}")))
+        .expect("a corpus file");
+}
+
+/// Publish the corpus input's base as `file`, so the local clone and the remote start from it.
+fn start_from_corpus(s: &Scenario, input: &str, file: &str) {
+    if let Some(parent) = s.other.join(file).parent() {
+        std::fs::create_dir_all(parent).expect("directories");
+    }
+    advance_remote(s, file, String::from_utf8(corpus(input, "base")).expect("UTF-8").as_str());
+    git(&s.local, &["pull", "--quiet", "--ff-only"]);
+}
+
+/// An edit of a line by the remote and an insertion right after it by the local commit are merged by word and published,
+/// and the merge commit's message lists the part.
+#[test]
+fn an_adjacent_edit_is_merged_by_word_published_and_listed() {
+    let s = scenario("ar-word");
+    start_from_corpus(&s, "md1b", "notes.md");
+    advance_remote(&s, "notes.md", String::from_utf8(corpus("md1b", "ours")).expect("UTF-8").as_str());
+    let landed = commit_local(&s, "notes.md", String::from_utf8(corpus("md1b", "theirs")).expect("UTF-8").as_str());
+    let (result, err) = run(&s, &landed);
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    let published = text_of(&s.remote, &["show", "main:notes.md"]);
+    assert_eq!(published.as_bytes(), String::from_utf8(corpus("md1b", "word.out")).expect("UTF-8").trim_end().as_bytes());
+    assert!(err.contains("word-level merge") && err.contains("notes.md"), "{err}");
+    let message = text_of(&s.remote, &["log", "--max-count=1", "--format=%B", "main"]);
+    assert!(message.contains("word-level merge") && message.contains("notes.md"), "the merge commit lists the part: {message}");
+    remove(&s.root);
+}
+
+/// Sections appended at one point by both sides stay a conflict: nothing is published and the paths are named.
+#[test]
+fn a_both_append_conflict_stays_unpublished_after_the_second_pass() {
+    let s = scenario("ar-word-append");
+    start_from_corpus(&s, "md2", "notes.md");
+    advance_remote(&s, "notes.md", String::from_utf8(corpus("md2", "ours")).expect("UTF-8").as_str());
+    let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
+    let landed = commit_local(&s, "notes.md", String::from_utf8(corpus("md2", "theirs")).expect("UTF-8").as_str());
+    let (result, err) = run(&s, &landed);
+    assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
+    assert!(err.contains("conflicts in: notes.md"), "{err}");
+    assert!(!err.contains("word-level merge"), "nothing was merged: {err}");
+    remove(&s.root);
+}
+
+/// A file with a resolvable region and an unresolvable one blocks the publication of the whole merge, even when another
+/// file of the same merge resolves.
+#[test]
+fn one_unresolved_file_keeps_the_whole_merge_unpublished() {
+    let s = scenario("ar-word-one-file");
+    start_from_corpus(&s, "md1b", "notes.md");
+    advance_remote(&s, "a.txt", "remote\n");
+    advance_remote(&s, "notes.md", String::from_utf8(corpus("md1b", "ours")).expect("UTF-8").as_str());
+    let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
+    std::fs::write(s.local.join("a.txt"), "local\n").expect("a.txt");
+    std::fs::write(s.local.join("notes.md"), corpus("md1b", "theirs")).expect("notes.md");
+    git(&s.local, &["commit", "--quiet", "--all", "-m", "local both"]);
+    let landed = text_of(&s.local, &["rev-parse", "HEAD"]);
+    let (result, err) = run(&s, &landed);
+    assert_eq!(result.outcome, AutoPushOutcome::Failed, "{err}");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before, "nothing is published when any file conflicts");
+    assert!(err.contains("conflicts in: a.txt"), "{err}");
+    remove(&s.root);
+}
+
+/// The union line of the local tip's `.gitattributes` applies although the checkout holds no such file.
+#[test]
+fn the_union_attribute_of_the_local_tip_applies_without_a_worktree_file() {
+    let s = scenario("ar-union");
+    std::fs::create_dir_all(s.other.join("doc/handover")).expect("directories");
+    std::fs::write(s.other.join(".gitattributes"), "doc/handover/*.md merge=union\n").expect("attributes");
+    git(&s.other, &["add", ".gitattributes"]);
+    git(&s.other, &["commit", "--quiet", "-m", "attributes"]);
+    git(&s.other, &["push", "--quiet", "origin", "main"]);
+    git(&s.local, &["pull", "--quiet", "--ff-only"]);
+    start_from_corpus(&s, "md2", "doc/handover/log.md");
+    advance_remote(&s, "doc/handover/log.md", String::from_utf8(corpus("md2", "ours")).expect("UTF-8").as_str());
+    let landed = commit_local(&s, "doc/handover/log.md", String::from_utf8(corpus("md2", "theirs")).expect("UTF-8").as_str());
+    // The checkout the merge is asked from does not hold the attributes file (another branch, or a deletion not committed).
+    std::fs::remove_file(s.local.join(".gitattributes")).expect("remove the attributes file");
+    git(&s.local, &["rm", "--quiet", "--cached", ".gitattributes"]);
+    let (result, err) = run(&s, &landed);
+    assert_eq!((result.outcome, result.exit_code), (AutoPushOutcome::Pushed, 0), "{err}");
+    let published = text_of(&s.remote, &["show", "main:doc/handover/log.md"]);
+    assert!(published.contains("Ours risk.") && published.contains("Theirs question."), "{published}");
+    remove(&s.root);
+}
+
+/// The auto-push runs inside the service and journals under the service's identifier; a push a person typed journals as the wrapper.
+#[test]
+fn the_journal_identifier_follows_who_runs_the_reconcile() {
+    assert_eq!(journal_identifier(false), "cli-git-service");
+    assert_eq!(journal_identifier(true), "cli-git");
+}
+//endregion
 
 /// What:
 ///  The starts of a reconcile that fetches the moved remote, publishes a merge and fast-forwards the clean worktree.

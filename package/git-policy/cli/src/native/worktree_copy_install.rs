@@ -29,7 +29,12 @@ use std::path::{Path, PathBuf};
 /// What:
 ///  The number of manifest entries claimed by one durable intent record and settled by one creation record.
 /// Why:
-///   Bounds both the number of journal appends and the work an interrupted owner can leave unrecorded.
+///   Bounds both the number of journal appends and the work an interrupted owner can leave unrecorded. Measured with
+///  `install_snapshot` and a recorder that appends each batch to a file and syncs it twice, on a tree of 22,717 entries (2026-11-03,
+///  five runs each in alternating orders, other sessions running, a debug build): medians 6,542, 2,265, 983, 746, 688 and 663 ms
+///  for batches of 64, 256, 1,024, 4,096, 16,384 and one batch, so a batch costs about 16 ms of syncs and 4,096 entries add 12
+///  percent to the install and 16,384 add 4 percent. The real journal's append was not run; its cost per batch may differ. Kept at
+///  4096 as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,15 +182,20 @@ fn install_batch(
 }
 
 /// What:
-///  The leaves per worker below which a batch's files and links are created on one thread.
+///  The leaves below which a batch's files and links are created on one thread: `PARALLEL_BREAK_EVEN_ENTRIES`.
 /// Why:
-///   A large batch spends its time in independent link calls; a small one is faster without the thread start.
+///   A large batch spends its time in independent link calls; a very small one is faster without the thread start. Measured with
+///  `install_snapshot` itself forced to 1, 2, 4 and 8 workers on reflinked trees of this repository (2026-11-03, five runs each in
+///  alternating orders, other sessions running, a debug build): 8 workers took 1.3 ms against 1.6 ms for 30 entries, 8.9 ms
+///  against 14.8 ms for 296, 49.2 ms against 107.7 ms for 2,119, and 244.9 ms against 500.2 ms for 9,301, so the old threshold of
+///  1024 left batches of up to 1,023 leaves on one thread for up to 50 ms more. Picked by the coordinator under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const PARALLEL_INSTALL_MIN_LEAVES = 1024;
+/// const PARALLEL_INSTALL_MIN_LEAVES = PARALLEL_BREAK_EVEN_ENTRIES;
 /// ```
-const PARALLEL_INSTALL_MIN_LEAVES: usize = 1024;
+const PARALLEL_INSTALL_MIN_LEAVES: usize = super::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What:
 ///  Creates one slice of files and links, stopping at the first failure, and returns what it created with that failure.

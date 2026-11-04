@@ -3,7 +3,7 @@
 //! Why:
 //!  The stop on no progress is only as exact as the bytes it counts and the limits it keeps, so each is pinned on both sides:
 //!  bytes of the root and of what it started count, an idle tree counts nothing, a moving tree never stalls, a stalled tree
-//!  stops at its window, a trickle stops at its ceiling, and where nothing is measured the window is a fixed deadline.
+//!  stops at its window, no total time stops a moving tree, and where nothing is measured the window is a fixed deadline.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -152,7 +152,7 @@ fn a_fixed_patience_stops_at_its_limit() {
 fn a_tree_that_moves_nothing_stalls_at_its_window() {
     let child: Child = spawn_owned(Command::new("sleep").arg("60")).expect("sleep");
     let stall: Duration = Duration::from_millis(1200);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) });
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
         if let Some(cause) = clock.check() {
@@ -168,26 +168,21 @@ fn a_tree_that_moves_nothing_stalls_at_its_window() {
     end(child);
 }
 
-/// A tree that keeps moving never stalls, and a trickle stops at the ceiling with the ceiling in the report.
+/// A tree that keeps moving is not stopped for time at all: no total bound ends a push that shows progress.
 #[test]
-fn a_tree_that_keeps_moving_stops_only_at_the_ceiling() {
-    let root: std::path::PathBuf = fixture("progress-ceiling");
+fn a_tree_that_keeps_moving_is_never_stopped_for_time() {
+    let root: std::path::PathBuf = fixture("progress-no-ceiling");
     let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
     let stall: Duration = Duration::from_millis(1500);
-    let ceiling: Duration = Duration::from_millis(4000);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling });
+    let watched: Duration = stall * 3;
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
     let began: Instant = Instant::now();
-    let cause: StopCause = loop {
-        if let Some(cause) = clock.check() {
-            break cause;
-        }
-        assert!(began.elapsed() < PATIENCE);
+    let mut stopped: Option<StopCause> = None;
+    while stopped.is_none() && began.elapsed() < watched {
+        stopped = clock.check();
         std::thread::sleep(LOOK);
-    };
-    let StopCause::Ceiling(report) = cause else { panic!("the ceiling, not a stall") };
-    assert_eq!(report.limit, ceiling);
-    assert!(report.elapsed >= ceiling, "the stall window of {stall:?} passed with data moving and nothing stopped it");
-    assert!(report.moved > 0);
+    }
+    assert!(stopped.is_none(), "data kept moving, so nothing stops the tree");
     end(child);
     remove(root.as_path());
 }
@@ -266,7 +261,7 @@ fn without_a_measure_the_stall_window_is_a_fixed_deadline() {
     let root: std::path::PathBuf = fixture("progress-unmeasured");
     let child: Child = shell("while :; do echo x >> log; sleep 0.1; done", root.as_path());
     let stall: Duration = Duration::from_millis(600);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) }).unmeasured();
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).unmeasured();
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
         if let Some(cause) = clock.check() {
@@ -371,7 +366,7 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
     probe.stdout(Stdio::null()).stderr(Stdio::null());
     let child: Child = spawn_owned(&mut probe).expect("start the probe");
     let stall: Duration = Duration::from_millis(1500);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall, ceiling: Duration::from_secs(600) });
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall });
     // The probe's own start-up counts as work; the hold begins after it and lasts well past the window.
     let began: Instant = Instant::now();
     let cause: StopCause = loop {
@@ -388,6 +383,36 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
         report.elapsed
     );
     end(child);
+}
+
+/// A push whose connection to the remote is open and silent is ended when the connected window passes (owner, 2026-11-03: "Bound
+/// it, keep retrying"): the clock stops it as a stall, long after the stall window of a push with no connection, and the
+/// service's retry plan keeps the push.
+#[test]
+fn a_silent_open_connection_is_ended_at_the_connected_window() {
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    // The child holds an established connection to the listener and then does nothing: the remote that has not answered.
+    let mut holder: Command = Command::new("bash");
+    holder.args(["-c", format!("exec 3<>/dev/tcp/127.0.0.1/{port}; sleep 30").as_str()]).stdout(Stdio::null()).stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let stall: Duration = Duration::from_millis(1500);
+    let window: Duration = Duration::from_millis(3500);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let began: Instant = Instant::now();
+    let cause: Option<StopCause> = loop {
+        if let Some(cause) = clock.check() {
+            break Some(cause);
+        }
+        if began.elapsed() > window * 4 {
+            break None;
+        }
+        std::thread::sleep(LOOK);
+    };
+    end(child);
+    let Some(StopCause::Stalled(report)) = cause else { panic!("the silent connection was not ended within {:?}", began.elapsed()) };
+    assert!(report.limit == window && began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
 }
 
 /// A `/proc/<pid>/stat` line is read after its last parenthesis: the state, and the user and system ticks added.
@@ -422,4 +447,25 @@ fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
     assert_eq!(meter.moved(), 10, "processor time and states are not bytes");
     assert!(meter.observe((200, 1), 0, 3, false), "a new process that has already used time");
     assert!(!meter.observe(key, 5, 1, false), "a counter that fell (a number reused) is not work");
+}
+
+/// A child that ends before the first sample interval has passed is never looked for among the machine's processes: the
+/// listing reads the status file of every process the host runs (841 files, 7 ms on this host at a load of 40, and more where
+/// more run), and the wrapper watches every Git it starts, a dozen to two dozen for one commit, most of them ended within
+/// ten milliseconds. The first look at a child that has just started needs only the child itself.
+#[test]
+fn a_child_that_has_just_started_is_looked_at_without_listing_the_machine() {
+    let root: std::path::PathBuf = fixture("progress-first-look");
+    let child: Child = shell("sleep 60", root.as_path());
+    let pid: u32 = child.id();
+    let mut clock: Clock = Clock::start(pid, Patience::Progress { stall: PATIENCE });
+    assert!(clock.measures(), "this system counts what a child moves, so the clock samples");
+    assert!(clock.check().is_none(), "a child that has just started is not stalled");
+    assert_eq!(clock.meter.as_ref().map(Meter::scans), Some(0), "the first look listed the machine's processes");
+    // Positive control: the clock does list the machine's processes once the sample interval has passed.
+    std::thread::sleep(SAMPLE_INTERVAL + LOOK);
+    assert!(clock.check().is_none(), "a child at work is not stalled");
+    assert_eq!(clock.meter.as_ref().map(Meter::scans), Some(1), "the next look, one interval later, lists them");
+    end(child);
+    remove(root.as_path());
 }

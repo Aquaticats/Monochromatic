@@ -1,0 +1,7 @@
+## Usage
+
+Run the tool on a file.
+Flags are optional, see below.
+Exit code is zero on success.
+
+## Notes

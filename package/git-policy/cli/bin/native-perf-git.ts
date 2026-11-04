@@ -28,6 +28,43 @@ const TRACKED_FILE_COUNT = 30;
 const NANOSECONDS_PER_MILLISECOND = 1e6;
 
 /**
+ The `strace` arguments that record a command and every process it starts, ending at the command.
+
+ The record carries a precise absolute time on every call, the time each call took, and the path behind every file
+ descriptor, which is what a reader sums per call and per path.
+
+ @param output - file that receives the record
+
+ @returns the arguments to put before the traced command
+
+ @example
+ ```ts
+ spawn('strace', [...straceArguments('commit.strace'), 'git', 'status']);
+ ```
+ */
+export function straceArguments(output: string): readonly string[] {
+  return [
+    // A narrow set (for example `execve,fsync,rename`) keeps `strace` from slowing the traced commands much, so the times of
+    // the calls it does record stay close to untraced times; the full record is for counts and per-call sums only.
+    ...(process.env
+      .NATIVE_PERF_TRACE_CALLS
+      === undefined ? [] : [
+        `--trace=${process.env
+          .NATIVE_PERF_TRACE_CALLS}`,
+        '--seccomp-bpf'
+      ]),
+    '--follow-forks',
+    '--absolute-timestamps=unix,precision:us',
+    '--syscall-times',
+    '--decode-fds=path',
+    '--string-limit=160',
+    '--output',
+    output,
+    '--',
+  ];
+}
+
+/**
  The environment of one sample: identical for the direct and the wrapped run apart from the PATH order.
 
  @param root - scratch root that holds `bin` and `home`
@@ -38,8 +75,13 @@ const NANOSECONDS_PER_MILLISECOND = 1e6;
    wrapper finds no service, so only forwarded commands run that way, never the person's own runtime directory
 
  @returns the complete environment, so no host variable leaks into a sample
+
+ @example
+ ```ts
+ const env = environment({ root, wrapped: true });
+ ```
  */
-function environment({
+export function environment({
   root,
   wrapped,
   runtime,
@@ -54,8 +96,14 @@ function environment({
       ? `${join(
         root,
         'bin',
-      )}:/usr/bin:/bin`
-      : '/usr/bin:/bin',
+      )}:/usr/bin:/bin:${join(
+        root,
+        'tools',
+      )}`
+      : `/usr/bin:/bin:${join(
+        root,
+        'tools',
+      )}`,
     HOME: join(
       root,
       'home',
@@ -82,6 +130,9 @@ function environment({
 
  @param arguments_ - Git arguments
 
+ @param trace - file that receives the `strace` record of the run and of every process it starts; absent runs untraced, and a
+   traced run is slower, so only its counts and per-call sums are evidence, never its elapsed time
+
  @returns wall-clock milliseconds,
    exit status (absent when a signal ended Git) and captured stderr, which the caller records when the status is not zero
 
@@ -96,12 +147,14 @@ export async function timed({
   runtime,
   directory,
   arguments_,
+  trace,
 }: {
   readonly root: string;
   readonly wrapped: boolean;
   readonly runtime?: string;
   readonly directory: string;
   readonly arguments_: readonly string[];
+  readonly trace?: string;
 }): Promise<{
   readonly elapsed: number;
   readonly status?: number;
@@ -126,8 +179,19 @@ export async function timed({
    Finished sample, with the exit state the caller checks.
    */
   const result = await runCommand({
-    command: program,
-    args: arguments_,
+    ...(trace === undefined
+      ? {
+        command: program,
+        args: arguments_,
+      }
+      : {
+        command: 'strace',
+        args: [
+          ...straceArguments(trace),
+          program,
+          ...arguments_,
+        ],
+      }),
     capture: true,
     allowFailure: true,
     cwd: directory,
@@ -160,8 +224,13 @@ export async function timed({
  @param arguments_ - Git arguments
 
  @throws Error when Git exits nonzero, naming the arguments, the repository and Git's stderr
+
+ @example
+ ```ts
+ await setup({ root, directory, arguments_: ['status'] });
+ ```
  */
-async function setup({
+export async function setup({
   root,
   directory,
   arguments_,

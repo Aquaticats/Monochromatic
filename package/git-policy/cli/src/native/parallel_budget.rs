@@ -13,11 +13,30 @@
 
 use std::path::{Path, PathBuf};
 
+/// The smallest number of entries at which creating them on several threads beat creating them on one, for the three places that
+///  make files by cloning: 16 entries. Measured with the copy stage (`copy_manifest_entries`), the install (`install_snapshot`
+///  with a recorder that syncs every batch) and `clone_tree`, each forced to 1, 2, 4 and 8 workers on reflinked trees of this
+///  repository (2026-11-03, medians of five runs in alternating orders, other sessions running, a debug build): `clone_tree` took
+///  0.6 ms on one thread and 0.5 to 0.6 ms on 2, 4 and 8 for 10 entries, and 1.8 ms against 1.2 ms for 30; the copy stage 1.1 ms
+///  against 0.7 ms for 30, 3.6 ms against 1.9 ms for 90, 397.6 ms against 104.4 ms for 9,301; the install 1.6 ms against 1.3 ms for
+///  30, 14.8 ms against 8.9 ms for 296, 500.2 ms against 244.9 ms for 9,301. The parallel path was never slower from 16 entries up.
+///  The coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
+///  "Picked for these follow-ups", thresholds of the copy stage and the install, option A).
+pub const PARALLEL_BREAK_EVEN_ENTRIES: usize = 16;
+
 /// The share of the CPUs the process is allowed that stays free: one in this many, at least one when there are more than two.
+///  The owner's words are "make sure we're running everything that can be run in parallel in parallel" (handover
+///  `doc/handover/cli-git-rust-implementation.md`, lines 864 and 865), which leaves a margin to a person's other work. On this
+///  28-thread host the margin leaves 25 workers, and the measured ceilings are 8 for file clones and 16 for conversions, so the
+///  divisor does not bind here; it binds on hosts of 8 threads or fewer. A share cannot be measured as a quantity, so the value
+///  is the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps and memory estimates").
 const CPU_MARGIN_DIVISOR: usize = 8;
 
 /// The fraction of the memory that is free which the items may use together: one over this many. The rest stays for the
-///  operating system's caches and for the other sessions of the host.
+///  operating system's caches and for the other sessions of the host. With 49 GB available on this host and the estimates below
+///  (128 MiB at most per item) it admits more than 180 items at once, so it binds only on hosts of a few gigabytes. A share
+///  cannot be measured as a quantity: the coordinator's pick under the owner's delegation, open to the owner's veto.
 const MEMORY_SHARE_DIVISOR: u64 = 2;
 
 /// Where the kernel lists the memory it can still give out.
@@ -168,6 +187,9 @@ pub fn worker_budget(request: &BudgetRequest<'_>) -> usize {
 
 /// The bytes one slice of a file-copy or file-removal job holds at its peak: a batch of entries and the handles it opens, estimated
 ///  at sixteen mebibytes.
+///  The estimate was checked against `clone_tree`: its resident size grew by 1.9 MiB over a pre-clone level of 21.6 MiB (peak
+///  24,080 KiB) for 22,718 entries at 16 workers, so a slice holds far less than sixteen mebibytes. The estimate is kept as a
+///  conservative upper bound because the copy stage itself was not measured; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const SLICE_MEMORY: u64 = 16 << 20;
 
 /// What:

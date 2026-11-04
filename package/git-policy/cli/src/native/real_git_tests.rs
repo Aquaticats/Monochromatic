@@ -14,10 +14,11 @@
 
 /// Import the resolver under test and shared fixtures.
 use super::{
-    DEFAULT_WINDOWS_PATH_EXTENSIONS, Platform, RealGitNotFound, ResolutionInputs,
+    DEFAULT_WINDOWS_PATH_EXTENSIONS, Platform, RealGitNotFound, ResolutionInputs, SearchedCandidate,
     candidate_sequence, common_git_paths, executable_names, host_platform,
-    process_resolution_inputs, resolve_real_git,
+    process_resolution_inputs, search_path_for_real_git,
 };
+use crate::real_git_candidate::CandidateKind;
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -31,6 +32,7 @@ fn inputs(path: &str, root: &Path) -> ResolutionInputs {
         current_directory: root.to_path_buf(),
         common_paths: Vec::<PathBuf>::new(),
         own_executable: root.join("wrapper/git"),
+        service_unit: None,
     };
 }
 
@@ -240,11 +242,11 @@ fn resolution_skips_every_wrapper_form() {
         "wrapper:wrapper:linked:missing:copied:shim:real:later",
         root.as_path(),
     );
-    assert_eq!(resolve_real_git(&resolution), Ok(root.join("real/git")));
+    assert_eq!(search_path_for_real_git(&resolution), Ok(root.join("real/git")));
     // The same wrapper reached first through a relative link directory is still excluded.
     let mut through_link: ResolutionInputs = inputs("linked:real", root.as_path());
     through_link.own_executable = root.join("linked/git");
-    assert_eq!(resolve_real_git(&through_link), Ok(root.join("real/git")));
+    assert_eq!(search_path_for_real_git(&through_link), Ok(root.join("real/git")));
     remove(root.as_path());
 }
 
@@ -260,29 +262,41 @@ fn resolution_failure_reports_examined_and_skipped_counts() {
     std::os::unix::fs::symlink(root.join("wrapper/git"), root.join("linked/git")).expect("link");
     std::fs::write(root.join("plain/git"), b"\x7fELF not executable").expect("plain");
     let failure: RealGitNotFound =
-        resolve_real_git(&inputs("wrapper:linked:plain:missing", root.as_path()))
+        search_path_for_real_git(&inputs("wrapper:linked:plain:missing", root.as_path()))
             .expect_err("no real Git");
+    assert_eq!(failure.candidate_count, 4);
+    assert_eq!(failure.skipped_wrapper_count, 2);
+    // Every candidate is kept in the order the search took it, with its verdict.
     assert_eq!(
-        failure,
-        RealGitNotFound {
-            candidate_count: 4,
-            skipped_wrapper_count: 2
-        }
+        failure.searched,
+        vec![
+            SearchedCandidate { path: root.join("wrapper/git"), kind: CandidateKind::Wrapper },
+            SearchedCandidate { path: root.join("linked/git"), kind: CandidateKind::Wrapper },
+            SearchedCandidate { path: root.join("plain/git"), kind: CandidateKind::Unusable },
+            SearchedCandidate { path: root.join("missing/git"), kind: CandidateKind::Unusable },
+        ]
     );
-    assert_eq!(
-        failure.to_string(),
-        "Could not find a real Git executable after examining 4 PATH candidates and skipping 2 \
-         cli-git wrappers. Ensure Git is installed and PATH/PATHEXT expose its executable."
+    let said: String = failure.to_string();
+    assert!(
+        said.starts_with(
+            "Could not find a real Git executable after examining 4 PATH candidates and skipping 2 \
+             cli-git wrappers, so no Git command was run. PATH is wrapper:linked:plain:missing."
+        ),
+        "{said}"
     );
+    for candidate in &failure.searched {
+        assert!(said.contains(candidate.path.to_string_lossy().as_ref()), "{said}");
+    }
+    assert!(said.contains("never starts itself as Git"), "{said}");
+    assert!(said.contains("To fix it, install Git"), "{said}");
     let empty: RealGitNotFound =
-        resolve_real_git(&inputs("missing", root.as_path())).expect_err("nothing on PATH");
-    assert_eq!(
-        empty,
-        RealGitNotFound {
-            candidate_count: 1,
-            skipped_wrapper_count: 0
-        }
-    );
+        search_path_for_real_git(&inputs("missing", root.as_path())).expect_err("nothing on PATH");
+    assert_eq!(empty.candidate_count, 1);
+    assert_eq!(empty.skipped_wrapper_count, 0);
+    // An unset PATH is named as such, never printed as an empty value.
+    let unset: RealGitNotFound =
+        search_path_for_real_git(&inputs("", root.as_path())).expect_err("no PATH at all");
+    assert!(unset.to_string().contains("PATH is empty or unset."), "{unset}");
     remove(root.as_path());
 }
 
@@ -296,9 +310,9 @@ fn resolution_prefers_exposed_common_locations() {
     executable(root.join("early/git").as_path(), b"#!/bin/sh\nexit 3\n");
     executable(root.join("system/git").as_path(), b"\x7fELF system");
     let mut resolution: ResolutionInputs = inputs("early:system", root.as_path());
-    assert_eq!(resolve_real_git(&resolution), Ok(root.join("early/git")));
+    assert_eq!(search_path_for_real_git(&resolution), Ok(root.join("early/git")));
     resolution.common_paths = vec![root.join("system/git")];
-    assert_eq!(resolve_real_git(&resolution), Ok(root.join("system/git")));
+    assert_eq!(search_path_for_real_git(&resolution), Ok(root.join("system/git")));
     remove(root.as_path());
 }
 

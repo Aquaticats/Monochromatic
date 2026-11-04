@@ -14,24 +14,28 @@
 //! ```
 
 use super::commit_timing::{ReachTrace, SubmitTrace, holder_kind_of};
-use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
+use super::service_messages::{ClientFailure, Platform, SILENT_NOTICE, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client, encode_retire,
 };
+use super::service_instance::service_unit_instance;
+use super::service_provision::ProvisionHost;
 use super::service_review_key::ReviewKey;
+use super::systemd_dbus::{Bus, EXCHANGE_WAIT};
 use super::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
-/// How long the client waits for the operating system to start the service.
+/// How long the client waits for a service to start or to retire when it cannot ask the service manager how the start is going.
+///  Ten times the slowest of 52 cold starts in this repository's commit timing log (`startWaitMs`, longest 1041 ms,
+///  median 47 ms, 2026-11-03); the 70 commits that also asked an older service to retire all reached the service within
+///  that same 1041 ms (`reachMs`). A client that can ask the manager has no such bound: it ends when the manager says the
+///  start failed.
 pub const START_WAIT: Duration = Duration::from_secs(10);
 
 /// How long a start takes before the client says it is starting the service.
 pub const START_NOTICE_GRACE: Duration = Duration::from_secs(1);
-
-/// How long a commit waits in the queue before the client gives up and says so.
-pub const COMMIT_WAIT: Duration = Duration::from_secs(10 * 60);
 
 /// How many times a request is sent again after the connection broke before the client says it cannot be sure.
 pub const RECONNECTS: usize = 5;
@@ -55,10 +59,103 @@ pub struct ClientConfig {
     pub address: Bind,
     /// What the operating system can do about a service that is not running.
     pub activation: Activation,
-    /// Longest wait for a start.
+    /// Longest wait for a start when `start_watch` is absent; with a watch the wait ends only when the manager says the start
+    ///  failed, and this is the wait for an older service to retire.
     pub start_wait: Duration,
-    /// Longest wait in the queue.
-    pub commit_wait: Duration,
+    /// How long the service may send nothing, heartbeats included, before the client treats it as stopped. There is no limit
+    ///  on how long a request waits while the service keeps sending.
+    pub heartbeat_silence: Duration,
+    /// How to ask the service manager whether the service failed to start; absent where the client cannot ask.
+    pub start_watch: Option<ManagerWatch>,
+    /// A scratch directory of this command to keep from being swept as stale while the command waits.
+    pub keep_fresh: Option<FreshScratch>,
+    /// The longest the client waits for the service's answer; then it withdraws the request (`wait_ceilings.rs`).
+    pub answer_ceiling: Duration,
+    /// The longest the client waits for the service to answer the withdrawal.
+    pub withdraw_ceiling: Duration,
+    /// The longest a start is waited for when the service manager can be asked.
+    pub start_ceiling: Duration,
+}
+
+/// What:
+///  A scratch directory a waiting command keeps fresh, and how often.
+/// Why:
+///   The scratch sweep removes entries by age, and a wait with no bound can outlast any age; a waiter that is alive says so by
+///  touching its directory, one that died stops and the sweep collects the directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FreshScratch = { path: string; every: number };
+/// ```
+#[derive(Clone, Debug)]
+pub struct FreshScratch {
+    /// The directory.
+    pub path: std::path::PathBuf,
+    /// How often its modification time is renewed while the command waits.
+    pub every: Duration,
+}
+
+/// What:
+///  How the client asks the service manager whether the service unit has failed.
+/// Why:
+///   A service that is starting sends nothing, so the wait for its first greeting has no heartbeat to listen for. The manager
+///  knows whether the start failed, which is the one thing that ends that wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ManagerWatch = { bus: string; unit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean };
+/// ```
+#[derive(Clone, Debug)]
+pub struct ManagerWatch {
+    /// The session bus of the account.
+    pub bus: std::path::PathBuf,
+    /// The service unit of the worktree.
+    pub unit: String,
+    /// How often the manager is asked while the greeting has not come.
+    pub every: Duration,
+    /// The unit's `ActiveState` now (`active`, `activating`, `inactive`, `failed`, ...); nothing when the manager cannot be
+    ///  asked, which leaves the wait to the start wait.
+    pub state: fn(&std::path::Path, &str) -> Option<String>,
+    /// Asks the manager to start the unit; whether the manager took the request.
+    pub start: fn(&std::path::Path, &str) -> bool,
+}
+
+/// How often the service manager is asked whether the service unit failed, while a start is waited for.
+pub const MANAGER_ASK_EVERY: Duration = START_NOTICE_GRACE;
+
+/// The manager's `ActiveState` of `unit`: nothing when the bus or the unit cannot be asked about.
+fn unit_state(bus: &std::path::Path, unit: &str) -> Option<String> {
+    let mut connection: Bus = Bus::connect(bus, EXCHANGE_WAIT).ok()?;
+    return connection.active_state(unit).ok()?;
+}
+
+/// Asks the manager to start `unit`; whether the request was taken.
+fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
+    return connection.start_unit(unit).is_ok();
+}
+
+/// What:
+///  The watch that asks the account's service manager about the worktree's service unit.
+/// Why:
+///   The route knows the session bus and the worktree's instance, which is all the unit's name needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = managerWatchFor(host)
+/// ```
+pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
+    return ManagerWatch { bus: host.bus.clone(), unit: service_unit_instance(host.instance.as_str()), every: MANAGER_ASK_EVERY, state: unit_state, start: start_unit };
+}
+
+/// What the client heard from the service in one read.
+enum Heard {
+    /// A message.
+    Message(ServiceMessage),
+    /// The service closed the connection, or sent something that is not a message.
+    Closed,
+    /// Nothing came within the silence bound.
+    Silent,
 }
 
 /// What a request came to.
@@ -89,47 +186,84 @@ fn connect(address: &Bind) -> std::io::Result<UnixStream> {
 }
 
 fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
+    return match listen(reader) {
+        Heard::Message(message) => Some(message),
+        Heard::Closed | Heard::Silent => None,
+    };
+}
+
+/// What:
+///  Reads one line from the service and says whether it was a message, a close, or silence.
+/// Why:
+///   A read that times out is the service saying nothing for the silence bound, which is not the same as a service that
+///  closed its end: the first is asked again with the same request, the second is a service that went away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const heard = await listen(reader) // { message } | 'closed' | 'silent'
+/// ```
+fn listen(reader: &mut BufReader<UnixStream>) -> Heard {
     let mut line: String = String::new();
     return match reader.read_line(&mut line) {
-        Ok(read) if read > 0 => decode_service(line.trim_end_matches('\n')).ok(),
-        _ => None,
+        Ok(read) if read > 0 => decode_service(line.trim_end_matches('\n')).map_or(Heard::Closed, Heard::Message),
+        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => Heard::Silent,
+        _ => Heard::Closed,
     };
 }
 
 /// What:
 ///  Connects, waiting for a start the operating system performs, and returns the stream with the service's version.
 /// Why:
-///   The wait is bounded and honest: one notice after the grace, then silence until the bound.
+///   With a manager to ask, the wait has no clock: it ends when the service greets, or when the manager has said twice in a
+///  row that the unit failed. Where the manager cannot be asked it ends at the start wait, as it always did. Once a service
+///  has greeted during this command (`service_seen`), a service that then greets nothing within the silence bound is the
+///  one that stopped, and that ends the wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { stream, version } = await reach(config, notices)
+/// const { stream, version } = await reach(config, notices, serviceSeen)
 /// ```
 fn reach(
     config: &ClientConfig,
     notices: &mut dyn Write,
     announced: &mut bool,
     trace: &mut ReachTrace,
+    service_seen: bool,
 ) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let started: Instant = Instant::now();
     let mut refused_here: bool = false;
+    let mut last_asked: Instant = started;
+    let mut failed_answers: u32 = 0;
+    let mut cannot_ask: bool = false;
+    let mut last_start_request: Option<Instant> = None;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
             Ok(stream) => {
-                let _timeout = stream.set_read_timeout(Some(config.start_wait));
+                let patience: Duration = match (&config.start_watch, service_seen) {
+                    (_, true) => config.heartbeat_silence,
+                    (Some(watch), false) => watch.every,
+                    (None, false) => config.start_wait,
+                };
+                let _timeout = stream.set_read_timeout(Some(patience));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
-                if let Some(ServiceMessage::Welcome { version, release }) = read_message(&mut reader) {
-                    let _widened = reader.get_ref().set_read_timeout(Some(config.commit_wait));
-                    trace.saw_release(release.as_deref());
-                    if refused_here {
-                        trace.start_waited += started.elapsed();
+                match listen(&mut reader) {
+                    Heard::Message(ServiceMessage::Welcome { version, release }) => {
+                        let _widened = reader.get_ref().set_read_timeout(Some(config.heartbeat_silence));
+                        trace.saw_release(release.as_deref());
+                        if refused_here {
+                            trace.start_waited += started.elapsed();
+                        }
+                        return Ok((reader, version, release));
                     }
-                    return Ok((reader, version, release));
+                    // A service that greeted before and now greets nothing is the one that stopped.
+                    Heard::Silent if service_seen => return Err(ClientFailure::ServiceSilent),
+                    // Connected, but nothing greeted: the service is still starting or is going away.
+                    Heard::Message(_) | Heard::Closed | Heard::Silent => {
+                        trace.refused += 1;
+                        refused_here = true;
+                    }
                 }
-                // Connected, but nothing greeted: the service is still starting or is going away.
-                trace.refused += 1;
-                refused_here = true;
             }
             Err(_) => match config.activation {
                 Activation::Unsupported(platform) => return Err(ClientFailure::NoActivation(platform)),
@@ -139,8 +273,36 @@ fn reach(
                 }
             },
         }
-        if started.elapsed() >= config.start_wait {
-            return Err(ClientFailure::DidNotStart);
+        match &config.start_watch {
+            Some(watch) => {
+                if last_asked.elapsed() >= watch.every {
+                    last_asked = Instant::now();
+                    let answer: Option<String> = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
+                    // A unit still `inactive` after the start wait, with the client's connection waiting on its socket, is one the
+                    //  manager did not start; it is asked to, again after each further start wait, and the client goes on waiting.
+                    // A unit that is `activating` is being started and is left alone.
+                    if answer.as_deref() == Some("inactive")
+                        && started.elapsed() >= config.start_wait
+                        && last_start_request.is_none_or(|at| { return at.elapsed() >= config.start_wait; })
+                    {
+                        let _taken = (watch.start)(watch.bus.as_path(), watch.unit.as_str());
+                        last_start_request = Some(Instant::now());
+                    }
+                    cannot_ask = answer.is_none();
+                    failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
+                }
+                // One answer of "failed" can be the unit's last run, before the connection made the manager start it again. A start the
+                //  manager reports as under way is waited for until the start ceiling and no longer (owner, 2026-11-03: "nothing
+                //  should ever wait forever or indefinitely").
+                if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling {
+                    return Err(ClientFailure::DidNotStart);
+                }
+            }
+            None => {
+                if started.elapsed() >= config.start_wait {
+                    return Err(ClientFailure::DidNotStart);
+                }
+            }
         }
         if !*announced && started.elapsed() >= START_NOTICE_GRACE {
             *announced = true;
@@ -165,18 +327,18 @@ fn reach(
 /// ```ts
 /// const reader = await reachCurrent(config, notices, announced)
 /// ```
-fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace) -> Result<BufReader<UnixStream>, ClientFailure> {
+fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
     let began: Instant = Instant::now();
-    let reached = reach_current_untimed(config, notices, announced, trace);
+    let reached = reach_current_untimed(config, notices, announced, trace, service_seen);
     trace.elapsed += began.elapsed();
     return reached;
 }
 
 /// `reach_current` without the clock around it.
-fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace) -> Result<BufReader<UnixStream>, ClientFailure> {
+fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
     loop {
-        let (mut reader, version, release) = reach(config, notices, announced, trace)?;
+        let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
             trace.answered_by = release;
             return Ok(reader);
@@ -213,6 +375,7 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
             times: super::service_land::LANDING_ATTEMPTS,
         },
         FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.trim_start_matches("refs/heads/").to_string() },
+        FailureCode::StepTooSlow => ClientFailure::StepTooSlow,
         FailureCode::Unavailable => ClientFailure::Unavailable,
     };
 }
@@ -255,18 +418,34 @@ pub fn submit_traced(config: &ClientConfig, request: &CommitRequest, notices: &m
 }
 
 /// The sends and the waits of `submit_traced`.
+///
+/// The wait for the answer has no clock: it lasts as long as the service keeps sending, and ends when the service goes
+///  silent for the silence bound. The request is then sent again with the same identity, so nothing lands twice, and the
+///  command ends only when every try has met silence or a closed connection.
 fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
-    let waiting_since: Instant = Instant::now();
     let mut announced: bool = false;
     let mut breaks: usize = 0;
     let mut last_position: Option<usize> = None;
     let mut holder: Option<String> = None;
-    loop {
-        if waiting_since.elapsed() >= config.commit_wait {
-            return Err(ClientFailure::WaitedTooLong { minutes: config.commit_wait.as_secs() / 60 });
+    let mut service_seen: bool = false;
+    let mut last_break_was_silence: bool = false;
+    // The scratch directory of a command that waits is renewed at once and then as often as the config says, whatever the
+    //  service sends, so a wait longer than the sweep's age never has its directory swept.
+    let waiting_since: Instant = Instant::now();
+    let mut last_blocker: Option<String> = None;
+    let mut last_renewed: Option<Instant> = None;
+    let mut renew_scratch = |settings: &ClientConfig| {
+        if let Some(fresh) = settings.keep_fresh.as_ref()
+            && last_renewed.is_none_or(|at| { return at.elapsed() >= fresh.every; })
+        {
+            super::scratch_location::renew(fresh.path.as_path());
+            last_renewed = Some(Instant::now());
         }
-        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach)?;
+    };
+    loop {
+        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut trace.reach, service_seen)?;
+        service_seen = true;
         let mut payload: String = line.clone();
         payload.push('\n');
         if reader.get_mut().write_all(payload.as_bytes()).is_err() {
@@ -278,44 +457,105 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             continue;
         }
         trace.sends += 1;
+        renew_scratch(config);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
-            match read_message(&mut reader) {
-                Some(ServiceMessage::Position { number, of }) => {
+            let heard: Heard = listen(&mut reader);
+            if matches!(heard, Heard::Message(_)) {
+                renew_scratch(config);
+            }
+            // The wait ends at the ceiling whatever the service sends: the request is withdrawn, and the answer to that is
+            //  the command's end (landed after all, or the error).
+            if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
+                trace.answer_wait += written_at.elapsed();
+                return withdraw(config, request.id.as_str(), last_blocker.take());
+            }
+            match heard {
+                Heard::Message(ServiceMessage::Position { number, of }) => {
                     if last_position != Some(number) {
                         last_position = Some(number);
                         trace.positions.push(number);
                         let _written = writeln!(notices, "{}", position_notice(number, of));
                     }
                 }
-                Some(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
-                Some(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
-                Some(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
-                Some(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
+                Heard::Message(ServiceMessage::Landed { commit, already, .. }) => break Some(Ok(Submitted::Landed { commit, already })),
+                Heard::Message(ServiceMessage::RetryPrepare { base, landed, .. }) => break Some(Ok(Submitted::PrepareAgain { base, landed })),
+                Heard::Message(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => break Some(Ok(Submitted::Moved)),
+                Heard::Message(ServiceMessage::Failed { code: FailureCode::IndexInUse, .. }) => {
                     break Some(Err(ClientFailure::IndexInUse(holder.take().unwrap_or_else(|| { return String::from("Another program"); }))));
                 }
-                Some(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
-                Some(ServiceMessage::Waiting { text }) => {
+                Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
+                Heard::Message(ServiceMessage::Waiting { text }) => {
+                    last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
                     trace.holder_kind = Some(holder_kind_of(text.as_str()));
                     let _written = write!(notices, "{text}");
                 }
-                Some(ServiceMessage::Holder { who }) => holder = Some(who),
-                Some(ServiceMessage::Welcome { .. }) => {}
-                None => break None,
+                Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
+                // Each message, this one too, restarts the silence bound; nothing else is needed.
+                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. }) => {}
+                Heard::Silent => {
+                    last_break_was_silence = true;
+                    break None;
+                }
+                Heard::Closed => {
+                    last_break_was_silence = false;
+                    break None;
+                }
             }
         };
         trace.answer_wait += written_at.elapsed();
         if let Some(done) = answered {
             return done;
         }
-        // The connection broke before an answer: the service died or was replaced. Send the same request again.
+        // The service went silent or the connection broke before an answer: the service died, hung or was replaced. Send the
+        //  same request again.
         breaks += 1;
         if breaks > RECONNECTS {
-            return Err(ClientFailure::MayNotHaveLanded);
+            return Err(if last_break_was_silence { ClientFailure::ServiceSilent } else { ClientFailure::MayNotHaveLanded });
+        }
+        if last_break_was_silence {
+            let _written = writeln!(notices, "{SILENT_NOTICE}");
         }
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
     }
+}
+
+/// What:
+///  Withdraws the request after the answer ceiling: asks the service, on a connection of its own, to drop the request of this
+///  identity, and turns its answer into the command's end.
+/// Why:
+///   The owner's answer is that a wait that reaches its bound returns an error and the commit never lands later by itself. The
+///  service takes the withdrawal between two landings, so either the commit landed first (the answer is `Landed`, and the command
+///  succeeds) or it never will (`Withdrawn`). A service that does not answer within the withdrawal ceiling leaves it unknown.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await askToWithdraw(config, id); // 'landed' | 'withdrawn' | undefined
+/// ```
+fn withdraw(config: &ClientConfig, id: &str, blocker: Option<String>) -> Result<Submitted, ClientFailure> {
+    let minutes: u64 = config.answer_ceiling.as_secs() / 60;
+    let mut announced: bool = true;
+    let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true) else {
+        return Err(ClientFailure::WithdrawalUnconfirmed);
+    };
+    let mut asking: String = encode_client(&ClientMessage::Withdraw { id: id.to_string() });
+    asking.push('\n');
+    if reader.get_mut().write_all(asking.as_bytes()).is_err() {
+        return Err(ClientFailure::WithdrawalUnconfirmed);
+    }
+    let deadline: Instant = Instant::now() + config.withdraw_ceiling;
+    while Instant::now() < deadline {
+        // No read waits past the withdrawal's ceiling, whatever the silence bound says.
+        let _timeout = reader.get_ref().set_read_timeout(Some(deadline.saturating_duration_since(Instant::now()).max(Duration::from_millis(1)).min(config.heartbeat_silence)));
+        match listen(&mut reader) {
+            Heard::Message(ServiceMessage::Landed { commit, .. }) => return Ok(Submitted::Landed { commit, already: true }),
+            Heard::Message(ServiceMessage::Withdrawn { .. }) => return Err(ClientFailure::StillWithService { minutes, blocker }),
+            Heard::Message(_) => {}
+            Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed),
+        }
+    }
+    return Err(ClientFailure::WithdrawalUnconfirmed);
 }
 
 /// What:
@@ -384,7 +624,7 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
-    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default())?;
+    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false)?;
     if reader.get_mut().write_all(line.as_bytes()).is_err() {
         return Err(ClientFailure::Unavailable);
     }

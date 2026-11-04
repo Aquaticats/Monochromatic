@@ -14,7 +14,7 @@
 #![cfg(unix)]
 
 /// Import the classification under test and shared fixtures.
-use super::{CandidateKind, MAX_SCRIPT_INSPECTION_BYTES, classify_candidate};
+use super::{CandidateKind, MAX_SCRIPT_INSPECTION_BYTES, classify_candidate, is_wrapper_launcher, record_names_this_wrapper};
 use crate::test_support::{REAL_GIT, executable, fixture, remove};
 use std::path::{Path, PathBuf};
 
@@ -247,5 +247,75 @@ fn unusable_candidates_are_skipped() {
         classify_candidate(pipe.as_path(), own.as_path()),
         CandidateKind::Unusable
     );
+    remove(root.as_path());
+}
+
+/// The record of a launcher of this wrapper, as `mpm-shadow` writes it, for a tool id and a `real` path.
+fn record(tool_id: &str, real: &Path) -> String {
+    return format!(
+        "{{\"toolId\":\"{tool_id}\",\"lockFile\":\"/nonexistent/toolchain.lock.json\",\"real\":\"{}\",\"scope\":\"repo\"}}",
+        real.display()
+    );
+}
+
+/// A native executable with a launch record naming this wrapper's tool is a wrapper, through its own name and through a
+///  symlink to it; no process is started, so the native branch is shown without running a launcher.
+#[test]
+fn a_native_launcher_with_a_record_of_this_wrapper_is_a_wrapper() {
+    let root: PathBuf = fixture("classify-launcher");
+    let own: PathBuf = root.join("own");
+    executable(own.as_path(), b"\x7fELF native wrapper bytes");
+    let launcher: PathBuf = root.join("cli-git-native");
+    executable(launcher.as_path(), b"\x7fELF native launcher bytes, a different file");
+    std::fs::write(root.join("cli-git-native.launch"), record("cargo:monochromatic-git-policy-cli", Path::new("/elsewhere/release/cli-git-native")))
+        .expect("record");
+    assert_eq!(classify_candidate(launcher.as_path(), own.as_path()), CandidateKind::Wrapper, "the launcher itself");
+    let link: PathBuf = root.join("git");
+    std::os::unix::fs::symlink(&launcher, &link).expect("symlink");
+    assert_eq!(classify_candidate(link.as_path(), own.as_path()), CandidateKind::Wrapper, "a symlink named git");
+    let chain: PathBuf = root.join("chain-git");
+    std::os::unix::fs::symlink(&link, &chain).expect("second symlink");
+    assert_eq!(classify_candidate(chain.as_path(), own.as_path()), CandidateKind::Wrapper, "a chain of symlinks");
+    // The record is also found beside the candidate's own name: a launcher copied under the name `git` with its record.
+    let named: PathBuf = root.join("named");
+    std::fs::create_dir(&named).expect("directory");
+    executable(named.join("git").as_path(), b"\x7fELF native launcher bytes, another copy");
+    std::fs::write(named.join("git.launch"), record("cargo:monochromatic-git-policy-cli", Path::new("/elsewhere"))).expect("record");
+    assert_eq!(classify_candidate(named.join("git").as_path(), own.as_path()), CandidateKind::Wrapper, "a record beside the name");
+    remove(root.as_path());
+}
+
+/// A record decides by the tool it names or by the file it leads to; any other record, or none, leaves real Git alone.
+#[test]
+fn a_launcher_of_another_tool_or_a_broken_record_is_real_git() {
+    let root: PathBuf = fixture("classify-launcher-others");
+    let own: PathBuf = root.join("own");
+    executable(own.as_path(), b"\x7fELF native wrapper bytes");
+    // A launcher of some other tool that leads to a real Git is Git.
+    let other: PathBuf = root.join("other-git");
+    executable(other.as_path(), b"\x7fELF launcher of a Git from a toolchain");
+    std::fs::write(root.join("other-git.launch"), record("cargo:some-other-tool", Path::new(REAL_GIT))).expect("record");
+    assert_eq!(classify_candidate(other.as_path(), own.as_path()), CandidateKind::RealGit);
+    // Whatever the tool id says, a record whose `real` is this very executable names this wrapper.
+    let leads: PathBuf = root.join("leads-here");
+    executable(leads.as_path(), b"\x7fELF launcher of something that leads here");
+    std::fs::write(root.join("leads-here.launch"), record("cargo:some-other-tool", own.as_path())).expect("record");
+    assert_eq!(classify_candidate(leads.as_path(), own.as_path()), CandidateKind::Wrapper);
+    // A record that is not JSON, or has no tool, names nothing.
+    let broken: PathBuf = root.join("broken");
+    executable(broken.as_path(), b"\x7fELF candidate with a broken record");
+    std::fs::write(root.join("broken.launch"), b"not json at all").expect("record");
+    assert_eq!(classify_candidate(broken.as_path(), own.as_path()), CandidateKind::RealGit);
+    assert!(!record_names_this_wrapper(b"{}", Some(own.as_path())));
+    assert!(!record_names_this_wrapper(b"{\"toolId\":5,\"real\":7}", Some(own.as_path())));
+    // Without an own executable (the service) only the tool id can decide.
+    assert!(record_names_this_wrapper(record("cargo:monochromatic-git-policy-cli", Path::new("/x")).as_bytes(), None));
+    assert!(!record_names_this_wrapper(record("cargo:some-other-tool", own.as_path()).as_bytes(), None));
+    // The tool id may carry any prefix before the colon; the crate name after the last colon decides.
+    assert!(record_names_this_wrapper(record("npm:monochromatic-git-policy-cli", Path::new("/x")).as_bytes(), None));
+    assert!(!record_names_this_wrapper(record("cargo:monochromatic-git-policy-cli-extra", Path::new("/x")).as_bytes(), None));
+    // Real Git and a missing file have no record.
+    assert!(!is_wrapper_launcher(Path::new(REAL_GIT), Some(own.as_path())));
+    assert!(!is_wrapper_launcher(root.join("missing").as_path(), None));
     remove(root.as_path());
 }

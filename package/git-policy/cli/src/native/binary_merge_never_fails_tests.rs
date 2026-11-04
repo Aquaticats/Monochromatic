@@ -14,52 +14,11 @@
 
 use super::merge_isolation::{diverged, records_in, snapshot, stage_unrelated_work};
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, TIMED_OUT_SIGNAL, fixture, git, without_hint_fields};
+use super::held_lock_support::{PATIENCE, run_acting_on_line, Ended};
+use super::support::{Fixture, fixture, git};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
-use std::io::{BufRead, Read};
-use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-
-/// How long a control waits for something that must happen, so a broken wrapper fails it and never holds it.
-const PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
-
-/// What a merge printed and how it ended.
-struct Ended {
-    /// Exit status.
-    code: Option<i32>,
-    /// Standard error, without hint fields.
-    stderr: String,
-}
-
-/// Run `command` to its end, and run `act` once, when a line of standard error contains `needle`.
-fn run_acting_on_line(command: &mut Command, needle: &str, act: &mut dyn FnMut()) -> Ended {
-    let mut child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("process starts");
-    let mut standard_output = child.stdout.take().expect("piped stdout");
-    // Read concurrently, so a full pipe never blocks the child while this thread waits on its standard error.
-    let output_reader = std::thread::spawn(move || {
-        let mut bytes: Vec<u8> = Vec::new();
-        let _read = standard_output.read_to_end(&mut bytes);
-        return bytes;
-    });
-    let mut errors = std::io::BufReader::new(child.stderr.take().expect("piped stderr"));
-    let mut stderr: Vec<u8> = Vec::new();
-    let mut acted: bool = false;
-    loop {
-        let line_start: usize = stderr.len();
-        if errors.read_until(b'\n', &mut stderr).expect("read standard error") == 0 {
-            break;
-        }
-        if !acted && String::from_utf8_lossy(&stderr[line_start..]).contains(needle) {
-            acted = true;
-            act();
-        }
-    }
-    let status = child.wait().expect("process finishes");
-    assert_ne!(status.signal(), Some(TIMED_OUT_SIGNAL), "the command hit its bound before it ended");
-    let _output = output_reader.join().expect("standard output reader");
-    return Ended { code: status.code(), stderr: String::from_utf8_lossy(without_hint_fields(stderr.as_slice()).as_slice()).into_owned() };
-}
 
 /// The parents of `HEAD`, as object names.
 fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {

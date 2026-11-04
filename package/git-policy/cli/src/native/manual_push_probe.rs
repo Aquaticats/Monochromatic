@@ -128,13 +128,32 @@ pub struct PushUpdate {
     pub remote_ref: String,
 }
 
-/// The most per-destination or per-update Git queries that run at once: the bound `SPEC.md` gives ("at most four per-update
-///  `git rev-list --stdin` or `git ls-tree` processes run concurrently"), which also bounds the connections opened to remotes.
-pub const MOST_CONCURRENT_QUERIES: usize = 4;
+/// The most per-destination queries that open a connection to a remote and run at once (`git ls-remote` of each destination):
+///  the bound `SPEC.md` gives, four. The remote side (how many connections a server tolerates) was not measured, so the value is
+///  the one the SPEC already gave; it is the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", concurrent per-update queries, option B).
+pub const MOST_CONCURRENT_REMOTE_QUERIES: usize = 4;
 
-/// The bytes one query holds at its peak: the output of a `rev-list` or `ls-remote` is read whole, so a push of a long range
-///  holds its commit names; about 32 MiB covers half a million commits at the length of a name.
-pub const QUERY_MEMORY: u64 = 32 << 20;
+/// The most per-update queries of the local repository that run at once (`git cat-file` and `git rev-list` of each update). Measured
+///  on 16 branch tips of this repository, medians of three runs in alternating orders, other sessions running: `git ls-tree -r`
+///  took 218, 114, 80, 50 and 46 ms at 1, 2, 4, 8 and 16 at once, and `git rev-list` of a whole branch 845, 413, 231, 190 and 194
+///  ms, so eight is where the gain stops. The coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", concurrent per-update queries, option B).
+pub const MOST_CONCURRENT_LOCAL_QUERIES: usize = LOCAL_QUERY_GAIN_STOPS_AT;
+
+/// The number of queries at once at which the measured gain of local queries stopped (see `MOST_CONCURRENT_LOCAL_QUERIES`).
+pub const LOCAL_QUERY_GAIN_STOPS_AT: usize = 8;
+
+/// The bytes one query holds at its peak when it lists the whole history of this repository: the largest resident size of
+///  `git rev-list --all` in three runs (29,164 KiB, 29,032 KiB and 28,848 KiB, so 29,863,936 bytes) plus the 1,413,721 bytes of
+///  its output, which the wrapper reads whole (34,481 commits on 2026-11-03). `git ls-tree -r` of the main tree peaked at 26,080
+///  KiB with 2,459,743 bytes of output.
+pub const MEASURED_WHOLE_HISTORY_QUERY: u64 = 29_863_936 + 1_413_721;
+
+/// The bytes one query holds at its peak: `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two. The coordinator's pick
+///  under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps
+///  and memory estimates"). A history that grows past a few tens of thousands more commits needs a larger figure.
+pub const QUERY_MEMORY: u64 = MEASURED_WHOLE_HISTORY_QUERY.next_power_of_two();
 
 /// What:
 ///  The probe's Git arguments: the invocation's global options, the switches that keep every hook and full object
@@ -392,11 +411,11 @@ pub fn probe_manual_push_updates_on(
         ));
     }
     // Each destination is its own `To` block with its own `ls-remote`, so the confirmations are independent reads and run side by
-    //  side, at most `MOST_CONCURRENT_QUERIES` at once; the updates come back in the order Git printed the blocks, and the
+    //  side, at most `MOST_CONCURRENT_REMOTE_QUERIES` at once; the updates come back in the order Git printed the blocks, and the
     //  first block that fails decides the error.
     let destinations: Vec<(&PorcelainBlock, &String)> = blocks.iter().zip(locations.iter()).collect();
     let lanes: Vec<Vec<usize>> = (0..destinations.len()).map(|index: usize| { return vec![index]; }).collect();
-    let workers: usize = worker_budget(&BudgetRequest { items: destinations.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host });
+    let workers: usize = worker_budget(&BudgetRequest { items: destinations.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_REMOTE_QUERIES), cap: None, host });
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     let mut failure: Option<ManualPushProbeError> = None;
     run_ordered(OrderedRun {

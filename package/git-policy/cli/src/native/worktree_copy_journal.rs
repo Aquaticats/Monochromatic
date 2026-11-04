@@ -1010,6 +1010,10 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 /// Why:
 ///   A stage holds a few very large trees (`node_modules`, `target`); three levels below the payload give enough
 ///  independent subtrees to share without walking the whole stage on one thread first.
+///  Measured with `remove_tree_split` itself at depths 1 to 6 on reflinked copies of a tree of 22,717 entries of this repository
+///  (2026-11-03, five runs each in alternating orders, other sessions running, a debug build): medians 365, 281, 304, 325, 437 and
+///  512 ms; depths 2 and 3 overlap (251 to 305 ms and 253 to 309 ms), and depths 1, 4, 5 and 6 were slower. Kept at 3 as the coordinator's pick under the owner's delegation, open to the owner's veto
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Picked for these follow-ups", option A). The tree has no `node_modules` or `target`, so a stage with a few very large subtrees was not measured.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

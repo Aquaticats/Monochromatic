@@ -6,7 +6,7 @@
 //!  that moved the branch first and took the lock afterwards left the index showing content a landed commit had replaced for
 //!  as long as a foreign `git` held the lock, and a commit prepared from that index could land a revert. The wait for a
 //!  foreign holder is event-driven: an inotify watch on the Git directory wakes the service when the lock itself is removed or
-//!  moved away, and the only timer is the limit (`CLI_GIT_LOCK_WAIT_SECONDS`) and the repetition of the holder's notice. On
+//!  moved away, and the only timer is the repetition of the holder's notice. On
 //!  platforms without inotify a held lock fails at once with the plain message. The lock carries a marker with the batch
 //!  number and the holding process from the moment it exists until it is removed after the new index is in place, so a
 //!  restart can tell its own stale lock from a foreign one wherever the service was killed, and never takes over a lock
@@ -27,6 +27,7 @@
 //! ```
 
 use super::service_index_attempts::{Placing, wait_and_place};
+use super::wait_ceilings::LOCK_CEILING;
 use super::service_protocol::FailureCode;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -41,11 +42,15 @@ pub use super::service_index_watch::{events_end_watch, events_name};
 pub use super::service_index_placement::{Platform, SYSTEM, placement_failure_text};
 pub use super::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use super::service_index_watch::Watch;
-use super::service_index_marker::{holder_is_gone, is_reclaimable, marker_of};
+use super::service_index_marker::is_reclaimable;
 use super::service_index_placement::{log_placement_failure, place_marked, reclaim};
+pub use super::service_index_reclaim::remove_stale;
 use super::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
+///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
+///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const NOTICE_EVERY: Duration = Duration::from_secs(10);
 
 /// The environment variable that sets how often the holder's line is repeated, in whole seconds.
@@ -136,24 +141,25 @@ pub fn lock_path_of(index: &Path) -> PathBuf {
 }
 
 /// What:
-///  Takes `index.lock` by exclusive creation, waiting for a foreign holder until the limit.
+///  Takes `index.lock` by exclusive creation, waiting for a foreign holder until it lets go.
 /// Why:
 ///   Git's own protocol: creation fails while any process holds the lock. The wait blocks on an inotify watch set before the
 ///  first attempt, so a release between the attempt and the wait is not missed, and it wakes only for the lock itself. The
 ///  marker is written once, before the first attempt, so the attempts themselves create and remove nothing in the watched
-///  directory. When the limit passes, nothing was changed; the clients learn who held the lock.
+///  directory. A holder is waited for however long it holds, and a dead owner (a PID file naming a process that is gone) ends the wait at once with
+///  nothing changed; the clients learn who held the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await acquireIndexLock(index, marker, limit, announce)
+/// await acquireIndexLock(index, marker, announce)
 /// ```
 ///
 /// # Errors
 ///
-/// `LockFailure` with `IndexInUse` when the lock stayed held to the limit (or cannot be waited for), and with the storage
+/// `LockFailure` with `IndexInUse` when the lock's owner is dead, and with the storage
 ///  code when the lock cannot be created.
-pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_noting_holder(index, seq, limit, announce, &mut None);
+pub fn acquire(index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_noting_holder(index, seq, announce, &mut None);
 }
 
 /// What:
@@ -166,15 +172,15 @@ pub fn acquire(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announ
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await acquireIndexLock(index, marker, limit, announce, (who) => { holder = who })
+/// await acquireIndexLock(index, marker, announce, (who) => { holder = who })
 /// ```
 ///
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, limit, announce, &mut notes, None);
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LOCK_CEILING, announce, &mut notes, None);
     holder.clone_from(&notes.holder);
     return taken;
 }
@@ -191,19 +197,28 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, limit: Duration, announce: 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await acquireIndexLock(index, marker, limit, announce, notes)
+/// await acquireIndexLock(index, marker, announce, notes)
 /// ```
 ///
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_wait(index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+    return acquire_noting_wait_within(index, seq, LOCK_CEILING, announce, notes);
+}
+
+/// `acquire_noting_wait` that gives up on a foreign holder after `ceiling`.
+///
+/// # Errors
+///
+/// As `acquire`, and `IndexInUse` when the lock was still held at the ceiling.
+pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
     // The whole of the preparation counts as staging time: taking the marker made ahead, waiting for a flush that fails or is
     //  for another batch, and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
     let prepared: Option<Prestaged> = take(index, seq);
     notes.staging = preparing.elapsed();
-    return acquire_placing(&SYSTEM, index, seq, limit, announce, notes, prepared);
+    return acquire_placing(&SYSTEM, index, seq, ceiling, announce, notes, prepared);
 }
 
 /// `acquire` with the calls of `platform`.
@@ -213,8 +228,17 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, limit: Duration, announce: &d
 /// As `acquire`;
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
-pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, limit: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, limit, announce, &mut WaitNotes::default(), None);
+pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(platform, index, seq, LOCK_CEILING, announce, &mut WaitNotes::default(), None);
+}
+
+/// `acquire_on` that gives up on a foreign holder after `ceiling`, leaving in `notes` what the wait was for.
+///
+/// # Errors
+///
+/// As `acquire_on`, and `IndexInUse` when the lock was still held at the ceiling.
+pub fn acquire_within(platform: &Platform, index: &Path, seq: u64, ceiling: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(platform, index, seq, ceiling, announce, &mut WaitNotes::default(), None);
 }
 
 /// `acquire_noting_holder` with the calls of `platform`.
@@ -222,7 +246,7 @@ fn acquire_placing(
     platform: &Platform,
     index: &Path,
     seq: u64,
-    limit: Duration,
+    ceiling: Duration,
     announce: &dyn Fn(Announce),
     notes: &mut WaitNotes,
     prestaged: Option<Prestaged>,
@@ -259,7 +283,7 @@ fn acquire_placing(
     let placing_began: std::time::Instant = std::time::Instant::now();
     let outcome: Result<(), LockFailure> = wait_and_place(
         platform,
-        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, limit },
+        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, ceiling },
         &mut watch,
         announce,
         notes,
@@ -271,22 +295,10 @@ fn acquire_placing(
     return Ok(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
 }
 
-/// What:
-///  Removes an index lock left by a service that was killed, when it still carries the service's marker for `seq` and its
-///  holder is gone.
-/// Why:
-///   Only the marker proves the lock is ours; a foreign lock, one a Git holds, or one whose holder still runs is never touched.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// removeStaleLock(index, seq)
-/// ```
-pub fn remove_stale(index: &Path, seq: u64) {
-    let lock: PathBuf = lock_path_of(index);
-    if marker_of(lock.as_path()).is_some_and(|marked| { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); }) {
-        let _removed = std::fs::remove_file(&lock);
-    }
-}
+/// Controls for the removal of a stale lock stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_reclaim_tests.rs"]
+mod reclaim_tests;
 
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]

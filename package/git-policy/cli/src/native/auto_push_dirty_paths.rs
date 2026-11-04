@@ -77,6 +77,9 @@ pub fn overlapping_paths(dirty: &[Vec<u8>], incoming: &[Vec<u8>]) -> Vec<Vec<u8>
 }
 
 /// The most paths a report names before it counts the rest.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const LISTED_LIMIT: usize = 5;
 
 /// What:

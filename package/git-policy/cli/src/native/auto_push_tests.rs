@@ -318,6 +318,7 @@ fn a_stalled_push_is_stopped_and_reported_as_a_failed_push() {
         result.shown
     );
     assert!(shown.contains(PUSH_FAILED_NOTE), "{shown}");
+    assert!(shown.contains(crate::bounded_push::PUSH_QUEUED_LINE), "the command's output says the push is queued: {shown}");
     assert_eq!(read_log(&log), "", "the replaced hook logs nothing");
     remove(&root);
 }

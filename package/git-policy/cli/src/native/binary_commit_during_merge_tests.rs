@@ -141,10 +141,19 @@ fn a_commit_naming_a_conflicted_path_lands_with_its_markers_and_warns() {
 
 /// A repository whose merge of `other` into `main` stopped on a conflict in `y.txt`.
 fn conflicted_merge(fixture: &Fixture, name: &str) -> PathBuf {
+    return conflicted_merge_with_attributes(fixture, name, None);
+}
+
+/// The same, with `.gitattributes` holding `attributes` from the base commit on, so Git writes the markers its lines ask for.
+fn conflicted_merge_with_attributes(fixture: &Fixture, name: &str, attributes: Option<&str>) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new(name));
     git(fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     std::fs::write(repo.join("y.txt"), "base\n").expect("file");
     git(fixture, &repo, &["add", "--", "y.txt"]);
+    if let Some(lines) = attributes {
+        std::fs::write(repo.join(".gitattributes"), lines).expect("attributes");
+        git(fixture, &repo, &["add", "--", ".gitattributes"]);
+    }
     git(fixture, &repo, &["commit", "--quiet", "--message=base"]);
     git(fixture, &repo, &["switch", "--quiet", "--create", "other"]);
     std::fs::write(repo.join("y.txt"), "other\n").expect("file");
@@ -199,4 +208,78 @@ fn a_commit_with_all_over_unmerged_files_commits_their_markers_and_warns() {
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);
+}
+
+/// The line a named-path commit prints when it leaves the merge open: that the merge is still in progress and the commands that
+///  finish it.
+fn says_the_merge_is_open(stderr: &str) -> bool {
+    return stderr.contains("merge is still in progress") && stderr.contains("git merge --continue") && stderr.contains("git commit");
+}
+
+/// A path the person resolved by editing, with no marker line left and not staged, committed by name during the merge: the commit
+///  lands and the merge is carried on (the SPEC design), but no marker is claimed, since the committed blob has none, and the
+///  one line says the merge is still open and how to finish it.
+#[test]
+fn a_resolved_but_unstaged_path_committed_by_name_makes_no_marker_claim_and_says_how_to_finish() {
+    let fixture: Fixture = fixture("commit-resolved-unstaged");
+    let repo: PathBuf = conflicted_merge(&fixture, "repo");
+    std::fs::write(repo.join("y.txt"), "resolved by hand\n").expect("the resolution");
+    let name: String = format!("cru-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=resolve y", "--", "y.txt"]);
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["show", "HEAD:y.txt"]), "resolved by hand\n", "the committed blob is the resolution");
+    assert!(repo.join(".git/MERGE_HEAD").exists(), "the merge is carried on");
+    assert!(!stderr.contains("conflict markers"), "no marker is claimed for a clean blob: {stderr}");
+    assert!(says_the_merge_is_open(stderr.as_str()), "the merge is said to be open, with the commands that finish it: {stderr}");
+    let finished: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--no-edit"]);
+    assert_eq!(finished.status.code(), Some(0), "the line's remedy finishes the merge: {}", String::from_utf8_lossy(&finished.stderr));
+    assert!(!repo.join(".git/MERGE_HEAD").exists(), "the merge is concluded");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// A path that really holds marker lines keeps the claim, and the merge-open line comes too, whether or not markers were committed.
+#[test]
+fn a_path_committed_by_name_with_marker_lines_keeps_the_claim_and_says_the_merge_is_open() {
+    let fixture: Fixture = fixture("commit-markers-open");
+    let repo: PathBuf = conflicted_merge(&fixture, "repo");
+    let name: String = format!("cmo-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=markers on purpose", "--", "y.txt"]);
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "{stderr}");
+    assert!(stderr.contains("y.txt still has conflict markers, and they were committed"), "{stderr}");
+    assert!(stderr.contains("follow-up commit"), "the fix of the file is said: {stderr}");
+    assert!(says_the_merge_is_open(stderr.as_str()), "{stderr}");
+    assert!(!stderr.contains("The merge in progress is not finished by this commit. To fix it"), "the follow-up commit is not offered as the way to finish the merge: {stderr}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// The marker size comes from the `conflict-marker-size` attribute as Git reads it: a path with size 9 that holds nine-character
+///  markers is claimed, and a path with size 9 that holds only seven-character lines is not.
+#[test]
+fn the_claim_follows_the_conflict_marker_size_attribute() {
+    for (label, rewrite) in [("nine", false), ("seven", true)] {
+        let fixture: Fixture = fixture(format!("commit-marker-size-{label}").as_str());
+        let repo: PathBuf = conflicted_merge_with_attributes(&fixture, "repo", Some("y.txt conflict-marker-size=9\n"));
+        assert!(std::fs::read_to_string(repo.join("y.txt")).expect("file").contains("<<<<<<<<< "), "Git wrote markers of the size the attribute asks for");
+        if rewrite {
+            // Seven-character lines are not markers for size 9, whatever they look like.
+            std::fs::write(repo.join("y.txt"), "text about merges\n<<<<<<< is how a marker starts\n=======\n>>>>>>> is how it ends\n").expect("file");
+        }
+        let name: String = format!("cms-{label}-{}", std::process::id());
+        let mut service: Running = start(&fixture, name.as_str());
+        let landed: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--message=by name", "--", "y.txt"]);
+        let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+        assert_eq!(landed.status.code(), Some(0), "{label}: {stderr}");
+        assert_eq!(stderr.contains("y.txt still has conflict markers"), !rewrite, "{label}: the claim follows the size the attribute gives: {stderr}");
+        let _killed = service.kill();
+        let _waited = service.wait();
+        remove_settled(&fixture);
+    }
 }

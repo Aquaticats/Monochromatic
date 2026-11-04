@@ -32,6 +32,7 @@ use super::diagnostic_log::debug;
 use super::discard_audit::append_line;
 use super::iso_time::now_iso;
 use super::json_record::{quote, string_array};
+use super::quiet_ledger::{drain, longest_healthy, object_json};
 use super::service_instance::instance_of;
 use super::service_protocol::RELEASE;
 use std::path::{Path, PathBuf};
@@ -39,7 +40,8 @@ use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the timing records of every worktree of the repository.
 /// It moves
-///  aside to `cli-git-commit-timing.jsonl.1` at the size limit `discard_audit::append_line` applies.
+///  aside to `cli-git-commit-timing.jsonl.1`, replacing the older one (a timing log keeps one generation), at the size limit
+///  `discard_audit::append_line` applies.
 pub const TIMING_FILE: &str = "cli-git-commit-timing.jsonl";
 
 /// The version of the record's fields;
@@ -111,7 +113,7 @@ impl ReachTrace {
 /// holderKindOf(text) // 'proven-alive' | 'unproven'
 /// ```
 pub fn holder_kind_of(text: &str) -> &'static str {
-    return if text.contains("cannot be proven alive") { "unproven" } else { "proven-alive" };
+    return if text.contains("(proven by ") { "proven-alive" } else { "unproven" };
 }
 
 /// What:
@@ -282,6 +284,9 @@ pub struct CommitTiming {
     pub gate: Duration,
     /// Leaving the push and the upkeep for the service and waking it.
     pub handoff: Duration,
+    /// The longest quiet gap of every Git step and tool this command ran, by step name, taken from the ledger when the record
+    ///  is written; a step that was ended for being quiet is listed apart from the steps that ended by themselves.
+    pub quiet: Vec<(String, Duration)>,
 }
 
 impl CommitTiming {
@@ -307,6 +312,7 @@ impl CommitTiming {
             after_landing: Duration::ZERO,
             gate: Duration::ZERO,
             handoff: Duration::ZERO,
+            quiet: Vec::new(),
         };
     }
 
@@ -348,7 +354,8 @@ impl CommitTiming {
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
-             \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{}}}\n",
+             \"afterLandingMs\":{},\"gateMs\":{},\"handoffMs\":{},\"otherMs\":{},\
+             \"longestQuietMs\":{},\"quietMs\":{}}}\n",
             quote(now_iso().as_str()),
             self.start_millis,
             std::process::id(),
@@ -378,6 +385,8 @@ impl CommitTiming {
             self.gate.as_millis(),
             self.handoff.as_millis(),
             self.other(total).as_millis(),
+            longest_healthy(self.quiet.as_slice()),
+            object_json(self.quiet.as_slice()),
         );
     }
 
@@ -399,7 +408,10 @@ impl CommitTiming {
     pub fn finish(&self, exit_code: i32) {
         let Some(place) = self.place.as_ref() else { return };
         let target: PathBuf = place.common_dir.join(TIMING_FILE);
-        let line: String = self.line(self.began.elapsed(), exit_code);
+        // The ledger holds what this command's Git steps and tools showed; the record takes it and the next command starts empty.
+        let mut with_quiet: CommitTiming = self.clone();
+        with_quiet.quiet = drain();
+        let line: String = with_quiet.line(self.began.elapsed(), exit_code);
         if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
             debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));
         }

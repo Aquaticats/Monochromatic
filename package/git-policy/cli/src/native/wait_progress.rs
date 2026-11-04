@@ -30,11 +30,17 @@ use std::time::{Duration, Instant};
 pub const NOTICE_INTERVAL_VARIABLE: &str = "CLI_GIT_WAIT_NOTICE_SECONDS";
 
 /// How often a waiting command repeats its notice when the variable is absent or unusable.
+///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
+///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const DEFAULT_NOTICE_INTERVAL: Duration = Duration::from_secs(10);
 
 /// How long a wait stays silent before its first notice:
 ///  a landing that holds the lock normally ends within this,
 ///  so brief contention between healthy commits prints nothing.
+///  Exempt from a citation under `LQM` (class: notice pacing): it times a line the person reads or a log threshold, and
+///  nothing waits on it beyond the wait that already exists. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 pub const NOTICE_GRACE: Duration = Duration::from_secs(1);
 
 /// The shortest interval a ticker divides by, so a zero interval cannot divide by zero.
@@ -204,12 +210,14 @@ pub struct ChildWaitFacts<'facts> {
     pub pid: u32,
     /// How long the wait has lasted.
     pub waited: Duration,
-    /// How long the child may run before it is stopped.
+    /// How long the child may show no sign of work before it is ended, when it may be ended.
     pub limit: Duration,
     /// Where the person changes the limit, spelled to follow "seconds", or empty when nothing changes it.
     pub limit_note: &'facts str,
     /// Whether an earlier notice of this wait already printed the hint.
     pub repeat: bool,
+    /// Whether a child with no sign of work for the limit is ended; a step that may not be run twice is only waited for.
+    pub ends_when_quiet: bool,
 }
 
 /// What:
@@ -219,7 +227,7 @@ pub struct ChildWaitFacts<'facts> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; stopping it after ${limit} seconds`
+/// `cli-git: still waiting for ${waitingFor} (process ${pid}) after ${waited} seconds; ending it only after ${limit} seconds with no sign of work`
 /// ```
 pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     let hint: &str = if facts.repeat {
@@ -227,8 +235,19 @@ pub fn child_wait_line(facts: &ChildWaitFacts<'_>) -> String {
     } else {
         " Hint: it is still running; if it looks stuck, check it with `ps` and report it."
     };
+    // A child is ended for being quiet and never for being slow, and a step that may not be run twice is never ended.
+    if !facts.ends_when_quiet {
+        return format!(
+            "cli-git: still waiting for {} (process {}) after {} seconds; it is a step that may not be run twice, so it is \
+             waited for as long as it lives{}.{hint}",
+            facts.waiting_for,
+            facts.pid,
+            facts.waited.as_secs(),
+            facts.limit_note
+        );
+    }
     return format!(
-        "cli-git: still waiting for {} (process {}) after {} seconds; stopping it after {} seconds{}.{hint}",
+        "cli-git: still waiting for {} (process {}) after {} seconds; it is ended only after {} seconds with no sign of work{}.{hint}",
         facts.waiting_for,
         facts.pid,
         facts.waited.as_secs(),

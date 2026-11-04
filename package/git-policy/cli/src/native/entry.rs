@@ -16,7 +16,7 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
+use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure, with_leading_notice};
 #[cfg(unix)]
 use super::auto_push_trigger::{TipWatch, hand_over_if_ahead, try_watch_tip};
 use super::push_trigger_log::{Decision, Origin, Outcome, record_decision};
@@ -49,7 +49,8 @@ use super::management::{host_filesystem_section, plan_management_with_section};
 use super::policy_checks::{ShippedChecks, shipped_checks};
 /// A forwarded command starts with no candidate content.
 use super::policy_content::LifecycleContent;
-use super::real_git::{ResolutionInputs, process_resolution_inputs, resolve_real_git};
+use super::real_git::{ResolutionInputs, ResolvedGit, process_resolution_inputs, resolve_real_git};
+use super::started_as_git::refusal_when_started_as_git;
 use super::real_git_candidate::same_file;
 use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
 use super::rule_require_root::{RequireRootDecision, decide_require_root};
@@ -184,17 +185,56 @@ pub fn plan_invocation(
             &host_filesystem_section,
         );
     }
-    // What: `match` on the resolver's `Result`: keep the path or stop with its message.
+    // What: `match` on the resolver's `Result`: keep the selection or stop with its message.
     // Why:  Without real Git there is nothing to forward to.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // let realGit; try { realGit = resolveRealGit(inputs); } catch (e) { return failure(String(e)); }
+    // let resolved; try { resolved = resolveRealGit(inputs); } catch (e) { return failure(String(e)); }
     // ```
-    let real_git: PathBuf = match resolve_real_git(inputs) {
+    let resolved: ResolvedGit = match resolve_real_git(inputs) {
         Ok(found) => found,
         Err(error) => return failure(error.to_string().as_str()),
     };
+    // The merge push of an integrated race is planned again inside this process with the stacking marker set;
+    //  the planning of the push it came from has already given the notice.
+    let notice: Option<String> = if environment_value(environment, STACKED_PUSH_MARKER).is_some() {
+        None
+    } else {
+        resolved.notice
+    };
+    let action: Action = plan_with_real_git(
+        arguments,
+        environment,
+        resolved.path,
+        global_clean,
+        &layout,
+    );
+    // `.as_deref()` lends the optional owned notice as an optional borrowed one.
+    return with_leading_notice(action, notice.as_deref());
+}
+
+/// What:
+///  Plan an invocation that is not a management command,
+///  once the real Git is known.
+///  `&GlobalLayout` borrows where the subcommand starts in the cleaned arguments.
+/// Why:
+///  `plan_invocation` adds the notice of a recorded fallback to whatever action this returns,
+///  so every ending of the planning (a forward,
+///  a stop,
+///  a refusal) carries it without repeating it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planWithRealGit(args: string[], environment: [string, string][], realGit: string, globalClean: string[], layout: GlobalLayout): Action;
+/// ```
+fn plan_with_real_git(
+    arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    real_git: PathBuf,
+    global_clean: Vec<OsString>,
+    layout: &GlobalLayout,
+) -> Action {
     let overlay: Vec<(OsString, OsString)> =
         child_environment_overlay(environment, real_git.as_path());
     // What: Top-level `--version`, `-v`, `--help` and `-h` run Git as a child and add the announcement.
@@ -205,7 +245,7 @@ pub fn plan_invocation(
     // ```ts
     // const query = announcedQuery(args, layout); if (query) return { kind: 'forward-announced', ... };
     // ```
-    if let Some(query) = announced_query(global_clean.as_slice(), &layout) {
+    if let Some(query) = announced_query(global_clean.as_slice(), layout) {
         return Action::ForwardAnnounced {
             announcement: announcement(query, WRAPPER_VERSION, real_git.as_path()),
             real_git,
@@ -291,7 +331,11 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     // From here on every real-Git start of this process runs with traditional hooks off.
     super::hooks_off::activate();
     let action: Action = match process_resolution_inputs(environment) {
-        Ok(inputs) => plan_invocation(arguments, environment, &inputs),
+        // A cli-git executable that a wrapper started as Git stops before it plans anything or starts anything.
+        Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
+            Some(refusal) => failure(refusal.as_str()),
+            None => plan_invocation(arguments, environment, &inputs),
+        },
         Err(error) => failure(
             format!(
                 "cannot determine this executable or the current directory, so real Git \
@@ -924,6 +968,11 @@ fn write_stream(stream: &mut dyn Write, text: &str) {
 #[cfg(test)]
 #[path = "entry_announced_tests.rs"]
 mod announced_tests;
+
+/// Plans whose real Git is the one the commit service's unit records because `PATH` offers none.
+#[cfg(test)]
+#[path = "entry_fallback_tests.rs"]
+mod fallback_tests;
 
 /// Stop controls for a looping,
 ///  missing or uninterpretable real Git.

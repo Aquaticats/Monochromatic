@@ -1,0 +1,7 @@
+export function one(): number {
+  return 1;
+}
+
+export function three(): number {
+  return 3;
+}

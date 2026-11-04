@@ -23,8 +23,9 @@
 use super::forwarding::git_command;
 use super::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
-use super::child_class::class_of;
-use super::child_watch::{WatchTerms, output_watched};
+use super::child_class::{ChildClass, class_of};
+use super::child_watch::{WatchTerms, output_watched_within};
+use super::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING, REFERENCE_STEP_CEILING};
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
 /// The repository scratch directory the input file is made in.
@@ -39,6 +40,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 /// `Command` builds a child process;
 ///  `Stdio` configures its streams.
+use std::io::Write;
 use std::process::{Command, Stdio};
 /// A span of time, for the bounded rerun.
 use std::time::Duration;
@@ -499,20 +501,93 @@ pub(crate) fn terms_for_request(request: &GitRequest) -> WatchTerms {
 }
 
 /// What:
-///  `run_git_once` with the notice cadence, the bound and the notice sink of its wait made by `terms`.
+///  `run_git_once` with the notice cadence, the quiet window and the notice sink of its wait made by `terms`, which is asked
+///  for again at each start.
+///  A step that shows no sign of work for the window is ended and run once more; a step that may not be run twice is only
+///  waited for.
 /// Why:
-///   The production entry reads them from the environment;
+///   The production entry reads the terms from the environment;
 ///  tests choose short ones and read the notices from a buffer.
+///  The owner's rule: "End Git, hold hooks (Recommended)": a Git child with no progress is ended and its step redone, and a
+///  person's hook is never ended (none runs below a step the wrapper starts, `hooks_off.rs`). Redoing is limited to the steps
+///  that are safe to run twice (`may_be_rerun`); a step that is quiet again in its redo is reported with the sentence of
+///  `watched_timeout_text`. That the redo happens once is the coordinator's reading of "redone" (audit, pick 4), open to veto.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runTransactionGitOnce({ gitPath, cwd, args, terms })
+/// try { return await runOnce(terms()); } catch (quiet) { if (!mayBeRerun(request)) throw quiet; return await runOnce(terms()); }
 /// ```
 fn run_git_once_with(
     context: &GitContext,
     request: &GitRequest,
     terms: &dyn Fn() -> WatchTerms,
 ) -> std::io::Result<GitOutput> {
+    let first: std::io::Result<GitOutput> = run_git_watched(context, request, terms());
+    return match first {
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !super::child_watch::is_ceiling(&error) => {
+            // Terminal output error: a notice is advisory; a failed write must not stop the commit.
+            let _written = writeln!(
+                std::io::stderr(),
+                "cli-git: {} showed no sign of work and was ended; running it again",
+                step_subject(request)
+            );
+            run_git_watched(context, request, terms())
+        }
+        other => other,
+    };
+}
+
+/// How a request names itself in notices and in the sentence of a step that was ended: the command and the kind of step.
+fn step_subject(request: &GitRequest) -> String {
+    return format!(
+        "{}, {}",
+        command_text(&request.arguments),
+        class_of(request.arguments.as_slice()).label()
+    );
+}
+
+/// What:
+///  The longest the request's step runs before it is ended, whatever it shows: the reference update has the shortest ceiling, the
+///  other steps the ceiling of their class.
+/// Why:
+///   The owner's rule is that nothing waits for ever, and a landing's one thread must not be held for good by a step that never
+///  returns (`wait_ceilings.rs`). In a unit test the ceiling can be shortened for the thread that runs the control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stepCeiling(request): number { return request.subcommand === 'update-ref' ? REFERENCE_STEP_CEILING : classOf(request).ceiling }
+/// ```
+fn step_ceiling(request: &GitRequest) -> Duration {
+    #[cfg(test)]
+    if let Some(shortened) = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get) {
+        return shortened;
+    }
+    let reference: bool = subcommand_of(request.arguments.as_slice()).is_some_and(|(_, name)| { return name == "update-ref"; });
+    if reference {
+        return REFERENCE_STEP_CEILING;
+    }
+    return match class_of(request.arguments.as_slice()) {
+        ChildClass::Plumbing => PLUMBING_STEP_CEILING,
+        ChildClass::Object => OBJECT_STEP_CEILING,
+    };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A shortened ceiling for the steps the current thread starts, so a control ends a step in a moment.
+    pub(crate) static STEP_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+}
+
+/// What:
+///  Start one request once under a watch and capture its output, whatever its exit code.
+/// Why:
+///   The command and its input file are built here, so every run starts from the request alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runWatched({ gitPath, cwd, args, terms, stoppable: mayBeRerun(request) })
+/// ```
+fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms) -> std::io::Result<GitOutput> {
     let mut command: Command = build_command(context, request);
     match &request.input {
         Some(bytes) => {
@@ -523,12 +598,10 @@ fn run_git_once_with(
         }
     }
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
-    let subject: String = format!(
-        "{}, {}",
-        command_text(&request.arguments),
-        class_of(request.arguments.as_slice()).label()
-    );
-    let output: std::process::Output = output_watched(&mut command, subject.as_str(), terms())?;
+    let subject: String = step_subject(request);
+    let ledger_step: String = super::add_timing::git_step_label(request.arguments.as_slice());
+    let output: std::process::Output =
+        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), step_ceiling(request))?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

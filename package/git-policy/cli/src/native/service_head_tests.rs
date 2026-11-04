@@ -12,7 +12,7 @@ fn a_symbolic_head_names_its_branch() {
 /// An object name is a detached head.
 #[test]
 fn an_object_name_is_a_detached_head() {
-    assert_eq!(interpret("0123456789abcdef0123456789abcdef01234567\n"), HeadFile::Detached);
+    assert_eq!(interpret("0123456789abcdef0123456789abcdef01234567\n"), HeadFile::Detached(String::from("0123456789abcdef0123456789abcdef01234567")));
 }
 
 /// The reftable placeholder and an empty file say nothing, so Git is asked.
@@ -35,4 +35,46 @@ fn a_directory_of_another_repository_is_not_trusted() {
     std::fs::write(theirs.join("commondir"), "../ours\n").expect("pointer");
     assert!(belongs_to(theirs.as_path(), ours.as_path()), "a linked worktree points back to its common directory");
     crate::test_support::remove(root.as_path());
+}
+
+/// A detached head is what a commit on `HEAD` needs and a branch is what a commit on that branch needs; each is read from the
+/// `HEAD` file without starting Git, and the other answer is the opposite.
+#[test]
+fn the_checked_out_state_is_read_for_a_branch_and_for_a_detached_head() {
+    use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+    let root = fixture("head-still-checked-out");
+    let repo = repository(root.as_path(), "repo");
+    let common = repo.join(".git");
+    let context = git_context();
+    let ask = |reference: &str| -> Result<bool, FailureCode> { return still_checked_out(&context, repo.as_path(), common.as_path(), common.as_path(), reference); };
+    assert_eq!(ask("refs/heads/main"), Ok(true));
+    assert_eq!(ask("refs/heads/other"), Ok(false));
+    assert_eq!(ask("HEAD"), Ok(false), "a branch is checked out, so a commit on HEAD no longer applies");
+    let head = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["checkout", "--quiet", "--detach", head.as_str()]);
+    assert_eq!(ask("HEAD"), Ok(true));
+    assert_eq!(ask("refs/heads/main"), Ok(false));
+    remove(root.as_path());
+}
+
+/// A linked worktree whose index file sits in the main worktree's Git directory (an alternate index) still has its own head: the
+/// head is read from the Git directory of the worktree that asked, not from the directory the index is in, so the main worktree's
+/// branch is never taken for the linked worktree's.
+#[test]
+fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
+    use crate::test_support::{fixture, git, git_context, remove, repository};
+    let root = fixture("head-linked-alternate");
+    let repo = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["branch", "linked-branch"]);
+    let linked = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("path"), "linked-branch"]);
+    let common = repo.join(".git");
+    // The linked worktree uses an index file that lives in the main worktree's Git directory.
+    let own_git_dir = common.join("worktrees").join("linked");
+    let context = git_context();
+    assert_eq!(still_checked_out(&context, linked.as_path(), own_git_dir.as_path(), common.as_path(), "refs/heads/linked-branch"), Ok(true));
+    assert_eq!(still_checked_out(&context, linked.as_path(), own_git_dir.as_path(), common.as_path(), "refs/heads/main"), Ok(false));
+    // The same answer whatever index the request names: the head comes from the worktree's recorded Git directory.
+    let _alternate = common.join("alternate-index");
+    remove(root.as_path());
 }

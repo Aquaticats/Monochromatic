@@ -1,7 +1,10 @@
 //! What:
 //!  The wait of a command that is about to change the checkout for any program's hold on Git's `index.lock`: the commit
 //!  service's, a foreign `git`'s, or a lock nothing proves held. Event-driven, with a notice that names what is waited for
-//!  and the holder, bounded by the wait limit, and over as soon as the lock is gone.
+//!  and the holder, and over as soon as the lock is gone. A holder proven alive and an owner that cannot be proven alive are
+//!  both waited for with no bound, because the person's own `git commit` with its editor open holds the lock with no proof;
+//!  the line for the second says what is known and how to remove the lock if no program uses the repository. A PID file naming
+//!  a process that is gone ends the wait at once with a diagnostic.
 //! Why:
 //!  Native Git never waits for `index.lock`: a merge that finds it held dies (`Unable to create ... index.lock` or, from the
 //!  stash that every merge commit takes first, `could not write index` and `stash failed`). Other sessions commit into a
@@ -10,16 +13,16 @@
 //!  forwarded writer keeps the behavior of native Git; a merge is held to the owner's rule that merges never fail
 //!  (`SPEC.md`, "Merges and commits never fail"). The wait blocks on an inotify watch set before the first look, so a
 //!  release between the look and the wait is not missed; where no watch can be set it looks again after a short pause.
-//!  It never removes a lock: an unproven holder is waited for to the limit, as the commit service waits.
+//!  It never removes a lock.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = await waitForIndexRelease({ realIndex, command: 'merge', limit, cadence, stderr });
+//! const outcome = await waitForIndexRelease({ realIndex, command: 'merge', cadence, stderr });
 //! ```
 
 /// Evidence about the holder of a lock.
 use super::index_lock_evidence::{
-    Verdict, classify_index_lock, gather_with, proven_holder_line, proven_holder_progress_line,
+    Evidence, Verdict, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
 /// The bounded scan of open descriptors.
 use super::index_lock_holders::scan_platform_holders_bounded;
@@ -27,8 +30,10 @@ use super::index_lock_holders::scan_platform_holders_bounded;
 use super::process_start::resolve_process_start;
 /// The place of the lock and the watch on its directory.
 use super::service_index_lock::{Watch, lock_path_of};
-/// The limit and the pace of the notices.
-use super::wait_limit::live_wait_limit;
+/// The longest a wait lasts.
+use super::wait_ceilings::LOCK_CEILING;
+/// How long a wait without a watch sleeps between looks.
+use super::service_index_watch::POLL_PAUSE;
 use super::wait_progress::{Cadence, Ticker};
 /// Writing the notices.
 use std::io::Write;
@@ -36,9 +41,6 @@ use std::io::Write;
 use std::path::Path;
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
-
-/// How long the wait sleeps between looks where no watch can be set.
-const POLL_PAUSE: Duration = Duration::from_millis(50);
 
 /// What came of the wait.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -50,42 +52,64 @@ pub enum IndexWait {
         /// How long the wait lasted.
         Duration,
     ),
-    /// The lock was still held at the limit; nothing was changed and the lock was left in place.
+    /// The lock's PID file names a process that no longer runs, so nothing will release it; the diagnostic was written,
+    ///  nothing was changed and the lock was left in place.
+    OwnerGone(
+        /// How long the wait lasted.
+        Duration,
+    ),
+    /// The lock was still held at the ceiling; the line naming the blocker was written, nothing was changed and the lock was left
+    ///  in place.
     GaveUp(
         /// How long the wait lasted.
         Duration,
     ),
 }
 
-/// The words for what the evidence says about the holder, as the tail of a notice.
-fn holder_tail(real_index: &Path, waited: Duration, limit: Duration, first: bool) -> String {
-    let unproven = || {
-        return format!(
-            "waiting for {}, whose owner cannot be proven alive, after {} seconds; giving up after {} seconds",
-            lock_path_of(real_index).display(),
-            waited.as_secs(),
-            limit.as_secs()
-        );
+/// What the last look at the lock found.
+enum Proof {
+    /// A holder is proven alive.
+    Alive(Evidence, i64, bool, Option<String>),
+    /// The PID file names a process that is gone.
+    Dead(i64),
+    /// Nothing proves a holder alive or dead.
+    Nothing(Option<Evidence>),
+}
+
+/// What the evidence for `real_index` proves now.
+fn look_at(real_index: &Path, gather: &dyn Fn(&Path) -> std::io::Result<Option<Evidence>>) -> Proof {
+    let Ok(Some(evidence)) = gather(real_index) else {
+        return Proof::Nothing(None);
     };
-    let Ok(Some(evidence)) = gather_with(real_index, resolve_process_start, scan_platform_holders_bounded) else {
-        return unproven();
+    return match classify_index_lock(&evidence) {
+        Verdict::ProvenAlive { pid, by_descriptor, command } => Proof::Alive(evidence, pid, by_descriptor, command),
+        Verdict::Dead(pid) => Proof::Dead(pid),
+        Verdict::EvidenceFree => Proof::Nothing(Some(evidence)),
     };
-    let Verdict::ProvenAlive { pid, by_descriptor, command } = classify_index_lock(&evidence) else {
-        return unproven();
-    };
-    let line: String = if first {
-        proven_holder_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), limit.as_secs())
-    } else {
-        proven_holder_progress_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), waited.as_secs(), limit.as_secs())
-    };
-    return line.strip_prefix("cli-git: ").unwrap_or(line.as_str()).trim_end().to_owned();
+}
+
+/// The evidence of the host: the Git lock PID file and the bounded scan of open descriptors.
+fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
+    return gather_with(real_index, resolve_process_start, scan_platform_holders_bounded);
 }
 
 /// The notice: what the command waits for, why it is safe to wait, then the holder.
-fn notice(command: &str, real_index: &Path, waited: Duration, limit: Duration, first: bool) -> String {
+fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, first: bool) -> String {
+    let tail: String = match proof {
+        Proof::Alive(evidence, pid, by_descriptor, holder_command) => {
+            let line: String = if first {
+                proven_holder_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path())
+            } else {
+                proven_holder_progress_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path(), waited.as_secs())
+            };
+            line
+        }
+        Proof::Nothing(found) => unproven_wait_line(lock_path_of(real_index).as_path(), found.as_ref()),
+        Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None),
+    };
     return format!(
-        "cli-git: git {command} has changed nothing yet and waits for the index lock of this repository; {}\n",
-        holder_tail(real_index, waited, limit, first)
+        "cli-git: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
+        tail.strip_prefix("cli-git: ").unwrap_or(tail.as_str())
     );
 }
 
@@ -93,53 +117,75 @@ fn notice(command: &str, real_index: &Path, waited: Duration, limit: Duration, f
 ///  Wait while any program holds `index.lock` of `real_index`, telling `out` what is waited for.
 /// Why:
 ///   Returns after one metadata read when nothing holds the lock. The first line comes at once for a holder that is already
-///  known when the wait begins and then every notice interval, so a queued command can be told from a hung one.
+///  known when the wait begins and then every notice interval, so a queued command can be told from a hung one. A holder
+///  proven alive and an owner nothing proves alive are waited for with no bound; a dead owner ends the wait at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await waitForIndexRelease(realIndex, 'merge', limit, cadence, stderr)
+/// await waitForIndexRelease(realIndex, 'merge', cadence, stderr)
 /// ```
-pub fn wait_for_index_release(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
+pub fn wait_for_index_release(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
+    return wait_for_index_release_within(real_index, command, LOCK_CEILING, cadence, out);
+}
+
+/// `wait_for_index_release` that gives up after `ceiling`.
+pub fn wait_for_index_release_within(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write) -> IndexWait {
+    return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
+}
+
+/// `wait_for_index_release` with the function that sets a watch on the lock's directory, so a control can hand it none.
+fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
-    let mut watch: Option<Watch> = lock.parent().and_then(Watch::on);
+    let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
     let lock_name: std::ffi::OsString = lock.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let consequence: String = format!("git {command} stops waiting and reports what Git says");
     let began: Instant = Instant::now();
     let mut ticker: Ticker = Ticker::announced_at_start(cadence);
     let mut held: bool = false;
     let mut announced: bool = false;
+    let mut proof: Proof = Proof::Nothing(None);
     loop {
         if std::fs::symlink_metadata(&lock).is_err() {
             return if held { IndexWait::Released(began.elapsed()) } else { IndexWait::NotHeld };
         }
         held = true;
         let elapsed: Duration = began.elapsed();
-        if elapsed >= limit {
-            let _noted = out
-                .write_all(
-                    format!(
-                        "cli-git: the index lock of this repository was still held after {} seconds, so git {command} stops waiting and reports what Git says; nothing was changed and the lock was left in place.\n",
-                        elapsed.as_secs()
-                    )
-                    .as_bytes(),
-                )
-                .and_then(|()| { return out.flush(); });
-            return IndexWait::GaveUp(elapsed);
+        // The evidence is read when the first line is due and when a repeat is due, so a scan of the open descriptors is not made
+        //  for every wake of the watch.
+        let due: bool = !announced || ticker.due(elapsed);
+        if due || elapsed >= ceiling {
+            proof = look_at(real_index, &gather_here);
         }
-        // The holder is known when the wait begins, so the first line comes at once and the repeats follow the cadence.
-        if !announced || ticker.due(elapsed) {
+        if let Proof::Dead(pid) = &proof {
+            let _noted = out.write_all(dead_owner_diagnostic(lock.as_path(), *pid, consequence.as_str()).as_bytes()).and_then(|()| { return out.flush(); });
+            return IndexWait::OwnerGone(elapsed);
+        }
+        if due {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = out.write_all(notice(command, real_index, elapsed, limit, !announced).as_bytes()).and_then(|()| { return out.flush(); });
+            let _noted = out.write_all(notice(command, real_index, elapsed, &proof, !announced).as_bytes()).and_then(|()| { return out.flush(); });
             announced = true;
         }
-        let pause: Duration = ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1));
+        // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the wait names the blocker and ends;
+        //  the merge then runs into Git's own refusal and exits non-zero, with nothing changed.
+        if elapsed >= ceiling {
+            let blocker: String = match &proof {
+                Proof::Alive(evidence, ..) => blocker_words(evidence),
+                Proof::Nothing(Some(evidence)) => blocker_words(evidence),
+                Proof::Nothing(None) | Proof::Dead(_) => String::from("an owner whose evidence could not be read"),
+            };
+            let line: String = ceiling_line(lock.as_path(), blocker.as_str(), elapsed.as_secs(), consequence.as_str());
+            let _noted = out.write_all(line.as_bytes()).and_then(|()| { return out.flush(); });
+            return IndexWait::GaveUp(elapsed);
+        }
+        let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));
         match watch.as_ref() {
             Some(active) => {
                 if !active.wait(pause, lock_name.as_os_str()) {
                     // The watch ended with its directory: the ended watch is dropped first, because a new one may need the
                     //  descriptor and the quota it holds, then the lock is looked at again with a new watch set.
                     drop(watch.take());
-                    watch = lock.parent().and_then(Watch::on);
+                    watch = lock.parent().and_then(set_watch);
                 }
             }
             None => std::thread::sleep(pause.min(POLL_PAUSE)),
@@ -147,9 +193,9 @@ pub fn wait_for_index_release(real_index: &Path, command: &str, limit: Duration,
     }
 }
 
-/// `wait_for_index_release` with the limit and the notice cadence this process runs under, on standard error.
+/// `wait_for_index_release` with the notice cadence this process runs under, on standard error.
 pub fn wait_for_index_release_here(real_index: &Path, command: &str) -> IndexWait {
-    return wait_for_index_release(real_index, command, live_wait_limit(), Cadence::from_environment(), &mut std::io::stderr());
+    return wait_for_index_release(real_index, command, Cadence::from_environment(), &mut std::io::stderr());
 }
 
 /// The wait is controlled in the test module.

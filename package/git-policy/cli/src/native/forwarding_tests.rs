@@ -72,19 +72,26 @@ fn command_preserves_program_arguments_and_overlay() {
     // The hooks-off option is added only once the process has switched it on (`hooks_off::activate`).
     assert_eq!(seen_arguments, arguments);
     let mut seen_environment: Vec<(OsString, OsString)> = Vec::<(OsString, OsString)>::new();
-    for (name, value) in command.get_envs() {
-        seen_environment.push((
-            name.to_os_string(),
-            value.expect("overlay sets, never removes").to_os_string(),
-        ));
+    let mut start_marker: Option<OsString> = None;
+    for (name, found) in command.get_envs() {
+        let text: OsString = found.expect("overlay sets, never removes").to_os_string();
+        // Every real-Git start carries the marker that says which wrapper started it as Git.
+        if name == crate::started_as_git::STARTED_AS_GIT_VARIABLE {
+            start_marker = Some(text);
+            continue;
+        }
+        seen_environment.push((name.to_os_string(), text));
     }
     seen_environment.sort();
     assert_eq!(seen_environment, overlay);
-    // No overlay means the child environment is exactly the inherited one.
-    assert_eq!(
-        git_command(Path::new("git"), &[], &[]).get_envs().count(),
-        0
-    );
+    let marker = crate::started_as_git::parse_marker(start_marker.expect("the start carries the marker").as_os_str())
+        .expect("a well-formed marker");
+    assert_eq!(marker.starter_pid, std::process::id());
+    assert_eq!(marker.mode, crate::started_as_git::StartMode::Child);
+    // No overlay means the child environment is exactly the inherited one plus the marker.
+    let bare: Command = git_command(Path::new("git"), &[], &[]);
+    assert_eq!(bare.get_envs().count(), 1);
+    assert_eq!(bare.get_envs().next().map(|(name, _value)| { return name.to_os_string(); }), Some(OsString::from(crate::started_as_git::STARTED_AS_GIT_VARIABLE)));
 }
 
 /// A child's own exit code and its terminating signal are both observed exactly.

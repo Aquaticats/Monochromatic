@@ -324,3 +324,9 @@ fn retained_paths_are_named_in_the_failure() {
     assert_eq!(std::fs::read(edited).expect("kept"), b"tampered");
     remove(root.as_path());
 }
+
+/// An install goes parallel from the measured break-even number of leaves and not before.
+#[test]
+fn the_install_threshold_is_the_measured_break_even() {
+    assert_eq!(PARALLEL_INSTALL_MIN_LEAVES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
+}

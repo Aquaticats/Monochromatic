@@ -15,7 +15,7 @@ use super::auto_push_single_flight::PushGit;
 use super::candidate_object::parse_object_id;
 use super::candidate_prediction::PushedScope;
 use super::manual_push_cause::ManualPushCause;
-use super::manual_push_probe::{GitRefusal, MOST_CONCURRENT_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
+use super::manual_push_probe::{GitRefusal, MOST_CONCURRENT_LOCAL_QUERIES, PushUpdate, QUERY_MEMORY, probe_manual_push_updates};
 use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use super::parallel_runner::{Event, OrderedRun, run_ordered};
 use super::manual_push_range::{
@@ -128,10 +128,10 @@ pub fn scopes_of_updates_on(
     })?;
     let tips: BTreeMap<String, Vec<String>> = published_tips(updates, &prior, &tracking);
     // Each update is bounded by its own destination's tips and read by its own `cat-file` and `rev-list`, so the updates are
-    //  independent reads and run side by side, at most `MOST_CONCURRENT_QUERIES` at once; the scopes come back in the order Git
+    //  independent reads and run side by side, at most `MOST_CONCURRENT_LOCAL_QUERIES` at once; the scopes come back in the order Git
     //  negotiated the updates, and the first update that fails decides the error.
     let lanes: Vec<Vec<usize>> = (0..updates.len()).map(|index: usize| { return vec![index]; }).collect();
-    let workers: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_QUERIES), cap: None, host });
+    let workers: usize = worker_budget(&BudgetRequest { items: updates.len(), per_item_memory: QUERY_MEMORY, ceiling: Some(MOST_CONCURRENT_LOCAL_QUERIES), cap: None, host });
     let mut scopes: Vec<UpdateScope> = Vec::new();
     let mut failure: Option<ManualPushRangeError> = None;
     run_ordered(OrderedRun {

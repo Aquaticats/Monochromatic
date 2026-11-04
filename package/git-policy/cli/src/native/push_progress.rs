@@ -1,6 +1,6 @@
 //! What:
 //!  The progress of a push: whether the push and everything it started are at work, sampled at a small interval, and the
-//!  clock that stops it on a stall (no sign of work for the stall window) or at a ceiling (running that long in all).
+//!  clock that stops it on a stall (no sign of work for the stall window, and no open connection to a remote).
 //! Why:
 //!  A fixed deadline stops a slow push that is still working and lets a stuck push take its whole deadline. A process shows
 //!  that it works in three ways, each read from `/proc`, and only a tree that shows none of them is stalled:
@@ -17,18 +17,25 @@
 //!       so a wait for the disk shows in neither bytes nor processor time, only in the state;
 //!       a parent in `vfork` is in state `D` with 0 ticks, the way the controls hold a tree in disk wait exactly;
 //!       a process reading a silent socket and a `sleep` are in state `S` with a constant tick count, so a wait on a server
-//!       that says nothing is a stall.
+//!       that says nothing shows nothing in the process; only the connection's state shows it.
 //!  What each costs: bytes miss work that moves none; processor time makes a process that spins or polls look alive, and its
 //!  resolution is a tick; state `D` makes a process wedged for ever in the kernel (a dead network file system) look alive, and
-//!  state `R` one that is only waiting for a processor; the ceiling bounds all three. None of them sees a server that checks the
-//!  push before it answers: that tree is in state `S`, indistinguishable from a dead peer, so a check longer than the stall
-//!  window is stopped, and raising the window is the remedy, which the stop message names.
+//!  state `R` one that is only waiting for a processor; no total time bounds them (owner decision, see below). None of them sees
+//!  a server that checks the push before it answers: that tree is in state `S`, indistinguishable from a dead peer by its
+//!  processes alone. What tells them apart is the connection: a process of the tree that holds a TCP socket in state
+//!  `ESTABLISHED` (read from the kernel's socket diagnostics, `tcp_sockets.rs`) has a remote that has not closed it, and a tree
+//!  with such a socket is waited for, however long it shows nothing. The owner's answer "Wait while connected (Recommended)"
+//!  (2026-11-03) is the rule; the rest is pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`, which the coordinator made
+//!  under the owner's delegation ("Pick options as if I had picked them", 2026-11-03) and the owner may veto: no stall window
+//!  for a connected push, no ceiling for any push, no low-speed abort.
+//!  What the code cannot observe: a peer that vanished without a reset leaves the socket `ESTABLISHED` until TCP gives up
+//!  (retransmission for unacknowledged data, keepalive probes for an idle connection), which the owner accepted.
 //!  Where `/proc/<pid>/io` does not exist (no `/proc`, or a kernel without task I/O accounting) nothing is measured and the
 //!  stall window is a fixed deadline, as before.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const clock = new Clock(child.pid, { stallMs, ceilingMs }); while (!exited) { const stop = clock.check(); if (stop) return stop; }
+//! const clock = new Clock(child.pid, { stallMs }); while (!exited) { const stop = clock.check(); if (stop) return stop; }
 //! ```
 
 /// The patience a clock keeps, and what a stop reports.
@@ -36,6 +43,7 @@ use super::bounded_push::{Patience, StopCause, StopReport};
 /// The processes below the push, and the identity of each.
 use super::process_tree::{TreeMember, descendants_of, member_of};
 /// The connected sockets of the machine with their byte counts, and the sockets a process holds.
+use super::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
 use super::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
 /// What each process of the tree was last seen to have moved.
 use std::collections::HashMap;
@@ -87,7 +95,7 @@ fn bytes_moved_by(_pid: i32) -> Option<u64> {
 /// ```ts
 /// const [state, , , , , , , , , , , utime, stime] = text.slice(text.lastIndexOf(')') + 2).split(' ');
 /// ```
-fn parse_activity(stat: &str) -> Option<(char, u64)> {
+pub(super) fn parse_activity(stat: &str) -> Option<(char, u64)> {
     let after_name: &str = stat.get(stat.rfind(')')? + 2..)?;
     let fields: Vec<&str> = after_name.split(' ').collect();
     let state: char = fields.first()?.chars().next()?;
@@ -97,7 +105,7 @@ fn parse_activity(stat: &str) -> Option<(char, u64)> {
 }
 
 /// Whether a state letter is one of a task that is at work: able to run (`R`) or waiting for the disk (`D`).
-fn is_working(state: char) -> bool {
+pub(super) fn is_working(state: char) -> bool {
     return state == 'R' || state == 'D';
 }
 
@@ -137,46 +145,6 @@ fn activity_of(_pid: i32) -> Option<(u64, bool)> {
     return None;
 }
 
-/// What:
-///  The Git subcommand a process runs, read from its command line (`git pack-objects ...` is `pack-objects`), or nothing when
-///  the process is not Git or its command line cannot be read.
-/// Why:
-///   Git runs its subcommands as `git <name>`, so the process's own name says only `git`; the command line says which part of
-///  the push it is. Options before the subcommand (`-c name=value`, `-C directory`) are skipped with their values.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [program, ...args] = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0'); return args.find((word) => !word.startsWith('-'));
-/// ```
-#[cfg(target_os = "linux")]
-fn git_subcommand_of(pid: i32) -> Option<String> {
-    let bytes: Vec<u8> = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
-    let mut words = bytes.split(|byte| { return *byte == 0; }).map(|word| { return String::from_utf8_lossy(word).into_owned(); });
-    let program: String = words.next()?;
-    if !program.rsplit('/').next().is_some_and(|name| { return name == "git"; }) {
-        return None;
-    }
-    while let Some(word) = words.next() {
-        // `-c name=value` and `-C directory` take the next word as their value.
-        if word == "-c" || word == "-C" {
-            let _value = words.next();
-            continue;
-        }
-        if word.starts_with('-') {
-            continue;
-        }
-        return Some(word);
-    }
-    return None;
-}
-
-/// Only Linux reads the command line of a process; elsewhere no subcommand is found.
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(target_os = "linux"))]
-fn git_subcommand_of(_pid: i32) -> Option<String> {
-    return None;
-}
-
 /// Whether this system counts the bytes of a process at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -210,15 +178,12 @@ pub struct Meter {
     socket_moved: u64,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
-    /// Whether a process of the tree was making the pack (`git pack-objects`) at the last sample.
-    packing: bool,
-    /// Whether a process of the tree was sending the pack for a stateless transport (`git send-pack`) at the last sample.
-    sending: bool,
-    /// Whether any sample found the pack being made: a pack that was made and is no longer is a pack sent.
-    pack_was_made: bool,
+    /// How many times a sample listed the processes of the whole machine to find the tree; a stand-in for the cost of a
+    ///  sample, which grows with the number of processes the machine runs.
+    scans: u64,
 }
 
-/// What a push that has sent its pack and waits for the server's checks has shown, once it has waited for the stall window.
+/// What a push that waits for its remote with the connection open has shown, once it has been silent for the stall window.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WaitReport {
     /// How long the tree has shown no sign of work, with its connection open.
@@ -238,36 +203,30 @@ impl Meter {
         return self.moved.saturating_add(self.socket_moved);
     }
 
+    /// How many samples listed the machine's processes to find the tree.
+    pub fn scans(&self) -> u64 {
+        return self.scans;
+    }
+
     /// Every byte the tree's connected sockets have sent (acknowledged) or received since the first sample.
     pub fn socket_bytes(&self) -> u64 {
         return self.socket_moved;
     }
 
-    /// Whether the last sample found the pack sent and the connection to the remote open: some process of the tree holds a
-    ///  connected socket, none is making the pack, and either the pack was seen being made or `git send-pack` (what a stateless
-    ///  transport starts once the remote's refs are known) is below the push. A connection with neither sign is still waiting
-    ///  for the remote's first answer, which is a stall.
-    pub fn waiting_on_server(&self) -> bool {
-        return self.connected && !self.packing && (self.sending || self.pack_was_made);
+    /// Whether the last sample found the connection to a remote open: some process of the tree holds a socket in state
+    ///  `ESTABLISHED`. This is the whole evidence of "connected"; the phase of the push (making the pack, sent, checked)
+    ///  is not consulted, because a connection that is open is a remote that has not answered yet, whatever the phase.
+    ///  Where the kernel's socket list cannot be read, nothing says the connection is open, and the stall rule applies.
+    pub fn connected(&self) -> bool {
+        return self.connected;
     }
 
-    /// Take one look at the connected sockets of the tree, and at the processes that say how far the push is: true when a socket
-    ///  carried bytes since the last look.
+    /// Take one look at the connected sockets of the tree: true when a socket carried bytes since the last look.
     fn observe_sockets(&mut self, members: &[TreeMember]) -> bool {
         let mut held: Vec<u64> = Vec::new();
-        let mut packing: bool = false;
-        let mut sending: bool = false;
         for member in members {
             held.extend(socket_inodes_of(member.pid));
-            match git_subcommand_of(member.pid).as_deref() {
-                Some("pack-objects") => packing = true,
-                Some("send-pack") => sending = true,
-                _ => {}
-            }
         }
-        self.packing = packing;
-        self.sending = sending;
-        self.pack_was_made |= packing;
         self.connected = false;
         if held.is_empty() {
             return false;
@@ -303,8 +262,24 @@ impl Meter {
     /// Read the counters and the states of the root and everything below it; true when any of them shows work since the last
     ///  sample. A root that cannot be read (it ended) shows nothing.
     pub fn sample(&mut self, root: i32) -> bool {
+        return self.look(root, true);
+    }
+
+    /// The first look at a child that has just been started: the root alone.
+    ///  Nothing is below a process that has just been started, and a process it starts later is found by the next sample and
+    ///  counted at the first sight, so the listing of every process the machine runs (a status file for each, 7 ms for 841
+    ///  processes) would find nothing and be paid by every Git the wrapper starts, however briefly it lives.
+    pub fn sample_root(&mut self, root: i32) -> bool {
+        return self.look(root, false);
+    }
+
+    /// One look at the root, and at everything below it when `whole_tree` asks for it.
+    fn look(&mut self, root: i32, whole_tree: bool) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
-        members.extend(descendants_of(root));
+        if whole_tree {
+            self.scans += 1;
+            members.extend(descendants_of(root));
+        }
         let mut progressed: bool = false;
         for member in &members {
             let bytes: Option<u64> = bytes_moved_by(member.pid);
@@ -327,7 +302,7 @@ impl Meter {
 }
 
 /// What:
-///  The clock of one bounded child: it says when the child has stalled, run past its ceiling or passed its fixed deadline.
+///  The clock of one bounded child: it says when the child has stalled or passed its fixed deadline.
 /// Why:
 ///   The waiting loop asks it every few milliseconds; it reads the counters only every `SAMPLE_INTERVAL`.
 ///
@@ -338,7 +313,7 @@ impl Meter {
 pub struct Clock {
     /// The process whose tree is measured.
     root: i32,
-    /// What the child may do: a fixed time, or a stall window under a ceiling.
+    /// What the child may do: a fixed time, or a stall window that an open connection suspends.
     patience: Patience,
     /// When the child started.
     started: Instant,
@@ -348,33 +323,67 @@ pub struct Clock {
     next_sample: Instant,
     /// The counters, or nothing where the system does not count bytes and the stall window is a fixed deadline.
     meter: Option<Meter>,
-    /// Whether a push that has sent its pack and holds its connection is waiting for the server, not stalled.
-    awaits_server: bool,
-    /// Since when the tree has shown no sign of work while it waited for the server; nothing while it did or does not wait.
+    /// Since when the tree has shown no sign of work while its connection was open; nothing while it did or was not.
     waiting_since: Option<Instant>,
-    /// The wait, once the stall window has run out with the pack sent and the connection open.
+    /// The wait, once the stall window has run out with the connection open.
     waited: Option<WaitReport>,
     /// Whether the wait has been handed to the caller (`take_wait_note`), which says so once.
     wait_noted: bool,
+    /// The longest stretch between two samples that showed a sign of work, as far as the samples saw (the resolution is
+    ///  `SAMPLE_INTERVAL`); a connected wait is not a quiet stretch.
+    longest_quiet: Duration,
+    /// Whether the first look, which is of the root alone, has been taken.
+    looked: bool,
+    /// Whether a system that counts nothing falls back to the stall window as a fixed deadline; a run that must never end by
+    ///  wall time clears it and then goes unjudged where nothing is counted.
+    wall_fallback: bool,
+    /// How long a tree with an open connection may show no sign of work before it is stopped (`wait_ceilings.rs`).
+    connected_window: Duration,
 }
 
 impl Clock {
     /// Start the clock of a child that has just been started.
     pub fn start(pid: u32, patience: Patience) -> Self {
         let now: Instant = Instant::now();
-        let measured: bool = matches!(patience, Patience::Progress { .. } | Patience::Push { .. }) && system_measures();
+        let measured: bool = matches!(patience, Patience::Progress { .. }) && system_measures();
         return Self {
             root: i32::try_from(pid).unwrap_or(i32::MAX),
             patience,
             started: now,
             last_progress: now,
             next_sample: now,
+            looked: false,
             meter: if measured { Some(Meter::new()) } else { None },
-            awaits_server: matches!(patience, Patience::Push { .. }),
             waiting_since: None,
             waited: None,
             wait_noted: false,
+            longest_quiet: Duration::ZERO,
+            wall_fallback: true,
+            connected_window: CONNECTED_PUSH_QUIET_WINDOW,
         };
+    }
+
+    /// The same clock for a run that must never end by wall time: where nothing is counted it is never judged stalled.
+    pub fn without_wall_fallback(mut self) -> Self {
+        self.wall_fallback = false;
+        return self;
+    }
+
+    /// The same clock with another window for a tree whose connection is open and silent.
+    pub fn with_connected_window(mut self, window: Duration) -> Self {
+        self.connected_window = window;
+        return self;
+    }
+
+    /// Whether this clock reads the tree's signs of work at all (Linux with `/proc/<pid>/io`), so a stall means quiet time.
+    pub fn measures(&self) -> bool {
+        return self.meter.is_some();
+    }
+
+    /// The longest stretch with no sign of work so far, the one still running included. A step that ended by itself gives the
+    ///  figure of a healthy step, which is what an interval must be set above.
+    pub fn longest_quiet(&self) -> Duration {
+        return self.longest_quiet.max(Instant::now().saturating_duration_since(self.last_progress));
     }
 
     /// The same clock as on a system that counts no bytes, for the control of that fallback.
@@ -384,7 +393,7 @@ impl Clock {
         return self;
     }
 
-    /// The wait the clock has let pass instead of a stop, once the stall window ran out with the pack sent and the connection open.
+    /// The wait the clock has let pass instead of a stop, once the stall window ran out with the connection open.
     pub fn wait_report(&self) -> Option<WaitReport> {
         return self.waited;
     }
@@ -408,33 +417,38 @@ impl Clock {
     pub fn check(&mut self) -> Option<StopCause> {
         let now: Instant = Instant::now();
         let elapsed: Duration = now.duration_since(self.started);
-        let (stall, ceiling): (Duration, Duration) = match self.patience {
+        let stall: Duration = match self.patience {
             Patience::Fixed(limit) => return (elapsed >= limit).then_some(StopCause::Deadline),
-            Patience::Progress { stall, ceiling } | Patience::Push { stall, ceiling } => (stall, ceiling),
+            Patience::Progress { stall } => stall,
         };
         let Some(meter) = self.meter.as_mut() else {
-            // Nothing is measured here, so the stall window is the whole deadline.
-            return (elapsed >= stall).then_some(StopCause::Deadline);
+            // Nothing is measured here, so the stall window is the whole deadline, unless the run must never end by wall time.
+            return (self.wall_fallback && elapsed >= stall).then_some(StopCause::Deadline);
         };
         if now >= self.next_sample {
-            if meter.sample(self.root) {
+            let progressed: bool = if self.looked { meter.sample(self.root) } else { meter.sample_root(self.root) };
+            self.looked = true;
+            if progressed {
+                self.longest_quiet = self.longest_quiet.max(now.saturating_duration_since(self.last_progress));
                 self.last_progress = now;
                 self.waiting_since = None;
-            } else if self.awaits_server && meter.waiting_on_server() {
-                // The pack is sent and the connection is open: the server is checking the push, which shows nothing here.
-                //  The silence of a wait is not counted against the window, so a connection that closes gets a whole window.
+            } else if meter.connected() {
+                // The connection to the remote is open: the remote has not answered yet, which shows nothing here. The silence of
+                //  a wait is not counted against the window, so a connection that closes gets a whole window.
                 let since: Instant = *self.waiting_since.get_or_insert(now);
                 self.last_progress = now;
                 if self.waited.is_none() && now.duration_since(since) >= stall {
                     self.waited = Some(WaitReport { silent: now.duration_since(since), elapsed });
                 }
+                // The owner, 2026-11-03: "Bound it, keep retrying". A connection that stays open and silent for the connected
+                //  window ends the push as a stall; the service's retry plan keeps the push and tries it again.
+                if now.duration_since(since) >= self.connected_window {
+                    return Some(StopCause::Stalled(self.report(self.connected_window, now)));
+                }
             } else {
                 self.waiting_since = None;
             }
             self.next_sample = now + SAMPLE_INTERVAL;
-        }
-        if elapsed >= ceiling {
-            return Some(StopCause::Ceiling(self.report(ceiling, now)));
         }
         if now.duration_since(self.last_progress) >= stall {
             return Some(StopCause::Stalled(self.report(stall, now)));

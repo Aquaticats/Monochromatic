@@ -43,7 +43,8 @@ use super::service_land_follow::{IndexPaths, update_index};
 use super::service_pruned::reach_service_phase;
 use super::transaction_phase::Phase;
 use super::service_protocol::{ALLOWED_MODES, Change, Cleanup, MAX_CHANGES, is_object_name, is_plain_path};
-use super::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_committed_result, capture_stamp, first_landed, merge_captured};
+use super::merge_second_pass::Merged as MergedFile;
+use super::service_replay::{MergeSite, Merged, ReplayConflict, Retry, already_committed_result, capture_stamp, first_landed, merge_captured, word_merge_notice};
 use super::external_hooks::warn_external_hooks;
 use super::traditional_hook_warning::warn_traditional_hooks;
 use super::transaction_git::{GitContext, run_git_checked};
@@ -127,6 +128,9 @@ pub struct Ready {
     /// The paths this commit commits that the unfinished merge or pick left in conflict. Their worktree bytes, conflict markers
     ///  included, are what is committed; the person is warned once the commit has landed (`conflicted_path_warning`).
     pub committed_conflicted: Vec<Vec<u8>>,
+    /// The operation a commit of named paths leaves in progress: the merge or the cherry-pick whose state the commit does not
+    ///  conclude. The person is told once the commit has landed.
+    pub leaves_open: Option<Conclusion>,
 }
 
 /// The all-zero object name of the repository's hash length, standing for a branch that does not exist yet.
@@ -303,6 +307,8 @@ pub fn prepare<F: RepositoryFacts>(
         stage_tracked_changes: selection.staged_all,
         base_revision: base.as_str(),
     };
+    // The parts the word-level second pass merged when a retry combined the change with the branch, told with the commit.
+    let mut word_merge_events: Option<PolicyEvent> = None;
     if let Some(again) = retry {
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
@@ -312,18 +318,20 @@ pub fn prepare<F: RepositoryFacts>(
             object_directory: indexes.object_directory.as_path(),
             scratch: scratch.0.as_path(),
         };
-        match merge_captured(&site, again.captured, base.as_str(), again.attempt)? {
+        let (tree, combined): (String, Vec<MergedFile>) = match merge_captured(&site, again.captured, base.as_str(), again.attempt)? {
             Merged::Conflict(paths) => {
                 let landed = first_landed(context, cwd, again.captured.base.as_str(), base.as_str(), paths.as_slice())?;
                 return Ok(Prepared::Conflict(Box::new(ReplayConflict { paths, landed, git_dir: capture.layout.git_dir.clone() })));
             }
-            Merged::Tree(tree) => {
-                run_git_checked(
-                    context,
-                    &indexed_request(cwd, &["read-tree", tree.as_str()], Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
-                )?;
-            }
-        }
+            Merged::Tree(tree) => (tree, Vec::new()),
+            Merged::Combined { tree, files } => (tree, files),
+        };
+        run_git_checked(
+            context,
+            &indexed_request(cwd, &["read-tree", tree.as_str()], Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
+        )?;
+        // Every part the word pass merged is told to the person with the commit and sent to the journal.
+        word_merge_events = word_merge_notice(combined.as_slice());
     } else {
         initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
             .map_err(|error| { return failed(error.0); })?;
@@ -373,6 +381,7 @@ pub fn prepare<F: RepositoryFacts>(
             fixed_parents,
             captured_at,
             committed_conflicted: Vec::new(),
+            leaves_open: None,
         });
     };
     // Files still unmerged when the commit names no paths: Git refuses here (`builtin/commit.c:348`, `refresh_cache_or_die`, which
@@ -436,14 +445,18 @@ pub fn prepare<F: RepositoryFacts>(
             return normalized(invocation, &capture, base.as_str(), &candidate_paths, records.as_slice(), &(pass.events, changed_passes, changed_paths));
         }
     }
-    let events: Vec<PolicyEvent> = events_with_changed_summary(pass.events.clone(), changed_passes, changed_paths.as_slice());
+    let mut events: Vec<PolicyEvent> = events_with_changed_summary(pass.events.clone(), changed_passes, changed_paths.as_slice());
+    events.extend(word_merge_events);
     let changes: Option<Vec<Change>> = if config_native || unborn || detached || state_present { None } else { changes_of(context, cwd, &indexes, base.as_str())? };
     let forced: bool = config_native || unborn || detached || state_present || changes.is_none();
+    // A commit of named paths leaves the merge or cherry-pick whose state it does not conclude in progress.
+    let leaves_open: Option<Conclusion> = Some(capture.layout.conclusion).filter(|kind| { return named && matches!(kind, Conclusion::Merge | Conclusion::CherryPick); });
     let mut ready: Box<Ready> = by_git(capture, events, changes, records, pass.arguments.clone(), scratch);
     ready.needs_native = forced;
     // A path in conflict that the commit takes is committed with the bytes the worktree holds, markers included.
     ready.committed_conflicted = unmerged_before.into_iter().filter(|path| { return candidate_paths.contains(path); }).collect();
     ready.committed_conflicted.extend(unmerged_files);
+    ready.leaves_open = leaves_open;
     return Ok(Prepared::Ready(ready));
 }
 
@@ -458,7 +471,7 @@ fn normalized(
     settled: &(Vec<PolicyEvent>, u64, Vec<Vec<u8>>),
 ) -> Result<Prepared, TransactionStop> {
     let (events, passes, changed_paths) = settled;
-    update_index(invocation.context, capture.layout.repository_root.as_path(), base, IndexPaths::Named(committed))
+    update_index(invocation.context, capture.layout.repository_root.as_path(), capture.layout.real_index_path.as_path(), base, IndexPaths::Named(committed))
         .map_err(|code| { return failed(format!("the index could not be reconciled with the corrected files: {}", code.word())); })?;
     let completion = install_added_worktree_files(
         invocation.context,

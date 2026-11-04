@@ -6,8 +6,8 @@
 //! the watch wakes it when the lock is removed or moved away,
 //! when the kernel reports an overflow that may have hidden that,
 //! or when the watch itself ended (the directory was unmounted or removed).
-//! Platforms without inotify have no watch,
-//! and a held lock fails there at once with the plain message.
+//! Where no watch can be set (the platform has none, the watch limit is reached, or the file system gives none),
+//! the waits look at the lock again after `POLL_PAUSE` instead of failing or waiting blind.
 //! The module is split from `service_index_lock.rs`,
 //! which re-exports everything here under its old names.
 //!
@@ -18,6 +18,12 @@
 
 use std::path::Path;
 use std::time::{Duration, Instant};
+
+/// How long a wait that has no watch sleeps between two looks at the lock.
+///  This is a poll pace, not a limit: it decides how soon a release is noticed, never whether a wait ends. The measured holds of
+///  Git's own short commands in this repository were 15 to 100 ms (2026-11-03, measured at `INDEX_ATTEMPTS` in `service_land_follow.rs`), so fifty milliseconds
+///  notices a typical release within one hold.
+pub const POLL_PAUSE: Duration = Duration::from_millis(50);
 
 #[cfg(test)]
 thread_local! {

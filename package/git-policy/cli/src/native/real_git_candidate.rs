@@ -6,6 +6,7 @@
 //!  The wrapper shadows `git` on PATH and must never select itself,
 //!  a copy of
 //!      itself,
+//!  a toolchain launcher that replaces itself with the wrapper,
 //!  or a script that starts the TypeScript wrapper.
 //!
 //! In TS you'd write (pseudocode):
@@ -113,6 +114,7 @@ pub enum CandidateKind {
     RealGit,
     /// This executable,
     ///  a byte-identical copy of it,
+    ///  a toolchain launcher with a record naming this wrapper,
     ///  or a script starting the TypeScript wrapper.
     Wrapper,
     /// Missing,
@@ -359,14 +361,119 @@ fn read_up_to(file: &mut std::fs::File, limit: usize) -> Option<Vec<u8>> {
 }
 
 /// What:
+///  The suffix of the record a toolchain launcher keeps beside it, `<launcher>.launch`.
+///       `&str` is a borrowed text baked into the program.
+/// Why:
+///   The repository's `mpm-shadow` writes the record when it installs a launcher
+///  (`package/mpm-shadow/cli/src/toolchain/launcher.rs`, `RECORD_SUFFIX`); the wrapper reads the same file to learn what
+///  a launcher on PATH leads to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LAUNCH_RECORD_SUFFIX = '.launch';
+/// ```
+pub const LAUNCH_RECORD_SUFFIX: &str = ".launch";
+
+/// What:
+///  Report whether a launch record's text names this wrapper: its tool is this crate, or the file it replaces itself
+///  with is this executable.
+///       `Option<&Path>` is "this executable's path, or nothing when the caller has none".
+///       `serde_json::Value` is a parsed JSON document (siblings: a typed struct, which would need a derive macro).
+/// Why:
+///   The launcher of another release of the wrapper has a record naming a different file, so the file the record names
+///  cannot decide alone; the tool id is the same for every release. Both are read from the record; neither starts
+///  anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recordNamesThisWrapper(record: string, own?: string): boolean {
+///   const { toolId, real } = JSON.parse(record);
+///   return toolId.split(':').at(-1) === 'monochromatic-git-policy-cli' || (own !== undefined && sameFile(real, own));
+/// }
+/// ```
+pub fn record_names_this_wrapper(record: &[u8], own_executable: Option<&Path>) -> bool {
+    // `let Ok(x) = ... else { return ...; };` unwraps a success or leaves the function; a record that is not JSON is no record.
+    let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(record) else {
+        return false;
+    };
+    // `.get("toolId")` looks a key up; `.and_then(serde_json::Value::as_str)` turns a JSON string into a borrowed `&str`.
+    if let Some(tool_id) = parsed.get("toolId").and_then(serde_json::Value::as_str)
+        && tool_id.rsplit(':').next() == Some(env!("CARGO_PKG_NAME"))
+    {
+        return true;
+    }
+    if let Some(own) = own_executable
+        && let Some(real) = parsed.get("real").and_then(serde_json::Value::as_str)
+    {
+        return same_file(Path::new(real), own);
+    }
+    return false;
+}
+
+/// What:
+///  Read the launch record at `record` if there is one, bounded.
+///       `Option<Vec<u8>>` is the owned bytes, or nothing when there is no readable record.
+/// Why:
+///   Most candidates (the real Git among them) have no record, and the open of a file that is not there is the whole
+///  cost. A record is a few hundred bytes; the same bound as a script's keeps an odd file from controlling the read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function readRecord(path: string): Promise<Buffer | undefined>;
+/// ```
+fn read_launch_record(record: &Path) -> Option<Vec<u8>> {
+    // `std::fs::File::open(..).ok()?` opens the file, turning a failure (usually "not there") into `None`.
+    let mut file: std::fs::File = std::fs::File::open(record).ok()?;
+    return read_up_to(&mut file, MAX_SCRIPT_INSPECTION_BYTES);
+}
+
+/// What:
+///  Report whether the candidate is a toolchain launcher of this wrapper: a file with a launch record beside it that
+///  names this wrapper.
+///       The record is looked for beside the candidate's own name and beside the file its links finally lead to.
+/// Why:
+///   A launcher replaces itself with the wrapper's executable, which is another file with other bytes, so the file
+///  checks of the identity test miss it; the record beside it says what it leads to. A symlink named `git` that points
+///  at a launcher has no record of its own, so the file it leads to is checked as well.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isWrapperLauncher(candidate: string, own?: string): boolean {
+///   return [candidate, realpathOrUndefined(candidate)].some((p) => p && recordNamesThisWrapper(readOrUndefined(p + '.launch'), own));
+/// }
+/// ```
+pub fn is_wrapper_launcher(candidate: &Path, own_executable: Option<&Path>) -> bool {
+    let mut spellings: Vec<std::path::PathBuf> = vec![candidate.to_path_buf()];
+    // `if let Ok(x) = ...` runs only when the links could be resolved; a dangling link has no record to read.
+    if let Ok(canonical) = std::fs::canonicalize(candidate)
+        && canonical != candidate
+    {
+        spellings.push(canonical);
+    }
+    for spelling in &spellings {
+        let mut record_name: std::ffi::OsString = spelling.as_os_str().to_os_string();
+        record_name.push(LAUNCH_RECORD_SUFFIX);
+        if let Some(record) = read_launch_record(Path::new(&record_name))
+            && record_names_this_wrapper(record.as_slice(), own_executable)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Classify one candidate against this wrapper's own executable.
 /// Why:
 ///   This is the whole self-exclusion decision:
 ///  the same file (any link or
 ///       spelling),
+///  a toolchain launcher of this wrapper,
 ///  an identical copy,
 ///  or a TypeScript-wrapper launcher is a wrapper;
 ///       any other executable regular file is Git.
+///  Another release of the wrapper behind no record and no marker string cannot be told here; the marker every
+///  real-Git start carries (`started_as_git.rs`) stops it when it arrives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -388,7 +495,10 @@ pub fn classify_candidate(candidate: &Path, own_executable: &Path) -> CandidateK
     if !metadata.is_file() || !is_executable(&metadata) {
         return CandidateKind::Unusable;
     }
-    if same_file(candidate, own_executable) || identical_content(candidate, own_executable) {
+    if same_file(candidate, own_executable)
+        || is_wrapper_launcher(candidate, Some(own_executable))
+        || identical_content(candidate, own_executable)
+    {
         return CandidateKind::Wrapper;
     }
     // `mut file`: reading advances the open file, which counts as modifying it.

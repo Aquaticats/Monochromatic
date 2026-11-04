@@ -16,7 +16,8 @@
 use super::diagnostic_log::debug;
 use super::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
 use super::iso_time::now_iso;
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, wake};
+use super::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
+use super::service_protocol::HEARTBEAT_SILENCE;
 use super::service_messages::{ClientFailure, render};
 use super::service_provision::{ProvisionHost, provision};
 use super::service_route::{Route, route_from_environment};
@@ -149,7 +150,14 @@ fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &Tra
     {
         return Handed::Here { record: Some(record), why: render(&failure) };
     }
-    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: reach.start_wait, commit_wait: COMMIT_WAIT };
+    let config: ClientConfig = ClientConfig {
+        address,
+        activation: Activation::Managed,
+        start_wait: reach.start_wait,
+        heartbeat_silence: HEARTBEAT_SILENCE,
+        start_watch: host.as_ref().map(manager_watch_for),
+        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, start_ceiling: crate::wait_ceilings::START_CEILING,
+    };
     return match wake(&config, git_dir, None, notices) {
         Ok(()) => Handed::Service,
         Err(failure) => Handed::Here { record: Some(record), why: render(&failure) },

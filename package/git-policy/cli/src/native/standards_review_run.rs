@@ -1,11 +1,13 @@
 //! What:
 //!  The standards-review shadow run, end to end and in-process: classify the landed commit's names, read the commit,
-//!  build the capped input, call the gateway, and append the one log entry. Also a bounded runner that gives a caller a
-//!  hard time limit over all of it.
+//!  build the capped input, call the gateway, and append the one log entry. Also a runner that contains a panic of any of it.
 //! Why:
 //!  This replaces the root `mise.toml` task `shadow-review` (its Luna route; the `SHADOW_REVIEW_ALLOW=1` route starts
 //!  `pi` and is not ported). The review must never delay or fail a landing, so nothing here panics or returns a failure
-//!  the landing would act on, and `run_within` abandons the work when the time is up. Nothing calls this yet.
+//!  the landing would act on. No wall-clock budget covers the run (owner, 2026-11-03: "Stop only on no progress"; pick 9 of
+//!  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to the owner's
+//!  veto): each step of it ends on no progress by itself, the Git reads under the watch of `child_watch.rs` and the gateway call
+//!  under the idle timeouts of `standards_review_client.rs`. The one step with no judge is the local write of the log entry.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,7 +15,7 @@
 //! ```
 
 use super::iso_time::format_iso_milliseconds;
-use super::standards_review_client::{Gateway, Reply, SCRIPT_DEADLINE, post_decision};
+use super::standards_review_client::{Gateway, Reply, SCRIPT_QUIET_WINDOW, post_decision};
 use super::standards_review_append::{deliver, names_commit};
 use super::standards_review_entry::{ReviewEntry, render_review, render_skipped};
 use super::standards_review_input::{LandedCommit, Plan, ReviewInput, build_input, plan_for, shared_log_path};
@@ -41,11 +43,11 @@ pub const NO_KEY_MESSAGE: &str = "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_RE
 /// What:
 ///  What the run was told: the log, the credential, and where and how long to call.
 /// Why:
-///   Production passes `ENDPOINT` and `SCRIPT_DEADLINE`; tests pass a loopback URL and a short deadline.
+///   Production passes `ENDPOINT` and `SCRIPT_QUIET_WINDOW`; tests pass a loopback URL and a short quiet window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ReviewOptions = { logPath: string; apiKey?: string; endpoint: string; deadline: number };
+/// type ReviewOptions = { logPath: string; apiKey?: string; endpoint: string; quietWindow: number };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ReviewOptions {
@@ -55,8 +57,8 @@ pub struct ReviewOptions {
     pub api_key: Option<String>,
     /// The decisions endpoint.
     pub endpoint: String,
-    /// The gateway call's total time.
-    pub deadline: Duration,
+    /// How long the gateway call may stay silent before it is ended.
+    pub quiet_window: Duration,
     /// A PEM authority replacing the embedded roots (tests only).
     pub trusted_pem: Option<Vec<u8>>,
 }
@@ -74,7 +76,7 @@ pub struct ReviewOptions {
 pub fn options_from_environment(common_dir: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
     let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return shared_log_path(common_dir), PathBuf::from);
     let api_key: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| return variable(KEY_VARIABLES[1]));
-    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), deadline: SCRIPT_DEADLINE, trusted_pem: None };
+    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, trusted_pem: None };
 }
 
 /// What:
@@ -130,7 +132,7 @@ fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
     if key.is_empty() {
         return failed(String::from(NO_KEY_MESSAGE));
     }
-    let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, deadline: options.deadline, trusted_pem: options.trusted_pem.as_deref() };
+    let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, trusted_pem: options.trusted_pem.as_deref() };
     let reply: Result<Reply, String> = post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
     return match reply.and_then(|answer| return read_answer(answer.status, answer.body.as_str())) {
         Ok(judged) => judged,
@@ -196,17 +198,16 @@ pub fn review_landed(
 }
 
 /// What:
-///  Run `job` on a helper thread and wait at most `limit`; `None` means the time ran out and the job was abandoned.
-///  An abandoned job keeps running until the process exits, which is the end of the wrapper command.
+///  Run `job` on a helper thread and wait for it; `None` means the job panicked.
 /// Why:
-///   This is the hard bound over the Git reads, the call and the log write together: the landing's caller waits `limit`
-///   at most. A job that panics also gives `None`.
+///   The review shares the service's work thread, so a panic in any step must cost one failed item and never the thread. No
+///  time limit applies: each step of the job ends on no progress by itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await Promise.race([job(), wait(limit).then(() => undefined)])
+/// await job().catch(() => undefined)
 /// ```
-pub fn run_within<T: Send + 'static>(limit: Duration, job: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static) -> Option<T> {
     let (sender, receiver) = mpsc::channel::<T>();
     let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
         let _ = sender.send(job());
@@ -214,7 +215,7 @@ pub fn run_within<T: Send + 'static>(limit: Duration, job: impl FnOnce() -> T + 
     if worker.is_err() {
         return None;
     }
-    return receiver.recv_timeout(limit).ok();
+    return receiver.recv().ok();
 }
 
 /// Controls stay out of the release executable.

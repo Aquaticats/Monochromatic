@@ -33,18 +33,12 @@ const CONDITION_PATIENCE: Duration = Duration::from_secs(30);
 /// How often a wait for a condition looks again.
 const CONDITION_POLL: Duration = Duration::from_millis(50);
 
-/// The wait limit the controls hand a command that would wait: short, so a regression fails in seconds, not minutes.
-const SHORT_WAIT_SECONDS: &str = "2";
-
 /// The destination whose smudge filter stalls until the release file appears.
 const HELD_NAME: &str = "held";
 
 /// How many tenths of a second the stalled filter looks for the release file before it gives up on its own, so a control
 /// that failed or was killed leaves no Git behind.
 const FILTER_POLLS: u32 = 600;
-
-/// The environment variable that used to bound the wait for the settlement lock.
-const WAIT_VARIABLE: &str = "CLI_GIT_LOCK_WAIT_SECONDS";
 
 /// A fixture repository whose smudge filter stalls the checkout of the worktree named `held` until `release` exists.
 /// The untracked file leaves the checkout to Git on every host, so the filter really runs.
@@ -84,7 +78,7 @@ impl Held {
             wrapper_first_path(&self.fixture).as_os_str(),
             HELD_BOUND_SECONDS,
         );
-        command.current_dir(directory).args(arguments).env(WAIT_VARIABLE, SHORT_WAIT_SECONDS);
+        command.current_dir(directory).args(arguments);
         return command;
     }
 

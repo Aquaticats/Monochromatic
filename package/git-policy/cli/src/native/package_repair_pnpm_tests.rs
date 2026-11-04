@@ -15,7 +15,7 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
     std::fs::create_dir_all(destination.join("node_modules")).expect("node_modules");
     std::fs::create_dir_all(&bin).expect("bin");
     std::fs::write(destination.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
-    let environment: RepairEnvironment = RepairEnvironment { search_path: Some(bin.clone().into_os_string()), tool_limit: Duration::from_secs(60), workers: 1 };
+    let environment: RepairEnvironment = RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), workers: 1 };
     return (root, destination, bin, environment);
 }
 
@@ -61,14 +61,14 @@ fn a_failure_names_a_command_that_runs_from_anywhere() {
     remove(&root);
 }
 
-/// A pnpm that runs past its limit is stopped and reported, not waited for.
+/// A pnpm that shows no sign of work for its window is stopped and reported, not waited for.
 #[test]
 fn a_slow_pnpm_is_stopped_and_reported() {
     let (root, destination, bin, mut environment) = scene("pnpm-slow");
-    environment.tool_limit = Duration::from_millis(300);
+    environment.quiet_window = Duration::from_millis(300);
     executable(bin.join("pnpm").as_path(), b"#!/bin/sh\nexec sleep 30\n");
     let finding: Finding = repair_pnpm(destination.as_path(), &environment).expect("a finding");
     let Outcome::Failed { reason, .. } = finding.outcome else { panic!("expected a failure") };
-    assert!(reason.contains("time"), "{reason}");
+    assert!(reason.contains("no sign of work"), "{reason}");
     remove(&root);
 }

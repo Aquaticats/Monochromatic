@@ -27,8 +27,6 @@ use super::forwarding::{ChildOutcome, exit_code, outcome_of};
 use super::lfs_pre_push::{failed_message, find_program, missing_program_message};
 /// Hides the credentials in a URL of relayed text.
 use super::lfs_output_mask::{mask_userinfo, mask_userinfo_text};
-/// Which failures are run again, and after how long.
-use super::lfs_server_retry::{next_delay, retry_delays, retry_notice};
 use super::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
 use super::scratch_location::scratch_file;
@@ -127,8 +125,7 @@ const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
 ///  credentials of every URL in it hidden.
 /// Why:
 ///   Standard output stays the caller's, so the progress meter is unchanged. The standard error is where `git-lfs`
-///  prints its errors, which the parent must read (to tell a server error from a refused credential) and which can
-///  carry the `lfs.url` token, so it is relayed only after its URLs are masked. A file needs no reader thread that a
+///  prints its errors, which can carry the `lfs.url` token, so it is relayed only after its URLs are masked. A file needs no reader thread that a
 ///  stuck helper could keep alive.
 ///
 /// In TS you'd write (pseudocode):
@@ -169,8 +166,7 @@ fn run_with_captured_stderr(
 fn capture_failed_message(why: &str) -> String {
     return format!(
         "cli-git: this push was stopped before it sent anything. The wrapper reads the output of `git-lfs push` through \
-         a private temporary file, to run it again after a server error and to hide the credentials in the URLs it \
-         names, and that file could not be made ({why}). Ways forward: fix the cause named in the parentheses (the \
+         a private temporary file, to hide the credentials in the URLs it names, and that file could not be made ({why}). Ways forward: fix the cause named in the parentheses (the \
          wrapper needs a writable `XDG_STATE_HOME`, or a `HOME`, for its private scratch directory) and push again; or \
          skip the upload for this push with `GIT_LFS_SKIP_PUSH=1` or `git push --no-verify`, which publishes pointer \
          files without their objects.\n"
@@ -206,54 +202,44 @@ pub fn run_upload_interactive(
         // Terminal output error: the notice is advisory.
         let _written = diagnostics.write_all(submodule_notice().as_bytes());
     }
+    // A server error (an HTTP 5xx answer of the LFS server) is not run again here: it is outside our control, like a network that
+    //  is down, and the commit service's push retry plan tries the push again by itself (pick 12 of
+    //  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation). A typed push ends and says so.
     for arguments in plan.remotes.iter().flat_map(|remote| { return plan.runs(remote.as_os_str()); }) {
-        let delays: Vec<std::time::Duration> = retry_delays(environment);
-        let mut retries_done: usize = 0;
-        loop {
-            let mut command: Command = Command::new(&program);
-            command
-                .current_dir(directory)
-                .args(arguments.as_slice())
-                .env("PATH", path_with_real_git_first(environment, real_git));
-            for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
-                command.env(name, value);
-            }
-            let (ended, relayed): (ChildOutcome, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
-                Ok(finished) => finished,
-                Err(CaptureError::Scratch(why)) => {
-                    // Terminal output error: the exit status already carries the refusal.
-                    let _written = diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
-                    return Some(1);
-                }
-                Err(CaptureError::Start) => {
-                    // Terminal output error: see above.
-                    let _written = diagnostics.write_all(missing_program_message().as_bytes());
-                    return Some(1);
-                }
-            };
-            // Terminal output error: the program's own words are advisory; the exit status carries the result.
-            let _relayed = diagnostics.write_all(relayed.as_slice());
-            let code: i32 = exit_code(ended);
-            if code == 0 {
-                break;
-            }
-            if matches!(ended, ChildOutcome::Exited(_))
-                && let Some(delay) = next_delay(String::from_utf8_lossy(relayed.as_slice()).as_ref(), retries_done, delays.as_slice())
-            {
-                // Terminal output error: see above.
-                let _written = diagnostics.write_all(retry_notice(delay, retries_done, delays.len()).as_bytes());
-                retries_done += 1;
-                std::thread::sleep(delay);
-                continue;
-            }
-            let description: String = match ended {
-                ChildOutcome::Exited(status) => format!("exited with status {status}"),
-                ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
-            };
-            // Terminal output error: see above.
-            let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
-            return Some(code);
+        let mut command: Command = Command::new(&program);
+        command
+            .current_dir(directory)
+            .args(arguments.as_slice())
+            .env("PATH", path_with_real_git_first(environment, real_git));
+        for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
+            command.env(name, value);
         }
+        let (ended, relayed): (ChildOutcome, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
+            Ok(finished) => finished,
+            Err(CaptureError::Scratch(why)) => {
+                // Terminal output error: the exit status already carries the refusal.
+                let _written = diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
+                return Some(1);
+            }
+            Err(CaptureError::Start) => {
+                // Terminal output error: see above.
+                let _written = diagnostics.write_all(missing_program_message().as_bytes());
+                return Some(1);
+            }
+        };
+        // Terminal output error: the program's own words are advisory; the exit status carries the result.
+        let _relayed = diagnostics.write_all(relayed.as_slice());
+        let code: i32 = exit_code(ended);
+        if code == 0 {
+            continue;
+        }
+        let description: String = match ended {
+            ChildOutcome::Exited(status) => format!("exited with status {status}"),
+            ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
+        };
+        // Terminal output error: see above.
+        let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
+        return Some(code);
     }
     return None;
 }
@@ -293,49 +279,31 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     else {
         return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
     };
+    // A server error is not run again here, for the reason given in `run_upload_interactive`: the service's push retry plan
+    //  tries the push again by itself.
     for arguments in plan.remotes.iter().flat_map(|remote| { return plan.runs(remote.as_os_str()); }) {
-        let delays: Vec<std::time::Duration> = retry_delays(git.environment.as_slice());
-        let mut earlier: String = String::new();
-        let mut retries_done: usize = 0;
-        loop {
-            let mut command: Command = Command::new(&program);
-            command
-                .current_dir(&git.cwd)
-                .env_clear()
-                .envs(git.environment.iter().map(|(name, value)| {
-                    return (name, value);
-                }))
-                .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
-                .args(arguments.as_slice());
-            let attempt: PushAttempt =
-                match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
-                    Ok(finished) => finished,
-                    Err(SingleFlightError::Start(_)) => {
-                        return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
-                    }
-                    Err(other) => return Err(other),
-                };
-            if attempt.exit_code == 0 {
-                break;
-            }
-            let shown: String = mask_userinfo_text(attempt.output.as_str());
-            let delay: Option<std::time::Duration> = next_delay(shown.as_str(), retries_done, delays.as_slice())
-                .filter(|_| {
-                    return attempt.exit_code != STOPPED_EXIT_CODE;
-                });
-            let Some(wait) = delay else {
-                let joined: String = [earlier.as_str(), shown.as_str()].concat();
-                return Ok(Some(explained(PushAttempt { exit_code: attempt.exit_code, output: joined })));
+        let mut command: Command = Command::new(&program);
+        command
+            .current_dir(&git.cwd)
+            .env_clear()
+            .envs(git.environment.iter().map(|(name, value)| {
+                return (name, value);
+            }))
+            .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
+            .args(arguments.as_slice());
+        let attempt: PushAttempt =
+            match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
+                Ok(finished) => finished,
+                Err(SingleFlightError::Start(_)) => {
+                    return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
+                }
+                Err(other) => return Err(other),
             };
-            let notice: String = retry_notice(wait, retries_done, delays.len());
-            earlier.push_str(shown.as_str());
-            if !earlier.is_empty() && !earlier.ends_with('\n') {
-                earlier.push('\n');
-            }
-            earlier.push_str(notice.as_str());
-            retries_done += 1;
-            std::thread::sleep(wait);
+        if attempt.exit_code == 0 {
+            continue;
         }
+        let shown: String = mask_userinfo_text(attempt.output.as_str());
+        return Ok(Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown })));
     }
     return Ok(None);
 }

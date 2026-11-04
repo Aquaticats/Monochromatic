@@ -330,3 +330,39 @@ fn git_paths_equal_rev_parse() {
     assert!(git_path(&layout, "MERGE_HEAD").is_none());
     remove(root.as_path());
 }
+
+/// The `GIT_` variables that Git reads only to trace, to word its output, to reach a network or a tool, or to size a limit
+///  leave the environment plain: each is checked against Git 2.56.0's reader of it.
+#[test]
+fn variables_that_cannot_change_a_config_or_attribute_or_layout_answer_are_plain() {
+    for name in [
+        "GIT_EDITOR", "GIT_TRACE", "GIT_TRACE2", "GIT_TRACE2_REDACT", "GIT_TRACE_CURL", "GIT_MERGE_VERBOSITY", "GIT_FLUSH",
+        "GIT_PROGRESS_DELAY", "GIT_PRINT_SHA1_ELLIPSIS", "GIT_ADVICE", "GIT_PAGER_IN_USE", "GIT_CURL_VERBOSE", "GIT_HTTP_USER_AGENT",
+        "GIT_HTTP_LOW_SPEED_LIMIT", "GIT_SSL_NO_VERIFY", "GIT_PROXY_COMMAND", "GIT_TCP_KEEPCNT", "GIT_USER_AGENT",
+        "GIT_OVERRIDE_VIRTUAL_HOST", "GIT_PROTOCOL_FROM_USER", "GIT_EXTERNAL_DIFF", "GIT_DIFF_OPTS", "GIT_DIFFTOOL_EXTCMD",
+        "GIT_MERGETOOL_GUI", "GIT_MAN_VIEWER", "GIT_SHELL_PATH", "GIT_REFLOG_ACTION", "GIT_CHERRY_PICK_HELP", "GIT_ALLOC_LIMIT",
+        "GIT_MMAP_LIMIT", "GIT_INDEX_VERSION", "GIT_BASENAME_FACTOR", "GIT_COMMIT_GRAPH_PARANOIA", "GIT_DISABLE_UNTRACKED_CACHE",
+        "GIT_FORCE_UNTRACKED_CACHE", "GIT_AUTO_COMMENT_CHAR_CONFIG_WARNING_GIVEN",
+    ] {
+        let variables: Vec<(OsString, OsString)> = vec![(OsString::from(name), OsString::from("1"))];
+        assert!(environment_is_plain(variables.as_slice()), "{name} cannot move an answer");
+    }
+}
+
+/// Every variable that can change which configuration, attribute tree, repository, index, objects, refs or pathspec meaning an
+///  answer rests on keeps the environment from being plain, and so does a variable this list has never heard of.
+#[test]
+fn variables_that_can_change_an_answer_are_not_plain() {
+    for name in [
+        "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_NAMESPACE", "GIT_PREFIX", "GIT_IMPLICIT_WORK_TREE",
+        "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_ATTR_SOURCE", "GIT_ATTR_NOSYSTEM", "GIT_ATTR_GLOBAL", "GIT_ATTR_SYSTEM",
+        "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_GRAFT_FILE", "GIT_SHALLOW_FILE", "GIT_QUARANTINE_PATH",
+        "GIT_REFERENCE_BACKEND", "GIT_REF_PARANOIA", "GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS",
+        "GIT_ICASE_PATHSPECS", "GIT_TEMPLATE_DIR", "GIT_TEXTDOMAINDIR", "GIT_NOTES_REF", "GIT_NO_LAZY_FETCH", "GIT_TEST_SPLIT_INDEX",
+        "GIT_DEFAULT_HASH", "GIT_A_VARIABLE_GIT_ADDS_LATER",
+    ] {
+        let variables: Vec<(OsString, OsString)> = vec![(OsString::from(name), OsString::from("1"))];
+        assert!(!environment_is_plain(variables.as_slice()), "{name} can move an answer");
+    }
+}

@@ -26,15 +26,12 @@ const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 /// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// How long a landing in a free worktree may take while another worktree's landing waits: far below the wait limit the services
-///  run under, so a landing that waited behind the other would miss it.
+/// How long a landing in a free worktree may take while another worktree's landing waits: far below the time the other worktree's
+///  landing is made to wait, so a landing that waited behind the other would miss it.
 const FREE_WORKTREE_BOUND: Duration = Duration::from_secs(60);
 
 /// How long the control gives a request to reach its service and start waiting, when the service has nothing to say about it.
 const ARRIVAL_PAUSE: Duration = Duration::from_secs(3);
-
-/// The wait for a foreign lock the services are started with, long enough that no control reaches it before it is done.
-const LOCK_WAIT_SECONDS: &str = "120";
 
 /// A repository with its main worktree and one linked worktree, each with its own Git directory.
 struct Worktrees {
@@ -84,7 +81,6 @@ fn start(fixture: &Fixture, name: &str, worktrees: &Worktrees) -> Services {
             .arg("--path")
             .arg(&socket)
             .args(["--instance", instance_of(git_dir.as_path()).as_str()])
-            .env("CLI_GIT_LOCK_WAIT_SECONDS", LOCK_WAIT_SECONDS)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::inherit())
@@ -108,7 +104,7 @@ fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
         address: Bind::Path(socket_for(runtime, git_dir)),
         activation: Activation::Managed,
         start_wait: PATIENCE,
-        commit_wait: PATIENCE,
+        heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
     };
 }
 

@@ -14,13 +14,22 @@
 
 use super::journald_native::Priority;
 use super::service_fault::reach;
-use super::service_head::head_names;
-use super::service_instance::instance_of;
+use super::service_head::{follows_move, still_checked_out};
 use super::service_pruned::batch_content_missing;
-use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
-use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
+use super::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
+pub use super::service_land_finish::{RecoveryReport, recover, recover_instance};
+#[cfg(test)]
+use super::service_land_finish::follow_up;
+#[cfg(test)]
+use super::service_journal::{Recovery, list_intents};
+#[cfg(test)]
+use super::service_index_lock::try_acquire;
+use super::service_land_finish::finish_after_move;
+use super::service_land_start::witness_of;
+use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
 use super::service_timing::{LandTiming, wait_line};
-use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
+use super::config_snapshot::read_config_snapshot;
+use super::service_land_follow::{classify, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::collections::{BTreeSet, HashMap};
@@ -38,8 +47,30 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
-    /// How long a landing waits for another program that holds the index lock before it gives up with nothing changed.
-    pub index_wait: std::time::Duration,
+    /// How long a landing waits for a foreign program's `index.lock` before it is withdrawn (`wait_ceilings.rs`).
+    pub lock_ceiling: std::time::Duration,
+}
+
+/// What:
+///  Keeps the commit built for a batch that was withdrawn on a side ref, and returns the line that tells the person where it is.
+/// Why:
+///   The owner's answer for a wait that reaches its bound is that nothing lands later by itself and the commit is kept for a retry;
+///  the person's staged changes are untouched, so running the commit again builds the same commit, and the side ref lets them
+///  recover this one if the worktree changed meanwhile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['update-ref', `refs/cli-git/kept/${seq}`, tip]); return `kept at refs/cli-git/kept/${seq}`
+/// ```
+fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
+    let name: String = format!("refs/cli-git/kept/{seq}");
+    let made = run(git, repository, &["update-ref", name.as_str(), tip], None);
+    if !made.is_ok_and(|output| { return output.succeeded(); }) {
+        return String::from("cli-git: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
+    }
+    return format!(
+        "cli-git: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+    );
 }
 
 /// What became of one request of a batch.
@@ -56,8 +87,25 @@ pub enum Outcome {
 fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
-    let output: GitOutput = run_git(git, &request).map_err(|_| { return FailureCode::Unavailable; })?;
+    let output: GitOutput = run_git(git, &request).map_err(|error| {
+        // A step ended at its ceiling is told apart from every other failure, and its sentence is kept for the answer.
+        if super::child_watch::is_ceiling(&error) {
+            CEILING_STEP.with(|step| { *step.borrow_mut() = Some(error.to_string()); });
+            return FailureCode::StepTooSlow;
+        }
+        return FailureCode::Unavailable;
+    })?;
     return Ok(output);
+}
+
+thread_local! {
+    /// The sentence of the last Git step this thread ended at its ceiling, for the line the clients are told.
+    static CEILING_STEP: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The sentence of the step that was ended at its ceiling, once.
+fn take_ceiling_step() -> Option<String> {
+    return CEILING_STEP.with(|step| { return step.borrow_mut().take(); });
 }
 
 fn checked(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
@@ -137,22 +185,6 @@ fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
     return commits.into_iter().collect();
 }
 
-/// The index entries a batch's intent names.
-fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
-    return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Listed(intent.paths.as_slice()) };
-}
-
-/// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
-///  idempotent. Whether both are done.
-fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock) -> bool {
-    let cleaned: bool = intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
-    // The new index is built beside the real one and installed by the release of the lock the landing holds.
-    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), intent.index.as_path(), intent.seq) else {
-        return false;
-    };
-    return lock.release_with(built.as_path()).is_ok() && cleaned;
-}
-
 /// What:
 ///  Lands a batch of requests that share a repository, a common git directory and a branch.
 /// Why:
@@ -201,6 +233,47 @@ pub fn land_batch_timed(
     announce: &dyn Fn(Announce),
     timing: &mut LandTiming,
 ) -> Result<Vec<Outcome>, FailureCode> {
+    // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
+    //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
+    //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
+    let hardens_index: bool = requests
+        .first()
+        .and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); })
+        .and_then(|snapshot| { return snapshot.hardens_index(); })
+        .unwrap_or(true);
+    let deferral = super::service_durable::begin(hardens_index);
+    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing);
+    // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
+    //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
+    if result == Err(FailureCode::StepTooSlow)
+        && let Some(step) = take_ceiling_step()
+        && let Some(first) = requests.first()
+    {
+        announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
+        let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+        let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
+        if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
+            announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
+            let _deleted = run(&git, first.repository.as_path(), &["update-ref", "-d", scratch.as_str()], None);
+        }
+    }
+    let published: bool = result.as_ref().is_ok_and(|outcomes| { return outcomes.iter().any(|outcome| { return matches!(outcome, Outcome::Landed { .. }); }); });
+    deferral.settle(published);
+    return result;
+}
+
+/// The landing itself; `land_batch_timed` adds what is told when a step is ended at its ceiling.
+///
+/// # Errors
+///
+/// As `land_batch_timed`.
+fn land_batch_body(
+    context: &LandContext,
+    seq: u64,
+    requests: &[CommitRequest],
+    announce: &dyn Fn(Announce),
+    timing: &mut LandTiming,
+) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
     if requests.iter().any(|request| {
         return request.repository != first.repository || request.common_dir != first.common_dir || request.reference != first.reference;
@@ -222,7 +295,10 @@ pub fn land_batch_timed(
     let unborn: bool = is_zero_object(first.base.as_str());
     loop {
         timing.attempts += 1;
-        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None) {
+        // The commit the branch names, asked in the one spelling the in-process readers answer (`<ref>^{commit}`), so the question
+        //  starts no Git; for a branch, which only ever names a commit, the answer is the same as for the bare name.
+        let branch_commit: String = format!("{}^{{commit}}", first.reference);
+        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None) {
             Ok(found) => found,
             Err(_) if unborn => first.base.clone(),
             Err(code) => return Err(code),
@@ -230,14 +306,12 @@ pub fn land_batch_timed(
         if alone && first.base != old {
             return Ok(vec![Outcome::BranchMoved]);
         }
-        // Git's own compare does not refuse a symbolic `HEAD` when it is told not to follow it (measured: it replaces the
-        //  symbolic reference), so a head that became a branch since the commit was prepared is found here, before the move.
-        if first.reference == "HEAD" && run(&git, repository, &["symbolic-ref", "--quiet", "HEAD"], None)?.succeeded() {
-            return Ok(vec![Outcome::BranchMoved]);
-        }
         // Native Git updates `HEAD`, so a worktree that switched branches while the commit waited fails the commit with nothing
-        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's.
-        if first.reference != "HEAD" && !head_names(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's. A
+        //  symbolic `HEAD` is not refused by Git's own compare when it is told not to follow it (measured: it replaces the
+        //  symbolic reference), so a head that became a branch is found here, before the move. The same question is asked
+        //  again once the index lock is held, because the worktree can switch while the lock is awaited.
+        if !still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         let amended_parents: Vec<String> = if alone && !unborn {
@@ -361,7 +435,7 @@ pub fn land_batch_timed(
         //  the index stays as it was.
         let waiting_since: Instant = Instant::now();
         let mut notes: WaitNotes = WaitNotes::default();
-        let taken = acquire_noting_wait(first.index.as_path(), seq, context.index_wait, announce, &mut notes);
+        let taken = acquire_noting_wait_within(first.index.as_path(), seq, context.lock_ceiling, announce, &mut notes);
         let waited: std::time::Duration = waiting_since.elapsed();
         timing.lock_wait += waited;
         // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.
@@ -378,26 +452,81 @@ pub fn land_batch_timed(
         let held: IndexLock = match taken {
             Ok(lock) => lock,
             Err(failure) => {
-                // Nothing moved: forget the intent and the scratch branch, as for a branch that moved under the batch.
+                // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
+                //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
                 let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+                if failure.code == FailureCode::IndexInUse {
+                    announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
+                }
                 let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
                 return Err(failure.code);
             }
         };
         let hold_began: Instant = Instant::now();
+        // The worktree may have switched while the lock was awaited: the checked-out branch is read again with the lock held and
+        //  before the ref moves, and a landing that no longer belongs to this worktree's head stops with nothing changed.
+        let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
+        if !matches!(still, Ok(true)) {
+            let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+            return match still {
+                Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
+                Err(code) => Err(code),
+            };
+        }
+        // The index file now, under the lock, is what a replay of this batch must still find before it resets a path: a replay is
+        //  made only over the file the landing saw. It is recorded for a commit Git built as for any other, since the witness
+        //  needs no list of paths. A record that cannot be written leaves a batch no replay is made for, and this landing
+        //  still updates the index itself while it holds the lock.
+        match witness_of(first.index.as_path()) {
+            Ok(witness) => {
+                if let Err(error) = write_start(context.journal.as_path(), seq, &witness) {
+                    crate::service_error!("batch {seq}: the index file the landing saw could not be recorded ({error}); a restart will not replay the index update");
+                }
+            }
+            Err(error) => crate::service_error!("batch {seq}: the index file cannot be looked at ({error}); a restart will not replay the index update"),
+        }
+        reach("before-ref");
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
-        // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that
-        //  became a branch since the commit was prepared fails the compare instead of moving that branch.
-        let direct: &str = if first.reference == "HEAD" { "option no-deref\n" } else { "" };
-        let transaction: String = format!("start\n{direct}update {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
+        // A detached head is the `HEAD` file itself and is updated as such. The update follows a symbolic `HEAD` as native Git's
+        //  own commit does, because a compare that does not follow it replaces a head attached to a branch since the last look
+        //  (measured: `option no-deref` with `update HEAD <new> <old>` replaced `ref: refs/heads/B` at the old name with the
+        //  detached new one). A head that became a branch at another value fails the compare; at the same value the branch it
+        //  names takes the commit, and the head is read again below.
+        let transaction: String = format!("start\nupdate {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
         let ref_began: Instant = Instant::now();
         let ran = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()));
         timing.ref_update += ref_began.elapsed();
-        let moved: GitOutput = ran?;
+        let moved: GitOutput = match ran {
+            Ok(output) => output,
+            Err(FailureCode::StepTooSlow) => {
+                // The update was ended at its ceiling. Git writes a reference by renaming its lock file, so the branch is now at
+                //  the request's commit or where it was: the branch is read, and the answer follows what it says.
+                let step: String = take_ceiling_step().unwrap_or_else(|| { return String::from("the reference update ran too long and was ended"); });
+                let tip: Option<String> = checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None).ok();
+                if tip.as_deref() == Some(new.as_str()) {
+                    // It renamed before it was ended: the commit is on the branch. The scratch branch the transaction would have
+                    //  removed is removed here, and the landing goes on as if the update had returned.
+                    let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+                    GitOutput { code: Some(0), stdout: Vec::new(), stderr: Vec::new() }
+                } else {
+                    // It did nothing: the batch is withdrawn like one that met the lock ceiling. The intent goes, so a restart cannot
+                    //  land it; the commit is kept on a side ref; the lock is given up when `held` goes out of scope.
+                    let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+                    remove_start(context.journal.as_path(), seq);
+                    announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
+                    announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
+                    let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+                    return Err(FailureCode::StepTooSlow);
+                }
+            }
+            Err(code) => return Err(code),
+        };
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            remove_start(context.journal.as_path(), seq);
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
@@ -408,14 +537,19 @@ pub fn land_batch_timed(
             continue;
         }
         reach("after-ref");
+        // Git refuses a `symref-verify HEAD` beside an update of the branch `HEAD` names, so a switch after the last check cannot
+        //  be caught inside the transaction. The head is read again with the lock held: a worktree that left the branch keeps
+        //  its own index, and the commits stay on the branch they were made for. A switch after this look is the state native
+        //  Git leaves too (`git commit` then `git symbolic-ref HEAD <other>`): the index describes the commit made.
+        let followed: Result<bool, FailureCode> = follows_move(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str(), new.as_str());
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let sync_began: Instant = Instant::now();
-        let synced: bool = follow_up(&git, repository, &intent, held);
+        let settled: bool = finish_after_move(&git, &intent, held, context.journal.as_path(), followed);
         timing.sync += sync_began.elapsed();
         timing.hold += hold_began.elapsed();
-        if synced {
+        if settled {
             reach("after-index");
-            let _marked = mark_done(context.journal.as_path(), seq);
+            let _marked = super::service_journal::mark_done(context.journal.as_path(), seq);
         }
         for (slot, (index, _request)) in landing.iter().enumerate() {
             outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
@@ -424,85 +558,17 @@ pub fn land_batch_timed(
     }
 }
 
-/// One thing a restart did, for the service's log.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RecoveryReport {
-    /// The batch.
-    pub seq: u64,
-    /// What was decided.
-    pub decision: Recovery,
-}
-
-/// What:
-///  Finishes or drops every batch the journal holds open.
-/// Why:
-///   Runs before the service accepts a connection, and again before each batch (`service_server.rs`), so an index update
-///  that gave up while another program held Git's index lock is finished by the next commit and not only by a restart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await recover(context)
-/// ```
-pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
-    return recover_selected(context, &|_| { return true; }, true);
-}
-
-/// What:
-///  Finishes or drops the open batches of the worktree one instance serves, found in a journal that other worktrees' batches
-///  may share.
-/// Why:
-///   The single service of the releases before one service per worktree kept one journal for every worktree, in the directory
-///  above each instance's own, and an instance takes over the batches of its worktree there (found by the Git directory the
-///  intent records, which an index outside it, as `GIT_INDEX_FILE` names one, cannot change; an intent that records none is
-///  resolved from its repository). A development run may also give several instances one journal. Whatever belongs to
-///  another worktree is left to its instance, and a record that cannot be read is not any instance's to remove.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await recoverInstance(context, instance)
-/// ```
-pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
-    let ours = |intent: &Intent| -> bool { return instance_of(intent.git_dir.as_path()) == instance; };
-    return recover_selected(context, &ours, false);
-}
-
-fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, remove_unreadable: bool) -> Vec<RecoveryReport> {
-    let mut reports: Vec<RecoveryReport> = Vec::new();
-    for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
-        let Some(intent) = parsed else {
-            if remove_unreadable {
-                let _removed = std::fs::remove_file(&path);
-            }
-            continue;
-        };
-        if !selected(&intent) {
-            continue;
-        }
-        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
-        let current: String = checked(&git, intent.repository.as_path(), &["rev-parse", "--verify", intent.reference.as_str()], None).unwrap_or_default();
-        let ancestor: bool = run(&git, intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current.as_str()], None)
-            .is_ok_and(|output| { return output.succeeded(); });
-        let decision: Recovery = recovery_for(&intent, current.as_str(), ancestor);
-        match decision {
-            Recovery::Drop => {
-                remove_stale(intent.index.as_path(), intent.seq);
-                let _removed = std::fs::remove_file(&path);
-            }
-            Recovery::Finish => {
-                remove_stale(intent.index.as_path(), intent.seq);
-                if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
-                    && follow_up(&git, intent.repository.as_path(), &intent, held)
-                {
-                    let _marked = mark_done(context.journal.as_path(), intent.seq);
-                }
-            }
-        }
-        reports.push(RecoveryReport { seq: intent.seq, decision });
-    }
-    return reports;
-}
-
 /// Landing controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_tests.rs"]
 mod tests;
+
+/// Controls for a replay over the index the landing saw stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_witness_tests.rs"]
+mod witness_tests;
+
+/// Controls for the worktree's head around a landing stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_head_tests.rs"]
+mod head_tests;

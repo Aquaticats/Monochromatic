@@ -25,7 +25,9 @@ use super::work_item::{
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// The most a stray temporary file of a recovery may age before a recovery removes it.
+/// The most a stray temporary file of a recovery may age before a recovery removes it. Measured: the longest wrapper command in the
+///  commit timing log (1,051 commits, 2026-11-02T09:01:37Z to 2026-11-03T15:10:12Z) took 750.6 s and the longest worktree add in the
+///  add timing log (48 adds, 2026-11-03T08:55Z to 15:06Z) 539.7 s, so a day is about a hundred times the longest. Kept as the coordinator's pick under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Sizes and ages of the service's own housekeeping").
 pub const STRAY_TEMPORARY_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// The end of the name of a recovery's temporary file.

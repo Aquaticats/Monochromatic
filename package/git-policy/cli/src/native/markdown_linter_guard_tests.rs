@@ -1,6 +1,6 @@
 //! What:
 //!  Controls for the guard around the linked linter:
-//!  a result comes back, a panic comes back as text, a job that never ends is abandoned at its deadline,
+//!  a result comes back, a panic comes back as text, a job that shows no sign of work for the window is abandoned,
 //!  and a long wait prints notices that name what it waits for.
 //! Why:
 //!  The linter shares the wrapper's address space, so these are the only things that keep a planted infinite loop
@@ -21,13 +21,14 @@ use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// A deadline short enough for a test and long enough for a thread to start and answer.
-const DEADLINE: Duration = Duration::from_millis(100);
+/// A quiet window short enough for a test to wait out. It is under the sampling interval of the meter, which is fine for a
+///  blocked job: it shows nothing at any sample.
+const QUIET: Duration = Duration::from_millis(100);
 
-/// A deadline the notice test never reaches.
-const LONG_DEADLINE: Duration = Duration::from_secs(60);
+/// A window no control reaches: the jobs that return, panic or are released by a notice always end first.
+const LONG_WINDOW: Duration = Duration::from_secs(60);
 
-/// A cadence whose notices come at the pace of the deadline.
+/// A cadence whose notices come at the pace of the short window.
 const FAST: Cadence = Cadence {
     grace: Duration::from_millis(5),
     interval: Duration::from_millis(5),
@@ -41,7 +42,7 @@ fn a_finished_job_returns_its_value_from_another_thread() {
         move || {
             return std::thread::current().id() != caller;
         },
-        DEADLINE,
+        LONG_WINDOW,
         FAST,
         "a job",
         &mut std::io::sink(),
@@ -57,7 +58,7 @@ fn a_panic_comes_back_as_text() {
         || {
             panic!("{MESSAGE}");
         },
-        DEADLINE,
+        LONG_WINDOW,
         FAST,
         "a job",
         &mut std::io::sink(),
@@ -65,11 +66,11 @@ fn a_panic_comes_back_as_text() {
     assert_eq!(outcome, Err(GuardFailure::Panicked(String::from(MESSAGE))));
 }
 
-/// A job that never returns is abandoned at its deadline:
+/// A job that shows no sign of work for the window is abandoned:
 ///  the guard answers while the job is still blocked,
 ///  and the abandoned thread ends once it is released.
 #[test]
-fn a_job_that_outlives_its_deadline_is_abandoned() {
+fn a_job_that_shows_no_sign_of_work_is_abandoned() {
     let (release, blocked) = channel::<()>();
     let finished: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let marker: Arc<AtomicBool> = Arc::clone(&finished);
@@ -79,12 +80,12 @@ fn a_job_that_outlives_its_deadline_is_abandoned() {
             let _ = blocked.recv();
             marker.store(true, Ordering::SeqCst);
         },
-        DEADLINE,
+        QUIET,
         FAST,
         "a job",
         &mut std::io::sink(),
     );
-    assert_eq!(outcome, Err(GuardFailure::TimedOut(DEADLINE)));
+    assert_eq!(outcome, Err(GuardFailure::Quiet(QUIET)));
     assert!(!finished.load(Ordering::SeqCst), "the guard answered while the job was blocked");
     drop(release);
 }
@@ -103,7 +104,7 @@ fn a_long_wait_prints_notices_naming_the_file() {
         move || {
             let _ = blocked.recv();
         },
-        LONG_DEADLINE,
+        LONG_WINDOW,
         FAST,
         waiting_for,
         &mut counted,
@@ -114,7 +115,7 @@ fn a_long_wait_prints_notices_naming_the_file() {
     for line in text.lines() {
         assert!(line.starts_with(format!("cli-git: still waiting for {waiting_for} after ").as_str()), "{text}");
         assert!(
-            line.contains(format!("giving up on it after {} seconds", LONG_DEADLINE.as_secs()).as_str()),
+            line.contains(format!("giving up on it only after {} seconds with no sign of work", LONG_WINDOW.as_secs()).as_str()),
             "{text}"
         );
     }

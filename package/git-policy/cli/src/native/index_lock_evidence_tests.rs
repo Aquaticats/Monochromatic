@@ -352,12 +352,13 @@ fn the_host_gather_reports_no_lock_when_none_exists() {
 ///  a missing command is not invented.
 #[test]
 fn the_proven_holder_line_names_its_proof() {
-    let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"), 1800);
+    let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"));
     assert_eq!(
         descriptor,
-        "cli-git: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.\n"
+        "cli-git: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); this waits for as long as that process holds the lock and leaves the lock in place.\n"
     );
-    let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"), 1800);
+    assert!(!descriptor.contains("giving up"), "a holder proven alive is waited for with no bound: {descriptor}");
+    let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"));
     assert!(file.contains("waiting for PID 9, which holds"));
     assert!(file.contains("(proven by its Git lock PID file)"));
 }

@@ -14,7 +14,7 @@
 
 /// The attempt record, the coordinator's Git and its error type.
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
-/// The deadline, the grace, the low-speed abort and the push itself.
+/// The patience, the grace and the push itself.
 use super::bounded_push::{STOP_GRACE, push_patience, run_bounded_push, strip_one_line_break};
 /// The check that the program can start.
 use super::lfs_push_precheck::lfs_refusal;
@@ -87,7 +87,7 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
             }
         }
     }
-    // No low-speed abort of the wrapper's own is added to a push (`bounded_push.rs`, `apply_low_speed_defaults`): it waits while
+    // No low-speed abort of the wrapper's own is added to a push (`bounded_push.rs`): it waits while
     //  its connection is open. A limit and time the person set in the environment or in `http.lowSpeedLimit` and
     //  `http.lowSpeedTime` still reach Git (`http.c`, lines 453 to 460 and 1477 to 1478) and still apply.
     let command = git_command(git, arguments);

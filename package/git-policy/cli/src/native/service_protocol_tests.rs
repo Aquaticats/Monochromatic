@@ -44,6 +44,8 @@ fn service_messages_round_trip() {
         ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) },
         ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None },
         ServiceMessage::Position { number: 3, of: 7 },
+        ServiceMessage::Heartbeat,
+        ServiceMessage::Withdrawn { id: String::from("x") },
         ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true },
         ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() },
         ServiceMessage::RetryPrepare {
@@ -266,4 +268,36 @@ fn a_commit_request_names_its_worktrees_git_directory() {
     assert!(line.contains(&format!("\"gitDir\":\"{}\"", sent.git_dir.display())));
     assert!(decode_client(line.replace("\"gitDir\"", "\"gitDirectory\"").as_str()).is_err(), "missing");
     assert!(decode_client(line.replace(&sent.git_dir.display().to_string(), "relative/.git").as_str()).is_err(), "relative");
+}
+
+/// A request that changes as many paths as one may, each path as long as the 99th percentile of the paths of this repository's
+///  commits, still fits the line the service accepts; so the change bound and the line bound agree for ordinary paths.
+#[test]
+fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_line() {
+    let mut sent: CommitRequest = request();
+    let path: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS);
+    sent.changes = (0..MAX_CHANGES).map(|_number: usize| { return Change { path: path.clone(), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
+    assert!(line.len() <= MAX_LINE_BYTES, "{} bytes must fit {MAX_LINE_BYTES}", line.len());
+}
+
+/// The most changes a request may carry is the most the decoder accepts, and one more is refused.
+#[test]
+fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
+    let mut sent: CommitRequest = request();
+    sent.changes = (0..MAX_CHANGES).map(|number: usize| { return Change { path: format!("f{number}"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent.clone()))).as_str()).is_ok());
+    sent.changes.push(Change { path: String::from("one-more"), mode: ALLOWED_MODES[0], blob: None });
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent))).as_str()).is_err());
+}
+
+/// A withdrawal round trips, and an empty or oversized identity in one is refused.
+#[test]
+fn a_withdrawal_round_trips_and_a_hostile_identity_is_refused() {
+    let sent: ClientMessage = ClientMessage::Withdraw { id: String::from("0f0e0d0c-aaaa-bbbb-cccc-000000000001") };
+    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
+    for id in [String::new(), "x".repeat(MAX_ID_BYTES + 1)] {
+        let line: String = encode_client(&ClientMessage::Withdraw { id });
+        assert!(decode_client(line.as_str()).is_err(), "{line}");
+    }
 }

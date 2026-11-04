@@ -115,6 +115,9 @@ pub struct SyncStats {
 }
 
 /// How many copied paths a pass keeps for its report.
+///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record
+///  names, and no command result or duration depends on it. Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation, open to the owner's veto.
 const SAMPLE_SIZE: usize = 20;
 
 /// One unit of the work stack.

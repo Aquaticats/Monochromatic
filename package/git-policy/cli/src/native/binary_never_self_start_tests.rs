@@ -1,0 +1,356 @@
+//! What:
+//!  Controls that the built executable never starts itself as Git,
+//! whatever stands between the wrapper and the file it
+//!  selected:
+//! a toolchain launcher,
+//! a link,
+//! a copy,
+//! another release of the wrapper.
+//! Why:
+//!  Release 0.5.26 on a `PATH` whose only `git` was a symlink to the toolchain launcher of the wrapper started a chain of
+//!  wrapper processes,
+//! each one the Git of the one above it,
+//! each command line longer than its parent's,
+//! until the
+//!  control group it ran in refused another process
+//!  (`doc/planning/cli-git-no-self-invocation.md`,
+//! section "The wrapper never starts itself as Git").
+//!  Every control here runs the chain behind a counting stand-in that ends it after `START_CAP` starts,
+//! so a regression
+//!  shows as a start count and an exit code,
+//! never as a host that runs out of processes.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // const starts = countLines(counterFile);
+//! // expect(run(wrapper, { PATH: launcherDirectory }).code).toBe(2); expect(starts).toBe(0);
+//! ```
+
+/// The shared fixtures,
+/// bounded runs and observation of what a run showed its caller.
+use super::support::{Fixture, Observed, bounded, copy_executable, executable, fixture, observe, remove, repository};
+/// Operating-system text,
+/// for building the one `PATH` value of a run.
+use std::ffi::{OsStr, OsString};
+/// The paths of the fixture's files.
+use std::path::{Path, PathBuf};
+
+/// The most starts a counting stand-in allows before it ends the chain with `STAND_IN_STOP_CODE`.
+///  The value is a fixture bound and not a limit of the wrapper:
+/// it only has to be small,
+/// because the chain this
+///  control exists to catch grows by one process per start,
+/// and larger than the one or two starts a correct run makes
+///  so that a correct run never meets it.
+const START_CAP: usize = 6;
+
+/// The exit code of a stand-in that has reached `START_CAP`;
+/// no wrapper exit code uses it.
+const STAND_IN_STOP_CODE: i32 = 97;
+
+/// The exit code of a wrapper that stops because it has no real Git to run.
+const WRAPPER_STOP_CODE: i32 = 2;
+
+/// The name of the toolchain launcher the repository's tool links point at,
+/// and of its record's stem.
+const LAUNCHER_NAME: &str = "cli-git-native";
+
+/// What:
+///  Write a stand-in launcher:
+/// a script that counts its start in `counter`,
+/// ends the chain after `START_CAP` starts,
+/// and
+///  otherwise replaces itself with `target`.
+/// Why:
+///  The real launcher replaces itself with the wrapper's executable.
+/// The stand-in does the same and also counts,
+/// so a
+///  control can assert how many times the wrapper reached the launcher.
+/// It uses shell built-ins only,
+/// because the
+///  hermetic `PATH` of a control holds no `echo` or `wc`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeExecutable(path, `appendLine(counter); if (lines(counter) > START_CAP) process.exit(97); execve(target, args)`);
+/// ```
+fn counting_stand_in(path: &Path, counter: &Path, target: &Path) {
+    let script: String = format!(
+        "#!/bin/sh\n\
+         echo started >> '{counter}'\n\
+         started=0\n\
+         while read -r line; do started=$((started + 1)); done < '{counter}'\n\
+         if [ \"$started\" -gt {START_CAP} ]; then\n\
+         echo 'stand-in: start cap reached' >&2\n\
+         exit {STAND_IN_STOP_CODE}\n\
+         fi\n\
+         exec '{target}' \"$@\"\n",
+        counter = counter.display(),
+        target = target.display(),
+    );
+    executable(path, script.as_bytes());
+}
+
+/// What:
+///  Write the record the toolchain's launcher keeps beside it,
+/// naming this wrapper's tool and the file it replaces
+///  itself with.
+/// Why:
+///  The wrapper recognises a launcher of itself by this record (`toolId` and `real`),
+/// so the control needs the same
+///  JSON the repository's `mpm-shadow` writes (`package/mpm-shadow/cli/src/toolchain/launcher.rs`,
+/// `render_record`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(`${launcher}.launch`, JSON.stringify({ toolId, lockFile, real, scope: 'repo' }));
+/// ```
+fn write_launch_record(launcher: &Path, real: &Path) {
+    let mut record_name: OsString = launcher.as_os_str().to_os_string();
+    record_name.push(".launch");
+    let record: String = format!(
+        "{{\"toolId\":\"cargo:monochromatic-git-policy-cli\",\"lockFile\":\"/nonexistent/toolchain.lock.json\",\"real\":\"{}\",\"scope\":\"repo\"}}",
+        real.display()
+    );
+    std::fs::write(PathBuf::from(record_name), record).expect("launcher record");
+}
+
+/// How many starts a counter file records;
+/// none when nothing started.
+fn starts(counter: &Path) -> usize {
+    return match std::fs::read_to_string(counter) {
+        Ok(text) => text.lines().count(),
+        Err(_) => 0,
+    };
+}
+
+/// One directory under the fixture,
+/// created now.
+fn directory(fixture: &Fixture, name: &str) -> PathBuf {
+    let path: PathBuf = fixture.root.join(name);
+    std::fs::create_dir(&path).expect("fixture directory");
+    return path;
+}
+
+/// What:
+///  Run the wrapper as a program named `git` under a `PATH` of exactly `path_directories`,
+/// in `repo`,
+/// with a time bound.
+/// Why:
+///  The reported failure had no directory of real Git on `PATH` at all,
+/// so the controls run with only the directories
+///  they name,
+/// and the wrapper's own `bin/git` link is the program that starts first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawnSync(join(fixture, 'bin/git'), args, { cwd: repo, env: { PATH: directories.join(':') } });
+/// ```
+fn run_with_only(fixture: &Fixture, repo: &Path, path_directories: &[&Path], arguments: &[&str]) -> Observed {
+    let mut path: OsString = OsString::new();
+    for entry in path_directories {
+        if !path.is_empty() {
+            path.push(":");
+        }
+        path.push(entry);
+    }
+    return observe(
+        bounded(fixture, fixture.root.join("bin/git").as_path(), path.as_os_str())
+            .current_dir(repo)
+            .args(arguments),
+        b"",
+    );
+}
+
+/// The stderr of a run as text,
+/// for assertions on the words a person reads.
+fn words(observed: &Observed) -> String {
+    return String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
+}
+
+/// What:
+///  The reported failure:
+/// the only `git` on `PATH` is a symlink to the toolchain launcher of the wrapper.
+/// Why:
+///  The launcher is a different file from the running wrapper,
+/// with different bytes,
+/// so neither file identity nor content
+///  recognised it;
+/// it was started as Git,
+/// replaced itself with the wrapper,
+/// and the wrapper did the same again.
+///  The wrapper must start nothing and say what it searched and how to fix it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: dirWithOnlyGitLinkedToLauncher }, ['rev-parse', 'HEAD'])).toMatchObject({ code: 2 }); expect(starts).toBe(0);
+/// ```
+#[test]
+fn a_symlink_to_the_toolchain_launcher_alone_on_path_starts_nothing_and_says_what_was_searched() {
+    let fixture: Fixture = fixture("launcher-symlink");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let launchers: PathBuf = directory(&fixture, "launchers");
+    let counter: PathBuf = fixture.root.join("starts");
+    let launcher: PathBuf = launchers.join(LAUNCHER_NAME);
+    counting_stand_in(launcher.as_path(), counter.as_path(), fixture.wrapper.as_path());
+    write_launch_record(launcher.as_path(), fixture.wrapper.as_path());
+    let path_directory: PathBuf = directory(&fixture, "only");
+    std::os::unix::fs::symlink(&launcher, path_directory.join("git")).expect("symlink to the launcher");
+    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[path_directory.as_path()], &["rev-parse", "HEAD"]);
+    let text: String = words(&observed);
+    assert_eq!(starts(counter.as_path()), 0, "the launcher must never be started: {text}");
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{text}");
+    assert!(observed.stdout.is_empty());
+    assert!(text.contains(path_directory.join("git").to_string_lossy().as_ref()), "names the candidate it skipped: {text}");
+    assert!(text.contains("PATH"), "names the input it searched: {text}");
+    assert!(text.contains("install Git") || text.contains("Install Git"), "names the remedy: {text}");
+    remove(&fixture);
+}
+
+/// What:
+///  The same failure for `--version`,
+/// which the reporter had run with a `PATH` that held real Git.
+/// Why:
+///  The version line proved nothing about the chain:
+/// the banner names the Git the wrapper selected,
+/// and which Git it
+///  selects depends on `PATH`,
+/// so under the launcher-only `PATH` the same command must stop too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(run({ PATH: dirWithOnlyGitLinkedToLauncher }, ['--version'])).toMatchObject({ code: 2 });
+/// ```
+#[test]
+fn a_toolchain_launcher_alone_on_path_answers_version_with_a_stop_and_not_a_chain() {
+    let fixture: Fixture = fixture("launcher-version");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let launchers: PathBuf = directory(&fixture, "launchers");
+    let counter: PathBuf = fixture.root.join("starts");
+    let launcher: PathBuf = launchers.join(LAUNCHER_NAME);
+    counting_stand_in(launcher.as_path(), counter.as_path(), fixture.wrapper.as_path());
+    write_launch_record(launcher.as_path(), fixture.wrapper.as_path());
+    let path_directory: PathBuf = directory(&fixture, "only");
+    std::os::unix::fs::symlink(&launcher, path_directory.join("git")).expect("symlink to the launcher");
+    let observed: Observed = run_with_only(&fixture, repo.as_path(), &[path_directory.as_path()], &["--version"]);
+    assert_eq!(starts(counter.as_path()), 0, "{}", words(&observed));
+    assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{}", words(&observed));
+    remove(&fixture);
+}
+
+/// What:
+///  A launcher file that is itself named `git`,
+/// with its record beside it,
+/// and a chain of two symlinks that ends at a
+///  launcher.
+/// Why:
+///  The record is found beside the candidate's own name and beside the file the links finally lead to,
+/// so both
+///  spellings of a launcher on `PATH` are recognised and skipped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const spelling of ['git + git.launch', 'git -> link -> launcher']) expect(starts).toBe(0);
+/// ```
+#[test]
+fn a_launcher_named_git_and_a_symlink_chain_to_a_launcher_are_skipped() {
+    let fixture: Fixture = fixture("launcher-named-git");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let counter: PathBuf = fixture.root.join("starts");
+    let named: PathBuf = directory(&fixture, "named");
+    counting_stand_in(named.join("git").as_path(), counter.as_path(), fixture.wrapper.as_path());
+    write_launch_record(named.join("git").as_path(), fixture.wrapper.as_path());
+    let linked: PathBuf = directory(&fixture, "linked");
+    let launchers: PathBuf = directory(&fixture, "launchers");
+    let launcher: PathBuf = launchers.join(LAUNCHER_NAME);
+    counting_stand_in(launcher.as_path(), counter.as_path(), fixture.wrapper.as_path());
+    write_launch_record(launcher.as_path(), fixture.wrapper.as_path());
+    let middle: PathBuf = linked.join("middle");
+    std::os::unix::fs::symlink(&launcher, &middle).expect("first link");
+    std::os::unix::fs::symlink(&middle, linked.join("git")).expect("second link");
+    for directory_under_test in [named.as_path(), linked.as_path()] {
+        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[directory_under_test], &["rev-parse", "HEAD"]);
+        assert_eq!(starts(counter.as_path()), 0, "{}: {}", directory_under_test.display(), words(&observed));
+        assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{}: {}", directory_under_test.display(), words(&observed));
+    }
+    remove(&fixture);
+}
+
+/// What:
+///  Another release of the wrapper behind a launcher that keeps no record,
+/// reached once by a child start and once by
+///  process replacement.
+/// Why:
+///  Nothing on disk says that this launcher leads to a wrapper.
+/// The wrapper that starts it has set its marker in the
+///  environment of the start,
+/// so the other release finds itself the process,
+/// or the child,
+/// of a wrapper that started it
+///  as Git,
+/// and stops at once.
+/// The launcher is started once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const args of [['--version'], ['--exec-path']]) { expect(run(args).code).toBe(2); expect(starts).toBe(1); }
+/// ```
+#[test]
+fn another_wrapper_release_behind_an_unrecorded_launcher_stops_on_arrival() {
+    let fixture: Fixture = fixture("other-release-behind-launcher");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let other_directory: PathBuf = directory(&fixture, "other");
+    let other: PathBuf = other_directory.join("cli-git-native");
+    copy_executable(fixture.wrapper.as_path(), other.as_path());
+    // One trailing byte makes a different file with different bytes that still runs, as another release would be.
+    let mut bytes: Vec<u8> = std::fs::read(&other).expect("copy bytes");
+    bytes.push(0);
+    executable(other.as_path(), bytes.as_slice());
+    let path_directory: PathBuf = directory(&fixture, "only");
+    let counter: PathBuf = fixture.root.join("starts");
+    counting_stand_in(path_directory.join("git").as_path(), counter.as_path(), other.as_path());
+    for arguments in [&["--version"][..], &["--exec-path"][..], &["rev-parse", "HEAD"][..]] {
+        std::fs::remove_file(&counter).ok();
+        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[path_directory.as_path()], arguments);
+        let text: String = words(&observed);
+        assert!(starts(counter.as_path()) <= 1, "{arguments:?}: {text}");
+        assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{arguments:?}: {text}");
+        assert!(text.contains("started as Git"), "{arguments:?}: {text}");
+        assert!(text.contains(path_directory.join("git").to_string_lossy().as_ref()) || text.contains("PATH"), "{arguments:?}: {text}");
+    }
+    remove(&fixture);
+}
+
+/// What:
+///  A symlink,
+/// a hard link and a byte copy of the wrapper,
+/// each alone on `PATH`.
+/// Why:
+///  File identity and content recognise these forms of this very executable;
+/// with nothing else on `PATH` the run must
+///  end with the stop and the explanation,
+/// not with a start of the wrapper by itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const form of [symlink, hardLink, copy]) expect(run({ PATH: dirOf(form) }).code).toBe(2);
+/// ```
+#[test]
+fn a_symlink_a_hard_link_and_a_copy_of_the_wrapper_alone_on_path_are_skipped() {
+    let fixture: Fixture = fixture("wrapper-forms-alone");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let symlinked: PathBuf = directory(&fixture, "symlinked");
+    std::os::unix::fs::symlink(&fixture.wrapper, symlinked.join("git")).expect("symlink");
+    let hard: PathBuf = directory(&fixture, "hard");
+    std::fs::hard_link(&fixture.wrapper, hard.join("git")).expect("hard link");
+    let copied: PathBuf = directory(&fixture, "copied");
+    copy_executable(fixture.wrapper.as_path(), copied.join("git").as_path());
+    for form in [symlinked.as_path(), hard.as_path(), copied.as_path()] {
+        let observed: Observed = run_with_only(&fixture, repo.as_path(), &[form], &["rev-parse", "HEAD"]);
+        let text: String = words(&observed);
+        assert_eq!(observed.code, Some(WRAPPER_STOP_CODE), "{}: {text}", form.display());
+        assert!(observed.stdout.is_empty(), "{}", form.display());
+        assert!(text.contains(form.join("git").to_string_lossy().as_ref()), "{}: {text}", form.display());
+    }
+    remove(&fixture);
+}

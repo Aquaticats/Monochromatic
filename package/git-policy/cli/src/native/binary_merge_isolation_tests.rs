@@ -56,7 +56,7 @@ pub(super) fn diverged(fixture: &Fixture, name: &str) -> PathBuf {
 }
 
 /// A byte-for-byte copy of a repository, for the clean checkout the oracle merges in.
-fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
+pub(super) fn copy_of(fixture: &Fixture, from: &Path, name: &str) -> PathBuf {
     let to: PathBuf = fixture.root.join(name);
     let copied = Command::new("cp").arg("--archive").arg("--").arg(from).arg(&to).status().expect("cp starts");
     assert!(copied.success(), "the copy of {from:?} failed");
@@ -110,7 +110,7 @@ fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
 #[test]
 fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
     let notice: String = format!(
-        "{}git commit-tree (process 7) after 10 seconds; stopping it after 300 seconds.\n",
+        "{}git commit-tree (process 7) after 10 seconds; it is ended only after 300 seconds with no sign of work.\n",
         String::from_utf8_lossy(WAIT_NOTICE_PREFIX)
     );
     let other: &str = "cli-git: copied 1 ignored filesystem entry\nHint: still waiting for nothing\n";

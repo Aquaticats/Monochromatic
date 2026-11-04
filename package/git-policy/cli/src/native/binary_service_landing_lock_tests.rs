@@ -4,8 +4,8 @@
 //!  Git's own commit takes the index lock before it moves the branch and gives it up after the index is written. A landing that
 //!  moves the branch first and takes the lock afterwards leaves the index showing content a landed commit replaced for as long
 //!  as the foreign holder keeps the lock (found by the concurrent end-to-end scenarios `foreign-index-lock-holder` and
-//!  `foreign-index-lock-unproven`). The service therefore takes the lock first, waits for a holder without polling, and gives up
-//!  with nothing changed when the holder outlives the limit.
+//!  `foreign-index-lock-unproven`). The service therefore takes the lock first and waits for a holder without polling: for as
+//!  long as a holder proven alive, or an owner nothing proves alive, keeps the lock.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
@@ -19,7 +19,7 @@ const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A service process that is stopped when the control ends, whether it passed or panicked.
-struct Held(Child);
+pub(super) struct Held(Child);
 
 impl Drop for Held {
     fn drop(&mut self) {
@@ -28,8 +28,13 @@ impl Drop for Held {
     }
 }
 
-/// A service that waits `limit` seconds for a foreign index lock, as the unit file's environment would say.
-fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
+/// A service for the control, started the way the unit file starts it, repeating its notices every `notice_seconds`.
+fn service_for(fixture: &Fixture, name: &str, notice_seconds: &str) -> Held {
+    return service_with_arguments(fixture, name, notice_seconds, &[]);
+}
+
+/// `service_for` with more arguments for the service program (a control gives a short lock ceiling this way).
+pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_seconds: &str, extra: &[&str]) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let git_dir: PathBuf = fixture.root.join("repo/.git");
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir.as_path());
@@ -39,12 +44,13 @@ fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
         .arg(fixture.root.join("journal"))
         .arg("--path")
         .arg(&socket)
+        .args(extra)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", fixture.root.join("home"))
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .env("CLI_GIT_LOCK_WAIT_SECONDS", limit)
+        .env("CLI_GIT_WAIT_NOTICE_SECONDS", notice_seconds)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
@@ -102,7 +108,7 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     let fixture: Fixture = fixture("landing-lock-holder");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("landing-lock-{}", std::process::id());
-    let _service: Held = service_with_limit(&fixture, name.as_str(), "60");
+    let _service: Held = service_for(&fixture, name.as_str(), "1");
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let holder: Child = foreign_commit(&fixture, &repo, 2);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
@@ -118,51 +124,120 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     remove_settled(&fixture);
 }
 
-/// The seconds the commit is stalled after the foreign commit took the lock in the control of a late commit:
-/// a loaded host delays the commit for longer than a stand-in that keeps the lock for a fixed time lasts
-///  (a failing run at a load average of 38 to 44 spent 6760 ms in one phase against a hold of 4000 ms, 2026-11-03).
-const STALL_SECONDS: u64 = 8;
-
 /// The seconds the foreign commit keeps the lock after the control has released it, so that its commit ends on its own.
 const RELEASED_HOLD_SECONDS: u32 = 0;
 
-/// The holder outlives the limit: the commit is refused with a plain message that names the holder, nothing moved, the
-///  holder's lock stands, and the holder's commit then succeeds on its own.
-/// The holder keeps the lock until the control has seen the refusal, so the outcome does not depend on how fast the host runs
-///  the commit.
-#[test]
-fn a_foreign_holder_that_outlives_the_limit_makes_the_commit_fail_with_nothing_moved() {
-    refused_while_a_foreign_holder_outlives_the_limit("landing-lock-limit", Duration::ZERO);
-}
+/// The notices of the holder a control reads before it lets the holder go: at one notice a second, more seconds of waiting than
+///  the second an owner nothing proves alive used to be given, so only a wait with no bound lasts this long.
+const NOTICES_BEYOND_BACKOFF: usize = 4;
 
-/// The same claim when the host stalls the commit after the foreign commit took the lock:
-/// however late the commit reaches the lock, the holder is still there and the commit is refused.
+/// The holder is proven alive (Git's lock PID file names it), so the commit waits for it however long it holds the lock, with
+///  the holder named, and lands on top of the holder's commit when the holder lets go: nothing fails, nothing is given up.
+/// The control releases the holder on the commit's own fourth notice, so the outcome does not depend on how fast the host runs
+///  the commit and the wait is known to have gone on past that second.
 #[test]
-fn a_commit_that_reaches_a_foreign_holder_late_is_still_refused_at_the_limit() {
-    refused_while_a_foreign_holder_outlives_the_limit("landing-lock-late", Duration::from_secs(STALL_SECONDS));
-}
-
-/// Runs the claim of the two controls: the commit starts `stall` after the foreign commit took the lock.
-fn refused_while_a_foreign_holder_outlives_the_limit(control: &str, stall: Duration) {
-    let fixture: Fixture = fixture(control);
+fn a_foreign_holder_proven_alive_is_waited_for_with_no_bound_and_the_commit_lands_on_top() {
+    let fixture: Fixture = fixture("landing-lock-no-bound");
     let repo: PathBuf = base_repository(&fixture);
-    let name: String = format!("{control}-{}", std::process::id());
-    let _service: Held = service_with_limit(&fixture, name.as_str(), "1");
+    let name: String = format!("ll-nobound-{}", std::process::id());
+    let _service: Held = service_for(&fixture, name.as_str(), "1");
     let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
     let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
-    std::thread::sleep(stall);
     std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
     let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", "mine", "--", "a.txt"]);
-    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()));
-    let served = observe(&mut command, b"");
-    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
-    assert_ne!(served.code, Some(0), "{stderr}");
-    assert!(stderr.contains("is using this repository's index") && stderr.contains("was not made"), "{stderr}");
-    assert!(stderr.contains("Process "), "the holder is named: {stderr}");
-    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), base, "nothing moved while the holder still held the lock");
-    std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str())).env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    let watched = super::wait_notice::watch_notices(&mut command, "waiting for PID", NOTICES_BEYOND_BACKOFF, || {
+        std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+    });
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
-    assert_eq!(git_text(&fixture, &repo, &["log", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\n", "only the holder's commit is on the branch");
+    assert_eq!(watched.code, Some(0), "{}", watched.stderr);
+    assert!(!watched.stderr.contains("was not made") && !watched.stderr.contains("giving up"), "{}", watched.stderr);
+    assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\nmine\n");
+    assert_eq!(git_text(&fixture, &repo, &["status", "--short"]), "", "the index shows both commits");
+    remove_settled(&fixture);
+}
+
+/// The notice interval of the service in the heartbeat control: far beyond the control, so no notice of the wait reaches the
+///  client after the first, and only heartbeats keep it from hearing nothing.
+const QUIET_NOTICE_SECONDS: &str = "3600";
+
+/// How long the foreign holder keeps the lock after the queued request has been told to wait: more than twice the silence bound
+///  the client under test is given, so only a service that goes on sending heartbeats keeps the client from calling it stopped.
+const HOLD_AFTER_NOTICE: Duration = Duration::from_secs(8);
+
+/// How long the client under test takes no message from the service for a stopped one.
+const CLIENT_SILENCE: Duration = Duration::from_secs(3);
+
+/// A writer that tells the control when the client first prints a notice, and keeps the text.
+struct SignalOnNotice {
+    told: Option<std::sync::mpsc::Sender<()>>,
+    text: Vec<u8>,
+}
+
+impl std::io::Write for SignalOnNotice {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.text.extend_from_slice(bytes);
+        if let Some(channel) = self.told.take() {
+            let _sent = channel.send(());
+        }
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// The real service sends its heartbeats while a request waits behind a foreign hold that lasts several times the client's
+///  silence bound: the client is never silent, waits it out, and the commit lands.
+/// This is the control of the service's side of the heartbeat; the fake services of `binary_service_heartbeat_tests.rs` are
+///  the control of the client's side.
+#[test]
+fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_hold() {
+    use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
+    use git_policy_cli::service_protocol::{ALLOWED_MODES, Change, CommitRequest};
+    use git_policy_cli::service_server::Bind;
+    let fixture: Fixture = fixture("landing-lock-heartbeat");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("ll-beat-{}", std::process::id());
+    let _service: Held = service_for(&fixture, name.as_str(), QUIET_NOTICE_SECONDS);
+    let git_dir: PathBuf = fixture.root.join("repo/.git");
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime_for(name.as_str()).as_path(), git_dir.as_path());
+    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, RELEASED_HOLD_SECONDS);
+    std::fs::write(repo.join("a.txt"), "mine\n").expect("a.txt");
+    let blob: String = git_text(&fixture, &repo, &["hash-object", "-w", "--", "a.txt"]).trim().to_string();
+    let request: CommitRequest = CommitRequest {
+        id: String::from("heartbeat-landing"),
+        repository: repo.clone(),
+        common_dir: git_dir.clone(),
+        git_dir: git_dir.clone(),
+        reference: String::from("refs/heads/main"),
+        base: git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string(),
+        changes: vec![Change { path: String::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        message: String::from("mine\n"),
+        author: None,
+        committer: String::from("T <t@example.invalid> 1793535889 +0000"),
+        amend: false,
+        tree: None,
+        commit: None,
+        cleanup: None,
+        index: git_dir.join("index"),
+        captured: 0,
+    };
+    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
+    let (told, hearing) = std::sync::mpsc::channel::<()>();
+    let letting_go = std::thread::spawn(move || {
+        hearing.recv_timeout(PATIENCE).expect("the client was told the request waits");
+        std::thread::sleep(HOLD_AFTER_NOTICE);
+        std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+    });
+    let mut notices: SignalOnNotice = SignalOnNotice { told: Some(told), text: Vec::new() };
+    let answered = submit(&config, &request, &mut notices);
+    letting_go.join().expect("releaser");
+    let held = holder.wait_with_output().expect("the foreign commit ends");
+    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert!(matches!(answered, Ok(Submitted::Landed { .. })), "{answered:?} {}", String::from_utf8_lossy(&notices.text));
+    assert!(!String::from_utf8_lossy(&notices.text).contains("stopped answering"), "{}", String::from_utf8_lossy(&notices.text));
     remove_settled(&fixture);
 }

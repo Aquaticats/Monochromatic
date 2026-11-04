@@ -32,8 +32,13 @@ const TAG: &str = "packageRepair";
 /// The options of `worktree add` whose value is the next argument.
 const VALUE_OPTIONS: [&str; 3] = ["-b", "-B", "--reason"];
 
-/// The longest one tool may run before it is stopped; a hung tool must not hold an add forever.
-const TOOL_LIMIT: Duration = Duration::from_secs(600);
+/// How long one tool may show no sign of work before it is stopped; a hung tool must not hold an add forever, and a tool that
+///  works (an install that downloads for a long time) is never stopped for being slow.
+///  Citation: none, and **unmeasured as a quiet window**. The figure was the wall-clock limit of a tool, and no log held a quiet
+///  gap before `quiet_ledger.rs`; the add timing record now carries the longest gap of each tool under `quiet`
+///  (`doc/planning/cli-git-shipped-limits-audit.md`, "Package repair tool limit, 600 seconds"). Owner pick 9 of that audit,
+///  the coordinator's under the owner's delegation and open to the owner's veto: end only on no progress.
+const TOOL_QUIET_WINDOW: Duration = Duration::from_secs(600);
 
 /// What:
 ///  The switches of the person's `git worktree add` that change what a repair may do.
@@ -111,21 +116,21 @@ pub fn workers_for(available: usize) -> usize {
 }
 
 /// What:
-///  What a repair reads from the process: the search path tools are found on, how long a tool may run, and how many threads
+///  What a repair reads from the process: the search path tools are found on, how long a tool may be quiet, and how many threads
 ///  the repairs may use.
 /// Why:
 ///   Tests give fixtures instead of the real environment, and the wrapper never reads the process more than once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RepairEnvironment = { searchPath?: string; toolLimit: number; workers: number };
+/// type RepairEnvironment = { searchPath?: string; quietWindow: number; workers: number };
 /// ```
 #[derive(Clone, Debug)]
 pub struct RepairEnvironment {
     /// The search path programs are found on; the person's `PATH`.
     pub search_path: Option<OsString>,
-    /// The longest one tool may run before it is stopped.
-    pub tool_limit: Duration,
+    /// How long one tool may show no sign of work before it is stopped.
+    pub quiet_window: Duration,
     /// The most threads the repairs use together.
     pub workers: usize,
 }
@@ -142,7 +147,7 @@ impl RepairEnvironment {
     /// ```
     pub fn from_process() -> RepairEnvironment {
         let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        return RepairEnvironment { search_path: std::env::var_os("PATH"), tool_limit: TOOL_LIMIT, workers: workers_for(available) };
+        return RepairEnvironment { search_path: std::env::var_os("PATH"), quiet_window: TOOL_QUIET_WINDOW, workers: workers_for(available) };
     }
 
     /// The search path as a borrowed value.

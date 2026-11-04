@@ -23,6 +23,14 @@ pub(crate) enum Answer {
     /// Read the request, then hold the connection open without answering until the caller closes it,
     ///  or for this long at most.
     Silent(Duration),
+    /// Read the request, then answer `200` with a body of this many bytes sent one at a time, a pause after each,
+    ///  so the reply keeps arriving for as long as `bytes * pause` and no longer idle than `pause` at any moment.
+    Trickle {
+        /// How many body bytes the reply holds.
+        bytes: usize,
+        /// The pause after each body byte.
+        pause: Duration,
+    },
 }
 
 /// How long a silent mock holds a connection at most: far past anything a control waits for,
@@ -85,6 +93,17 @@ impl Mock {
             match answer {
                 Answer::Bytes(bytes) => {
                     let _ = stream.write_all(bytes.as_slice());
+                }
+                Answer::Trickle { bytes, pause } => {
+                    let head: String = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {bytes}\r\nconnection: close\r\n\r\n");
+                    let _sent = stream.write_all(head.as_bytes());
+                    for _byte in 0..bytes {
+                        // A caller that gave up closes the connection, and the write then fails: nothing more to send.
+                        if stream.write_all(b"x").is_err() {
+                            return;
+                        }
+                        std::thread::sleep(pause);
+                    }
                 }
                 Answer::Silent(hold) => {
                     // A read that returns data or an end of stream is the caller acting; the timeout is the safety bound.
