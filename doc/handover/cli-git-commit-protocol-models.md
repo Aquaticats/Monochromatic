@@ -120,11 +120,15 @@ classification is the author's until a review accepts it.
   helper takes the lock, acknowledges and only then works
   (a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor,
   no_copy_of_the_lock_but_the_executors_exists_when_the_handover_is_sent,
-  a_refused_kill_of_the_intermediate_child_is_a_failed_launch); a helper that gets no handover runs nothing and
-  the launch fails with every receipt recorded
-  (a_helper_whose_handover_wait_expires_runs_nothing_and_the_launch_accounts_for_every_receipt); the lock and
-  the pipes are above the standard streams and every descriptor has an owner on every path, driven through
-  EMFILE (a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock,
+  a_refused_kill_of_the_intermediate_child_is_a_failed_launch); a helper that gets no handover still takes the
+  lock itself and works when it gets it (the launcher died: it is the executor; the launcher is only slow: it
+  still holds the lock, the helper ends, and the launch fails with every receipt recorded,
+  a_helper_whose_handover_wait_expires_runs_nothing_and_the_launch_accounts_for_every_receipt), but that is not
+  responsibility when the slow launcher then dies before it accounts (open, review 13); a helper that cannot
+  take the lock is a failed launch with every receipt recorded
+  (a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_recorded); the lock and the pipes
+  are above the standard streams and every descriptor has an owner on every path, driven through EMFILE
+  (a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock,
   a_launch_whose_descriptor_normalization_fails_leaks_no_descriptor,
   a_lock_acquisition_whose_descriptor_move_fails_leaks_no_descriptor); a descriptor a raw creator keeps outside
   this component is not visible to it.
@@ -139,17 +143,25 @@ classification is the author's until a review accepts it.
   kept to exit with the running syncer as the only retry misses a receipt when no owner runs
   (a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it,
   a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown); five
-  protocols are compared on misses, live processes and foreground synchronisations
+  protocols are compared on misses, live processes and foreground synchronisations, as exploration and not as a
+  ranking basis: the comparison excuses every visible receipt after a service crash until replacement, including
+  receipts created after the crash, its maxima are lower bounds where the search stopped at a miss, and it omits
+  client death during inline forcing, worker death and partial forcing, launcher timeout and death,
+  mixed-version helpers, enqueue rejection, non-atomic transfers and blocking time
   (model_helper_bound_r20_tests.rs, handover round 18): the built one keeps no miss and a live-helper count that
   grows with the clients, a singleton retry owner, a baton between the service and that owner, and a client that
   forces its own receipt inline whenever the token is held each show no miss in the model with at most two (or
   one) live processes, and none is built, because the owner picks; the obligation stays open until then; a
   process other than the launcher carries no copy of the lock during a launch and the helper takes the lock
-  itself after the handover whatever its outcome, so a launcher death, a failure tail and a cleanup error leave
-  no unaccounted holder (a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor,
-  a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor); the launch is bounded by
-  three limits (report, intermediate child, acknowledgment) plus the bounded reap of a killed child; a launch
-  that fails records every receipt of the lane, joiners included.
+  itself after the handover whatever its outcome, so an immediate launcher death and a setup failure in the
+  grandchild leave no unaccounted holder
+  (a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor,
+  a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor); NOT shown, and open: the
+  intermediate child inherits the lock until its own first close, so a child delayed before it and not reaped in
+  time still holds a copy when the launcher drops its own and records, and a timeout of the helper followed by
+  the launcher's death leaves nobody responsible; the launch is bounded by three limits (report, intermediate
+  child, acknowledgment) plus the bounded reap of a killed child; a launch that fails records every receipt of
+  the lane, joiners included.
 
 ### C0 to C5, S1, C3 repair
 
@@ -1111,3 +1123,41 @@ are clean
 (`/var/home/user/temp/agent/r18/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has 64
 covered, 17 narrower, 9 historical and 17 not yet.
+
+### Round 18 corrections (review 13, the part built before the owner's answer)
+
+- Built: the acquisition result is part of the helper's acknowledgment. Red:
+  `a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_recorded`. A helper whose `prepare`
+  fails reports it
+  (`LaunchError::HelperCouldNotPrepare`) instead of acknowledging, the launch fails and the launcher records every
+  receipt of the
+  lane; the helper also records them itself when it has no launcher to tell. The red run found a second defect on
+  the way: a
+  launcher and its helper recorded at once and `writeln!` interleaved their lines; `record_errors` now writes each
+  line in one
+  write.
+- Corrected claims: a helper that receives no handover does not "run nothing"; it takes the lock itself and works
+  when it gets
+  it. The claim that no holder is left unaccounted is withdrawn for two schedules of the review, which stay open
+  until the owner
+  has chosen the protocol: the helper times out while the launcher is slow and the launcher then dies before it
+  accounts, and
+  the intermediate child that is delayed before its first close and not reaped in time still holds a copy when the
+  launcher
+  drops its own and records.
+- Narrowed claims about the comparison: it is exploration and not a basis for a ranking. Its crash exemption
+  excuses every
+  visible receipt until replacement, including receipts created after the crash; its maxima are lower bounds in the
+  searches that
+  stopped at a miss; its foreground count is a number of synchronisations and not a time (the 20 samples are not a
+  bound, and
+  `fsync` has no deadline); and it omits client death during inline forcing, worker death and partial forcing,
+  launcher timeout
+  and death, mixed-version helpers, enqueue rejection, non-atomic service and owner transfers and blocking time.
+  The ranking in
+  the round 18 section is withdrawn as a recommendation; the table of misses and counts stands only as far as these
+  omissions allow.
+- Not started, by instruction, until the owner has chosen: the timeout then launcher death, the inherited copy
+  before the
+  intermediate child's first close, the client-death and launch-interleaving schedules of protocol 4, and its
+  foreground bound.

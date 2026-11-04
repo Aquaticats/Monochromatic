@@ -383,8 +383,9 @@ pub fn invariant(state: &State) -> Option<String> {
     return None;
 }
 
-/// A quiescent state (only the environment can move) must hold no receipt with nothing left to force it; a crash of the service excuses
-/// until a next owner has swept.
+/// A quiescent state (only the environment can move) must hold no receipt with nothing left to force it. A crash of the service excuses
+/// EVERY visible receipt until a next owner has swept, including receipts created after the crash; that is broader than a crash justifies
+/// (review 13 section 3) and the comparison is exploration, not evidence for a ranking.
 pub fn terminal(state: &State) -> Option<String> {
     let excused: bool = state.crashed && !state.replaced;
     if visible(&state.receipts) != 0 && !excused {
@@ -403,9 +404,9 @@ pub fn limits() -> Limits {
 pub struct Findings {
     /// The first schedule that leaves a receipt with no executor, if any.
     pub miss: Option<Vec<String>>,
-    /// The most processes alive for the lane at once.
+    /// The most processes alive for the lane at once. Where `miss` is set the search stopped at it, and this is a lower bound.
     pub max_live: usize,
-    /// The most synchronisations one client did in the foreground.
+    /// The most synchronisations one client did in the foreground (a lower bound where `miss` is set; and a synthetic count, not a time).
     pub max_client_syncs: u8,
     /// Whether the search covered every state (otherwise the numbers are lower bounds).
     pub exhausted: bool,

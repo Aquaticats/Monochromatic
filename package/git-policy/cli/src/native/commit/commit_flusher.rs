@@ -179,7 +179,10 @@ fn record_errors(lane: &Path, names: &[PathBuf], error: &io::Error, recorded: &m
         if !recorded.insert(leaf.to_os_string()) {
             continue;
         }
-        writeln!(record, "{}\t{}", leaf.to_string_lossy(), error)?;
+        // One write per line: with `O_APPEND` a single write is not interleaved with another recorder's (a launcher and its helper can both
+        // record), whereas `writeln!` on an unbuffered file makes several.
+        let line: String = format!("{}\t{}\n", leaf.to_string_lossy(), error.to_string().replace('\n', " "));
+        record.write_all(line.as_bytes())?;
     }
     return Ok(());
 }
@@ -360,13 +363,18 @@ pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
     let lane_for_helper: PathBuf = lane.to_path_buf();
     return match launch_detached_holding(
         lock,
-        move || { return FlusherLock::try_acquire(&lane_for_helper); },
+        move || { return FlusherLock::try_acquire(&lane_for_helper).map_err(|error| { return io::Error::other(format!("{:?}", error)); }); },
         move |acquired| {
             // The helper takes the lock itself after the handover; when someone else holds it, that holder sweeps this client's receipt.
             return match acquired {
                 Ok(Some(held)) => flusher_entry_holding(&owned, held),
                 Ok(None) => 0,
-                Err(_) => FLUSHER_FAILED_EXIT,
+                Err(failure) => {
+                    // The helper could not take the lock: it records every receipt of the lane as not forced, as a failed launch does.
+                    let mut recorded: BTreeSet<OsString> = BTreeSet::new();
+                    let _ = unforced(&owned, &BTreeSet::new()).and_then(|names| { return record_errors(&owned, &names, &failure, &mut recorded); });
+                    FLUSHER_FAILED_EXIT
+                }
             };
         },
     ) {

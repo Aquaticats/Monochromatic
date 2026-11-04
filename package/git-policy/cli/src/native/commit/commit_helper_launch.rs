@@ -286,6 +286,9 @@ fn read_report(report: libc::c_int, deadline: Instant) -> Result<(Option<u8>, bo
 /// The report byte of a helper that has the handover and runs its entry.
 const ACKNOWLEDGED: u8 = 3;
 
+/// The report byte of a helper whose `prepare` failed: it reports it instead of acknowledging.
+const PREPARE_FAILED: u8 = 4;
+
 /// How long the launcher waits, after the first child was killed, for it to be reaped (the kill cannot be caught; this only bounds a
 /// process stuck in the kernel). A launch is bounded by three of these limits: the report, the intermediate child's exit and the
 /// helper's acknowledgment, plus this.
@@ -451,14 +454,15 @@ fn reap_or_kill(child: libc::pid_t, deadline: Instant) -> Result<Option<libc::c_
 /// function launchDetached(entry: () => number): void; // throws LaunchError
 /// ```
 pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> {
-    return launch_detached_holding((), || {}, move |()| { return entry(); });
+    return launch_detached_holding((), || { return Ok(()); }, move |_| { return entry(); });
 }
 
 /// What:
 ///  As `launch_detached`, and the launcher holds `holding` (a lock, say) until the helper is ready: the intermediate child and the helper
 ///  close its descriptors at once and never carry it; the launcher reaps the intermediate child (killing it if it does not leave), closes
 ///  its own copy, and only then sends the handover byte. The helper then runs `prepare` (taking the lock itself, say), acknowledges, and
-///  runs `entry` with what `prepare` returned. A helper that gets no byte (a wait that expires, an end of input because the launcher died)
+///  runs `entry` with what `prepare` returned. A `prepare` that fails is reported instead of the acknowledgment (`HelperCouldNotPrepare`),
+///  and `entry` still gets the error so that the helper can account for what it could not take. A helper that gets no byte (a wait that expires, an end of input because the launcher died)
 ///  still runs `prepare` and `entry`, without acknowledging: if the launcher is gone the helper is the executor, and if the launcher
 ///  is only slow it still holds the lock and `prepare` finds it taken. A launcher that does not get the acknowledgment fails with
 ///  `HandoverNotAcknowledged`, and its caller accounts for every receipt.
@@ -472,7 +476,7 @@ pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> 
 /// ```ts
 /// function launchDetachedHolding<H, T>(holding: H, prepare: () => T, entry: (prepared: T) => number): void; // throws LaunchError
 /// ```
-pub fn launch_detached_holding<H: Holding, T, P: FnOnce() -> T, F: FnOnce(T) -> i32>(holding: H, prepare: P, entry: F) -> Result<(), LaunchError> {
+pub fn launch_detached_holding<H: Holding, T, P: FnOnce() -> io::Result<T>, F: FnOnce(io::Result<T>) -> i32>(holding: H, prepare: P, entry: F) -> Result<(), LaunchError> {
     require_single_thread()?;
     let kept: Vec<libc::c_int> = holding.descriptors();
     if let Some(low) = kept.iter().copied().find(|number| { return *number <= 2; }) {
@@ -522,9 +526,10 @@ pub fn launch_detached_holding<H: Holding, T, P: FnOnce() -> T, F: FnOnce(T) -> 
         let wait: Duration = if injected(5) { Duration::from_millis(100) } else { LAUNCH_CONFIRM_LIMIT };
         let granted: bool = await_handover(go_read.as_raw_fd(), Instant::now() + wait);
         let code: i32 = catch_unwind(AssertUnwindSafe(move || {
-            let prepared: T = prepare();
+            let prepared: io::Result<T> = prepare();
             if granted {
-                let acknowledged: u8 = ACKNOWLEDGED;
+                // The result of `prepare` is part of the acknowledgment: a helper that could not take what it needs says so.
+                let acknowledged: u8 = if prepared.is_ok() { ACKNOWLEDGED } else { PREPARE_FAILED };
                 // SAFETY: `acknowledged` is one live byte; the report end is this process's own.
                 unsafe { libc::write(report_write.as_raw_fd(), (&raw const acknowledged).cast::<libc::c_void>(), 1) };
             }
@@ -581,6 +586,7 @@ pub fn launch_detached_holding<H: Holding, T, P: FnOnce() -> T, F: FnOnce(T) -> 
     let acknowledgment_deadline: Instant = Instant::now() + LAUNCH_CONFIRM_LIMIT;
     return match read_report(report_read.as_raw_fd(), acknowledgment_deadline)? {
         (Some(ACKNOWLEDGED), _) => Ok(()),
+        (Some(PREPARE_FAILED), _) => Err(LaunchError::HelperCouldNotPrepare),
         _ => Err(LaunchError::HandoverNotAcknowledged),
     };
 }
