@@ -327,6 +327,10 @@ mod git_differential_tests;
 #[cfg(test)]
 mod journal_protocol_tests;
 
+/// The round 6 tests of the recovery of unready journals and of the ready record.
+#[cfg(test)]
+mod journal_recover_tests;
+
 /// Helpers the journal tests share.
 #[cfg(test)]
 mod journal_support;

@@ -32,6 +32,8 @@ thread_local! {
     static FINISH: Cell<bool> = const { Cell::new(false) };
     /// Whether the next journal cleanup after a durable completion on this thread fails.
     static FINISH_CLEANUP: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next durability barrier of a recovery on this thread fails.
+    static RECOVER_DURABILITY: Cell<bool> = const { Cell::new(false) };
 }
 
 /// The steps that can be made to fail.
@@ -43,6 +45,8 @@ pub enum Point {
     FinishDurability,
     /// The removal of a transaction's journal after the completion marker was made durable.
     FinishCleanup,
+    /// The forcing of live files to disk before a recovery deletes the durable copies that made them recoverable.
+    RecoverDurability,
 }
 
 /// What:
@@ -74,6 +78,7 @@ pub fn arm(point: Point) {
         // Closure `|slot|`: an anonymous function, like a TS arrow function.
         Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
         Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
+        Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
     }
 }
 
@@ -93,5 +98,6 @@ pub fn fires(point: Point) -> bool {
         Point::Restore => RESTORE.with(Cell::take),
         Point::FinishDurability => FINISH.with(Cell::take),
         Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
+        Point::RecoverDurability => RECOVER_DURABILITY.with(Cell::take),
     };
 }
