@@ -2215,10 +2215,10 @@ incarnation's scope, one per lane. A later command, including a `git commit`, ne
 receipt; it queues what remains for background forcing. In normal operation the protocol therefore schedules
 continuing background forcing without making unrelated commands wait. Completion has no measured bound (a scheduling
 target exists, not a completion bound; the time is the disk's). Actual launch or forcing failures can leave the
-receipt pending: a returned forcing error is recorded, reported and retried by a later owner, and a launch refused by
-a process-count or memory cap set by someone else leaves it pending until the next wrapper command in that worktree
-starts forcing it in the background. Those failures are reported; avoidable lost wake-ups, broken launch code or
-avoidable worker accumulation are defects and not outside causes.
+receipt pending: a returned forcing error is recorded, reported and retried by a later owner, and a cap-refused launch
+can leave it pending until a later owner retries in the background; an already-running service may force it on a
+recurring sweep before then. Those failures are reported; avoidable lost wake-ups, broken launch code or avoidable
+worker accumulation are defects and not outside causes.
 - Option A, accept the remaining window; make the fresh attempt with an outcome-specific stored notice (Recommended).
   Visible here: after the reboot the next wrapper command in that worktree prints the retained notice for the fresh
   attempt, as described above. Risk: in the bad case a commit you removed on purpose can be published again; this is
