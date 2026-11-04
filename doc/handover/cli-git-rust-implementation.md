@@ -3451,6 +3451,10 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   `.aside-*` leftovers documented,
   not swept) were not addressed and stand.
   Work started on `fix/git-policy-cli-index-lock-reclaim-without-flock`.
+  The owner then clarified:
+  "I'm not banning flock. I'm just saying our wrapper must work perfectly even when flock isn't there."
+  So the `flock` on the stale lock's own inode stays where it works,
+  and the fallback must not depend on `flock` anywhere (a `flock` in `/run/lock` is at most an intermediate tier).
 - Commit-speed picks (no `fast-import` pack flush unless `core.fsync` names loose objects;
   `sync_ms` renamed `index_update_ms`):
   "Keep both (Recommended)".
