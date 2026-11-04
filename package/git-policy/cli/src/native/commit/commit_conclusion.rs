@@ -40,13 +40,14 @@ pub fn events_with_changed_summary(events: Vec<PolicyEvent>, passes: u64, change
 pub fn events_with_summary(mut events: Vec<PolicyEvent>, passes: u64, changed_paths: &[Vec<u8>]) -> Vec<PolicyEvent> {
     let mut sorted: Vec<Vec<u8>> = changed_paths.to_vec();
     sorted.sort();
+    let mut event_paths: Vec<crate::event_path::EventPath> = Vec::new();
+    for path in &sorted {
+        event_paths.push(crate::event_path::EventPath::from_git_bytes(path.as_slice()));
+    }
     events.push(PolicyEvent::FixSummary {
         trigger: crate::policy_trigger::Trigger::PreForward,
         passes,
-        changed_paths: sorted
-            .iter()
-            .map(|path| { return crate::event_path::EventPath::from_git_bytes(path.as_slice()); })
-            .collect(),
+        changed_paths: event_paths,
     });
     return events;
 }

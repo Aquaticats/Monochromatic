@@ -627,8 +627,8 @@ fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
     let limit: libc::c_long = unsafe { libc::sysconf(libc::_SC_ARG_MAX) };
     assert!(limit > 0, "the argument limit is known");
     let half: usize = usize::try_from(limit).expect("a positive limit") / 2;
-    let paths: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE * (crate::service_protocol::P99_CHANGED_PATH_CHARACTERS + 1);
-    let names: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE * (LONGEST_OBJECT_NAME_CHARACTERS + 1);
+    let paths: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE * (crate::service_protocol::P99_CHANGED_PATH_CHARACTERS + 1);
+    let names: usize = crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE * (LONGEST_OBJECT_NAME_CHARACTERS + 1);
     assert!(paths <= half, "{paths} bytes of paths must fit under {half}");
     assert!(names <= half, "{names} bytes of names must fit under {half}");
 }
@@ -636,5 +636,5 @@ fn a_chunk_of_arguments_stays_under_half_the_argument_limit() {
 /// The three chunk sizes that split argument lists are one value, so a change is made once.
 #[test]
 fn the_argument_chunk_sizes_are_one_value() {
-    assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_prediction::PATHSPEC_CHUNK_SIZE);
+    assert_eq!(crate::candidate_attribute::ATTRIBUTE_CHUNK_SIZE, crate::candidate_pathspec_chunk_size::PATHSPEC_CHUNK_SIZE);
 }

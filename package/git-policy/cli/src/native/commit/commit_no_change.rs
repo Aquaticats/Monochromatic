@@ -35,7 +35,10 @@ pub fn no_change_message(conflicted: &[Vec<u8>]) -> String {
         );
     }
     // The message shows each name as text; a name that is not UTF-8 shows its replacement characters.
-    let names: Vec<String> = conflicted.iter().map(|path| { return path_message_text(path.as_slice()); }).collect();
+    let mut names: Vec<String> = Vec::new();
+    for path in conflicted {
+        names.push(path_message_text(path.as_slice()));
+    }
     let listed: String = serde_json::to_string(&names).unwrap_or_default();
     return format!(
         "No commit created: normalization removed every selected change; index copies were reconciled, but worktree copies changed and were kept: {listed}. Compare them with HEAD before retrying. Hint: if you were committing only whitespace or final-newline edits, they were normalized away; `git diff HEAD -- <path>` shows what still differs."

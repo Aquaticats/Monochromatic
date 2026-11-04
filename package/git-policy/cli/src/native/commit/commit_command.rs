@@ -172,7 +172,10 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         write_stderr(render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str()).as_str());
         return CommitEnding { code: 2 };
     }
-    let start: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return PathBuf::from("."); });
+    let start: PathBuf = match std::env::current_dir() {
+        Ok(found) => found,
+        Err(_) => PathBuf::from("."),
+    };
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
     let invocation: CommitInvocation<'_> = CommitInvocation {
         context: command.context,

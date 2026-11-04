@@ -38,6 +38,11 @@ pub mod candidate_version;
 ///  lazy bytes and invalidation of candidate versions.
 pub mod candidate_store;
 
+/// The listings of one commit's tree,
+///  of the parents of a set of commits and of a tree's blobs,
+///  as a second block of operations of the candidate store.
+pub mod candidate_store_commit_listings;
+
 /// Pure parsing of `git ls-files --stage` records and the delta between two index states.
 pub mod candidate_stage;
 
@@ -52,6 +57,14 @@ pub mod candidate_private_index;
 /// Which candidate paths have their `text` Git attribute unset,
 ///  read from the state the candidates were listed from.
 pub mod candidate_attribute;
+
+/// How many paths one Git command of the candidate layer names at a time.
+pub mod candidate_pathspec_chunk_size;
+
+/// The Git runs of a prediction:
+///  one captured command with its failures,
+///  and the path of the real index.
+pub mod candidate_prediction_git_runs;
 
 /// What `git add` would stage,
 ///  and the worktree files a direct command selects.
