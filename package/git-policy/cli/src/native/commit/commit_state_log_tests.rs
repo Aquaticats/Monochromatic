@@ -784,3 +784,23 @@ fn r15_recovery_does_not_select_a_document_whose_needs_its_set_does_not_cover() 
     std::fs::write(state.join("state.log.1"), bytes).expect("a log the writer did not produce");
     assert_eq!(read(&state).expect("readable").expect("state"), (1, b"first".to_vec()));
 }
+
+/// Review 9a section 2B: S was created at its checksum name and the creator kept a writable descriptor; capture and completion then
+/// accepted it, the permission bits came off, the predecessor was reclaimed, and bytes written through the old descriptor made the only
+/// root unrecoverable. Content addressing detects that; it does not prevent it. Capturing saved content seals it (no write permission) and
+/// refuses it while any writable descriptor to it is open, in any process; once sealed, nobody can open it for writing.
+#[test]
+fn r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_content_cannot_be_reopened() {
+    let (lane, state, _envelope) = lane_with_envelope("r15-writable-descriptor");
+    append(&state, 1, b"first").expect("append");
+    let saved: PathBuf = saved_content(&lane, b"objects of b");
+    let mut survivor = std::fs::OpenOptions::new().write(true).open(&saved).expect("the creator keeps a writable descriptor");
+    assert!(ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).is_err(), "saved content with a writable descriptor open was captured");
+    std::io::Write::write_all(&mut survivor, b"").expect("the descriptor is still the creator's");
+    drop(survivor);
+    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("with no writable descriptor the content is captured");
+    assert!(std::fs::OpenOptions::new().write(true).open(&saved).is_err(), "sealed saved content was opened for writing again");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.checkpoint(2, b"retains s", std::slice::from_ref(&content)).expect("checkpoint");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+}
