@@ -575,3 +575,173 @@ fn a_git_that_exits_without_reading_is_reaped_and_reported() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(base.commit.is_err(), "{base:?}");
 }
+
+/// Compresses a loose object body (header and payload) the way Git stores it.
+fn deflate(bytes: &[u8]) -> Vec<u8> {
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    std::io::Write::write_all(&mut encoder, bytes).expect("compress");
+    return encoder.finish().expect("finish");
+}
+
+/// Replaces the loose object of the second commit with the given stored bytes and returns the repository directory.
+fn replace_loose_second(fixture: &Fixture, stored: &[u8]) -> PathBuf {
+    let common: PathBuf = fixture.work.join(".git");
+    let loose: PathBuf = common.join("objects").join(&fixture.second[..2]).join(&fixture.second[2..]);
+    fs::set_permissions(&loose, fs::Permissions::from_mode(0o644)).expect("writable");
+    fs::write(&loose, stored).expect("replace the loose object");
+    return common;
+}
+
+/// Review finding (4a 1): a commit body whose `parent` line is not an object name is rejected by Git's commit parser.
+#[test]
+fn a_malformed_parent_line_is_not_a_commit() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
+    let good: String = format!("tree {tree}\nparent {}\nauthor A <a@b> 1 +0000\ncommitter A <a@b> 1 +0000\n\nmessage\n", fixture.first);
+    let bad: String = format!("tree {tree}\nparent zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nauthor A <a@b> 1 +0000\ncommitter A <a@b> 1 +0000\n\nmessage\n");
+    let stored = |body: &str| { return deflate(format!("commit {}\0{body}", body.len()).as_bytes()); };
+
+    let common = replace_loose_second(&fixture, &stored(&good));
+    assert_eq!(confirm_commit(&common, &fixture.second), Ok(()), "control: a well-formed body is accepted");
+    replace_loose_second(&fixture, &stored(&bad));
+    assert!(confirm_commit(&common, &fixture.second).is_err(), "a malformed parent line was accepted");
+}
+
+/// Review finding (4a 1): the size in a loose header is canonical decimal.
+#[test]
+fn a_noncanonical_loose_size_is_not_a_commit() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let tree: String = git(fixture.root.path(), &fixture.work, &["rev-parse", "HEAD^{tree}"]);
+    let body: String = format!("tree {tree}\nauthor A <a@b> 1 +0000\ncommitter A <a@b> 1 +0000\n\nmessage\n");
+    for size in [format!("+{}", body.len()), format!("0{}", body.len())] {
+        let common = replace_loose_second(&fixture, &deflate(format!("commit {size}\0{body}").as_bytes()));
+        assert!(confirm_commit(&common, &fixture.second).is_err(), "the size {size} was accepted");
+    }
+}
+
+/// Review finding (4a 2): a zlib stream without its checksum is not complete, even though all of its output is available.
+#[test]
+fn a_zlib_stream_without_its_checksum_is_not_a_commit() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let common: PathBuf = fixture.work.join(".git");
+    let loose: PathBuf = common.join("objects").join(&fixture.second[..2]).join(&fixture.second[2..]);
+    let whole: Vec<u8> = fs::read(&loose).expect("loose commit");
+
+    replace_loose_second(&fixture, &whole[..whole.len() - 4]);
+
+    assert!(confirm_commit(&common, &fixture.second).is_err(), "a stream without its trailer was accepted");
+}
+
+/// Review finding (4a 2): Git checks the pack's object count against its index when it opens the pack.
+#[test]
+fn a_pack_whose_object_count_disagrees_with_its_index_is_not_trusted() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    git(fixture.root.path(), &fixture.work, &["gc", "--quiet"]);
+    let common: PathBuf = fixture.work.join(".git");
+    assert_eq!(confirm_commit(&common, &fixture.second), Ok(()), "control: the packed commit is confirmed");
+    let pack: PathBuf = fs::read_dir(common.join("objects/pack")).expect("packs").flatten().map(|entry| { return entry.path(); }).find(|path| { return path.extension().is_some_and(|extension| { return extension == "pack"; }); }).expect("a pack");
+    fs::set_permissions(&pack, fs::Permissions::from_mode(0o644)).expect("writable");
+    let mut bytes: Vec<u8> = fs::read(&pack).expect("pack");
+    bytes[8..12].copy_from_slice(&[0, 0, 0, 0]);
+    fs::write(&pack, bytes).expect("patch the object count");
+
+    assert!(confirm_commit(&common, &fixture.second).is_err(), "a pack with a wrong object count was trusted");
+}
+
+/// Review finding (4a 2): the checksum at the end of the pack must be the one its index records.
+#[test]
+fn a_pack_whose_trailer_disagrees_with_its_index_is_not_trusted() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    git(fixture.root.path(), &fixture.work, &["gc", "--quiet"]);
+    let common: PathBuf = fixture.work.join(".git");
+    let pack: PathBuf = fs::read_dir(common.join("objects/pack")).expect("packs").flatten().map(|entry| { return entry.path(); }).find(|path| { return path.extension().is_some_and(|extension| { return extension == "pack"; }); }).expect("a pack");
+    fs::set_permissions(&pack, fs::Permissions::from_mode(0o644)).expect("writable");
+    let mut bytes: Vec<u8> = fs::read(&pack).expect("pack");
+    let last: usize = bytes.len() - 1;
+    bytes[last] ^= 0xff;
+    fs::write(&pack, bytes).expect("patch the trailer");
+
+    assert!(confirm_commit(&common, &fixture.second).is_err(), "a pack with a wrong trailer was trusted");
+}
+
+/// Review finding (4a 7): only regular files are opened as objects, so a link (or a FIFO, which would block) is Git's to judge.
+#[test]
+fn a_loose_object_that_is_a_link_is_not_read() {
+    use crate::git_objects::confirm_commit;
+    let fixture = fixture("topic");
+    let common: PathBuf = fixture.work.join(".git");
+    let loose: PathBuf = common.join("objects").join(&fixture.second[..2]).join(&fixture.second[2..]);
+    let moved: PathBuf = fixture.root.path().join("moved-object");
+    fs::rename(&loose, &moved).expect("move the object");
+    symlink(&moved, &loose).expect("link it back");
+
+    assert!(confirm_commit(&common, &fixture.second).is_err());
+}
+
+/// Review finding (4a 5): a `.git` entry that is a link is not followed for the ownership decision; Git's is an `lstat`.
+#[test]
+fn a_dot_git_link_is_left_to_git() {
+    let fixture = fixture("topic");
+    let outer: PathBuf = fixture.root.path().join("outer");
+    fs::create_dir_all(&outer).expect("outer");
+    symlink(fixture.work.join(".git"), outer.join(".git")).expect("a .git link");
+
+    let answered = crate::git_native::native_base(&outer, false, &environment(fixture.root.path()));
+
+    assert!(answered.is_err(), "{answered:?}");
+}
+
+/// Review finding (4a 8): an empty `commondir` file is not an absent one; Git refuses it.
+#[test]
+fn an_empty_commondir_is_left_to_git() {
+    let fixture = fixture("topic");
+    fs::write(fixture.work.join(".git/commondir"), "").expect("an empty commondir");
+
+    assert_agrees(&fixture, "empty commondir");
+    assert_declines(&fixture, "empty commondir");
+}
+
+/// Review finding (4a 3): a valued remote setting that Git parses as a boolean must be one.
+#[test]
+fn an_invalid_boolean_of_an_unused_remote_is_left_to_git() {
+    let fixture = fixture("topic");
+    base_branch_at_first(&fixture);
+    write_config(&fixture, &format!("{TOPIC_TRACKS_BASE}[remote \"unused\"]\n\tmirror = definitely-not-a-boolean\n"));
+
+    assert_agrees(&fixture, "invalid boolean on an unused remote");
+}
+
+/// Review finding (4a 3): Git loads push refspecs too.
+#[test]
+fn an_invalid_push_refspec_of_an_unused_remote_is_left_to_git() {
+    let fixture = fixture("topic");
+    base_branch_at_first(&fixture);
+    write_config(&fixture, &format!("{TOPIC_TRACKS_BASE}[remote \"unused\"]\n\tpush = refs/heads/**:refs/heads/**\n"));
+
+    assert_agrees(&fixture, "invalid push refspec on an unused remote");
+}
+
+/// Review finding (4a 6): when the batch stopped early, a candidate whose query timed out is not read as "not a commit".
+#[test]
+fn a_timeout_in_the_sequential_fallback_is_reported_not_skipped() {
+    let fixture = fixture("topic");
+    include_with(&fixture, "");
+    let directory = scratch();
+    let body = format!(
+        "case \"$1\" in\n  cat-file) head -n 1 >/dev/null; echo '{second} commit 100'; exit 128;;\n  rev-parse) case \"$*\" in *upstream*) sleep 5;; *) echo {second};; esac;;\nesac",
+        second = fixture.second
+    );
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.git.program = script(directory.path(), "fake-git", &body);
+    environment.git.bound = Duration::from_millis(400);
+
+    let base = resolve_trust_base_with(&fixture.work, false, None, &environment);
+
+    let message: String = base.commit.expect_err("the upstream query did not finish, so no lower candidate may be chosen");
+    assert!(message.contains("did not finish"), "{message}");
+}
