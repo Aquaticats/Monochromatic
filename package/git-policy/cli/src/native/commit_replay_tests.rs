@@ -441,6 +441,7 @@ fn a_replay_from_a_closure_reconstructed_after_the_objects_were_pruned_is_clean_
         base: base.clone(),
         message: b"m".to_vec(),
         operation: Operation::Commit,
+        nonce: vec![1; 16],
         changes: vec![Change {
             path: b"kept.txt".to_vec(),
             mode: "100644".to_string(),

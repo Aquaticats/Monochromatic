@@ -15,11 +15,12 @@
 
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{bind, start_events, take_events};
-use git_policy_cli::commit_inbox::{Accepted, accept, decode_inbox_file, depart, encode_inbox_file, init_lane_directories, with_identity};
+use git_policy_cli::commit_inbox::{Accepted, accept, decode_inbox_file, depart, depart_closure, encode_inbox_file, init_lane_directories, with_identity};
 use git_policy_cli::commit_integrity::sha256_hex;
 use git_policy_cli::commit_request::{Change, Operation, Request, publish};
 use git_policy_cli::commit_spool::write_spool;
 use git_policy_cli::commit_state::{read_state, sync_newest, write_state};
+use git_policy_cli::commit_state_log;
 use std::path::PathBuf;
 
 /// The lane instance of the tests.
@@ -35,6 +36,7 @@ fn one_path_request() -> (Request, Vec<Vec<u8>>, Vec<Vec<u8>>) {
             base: "b".repeat(40),
             message: b"m".to_vec(),
             operation: Operation::Commit,
+            nonce: vec![1; 16],
             changes: vec![Change {
                 path: b"f.txt".to_vec(),
                 mode: "100644".to_string(),
@@ -172,4 +174,95 @@ fn a_partly_written_newer_state_leaves_the_older_generation_valid() {
     write_state(&dir, 3, b"third").expect("state");
     assert_eq!(read_state(&dir).expect("newest"), (3, b"third".to_vec()));
     assert_eq!(std::fs::read(dir.join("state.a")).expect("the valid older file is not the one rewritten"), std::fs::read(dir.join("state.a")).expect("same"));
+}
+
+/// Review 5 P1 3: two independent invocations with equal payloads carry different nonces and get different identities; a resend of one
+/// invocation carries its retained nonce and gets the same identity.
+#[test]
+fn independent_identical_requests_get_different_identities_and_a_resend_the_same() {
+    let (first, _, _) = one_path_request();
+    let mut second: Request = first.clone();
+    second.nonce = vec![2; 16];
+    let second: Request = with_identity(INSTANCE, second).expect("identity");
+    assert_ne!(first.id, second.id);
+    let resend: Request = with_identity(INSTANCE, first.clone()).expect("identity");
+    assert_eq!(resend.id, first.id);
+    let mut short: Request = first.clone();
+    short.nonce = vec![1; 3];
+    assert!(with_identity(INSTANCE, short).is_err());
+}
+
+/// Review 5 P1 1: successive unsynced transitions then a power cut. The alternating pair loses every valid generation (the third write
+/// overwrites the only durable one in place and tears; the second never reached disk); the state log keeps its durable checkpoint.
+#[test]
+fn successive_unsynced_state_transitions_then_a_power_cut() {
+    let root: PathBuf = scratch("v-powercut");
+    let pair: PathBuf = root.join("pair");
+    std::fs::create_dir_all(&pair).expect("dir");
+    write_state(&pair, 1, b"durable").expect("g1");
+    sync_newest(&pair).expect("sync");
+    write_state(&pair, 2, b"unsynced two").expect("g2");
+    write_state(&pair, 3, b"unsynced three").expect("g3");
+    // The power cut: the unsynced second file never reached the disk; the third write tore the only durable file.
+    let _ = std::fs::remove_file(pair.join("state.b"));
+    let torn: Vec<u8> = std::fs::read(pair.join("state.a")).expect("read");
+    std::fs::write(pair.join("state.a"), &torn[..torn.len() / 2]).expect("tear");
+    assert!(read_state(&pair).is_none(), "the pair kept no valid generation");
+    let log: PathBuf = root.join("log");
+    std::fs::create_dir_all(&log).expect("dir");
+    commit_state_log::append(&log, 1, b"one").expect("append");
+    commit_state_log::rotate(&log, 2, b"the checkpoint document").expect("rotate");
+    commit_state_log::complete_rotation(&log).expect("durable checkpoint");
+    let durable: u64 = std::fs::metadata(log.join("state.log.2")).expect("size").len();
+    for generation in 3..6 {
+        commit_state_log::append(&log, generation, b"unsynced transition").expect("append");
+    }
+    let bytes: Vec<u8> = std::fs::read(log.join("state.log.2")).expect("read");
+    std::fs::write(log.join("state.log.2"), &bytes[..durable as usize + 7]).expect("the power cut tears the first unsynced record");
+    assert_eq!(commit_state_log::read(&log).expect("durable checkpoint"), (2, b"the checkpoint document".to_vec()));
+}
+
+/// Review 5 P1 2: the departure forces the closure its exit promises, in dependency order: request files, the inbox directory, the order
+/// file and its directory, the newest state log file and its directory (the state's name), then the ledger file and its directory.
+#[test]
+fn a_departure_forces_the_whole_closure_including_state_names_order_and_ledger() {
+    let root: PathBuf = scratch("v-closure");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    let state: PathBuf = lane.join("state");
+    commit_state_log::append(&state, 1, b"adopted").expect("append");
+    let order: PathBuf = lane.join("queue").join("order");
+    std::fs::write(&order, b"adopt line
+").expect("order");
+    let ledger: PathBuf = lane.join("queue").join("ledger");
+    std::fs::write(&ledger, b"ledger line
+").expect("ledger");
+    start_events();
+    depart_closure(&lane.join("inbox"), std::slice::from_ref(&request.id), Some(&order), &state, Some(&ledger)).expect("depart");
+    let events: Vec<String> = take_events();
+    let expect = |kind: &str, path: &std::path::Path| -> String { return format!("{}:{}", kind, path.display()); };
+    assert_eq!(
+        events,
+        vec![
+            expect("file-sync", &lane.join("inbox").join(&request.id)),
+            expect("dir", &lane.join("inbox")),
+            expect("file-sync", &order),
+            expect("dir", &lane.join("queue")),
+            expect("file-sync", &state.join("state.log.1")),
+            expect("dir", &state),
+            expect("file-sync", &ledger),
+            expect("dir", &lane.join("queue")),
+        ]
+    );
+}
+
+/// Review 5 P2: the state log refuses a generation that does not increase.
+#[test]
+fn the_state_log_requires_increasing_generations() {
+    let dir: PathBuf = scratch("v-generations");
+    commit_state_log::append(&dir, 5, b"five").expect("append");
+    assert!(commit_state_log::append(&dir, 5, b"again").is_err());
+    assert!(commit_state_log::append(&dir, 4, b"older").is_err());
+    commit_state_log::append(&dir, 6, b"six").expect("append");
 }

@@ -38,6 +38,7 @@ fn request(digit: char, message: &str) -> Request {
         base: "b".repeat(40),
         message: message.as_bytes().to_vec(),
         operation: Operation::Commit,
+        nonce: vec![1; 16],
         changes: vec![
             Change {
                 path: b"a/gone.txt".to_vec(),
@@ -527,4 +528,16 @@ fn only_the_exclusive_owner_of_a_ledger_may_repair_it() {
     assert_eq!(repair.cut, 3);
     drop(owner);
     assert!(LedgerOwner::acquire(&ledger).is_ok(), "the lock ends with its holder");
+}
+
+/// Review 5 P2: an owner is the owner of one ledger; it cannot repair or append to another ledger.
+#[test]
+fn an_owner_of_one_ledger_cannot_touch_another() {
+    let directory: PathBuf = scratch("ledger-other");
+    let mine: PathBuf = directory.join("mine");
+    let other: PathBuf = directory.join("other");
+    let owner: LedgerOwner = LedgerOwner::acquire(&mine).expect("owner");
+    assert!(owner.append(&directory, &other, &entry('1', "published")).is_err());
+    assert!(owner.repair_tail(&directory, &other).is_err());
+    assert!(!other.exists());
 }

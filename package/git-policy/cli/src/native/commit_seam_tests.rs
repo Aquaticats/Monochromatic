@@ -38,6 +38,7 @@ fn request(digit: char, message: &str) -> Request {
         base: "b".repeat(40),
         message: message.as_bytes().to_vec(),
         operation: Operation::Commit,
+        nonce: vec![1; 16],
         changes: vec![Change {
             path: b"f.txt".to_vec(),
             mode: "100644".to_string(),
