@@ -229,12 +229,21 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     let marker = plain.path().join("late");
     let ready = plain.path().join("writer-ready");
     // A writer of the process group is running and ready (a handshake) before the bound passes; it would write after the stop.
-    let script: String = format!("(: > {ready}; sleep 2; : > {late}) & while [ ! -e {ready} ]; do sleep 0.02; done; sleep 30", ready = ready.display(), late = marker.display());
-
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &Bound { limit: Duration::from_millis(1500), ..bound() });
+    // The bound counts the start of the run, so an attempt whose bound ended before the writer was ready is repeated with a doubled
+    // bound, and the writer's own delay follows the bound (a second after it) so that it still writes only after the stop.
+    let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
+        Duration::from_millis(1500),
+        &|| { let _ = fs::remove_file(&ready); let _ = fs::remove_file(&marker); },
+        &|| { return ready.exists(); },
+        &mut |limit| {
+            let delay: f64 = limit.as_secs_f64() + 0.5;
+            let script: String = format!("(: > {ready}; sleep {delay}; : > {late}) & while [ ! -e {ready} ]; do sleep 0.02; done; sleep 600", ready = ready.display(), late = marker.display());
+            return output_within(Command::new("sh").args(["-c", &script]), None, &Bound { limit, ..bound() });
+        },
+    );
     use_route_settings_for_test(None);
     let ready_before: bool = ready.exists();
-    std::thread::sleep(Duration::from_millis(2_700));
+    std::thread::sleep(limit + Duration::from_millis(1_200));
 
     // The result is the timeout (certification group 3), the writer started, and the run was the weaker path.
     assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the run should have passed its bound: {result:?}");

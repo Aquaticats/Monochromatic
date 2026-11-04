@@ -44,10 +44,18 @@ fn a_child_that_outlives_its_bound_is_stopped_and_named() {
     let directory = crate::test_scratch::scratch();
     let marker = directory.path().join("started");
     let started = Instant::now();
+    let script: String = format!(": > {}; exec sleep 5", marker.display());
 
-    let result = output_within(Command::new("sh").args(["-c", &format!(": > {}; exec sleep 5", marker.display())]), None, &bound(Duration::from_secs(2)));
+    // An attempt whose bound ended before the payload wrote its marker is repeated with a longer one (the bound counts scope startup).
+    let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
+        Duration::from_secs(2),
+        &|| { let _ = std::fs::remove_file(&marker); },
+        &|| { return marker.exists(); },
+        &mut |limit| { return output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit)); },
+    );
 
-    assert!(started.elapsed() < Duration::from_secs(5), "the child was waited for: {:?}", started.elapsed());
+    // With the first bound the child (five seconds) is stopped at the bound and not waited for.
+    assert!(limit != Duration::from_secs(2) || started.elapsed() < Duration::from_secs(5), "the child was waited for: {:?}", started.elapsed());
     assert!(marker.exists(), "the payload never started, so the bound was not the command's lifetime");
     let error: RunError = result.expect_err("a timeout");
     assert!(matches!(error, RunError::TimedOut { .. }), "{error:?}");
@@ -207,17 +215,9 @@ fn delegated_transaction() -> (tempfile::TempDir, crate::journal::Transaction) {
     return (workspace, transaction);
 }
 
-/// Reads the process id a script wrote to a file.
+/// Reads the process id a script wrote to a file, waiting for it as long as a helper lives.
 fn pid_in(path: &std::path::Path) -> i32 {
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    loop {
-        if let Some(found) = std::fs::read_to_string(path).ok().and_then(|text| { return text.trim().parse::<i32>().ok(); }) {
-            return found;
-        }
-        assert!(std::time::Instant::now() < deadline, "{} never held a process id", path.display());
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
+    return crate::contain_counterexample_tests::read_pid(path);
 }
 
 /// Review finding (4c F2):
@@ -238,7 +238,14 @@ fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&script`: lends the value without copying or giving it away.
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_millis(400)));
+    // The bound counts scope startup, so an attempt in which the payload had not written its pid when the bound ended is repeated with
+    // a longer one (it judges nothing about stopping a descendant at the bound).
+    let (result, _limit) = crate::cgroup_test_support::run_until_the_payload_started(
+        Duration::from_millis(400),
+        &|| { let _ = std::fs::remove_file(&pid_file); },
+        &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
+        &mut |limit| { return output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit)); },
+    );
 
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err());
@@ -345,4 +352,43 @@ fn a_timeout_names_the_command_the_user_ran() {
     let message: String = result.expect_err("a timeout").to_string();
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(message.contains("`cargo build --release`"), "{message}");
+}
+
+/// Reproduction of the failure the full gate showed on 2026-11-04 (certification of the gate, `a_descendant_is_stopped_with_its_parent_at_the_bound`
+/// "never held a process id"): a scope whose start takes longer than a short bound (the manager or the disk was busy with another
+/// session's work) ends the run at its bound before the payload exists, and the payload's file never appears.
+/// The launcher here takes a second to start (a stand-in for `systemd-run` that sleeps first), the first bound is 400 ms: the first
+/// attempt ends in startup with no payload, which is no judgement of stopping a descendant at the bound, so the helper repeats with a
+/// longer bound and the judged attempt is the one in which the payload started and was stopped with its parent.
+#[test]
+fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_bound_and_then_judged() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
+    let (_workspace, transaction) = delegated_transaction();
+    let directory = crate::test_scratch::scratch();
+    let slow: std::path::PathBuf = directory.path().join("slow-systemd-run");
+    std::fs::write(&slow, "#!/bin/sh\nsleep 1\nexec systemd-run \"$@\"\n").expect("write the slow launcher");
+    std::fs::set_permissions(&slow, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("make it executable");
+    crate::bounded_run::use_route_settings_for_test(Some(crate::control_group::RouteSettings { systemd_run: slow.display().to_string(), ..crate::control_group::RouteSettings::default() }));
+    let pid_file = directory.path().join("pid");
+    let script = format!("sleep 30 & echo $! > {}; sleep 30", pid_file.display());
+    let attempts: std::cell::Cell<u32> = std::cell::Cell::new(0);
+
+    let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
+        Duration::from_millis(400),
+        &|| { let _ = std::fs::remove_file(&pid_file); },
+        &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
+        &mut |limit| {
+            attempts.set(attempts.get() + 1);
+            return output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
+        },
+    );
+    crate::bounded_run::use_route_settings_for_test(None);
+
+    assert!(attempts.get() >= 2, "the first bound of 400 ms did not end during the one-second startup, so the schedule was not built");
+    assert!(limit > Duration::from_secs(1), "the judged bound {limit:?} is not longer than the startup");
+    assert!(result.is_err(), "the run should have ended at its bound");
+    assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
+    drop(transaction);
 }

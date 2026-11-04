@@ -29,8 +29,55 @@ const FIXTURE_ROOT: &str = "CARGO_SHADOW_CONTAIN_FIXTURE_ROOT";
 /// The crate root of the workspace fixtures.
 const CRATE_DIR: &str = "package/c/one";
 
-/// How long a test waits for a file that a helper promised to make.
-const FILE_WAIT: Duration = Duration::from_secs(30);
+/// The longest a test waits for a file that a live helper promised to make. It is not an expectation of speed: the helper is judged
+/// by whether it is alive, and this cap only ends a helper that lives and never makes the file. A fixed wait of thirty seconds failed
+/// runs on a host whose disk was busy with another session's image build (the journal of every helper is made with `fsync`, which waited
+/// behind that writer for longer than that), so the wait follows the helper instead of a clock.
+const FILE_WAIT: Duration = Duration::from_secs(900);
+
+/// How long a file may be missing while no child of this process is alive before the wait gives up (the time for a child to be
+/// spawned by another thread of the test).
+const NO_HELPER_GRACE: Duration = Duration::from_secs(2);
+
+/// Whether this process has a child process that is alive (not a zombie that waits to be reaped).
+/// Why:
+/// The helpers of these tests are children of the test process, so a wait for a file they make can stop at once when none is left
+/// to make it, and need not guess how long a slow host takes.
+fn a_child_is_alive() -> bool {
+    let Ok(tasks) = std::fs::read_dir("/proc/self/task") else {
+        return true;
+    };
+    for task in tasks.flatten() {
+        let Ok(children) = std::fs::read_to_string(task.path().join("children")) else {
+            return true;
+        };
+        for child in children.split_whitespace() {
+            let state: String = std::fs::read_to_string(format!("/proc/{child}/stat")).ok().and_then(|text| { return text.rsplit(')').next().map(|after| { return after.trim_start().chars().next().unwrap_or('?').to_string(); }); }).unwrap_or_else(|| { return "?".to_string(); });
+            if state != "Z" && state != "X" {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/// Waits until `ready` holds, as long as a helper (a child of this process) is alive, and gives up at once when none is left.
+/// Why:
+/// A wait that follows its helper cannot mistake a slow host for a hung helper, and a helper that died is reported without waiting.
+fn wait_while_a_helper_lives(what: &Path, ready: &dyn Fn() -> bool, verb: &str) {
+    let started: Instant = Instant::now();
+    let mut without_helper_since: Option<Instant> = None;
+    while !ready() {
+        assert!(started.elapsed() < FILE_WAIT, "{} {verb}: a helper lives but did not make it within {FILE_WAIT:?}", what.display());
+        if a_child_is_alive() {
+            without_helper_since = None;
+        } else {
+            let since: Instant = *without_helper_since.get_or_insert_with(Instant::now);
+            assert!(since.elapsed() < NO_HELPER_GRACE, "{} {verb}: no helper is alive to make it", what.display());
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
 
 /// The C source of a process whose first thread ends while a second thread lives on.
 /// The second thread says when the first thread is a zombie in `/proc` (the handshake), then lives on.
@@ -94,23 +141,14 @@ fn bound(limit: Duration) -> Bound {
 
 /// Waits until a file exists, up to `FILE_WAIT`.
 pub(crate) fn wait_for_file(path: &Path) {
-    let deadline: Instant = Instant::now() + FILE_WAIT;
-    while !path.exists() {
-        assert!(Instant::now() < deadline, "{} did not appear", path.display());
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    wait_while_a_helper_lives(path, &|| { return path.exists(); }, "did not appear");
 }
 
 /// Reads a process id a helper wrote.
 pub(crate) fn read_pid(path: &Path) -> i32 {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    loop {
-        if let Some(found) = std::fs::read_to_string(path).ok().and_then(|text| { return text.trim().parse::<i32>().ok(); }) {
-            return found;
-        }
-        assert!(std::time::Instant::now() < deadline, "{} never held a process id", path.display());
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
+    let read = || -> Option<i32> { return std::fs::read_to_string(path).ok().and_then(|text| { return text.trim().parse::<i32>().ok(); }); };
+    wait_while_a_helper_lives(path, &|| { return read().is_some(); }, "never held a process id");
+    return read().expect("the process id was read a moment ago");
 }
 
 /// Whether a process with this id is running (neither ended nor a zombie that waits to be reaped).
