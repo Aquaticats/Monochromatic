@@ -29,6 +29,10 @@ pub const DONE_EXTENSION: &str = "done";
 /// Extension of a file being written; never read as an intent.
 const TEMPORARY_EXTENSION: &str = "tmp";
 
+/// Extension of the empty file that holds a batch number for the service landing it, from the moment the number is taken until
+///  the landing ends; never read as an intent.
+pub const CLAIM_EXTENSION: &str = "claim";
+
 /// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it. A write takes
 ///  milliseconds; the grace covers a writer stalled on a slow disk or a loaded host. Measured: the longest journal write step of
 ///  1,302 landings in the service journal (`journal_ms`, 2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z) was 40,188 ms, the 99th
@@ -189,6 +193,72 @@ pub fn batch_path(dir: &Path, seq: u64, extension: &str) -> PathBuf {
     return dir.join(format!("{seq}.{extension}"));
 }
 
+/// A batch number held for one landing; the number is free to take again when this goes out of scope.
+#[derive(Debug)]
+pub struct BatchClaim {
+    seq: u64,
+    path: PathBuf,
+}
+
+impl BatchClaim {
+    /// The number this claim holds.
+    pub fn seq(&self) -> u64 {
+        return self.seq;
+    }
+}
+
+/// The claim file goes with the landing, whichever way it ended; the intent (or the finished batch) keeps the number taken.
+impl Drop for BatchClaim {
+    fn drop(&mut self) {
+        let _removed = fs::remove_file(&self.path);
+    }
+}
+
+/// Whether the journal already holds a record under the number: an open intent or a finished batch.
+fn number_has_record(dir: &Path, seq: u64) -> bool {
+    return batch_path(dir, seq, OPEN_EXTENSION).exists() || batch_path(dir, seq, DONE_EXTENSION).exists();
+}
+
+/// What:
+///  Takes the first batch number from `first` up that no landing in the journal holds or has held, and holds it.
+/// Why:
+///   Services that share a journal count from clock readings, which can be equal, and a count that starts a few microseconds
+///  behind another's reaches the other's numbers after a few batches. A batch's files are named by its number, so two landings
+///  with one number would write one intent over the other and one finished record over the other, and a request that landed
+///  would be forgotten. The file is created with `O_EXCL`, so exactly one service owns a number; a number with an intent or a
+///  finished batch is skipped too, as the claim of a landing that has ended is gone while its record stays. The loop ends
+///  because the journal holds finitely many files and each pass moves to a number past one it holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let seq = first
+/// while (!(await createExclusive(claimPath(dir, seq))) || hasRecord(dir, seq)) seq += 1 // removes its own claim when it skips
+/// return claim(seq)
+/// ```
+///
+/// # Errors
+///
+/// The error of a claim file that cannot be created for a reason other than the number being held.
+pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
+    let mut seq: u64 = first;
+    loop {
+        let path: PathBuf = batch_path(dir, seq, CLAIM_EXTENSION);
+        match File::options().write(true).create_new(true).open(&path) {
+            Ok(_created) => {
+                let claim: BatchClaim = BatchClaim { seq, path };
+                if !number_has_record(dir, seq) {
+                    return Ok(claim);
+                }
+                // A landing that ended left its record under this number and took its claim away: the number is not free.
+                drop(claim);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+        seq = seq.checked_add(1).ok_or_else(|| { return std::io::Error::other("the journal holds every batch number"); })?;
+    }
+}
+
 /// What:
 ///  Writes an intent durably: the file is synced, renamed into place, and the directory is synced.
 /// Why:
@@ -347,9 +417,9 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         match path.extension().and_then(|text| { return text.to_str(); }) {
-            Some(TEMPORARY_EXTENSION) => {
-                // Only the remains of a write that was killed: a younger file may be another instance's write in progress,
-                //  and removing it would fail that instance's rename.
+            Some(TEMPORARY_EXTENSION | CLAIM_EXTENSION) => {
+                // Only the remains of a write or a landing that was killed: a younger file may be another instance's write in
+                //  progress, and removing it would fail that instance's rename or hand its number to a second landing.
                 let abandoned: bool = entry
                     .metadata()
                     .and_then(|meta| { return meta.modified(); })

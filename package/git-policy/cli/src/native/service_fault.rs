@@ -99,6 +99,23 @@ pub fn queued(id: &str) {
     }
 }
 
+/// Environment variable pinning the number the service counts its batches from, in place of the clock reading it starts from.
+pub const FIRST_BATCH_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH";
+
+/// What:
+///  The number the variable pins the service's batch count to, when it is armed with a number.
+/// Why:
+///   Two services that share a journal count from clock readings, which are equal only by chance; a control that needs them equal
+///  pins both. Only the explicit variable arms it, as with the fault points.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pinned = Number(process.env.CLI_GIT_TEST_ONLY_SERVICE_FIRST_BATCH) // undefined when unset or not a number
+/// ```
+pub fn pinned_first_batch() -> Option<u64> {
+    return std::env::var(FIRST_BATCH_VARIABLE).ok().and_then(|text| { return text.parse::<u64>().ok(); });
+}
+
 /// Hooks a control sets to run its own code at a point of a landing, on the thread that reaches the point; never part of the
 ///  release executable.
 #[cfg(test)]
