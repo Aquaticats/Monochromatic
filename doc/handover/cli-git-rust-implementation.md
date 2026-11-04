@@ -264,11 +264,28 @@ two delegate agents and four cross-vendor reviews running:
   a power cut before the only copy is durable) are already ranked by decisions 4,
   5 and 14 and the outside-cause list,
   so no new owner question.
-  Revision 18 started (the design agent resumed):
-  only those rule gaps,
-  the acceptance target written into the design as its fixed list,
-  the conflicts section,
-  and R17a-10's question 8 edits.
+  Revision 18 done:
+  tip `21b8042205` (2026-11-04T04:55:40-05:00),
+  design 246 KB (the first ten reviews moved to the new tracked `doc/planning/cli-git-commits-never-fail-review-history-archive.md`);
+  the five rule gaps fixed (L4 queues receipts without forcing;
+  seal protocol with `lane/sealed`,
+  a doorbell and a final sweep;
+  a one-shot flusher from an internal entry point under `lane/flusher.lock`;
+  support as the fold of live `install` entries in tail order;
+  the command creates the side ref,
+  the helper only reads and flushes);
+  "Acceptance target" and "Rule conflicts and the decisions that rank them" sections added;
+  question 8 rewritten (`commits-never-fail-questions-21b8042205.md`,
+  recommends A,
+  ranking A > C > B labelled a policy preference).
+  R17a-6 to R17a-9 untouched on purpose.
+  Scoped review running (`commits-never-fail-sol-18a.txt`:
+  the five gaps,
+  the copied target,
+  the flusher against the recursion rule and the lock rule,
+  question 8).
+  Models round 13 started (the models agent resumed),
+  building to the acceptance target with a coverage map.
   Models round 12 started (the models agent resumed):
   the P1s of components 8,
   models 6a and 6b,
