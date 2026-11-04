@@ -15,7 +15,7 @@
 use crate::model_explore::{Report, replay};
 use crate::model_w1_r13::{
     Child, Class, Client, FOREGROUND_BOUND, HOLD_BOUND, Kind, Line, Mark, Owner, Pipe, Rules, State, Tip, check, check_hold, check_with,
-    classify, initial, invariant, invariant_twelve_text_lock_released, steps, violations, Seen,
+    c3_says_nothing_can_land, classify, initial, invariant, invariant_twelve_text_lock_released, steps, violations, Seen,
 };
 
 const START: &str = "owner: P1 and P2a start an attempt";
@@ -169,7 +169,7 @@ fn a_late_positive_failure_after_the_unresolved_exit_records_withdrawn() {
 #[test]
 fn the_child_applies_a_queued_commit_after_its_owner_died() {
     let reached: State = replay(
-        commit_queued(Rules::Thirteen),
+        commit_queued(Rules::Fourteen),
         steps,
         &[OWNER_DIES, READS_COMMIT, WRITES_REF, COMMITTING_MARK, COMMITTING_EXIT],
     );
@@ -356,4 +356,66 @@ fn a_hook_that_can_write_the_output_file_forges_positive_failure() {
     let violation = shared.violation.expect("a forged line is accepted as evidence");
     assert!(violation.trace.iter().any(|label| { return label.contains("looks like abort: ok"); }), "{:?}", violation.trace);
     assert!(check(Rules::Fourteen).violation.is_none());
+}
+
+const SHUTDOWN: &str = "owner: planned shutdown records clean-shutdown and exits";
+const KEEPER_EOF: &str = "environment: the keeper write end closed and end of input aborts the prepared transaction";
+
+/// Control 20 (the exit audit): a planned service shutdown with a prepared transaction and an attached client. The service never decides
+/// for a client that holds the lock, so it writes nothing; the keeper write end closes, end of input aborts the transaction as class F
+/// (the client had not written `commit`), and the client is back in FOREGROUND with plain W1 available. A protected execution (the
+/// hook of a transaction still preparing) is not cancelled by the shutdown itself.
+#[test]
+fn a_planned_shutdown_with_an_attached_client_aborts_as_class_f_and_decides_nothing() {
+    let reached: State = replay(
+        initial(Rules::Fourteen),
+        steps,
+        &[
+            START,
+            HOOK_OK,
+            SHUTDOWN,
+            KEEPER_EOF,
+            "environment: update-ref reads abort",
+            "environment: update-ref prints abort: ok and exits",
+            REAP,
+            E1,
+        ],
+    );
+    assert!(reached.clean_shutdown && !reached.decided_by_owner);
+    assert_eq!(reached.recorded, Some((1, Class::Failed)));
+    assert_eq!(reached.client, Client::Waiting);
+    assert!(enabled(&reached, "W1: the bound is reached; the client creates the mark withdraw"), "plain W1 stays available");
+    assert!(violations(&reached).is_empty());
+    let preparing: State = replay(initial(Rules::Fourteen), steps, &[START, SHUTDOWN]);
+    assert_eq!(preparing.child, Child::Preparing, "the shutdown does not cancel the protected execution");
+}
+
+/// Control 20, the other half: `commit` was already buffered when the service shut down; the transaction completes.
+#[test]
+fn a_planned_shutdown_lets_a_buffered_commit_complete() {
+    let reached: State = replay(commit_queued(Rules::Fourteen), steps, &[SHUTDOWN, READS_COMMIT, WRITES_REF]);
+    assert_eq!(reached.landed, 1);
+    assert!(violations(&reached).is_empty());
+}
+
+/// Control 20, a request with no client: the shutdown writes `abort` for a prepared transaction nobody will close.
+#[test]
+fn a_planned_shutdown_aborts_a_prepared_transaction_that_has_no_client() {
+    let killed: State = replay(
+        initial(Rules::Fourteen),
+        steps,
+        &[START, HOOK_OK, "environment: the client is killed from outside", SHUTDOWN],
+    );
+    assert_eq!(killed.pipe, Pipe::Abort);
+}
+
+/// Control 22: a query or a resend while the unresolved mark stands. Revision 13 answered `withdrawn` (nothing can land) while the
+/// original attempt's `commit` is queued (red); revision 14 says that the original attempt may still complete.
+#[test]
+fn a_query_during_the_unresolved_mark_never_says_nothing_can_land() {
+    let thirteen: State = replay(commit_queued(Rules::Thirteen), steps, &[COMMITTING_MARK]);
+    assert!(violations(&thirteen).contains(&"a query was answered withdrawn while the original attempt may still complete".to_string()));
+    let fourteen: State = replay(commit_queued(Rules::Fourteen), steps, &[COMMITTING_MARK]);
+    assert!(!violations(&fourteen).contains(&"a query was answered withdrawn while the original attempt may still complete".to_string()));
+    assert!(c3_says_nothing_can_land(Rules::Fourteen, Mark::Withdraw), "a plain mark can still be answered withdrawn");
 }

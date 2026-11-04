@@ -28,8 +28,12 @@ pub const BUDGET: u8 = 2;
 /// Who completes a stage.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Stage {
-    /// The command's own operation: it succeeds or fails, in one step of the command's.
+    /// The command's own operation: it succeeds, fails, or blocks (a filesystem call that does not return); the command's own deadline
+    /// is the independently executable escape from a block.
     Local,
+    /// A local operation whose failure or block means the stop authority was not recorded: the request may still land, and the exit must
+    /// say that and not only that the save is unconfirmed (revision 14).
+    Authority,
     /// Another party completes it; revision 13 gives it a bound of its own after which the command goes on unconfirmed.
     Foreign,
 }
@@ -61,7 +65,7 @@ pub const WITHDRAW: usize = 7;
 pub const DEPART: usize = 8;
 
 /// The register of revision 13 (the entries that wait or act at a bound; the unbounded ones are `EXEMPT`).
-pub const ENTRIES: [Entry; 17] = [
+pub const ENTRIES: [Entry; 19] = [
     Entry { name: "START", waits: true, retries: false, continues: false, stages: &[("W1, or the plain error when no request exists", Stage::Local)] },
     Entry { name: "CAPTURE", waits: true, retries: true, continues: false, stages: &[("exits non-zero: the lane kept changing, run again", Stage::Local)] },
     Entry { name: "MARKER", waits: true, retries: true, continues: false, stages: &[("exits non-zero: the lane was recovering, run again", Stage::Local)] },
@@ -72,7 +76,7 @@ pub const ENTRIES: [Entry; 17] = [
         continues: false,
         stages: &[
             ("W1 looks the identity up by the terminal route", Stage::Local),
-            ("W1 creates the withdrawal mark", Stage::Local),
+            ("W1 creates the withdrawal mark", Stage::Authority),
             ("W1 writes abort to an open attempt", Stage::Local),
             ("W1 waits for W2 to record the withdrawal (WAIT_WITHDRAW)", Stage::Foreign),
             ("W1 forces the D-set (WAIT_DEPART)", Stage::Foreign),
@@ -87,7 +91,7 @@ pub const ENTRIES: [Entry; 17] = [
         retries: false,
         continues: false,
         stages: &[
-            ("creates the mark withdraw-unresolved a", Stage::Local),
+            ("creates the mark withdraw-unresolved a", Stage::Authority),
             ("forces the D-set (WAIT_DEPART)", Stage::Foreign),
             ("exits non-zero: the instruction was submitted and its result is not known", Stage::Local),
         ],
@@ -126,7 +130,20 @@ pub const ENTRIES: [Entry; 17] = [
     },
     Entry { name: "ACQUIRE-RECOVERY-HELPER", waits: false, retries: false, continues: false, stages: &[("reports lost and exits", Stage::Local)] },
     Entry { name: "SIGNER", waits: true, retries: false, continues: true, stages: &[("keeps waiting as in FOREGROUND (the person's signer)", Stage::Local)] },
+    Entry { name: "STOP", waits: true, retries: false, continues: false, stages: &[("forces the stop receipt: the mark file and lane/decision/ (WAIT_STOP)", Stage::Foreign)] },
+    Entry {
+        name: "MATERIALIZE",
+        waits: true,
+        retries: false,
+        continues: false,
+        stages: &[("waits for the single attempt at M1 or MG3, then exits 0 published with the install continuing (WAIT_MATERIALIZE)", Stage::Foreign)],
+    },
 ];
+
+/// Index of STOP in `ENTRIES`.
+pub const STOP: usize = 17;
+/// Index of MATERIALIZE in `ENTRIES`.
+pub const MATERIALIZE: usize = 18;
 
 /// The entries with no bound, each by the owner's decision 9 and each on its own line of the register.
 pub const EXEMPT: [(&str, &str); 2] = [
@@ -139,8 +156,11 @@ pub const EXEMPT: [(&str, &str); 2] = [
 pub enum Rules {
     /// Revision 12: a retry renews the deadline, a foreign stage has no bound of its own, COMMITTING exits 0 promising a landing.
     Twelve,
-    /// Revision 13: one deadline per entry, every foreign stage bounded, the unresolved exit.
+    /// Revision 13: one deadline per entry, every foreign stage bounded except STOP and MATERIALIZE, which the register did not have.
     Thirteen,
+    /// Revision 14: Revision 13 plus the entries STOP and MATERIALIZE and an exit that says the request may still land when the stop
+    /// authority could not be recorded.
+    Fourteen,
     /// Control only: revision 13 whose exit wording ignores failed stages (the abstraction the third models review rejected).
     IgnoresFailures,
 }
@@ -183,6 +203,12 @@ pub struct State {
     pub invalidated: bool,
     /// A stage failed or a foreign stage hit its own bound.
     pub unconfirmed: bool,
+    /// A local operation is blocked and has not returned.
+    pub stalled: bool,
+    /// The stop authority could not be recorded (an authority stage failed, blocked or hit its own bound).
+    pub authority_lost: bool,
+    /// The exit said that the request may still land.
+    pub says_may_land: bool,
     /// The exit said that everything was confirmed.
     pub claims_confirmed: bool,
     /// The exit was zero and promised a landing later.
@@ -206,6 +232,9 @@ pub fn initial(rules: Rules, path: &'static [usize]) -> State {
         elapsed: if first.waits { 0 } else { BUDGET },
         invalidated: false,
         unconfirmed: false,
+        stalled: false,
+        authority_lost: false,
+        says_may_land: false,
         claims_confirmed: false,
         promised_landing: false,
     };
@@ -269,16 +298,35 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             }
         }
         Phase::Acting(index) => {
-            match entry.stages[index].1 {
-                Stage::Local => {
+            let (_, kind) = entry.stages[index];
+            let has_escape: bool = match state.rules {
+                Rules::Twelve => false,
+                Rules::Thirteen => !(entry.name == "STOP" || entry.name == "MATERIALIZE"),
+                Rules::Fourteen | Rules::IgnoresFailures => true,
+            };
+            match kind {
+                Stage::Local | Stage::Authority if state.stalled => {
+                    if has_escape {
+                        let mut escaped: State = after_stage(state, index);
+                        escaped.stalled = false;
+                        escaped.unconfirmed = true;
+                        escaped.authority_lost = state.authority_lost || kind == Stage::Authority;
+                        push_step(&mut found, "client: the stage's own deadline expires while the operation is blocked and the command goes on", escaped);
+                    }
+                }
+                Stage::Local | Stage::Authority => {
                     push_step(&mut found, "client: the stage succeeds", after_stage(state, index));
                     let mut failed: State = after_stage(state, index);
                     failed.unconfirmed = true;
+                    failed.authority_lost = state.authority_lost || kind == Stage::Authority;
                     push_step(&mut found, "client: the stage fails", failed);
+                    let mut blocked: State = state.clone();
+                    blocked.stalled = true;
+                    push_step(&mut found, "client: the operation blocks and does not return", blocked);
                 }
                 Stage::Foreign => {
                     push_step(&mut found, "environment: the other party completes the stage", after_stage(state, index));
-                    if state.rules != Rules::Twelve {
+                    if has_escape {
                         let mut escaped: State = after_stage(state, index);
                         escaped.unconfirmed = true;
                         push_step(&mut found, "client: the stage's own bound is reached and the command goes on unconfirmed", escaped);
@@ -290,6 +338,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             let mut after: State = state.clone();
             after.phase = Phase::Done;
             after.claims_confirmed = state.rules == Rules::IgnoresFailures || !state.unconfirmed;
+            after.says_may_land = state.authority_lost && state.rules == Rules::Fourteen;
             after.promised_landing = state.rules == Rules::Twelve && state.path[state.pos] == COMMITTING;
             push_step(&mut found, "client: the command exits", after);
         }
@@ -302,6 +351,9 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
 pub fn invariant(state: &State) -> Option<String> {
     if state.claims_confirmed && state.unconfirmed {
         return Some("the exit said everything was confirmed after a stage failed or hit its own bound".to_string());
+    }
+    if state.authority_lost && state.phase == Phase::Done && !state.says_may_land {
+        return Some("the stop could not be recorded and the exit did not say that the request may still land".to_string());
     }
     if state.promised_landing {
         return Some("the command exited 0 promising a landing after it returned".to_string());
@@ -327,7 +379,7 @@ pub fn limits() -> Limits {
 /// The bound on one entry, derived from the table: the deadline's ticks and retries, the step that starts the action, one step per
 /// stage, and the exit.
 pub fn entry_bound(entry: Entry) -> usize {
-    return usize::from(BUDGET) + 1 + entry.stages.len() + 1;
+    return usize::from(BUDGET) + 1 + 2 * entry.stages.len() + 1;
 }
 
 /// The bound on a command: the sum of its entries' bounds (the register's rule that the upper bound is the sum).
@@ -351,6 +403,9 @@ pub fn exempt_state() -> State {
         elapsed: 0,
         invalidated: false,
         unconfirmed: false,
+        stalled: false,
+        authority_lost: false,
+        says_may_land: false,
         claims_confirmed: false,
         promised_landing: false,
     };

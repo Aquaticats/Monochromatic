@@ -246,6 +246,10 @@ pub struct State {
     pub receipt: bool,
     /// The owner recorded the outcome `withdrawn` for a late positive failure under the unresolved mark (revision 14).
     pub outcome_withdrawn: bool,
+    /// The owner left by a planned shutdown (it recorded `clean-shutdown`), not by a crash.
+    pub clean_shutdown: bool,
+    /// Ghost: the owner decided (wrote `commit`) for this request.
+    pub decided_by_owner: bool,
 }
 
 /// The start state: a bound request, no attempt, an attached client.
@@ -272,6 +276,8 @@ pub fn initial(rules: Rules) -> State {
         exit_attempt: 0,
         receipt: false,
         outcome_withdrawn: false,
+        clean_shutdown: false,
+        decided_by_owner: false,
     };
 }
 
@@ -398,7 +404,20 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
         after.submitted = state.attempt;
         after.written = true;
         after.write_failed = false;
+        after.decided_by_owner = true;
         push_step(found, "owner: the client lock is gone with no mark; it decides and writes commit", after);
+    }
+    // Planned shutdown (revision 14, the exit audit): the service stops admitting, writes `abort` only for a request with no client (it
+    // never decides for a client that holds the lock), records `clean-shutdown` and exits; the child goes on by its own rules.
+    if receipts(state.rules) {
+        let mut after: State = state.clone();
+        let clientless_now: bool = matches!(state.client, Client::Killed | Client::Published);
+        if clientless_now && state.child == Child::Prepared && state.pipe == Pipe::Empty {
+            after.pipe = Pipe::Abort;
+        }
+        after.owner = Owner::Dead;
+        after.clean_shutdown = true;
+        push_step(found, "owner: planned shutdown records clean-shutdown and exits", after);
     }
     classify_steps(state, found);
 }
@@ -463,6 +482,12 @@ fn git_steps(state: &State, found: &mut Vec<(String, State)>) {
             push_step(found, "environment: prepare fails in the ref store; update-ref exits non-zero", failed);
         }
         Child::Prepared => {
+            if state.owner == Owner::Dead && state.pipe == Pipe::Empty {
+                // The owner's keeper write end closed with its death or its shutdown and no writer is open: end of input aborts.
+                let mut after: State = state.clone();
+                after.pipe = Pipe::Abort;
+                push_step(found, "environment: the keeper write end closed and end of input aborts the prepared transaction", after);
+            }
             if state.rules == Rules::FourteenSharedChannel && state.line == Line::Nothing {
                 let mut forged: State = state.clone();
                 forged.line = Line::AbortOk;
@@ -628,6 +653,16 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
     return found;
 }
 
+/// What C3 answers to a query or a resend: whether it says that nothing can land. A plain mark says so; the unresolved mark must say that
+/// the original attempt may still complete (revision 14). Revisions 12 and 13 answered `withdrawn` for either mark.
+pub fn c3_says_nothing_can_land(rules: Rules, mark: Mark) -> bool {
+    return match mark {
+        Mark::Absent => false,
+        Mark::Withdraw => true,
+        Mark::Unresolved(_) => !receipts(rules),
+    };
+}
+
 /// Every clause of the owner's contract that `state` breaks, in a fixed order.
 pub fn violations(state: &State) -> Vec<String> {
     let mut broken: Vec<String> = Vec::new();
@@ -665,6 +700,12 @@ pub fn violations(state: &State) -> Vec<String> {
         && !state.outcome_withdrawn;
     if late_failure_unrecorded {
         broken.push("an unresolved attempt ended in a positive failure and the request stayed pending".to_string());
+    }
+    if state.decided_by_owner && matches!(state.client, Client::Waiting | Client::Leaving(_)) {
+        broken.push("the owner decided a request whose client holds the lock".to_string());
+    }
+    if c3_says_nothing_can_land(state.rules, state.mark) && matches!(state.mark, Mark::Unresolved(_)) && commit_pending(state) {
+        broken.push("a query was answered withdrawn while the original attempt may still complete".to_string());
     }
     if state.closed != 0 && state.landed == state.closed {
         broken.push("an attempt that wrote the ref was closed as positively failed".to_string());
