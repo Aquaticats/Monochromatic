@@ -1261,13 +1261,13 @@ superseded; the contract states why the number proves nothing and what replaced 
 
 ### Result
 
-The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 12 skipped (the `#[ignore]` helper entries),
+The coverage map of the contract carries the counts: 592 tests, 592 passed, 0 failed, 12 skipped (the `#[ignore]` helper entries),
 for the debug run and the release gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own criterion,
 none certified.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r15-debug1.log`, `r15-gate1.log`, `r15-clippy2.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 15, rewritten TIMESTAMP after the gate)
+## Resume point (round 15, rewritten 2026-11-04T10:21:27-05:00 after the gate)
 
 Done: rounds 10 to 15 (the sections above).
 The review inputs of round 15 are `/var/home/user/temp/agent/reviews/cargo-shadow-15*.diff`, cut from `2530e617f4`.

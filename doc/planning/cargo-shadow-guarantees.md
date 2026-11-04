@@ -658,7 +658,7 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written NOW against the tip that carries it (round 15); the round 14 text it replaces was written at 2026-11-04T10:02:46-05:00.
+Written 2026-11-04T10:21:27-05:00 against the tip that carries it (round 15); the round 14 text it replaces was written at 2026-11-04T10:02:46-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
 No row is certified by this map: the cross-vendor review of round 15 has not run, and the reviews of rounds 10 to 14 said that the
