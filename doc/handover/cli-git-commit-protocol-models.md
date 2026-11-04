@@ -412,7 +412,7 @@ Done:
   model with two flusher slots, enqueue rejection, per-receipt error recording, kill and reap controls, startup retry of recorded errors.
 - Item 4 (map): `TARGET` rewritten row by row from the review's section 2 with a `Narrower` status that carries what the test leaves
   unshown; renamed tests fixed; the question 8 row replaced by the decision 19 rows. The map test was red on the renamed names
-  (`target1.log` to `target2.log` in the scratch directory, written by the previous run) and is green. The coverage section above is
+  (`/var/home/user/temp/agent/r14/target1.log` and `target2.log`) and is green (`target3.log`, and `target4.log` after the item 5 rows). The coverage section above is
   generated from the map by `/var/home/user/temp/agent/scripts/gen-notes-r14.py`.
 - Item 5 (current evidence):
   - `commit/commit_helper_launch.rs` (two forks, `setsid`, standard streams on `/dev/null`, `close_range` with a `/proc/self/fd`
