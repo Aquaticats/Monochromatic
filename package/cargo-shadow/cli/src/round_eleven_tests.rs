@@ -249,6 +249,37 @@ fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
     assert_eq!(live_lock(root.path()), "original", "the journal was not settled without an acknowledgement: {recovered:?}");
 }
 
+/// Acceptance rows A1, V2 (sixth pass, groups 3 and 10): a gone launcher and a scope that still exists and is empty go through the
+/// real recovery, which settles the journal without an acknowledgement (restoration and removal), and then through admission, which
+/// admits a new transaction. The scope directory is still there when the recovery runs.
+#[test]
+fn a_gone_launcher_with_an_existing_empty_scope_is_settled_by_the_real_recovery_and_admission() {
+    let Some(route) = delegated_route() else {
+        return;
+    };
+    let Some(holder) = start_in_scope(Command::new("sleep").arg("600")) else {
+        return;
+    };
+    let inside: Route = route_inside(holder.group.directory(), &route);
+    let directory = scratch();
+    let mut held: HeldLauncher = HeldLauncher::start(directory.path());
+    let planned: ControlGroup = ControlGroup::plan(&inside).expect("a scope name");
+    let root = repository();
+    let record: Record = held.record(planned.directory());
+    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n{record}\n", planned.record()));
+    held.end();
+    fs::create_dir(planned.directory()).expect("the control group exists and is empty");
+    let still_there: bool = planned.directory().is_dir();
+
+    let recovered: Vec<String> = recover(root.path(), &refusing);
+
+    let _ = fs::remove_dir(planned.directory());
+    assert!(still_there, "the empty scope was not there when the recovery ran, so the schedule was not built");
+    assert_eq!(live_lock(root.path()), "original", "the real recovery did not settle a gone launcher with an empty scope: {recovered:?}");
+    assert!(!journal.exists(), "the settled journal was not removed: {recovered:?}");
+    assert!(begin(root.path(), &[snapshot("original")], false).is_ok(), "a transaction was refused after the journal was settled");
+}
+
 /// Acceptance rows A1, V2 (11b 2.4): a gone launcher does not clear a scope that has a member, and no acknowledgement overrides it:
 /// the descendants of a program that ended are still in the scope.
 #[test]
