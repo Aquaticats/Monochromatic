@@ -398,6 +398,19 @@ fn now_millis() -> i64 {
 /// export async function runCommand(command: Command): Promise<number>
 /// ```
 pub fn run_command(command: Command) -> i32 {
+    // Acknowledging a journal needs no catalog: it names the journal and the workspace follows from its path.
+    if let Command::Acknowledge { journal } = &command {
+        return match crate::acknowledge::acknowledge(journal) {
+            Ok(message) => {
+                println!("{message}");
+                0
+            }
+            Err(reason) => {
+                eprintln!("cargo-shadow: {reason}");
+                INSTALL_FAILED_EXIT_CODE
+            }
+        };
+    }
     // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
     // Why:      If the working directory cannot be read, the catalog cannot be found, so the command prints why and exits with the failure code.
     //
@@ -666,6 +679,11 @@ pub fn run_command(command: Command) -> i32 {
                     INSTALL_FAILED_EXIT_CODE
                 }
             };
+        }
+        // Handled before the catalog is read; reaching this arm means the early return above was removed.
+        Command::Acknowledge { .. } => {
+            eprintln!("cargo-shadow: acknowledge reached the catalog commands; this is a defect");
+            return INSTALL_FAILED_EXIT_CODE;
         }
     }
 }

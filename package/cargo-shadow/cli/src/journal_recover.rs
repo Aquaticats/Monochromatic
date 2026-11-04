@@ -229,26 +229,55 @@ pub(crate) struct JournalListing {
 }
 
 /// What:
-/// `pub(crate) fn list_journals(journals: &Path) -> io::Result<JournalListing>` lists the journal directories,
+/// `pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing>>` lists the journal directories,
 /// and fails when any entry cannot be listed or examined.
 /// Why:
 /// A survivor check and a recovery both decide from the whole set;
 /// a set that could not be read completely cannot show that no earlier run left a writer
 /// (round 7, 6b2 1: `flatten()` and `is_dir()` dropped such entries).
+/// Only the opening of the journal directory finding no directory is "no journals" (`None`);
+/// every failure after it, `NotFound` of one entry included, is an error that discards the partial listing (round 8, 7b P1-2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function listJournals(journals: string): { open: string[]; done: string[] }  // throws when any entry fails
+/// export function listJournals(journals: string): { open: string[]; done: string[] } | undefined  // throws when any entry fails
 /// ```
-pub(crate) fn list_journals(journals: &Path) -> io::Result<JournalListing> {
+pub(crate) fn list_journals(journals: &Path) -> io::Result<Option<JournalListing>> {
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::JournalListing) {
-        return Err(io::Error::other("injected journal listing failure"));
+    let open_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingOpen);
+    #[cfg(test)]
+    let iteration_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingIteration);
+    #[cfg(test)]
+    let inspection_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingInspection);
+    #[cfg(test)]
+    let vanished_fault: bool = crate::failpoints::fires(crate::failpoints::Point::ListingEntryNotFound);
+    #[cfg(test)]
+    if open_fault {
+        return Err(io::Error::other("injected failure to open the journal directory"));
     }
+    let entries: fs::ReadDir = match fs::read_dir(journals) {
+        Ok(found) => found,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
     let mut listing: JournalListing = JournalListing { open: Vec::new(), done: Vec::new() };
-    for found in fs::read_dir(journals)? {
+    #[cfg_attr(not(test), allow(unused_variables))]
+    for (index, found) in entries.enumerate() {
+        // The second entry is the one a test makes fail, so the first is already in the partial listing.
+        #[cfg(test)]
+        if index == 1 && iteration_fault {
+            return Err(io::Error::other("injected failure to read an entry of the journal directory"));
+        }
         let entry: fs::DirEntry = found?;
         let path: PathBuf = entry.path();
+        #[cfg(test)]
+        if index == 1 && inspection_fault {
+            return Err(io::Error::other("injected failure to examine an entry of the journal directory"));
+        }
+        #[cfg(test)]
+        if index == 1 && vanished_fault {
+            return Err(io::Error::from(io::ErrorKind::NotFound));
+        }
         if path.to_string_lossy().ends_with(DONE_SUFFIX) {
             listing.done.push(path);
         } else if entry.file_type()?.is_dir() {
@@ -257,7 +286,7 @@ pub(crate) fn list_journals(journals: &Path) -> io::Result<JournalListing> {
     }
     listing.open.sort();
     listing.done.sort();
-    return Ok(listing);
+    return Ok(Some(listing));
 }
 
 /// What:
@@ -316,7 +345,8 @@ pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
     // An entry that cannot be listed or examined stops the recovery: the set of journals, and so of surviving children, is unknown
     // (round 7, 6b2 1).
     let listing: JournalListing = match list_journals(&journals) {
-        Ok(found) => found,
+        Ok(Some(found)) => found,
+        Ok(None) => return messages,
         Err(error) => {
             messages.push(format!("{} could not be listed ({error}); the journals of earlier runs were left for a later run", journals.display()));
             return messages;

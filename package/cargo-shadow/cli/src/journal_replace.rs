@@ -432,48 +432,71 @@ pub struct Seams<'a> {
 /// The number is a ceiling that a directory this tool does not fill cannot reach.
 const MAX_NAME_ATTEMPTS: u32 = 10_000;
 
+/// The directories this process knows it left unsynchronized because a sync after their creation failed.
+/// Contract assumption b: such a directory is not treated as durable merely because it exists now.
+/// The registry lives as long as the process;
+/// across processes a directory left unsynced is a pre-existing directory and assumption b applies to it.
+static UNSYNCED: std::sync::Mutex<std::collections::BTreeSet<PathBuf>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
+
 /// What:
-/// `pub fn create_directories_synced(path: &Path) -> io::Result<()>` creates a directory and every missing ancestor,
-/// syncing each new directory and the directory that now lists it.
+/// `fn remember_unsynced(directory: &Path)` records a directory whose creation was not made durable.
+/// Why:
+/// The walk of a later preservation continues through it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rememberUnsynced(directory: string): void
+/// ```
+fn remember_unsynced(directory: &Path) {
+    if let Ok(mut known) = UNSYNCED.lock() {
+        known.insert(fs::canonicalize(directory).unwrap_or_else(|_| { return directory.to_path_buf(); }));
+    }
+}
+
+/// What:
+/// `fn forget_unsynced(directory: &Path)` removes a directory from the registry once its entry has been synchronized.
+/// Why:
+/// A later preservation may stop at it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function forgetUnsynced(directory: string): void
+/// ```
+fn forget_unsynced(directory: &Path) {
+    if let Ok(mut known) = UNSYNCED.lock() {
+        known.remove(directory);
+    }
+}
+
+/// What:
+/// `fn is_unsynced(directory: &Path) -> bool` says whether this process knows it left the directory unsynchronized.
+/// Why:
+/// An unreadable registry counts as "unsynced": the safe answer continues the walk.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isUnsynced(directory: string): boolean
+/// ```
+fn is_unsynced(directory: &Path) -> bool {
+    return UNSYNCED.lock().map(|known| { return known.contains(directory); }).unwrap_or(true);
+}
+
+/// What:
+/// `pub fn create_directories_with(path, sync_dir) -> io::Result<Vec<PathBuf>>` creates a directory and every missing ancestor,
+/// syncing each new directory and the directory that now lists it with `sync_dir`,
+/// and returns the directories it created.
 /// Why:
 /// Review finding (3b 6):
 /// a file linked into a new directory is lost to a power failure when the new directory's own entry is
 /// not durable;
 /// `create_dir_all` alone makes no such promise.
+/// A directory whose sync failed is remembered as unsynced (contract assumption b).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function createDirectoriesSynced(path: string): void  // mkdir each missing ancestor, fsync it and its parent
+/// export function createDirectoriesWith(path: string, syncDir: (p: string) => void): string[]  // mkdir each missing ancestor, fsync it and its parent
 /// ```
-pub fn create_directories_synced(path: &Path) -> io::Result<()> {
-    // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
-    // Why:      The value is built up or replaced step by step below.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let x = ...;   // plain Rust `let` is TS `const`
-    // ```
-    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const name: Type = value;
-    // ```
-    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const list: string[] = [];   // or new Set() / new Map()
-    // ```
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
+pub fn create_directories_with(path: &Path, sync_dir: &dyn Fn(&Path) -> io::Result<()>) -> io::Result<Vec<PathBuf>> {
     let mut missing: Vec<PathBuf> = Vec::new();
     for ancestor in path.ancestors() {
         if ancestor.as_os_str().is_empty() || ancestor.exists() {
@@ -481,31 +504,32 @@ pub fn create_directories_synced(path: &Path) -> io::Result<()> {
         }
         missing.push(ancestor.to_path_buf());
     }
-    // What:     `.iter()` walks a collection by reference without consuming it; `.into_iter()` consumes it and yields owned items; `.cloned()`/`.copied()` turn the borrowed items into owned copies.
-    // Why:      The collection stays usable after the walk and no item is copied until it must be.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // for (const item of list) { ... }  // or list.map(...)
-    // ```
+    let mut created: Vec<PathBuf> = Vec::new();
     for directory in missing.iter().rev() {
-        // `match`: picks the arm whose pattern fits the value.
         match fs::create_dir(directory) {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            Ok(()) => {}
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
+            Ok(()) => created.push(directory.clone()),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => return Err(error),
         }
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        sync_directory(directory)?;
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Borrow `&parent_of`: lends the value without copying or giving it away.
-        sync_directory(&parent_of(directory))?;
+        if let Err(error) = sync_dir(directory).and_then(|()| { return sync_dir(&parent_of(directory)); }) {
+            remember_unsynced(directory);
+            return Err(error);
+        }
     }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    return Ok(());
+    return Ok(created);
+}
+
+/// What:
+/// `pub fn create_directories_synced(path: &Path) -> io::Result<()>` is `create_directories_with` with the real sync.
+/// Why:
+/// Most callers only need the directories to exist durably.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function createDirectoriesSynced(path: string): void
+/// ```
+pub fn create_directories_synced(path: &Path) -> io::Result<()> {
+    return create_directories_with(path, &sync_directory).map(|_created| {});
 }
 
 /// What:
@@ -717,9 +741,11 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> Result
     // if (value !== undefined) { const inner = value; ... }
     // ```
     // Borrow `&keep.directory`: lends the value without copying or giving it away.
+    let mut created: Vec<PathBuf> = Vec::new();
     if let Some(chosen) = &keep.directory
-        && create_directories_synced(chosen).is_ok()
+        && let Ok(made) = create_directories_with(chosen, ops.sync_dir)
     {
+        created = made;
         // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
         // Why:      The copy can be stored or moved elsewhere while the original stays in place.
         // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
@@ -754,24 +780,32 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> Result
                     // ```ts
                     // list.map(f).filter(g)
                     // ```
-                    // Every directory entry on the way from the kept file up to the root of its file system is made durable, by the
-                    // resolved path: the mount root is the durable anchor, because an entry above it belongs to another file
-                    // system and an fsync there commits nothing of ours. The directory that holds the replaced file is not an
-                    // anchor just because the file is there: its own entry in its parent may not be durable (round 7, 6b 1).
-                    // The walk fails instead of finishing short when the path or a parent cannot be examined.
-                    let durable_up_to_the_mount_root = || -> io::Result<()> {
+                    // The entries of the kept copy are made durable from the kept directory up to the first directory that existed before
+                    // this transaction, and the walk stops there (contract assumption b): a pre-existing directory and its path are
+                    // assumed durable. A directory this call created, or one this process knows it left unsynchronized, is not.
+                    // The path is resolved first, so a link or a relative path names the directories that really hold the entries.
+                    // The walk fails, and preservation is not reported, when any barrier fails.
+                    let durable_up_to_the_anchor = || -> io::Result<()> {
                         let resolved: PathBuf = fs::canonicalize(&directory)?;
-                        let device: u64 = fs::metadata(&resolved)?.dev();
-                        for synced in resolved.ancestors() {
-                            (ops.sync_dir)(synced)?;
-                            match synced.parent() {
-                                Some(parent) if fs::metadata(parent)?.dev() == device => {}
-                                _ => break,
+                        let created_here: Vec<PathBuf> = created.iter().filter_map(|made| { return fs::canonicalize(made).ok(); }).collect();
+                        let mut current: PathBuf = resolved;
+                        let mut child: Option<PathBuf> = None;
+                        loop {
+                            (ops.sync_dir)(&current)?;
+                            if let Some(synced_child) = child.take() {
+                                forget_unsynced(&synced_child);
                             }
+                            if !created_here.contains(&current) && !is_unsynced(&current) {
+                                return Ok(());
+                            }
+                            let Some(parent) = current.parent() else {
+                                return Ok(());
+                            };
+                            child = Some(current.clone());
+                            current = parent.to_path_buf();
                         }
-                        return Ok(());
                     };
-                    durable_up_to_the_mount_root().map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
+                    durable_up_to_the_anchor().map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
                     return Ok(candidate);
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,

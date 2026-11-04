@@ -93,6 +93,9 @@ pub mod git_sha1;
 /// by a delegated control group (cgroup v2).
 pub mod control_group;
 
+/// The command that acknowledges a journal of a run without a delegated control group.
+pub mod acknowledge;
+
 /// Pipe reading and writing that a caller can cancel.
 pub mod bounded_io;
 
@@ -366,6 +369,8 @@ mod cgroup_probe_tests;
 mod cgroup_test_support;
 #[cfg(test)]
 mod survivor_discovery_tests;
+#[cfg(test)]
+mod quiescence_failure_tests;
 #[cfg(test)]
 mod finish_phase_tests;
 #[cfg(test)]

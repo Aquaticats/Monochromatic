@@ -102,7 +102,7 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// export { KeepAs, ReplaceOutcome, replaceIfHolds } from './journal-replace.ts';
 /// ```
-pub use crate::journal_replace::{create_directories_synced, create_exclusive, unique_suffix, KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
+pub use crate::journal_replace::{create_directories_synced, create_directories_with, create_exclusive, unique_suffix, KeepAs, ReplaceOutcome, file_name_text, no_hook, replace_if_holds, replace_if_holds_with_hooks, replace_keeping, replace_keeping_with_hook, replace_with_swap, sync_directory};
 /// Re-exports the recovery entry points,
 /// which live in `journal_recover.rs`.
 pub use crate::journal_recover::{recover, recover_with};
@@ -168,6 +168,16 @@ pub(crate) const OWNER_FILE: &str = "owner";
 /// The file in which the containment (a control group, or in the weaker path a process group) of the children a transaction started is recorded,
 /// one record per line.
 pub(crate) const GROUPS_FILE: &str = "groups";
+
+/// The file in which the mount id and inode of the journal directory are recorded when the journal is made,
+/// so a recovery that sees the directory differently refuses (contract assumption c).
+pub(crate) const VIEW_FILE: &str = "view";
+
+/// The file by which a person tells a recovery that every process or worker of the run has stopped.
+pub(crate) const ACKNOWLEDGED_FILE: &str = "acknowledged";
+
+/// The first line of a well-formed acknowledgement.
+pub(crate) const ACKNOWLEDGED_HEADER: &str = "acknowledged v1";
 
 /// The number of kept files past which every run warns (count,
 /// total size,

@@ -669,7 +669,7 @@ fn a_group_record_that_cannot_be_read_defers_the_recovery() {
     let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
-    assert!(messages.iter().any(|message| { return message.contains("groups"); }), "{messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("record"); }), "{messages:?}");
 }
 
 /// Round 6 (5b2 2):
@@ -890,41 +890,113 @@ fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() 
     assert!(message.contains("injected EIO") && message.contains(".shadow-"), "{message}");
 }
 
-/// Review finding (4b 1):
-/// the kept directory and its parent are synced every time a file is linked into it,
-/// also when it existed.
-/// Round 6 (5b 1), replaced in round 7 (6b 1):
-/// a directory that holds the replaced file is not shown durable by that fact (its own entry in its parent may not be),
-/// so the entries of the kept directory are made durable up to the root of their file system (the mount root),
-/// by the resolved path, and not beyond it.
+/// Contract K2, round 8 (acceptance row K2):
+/// the entries of a kept copy are made durable from the kept directory up to the first directory that existed before the
+/// transaction, and the walk stops there:
+/// nothing above that anchor is synchronized.
 #[test]
-fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_mount_root() {
+fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
     let root = repository("expected");
     let path = root.path().join(CRATE_DIR).join("Cargo.lock");
-    let kept_dir = root.path().join("a").join("b").join("c").join("d");
-    fs::create_dir_all(&kept_dir).expect("an existing deep kept directory");
+    let anchor = root.path().join("a").join("b");
+    fs::create_dir_all(&anchor).expect("a pre-existing anchor");
+    let kept_dir = anchor.join("c").join("d");
     let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
     let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
 
     replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
 
     let calls = synced.borrow();
-    let resolved: PathBuf = fs::canonicalize(&kept_dir).expect("the kept directory resolves");
-    let device: u64 = fs::metadata(&resolved).expect("examines").dev();
-    let mut reached_mount_root: bool = false;
-    for ancestor in resolved.ancestors() {
-        let same_file_system: bool = fs::metadata(ancestor).expect("examines").dev() == device;
-        assert_eq!(calls.contains(&ancestor.to_path_buf()), same_file_system, "{} was synced or left out wrongly: {calls:?}", ancestor.display());
-        if same_file_system {
-            reached_mount_root = ancestor.parent().is_none_or(|parent| { return fs::metadata(parent).map(|found| { return found.dev() != device; }).unwrap_or(true); });
-        }
+    let resolved_anchor: PathBuf = fs::canonicalize(&anchor).expect("resolves");
+    for needed in [kept_dir.clone(), anchor.join("c"), anchor.clone()] {
+        let resolved: PathBuf = fs::canonicalize(&needed).expect("resolves");
+        assert!(calls.contains(&resolved) || calls.contains(&needed), "{} was not synced: {calls:?}", needed.display());
     }
-    assert!(reached_mount_root, "the walk ended short of the mount root: {calls:?}");
+    for above in [resolved_anchor.parent().expect("a parent").to_path_buf(), anchor.parent().expect("a parent").to_path_buf(), root.path().to_path_buf()] {
+        assert!(!calls.contains(&above), "{} is above the anchor and was synced: {calls:?}", above.display());
+    }
 }
 
-/// Round 7 (6b 1):
-/// a kept directory reached through a symbolic link is made durable through the directories it really lives in,
-/// because a lexical ancestor does not say which directory holds the entry.
+/// Contract assumption b, the knowledge clause:
+/// a directory this process knows it left unsynchronized in an earlier failed attempt is not taken as durable because it exists now;
+/// the walk goes through it to the pre-existing directory above it.
+#[test]
+fn a_directory_left_unsynced_by_a_failed_attempt_is_not_taken_as_durable() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let anchor = root.path().join("a").join("b");
+    fs::create_dir_all(&anchor).expect("a pre-existing anchor");
+    let kept_dir = anchor.join("c");
+    let failing = |_directory: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected sync failure")); };
+    let first_attempt = crate::journal::create_directories_with(&kept_dir, &failing);
+    assert!(first_attempt.is_err(), "the failed attempt should fail");
+    assert!(kept_dir.exists(), "the directory exists although it was not made durable");
+    let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
+
+    replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
+
+    let calls = synced.borrow();
+    let resolved_anchor: PathBuf = fs::canonicalize(&anchor).expect("resolves");
+    assert!(calls.contains(&resolved_anchor), "the walk stopped at a directory known to be unsynced: {calls:?}");
+
+    let control = repository("expected");
+    let control_path = control.path().join(CRATE_DIR).join("Cargo.lock");
+    let control_kept = control.path().join("a").join("b").join("c2");
+    crate::journal::create_directories_synced(&control_kept).expect("a directory made durably");
+    let control_synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    let control_record = |directory: &Path| -> std::io::Result<()> { control_synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
+    replace_with(&control_path, &KeepAs::in_directory(&control_kept, ".displaced"), &real_link, &real_sync_file, &control_record).expect("replaces");
+    let control_anchor: PathBuf = fs::canonicalize(control.path().join("a").join("b")).expect("resolves");
+    assert!(!control_synced.borrow().contains(&control_anchor), "a durably made directory was walked through");
+}
+
+/// Acceptance row K2:
+/// a required directory barrier that fails is not reported as preservation,
+/// and the displaced inode keeps the name it was linked under.
+#[test]
+fn a_failing_directory_barrier_is_not_reported_as_preserved() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let anchor = root.path().join("a").join("b");
+    fs::create_dir_all(anchor.join("c")).expect("a pre-existing kept directory");
+    let kept_dir = anchor.join("c");
+    let resolved_kept: PathBuf = fs::canonicalize(&kept_dir).expect("resolves");
+    let failing = move |directory: &Path| -> std::io::Result<()> {
+        if directory == resolved_kept { return Err(std::io::Error::other("injected barrier failure")); }
+        return Ok(());
+    };
+
+    let result = replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &failing);
+
+    let message: String = result.expect_err("a failed barrier is not a success").to_string();
+    assert!(message.contains("injected barrier failure") || message.contains("not made durable"), "{message}");
+    let names: Vec<String> = fs::read_dir(&kept_dir).expect("lists").flatten().map(|entry| { return entry.file_name().to_string_lossy().to_string(); }).collect();
+    assert!(names.iter().any(|name| { return name.contains(".displaced"); }), "the displaced file lost its name: {names:?}");
+}
+
+/// Acceptance row K2:
+/// an ancestor above the anchor that the user cannot open for reading is never opened.
+#[test]
+fn a_higher_ancestor_the_user_cannot_open_is_never_touched() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let above = root.path().join("a");
+    let anchor = above.join("b");
+    fs::create_dir_all(&anchor).expect("a pre-existing anchor");
+    let kept_dir = anchor.join("c");
+    fs::set_permissions(&above, fs::Permissions::from_mode(0o311)).expect("make the ancestor unreadable");
+
+    let result = replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &real_sync_dir);
+
+    fs::set_permissions(&above, fs::Permissions::from_mode(0o755)).expect("make it readable again");
+    assert!(result.is_ok(), "{:?}", result.err().map(|error| { return error.to_string(); }));
+}
+
+/// Round 7 (6b 1), kept under round 8:
+/// a kept directory reached through a symbolic link is made durable through the directory it really is,
+/// not through the link's spelling.
 #[test]
 fn a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path() {
     let root = repository("expected");
@@ -940,34 +1012,7 @@ fn a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path() {
     let resolved: PathBuf = fs::canonicalize(real.join("kept")).expect("resolves");
     let calls = synced.borrow();
     assert!(calls.contains(&resolved), "the directory the entry lives in was not synced: {calls:?}");
-    assert!(calls.contains(&resolved.parent().expect("a parent").to_path_buf()), "the directory that lists it was not synced: {calls:?}");
-}
-
-#[test]
-fn the_kept_directory_and_its_parent_are_synced_even_when_the_directory_exists() {
-    let root = repository("expected");
-    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
-    let kept_dir = root.path().join("kept");
-    // Borrow `&kept_dir`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::create_dir_all(&kept_dir).expect("an existing kept directory");
-    // Typed binding: `synced: RefCell<Vec<PathBuf>>`.
-    // Constructor `RefCell::new(`: an empty owned collection or a boxed value.
-    let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
-
-    // Borrow `&path`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
-
-    let calls = synced.borrow();
-    // Borrow `&kept_dir`: lends the value without copying or giving it away.
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(calls.contains(&kept_dir), "{calls:?}");
-    // Borrow `&root.path`: lends the value without copying or giving it away.
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(calls.contains(&root.path().to_path_buf()), "the parent of the kept directory was not synced: {calls:?}");
+    assert!(!calls.contains(&root.path().join("link").join("kept")), "the link's spelling was synced: {calls:?}");
 }
 
 /// Review finding (4b 3):

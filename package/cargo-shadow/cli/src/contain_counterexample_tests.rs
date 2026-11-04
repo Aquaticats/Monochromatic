@@ -79,7 +79,14 @@ pub(crate) fn wait_for_file(path: &Path) {
 
 /// Reads a process id a helper wrote.
 pub(crate) fn read_pid(path: &Path) -> i32 {
-    return fs::read_to_string(path).expect("a pid file").trim().parse::<i32>().expect("a pid");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        if let Some(found) = std::fs::read_to_string(path).ok().and_then(|text| { return text.trim().parse::<i32>().ok(); }) {
+            return found;
+        }
+        assert!(std::time::Instant::now() < deadline, "{} never held a process id", path.display());
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 /// Whether a process with this id exists and is not a zombie.

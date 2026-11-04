@@ -42,33 +42,62 @@ fn refusing(_before: &[LockSnapshot], _live: &[LockSnapshot]) -> Vec<String> {
     return vec!["dep@1.0.1 refused".to_string()];
 }
 
-/// Round 7 (6b2 1):
-/// when a journal entry cannot be listed, the set of journals is not known,
-/// and a recovery changes nothing.
+/// The four ways the listing of the journals can fail, each injected inside the listing,
+/// with the second entry as the one that fails so that the first is already in the partial listing.
+const LISTING_FAULTS: [Point; 4] = [Point::ListingOpen, Point::ListingIteration, Point::ListingInspection, Point::ListingEntryNotFound];
+
+/// Round 7 (6b2 1), round 8 (acceptance row V1, 7b P1-2):
+/// when the journals cannot be listed completely, however it fails,
+/// a recovery changes nothing and says it could not list them.
 #[test]
-fn a_journal_listing_that_fails_stops_the_recovery() {
-    let root = repository();
-    let _journal = plant(root.path(), &[snapshot("original")], &[]);
-    arm(Point::JournalListing);
+fn a_journal_listing_that_fails_in_any_way_stops_the_recovery() {
+    for fault in LISTING_FAULTS {
+        let root = repository();
+        let _first = plant(root.path(), &[snapshot("original")], &[]);
+        let _second = plant(root.path(), &[snapshot("original")], &[]);
+        arm(fault);
 
-    let messages: Vec<String> = recover(root.path(), &refusing);
+        let messages: Vec<String> = recover(root.path(), &refusing);
 
-    let live: String = fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock");
-    assert_eq!(live, LEFT_BY_THE_KILLED_RUN, "a recovery went ahead on a journal set it could not list: {messages:?}");
-    assert!(messages.iter().any(|message| { return message.contains("could not be listed"); }), "the person was not told: {messages:?}");
+        let live: String = fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock");
+        assert_eq!(live, LEFT_BY_THE_KILLED_RUN, "{fault:?}: a recovery went ahead on a journal set it could not list: {messages:?}");
+        assert!(messages.iter().any(|message| { return message.contains("could not be listed"); }), "{fault:?}: the person was not told: {messages:?}");
+        assert_eq!(journal_dirs(root.path()).len(), 2, "{fault:?}: a journal was removed");
+    }
 }
 
-/// Round 7 (6b2 1):
-/// the same incomplete listing stops a new transaction.
+/// Round 7 (6b2 1), round 8 (acceptance row V1, 7b P1-2):
+/// the same failures stop a new transaction,
+/// and in particular an entry that vanished while the journals were listed (`NotFound` of one entry) is unknown,
+/// not "no earlier journals":
+/// the listing so far, which holds a journal, is not discarded.
 #[test]
-fn a_journal_listing_that_fails_stops_a_new_transaction() {
-    let root = repository();
-    let _journal = plant(root.path(), &[snapshot("original")], &[]);
-    arm(Point::JournalListing);
+fn a_journal_listing_that_fails_in_any_way_stops_a_new_transaction() {
+    for fault in LISTING_FAULTS {
+        let root = repository();
+        let _first = plant(root.path(), &[snapshot("original")], &[]);
+        let _second = plant(root.path(), &[snapshot("original")], &[]);
+        arm(fault);
 
+        let started = begin(root.path(), &[snapshot("second")], false);
+
+        assert!(started.is_err(), "{fault:?}: a transaction started on a journal set it could not list");
+        assert_eq!(journal_dirs(root.path()).len(), 2, "{fault:?}: the refused transaction left a journal");
+    }
+}
+
+/// Acceptance row V1, the separate positive case:
+/// a workspace that has no journal directory yet has no earlier journals,
+/// and both a recovery and a new transaction go on.
+#[test]
+fn an_absent_journal_directory_is_no_journals() {
+    let root = repository();
+
+    let messages: Vec<String> = recover(root.path(), &refusing);
     let started = begin(root.path(), &[snapshot("second")], false);
 
-    assert!(started.is_err(), "a transaction started on a journal set it could not list");
+    assert!(messages.is_empty(), "{messages:?}");
+    assert!(started.is_ok(), "{:?}", started.err());
 }
 
 /// Round 7 (6b2 2):

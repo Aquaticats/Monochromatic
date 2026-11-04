@@ -238,7 +238,14 @@ fn gone_soon(pid: i32) -> bool {
 /// Reads the process id a script wrote to a file.
 fn pid_in(path: &std::path::Path) -> i32 {
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    return std::fs::read_to_string(path).expect("pid file").trim().parse().expect("a pid");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        if let Some(found) = std::fs::read_to_string(path).ok().and_then(|text| { return text.trim().parse::<i32>().ok(); }) {
+            return found;
+        }
+        assert!(std::time::Instant::now() < deadline, "{} never held a process id", path.display());
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 /// Review finding (4c F2):

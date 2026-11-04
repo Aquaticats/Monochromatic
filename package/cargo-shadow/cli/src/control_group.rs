@@ -1,5 +1,6 @@
 //! What:
-//! A delegated control group (cgroup v2) as the boundary of everything a bounded run starts.
+//! A delegated control group (cgroup v2) as the boundary of everything a bounded run starts:
+//! a transient user scope that the manager makes with `Delegate=yes`.
 //! Why:
 //! Round 7 (sixth review 6a R1 to R3, 6b2 2, 6c R2):
 //! a process group, and a child subreaper with a `/proc` scan, failed the one proof that matters,
@@ -7,23 +8,28 @@
 //! A control group is inherited by every child, also by those that call `setsid` or fork twice,
 //! it keeps its members when this program dies,
 //! `cgroup.events` says `populated 0` only when no thread is left,
-//! and a recovery can ask the same question about a group the journal recorded.
-//! The measurements are in `doc/planning/cargo-shadow-update.md` ("Round 7: control group probes").
+//! and a recovery can ask the same question about a scope the journal recorded.
+//! Round 8 (contract `doc/planning/cargo-shadow-guarantees.md`, "The spawn route"):
+//! no thread of this program writes a `cgroup.procs` file.
+//! The program is started as `systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect -- <program>`,
+//! and the manager moves it into the scope before it runs.
+//! Round 7's self-move (the wrapper entering the group around a `spawn`) captured other threads' children and could kill the wrapper
+//! itself (7a F1, F2, F3) and is gone.
 //! The limits:
-//! a member of the same user can move itself out by writing to another group's `cgroup.procs`,
-//! so the group contains ordinary escapes, not a deliberate one;
-//! `cgroup.kill` alone does not end a thread group whose leader already exited (measured), so the stop also signals each listed
-//! process through a pidfd.
+//! `cgroup.kill` alone does not end a thread group whose leader already exited (measured),
+//! so the stop also signals each listed process through a pidfd;
+//! a writer that leaves the scope is outside the contract (assumption a).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // control-group.ts (Linux only)
+//! export function detectRoute(settings: RouteSettings): Route  // throws GroupUnavailable
 //! export class ControlGroup {
-//!   static createIn(parent: string): ControlGroup  // throws GroupUnavailable
-//!   spawn(command: Command): ChildProcess
+//!   static plan(route: Route): ControlGroup
+//!   launcher(route: Route, command: Command): Command
 //!   stop(boundMs: number): boolean
 //! }
-//! export function query(record: GroupRecord): 'gone' | 'alive' | { unknown: string }
+//! export function query(record: ScopeRecord): 'gone' | 'alive' | { unknown: string }
 //! ```
 
 /// Imports `std::fmt` for this file.
@@ -35,8 +41,8 @@ use std::fs;
 /// Imports `std::io` for this file.
 use std::io;
 
-/// Imports `std::io::Write` for this file.
-use std::io::Write;
+/// Imports `std::io::{Read, Write}` for this file.
+use std::io::{Read, Write};
 
 /// Imports `std::os::fd::OwnedFd` for this file.
 use std::os::fd::OwnedFd;
@@ -47,17 +53,17 @@ use std::os::unix::fs::{FileExt, MetadataExt};
 /// Imports `std::path::{Path, PathBuf}` for this file.
 use std::path::{Path, PathBuf};
 
-/// Imports `std::process::{Child, Command}` for this file.
-use std::process::{Child, Command};
+/// Imports `std::process::{Command, Stdio}` for this file.
+use std::process::{Command, Stdio};
 
-/// Imports `std::sync::atomic::{AtomicU64, Ordering}` for this file.
-use std::sync::atomic::{AtomicU64, Ordering};
-
-/// Imports `std::time::{Duration, Instant, SystemTime, UNIX_EPOCH}` for this file.
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+/// Imports `std::time::{Duration, Instant}` for this file.
+use std::time::{Duration, Instant};
 
 /// Imports `rustix::event::{PollFd, PollFlags, Timespec, poll}` for this file.
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
+
+/// Imports `rustix::fs::{AtFlags, CWD, StatxFlags, statx}` for this file.
+use rustix::fs::{AtFlags, CWD, StatxFlags, statx};
 
 /// Imports `rustix::io::Errno` for this file.
 use rustix::io::Errno;
@@ -72,15 +78,29 @@ pub(crate) const CGROUP_ROOT: &str = "/sys/fs/cgroup";
 const CGROUP2_MAGIC: u64 = 0x6367_7270;
 
 /// How long the stop waits for a change of `cgroup.events` before it looks for members to signal again.
-/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto"
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
 /// (handover "Picks made under the owner's delegation"), veto open;
 /// measurement beside it:
 /// on 2026-11-04 `populated 0` followed `cgroup.kill` within 5 ms for ordinary members and 1 ms after a signal to a zombie leader,
 /// so a wake-up every 50 ms only matters for a member that appears or survives the first signals.
 const STRAGGLER_INTERVAL: Duration = Duration::from_millis(50);
 
-/// Numbers the groups of this process so two runs never share a name.
-static NEXT_GROUP: AtomicU64 = AtomicU64::new(0);
+/// How long the discovery of the manager's slice may take.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open;
+/// measurement beside it:
+/// `systemctl --user show app.slice` answered in a few milliseconds on 2026-11-04, so ten seconds only ends a manager that does
+/// not answer.
+const DISCOVERY_BOUND: Duration = Duration::from_secs(10);
+
+/// How often the discovery asks whether `systemctl` has ended.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+const DISCOVERY_POLL: Duration = Duration::from_millis(5);
+
+/// How many random bytes make a scope name unique.
+/// 16 bytes are 128 bits, so a name repeated by chance is not a case to plan for.
+const TOKEN_BYTES: usize = 16;
 
 /// Why no control group could be had,
 /// in words that name the missing capability.
@@ -106,61 +126,115 @@ impl fmt::Display for GroupUnavailable {
     }
 }
 
-/// A control group this process made and owns.
-#[derive(Debug)]
-pub(crate) struct ControlGroup {
-    /// The directory of the group in the cgroup file system.
-    directory: PathBuf,
-    /// The group this process was in when it made this one;
-    /// the spawning process leaves back into it.
-    parent: PathBuf,
-    /// The inode number of the directory, which is the id the kernel gives the group.
-    id: u64,
-    /// The inode number of this process's cgroup namespace, because a path means nothing in another one.
-    namespace: u64,
+/// How a path is seen by this process: the mount it is on and its inode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct View {
+    /// The mount id (`STATX_MNT_ID`), which differs in another mount namespace.
+    pub(crate) mount: u64,
+    /// The inode number.
+    pub(crate) inode: u64,
 }
 
-/// What a journal remembers of a run's containment.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Record {
-    /// A control group: its id, the namespace it was made in, and its path.
-    Group {
-        /// The group's inode number.
-        id: u64,
-        /// The inode number of the cgroup namespace of the process that made it.
-        namespace: u64,
-        /// The directory.
-        path: PathBuf,
-    },
-    /// The weaker path: only a process group (round 5), recorded by the process id of its leader.
-    ProcessGroup(
-        /// The leader's process id, which is the group's number.
-        i32,
-    ),
-    /// The weaker path is about to start a child whose process group is not known yet;
-    /// the line that follows it names the group.
-    /// A killed wrapper that leaves this line alone may have a running child that no record names.
-    ProcessGroupStarting,
+/// How a view reads in a journal line and in a message.
+impl fmt::Display for View {
+    /// What:
+    /// `fn fmt(&self, formatter)` writes `mount:inode`.
+    /// Why:
+    /// Both numbers sit in one field of a record.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// toString(): string
+    /// ```
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        return write!(formatter, "{}:{}", self.mount, self.inode);
+    }
 }
 
-/// What a recovery learns about a recorded group.
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) enum Membership {
-    /// No member can exist: the group is absent, or a different group lives at its path now.
-    Gone,
-    /// At least one thread of the group lives.
-    Alive,
-    /// The question cannot be answered, with the reason.
-    Unknown(
-        /// Why.
-        String,
-    ),
+/// What:
+/// `pub(crate) fn view_of(path: &Path) -> io::Result<View>` asks the kernel for the mount id and the inode of a path.
+/// Why:
+/// A path means the same thing in a recovery as in the run only when both are equal (contract assumption c).
+/// A kernel without `STATX_MNT_ID` (before Linux 5.8) is an error, never a view of zero.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function viewOf(path: string): View
+/// ```
+pub(crate) fn view_of(path: &Path) -> io::Result<View> {
+    let found = statx(CWD, path, AtFlags::empty(), StatxFlags::MNT_ID | StatxFlags::INO).map_err(io::Error::from)?;
+    let reported: StatxFlags = StatxFlags::from_bits_retain(found.stx_mask);
+    if !reported.contains(StatxFlags::MNT_ID) || !reported.contains(StatxFlags::INO) {
+        return Err(io::Error::other(format!("the kernel did not report the mount id and inode of {}", path.display())));
+    }
+    return Ok(View { mount: found.stx_mnt_id, inode: found.stx_ino });
+}
+
+/// What the discovery of the route uses,
+/// so a test can make the host look like one that lacks a capability.
+#[derive(Clone, Debug)]
+pub(crate) struct RouteSettings {
+    /// The program that makes the scope.
+    pub(crate) systemd_run: String,
+    /// The program that asks the manager where the slice is.
+    pub(crate) systemctl: String,
+    /// Where the cgroup v2 hierarchy is mounted.
+    pub(crate) cgroup_root: PathBuf,
+    /// The slice the scopes are made in.
+    pub(crate) slice: String,
+    /// Variables set (`Some`) or removed (`None`) for the program that asks the manager.
+    pub(crate) environment: Vec<(String, Option<String>)>,
+    /// The arguments of the question to the manager when a test replaces the ordinary ones (`None` is the ordinary question).
+    pub(crate) question: Option<Vec<String>>,
+    /// How long the question may take.
+    pub(crate) discovery_bound: Duration,
+}
+
+/// The settings of an ordinary host.
+impl Default for RouteSettings {
+    /// What:
+    /// `fn default()` is the ordinary settings:
+    /// `systemd-run`, `systemctl`, `/sys/fs/cgroup` and `app.slice`.
+    /// Why:
+    /// `app.slice` is where the user manager puts application scopes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const defaults: RouteSettings = { ... }
+    /// ```
+    fn default() -> RouteSettings {
+        return RouteSettings {
+            systemd_run: "systemd-run".to_string(),
+            systemctl: "systemctl".to_string(),
+            cgroup_root: PathBuf::from(CGROUP_ROOT),
+            slice: "app.slice".to_string(),
+            environment: Vec::new(),
+            question: None,
+            discovery_bound: DISCOVERY_BOUND,
+        };
+    }
+}
+
+/// What a host can give: the way to a delegated scope.
+#[derive(Clone, Debug)]
+pub(crate) struct Route {
+    /// The program that makes the scope.
+    pub(crate) systemd_run: String,
+    /// The slice the scopes are made in.
+    pub(crate) slice: String,
+    /// The directory of the slice in the cgroup file system,
+    /// as the manager reports it.
+    pub(crate) slice_dir: PathBuf,
+    /// The inode of this process's cgroup namespace.
+    pub(crate) namespace: u64,
+    /// How the slice directory is seen now.
+    pub(crate) slice_view: View,
 }
 
 /// What:
 /// `fn is_cgroup2(path: &Path) -> io::Result<bool>` says whether the directory is on a cgroup v2 file system.
 /// Why:
-/// `mkdir` succeeds on any directory, so only the file system type shows that a made directory is a control group.
+/// Only the file system type shows that a directory is part of the control group hierarchy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,27 +243,6 @@ pub(crate) enum Membership {
 fn is_cgroup2(path: &Path) -> io::Result<bool> {
     let found = rustix::fs::statfs(path).map_err(io::Error::from)?;
     return Ok(u64::try_from(found.f_type).unwrap_or(0) == CGROUP2_MAGIC);
-}
-
-/// What:
-/// `pub(crate) fn own_group_directory() -> io::Result<PathBuf>` is the directory of the control group this process is in.
-/// Why:
-/// A group made inside it is writable when the user owns this one,
-/// which is true for everything the user manager starts and false for a login session.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function ownGroupDirectory(): string
-/// ```
-pub(crate) fn own_group_directory() -> io::Result<PathBuf> {
-    let text: String = fs::read_to_string("/proc/self/cgroup")?;
-    for line in text.lines() {
-        // The unified hierarchy is the line `0::<path>`.
-        if let Some(path) = line.strip_prefix("0::") {
-            return Ok(Path::new(CGROUP_ROOT).join(path.trim_start_matches('/')));
-        }
-    }
-    return Err(io::Error::other("this process is not in a unified (cgroup v2) hierarchy"));
 }
 
 /// What:
@@ -206,79 +259,249 @@ fn namespace_id() -> io::Result<u64> {
 }
 
 /// What:
-/// `fn write_text(path: &Path, text: &str) -> io::Result<()>` writes `text` to a control file in one `write`.
+/// `fn on_path(program: &str) -> bool` says whether an executable of that name is on `PATH` (or is itself a path to one).
 /// Why:
-/// The kernel reads a control file's command from a single write.
+/// A missing `systemd-run` is a missing capability to name, found without starting anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function writeText(path: string, text: string): void
+/// function onPath(program: string): boolean
 /// ```
-fn write_text(path: &Path, text: &str) -> io::Result<()> {
-    let mut file = fs::OpenOptions::new().write(true).open(path)?;
-    return file.write_all(text.as_bytes());
+fn on_path(program: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let executable = |candidate: &Path| -> bool { return fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
+    if program.contains('/') {
+        return executable(Path::new(program));
+    }
+    let search: String = std::env::var("PATH").unwrap_or_default();
+    return search.split(':').any(|directory| { return !directory.is_empty() && executable(&Path::new(directory).join(program)); });
+}
+
+/// What:
+/// `fn run_plain(program, arguments, environment) -> Result<String, String>` runs a short program under a deadline and returns its
+/// standard output, or the reason it failed.
+/// Why:
+/// The question to the manager must not wait without end (contract V6);
+/// the program is not a run of the user's, so it needs no containment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runPlain(program: string, args: string[], env: [string, string | undefined][]): string  // throws the reason
+/// ```
+fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<String>)], bound: Duration) -> Result<String, String> {
+    let mut command: Command = Command::new(program);
+    command.args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    for (name, value) in environment {
+        match value {
+            Some(set) => command.env(name, set),
+            None => command.env_remove(name),
+        };
+    }
+    let mut child = command.spawn().map_err(|error| { return format!("{program} could not be started ({error})"); })?;
+    let deadline: Instant = Instant::now() + bound;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(found)) => break found,
+            Ok(None) => {}
+            Err(error) => return Err(format!("{program} could not be waited for ({error})")),
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!("{program} did not answer within {bound:?}"));
+        }
+        std::thread::sleep(DISCOVERY_POLL);
+    };
+    let mut out: String = String::new();
+    let mut err: String = String::new();
+    if let Some(mut pipe) = child.stdout.take() {
+        let _ = pipe.read_to_string(&mut out);
+    }
+    if let Some(mut pipe) = child.stderr.take() {
+        let _ = pipe.read_to_string(&mut err);
+    }
+    if !status.success() {
+        return Err(format!("{program} failed ({})", err.lines().next().unwrap_or("no message").trim()));
+    }
+    return Ok(out);
+}
+
+/// What:
+/// `pub(crate) fn kill_file_present(directory: &Path) -> bool` says whether a group directory has `cgroup.kill`.
+/// Why:
+/// The file exists since Linux 5.14; a kernel without it takes the weaker path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function killFilePresent(directory: string): boolean
+/// ```
+pub(crate) fn kill_file_present(directory: &Path) -> bool {
+    return fs::metadata(directory.join("cgroup.kill")).is_ok();
+}
+
+/// What:
+/// `pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnavailable>` finds out whether this host can give a
+/// delegated scope, and where the manager keeps its scopes.
+/// Why:
+/// The manager's real hierarchy is asked for, never assumed from this process's own path (contract, "The spawn route").
+/// Every failure names the missing capability.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function detectRoute(settings: RouteSettings): Route  // throws GroupUnavailable
+/// ```
+pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnavailable> {
+    let unavailable = |reason: String| -> GroupUnavailable { return GroupUnavailable { reason }; };
+    match is_cgroup2(&settings.cgroup_root) {
+        Ok(true) => {}
+        Ok(false) => return Err(unavailable(format!("{} is not a cgroup v2 mount", settings.cgroup_root.display()))),
+        Err(error) => return Err(unavailable(format!("{} cannot be examined ({error})", settings.cgroup_root.display()))),
+    }
+    if !on_path(&settings.systemd_run) {
+        return Err(unavailable(format!("{} is not installed", settings.systemd_run)));
+    }
+    let ordinary: Vec<String> = vec!["--user".to_string(), "show".to_string(), settings.slice.clone(), "--property=ControlGroup".to_string(), "--value".to_string()];
+    let question: Vec<&str> = settings.question.as_ref().unwrap_or(&ordinary).iter().map(String::as_str).collect();
+    let answer: String = run_plain(&settings.systemctl, &question, &settings.environment, settings.discovery_bound)
+        .map_err(|reason| { return unavailable(format!("the user manager cannot be asked where {} is ({reason})", settings.slice)); })?;
+    let reported: &str = answer.trim();
+    if reported.is_empty() || !reported.starts_with('/') || reported.contains('\n') {
+        return Err(unavailable(format!("the user manager reports no control group for {}", settings.slice)));
+    }
+    let slice_dir: PathBuf = settings.cgroup_root.join(reported.trim_start_matches('/'));
+    if slice_dir.to_str().is_none() {
+        return Err(unavailable(format!("{} is not UTF-8, which the journal record cannot hold", slice_dir.display())));
+    }
+    if !fs::metadata(&slice_dir).map(|found| { return found.is_dir(); }).unwrap_or(false) {
+        return Err(unavailable(format!("{} does not exist in the cgroup file system", slice_dir.display())));
+    }
+    if !kill_file_present(&slice_dir) {
+        return Err(unavailable(format!("{} has no cgroup.kill; Linux 5.14 or later is needed", slice_dir.display())));
+    }
+    let namespace: u64 = namespace_id().map_err(|error| { return unavailable(format!("the cgroup namespace cannot be identified ({error})")); })?;
+    let slice_view: View = view_of(&slice_dir).map_err(|error| { return unavailable(format!("{} cannot be examined ({error})", slice_dir.display())); })?;
+    return Ok(Route { systemd_run: settings.systemd_run.clone(), slice: settings.slice.clone(), slice_dir, namespace, slice_view });
+}
+
+/// The scope of one run.
+#[derive(Debug)]
+pub(crate) struct ControlGroup {
+    /// The unit name without the `.scope` suffix.
+    name: String,
+    /// The directory the scope has once it runs.
+    directory: PathBuf,
+    /// The directory that holds it.
+    parent: PathBuf,
+    /// How that directory was seen when the scope was planned.
+    parent_view: View,
+    /// The inode of this process's cgroup namespace.
+    namespace: u64,
+}
+
+/// What a journal remembers of a run's containment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Record {
+    /// A transient scope: the cgroup namespace and the view of the directory that holds it,
+    /// recorded before the program starts,
+    /// and the scope's path.
+    Scope {
+        /// The inode number of the cgroup namespace of the process that planned it.
+        namespace: u64,
+        /// How the directory that holds the scope was seen.
+        parent_view: View,
+        /// The directory of the scope.
+        path: PathBuf,
+    },
+    /// The weaker path: only a process group (round 5), recorded by the process id of its leader.
+    ProcessGroup(
+        /// The leader's process id, which is the group's number.
+        i32,
+    ),
+    /// The weaker path is about to start a child whose process group is not known yet;
+    /// the line that follows it names the group.
+    /// A killed wrapper that leaves this line alone may have a running child that no record names.
+    ProcessGroupStarting,
+}
+
+/// What a recovery learns about a recorded scope.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum Membership {
+    /// No member can exist: the scope is verifiably absent, or present and empty.
+    Gone,
+    /// At least one thread of the scope lives.
+    Alive,
+    /// The question cannot be answered, with the reason.
+    Unknown(
+        /// Why.
+        String,
+    ),
+}
+
+/// What:
+/// `fn random_token() -> io::Result<String>` is 128 random bits as hexadecimal text.
+/// Why:
+/// A scope name must never repeat while any journal can reference it,
+/// so it carries no process id and no clock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function randomToken(): string
+/// ```
+fn random_token() -> io::Result<String> {
+    let mut bytes: [u8; TOKEN_BYTES] = [0; TOKEN_BYTES];
+    fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+    let mut text: String = String::with_capacity(TOKEN_BYTES * 2);
+    for byte in bytes {
+        text.push_str(&format!("{byte:02x}"));
+    }
+    return Ok(text);
+}
+
+/// What:
+/// `fn escaped(argument: &std::ffi::OsStr) -> std::ffi::OsString` doubles every dollar sign of an argument.
+/// Why:
+/// `systemd-run` reads the command it is given like the command line of a unit:
+/// it turns two dollar signs into one and replaces a braced variable name by the value of the variable (probed on 2026-11-04),
+/// so an argument is encoded for that grammar at the point where it is handed over (STB), and the program receives the bytes it was
+/// given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function escaped(argument: string): string
+/// ```
+fn escaped(argument: &std::ffi::OsStr) -> std::ffi::OsString {
+    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+    let mut bytes: Vec<u8> = Vec::with_capacity(argument.len());
+    for byte in argument.as_bytes() {
+        bytes.push(*byte);
+        if *byte == b'$' {
+            bytes.push(b'$');
+        }
+    }
+    return std::ffi::OsString::from_vec(bytes);
 }
 
 /// The methods of the type above.
 impl ControlGroup {
     /// What:
-    /// `pub(crate) fn create_in(parent: &Path) -> Result<ControlGroup, GroupUnavailable>` makes an empty group inside `parent`.
+    /// `pub(crate) fn plan(route: &Route) -> io::Result<ControlGroup>` names the scope of one run before anything starts.
     /// Why:
-    /// It is the whole of "can this process get a group it may write": the parent must be on cgroup v2,
-    /// the `mkdir` must be allowed,
-    /// and the new directory must have the control files (`cgroup.kill` exists since Linux 5.14).
-    /// A failure names the missing capability and nothing is left behind.
+    /// The path is known before the program exists, so the record can be forced to disk first.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// static createIn(parent: string): ControlGroup  // throws GroupUnavailable
+    /// static plan(route: Route): ControlGroup
     /// ```
-    pub(crate) fn create_in(parent: &Path) -> Result<ControlGroup, GroupUnavailable> {
-        let unavailable = |reason: String| -> GroupUnavailable { return GroupUnavailable { reason }; };
-        match is_cgroup2(parent) {
-            Ok(true) => {}
-            Ok(false) => return Err(unavailable(format!("{} is not on a cgroup v2 file system", parent.display()))),
-            Err(error) => return Err(unavailable(format!("{} cannot be examined ({error})", parent.display()))),
-        }
-        let Some(parent_text) = parent.to_str() else {
-            return Err(unavailable(format!("{} is not UTF-8, which the journal record cannot hold", parent.display())));
-        };
-        if parent_text.contains('\n') {
-            return Err(unavailable(format!("{parent_text:?} holds a line feed, which the journal record cannot hold")));
-        }
-        let nanos: u128 = SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
-        let name: String = format!("cargo-shadow-{}-{nanos}-{}", std::process::id(), NEXT_GROUP.fetch_add(1, Ordering::Relaxed));
-        let directory: PathBuf = parent.join(name);
-        if let Err(error) = fs::create_dir(&directory) {
-            return Err(unavailable(format!("making a control group in {} failed ({error})", parent.display())));
-        }
-        let namespace: u64 = match namespace_id() {
-            Ok(found) => found,
-            Err(error) => {
-                let _ = fs::remove_dir(&directory);
-                return Err(unavailable(format!("the control group namespace cannot be identified ({error})")));
-            }
-        };
-        let id: u64 = match fs::metadata(&directory) {
-            Ok(found) => found.ino(),
-            Err(error) => {
-                let _ = fs::remove_dir(&directory);
-                return Err(unavailable(format!("the new control group cannot be examined ({error})")));
-            }
-        };
-        for control in ["cgroup.procs", "cgroup.kill", "cgroup.events"] {
-            if let Err(error) = fs::metadata(directory.join(control)) {
-                let _ = fs::remove_dir(&directory);
-                return Err(unavailable(format!("the new control group has no {control} ({error}); Linux 5.14 or later is needed")));
-            }
-        }
-        return Ok(ControlGroup { directory, parent: parent.to_path_buf(), id, namespace });
+    pub(crate) fn plan(route: &Route) -> io::Result<ControlGroup> {
+        let name: String = format!("cargo-shadow-{}", random_token()?);
+        let directory: PathBuf = route.slice_dir.join(format!("{name}.scope"));
+        return Ok(ControlGroup { name, directory, parent: route.slice_dir.clone(), parent_view: route.slice_view, namespace: route.namespace });
     }
 
     /// What:
-    /// `pub(crate) fn directory(&self) -> &Path` is the group's directory.
+    /// `pub(crate) fn directory(&self) -> &Path` is the scope's directory.
     /// Why:
-    /// Tests and the removal name it.
+    /// Tests and the record name it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -289,52 +512,68 @@ impl ControlGroup {
     }
 
     /// What:
-    /// `pub(crate) fn record(&self) -> Record` is what a journal keeps of this group.
+    /// `pub(crate) fn record(&self) -> Record` is what a journal keeps of this scope.
     /// Why:
-    /// The journal line is written and forced to disk before anything starts in the group.
+    /// The journal line is written and forced to disk before the program starts.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// record(): Record
     /// ```
     pub(crate) fn record(&self) -> Record {
-        return Record::Group { id: self.id, namespace: self.namespace, path: self.directory.clone() };
+        return Record::Scope { namespace: self.namespace, parent_view: self.parent_view, path: self.directory.clone() };
     }
 
     /// What:
-    /// `pub(crate) fn spawn(&self, command: &mut Command) -> io::Result<Child>` starts the command with this group as its group.
+    /// `pub(crate) fn launcher(&self, route: &Route, original: &Command, clean_environment: bool) -> Command` is the command that
+    /// starts `original` in this scope.
     /// Why:
-    /// A child inherits the group of the process that forks it.
-    /// The spawning process writes `0` (itself) to this group's `cgroup.procs`,
-    /// spawns,
-    /// and writes `0` to its own group's `cgroup.procs` again,
-    /// so no hook runs between `fork` and `exec` and the caller's `Command` carries no per-run state.
-    /// The caller must make sure no other thread starts a process meanwhile.
+    /// `systemd-run --scope` asks the manager to move its own process into the scope and then becomes the program,
+    /// so the program runs in the scope from its first instruction and no thread of this program touches a `cgroup.procs`.
+    /// The working directory and the variables of the original are given to the launcher;
+    /// a command that clears the environment runs through `env --ignore-environment`,
+    /// so the manager is still reachable by the launcher and the program sees only the variables it was given.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// spawn(command: Command): ChildProcess
+    /// launcher(route: Route, original: Command, cleanEnvironment: boolean): Command
     /// ```
-    pub(crate) fn spawn(&self, command: &mut Command) -> io::Result<Child> {
-        let enter = fs::OpenOptions::new().write(true).open(self.directory.join("cgroup.procs"))?;
-        let leave = fs::OpenOptions::new().write(true).open(self.parent.join("cgroup.procs"))?;
-        (&enter).write_all(b"0")?;
-        let spawned: io::Result<Child> = command.spawn();
-        let left: io::Result<()> = (&leave).write_all(b"0");
-        return match (spawned, left) {
-            (Ok(child), Ok(())) => Ok(child),
-            (Ok(mut child), Err(error)) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                Err(io::Error::other(format!("the child was stopped because this process could not leave the new control group ({error})")))
+    pub(crate) fn launcher(&self, route: &Route, original: &Command, clean_environment: bool) -> Command {
+        let mut launch: Command = Command::new(&route.systemd_run);
+        launch.args(["--user", "--scope", "--quiet", "--collect", "--property=Delegate=yes"]);
+        launch.arg(format!("--unit={}", self.name));
+        launch.arg(format!("--slice={}", route.slice));
+        launch.arg("--");
+        if let Some(directory) = original.get_current_dir() {
+            launch.current_dir(directory);
+        }
+        if clean_environment {
+            launch.arg("env").arg("--ignore-environment");
+            for (name, value) in original.get_envs() {
+                if let Some(set) = value {
+                    let mut assignment: std::ffi::OsString = name.to_os_string();
+                    assignment.push("=");
+                    assignment.push(set);
+                    launch.arg(escaped(&assignment));
+                }
             }
-            (Err(error), Ok(())) => Err(error),
-            (Err(error), Err(left_error)) => Err(io::Error::other(format!("{error}; this process could not leave the new control group either ({left_error})"))),
-        };
+        } else {
+            for (name, value) in original.get_envs() {
+                match value {
+                    Some(set) => launch.env(name, set),
+                    None => launch.env_remove(name),
+                };
+            }
+        }
+        launch.arg(escaped(original.get_program()));
+        for argument in original.get_args() {
+            launch.arg(escaped(argument));
+        }
+        return launch;
     }
 
     /// What:
-    /// `pub(crate) fn members(&self) -> io::Result<Vec<i32>>` lists the processes in the group (the leader of each thread group).
+    /// `pub(crate) fn members(&self) -> io::Result<Vec<i32>>` lists the processes in the scope (the leader of each thread group).
     /// Why:
     /// A thread group whose leader exited is still listed while another of its threads lives.
     ///
@@ -343,9 +582,13 @@ impl ControlGroup {
     /// members(): number[]
     /// ```
     pub(crate) fn members(&self) -> io::Result<Vec<i32>> {
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::ContainmentInspection) {
+            return Err(io::Error::other("injected failure to list the members"));
+        }
         let text: String = match fs::read_to_string(self.directory.join("cgroup.procs")) {
             Ok(found) => found,
-            // A group that was removed has no members; `ENODEV` is what a read of a removed group's file says.
+            // A scope that was removed has no members; `ENODEV` is what a read of a removed group's file says.
             Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) => return Ok(Vec::new()),
             Err(error) => return Err(error),
         };
@@ -357,7 +600,7 @@ impl ControlGroup {
     }
 
     /// What:
-    /// `pub(crate) fn populated(&self) -> io::Result<bool>` says whether any thread of the group or of a group below it lives.
+    /// `pub(crate) fn populated(&self) -> io::Result<bool>` says whether any thread of the scope lives.
     /// Why:
     /// This is the kernel's own statement of quiescence.
     ///
@@ -404,29 +647,69 @@ impl ControlGroup {
     }
 
     /// What:
+    /// `fn absence_is_verified(&self) -> io::Result<()>` checks that the absence of the scope can be read as emptiness.
+    /// Why:
+    /// The manager removes a scope only when it is empty or after stopping its members (probed),
+    /// so a scope that is absent from the directory that held it had no member.
+    /// That holds only when the directory is seen as it was when the scope was planned (contract assumption c).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// absenceIsVerified(): void  // throws when the view differs
+    /// ```
+    fn absence_is_verified(&self) -> io::Result<()> {
+        let namespace: u64 = namespace_id()?;
+        if namespace != self.namespace {
+            return Err(io::Error::other("this process is in another cgroup namespace than the one the scope was made in"));
+        }
+        let seen: View = view_of(&self.parent)?;
+        if seen != self.parent_view {
+            return Err(io::Error::other(format!("{} is seen as {seen} now and was {} when the scope was planned", self.parent.display(), self.parent_view)));
+        }
+        return Ok(());
+    }
+
+    /// What:
     /// `pub(crate) fn stop(&self, bound: Duration) -> io::Result<bool>` kills every member and returns `true` once the kernel
-    /// reports the group unpopulated,
+    /// reports the scope unpopulated or its absence is verified,
     /// or `false` when `bound` passes first.
     /// Why:
     /// `cgroup.kill` is recursive and asynchronous,
     /// so the answer is the wait for `populated 0`, which can only be earned.
     /// A member in an uninterruptible wait cannot be killed and that is `false`.
+    /// Every other failure is an error,
+    /// and the caller reads both as "not quiescent".
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// stop(boundMs: number): boolean
     /// ```
     pub(crate) fn stop(&self, bound: Duration) -> io::Result<bool> {
+        #[cfg(test)]
+        {
+            if crate::failpoints::fires(crate::failpoints::Point::ContainmentStopError) {
+                return Err(io::Error::other("injected failure to stop the scope"));
+            }
+            if crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck) {
+                return Ok(false);
+            }
+        }
         let deadline: Instant = Instant::now() + bound;
         match write_text(&self.directory.join("cgroup.kill"), "1") {
             Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                self.absence_is_verified()?;
+                return Ok(true);
+            }
             // The signal pass below does the stopping when the kill file cannot be written.
             Err(error) => eprintln!("cargo-shadow: warning: cgroup.kill of {} could not be written ({error}); signalling the members one by one", self.directory.display()),
         }
         let events = match fs::File::open(self.directory.join("cgroup.events")) {
             Ok(found) => found,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                self.absence_is_verified()?;
+                return Ok(true);
+            }
             Err(error) => return Err(error),
         };
         loop {
@@ -447,23 +730,20 @@ impl ControlGroup {
             }
         }
     }
+}
 
-    /// What:
-    /// `pub(crate) fn remove(&self) -> io::Result<()>` removes the empty group.
-    /// Why:
-    /// The kernel refuses (`EBUSY`) while a member lives,
-    /// so a removal never hides a survivor.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// remove(): void
-    /// ```
-    pub(crate) fn remove(&self) -> io::Result<()> {
-        return match fs::remove_dir(&self.directory) {
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            other => other,
-        };
-    }
+/// What:
+/// `fn write_text(path: &Path, text: &str) -> io::Result<()>` writes `text` to a control file in one `write`.
+/// Why:
+/// The kernel reads a control file's command from a single write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function writeText(path: string, text: string): void
+/// ```
+fn write_text(path: &Path, text: &str) -> io::Result<()> {
+    let mut file = fs::OpenOptions::new().write(true).open(path)?;
+    return file.write_all(text.as_bytes());
 }
 
 /// What:
@@ -532,11 +812,24 @@ impl fmt::Display for Record {
     /// ```
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         return match self {
-            Record::Group { id, namespace, path } => write!(formatter, "cgroup {id} {namespace} {}", path.display()),
+            Record::Scope { namespace, parent_view, path } => write!(formatter, "scope {namespace} {parent_view} {}", path.display()),
             Record::ProcessGroup(leader) => write!(formatter, "pgroup {leader}"),
             Record::ProcessGroupStarting => write!(formatter, "pgroup starting"),
         };
     }
+}
+
+/// What:
+/// `fn parse_number(text: &str, what: &str, line: &str) -> Result<u64, String>` reads one number of a record.
+/// Why:
+/// The reason names the line and the field.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseNumber(text: string, what: string, line: string): number
+/// ```
+fn parse_number(text: &str, what: &str, line: &str) -> Result<u64, String> {
+    return text.parse::<u64>().map_err(|error| { return format!("{line:?} has no {what} ({error})"); });
 }
 
 /// What:
@@ -559,33 +852,34 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
         }
         return Ok(Record::ProcessGroup(leader));
     }
-    if let Some(rest) = line.strip_prefix("cgroup ") {
+    if let Some(rest) = line.strip_prefix("scope ") {
         let mut parts = rest.splitn(3, ' ');
-        let id: u64 = parts.next().unwrap_or("").parse::<u64>().map_err(|error| { return format!("{line:?} has no group id ({error})"); })?;
-        let namespace: u64 = parts.next().unwrap_or("").parse::<u64>().map_err(|error| { return format!("{line:?} has no namespace id ({error})"); })?;
+        let namespace: u64 = parse_number(parts.next().unwrap_or(""), "namespace id", line)?;
+        let view_text: &str = parts.next().unwrap_or("");
+        let (mount_text, inode_text) = view_text.split_once(':').ok_or_else(|| { return format!("{line:?} has no mount view"); })?;
+        let parent_view: View = View { mount: parse_number(mount_text, "mount id", line)?, inode: parse_number(inode_text, "inode", line)? };
         let path: &str = parts.next().unwrap_or("");
         if path.is_empty() {
             return Err(format!("{line:?} has no path"));
         }
-        return Ok(Record::Group { id, namespace, path: PathBuf::from(path) });
+        return Ok(Record::Scope { namespace, parent_view, path: PathBuf::from(path) });
     }
-    return Err(format!("{line:?} is not a record of a control group or a process group"));
+    return Err(format!("{line:?} is not a record of a scope or a process group"));
 }
 
 /// What:
-/// `pub(crate) fn query(id: u64, namespace: u64, path: &Path) -> Membership` says whether the recorded group has a member.
+/// `pub(crate) fn query(namespace: u64, parent_view: View, path: &Path) -> Membership` says whether the recorded scope has a member.
 /// Why:
-/// A group cannot be removed while it has a member,
-/// so a path that is gone, or that is a different group now (another inode number),
-/// had no member when it went.
-/// Only the same cgroup namespace gives the path its meaning,
-/// and only a mounted cgroup v2 can answer.
+/// An absent scope is read as gone only when this process sees the cgroup file system as the run did:
+/// the same cgroup namespace, a mounted cgroup v2, and the directory that held the scope with the recorded mount id and inode
+/// (contract assumption c, the second check).
+/// A scope that is present is asked for its `populated` flag.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function query(id: number, namespace: number, path: string): 'gone' | 'alive' | { unknown: string }
+/// export function query(namespace: number, parentView: View, path: string): 'gone' | 'alive' | { unknown: string }
 /// ```
-pub(crate) fn query(id: u64, namespace: u64, path: &Path) -> Membership {
+pub(crate) fn query(namespace: u64, parent_view: View, path: &Path) -> Membership {
     match namespace_id() {
         Ok(found) if found == namespace => {}
         Ok(_) => return Membership::Unknown(format!("{} was made in another cgroup namespace than this process is in", path.display())),
@@ -596,36 +890,29 @@ pub(crate) fn query(id: u64, namespace: u64, path: &Path) -> Membership {
         Ok(false) => return Membership::Unknown(format!("{CGROUP_ROOT} is not a cgroup v2 mount, so {} cannot be examined", path.display())),
         Err(error) => return Membership::Unknown(format!("{CGROUP_ROOT} cannot be examined ({error})")),
     }
-    let found = match fs::metadata(path) {
-        Ok(found) => found,
+    let Some(parent) = path.parent() else {
+        return Membership::Unknown(format!("{} has no parent directory", path.display()));
+    };
+    match view_of(parent) {
+        Ok(seen) if seen == parent_view => {}
+        Ok(seen) => {
+            return Membership::Unknown(format!(
+                "{} is seen as mount and inode {seen} here and was {parent_view} when the scope was recorded, so the recorded path may lead somewhere else",
+                parent.display()
+            ));
+        }
+        Err(error) => return Membership::Unknown(format!("{} cannot be examined ({error})", parent.display())),
+    }
+    match fs::metadata(path) {
+        Ok(_) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Membership::Gone,
         Err(error) => return Membership::Unknown(format!("{} cannot be examined ({error})", path.display())),
-    };
-    if found.ino() != id {
-        return Membership::Gone;
     }
     return match populated_at(path) {
         Ok(true) => Membership::Alive,
         Ok(false) => Membership::Gone,
+        // A scope removed between the two reads is absent.
+        Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) => Membership::Gone,
         Err(error) => Membership::Unknown(format!("{} cannot be read ({error})", path.join("cgroup.events").display())),
     };
-}
-
-/// What:
-/// `pub(crate) fn reclaim(id: u64, path: &Path)` removes a recorded group that is empty and still the recorded one.
-/// Why:
-/// A killed run leaves its empty group behind,
-/// and the recovery that settles the journal tidies it;
-/// an occupied group refuses the removal and is left for the next look.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function reclaim(id: number, path: string): void
-/// ```
-pub(crate) fn reclaim(id: u64, path: &Path) {
-    if let Ok(found) = fs::metadata(path)
-        && found.ino() == id
-    {
-        let _ = fs::remove_dir(path);
-    }
 }

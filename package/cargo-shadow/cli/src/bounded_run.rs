@@ -1,24 +1,24 @@
 //! What:
 //! Runs a child process and collects its output within a time bound,
-//! with everything the child started contained in a control group.
+//! with everything the child started contained in a delegated control group.
 //! Why:
 //! The owner's rule of 2026-11-03 is "nothing should ever wait forever or indefinitely".
-//! Round 7 (sixth review 6a R1 to R4, R10; 6b2 2; 6c R2):
-//! the child and everything it starts run in a control group this program makes and records in the journal before the child
-//! starts (`control_group.rs`);
+//! Round 8 (contract `doc/planning/cargo-shadow-guarantees.md`):
+//! the child runs as `systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect -- <program>`,
+//! so the manager puts it in a scope of its own (`control_group.rs`) and no thread of this program is ever moved between groups;
+//! the scope's record is forced to disk before the program starts;
 //! at the bound,
 //! and after a normal exit,
-//! the group is killed and the run waits for the kernel's own statement that no thread is left (`populated 0`).
-//! A call that returns `Ok` has that statement.
-//! The spawning process enters the group for the span of one `spawn` and leaves it again,
-//! so no hook runs in the child and nothing is appended to the caller's `Command`.
-//! Where no group can be had (the own group is not writable,
-//! no cgroup v2),
+//! the direct child is killed and reaped, the scope is killed,
+//! and the run waits for the kernel's own statement that no thread is left (`populated 0`) or for the verified absence of the
+//! scope.
+//! A call that returns `Ok` has that statement,
+//! and every failure after the program started that cannot show it is `NotQuiescent`.
+//! Where no scope can be had (no user manager, no cgroup v2, an older kernel),
 //! the child runs in a process group of its own,
 //! a one-line notice names the missing capability,
-//! and no quiescence is claimed for what leaves the process group (the weaker path,
-//! the coordinator's pick of round 7,
-//! veto open).
+//! the journal records `pgroup starting` before the start and the group after,
+//! and no quiescence is claimed for what leaves the process group: a recovery of such a journal waits for an acknowledgement.
 //! Output is returned only when it is complete:
 //! a prefix is an error (review finding 4c F4).
 //! The limit:
@@ -55,8 +55,8 @@ use std::process::{Child, Command, ExitStatus, Output, Stdio};
 /// Imports `std::rc::Rc` for this file.
 use std::rc::Rc;
 
-/// Imports `std::sync::{Arc, Mutex, MutexGuard, Once, TryLockError}` for this file.
-use std::sync::{Arc, Mutex, MutexGuard, Once, TryLockError};
+/// Imports `std::sync::{Arc, Once}` for this file.
+use std::sync::{Arc, Once};
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -86,7 +86,7 @@ use rustix::process::{Pid, PidfdFlags, Signal, kill_process_group, pidfd_open, t
 use crate::bounded_io::{collect, feed};
 
 /// Imports the control group pieces for this file.
-use crate::control_group::{ControlGroup, GroupUnavailable, Record, own_group_directory};
+use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route, RouteSettings, detect_route};
 
 /// How often the child is asked whether it has ended.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
@@ -119,11 +119,6 @@ const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 /// the largest output (`cargo metadata` of this repository) drains in well under it.
 const READER_GRACE: Duration = Duration::from_secs(2);
 
-/// Keeps two threads from entering a group at the same time.
-/// A process that is inside a group while it spawns would put any other thread's child into that group too;
-/// the window is one `spawn`, and a thread that cannot enter before its bound has passed gives up.
-static SPAWN_WINDOW: Mutex<()> = Mutex::new(());
-
 /// Makes the one-line notice of the weaker path appear once per process.
 static WEAKER_NOTICE: Once = Once::new();
 
@@ -142,9 +137,13 @@ thread_local! {
 
 #[cfg(test)]
 thread_local! {
-    /// The directory groups are made in instead of the own group,
-    /// so a test can make the host look like one that cannot give a group.
-    static GROUP_PARENT_OVERRIDE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    /// The settings the route is discovered with instead of the ordinary ones,
+    /// so a test can make the host look like one that lacks a capability.
+    static ROUTE_OVERRIDE: RefCell<Option<RouteSettings>> = const { RefCell::new(None) };
+
+    /// A hook that runs inside the start of a run, after the scope's record is on disk and before the program starts,
+    /// so a test can overlap other work with the start at a boundary of its own choosing.
+    static START_HOOK: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 }
 
 /// What a scope remembers.
@@ -411,107 +410,117 @@ fn wait_for_exit(watch: Option<&OwnedFd>, remaining: Duration) {
 
 /// How a run is contained.
 enum Containment {
-    /// In a control group: quiescence is shown by the kernel.
-    Group(ControlGroup),
+    /// In a transient scope the manager made: quiescence is shown by the kernel.
+    Scope {
+        /// The scope of this run.
+        group: ControlGroup,
+        /// The route it was planned on.
+        route: Route,
+    },
     /// In a process group of its own (the child's process id is the group): the weaker path.
     ProcessGroup,
 }
 
 /// What:
-/// `fn group_parent() -> io::Result<PathBuf>` is the directory new groups are made in.
+/// `fn find_route() -> Result<Route, GroupUnavailable>` finds out what this host can give.
 /// Why:
-/// It is the group this process is in;
-/// tests replace it to make the host look like one without delegation.
+/// The answer of the manager does not change while the process lives, so it is asked once;
+/// a test asks again, with its own settings.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function groupParent(): string
+/// function findRoute(): Route  // throws GroupUnavailable
 /// ```
-fn group_parent() -> io::Result<PathBuf> {
-    #[cfg(test)]
-    if let Some(parent) = GROUP_PARENT_OVERRIDE.with(|slot| { return slot.borrow().clone(); }) {
-        return Ok(parent);
-    }
-    return own_group_directory();
+#[cfg(not(test))]
+fn find_route() -> Result<Route, GroupUnavailable> {
+    static ROUTE: std::sync::OnceLock<Result<Route, String>> = std::sync::OnceLock::new();
+    return match ROUTE.get_or_init(|| { return detect_route(&RouteSettings::default()).map_err(|unavailable| { return unavailable.reason; }); }) {
+        Ok(found) => Ok(found.clone()),
+        Err(reason) => Err(GroupUnavailable { reason: reason.clone() }),
+    };
 }
 
 /// What:
-/// `pub fn use_group_parent_for_test(parent: Option<PathBuf>)` makes the runs of this thread make their groups in `parent`
-/// (`None` restores the own group).
+/// `fn find_route() -> Result<Route, GroupUnavailable>` is the test build's version:
+/// it asks again every time, with the settings of the test.
 /// Why:
-/// A plain directory is not a control group,
-/// which is the host without delegation.
+/// A test makes the host look like one that lacks a capability.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function useGroupParentForTest(parent?: string): void
+/// function findRoute(): Route  // throws GroupUnavailable
 /// ```
 #[cfg(test)]
-pub fn use_group_parent_for_test(parent: Option<PathBuf>) {
-    GROUP_PARENT_OVERRIDE.with(|slot| { *slot.borrow_mut() = parent; });
+fn find_route() -> Result<Route, GroupUnavailable> {
+    let settings: RouteSettings = ROUTE_OVERRIDE.with(|slot| { return slot.borrow().clone(); }).unwrap_or_default();
+    return detect_route(&settings);
+}
+
+/// What:
+/// `pub fn use_route_settings_for_test(settings: Option<RouteSettings>)` makes the runs of this thread discover their route with
+/// `settings` (`None` restores the ordinary ones).
+/// Why:
+/// A host that lacks `systemd-run`, a reachable manager or a cgroup v2 mount is made by pointing the settings at nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function useRouteSettingsForTest(settings?: RouteSettings): void
+/// ```
+#[cfg(test)]
+pub(crate) fn use_route_settings_for_test(settings: Option<RouteSettings>) {
+    ROUTE_OVERRIDE.with(|slot| { *slot.borrow_mut() = settings; });
+}
+
+/// What:
+/// `pub fn on_start_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs inside the start of each run of this thread.
+/// Why:
+/// The spawn-isolation tests overlap an unrelated spawn and a second run with the start of the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function onStartForTest(hook?: () => void): void
+/// ```
+#[cfg(test)]
+pub(crate) fn on_start_for_test(hook: Option<Rc<dyn Fn()>>) {
+    START_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
 }
 
 /// What:
 /// `pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String` is the one-line notice of the weaker path.
 /// Why:
 /// It names the missing capability and says what cannot be shown,
-/// so a person knows the guarantee they have (the coordinator's pick of round 7, veto open).
+/// so a person knows the guarantee they have (contract, "The weaker path").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function weakerNotice(unavailable: GroupUnavailable): string
 /// ```
 pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
-    return format!("cargo-shadow: no writable control group ({unavailable}); a process that leaves the process group cannot be stopped or found, so quiescence is not shown");
+    return format!("cargo-shadow: no delegated control group ({unavailable}); a process that leaves the process group cannot be stopped or found, so quiescence is not shown and a recovery of this run waits for `cargo-shadow acknowledge`");
 }
 
 /// What:
-/// `fn contain() -> Containment` makes a control group,
+/// `fn contain() -> Containment` plans a scope,
 /// or says in one line which capability is missing and falls back to a process group.
 /// Why:
-/// The notice is printed once per process;
-/// it names the capability, and says what cannot be shown.
+/// The notice is printed once per process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function contain(): Containment
 /// ```
 fn contain() -> Containment {
-    let made: Result<ControlGroup, GroupUnavailable> = match group_parent() {
-        Ok(parent) => ControlGroup::create_in(&parent),
-        Err(error) => Err(GroupUnavailable { reason: format!("the control group of this process cannot be found ({error})") }),
+    let weaker = |unavailable: GroupUnavailable| -> Containment {
+        WEAKER_NOTICE.call_once(|| { eprintln!("{}", weaker_notice(&unavailable)); });
+        return Containment::ProcessGroup;
     };
-    return match made {
-        Ok(group) => Containment::Group(group),
-        Err(unavailable) => {
-            WEAKER_NOTICE.call_once(|| { eprintln!("{}", weaker_notice(&unavailable)); });
-            Containment::ProcessGroup
-        }
+    return match find_route() {
+        Ok(route) => match ControlGroup::plan(&route) {
+            Ok(group) => Containment::Scope { group, route },
+            Err(error) => weaker(GroupUnavailable { reason: format!("a scope name cannot be made ({error})") }),
+        },
+        Err(unavailable) => weaker(unavailable),
     };
-}
-
-/// What:
-/// `fn take_window(deadline: Instant) -> Option<MutexGuard<'static, ()>>` waits for the spawn window until `deadline`.
-/// Why:
-/// Nothing waits without a bound;
-/// the holder is inside one `spawn`, so the wait is short.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function takeWindow(deadline: number): Guard | undefined
-/// ```
-fn take_window(deadline: Instant) -> Option<MutexGuard<'static, ()>> {
-    loop {
-        match SPAWN_WINDOW.try_lock() {
-            Ok(held) => return Some(held),
-            Err(TryLockError::Poisoned(poisoned)) => return Some(poisoned.into_inner()),
-            Err(TryLockError::WouldBlock) => {}
-        }
-        if Instant::now() >= deadline {
-            return None;
-        }
-        thread::sleep(Duration::from_millis(1));
-    }
 }
 
 /// What:
@@ -545,12 +554,15 @@ fn stop_process_group(child: &mut Child, group: Pid) -> bool {
 
 /// What:
 /// `fn stop_everything(containment, child) -> bool` ends the run early or at its normal exit:
-/// it kills what the containment holds,
-/// reaps the direct child,
+/// it kills and reaps the direct child,
+/// stops what the containment holds,
 /// and returns `true` only if all of it is shown gone.
 /// Why:
 /// This is the one way a run is ended,
 /// on timeout, on a normal exit and on every error path.
+/// The direct child goes first: it is the process that becomes the program, so once it is reaped nothing of this program's can
+/// still start the program in a scope that is not there yet.
+/// A scope that cannot be stopped, and any failure to inspect or stop it, is "not shown gone".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -558,19 +570,41 @@ fn stop_process_group(child: &mut Child, group: Pid) -> bool {
 /// ```
 fn stop_everything(containment: &Containment, child: &mut Child) -> bool {
     return match containment {
-        Containment::Group(group) => {
-            let empty: bool = group.stop(QUIESCE_BOUND).unwrap_or(false);
+        Containment::Scope { group, .. } => {
+            let _ = child.kill();
             let reaped: bool = reap(child).is_some();
-            if empty && let Err(error) = group.remove() {
-                eprintln!("cargo-shadow: warning: the empty control group {} could not be removed ({error})", group.directory().display());
-            }
-            empty && reaped
+            let stopped: bool = match group.stop(QUIESCE_BOUND) {
+                Ok(done) => done,
+                Err(error) => {
+                    eprintln!("cargo-shadow: warning: the scope {} could not be shown empty ({error})", group.directory().display());
+                    false
+                }
+            };
+            reaped && stopped
         }
         Containment::ProcessGroup => match Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)) {
             Some(group) => stop_process_group(child, group),
             None => false,
         },
     };
+}
+
+/// What:
+/// `fn fail_started(containment, child, scope, bound, error) -> RunError` ends a run that failed after its program started.
+/// Why:
+/// Any failure on the containment path after the start is "not quiescent" unless everything is shown gone (contract A2):
+/// it must not become an ordinary failure that lets the caller roll back or accept under a writer that may remain (7a F3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function failStarted(containment: Containment, child: ChildProcess, scope: ScopeState | undefined, bound: Bound, error: RunError): RunError
+/// ```
+fn fail_started(containment: &Containment, child: &mut Child, scope: &Option<Rc<ScopeState>>, bound: &Bound, error: RunError) -> RunError {
+    if stop_everything(containment, child) {
+        return error;
+    }
+    lose(scope);
+    return RunError::NotQuiescent { what: bound.what.clone() };
 }
 
 /// What:
@@ -646,51 +680,75 @@ fn lose(scope: &Option<Rc<ScopeState>>) {
 /// export function outputWithin(command: Command, input: Buffer | undefined, bound: Bound): Output  // throws RunError
 /// ```
 pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound) -> Result<Output, RunError> {
+    return run_bounded(command, input, bound, false);
+}
+
+/// What:
+/// `pub fn output_within_clean_environment(command, input, bound) -> Result<Output, RunError>` is `output_within` for a command
+/// whose environment was cleared (`env_clear`) and rebuilt from the variables set on it.
+/// Why:
+/// A cleared environment cannot be read back from a `Command`,
+/// and the scope launcher must still reach the manager with the caller's variables,
+/// so the caller says so and the program is started through `env --ignore-environment`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function outputWithinCleanEnvironment(command: Command, input: Buffer | undefined, bound: Bound): Output  // throws RunError
+/// ```
+pub fn output_within_clean_environment(command: &mut Command, input: Option<&[u8]>, bound: &Bound) -> Result<Output, RunError> {
+    return run_bounded(command, input, bound, true);
+}
+
+/// What:
+/// `fn configure_stdio(command: &mut Command, has_input: bool)` pipes the standard streams of a command.
+/// Why:
+/// Both the caller's command (the weaker path) and the scope launcher need the same pipes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function configureStdio(command: Command, hasInput: boolean): void
+/// ```
+fn configure_stdio(command: &mut Command, has_input: bool) {
+    command.stdin(if has_input { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::piped()).stderr(Stdio::piped());
+}
+
+/// What:
+/// `fn run_bounded(command, input, bound, clean_environment) -> Result<Output, RunError>` is the run itself.
+/// Why:
+/// See `output_within`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runBounded(command: Command, input: Buffer | undefined, bound: Bound, cleanEnvironment: boolean): Output  // throws RunError
+/// ```
+fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean_environment: bool) -> Result<Output, RunError> {
     let scope: Option<Rc<ScopeState>> = current_scope();
     let deadline: Instant = Instant::now() + bound.limit;
-    command.stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::piped()).stderr(Stdio::piped());
+    configure_stdio(command, input.is_some());
     let containment: Containment = contain();
-    let spawned: Result<Child, RunError> = start_contained(command, &containment, scope.as_ref(), deadline, bound);
-    let mut child: Child = match spawned {
-        Ok(found) => found,
-        Err(error) => {
-            // Nothing was started, or the child was already stopped; an empty group is removed so none is left behind.
-            if let Containment::Group(group) = &containment {
-                let _ = group.remove();
-            }
-            return Err(error);
-        }
-    };
+    let mut child: Child = start_contained(command, &containment, scope.as_ref(), input.is_some(), clean_environment)?;
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let _cancel_on_exit: CancelOnDrop = CancelOnDrop(Arc::clone(&cancel));
     let writer: Option<Receiver<io::Result<()>>> = match (input, child.stdin.take()) {
         (Some(bytes), Some(stdin)) => Some(feed(OwnedFd::from(stdin), bytes.to_vec(), Arc::clone(&cancel))),
         _ => None,
     };
-    let stdout_pipe: OwnedFd = OwnedFd::from(child.stdout.take().ok_or_else(|| { return RunError::Io(io::Error::other("no standard output pipe")); })?);
-    let stderr_pipe: OwnedFd = OwnedFd::from(child.stderr.take().ok_or_else(|| { return RunError::Io(io::Error::other("no standard error pipe")); })?);
-    let stdout = collect(stdout_pipe, Arc::clone(&cancel));
-    let stderr = collect(stderr_pipe, Arc::clone(&cancel));
+    let (Some(stdout_handle), Some(stderr_handle)) = (child.stdout.take(), child.stderr.take()) else {
+        return Err(fail_started(&containment, &mut child, &scope, bound, RunError::Io(io::Error::other("no standard output or error pipe"))));
+    };
+    let stdout = collect(OwnedFd::from(stdout_handle), Arc::clone(&cancel));
+    let stderr = collect(OwnedFd::from(stderr_handle), Arc::clone(&cancel));
     // A descriptor that becomes readable when the child ends, so the wait wakes at the exit instead of at the next poll.
     let exit_watch: Option<OwnedFd> = Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)).and_then(|pid| { return pidfd_open(pid, PidfdFlags::empty()).ok(); });
     let status: ExitStatus = loop {
         match child.try_wait() {
             Ok(Some(found)) => break found,
             Ok(None) => {}
-            Err(error) => {
-                if !stop_everything(&containment, &mut child) {
-                    lose(&scope);
-                    return Err(RunError::NotQuiescent { what: bound.what.clone() });
-                }
-                return Err(RunError::Io(error));
-            }
+            Err(error) => return Err(fail_started(&containment, &mut child, &scope, bound, RunError::Io(error))),
         }
         if Instant::now() >= deadline {
-            if !stop_everything(&containment, &mut child) {
-                lose(&scope);
-                return Err(RunError::NotQuiescent { what: bound.what.clone() });
-            }
-            return Err(RunError::TimedOut { what: bound.what.clone(), limit: bound.limit, rerun: bound.rerun.clone() });
+            let timed_out: RunError = RunError::TimedOut { what: bound.what.clone(), limit: bound.limit, rerun: bound.rerun.clone() };
+            return Err(fail_started(&containment, &mut child, &scope, bound, timed_out));
         }
         wait_for_exit(exit_watch.as_ref(), deadline.saturating_duration_since(Instant::now()));
     };
@@ -713,30 +771,77 @@ pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound)
 }
 
 /// What:
-/// `fn start_contained(command, containment, scope, deadline, bound) -> Result<Child, RunError>` records the containment in the
-/// journal and starts the child inside it.
+/// `fn program_resolves(command: &Command) -> bool` says whether the program of the command exists as an executable file,
+/// searched on the `PATH` the command will have when its name has no slash.
 /// Why:
-/// For a control group the record is forced to disk before the child exists,
-/// and a record that cannot be written means the child is not started.
-/// For the weaker path the process group is only known once the child exists,
-/// so the record follows the start and a child whose record cannot be written is stopped at once.
+/// `systemd-run` reports a program it cannot start as an exit status like any other,
+/// so a program that does not exist is found before the launcher is started and reported as the I/O error it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function startContained(command: Command, containment: Containment, scope: ScopeState | undefined, deadline: number, bound: Bound): ChildProcess  // throws RunError
+/// function programResolves(command: Command): boolean
 /// ```
-fn start_contained(command: &mut Command, containment: &Containment, scope: Option<&Rc<ScopeState>>, deadline: Instant, bound: &Bound) -> Result<Child, RunError> {
+fn program_resolves(command: &Command) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let executable = |candidate: &Path| -> bool { return std::fs::metadata(candidate).map(|found| { return found.is_file() && found.permissions().mode() & 0o111 != 0; }).unwrap_or(false); };
+    let program: &std::ffi::OsStr = command.get_program();
+    let relative_to: PathBuf = command.get_current_dir().map(Path::to_path_buf).unwrap_or_default();
+    if program.as_encoded_bytes().contains(&b'/') {
+        return executable(&relative_to.join(program));
+    }
+    let own_path: Option<std::ffi::OsString> = command.get_envs().find(|(name, _)| { return *name == "PATH"; }).and_then(|(_, value)| { return value.map(std::ffi::OsStr::to_os_string); }).or_else(|| { return std::env::var_os("PATH"); });
+    return own_path.is_some_and(|search| { return std::env::split_paths(&search).any(|directory| { return executable(&relative_to.join(directory).join(program)); }); });
+}
+
+/// What:
+/// `fn run_start_hook()` runs the hook a test put inside the start of a run, if any.
+/// Why:
+/// It is the boundary at which a test overlaps other work with a start, or kills a wrapper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runStartHook(): void
+/// ```
+#[cfg(test)]
+fn run_start_hook() {
+    if let Some(hook) = START_HOOK.with(|slot| { return slot.borrow().clone(); }) {
+        hook();
+    }
+}
+
+/// The production build has no hook.
+#[cfg(not(test))]
+fn run_start_hook() {}
+
+/// What:
+/// `fn start_contained(command, containment, scope, has_input, clean_environment) -> Result<Child, RunError>` records the
+/// containment in the journal and starts the child inside it.
+/// Why:
+/// For a scope the record is forced to disk before the program starts,
+/// and a record that cannot be written means the program is not started.
+/// For the weaker path the process group is only known once the child exists,
+/// so a `pgroup starting` line is forced to disk first and the group's line follows the start;
+/// a child whose group cannot be recorded is stopped at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startContained(command: Command, containment: Containment, scope: ScopeState | undefined, hasInput: boolean, cleanEnvironment: boolean): ChildProcess  // throws RunError
+/// ```
+fn start_contained(command: &mut Command, containment: &Containment, scope: Option<&Rc<ScopeState>>, has_input: bool, clean_environment: bool) -> Result<Child, RunError> {
     match containment {
-        Containment::Group(group) => {
+        Containment::Scope { group, route } => {
+            if !program_resolves(command) {
+                return Err(RunError::Io(io::Error::new(io::ErrorKind::NotFound, format!("{:?} was not found (os error 2)", command.get_program()))));
+            }
             if let Some(state) = scope {
                 append_record(&state.log, &group.record()).map_err(|error| {
-                    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose control group cannot be recorded is not started)")));
+                    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a program whose scope cannot be recorded is not started)")));
                 })?;
             }
-            let Some(_window) = take_window(deadline) else {
-                return Err(RunError::TimedOut { what: bound.what.clone(), limit: bound.limit, rerun: bound.rerun.clone() });
-            };
-            return group.spawn(command).map_err(RunError::Io);
+            run_start_hook();
+            let mut launch: Command = group.launcher(route, command, clean_environment);
+            configure_stdio(&mut launch, has_input);
+            return launch.spawn().map_err(RunError::Io);
         }
         Containment::ProcessGroup => {
             if let Some(state) = scope {
@@ -744,12 +849,13 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             }
             command.process_group(0);
             // The child's group is its process id, known only after the spawn: a "starting" line is durable before it, so a
-            // wrapper killed in between is seen by a recovery as one that may have a child running (round 7, advisor).
+            // wrapper killed in between is seen by a recovery as one that may have a child running.
             if let Some(state) = scope {
                 append_record(&state.log, &Record::ProcessGroupStarting).map_err(|error| {
                     return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose process group cannot be announced is not started)")));
                 })?;
             }
+            run_start_hook();
             let mut child: Child = command.spawn().map_err(RunError::Io)?;
             let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
             if let Some(state) = scope

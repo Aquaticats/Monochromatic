@@ -67,7 +67,7 @@ use std::process::{Command, Output};
 /// ```
 use crate::constants::LOCKFILE_NAME;
 /// Imports the bounded child run that every Git call goes through.
-use crate::bounded_run::{Bound, RunError, output_within};
+use crate::bounded_run::{Bound, RunError, output_within, output_within_clean_environment};
 /// What:
 /// `use crate::git_native::native_base;` imports the choice of the trust base made from the repository files.
 /// Why:
@@ -278,7 +278,9 @@ pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &
     // ```ts
     // try { ... } catch (error) { throw new MyError(String(error)); }
     // ```
-    return output_within(&mut command, input, &bound).map_err(|error| {
+    // A cleared environment is rebuilt from the variables set on the command, which the scope launcher must be told.
+    let ran = if environment.git.clean_environment { output_within_clean_environment(&mut command, input, &bound) } else { output_within(&mut command, input, &bound) };
+    return ran.map_err(|error| {
         // `match`: picks the arm whose pattern fits the value.
         return match error {
             RunError::Io(inner) => git_start_failure(inner),

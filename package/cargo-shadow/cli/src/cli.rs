@@ -98,6 +98,15 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Acknowledge a journal that a recovery refuses:
+    /// you assert that every process or worker of the run that left it,
+    /// and can modify the workspace,
+    /// has stopped.
+    /// It overrides only the uncertainty of the containment of that run.
+    Acknowledge {
+        /// The journal directory the refusal named.
+        journal: std::path::PathBuf,
+    },
 }
 
 /// What:

@@ -419,8 +419,9 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     // A child of an earlier killed run may still be writing the files this transaction would snapshot:
     // starting now would let two runs mutate one workspace, so the transaction is refused.
     let earlier: Vec<PathBuf> = match crate::journal_recover::list_journals(&root.join(JOURNAL_DIR)) {
-        Ok(listing) => listing.open,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Ok(Some(listing)) => listing.open,
+        // Only an absent journal directory is "no earlier journals"; an entry that vanished mid-listing is unknown (7b P1-2).
+        Ok(None) => Vec::new(),
         Err(error) => {
             return Err(io::Error::other(format!("the journals of {} could not be listed ({error}), so a surviving child of an earlier run cannot be ruled out; no transaction was started", root.display())));
         }
@@ -453,6 +454,8 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     // The record of children comes first: a journal directory without it holds nothing that could have started a child
     // (an empty directory), and one that has other files but lost it is uncertain (round 7, 6b2 2).
     write_synced(&directory.join(GROUPS_FILE), "")?;
+    // How this journal directory is seen now (mount and inode); a recovery that sees another view refuses (contract assumption c).
+    write_synced(&directory.join(crate::journal::VIEW_FILE), &format!("view {}\n", crate::control_group::view_of(&directory)?))?;
     write_synced(&directory.join(OWNER_FILE), &format!("v3\n{}\n", std::process::id()))?;
     let mut index: String = String::from("v2\n");
     let mut listed: Vec<String> = Vec::new();
@@ -701,8 +704,7 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
 }
 
 /// What:
-/// `pub fn remove_done(done: &Path) -> io::Result<()>` removes the empty control groups the journal recorded,
-/// then the journal directory, and syncs its parent.
+/// `pub fn remove_done(done: &Path) -> io::Result<()>` removes the journal directory and syncs its parent.
 /// Why:
 /// Nothing in a `.done` journal is needed any more.
 ///
@@ -711,7 +713,6 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
 /// export function removeDone(done: string): void
 /// ```
 pub fn remove_done(done: &Path) -> io::Result<()> {
-    crate::journal_unready::reclaim_recorded_groups(done);
     fs::remove_dir_all(done)?;
     return match done.parent() {
         Some(parent) => sync_directory(parent),

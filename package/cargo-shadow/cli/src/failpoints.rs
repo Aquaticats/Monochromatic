@@ -34,10 +34,28 @@ thread_local! {
     static FINISH_CLEANUP: Cell<bool> = const { Cell::new(false) };
     /// Whether the next durability barrier of a recovery on this thread fails.
     static RECOVER_DURABILITY: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static DIRECTORY_BARRIER: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static COMPLETION_SYNC: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static COMPLETION_RENAME: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static LISTING_ENTRY_NOT_FOUND: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static LISTING_INSPECTION: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static LISTING_ITERATION: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static LISTING_OPEN: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static CONTAINMENT_STOP_STUCK: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static CONTAINMENT_STOP_ERROR: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static CONTAINMENT_INSPECTION: Cell<bool> = const { Cell::new(false) };
     /// Whether the next publication of a journal's durable completion marker on this thread fails.
     static FINISH_COMPLETION: Cell<bool> = const { Cell::new(false) };
-    /// Whether the next listing of the journals of a workspace on this thread reports an error for one entry.
-    static JOURNAL_LISTING: Cell<bool> = const { Cell::new(false) };
 }
 
 /// The steps that can be made to fail.
@@ -51,10 +69,28 @@ pub enum Point {
     FinishCleanup,
     /// The forcing of live files to disk before a recovery deletes the durable copies that made them recoverable.
     RecoverDurability,
+    /// The next sync of a kept copy's directory fails.
+    DirectoryBarrier,
+    /// The sync of the directory that lists the completion marker fails (after the real rename).
+    CompletionSync,
+    /// The rename that publishes the completion marker fails (the real rename is not made).
+    CompletionRename,
+    /// The examination of the second entry of the journal directory reports that it vanished.
+    ListingEntryNotFound,
+    /// The examination of the second entry of the journal directory fails.
+    ListingInspection,
+    /// The reading of the second entry of the journal directory fails.
+    ListingIteration,
+    /// The opening of the journal directory for listing fails.
+    ListingOpen,
+    /// The stop of a scope reports that a member could not be stopped within the bound.
+    ContainmentStopStuck,
+    /// The stop of a scope after the program started fails with an error.
+    ContainmentStopError,
+    /// The listing of the members of a scope after the program started fails.
+    ContainmentInspection,
     /// The publication of a journal's durable completion marker (the rename to its done name and the sync of the directory that lists it).
     FinishCompletion,
-    /// The listing of the journals of a workspace, which a survivor check and a recovery both depend on.
-    JournalListing,
 }
 
 /// What:
@@ -87,8 +123,17 @@ pub fn arm(point: Point) {
         Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
         Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
         Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
+        Point::DirectoryBarrier => DIRECTORY_BARRIER.with(|slot| { slot.set(true); }),
+        Point::CompletionSync => COMPLETION_SYNC.with(|slot| { slot.set(true); }),
+        Point::CompletionRename => COMPLETION_RENAME.with(|slot| { slot.set(true); }),
+        Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(|slot| { slot.set(true); }),
+        Point::ListingInspection => LISTING_INSPECTION.with(|slot| { slot.set(true); }),
+        Point::ListingIteration => LISTING_ITERATION.with(|slot| { slot.set(true); }),
+        Point::ListingOpen => LISTING_OPEN.with(|slot| { slot.set(true); }),
+        Point::ContainmentStopStuck => CONTAINMENT_STOP_STUCK.with(|slot| { slot.set(true); }),
+        Point::ContainmentStopError => CONTAINMENT_STOP_ERROR.with(|slot| { slot.set(true); }),
+        Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(|slot| { slot.set(true); }),
         Point::FinishCompletion => FINISH_COMPLETION.with(|slot| { slot.set(true); }),
-        Point::JournalListing => JOURNAL_LISTING.with(|slot| { slot.set(true); }),
     }
 }
 
@@ -109,7 +154,16 @@ pub fn fires(point: Point) -> bool {
         Point::FinishDurability => FINISH.with(Cell::take),
         Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
         Point::RecoverDurability => RECOVER_DURABILITY.with(Cell::take),
+        Point::DirectoryBarrier => DIRECTORY_BARRIER.with(Cell::take),
+        Point::CompletionSync => COMPLETION_SYNC.with(Cell::take),
+        Point::CompletionRename => COMPLETION_RENAME.with(Cell::take),
+        Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(Cell::take),
+        Point::ListingInspection => LISTING_INSPECTION.with(Cell::take),
+        Point::ListingIteration => LISTING_ITERATION.with(Cell::take),
+        Point::ListingOpen => LISTING_OPEN.with(Cell::take),
+        Point::ContainmentStopStuck => CONTAINMENT_STOP_STUCK.with(Cell::take),
+        Point::ContainmentStopError => CONTAINMENT_STOP_ERROR.with(Cell::take),
+        Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(Cell::take),
         Point::FinishCompletion => FINISH_COMPLETION.with(Cell::take),
-        Point::JournalListing => JOURNAL_LISTING.with(Cell::take),
     };
 }
