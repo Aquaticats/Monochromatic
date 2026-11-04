@@ -3637,6 +3637,23 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     assumption a is extended to exclude it,
     cheap guards stay,
     and the reviews judge against that premise.
+- Test images from pacman merged to main (`85984b790e`;
+  branch tip `4bafaa418d`;
+  gate 4754/4754 with passing names identical to a main control except the tests the owner's older-Git decision changed;
+  e2e identical to main,
+  same seed,
+  the known `sigkill-service-during-work` failure unchanged;
+  `native:clippy` on main clean):
+  Git 2.56.0,
+  Node 26.12.1,
+  pnpm 12.17.0,
+  strace 7.3,
+  cargo-nextest 0.9.150 and Rust 1.99.1 all from pacman with signatures checked;
+  the wrapper warns on a Git older than `MINIMUM_GIT_VERSION` 2.56.0 and continues.
+  Follow-ups:
+  `bin/native-nextest-snapshot.ts` stays because the fuzz sidecars import it;
+  the minimum is raised by hand when `test:git-image` reports a newer Git (no automated check yet).
+  Ships in the next release with the branch-write and tool-ceiling fixes.
 - 0.5.30 published (crates.io 2026-11-04T14:27:24Z,
   run 41846701765) and installed (`5c2fb3a5b2`):
   it ships the claim chain;
