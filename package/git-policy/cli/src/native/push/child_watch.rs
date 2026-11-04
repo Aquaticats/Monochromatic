@@ -613,9 +613,45 @@ impl std::fmt::Display for CeilingReached {
 
 impl std::error::Error for CeilingReached {}
 
+/// What:
+///  The sentence for a step left running: what it was, how long it was waited for, and what to check.
+/// Why:
+///   The owner's rule for a write the command started and cannot confirm (commit protocol revision 12, "Short extra wait"): exit
+///  non-zero saying the result is not known and what to look at. The step is a write in place, so the repository is what to check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} was still running ${after + extra} seconds after it began, and was left running ...`
+/// ```
+pub fn not_known_text(waiting_for: &str, after: Duration, extra: Duration) -> String {
+    return format!(
+        "{waiting_for} was still running {} seconds after it began (its bound of {} seconds and {} more for the write it started), so it \
+         was left running and not ended: it is not known whether it finished. Check what it changes with `git status` and `git log -1`, \
+         look at the process with `ps` and at the disk it writes to, and run the command again if it did not finish.",
+        after.saturating_add(extra).as_secs(),
+        after.as_secs(),
+        extra.as_secs()
+    );
+}
+
+/// The error of a step left running: the command stopped waiting for it, so it is not known whether it finished.
+#[derive(Debug)]
+pub struct NotKnown(
+    /// The sentence that names the step, how long it was waited for, and what to check.
+    pub String,
+);
+
+impl std::fmt::Display for NotKnown {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.0.as_str());
+    }
+}
+
+impl std::error::Error for NotKnown {}
+
 /// Whether `error` is the error of a step left running because the command stopped waiting for it.
-pub fn is_not_known(_error: &std::io::Error) -> bool {
-    return false;
+pub fn is_not_known(error: &std::io::Error) -> bool {
+    return error.get_ref().is_some_and(|inner| { return inner.is::<NotKnown>(); });
 }
 
 /// Whether `error` is the error of a step ended at its ceiling.
@@ -662,7 +698,29 @@ pub fn output_watched_within(
         watch.never_stop();
     }
     watch.begin();
-    let output: std::io::Result<Output> = child.wait_with_output();
+    let output: std::io::Result<Output> = match bound {
+        StepBound::LeaveRunning { after, extra } => {
+            // The child moves to a thread that waits for it and collects its output, so the command can stop waiting and the child
+            // goes on; the thread reaps it when it ends.
+            let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<Output>>();
+            let waiter = std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
+                // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
+                let _abandoned = sender.send(child.wait_with_output());
+            });
+            if let Err(error) = waiter {
+                watch.end();
+                return Err(std::io::Error::other(format!("{waiting_for} was started but no thread could be started to wait for it: {error}")));
+            }
+            match receiver.recv_timeout(after.saturating_add(extra)) {
+                Ok(finished) => finished,
+                Err(_timeout_or_gone) => {
+                    watch.end();
+                    return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra))));
+                }
+            }
+        }
+        StepBound::EndAt(_) | StepBound::Unbounded => child.wait_with_output(),
+    };
     watch.end();
     if let Some(limit) = ceiling
         && watch.ceiling_hit()

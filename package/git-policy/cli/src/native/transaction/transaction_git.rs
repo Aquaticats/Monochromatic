@@ -546,62 +546,66 @@ fn step_subject(request: &GitRequest) -> String {
     );
 }
 
-/// The subcommands whose step changes the person's own repository state in place (a reference, the real index, the worktree or the
-///  configuration), so that ending one in the middle of its write could cost data and running it a second time is not known to be
-///  harmless. A request of one of these that `may_be_rerun` refuses has no ceiling.
-///  Left out on purpose, and so still ended at the ceiling of their class: the readers that `RERUNNABLE` does not name (`rev-list`,
-///  `merge-base`, `log`, `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`, `fmt-merge-msg`),
-///  which change nothing, and the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`), whose second run
-///  writes the same content-addressed bytes and whose partial result is a loose object or a temporary pack that no reference names.
-///  Citation: the owner's answer of 2026-11-04, "Never cut a branch write (Recommended)", which reads "Steps that can safely run
-///  twice keep their ceilings; the branch write is never ended" (`doc/planning/cli-git-no-unbounded-waits.md`, "Picks").
-const WRITES_IN_PLACE: [&str; 13] = [
-    "update-ref",
-    "reset",
-    "read-tree",
-    "update-index",
-    "add",
-    "checkout-index",
-    "clean",
-    "stash",
-    "merge",
-    "checkout",
-    "switch",
-    "restore",
-    "config",
-];
-
 /// What:
-///  Whether the request's step writes the person's repository state in place and may not be run twice, which is the step the
-///  wrapper never ends.
+///  Whether the request's step is one that cannot be run twice: it changes the repository in place and, cut part way and run again,
+///  did not come out in the state an uncut run leaves.
 /// Why:
-///   The branch write is the owner's named case; the others are the same kind of step by the same reasoning, listed in
-///  `WRITES_IN_PLACE` with what was left out.
+///   The owner's criterion (2026-11-04, "Never cut a branch write (Recommended)"): "Steps that can safely run twice keep their
+///  ceilings". Decided by experiment and not by reading (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"): each
+///  form below was ended with SIGKILL and with SIGTERM at every mutating system call of its run on a throwaway repository, the lock
+///  files a killed Git leaves were removed as the wrapper's sweep removes them, the step was run again, and the refs, reflogs,
+///  index, worktree, stash list, configuration and every file of the Git directory were compared with an uncut run's.
+///  Identical every time, and so ended at the ceiling of their class: `update-ref` of a ref under `refs/cli-git/` or
+///  `refs/worktree/cli-git-service/` (set, or delete one), `stash list`, `clean`, `read-tree --reset`, `update-index` with
+///  `--refresh`, `--index-info` or `--cacheinfo`, `add`, `checkout-index`, `restore`, `reset <commit> -- <paths>`, and `config`
+///  writes. Different at some cut, and so never ended: `update-ref` of anything else (a branch has a reflog, which a second run
+///  doubles, and a compare-and-swap or a transaction of two refs fails or leaves the scratch ref), `stash store`, `merge`,
+///  `reset --hard`, `reset --soft`, `read-tree -m`, `checkout` and `switch`. A form no experiment ran is counted with the
+///  different ones, because data is lost by guessing wrong and a wait is not. Requests `may_be_rerun` accepts, the readers, and
+///  the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`) are not in question and are ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// !mayBeRerun(request) && WRITES_IN_PLACE.includes(subcommandOf(request))
+/// !mayBeRerun(request) && CUT_EXPERIMENT_DIFFERED.has(formOf(request))
 /// ```
-pub(crate) fn is_write_in_place(request: &GitRequest) -> bool {
+pub(crate) fn cannot_run_twice(request: &GitRequest) -> bool {
     if may_be_rerun(request) {
         return false;
     }
-    return subcommand_of(request.arguments.as_slice()).is_some_and(|(_, name)| { return WRITES_IN_PLACE.contains(&name.as_str()); });
+    let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else {
+        return false;
+    };
+    let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    let has = |flag: &str| -> bool { return rest.iter().any(|word| { return word == flag; }); };
+    let positional: Vec<&str> = rest.iter().map(String::as_str).filter(|word| { return !word.starts_with('-'); }).collect();
+    let side_ref = |reference: &str| -> bool { return reference.starts_with("refs/cli-git/") || reference.starts_with("refs/worktree/cli-git-service/"); };
+    return match name.as_str() {
+        "update-ref" => {
+            let plain_delete: bool = has("-d") && positional.len() == 1 && side_ref(positional[0]);
+            let plain_set: bool = !has("-d") && !has("--stdin") && positional.len() == 2 && side_ref(positional[0]);
+            !(plain_delete || plain_set)
+        }
+        "stash" => !positional.first().is_some_and(|word| { return *word == "list"; }),
+        "merge" | "checkout" | "switch" => true,
+        "reset" => has("--hard") || has("--soft") || has("--merge") || has("--keep") || !has("--"),
+        "read-tree" => !has("--reset") || has("-m"),
+        "update-index" => !(has("--refresh") || has("--index-info") || has("--cacheinfo")),
+        _ => false,
+    };
 }
 
 /// What:
-///  The longest the request's step runs before it is ended, whatever it shows: the ceiling of its class, or none for a write in
-///  place that is not safe to run twice.
+///  How long the request's step is waited for, and what happens then.
 /// Why:
-///   The owner's rule is that nothing waits for ever (`wait_ceilings.rs`), but a write in the middle of its work is ended only
-///  by the person (owner, 2026-11-04: "Never cut a branch write (Recommended)"): a landing that is stuck in one keeps the service
-///  busy, the clients that wait behind it are told what it is stuck in and are withdrawn at their own ceiling
-///  (`service_busy.rs`). In a unit test the ceiling of the steps that have one can be shortened for the thread that runs the
-///  control; a step with none stays without.
+///   A step that can be run twice is ended at the ceiling of its class, whatever it shows. A step that cannot is never ended
+///  (owner, 2026-11-04: "Never cut a branch write (Recommended)"): on the commit service's landing thread it is waited for, and the
+///  clients that wait behind it are told what it is stuck in (`service_busy.rs`); anywhere else the command that started it stops
+///  waiting at the bound of the step's class plus the short extra wait, with an error saying the result is not known, and the step is
+///  left running. In a unit test the bound of the class can be shortened for the thread that runs the control.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stepCeiling(request): number | undefined { return isWriteInPlace(request) ? undefined : classOf(request).ceiling }
+/// function stepBound(request): StepBound { return !cannotRunTwice(request) ? endAt(classCeiling) : onLandingThread() ? unbounded : leaveRunning(classCeiling, SHORT_EXTRA_WAIT) }
 /// ```
 fn step_bound(request: &GitRequest) -> StepBound {
     #[cfg(test)]
@@ -612,16 +616,25 @@ fn step_bound(request: &GitRequest) -> StepBound {
         ChildClass::Plumbing => PLUMBING_STEP_CEILING,
         ChildClass::Object => OBJECT_STEP_CEILING,
     });
-    if is_write_in_place(request) {
+    if !cannot_run_twice(request) {
+        return StepBound::EndAt(class_ceiling);
+    }
+    if crate::service_busy::on_landing_thread() {
         return StepBound::Unbounded;
     }
-    return StepBound::EndAt(class_ceiling);
+    #[cfg(test)]
+    let extra: Duration = EXTRA_WAIT_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(crate::wait_ceilings::SHORT_EXTRA_WAIT);
+    #[cfg(not(test))]
+    let extra: Duration = crate::wait_ceilings::SHORT_EXTRA_WAIT;
+    return StepBound::LeaveRunning { after: class_ceiling, extra };
 }
 
 #[cfg(test)]
 thread_local! {
     /// A shortened ceiling for the steps the current thread starts, so a control ends a step in a moment.
     pub(crate) static STEP_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+    /// A shortened extra wait for the steps the current thread leaves running.
+    pub(crate) static EXTRA_WAIT_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
 
 /// What:
@@ -648,7 +661,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
     let bound: StepBound = step_bound(request);
     // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
-    let _recorded = if !matches!(bound, StepBound::EndAt(_)) {
+    let _recorded = if matches!(bound, StepBound::Unbounded) {
         crate::service_busy::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
     } else {
         None

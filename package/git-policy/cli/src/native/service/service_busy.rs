@@ -210,6 +210,11 @@ thread_local! {
     static DETAIL: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
+/// Whether the calling thread is the commit service's landing thread, the one thread that waits for a write it cannot end.
+pub fn on_landing_thread() -> bool {
+    return BOARD.with(|slot| { return slot.borrow().is_some(); });
+}
+
 /// Make `board` the record of the landing that runs on the calling thread.
 pub fn use_on_this_thread(board: Arc<LandingBoard>) {
     BOARD.with(|slot| { *slot.borrow_mut() = Some(board); });

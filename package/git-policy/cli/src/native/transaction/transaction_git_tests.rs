@@ -745,3 +745,45 @@ fn a_watched_step_starts_with_every_hook_switched_off() {
         assert!(arguments.contains(&format!("hook.{event}.enabled=false")), "{event} in {arguments:?}");
     }
 }
+
+/// A person's merge whose fast-forward does not return: `run_git` hands back the error that says the result is not known, naming the
+/// step and what to check, at the bound of the class plus the extra wait (shortened for the control), and the step is left running
+/// until it ends by itself.
+#[test]
+fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() {
+    let root: PathBuf = fixture("transaction-git-merge-not-known");
+    let program: PathBuf = root.join("slow-merge-git");
+    let started: PathBuf = root.join("started");
+    let finished: PathBuf = root.join("finished");
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\n: > '{started}'\nwhile [ ! -e '{release}' ] && {alive}; do sleep 0.05; done\n: > '{finished}'\n",
+            started = started.display(),
+            release = root.join("release").display(),
+            finished = finished.display(),
+            alive = while_test_lives(root.as_path())
+        )
+        .as_bytes(),
+    );
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(root.clone()) };
+    let request: GitRequest = GitRequest::new(root.as_path(), &["merge", "--ff-only", "--no-edit", "abc"]);
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(500))); });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(500))); });
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure = run_git(&context, &request).expect_err("the command stopped waiting");
+    let waited: Duration = began.elapsed();
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert!(crate::child_watch::is_not_known(&failure), "{failure}");
+    assert!(failure.to_string().contains("git merge --ff-only --no-edit abc") && failure.to_string().contains("git status") && failure.to_string().contains("left running"), "{failure}");
+    assert!(waited >= Duration::from_secs(1) && waited < Duration::from_secs(30), "{waited:?}");
+    assert!(started.exists() && !finished.exists(), "the step was not ended");
+    std::fs::write(root.join("release"), b"").expect("release");
+    let began: std::time::Instant = std::time::Instant::now();
+    while !finished.exists() {
+        assert!(began.elapsed() < Duration::from_secs(30), "the step never finished");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    remove(root.as_path());
+}
