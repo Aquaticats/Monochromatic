@@ -318,10 +318,9 @@ pub fn flusher_entry_holding(lane: &Path, lock: FlusherLock) -> i32 {
 /// What a launch of the flusher did.
 #[derive(Debug, Eq, PartialEq)]
 pub enum Launched {
-    /// A helper was forked and holds the lane's lock: it flushes this client's receipt.
+    /// A helper was forked and took the lane's lock, or found a flusher holding it: the holder lists after it took the lock, so it
+    /// sweeps this client's receipt.
     Started,
-    /// A flusher already holds the lock, so no helper was forked: the holder's recheck sweep covers this client's receipt.
-    LockHeld,
 }
 
 /// Why the flusher was not launched.
@@ -337,28 +336,21 @@ pub enum FlusherLaunchError {
 
 /// What:
 ///  Starts the one-shot flusher for `lane` as a detached helper that holds none of this process's descriptors; the helper takes the lane's
-///  flusher lock itself. The client probes the lock first and forks nothing when another flusher holds it. When the helper cannot be
-///  started or cannot take the lock, every receipt in the lane is recorded as not forced.
+///  flusher lock itself. The client takes no lock and looks at none: it always forks a helper. When the helper cannot be started or
+///  cannot take the lock, every receipt in the lane is recorded as not forced.
 /// Why:
-///  Review 9a section 3C: forking before looking at the lock gave one live helper per client; the probe keeps a client from forking while a
-///  flusher holds it (the number of helpers is then bounded only by the arrivals while the lock is free or being released, the owner's
-///  decision of 2026-11-04). Reviews 10a to 13: a launcher that holds the lock for the launch leaves copies in its children, so it holds none.
+///  Only a process that will list and force after it acquires the lock ever holds it. A client that probed the lock held it without
+///  listing anything, and a client or helper that saw it held took that for an executor (review 14); looking at the lock without taking
+///  it is impossible with `flock`. A helper that finds the lock held ends: the holder is always a flusher that took it after this
+///  client's receipt existed and lists after taking it (and again after releasing it), so it sweeps the receipt. The cost is a fork per
+///  client that needs the flusher path, and a helper that ends at once when another one works; the number of helpers is bounded only by
+///  the arrivals (the owner's decision of 2026-11-04), and the number that hold the lock is one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function launchFlusher(lane: string): 'started' | 'lock-held'; // throws FlusherLaunchError
+/// function launchFlusher(lane: string): 'started'; // throws FlusherLaunchError
 /// ```
 pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
-    // A probe: the lock is taken and released at once, so that a client forks a helper only when no flusher holds it. The launcher holds
-    // nothing during the launch; the helper takes the lock itself, and a client that arrives meanwhile finds it free or held by the
-    // helper that works (which lists after it took the lock, so after every receipt created before the probe).
-    match FlusherLock::try_acquire(lane).map_err(FlusherLaunchError::Lock)? {
-        Some(probe) => {
-            fault_point("flusher:probe-held");
-            drop(probe);
-        }
-        None => return Ok(Launched::LockHeld),
-    }
     let owned: PathBuf = lane.to_path_buf();
     let lane_for_helper: PathBuf = lane.to_path_buf();
     return match launch_detached_preparing(

@@ -182,10 +182,10 @@ fn wait_for_lock_free(lane: &Path) {
     }
 }
 
-/// Review 9a section 3C: the lock bounded the lock holders, not the helpers: every client forked a helper before trying the lock, so many
-/// receipts meant many live helpers. With the lock held by a flusher, clients that find it held fork nothing.
+/// Clients that find a flusher at work still fork a helper each (no client takes or looks at the lock: a probe would be a holder that lists
+/// nothing, review 14), and each of those helpers ends at once without working: none holds the lock, the flusher that does is unaffected.
 #[test]
-fn clients_that_find_the_flusher_lock_held_start_no_helper() {
+fn clients_that_find_the_flusher_lock_held_fork_helpers_that_end_without_working() {
     let lane: PathBuf = lane_with("flusher-held-launch", &["r1"]);
     let holder = FlusherLock::try_acquire(&lane).expect("lock").expect("the holder");
     let launch_lane: PathBuf = lane.clone();
@@ -197,13 +197,15 @@ fn clients_that_find_the_flusher_lock_held_start_no_helper() {
         }
         return helpers_forked() as i32;
     });
+    assert_eq!(forked, Some(CLIENTS as i32), "a client forks a helper whatever the lock's state");
+    assert!(FlusherLock::try_acquire(&lane).expect("lock").is_none(), "the holder still holds it: no helper took it");
     drop(holder);
-    assert_eq!(forked, Some(0), "no client forked a helper while the lock was held");
+    assert!(FlusherLock::try_acquire(&lane).expect("lock").is_some(), "and no helper holds it after the holder lets go");
 }
 
-/// Many clients with a free lock and a flusher that is busy: one helper is forked in all, and it is the one that holds the lock.
+/// Many clients with a free lock and a flusher that is busy: a helper is forked per client; the first takes the lock and the rest end.
 #[test]
-fn many_clients_start_one_helper_and_it_holds_the_lock() {
+fn many_clients_fork_a_helper_each_and_exactly_one_holds_the_lock() {
     let lane: PathBuf = lane_with("flusher-many-launch", &[]);
     fifo_receipt(&lane, "r1");
     let launch_lane: PathBuf = lane.clone();
@@ -220,8 +222,8 @@ fn many_clients_start_one_helper_and_it_holds_the_lock() {
     let opened = fs::OpenOptions::new().read(true).write(true).open(lane.join(RECEIPT_DIR).join("r1"));
     wait_for_lock_free(&lane);
     drop(opened);
-    assert_eq!(forked, Some(1), "one helper for all the clients");
-    assert!(holds, "the helper holds the lock while it works");
+    assert_eq!(forked, Some(CLIENTS as i32), "a helper per client");
+    assert!(holds, "exactly one of them holds the lock while it works; the others found it taken and ended");
 }
 
 /// Review 10a section 3C: a launch from a process whose descriptor 0 is closed. The lock opens as descriptor 0, the helper redirects its

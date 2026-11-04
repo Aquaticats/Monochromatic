@@ -114,12 +114,16 @@ classification is the author's until a review accepts it.
   shown: the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started
   transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory
   (a_launched_helper_inherits_no_descriptor_of_its_launcher) and the lock test; the flusher helper takes the
-  lock itself after its setup and the launcher only probes it and releases the probe, so no lock exists before
-  the helper holds it and no process but the one that works ever carries a copy: a launcher that dies, is slow
-  or cannot reap its intermediate child leaves none
-  (a_helper_that_times_out_while_the_launcher_is_slow_and_then_loses_it_leaves_every_receipt_with_an_executor,
+  lock itself after its setup and the client takes no lock and looks at none (a probe held the lock without
+  listing anything, and a client or helper that saw it held took that for an executor, review 14; looking
+  without taking is impossible with flock), so the lock is held only by a process that lists after it took it,
+  and a launcher that dies, is slow or cannot reap its intermediate child leaves no copy and no false holder
+  (a_client_that_sees_a_probe_hold_the_lock_still_has_an_executor_when_the_probe_owner_dies,
+  a_helper_that_loses_the_lock_to_a_probe_and_a_client_that_sees_it_do_not_leave_receipts_to_the_probe_owner,
+  a_recheck_that_loses_the_lock_to_a_probe_does_not_leave_the_receipt_to_the_probe_owner as regressions, the
+  first two red against the probe (a_slow_launcher_that_then_dies_leaves_every_receipt_with_an_executor,
   a_client_that_arrives_after_a_launch_that_could_not_reap_its_intermediate_child_has_an_executor,
-  a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor,
+  a_launcher_that_dies_right_after_the_helper_is_ready_leaves_no_receipt_without_an_executor,
   a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor); the helper reports the
   result of taking the lock (a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_recorded);
   the lock and the pipes are above the standard streams and every descriptor has an owner on every path, driven
@@ -133,17 +137,24 @@ classification is the author's until a review accepts it.
   tool, choice \"Keep built, state limit (Recommended)\": keep the helper that releases the lock, rechecks for
   new saves and exits, and record that the helper count is bounded only by how many commits arrive during those
   few milliseconds; the owner's reason: no save lost in any modeled case, no added commit time, no new lock or
-  process. The limit, stated plainly: the helpers in the release, recheck and exit step, and the launched
-  helpers that do not yet hold the lock (every client that probes while the lock is free forks a helper, one
-  wins it and the others end at once), are bounded only by arrivals; what is bounded is the number that hold the
-  lock (one). Protocols 2 to 5 of the comparison (the singleton retry owner, inline forcing while sealed, inline
-  forcing whenever the token is held, the baton) are not built; the comparison (model_helper_bound_r20_tests.rs,
-  handover rounds 18 and 19) stays as recorded evidence with its claims corrected (its crash exemption excuses
-  every visible receipt until replacement, its maxima are lower bounds where a search stopped at a miss, its
-  foreground count is a number and not a time, and it omits client death during inline forcing, worker death and
-  partial forcing, launcher timeout and death, mixed-version helpers, enqueue rejection, non-atomic transfers
-  and blocking time). The non-recursive part stands: the launch is a function in a new session and not a second
-  start of the program. The token kept to exit with the running syncer as the only retry misses a receipt
+  process. The limit, stated plainly: the number of live helpers is arrival-dependent and has no time bound (the
+  owner's phrase 'those few milliseconds' is not a duration the code gives, and scheduling can stretch the
+  windows): every client that needs the flusher path forks a helper whatever the lock's state (measured, one
+  launch from fork to the helper's acknowledgment: median 0.66 ms, maximum 14.2 ms over 20 launches), the first
+  to take the lock works, a helper that finds it taken ends but a delayed one lives until it runs, and the
+  helpers in the release, recheck and exit step hold nothing and live until they finish; what is bounded is the
+  number that hold the lock (one). Each launch also has an intermediate child, which exits at once after its
+  second fork and is reaped, or killed and reaped, by the launcher within the report bound, apart from the
+  detached worker, which lives until its flush ends; an unreaped intermediate child is a separate and temporary
+  process that holds nothing. Protocols 2 to 5 of the comparison (the singleton retry owner, inline forcing
+  while sealed, inline forcing whenever the token is held, the baton) are not built; the comparison
+  (model_helper_bound_r20_tests.rs, handover rounds 18 and 19) stays as recorded evidence with its claims
+  corrected (its crash exemption excuses every visible receipt until replacement, its maxima are lower bounds
+  where a search stopped at a miss, its foreground count is a number and not a time, and it omits client death
+  during inline forcing, worker death and partial forcing, launcher timeout and death, mixed-version helpers,
+  enqueue rejection, non-atomic transfers and blocking time). The non-recursive part stands: the launch is a
+  function in a new session and not a second start of the program. The token kept to exit with the running
+  syncer as the only retry misses a receipt
   (a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it,
   a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown). Also
   open: the transient unit route is not built; a refused fork is injected by a real process limit and a memory
@@ -1213,5 +1224,83 @@ The full `native:test:model` run is 473 passed, 0 failed (`/var/home/user/temp/a
 reports four
 leaky tests, the stalled children that their alarms end); `native:clippy` and `native:clippy:seams` are clean
 (`/var/home/user/temp/agent/r19/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
+map has 64
+covered, 17 narrower, 9 historical and 17 not yet.
+
+## Round 20 state
+
+Round 20 answers `commit-models-sol-14.txt` ("no, as submitted"). The owner's helper-count decision is not reopened.
+
+### The blocking finding: a probe is not an executor
+
+In round 19 `launch_flusher` probed the flusher lock (took and released it) before it forked. A probe is a holder
+that lists and
+forces nothing, and other clients and helpers read a held lock as proof of a responsible executor. Smallest
+schedule: D holds its
+successful probe; E creates a receipt, sees the lock held, returns and starts nothing; D dies before it launches.
+The same
+confusion reaches a launched helper that gets `Ok(None)` against a probe and ends, and the release and recheck path
+that reads a
+failed reacquisition as a handover.
+
+- Red (against the probe), all three:
+  `a_client_that_sees_a_probe_hold_the_lock_still_has_an_executor_when_the_probe_owner_dies`,
+  `a_helper_that_loses_the_lock_to_a_probe_and_a_client_that_sees_it_do_not_leave_receipts_to_the_probe_owner`,
+  `a_recheck_that_loses_the_lock_to_a_probe_does_not_leave_the_receipt_to_the_probe_owner`. Each asserts that the
+  surviving clients'
+  receipts (dangling links, which any executor records) appear in `receipt-errors`, not only that the launch succeeded.
+- Choice made: drop the probe; a client takes no lock and looks at none, and always forks a helper that takes the
+  lock itself.
+  The only code that acquires the lock is `flush_lane_with` and the helper's `prepare`, and both list after they
+  acquire, so
+  there is no holder that is not an executor and a failed acquisition (`Ok(None)`) always means a flusher that
+  lists after it took
+  the lock, and again after it releases it. The alternative, testing the lock without taking it (`F_OFD_GETLK`),
+  needs the lock to
+  be an OFD lock; it is an `flock` (`File::try_lock`), for which no test-only call exists, and moving to OFD locks
+  changes the
+  primitive for no gain here. The cost of the chosen one is a fork per client that needs the flusher path, and a
+  helper that ends
+  at once when another works.
+- Measured foreground cost (QJ1): from the call of `launch_flusher` to the helper's acknowledgment, 20 launches in
+  a single-threaded
+  copy of the test process on this host (load average 4): minimum 0.43 ms, median 0.66 ms, maximum 14.2 ms. One
+  run, not a spread.
+
+### Corrected claims (review 14 section 3), here and in the map
+
+- "One wins and the others end at once" is withdrawn as a guarantee: helpers can lose to a held lock without a
+  worker winning, and a
+  delayed helper lives until it runs.
+- "No lock exists before the helper holds it" was false while the probe existed; it is true now in the sense that
+  matters: the only
+  process that holds the lock is one that lists after it took it.
+- "Those few milliseconds" is the owner's phrase and not a duration the code gives. The count of live helpers is
+  arrival-dependent,
+  with no time bound; the count that hold the lock is one.
+- The intermediate child (which exits at once after its second fork and is reaped, or killed and reaped, by the
+  launcher within the
+  report bound) is distinguished from the detached worker (which lives until its flush ends).
+- Tests that named a removed handover timeout are renamed
+  (`a_slow_launcher_that_then_dies_leaves_every_receipt_with_an_executor`,
+  `a_launcher_that_dies_right_after_the_helper_is_ready_leaves_no_receipt_without_an_executor`,
+  `a_second_executor_pinned_across_the_recheck_decision_carries_the_receipt`), and the launch tests that counted
+  forks now say a
+  helper per client (`clients_that_find_the_flusher_lock_held_fork_helpers_that_end_without_working`,
+  `many_clients_fork_a_helper_each_and_exactly_one_holds_the_lock`).
+
+### Design file
+
+The owner's decision of 2026-11-04 on the helper count was placed in `doc/planning/cli-git-commits-never-fail.md` on
+`fix/git-policy-cli-commits-never-fail`, commit `8c4ae77cd1`, after the paragraph of "Implementation obligations
+the showing must
+demonstrate (not new rules)", in the corrected wording.
+
+### Gates at the tip
+
+The full `native:test:model` run is 476 passed, 0 failed (`/var/home/user/temp/agent/r20/full-model.log`; nextest
+reports four
+leaky tests, the stalled children that their alarms end); `native:clippy` and `native:clippy:seams` are clean
+(`/var/home/user/temp/agent/r20/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has 64
 covered, 17 narrower, 9 historical and 17 not yet.

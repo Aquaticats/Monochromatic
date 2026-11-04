@@ -98,10 +98,9 @@ fn client_joins_in_the_launch_window(name: &str) {
     launch_flusher(&lane).expect("client X's launch");
 }
 
-/// Review 10a section 3A, healthy path: the helper reported ready; the launcher still holds its copy of the lock. A helper that did not
-/// wait for the launcher to let go finished, released its description and exited, and client X, finding the lock held by the launcher's
-/// copy, started nothing: no executor and no record. The helper now waits for the launcher's handover before it works, so X's receipt is
-/// in the sweep it runs.
+/// Review 10a section 3A, healthy path, kept as a regression after the launcher stopped holding the lock: a client that joins while a
+/// launch is under way has an executor (it forks its own helper, or finds the lock held by the flusher that works, which lists after it
+/// took the lock), so its receipt is forced or recorded.
 #[test]
 fn a_client_that_joins_during_the_launch_has_an_executor() {
     let lane: PathBuf = lane_with("flusher-launch-window", &[]);
@@ -153,7 +152,7 @@ fn client_joins_in_the_failed_launch(name: &str) {
 /// (its forcing of a FIFO receipt blocks until the test opens a writer), so the first flusher finds the lock held, returns `Handed`, and the
 /// second then does its own work and records what it cannot force.
 #[test]
-fn a_second_executor_pinned_across_the_handover_decision_carries_the_receipt() {
+fn a_second_executor_pinned_across_the_recheck_decision_carries_the_receipt() {
     let lane: PathBuf = lane_with("flusher-pinned-handover", &["r1"]);
     let fifo: PathBuf = lane.join(RECEIPT_DIR).join("r2");
     let launch_lane: PathBuf = lane.clone();
@@ -185,8 +184,8 @@ fn a_second_executor_pinned_across_the_handover_decision_carries_the_receipt() {
     drop(writer);
 }
 
-/// The fault point after the handover byte was sent: waits (bounded) for any helper that already works to have finished with the first
-/// receipt, then lets client X create a receipt that cannot be forced and launch a flusher.
+/// The fault point after the launcher read the helper's report: waits (bounded) for any helper that already works to have finished with the
+/// first receipt, then lets client X create a receipt that cannot be forced and launch a flusher.
 fn client_joins_while_the_intermediate_child_is_stalled(name: &str) {
     if name != "launch:after-report" {
         return;
@@ -200,9 +199,8 @@ fn client_joins_while_the_intermediate_child_is_stalled(name: &str) {
     launch_flusher(&lane).expect("client X's launch");
 }
 
-/// Review 11 section 3A, window B: the intermediate child (paused after its second fork) still held a copy of the lock when the handover
-/// byte was sent. The executor finished and exited, client X found the lock held by the child's copy, and the launcher then killed the
-/// child and returned success: X had no executor and no record. Every copy that is not the executor's is gone before the handover byte.
+/// Review 11 section 3A, window B, kept as a regression: the intermediate child (paused after its second fork) must not make a client that
+/// joins meanwhile lose its receipt. It carries no lock now, so X has an executor whatever the child does.
 #[test]
 fn a_client_that_joins_while_the_intermediate_child_is_stalled_has_an_executor() {
     let lane: PathBuf = lane_with("flusher-intermediate-copy", &[]);
@@ -231,15 +229,14 @@ fn client_joins_then_the_launcher_dies(name: &str) {
     let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
     launch_flusher(&lane).expect("client X's launch");
-    // SAFETY: `_exit` takes an integer; the launcher dies here, before the handover, with no accounting of its own.
+    // SAFETY: `_exit` takes an integer; the launcher dies here, with no accounting of its own.
     unsafe { libc::_exit(0) };
 }
 
-/// Review 12 section 3A: the launcher dies after the helper reported ready and before the handover byte. The helper reads the end of the
-/// handover pipe and used to exit without working, with nobody left to record X, who found the lock held by the dead launcher's
-/// description. The helper takes the lock itself after the handover, whatever its outcome, and works when it gets it.
+/// Review 12 section 3A, kept as a regression: the launcher dies after the helper reported ready, with nothing for the helper to wait for
+/// or to be handed. Client X's receipt is forced or recorded by the helper, which takes the lock itself and lists after taking it.
 #[test]
-fn a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor() {
+fn a_launcher_that_dies_right_after_the_helper_is_ready_leaves_no_receipt_without_an_executor() {
     let lane: PathBuf = lane_with("flusher-launcher-dies", &[]);
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
     let launch_lane: PathBuf = lane.clone();
@@ -287,8 +284,8 @@ fn a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_reco
     let lane: PathBuf = lane_with("flusher-helper-acquisition", &["r1", "r2"]);
     let launch_lane: PathBuf = lane.clone();
     let launched: Option<i32> = in_single_threaded_process(move || {
-        // The launcher's own acquisition succeeds; the helper's, the next one, fails.
-        git_policy_cli::commit_flusher::inject_lock_failure_after(Some(1));
+        // The client takes no lock; the helper's acquisition, the first one, fails.
+        git_policy_cli::commit_flusher::inject_lock_failure_after(Some(0));
         return flusher_launch_code(launch_flusher(&launch_lane));
     });
     assert_eq!(launched, Some(22), "a helper that could not take the lock was reported as a started launch");
@@ -296,8 +293,8 @@ fn a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_reco
     assert!(names.iter().any(|name| { return name == "r1"; }) && names.iter().any(|name| { return name == "r2"; }), "{:?}", names);
 }
 
-/// The fault point of review 13 section 1 A: the launcher is paused longer than the helper waits for the handover (a short wait is
-/// injected), client X creates a receipt that cannot be forced in the pause, and the launcher dies before it accounts for anything.
+/// The fault point of review 13 section 1 A: the launcher is paused after the helper reported ready, client X creates a receipt that
+/// cannot be forced in the pause, and the launcher dies before it accounts for anything.
 fn launcher_slow_then_dead(name: &str) {
     if name != "launch:after-report" {
         return;
@@ -310,12 +307,10 @@ fn launcher_slow_then_dead(name: &str) {
     unsafe { libc::_exit(0) };
 }
 
-/// Review 13 section 1 A: the helper's handover wait expires while the launcher is slow, the helper finds the launcher's lock taken and
-/// ends, and the launcher dies before it accounts. Neither process was left responsible for X, who found the lock held. No process holds
-/// the lock for the launch any more, so X finds it free (or held by the helper that works) and has an executor, and the receipts of the
-/// lane are not left to a launcher that may not survive.
+/// Review 13 section 1 A, kept as a regression: a slow launcher that then dies leaves nothing to account for, because it holds nothing.
+/// Every receipt of the lane has an executor: the helper that works lists after it took the lock.
 #[test]
-fn a_helper_that_times_out_while_the_launcher_is_slow_and_then_loses_it_leaves_every_receipt_with_an_executor() {
+fn a_slow_launcher_that_then_dies_leaves_every_receipt_with_an_executor() {
     let lane: PathBuf = lane_with("flusher-timeout-then-death", &[]);
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
     let launch_lane: PathBuf = lane.clone();
@@ -490,6 +485,10 @@ fn a_recheck_that_loses_the_lock_to_a_probe_does_not_leave_the_receipt_to_the_pr
         &lane,
         &mut |path: &Path| { return fs::File::open(path).and_then(|file| { return file.sync_all(); }); },
         &mut || {
+            if d.is_some() {
+                // The hook runs at every release; the window of this control is the first.
+                return;
+            }
             std::os::unix::fs::symlink(hook_lane.join("nowhere"), hook_lane.join(RECEIPT_DIR).join("z")).expect("a receipt that cannot be forced");
             let (d_lane, d_marks) = (hook_lane.clone(), hook_marks.clone());
             d = Some(spawn_process(move || {
