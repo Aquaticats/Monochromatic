@@ -1098,12 +1098,12 @@ The rows A2/R4 (the shim and a sentinel) and V3/V4 (real preparation cuts) stay 
 
 ### Result
 
-The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 8 skipped (the `#[ignore]` helper entries),
+The coverage map of the contract carries the counts: 584 tests, 584 passed, 0 failed, 8 skipped (the `#[ignore]` helper entries),
 for the debug run and the release gate; `lint:clippy` with warnings denied is clean.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r12-debug1.log`, `r12-gate1.log`, `r12-clippy3.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 12, rewritten TIMESTAMP after the gate)
+## Resume point (round 12, rewritten 2026-11-04T09:32:34-05:00 after the gate)
 
 Done: rounds 10, 11 and 12 (the sections above).
 The review inputs of round 12 are `/var/home/user/temp/agent/reviews/cargo-shadow-12*.diff`, cut from `2c20baf0e6`.

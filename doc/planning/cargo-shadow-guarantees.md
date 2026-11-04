@@ -615,7 +615,7 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written NOW against the tip that carries it (round 12); the round 11 text it replaces was written at 2026-11-04T09:12:24-05:00.
+Written 2026-11-04T09:32:34-05:00 against the tip that carries it (round 12); the round 11 text it replaces was written at 2026-11-04T09:12:24-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
 No row is certified by this map: the cross-vendor review of round 12 has not run, and the reviews of rounds 10 and 11 said that
@@ -625,8 +625,8 @@ preparation windows are built by hand, not cut at the real boundaries), 0 not ye
 The writer-side file sync of an acknowledgement and a real interrupted publication, named gaps of the round 10 review, are closed
 in round 12 (`an_acknowledgement_whose_file_cannot_be_synced_is_not_published`,
 `a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged`); the weaker-path row stays shown.
-Suite counts at the round 12 code tip `CODETIP`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran COUNT tests: COUNT passed, 0 failed, 8 skipped; `lint:clippy` with warnings
+Suite counts at the round 12 code tip `4e4c187533`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran 584 tests: 584 passed, 0 failed, 8 skipped; `lint:clippy` with warnings
 denied is clean.
 The 8 skipped are the `#[ignore]` helper entries that eight other tests start as child processes (their names are in the `ignore`
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,
