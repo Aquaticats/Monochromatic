@@ -856,3 +856,29 @@ fn r15_creating_saved_content_twice_replaces_nothing_and_a_writable_occupant_is_
     std::fs::write(&raw, b"other bytes").expect("a writable occupant written by a raw creator");
     assert!(create_saved_content(&lane, b"other bytes").is_err(), "a writable occupant of the name was accepted");
 }
+
+/// Review 10a section 2A: a document that omits its `needs` line passed the declared-dependency check, and the reclaiming checkpoint
+/// removed the predecessor. A reclaiming checkpoint derives its obligations from the lane itself: every request envelope in `inbox/`,
+/// every saved content in `saved/` and the lane ledger up to its length now must be in the closure (or discharged by a ledger line inside
+/// it), whatever the document says.
+#[test]
+fn r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_document_declares() {
+    let (lane, state, envelope) = lane_with_envelope("r16-derived-closure");
+    append(&state, 1, b"first").expect("a durable record that retains nothing");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    assert!(writer.begin_checkpoint(2, b"a document that declares nothing", &[]).is_err(), "a visible request R was left out of a reclaiming checkpoint");
+    assert!(state.join("state.log.1").exists());
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let saved: PathBuf = saved_content(&lane, b"objects of b");
+    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    assert!(writer.begin_checkpoint(2, b"declares nothing", std::slice::from_ref(&request)).is_err(), "saved content S was left out");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, ledger_line_of(&"1".repeat(32), "conflicted")).expect("a ledger line");
+    let short: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger now");
+    let mut grown = std::fs::OpenOptions::new().append(true).open(&ledger).expect("the ledger writer");
+    std::io::Write::write_all(&mut grown, &ledger_line_of(&"2".repeat(32), "conflicted")).expect("a later line");
+    assert!(writer.begin_checkpoint(2, b"declares nothing", &[request.clone(), content.clone(), short]).is_err(), "a ledger prefix shorter than the ledger now was accepted");
+    let whole: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the whole ledger");
+    writer.checkpoint(2, b"declares nothing", &[request, content, whole]).expect("the closure that holds everything the lane holds is accepted");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+}
