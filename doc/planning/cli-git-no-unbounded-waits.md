@@ -1125,3 +1125,20 @@ B "still lacks a valid safety proof").
     8 of 8 child controls and the durable control failed,
     and the
   two seam controls failed.
+
+- Correction after the first round 5 report:
+  removing the ceiling of the side-ref writes would have made `keep_unlanded` and the scratch
+  deletions wait without a bound on the landing thread,
+  which the owner's "nothing should ever wait forever or indefinitely" does not
+  allow and "Never cut a branch write (Recommended)" does not cover (a side ref is not the branch).
+  They are now left running after the
+  class ceiling plus the short extra wait on every thread,
+  the landing thread included.
+  Test
+  `a_side_ref_write_that_hangs_on_the_landing_thread_is_left_running_after_a_bound` (red first:
+  `Unbounded`).
+  What still waits without a
+  bound on the landing thread is the branch write (`update-ref --stdin`),
+  `fast-import` and the other steps that cannot run twice,
+  which
+  the clients behind them are told about after `NEVER_ENDED_STEP_SLOW_AFTER` and which end for each client at its own `ANSWER_CEILING`.

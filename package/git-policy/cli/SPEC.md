@@ -1477,6 +1477,15 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   excludes an ordinary Git.
   The wrapper still passes `--no-deref` and that setting at those call sites,
   as hygiene and not as a proof.
+  A write of a side ref is never ended,
+  but it is not the branch write that the owner's "Never cut a branch write (Recommended)" covers,
+  and "nothing should ever wait forever or indefinitely" holds for it:
+  even the landing thread stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT`,
+  gets the not-known error,
+  and the step is left running (`is_side_ref_write`,
+  `leave_running_bound`).
+  A `keep_unlanded` that gets it tells the person the commit could not be confirmed on its side ref;
+  a scratch deletion ignores it.
   Everything else,
   every other `update-ref`,
   `stash`,

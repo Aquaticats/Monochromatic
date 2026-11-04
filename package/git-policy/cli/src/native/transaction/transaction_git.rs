@@ -754,7 +754,41 @@ fn step_bound(request: &GitRequest) -> StepBound {
     if may_be_ended(request) {
         return StepBound::EndAt(class_ceiling);
     }
+    // A write of one of the wrapper's own side refs is never ended, but it is not the branch write the owner's "Never cut a branch write
+    //  (Recommended)" is about, and "nothing should ever wait forever or indefinitely" holds for it: even the landing thread stops
+    //  waiting at the bound and leaves it running, with the not-known error.
+    if is_side_ref_write(request) {
+        return leave_running_bound(class_ceiling);
+    }
     return not_ended_bound(class_ceiling);
+}
+
+/// Whether the request is an `update-ref` of one of the wrapper's own side refs, `refs/cli-git/kept/<number>` or
+///  `refs/worktree/cli-git-service/<number>`, with at most `-d` and `--no-deref` and no input: what `keep_unlanded` and the scratch
+///  deletions of `service_land.rs` run.
+fn is_side_ref_write(request: &GitRequest) -> bool {
+    let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else { return false };
+    if name != "update-ref" || request.input.is_some() {
+        return false;
+    }
+    let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    let words: Words<'_> = Words::of(rest.as_slice());
+    let is_side_ref = |word: &str| -> bool {
+        return ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"]
+            .iter()
+            .any(|prefix| { return word.strip_prefix(prefix).is_some_and(|number| { return !number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); }); }); });
+    };
+    return words.after.is_none() && words.only_options(&["-d", "--no-deref"]) && words.before.first().is_some_and(|word| { return is_side_ref(word); });
+}
+
+/// The bound of a step that is never ended and never waited for without a bound, on any thread: left running after the class ceiling
+///  plus the short extra wait.
+fn leave_running_bound(class_ceiling: Duration) -> StepBound {
+    #[cfg(test)]
+    let extra: Duration = EXTRA_WAIT_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(crate::wait_ceilings::SHORT_EXTRA_WAIT);
+    #[cfg(not(test))]
+    let extra: Duration = crate::wait_ceilings::SHORT_EXTRA_WAIT;
+    return StepBound::LeaveRunning { after: class_ceiling, extra };
 }
 
 /// What:
@@ -771,11 +805,7 @@ fn not_ended_bound(class_ceiling: Duration) -> StepBound {
     if crate::service_busy::on_landing_thread() {
         return StepBound::Unbounded;
     }
-    #[cfg(test)]
-    let extra: Duration = EXTRA_WAIT_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(crate::wait_ceilings::SHORT_EXTRA_WAIT);
-    #[cfg(not(test))]
-    let extra: Duration = crate::wait_ceilings::SHORT_EXTRA_WAIT;
-    return StepBound::LeaveRunning { after: class_ceiling, extra };
+    return leave_running_bound(class_ceiling);
 }
 
 #[cfg(test)]
