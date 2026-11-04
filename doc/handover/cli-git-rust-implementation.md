@@ -3647,9 +3647,17 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     real kills after each step of `begin` for V3/V4 and a real shim run with a user-command sentinel for A2/R4;
     pinned procfs reads with `openat2`;
     only fdinfo `-1` reads as gone).
-    Cross-vendor review running:
-    `cargo-shadow-sol-13.txt` (one part,
-    prompt `cargo-shadow-prompt-13.txt`).
+    Review `cargo-shadow-sol-13.txt`:
+    "Does not meet the list":
+    12a findings closed or excluded,
+    12b repairs closed;
+    a new counterexample needing no tampering:
+    `/proc/<pid>/stat` field 22 is offset by the reader's time namespace,
+    so a recovery in another time namespace reads a live launcher as gone;
+    the shim test does not prove the delegated route and the intended fault;
+    no row added.
+    Round 14 running (record and compare the time namespace;
+    Unknown on mismatch).
 - Test images from pacman merged to main (`85984b790e`;
   branch tip `4bafaa418d`;
   gate 4754/4754 with passing names identical to a main control except the tests the owner's older-Git decision changed;
