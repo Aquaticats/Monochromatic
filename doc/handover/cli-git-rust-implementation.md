@@ -163,9 +163,26 @@ with questions 5,
 7a,
 7b and 7c in `commits-never-fail-questions-4a6ad9d34a.md`;
 the fifteenth review (`commits-never-fail-sol-15.txt`) checks them before they are asked.
-Models round 10 running on revision 14 and the three latest reviews (components 6 "not correct",
-models 4a "sound after named fixes",
-models 4b "not sound").
+Models round 10 done in part (`feat/git-policy-cli-commit-protocol-models` tip `ffc98d1eae`,
+293 of 293):
+all twenty-two revision 14 controls carried by named tests in an `ACCEPTANCE` manifest (red under 13,
+green under 14);
+the open owner questions modelled as parameters;
+`StateWriter` single writer,
+validated checkpoint replacement root,
+`sync_prefix` watermark.
+Not done:
+dependency discharge in a component,
+T1's phased observations,
+the keeper write end inside the W1 model,
+components 4.2,
+4.4,
+4.6,
+4.7.
+Its reviews are running (`commit-components-sol-7.txt`,
+`commit-models-sol-5a.txt`,
+`commit-models-sol-5b.txt`);
+the next models round takes them with revision 15 and its review (the 6a `StopPolicy` parameter is obsolete under decision 14).
 
 At 2026-11-03T20:14:48-05:00 (the owner's cap is five delegate agents at once),
 five running:
