@@ -52,6 +52,16 @@ fn commit_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
     ];
 }
 
+/// What the commit at `HEAD` holds apart from the time it was made: its tree, how many parents it has, and its words and names. Two pulls made
+///  in different seconds make commits that differ in name only.
+fn head_shape(fixture: &Fixture, repo: &Path) -> Vec<String> {
+    return vec![
+        git_text(fixture, repo, &["rev-parse", "HEAD^{tree}"]),
+        git_text(fixture, repo, &["log", "-1", "--format=%P"]).split_whitespace().count().to_string(),
+        git_text(fixture, repo, &["log", "-1", "--format=%an <%ae>|%cn <%ce>|%B"]),
+    ];
+}
+
 /// A pull that merges over another session's staged work is completed, leaves that work as it was, and equals native Git's
 ///  pull on a clean copy in tree, parents, message and words.
 #[test]
@@ -109,7 +119,9 @@ fn a_pull_native_git_refuses_or_the_wrapper_does_not_read_is_native_gits() {
         assert_eq!(ours.code, theirs.code, "{name}: {}", String::from_utf8_lossy(&ours.stderr));
         assert_eq!(String::from_utf8_lossy(&ours.stdout), String::from_utf8_lossy(&theirs.stdout), "{name}: output");
         assert_eq!(String::from_utf8_lossy(&ours.stderr), String::from_utf8_lossy(&theirs.stderr), "{name}: diagnostics");
-        assert_eq!(git_text(&fixture, ours_repo.as_path(), &["rev-parse", "HEAD"]), git_text(&fixture, theirs_repo.as_path(), &["rev-parse", "HEAD"]), "{name}: head");
+        // The two runs are made one after the other and Git stamps a commit it makes with the second it is made in, so their commit names
+        //  differ whenever the runs straddle a second boundary: what must be equal is the commit's content, not its name.
+        assert_eq!(head_shape(&fixture, ours_repo.as_path()), head_shape(&fixture, theirs_repo.as_path()), "{name}: head");
         remove_settled(&fixture);
     }
 }
