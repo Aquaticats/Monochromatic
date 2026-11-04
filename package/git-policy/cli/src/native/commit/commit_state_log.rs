@@ -311,6 +311,16 @@ pub fn capture_lane_closure(lane: &Path) -> io::Result<Vec<ClosureEntry>> {
     return Ok(closure);
 }
 
+/// Refuses a retained set that names one path twice: the set is a map from paths to identities, and two entries for a path would let the
+/// later one decide.
+fn reject_duplicate_paths(items: &[ClosureEntry]) -> io::Result<()> {
+    let paths: BTreeSet<&Path> = items.iter().map(|entry| { return entry.path.as_path(); }).collect();
+    if paths.len() != items.len() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the retained set names a path twice"));
+    }
+    return Ok(());
+}
+
 /// The first line of a document in the checked representation.
 const LANE_DOCUMENT_MAGIC: &str = "cli-git-lane-document 1\n";
 
@@ -896,6 +906,9 @@ fn parse_item(rest: &str) -> Option<ClosureEntry> {
 fn parse_body(body: &[u8]) -> Option<(Vec<ClosureEntry>, Vec<u8>)> {
     let (lines, document) = header_lines(body)?;
     let items: Vec<ClosureEntry> = lines.iter().map(|line| { return line.strip_prefix("item ").and_then(parse_item); }).collect::<Option<Vec<ClosureEntry>>>()?;
+    if reject_duplicate_paths(&items).is_err() {
+        return None;
+    }
     return Some((items, document));
 }
 
@@ -915,6 +928,9 @@ fn parse_authority(body: &[u8]) -> Option<Authority> {
                 reclaims.push(number.parse().ok()?);
             }
         }
+    }
+    if reject_duplicate_paths(&items).is_err() {
+        return None;
     }
     return Some(Authority { document, items, reclaims, lineage });
 }
@@ -1023,13 +1039,21 @@ fn eligible(lane: &Path, bytes: &[u8]) -> Option<(Vec<Rec>, usize, Vec<u8>, Vec<
 /// The file in the state directory that records the newest completed checkpoint: `cli-git-established <number> <generation> <hash>`.
 const ESTABLISHED: &str = "state.established";
 
+/// What the establishment record names: the segment, the generation of its first record and the chain hash after it.
+struct Established {
+    number: u64,
+    generation: u64,
+    hash: String,
+}
+
 /// What:
-///  The generation the newest completed checkpoint established: `Ok(None)` when no checkpoint ever completed (or the state predates the
-///  record), `Err` when the record exists and does not parse.
+///  The newest completed checkpoint, as `state.established` names it: `Ok(None)` when no checkpoint ever completed (or the state predates
+///  the record), `Err` when the record exists and does not parse (the hash must be 64 lowercase hexadecimal characters).
 /// Why:
 ///  Recovery never falls back past an established root. Without the record a damaged established root with an older usable segment looks
-///  like a candidate that never completed, and the older state would be selected silently.
-fn established_generation(dir: &Path) -> Result<Option<u64>, StateError> {
+///  like a candidate that never completed, and the older state would be selected silently. The record binds the identity (segment and hash),
+///  not only a generation: a checkpoint at the same generation as an older segment, or a valid substitute at the same number, is not it.
+fn established_record(dir: &Path) -> Result<Option<Established>, StateError> {
     let text: String = match fs::read_to_string(dir.join(ESTABLISHED)) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -1037,8 +1061,26 @@ fn established_generation(dir: &Path) -> Result<Option<u64>, StateError> {
     };
     let fields: Vec<&str> = text.strip_suffix('\n').ok_or(StateError::Damaged)?.split(' ').collect();
     let [magic, number, generation, hash] = fields[..] else { return Err(StateError::Damaged) };
-    let parsed: Option<u64> = (magic == "cli-git-established" && number.parse::<u64>().is_ok() && hash.len() == 64).then(|| { return generation.parse::<u64>().ok(); }).flatten();
-    return parsed.map(Some).ok_or(StateError::Damaged);
+    let hash_ok: bool = hash.len() == 64 && super::commit_integrity::unhex(hash).is_some();
+    if magic != "cli-git-established" || !hash_ok {
+        return Err(StateError::Damaged);
+    }
+    let (Ok(number), Ok(generation)) = (number.parse::<u64>(), generation.parse::<u64>()) else { return Err(StateError::Damaged) };
+    return Ok(Some(Established { number, generation, hash: hash.to_string() }));
+}
+
+/// Whether the log, as `chosen` was selected from it, honors the established checkpoint: nothing older than its segment is the root, and
+/// when its segment is the root, its first record is the one the record names.
+fn honors_establishment(dir: &Path, established: &Established, chosen: Option<&Selected>) -> Result<bool, StateError> {
+    let Some(chosen) = chosen else { return Ok(false) };
+    if chosen.number < established.number || chosen.generation < established.generation {
+        return Ok(false);
+    }
+    if chosen.number > established.number {
+        return Ok(true);
+    }
+    let bytes: Vec<u8> = fs::read(log_path(dir, established.number))?;
+    return Ok(records(&bytes).first().is_some_and(|first| { return first.generation == established.generation && first.hash == established.hash; }));
 }
 
 /// Records, durably, that the checkpoint `candidate` is established: written to a temporary name, forced, renamed over the record and the
@@ -1089,8 +1131,8 @@ pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
         return Err(StateError::Damaged);
     }
     // An established root that no longer validates is damaged, not a candidate that never completed: nothing older is selected in its place.
-    if let Some(established) = established_generation(dir)?
-        && best.as_ref().is_none_or(|chosen| { return chosen.generation < established; })
+    if let Some(established) = established_record(dir)?
+        && !honors_establishment(dir, &established, best.as_ref())?
     {
         return Err(StateError::Damaged);
     }
@@ -1187,6 +1229,7 @@ fn check_non_drop(lane: &Path, previous: &[ClosureEntry], new: &[ClosureEntry], 
 /// validated now, none of the previous record's may be dropped unless the new set proves its discharge, and a file with a dropped suffix is
 /// not appended to (it needs repair first). Private: the only way in is the `StateWriter` that holds the state's lock.
 fn append(dir: &Path, generation: u64, document: &[u8], items: &[ClosureEntry], retired: &[String]) -> io::Result<()> {
+    reject_duplicate_paths(items)?;
     let selected: Option<Selected> = select(dir).map_err(to_io)?;
     let lane: PathBuf = lane_of(dir);
     let (number, previous, keep): (u64, String, usize) = match &selected {
@@ -1254,6 +1297,8 @@ pub fn sync_prefix(dir: &Path) -> io::Result<Prefix> {
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
     sync_directory(dir)?;
+    // The state directory's own entry lives in the lane directory, which an empty closure would otherwise never force.
+    sync_directory(&lane_of(dir))?;
     return Ok(Prefix { number: selected.number, length: selected.length as u64, generation: selected.generation, hash: selected.hash, items: selected.items });
 }
 
@@ -1263,6 +1308,7 @@ pub fn sync_prefix(dir: &Path) -> io::Result<Prefix> {
 /// that was dropped or whose content no longer validates is not coverage.
 pub fn state_covers(dir: &Path, prefix: &Prefix) -> Result<bool, StateError> {
     let Some(current) = select(dir)? else { return Ok(false) };
+    fault_point("state:covers-after-select");
     if current.generation < prefix.generation {
         return Ok(false);
     }
@@ -1330,6 +1376,7 @@ fn segment_is_contained(dir: &Path, number: u64, lane: &Path, closure: &[Closure
 }
 
 fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[ClosureEntry], retired: &[String], reclaiming: bool) -> io::Result<Candidate> {
+    reject_duplicate_paths(closure)?;
     let selected: Option<Selected> = select(dir).map_err(to_io)?;
     let lane: PathBuf = lane_of(dir);
     let existing: Vec<u64> = numbers(dir)?;
@@ -1435,6 +1482,7 @@ fn complete_checkpoint(dir: &Path, candidate: &Candidate) -> io::Result<()> {
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
     sync_directory(dir)?;
+    sync_directory(&lane)?;
     establish(dir, candidate)?;
     for number in all.into_iter().filter(|number| { return *number != candidate.number && authority.reclaims.contains(number); }) {
         let old: PathBuf = log_path(dir, number);

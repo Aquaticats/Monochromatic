@@ -198,12 +198,50 @@ fn unforced(lane: &Path, forced: &BTreeSet<OsString>) -> io::Result<Vec<PathBuf>
     return Ok(found);
 }
 
+/// The longest a recorder waits for the shared lock of the error record (the syncer holds the exclusive lock for a read and a truncation of a
+/// short file). Unmeasured; a pick with the owner's veto open. A holder that keeps the lock longer makes the recording fail, which the caller
+/// reports, and never makes the flusher wait for ever.
+pub const RECORD_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Opens the lane's error record without following a symbolic link and without blocking, and refuses anything but a regular file: a link
+/// would redirect the writes, and a FIFO would block a reader for ever. `write` opens it for appending (creating it).
+pub fn open_error_record(lane: &Path, write: bool) -> io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut options: OpenOptions = OpenOptions::new();
+    options.read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    if write {
+        options.append(true).create(true);
+    }
+    let file: File = options.open(lane.join(RECEIPT_ERRORS))?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the receipt error record is not a regular file"));
+    }
+    return Ok(file);
+}
+
+/// Takes the shared lock of the error record, waiting at most `RECORD_LOCK_WAIT`.
+fn lock_shared_within(file: &File) -> io::Result<()> {
+    let deadline: std::time::Instant = std::time::Instant::now() + RECORD_LOCK_WAIT;
+    loop {
+        match file.try_lock_shared() {
+            Ok(()) => return Ok(()),
+            Err(std::fs::TryLockError::WouldBlock) => {}
+            Err(std::fs::TryLockError::Error(error)) => return Err(error),
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "the receipt error record stayed locked by another party"));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 /// Appends one line per receipt in `names` that `recorded` does not hold yet to `lane/receipt-errors` (not forced: the record is V, and the
 /// next owner's startup sweep retries every receipt in the directory whether or not it is named here), and adds them to `recorded`.
 fn record_errors(lane: &Path, names: &[PathBuf], error: &io::Error, recorded: &mut BTreeSet<OsString>) -> io::Result<()> {
-    let mut record: File = OpenOptions::new().create(true).append(true).read(true).open(lane.join(RECEIPT_ERRORS))?;
+    let mut record: File = open_error_record(lane, true)?;
     // Shared lock for the writes: the syncer empties the record in place under the exclusive lock, so no line is written while it does.
-    record.lock_shared()?;
+    // Two recorders may both add a line for one name; the duplicate is harmless (a retry is idempotent).
+    lock_shared_within(&record)?;
     let mut present: String = String::new();
     std::io::Read::read_to_string(&mut record, &mut present)?;
     for name in names {

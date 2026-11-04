@@ -142,12 +142,15 @@ pub fn run_within(mut command: Command, wait: Duration) -> Result<ExitStatus, Ma
             Err(error) => return Err(ManagerRefused(format!("the manager's command could not be waited for: {}", error))),
         }
         if Instant::now() >= deadline {
-            // The kill is attempted and never waited for without a bound: a child that does not die is left to the operating system.
-            if child.kill().is_ok() {
-                let reap_until: Instant = Instant::now() + Duration::from_millis(100);
-                while Instant::now() < reap_until && matches!(child.try_wait(), Ok(None)) {
-                    std::thread::sleep(Duration::from_millis(1));
-                }
+            // The kill is attempted and never waited for without a bound. A child that has not died within the window is handed to a thread of
+            // its own that waits for it, so it is reaped when it does end and is never left a zombie of a long-lived caller.
+            let killed: bool = child.kill().is_ok();
+            let reap_until: Instant = Instant::now() + Duration::from_millis(100);
+            while killed && Instant::now() < reap_until && matches!(child.try_wait(), Ok(None)) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            if !matches!(child.try_wait(), Ok(Some(_))) {
+                std::thread::spawn(move || { let _ = child.wait(); });
             }
             return Err(ManagerRefused(format!("the manager did not confirm the start within {:?}", wait)));
         }

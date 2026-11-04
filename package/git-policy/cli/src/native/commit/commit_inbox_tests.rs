@@ -107,6 +107,8 @@ fn a_departure_syncs_the_promised_records_in_dependency_order_before_it_returns(
             format!("dir:{}", lane.join("inbox").display()),
             format!("file-sync:{}", lane.join("state").join("state.log.1").display()),
             format!("dir:{}", lane.join("state").display()),
+            // The state directory's own entry in the lane, forced whatever the closure holds (review of step 2).
+            format!("dir:{}", lane.display()),
         ]
     );
 }
@@ -204,6 +206,7 @@ fn a_departure_forces_the_whole_closure_including_state_names_order_and_ledger()
             expect("dir", &lane.join("queue")),
             expect("file-sync", &state.join("state.log.1")),
             expect("dir", &state),
+            expect("dir", &lane),
             expect("file-sync", &ledger),
             expect("dir", &lane.join("queue")),
         ]

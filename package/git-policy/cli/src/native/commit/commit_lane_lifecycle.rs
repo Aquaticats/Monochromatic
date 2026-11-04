@@ -15,6 +15,7 @@
 //! // clientAfterAccept(lane, id, ring, route): createReceipt; if (ring(lane)) return 'rung'; return launchRouted(lane, route)
 //! ```
 
+use super::commit_identity::fault_point;
 use super::commit_flusher::{FlushError, Flushed, FlusherLaunchError, RECEIPT_ERRORS, flush_lane};
 pub use super::commit_flusher_unit::{ManagerRoute, Routed, launch_routed};
 pub use super::commit_state_log::capture_lane_closure;
@@ -94,9 +95,12 @@ pub struct SyncPass {
 /// emptied; a line recorded meanwhile makes the length differ and nothing is removed (the next pass retries the old lines again, which is
 /// idempotent).
 pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<SyncPass, FlushError> {
-    let record: PathBuf = lane.join(RECEIPT_ERRORS);
-    let read: Vec<u8> = match fs::read(&record) {
-        Ok(bytes) => bytes,
+    let read: Vec<u8> = match super::commit_flusher::open_error_record(lane, false) {
+        Ok(mut file) => {
+            let mut bytes: Vec<u8> = Vec::new();
+            io::Read::read_to_end(&mut file, &mut bytes).map_err(FlushError::Io)?;
+            bytes
+        }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(FlushError::Io(error)),
     };
@@ -106,26 +110,33 @@ pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<Syn
         Flushed::Held => return Ok(SyncPass { forced: 0, retried: 0, held: true }),
         Flushed::Finished { forced } | Flushed::Handed { forced } => {
             if retried > 0 {
-                clear_if_unchanged(&record, read.len())?;
+                clear_if_unchanged(lane, &read)?;
             }
             return Ok(SyncPass { forced, retried, held: false });
         }
     }
 }
 
-/// Empties the record in place when it is `length` bytes long and its exclusive lock is free; otherwise leaves it.
-fn clear_if_unchanged(record: &Path, length: usize) -> Result<(), FlushError> {
-    let file = match OpenOptions::new().read(true).write(true).open(record) {
+/// Empties the record in place when it is exactly the bytes `read` and its exclusive lock is free; otherwise leaves it. The bytes are
+/// compared and not only the length: a record that was cleared and refilled to the same length is a different record.
+fn clear_if_unchanged(lane: &Path, read: &[u8]) -> Result<(), FlushError> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = match OpenOptions::new().read(true).write(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(lane.join(RECEIPT_ERRORS)) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(FlushError::Io(error)),
     };
+    if !file.metadata()?.file_type().is_file() {
+        return Err(FlushError::Io(io::Error::new(io::ErrorKind::InvalidInput, "the receipt error record is not a regular file")));
+    }
     match file.try_lock() {
         Ok(()) => {}
         Err(std::fs::TryLockError::WouldBlock) => return Ok(()),
         Err(std::fs::TryLockError::Error(error)) => return Err(FlushError::Io(error)),
     }
-    if file.metadata()?.len() == length as u64 {
+    let mut now: Vec<u8> = Vec::new();
+    io::Read::read_to_end(&mut file, &mut now)?;
+    if now == read {
         file.set_len(0)?;
     }
     return Ok(());
@@ -239,6 +250,9 @@ fn dropped_since(previous: &Selected, closure: &[ClosureEntry]) -> Vec<String> {
 /// ```
 pub fn seal_for_shutdown(lane: &Path, state: &Path) -> Result<Sealed, LifecycleError> {
     syncer_pass(lane)?;
+    // The state writer is taken before the capture and kept to the publication: a disposal that appends its `disposed` line between the two
+    // would be published over by a closure that still names the item. A disposal in progress holds the writer, and the seal is refused.
+    let mut writer: StateWriter = StateWriter::acquire(state)?;
     let closure: Vec<ClosureEntry> = capture_lane_closure(lane)?;
     let previous: Option<Selected> = select(state)?;
     let carried: LaneState = previous.as_ref().and_then(|chosen| { return LaneDocument::parse(&chosen.payload); }).map_or_else(LaneState::default, |document| { return document.state().clone(); });
@@ -247,7 +261,6 @@ pub fn seal_for_shutdown(lane: &Path, state: &Path) -> Result<Sealed, LifecycleE
         .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the lane holds an append-only file the checked representation cannot express"); })?
         .with_state(carried);
     let generation: u64 = previous.as_ref().map_or(1, |chosen| { return chosen.generation + 1; });
-    let mut writer: StateWriter = StateWriter::acquire(state)?;
     let candidate = writer.begin_checkpoint_reclaiming_retiring(generation, &document, &closure, &retired)?;
     writer.complete_checkpoint(&candidate)?;
     return Ok(Sealed { generation });
@@ -280,10 +293,21 @@ pub fn departure_acknowledge(state: &Path, attempts: u32) -> io::Result<super::c
         match super::commit_state_log::sync_prefix(state) {
             Ok(prefix) => {
                 // The closure is forced before the coverage is confirmed, so the confirmation is of a record whose dependencies are durable.
-                force_closure(state, &prefix)?;
+                fault_point("lifecycle:before-force-closure");
+                // Support the record retained can be removed by a disposal between the capture and this forcing: that is a changed root, to
+                // capture again, and not an error.
+                if let Err(error) = force_closure(state, &prefix) {
+                    if error.kind() == io::ErrorKind::NotFound {
+                        last = error;
+                        continue;
+                    }
+                    return Err(error);
+                }
                 match super::commit_state_log::state_covers(state, &prefix) {
                     Ok(true) => return Ok(prefix),
                     Ok(false) => last = io::Error::other("the state log's root changed to one that does not cover the captured record"),
+                    // The segment the check selected was reclaimed before the check read it: select again.
+                    Err(StateError::Io(error)) if error.kind() == io::ErrorKind::NotFound => last = error,
                     Err(error) => return Err(io::Error::other(format!("the state log could not be read: {:?}", error))),
                 }
             }

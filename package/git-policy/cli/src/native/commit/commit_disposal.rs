@@ -13,7 +13,7 @@
 //! // retireSavedContent(lane, state, auth): appendDisposed; checkpointRetiring(item); unlinkRetired(lane, name)
 //! ```
 
-use super::commit_identity::fault_point;
+use super::commit_identity::{fault_point, record_event_lazy};
 use super::commit_ledger::{LedgerEntry, LedgerOwner};
 use super::commit_state_log::{ClosureEntry, LaneDocument, StateWriter, capture_lane_closure, select};
 use std::io;
@@ -64,15 +64,20 @@ fn newest_checked_root(state: &Path) -> io::Result<(super::commit_state_log::Sel
     return Ok((selected, document));
 }
 
-/// Writes the replacement root that no longer names `name`, with the ledger prefix that holds the `disposed` line in its closure.
-fn replace_root_without(lane: &Path, state: &Path, name: &str) -> io::Result<()> {
+/// Writes the replacement root: the lane as it is now captured (which never includes saved content whose `disposed` line exists), with the
+/// state the newest root carried, retiring every saved item the previous root named and the new one does not. `writer` is the state writer
+/// the caller holds, so no seal and no other disposal captures or publishes in between.
+fn replace_root_without_disposed(lane: &Path, writer: &mut StateWriter, state: &Path) -> io::Result<()> {
     let (selected, document) = newest_checked_root(state)?;
-    let closure: Vec<ClosureEntry> = capture_lane_closure(lane)?.into_iter().filter(|entry| { return entry.path().file_name().and_then(|leaf| { return leaf.to_str(); }) != Some(name); }).collect();
+    let closure: Vec<ClosureEntry> = capture_lane_closure(lane)?;
     let replacement: LaneDocument = LaneDocument::from_closure(&closure)
         .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the lane holds an append-only file the checked representation cannot express"); })?
         .with_state(document.state().clone());
-    let mut writer: StateWriter = StateWriter::acquire(state)?;
-    let candidate = writer.begin_checkpoint_reclaiming_retiring(selected.generation + 1, &replacement, &closure, &[key_of(name)])?;
+    // Several disposals can be pending at once (their lines durable, their replacements not): every omitted item is named, or the non-drop
+    // check would refuse the one whose name was left out.
+    let retired: Vec<String> = document.saved().iter().filter(|held| { return !replacement.saved().contains(held); }).map(|held| { return key_of(held); }).collect();
+    let candidate = writer.begin_checkpoint_reclaiming_retiring(selected.generation + 1, &replacement, &closure, &retired)?;
+    fault_point("disposal:after-candidate");
     return writer.complete_checkpoint(&candidate);
 }
 
@@ -80,14 +85,17 @@ fn replace_root_without(lane: &Path, state: &Path, name: &str) -> io::Result<()>
 ///  Steps one and two of the disposal: the `disposed` line (once), then the replacement root. Returns the item whose file is still to be
 ///  unlinked.
 /// Why:
-///  A crash after this and before the unlink leaves the content on disk and a root that does not name it, which loses nothing. A crash
-///  after the line alone leaves the line durable and the root naming the item; `resume_disposals` finishes it from the line.
+///  The state writer is taken first and kept to the end of the replacement, so a seal cannot capture between the line and the root (a seal
+///  that began before the line would publish a closure that still names the item) and refuses while this runs. A crash after this and before
+///  the unlink leaves the content on disk and a root that does not name it, which loses nothing. A crash after the line alone leaves the line
+///  durable and the root naming the item; `resume_disposals` finishes it from the line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function retireSavedContent(lane: string, state: string, auth: DisposalAuthorization): Retired; // throws
 /// ```
 pub fn retire_saved_content(lane: &Path, state: &Path, authorization: &DisposalAuthorization) -> io::Result<Retired> {
+    let mut writer: StateWriter = StateWriter::acquire(state)?;
     let (_selected, document) = newest_checked_root(state)?;
     if !document.saved().contains(&authorization.name) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the newest root does not hold that saved content"));
@@ -101,22 +109,27 @@ pub fn retire_saved_content(lane: &Path, state: &Path, authorization: &DisposalA
             .map_err(|error| { return io::Error::other(format!("the disposed line could not be appended: {:?}", error)); })?;
     }
     fault_point("disposal:after-line");
-    replace_root_without(lane, state, &authorization.name)?;
+    replace_root_without_disposed(lane, &mut writer, state)?;
     fault_point("disposal:after-root");
     return Ok(Retired { lane: std::path::absolute(lane)?, state: std::path::absolute(state)?, name: authorization.name.clone() });
 }
 
 /// Step three: unlinks the retired item's file, and forces the directory so the removal is not undone by a power loss after the person
-/// was told the content is gone. The token is consumed, and the current root is read first: a root that names the item again (a stale token)
-/// refuses the unlink.
+/// was told the content is gone. The state writer is held from the revalidation to the end: the current root is read (a root that names the
+/// item again refuses the unlink), the root that recovery would select and everything it retains are forced (a visible root that omits the
+/// item is not yet a durable cover; a candidate a crash left uncompleted is such a root), and only then the file goes. The token is consumed.
 pub fn unlink_retired(retired: Retired) -> io::Result<()> {
+    let _writer: StateWriter = StateWriter::acquire(&retired.state)?;
     let (_selected, document) = newest_checked_root(&retired.state)?;
     if document.saved().contains(&retired.name) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the current root names this saved content again, so the retirement is stale and nothing is deleted"));
     }
+    let prefix = super::commit_state_log::sync_prefix(&retired.state)?;
+    super::commit_state_log::force_items(&retired.lane, &prefix.items)?;
     let directory: PathBuf = retired.lane.join("saved");
-    match std::fs::remove_file(directory.join(&retired.name)) {
-        Ok(()) => {}
+    let path: PathBuf = directory.join(&retired.name);
+    match std::fs::remove_file(&path) {
+        Ok(()) => record_event_lazy(|| { return format!("unlink:{}", path.display()); }),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
@@ -149,19 +162,35 @@ pub fn resume_disposals(lane: &Path, state: &Path) -> io::Result<usize> {
         Err(error) => return Err(error),
     };
     let ledger: PathBuf = lane.join(super::commit_state_log::LANE_LEDGER);
-    let mut finished: usize = 0;
+    let mut pending: Vec<String> = Vec::new();
     for listed in entries {
         let name: String = listed?.file_name().to_string_lossy().into_owned();
         let is_content: bool = name.len() == 64 && super::commit_integrity::unhex(&name).is_some();
-        if !is_content || !has_disposed_line(&ledger, &key_of(&name))? {
-            continue;
+        if is_content && has_disposed_line(&ledger, &key_of(&name))? {
+            pending.push(name);
         }
-        let (_selected, document) = newest_checked_root(state)?;
-        if document.saved().contains(&name) {
-            replace_root_without(lane, state, &name)?;
+    }
+    if pending.is_empty() {
+        return Ok(0);
+    }
+    // One replacement root omits every pending item at once; a writer that is busy means another owner is at it, and the next sweep retries.
+    match StateWriter::acquire(state) {
+        Ok(mut writer) => {
+            let (_selected, document) = newest_checked_root(state)?;
+            if pending.iter().any(|name| { return document.saved().contains(name); }) {
+                replace_root_without_disposed(lane, &mut writer, state)?;
+            }
         }
-        unlink_retired(Retired { lane: std::path::absolute(lane)?, state: std::path::absolute(state)?, name })?;
-        finished += 1;
+        Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(0),
+        Err(error) => return Err(error),
+    }
+    let mut finished: usize = 0;
+    for name in pending {
+        match unlink_retired(Retired { lane: std::path::absolute(lane)?, state: std::path::absolute(state)?, name }) {
+            Ok(()) => finished += 1,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+            Err(error) => return Err(error),
+        }
     }
     return Ok(finished);
 }
