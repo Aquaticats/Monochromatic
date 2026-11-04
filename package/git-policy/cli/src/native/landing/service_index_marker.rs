@@ -88,7 +88,7 @@ pub fn parse_marker(text: &str) -> Option<Marked> {
 }
 
 pub use crate::service_index_identity::{
-    BOOT_SEPARATOR, HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state, holder_state_in, identity_in_view,
+    BOOT_SEPARATOR, HolderState, ReaderView, check_procfs_view, holder_is_gone, holder_is_running, holder_state, holder_is_elsewhere, holder_state_in, identity_in_view, identity_in_view_on,
     mark_names_a_gone_holder, own_identity, pid_of_self_stat, current_pid_scope,
 };
 
