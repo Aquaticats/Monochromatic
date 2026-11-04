@@ -1658,3 +1658,63 @@ one power loss, write-back as environment steps.
   precedes its return; that is an equivalent mutant, recorded in the row.
 - Map: "reclamation during capture" and "saved content survives until authorized disposal" moved from Not yet to
   Narrower (65 covered, 18 narrower, 9 historical, 16 not yet).
+
+## Round 24: the step 1 review fixed, and plan step 2 built (2026-11-04)
+
+The cross-vendor review of the step 1 bundle (`/var/home/user/temp/agent/reviews/commit-models-step1-sol.txt`) said "correct
+after named fixes; not correct as is". Dispositions, by finding:
+- A, ledger discharge proof: fixed. `commit_ledger::complete_entries` reads only a prefix of complete valid lines and fails closed on
+  any damaged line or an unterminated tail; `ledger_prefix_has` uses it. Red first
+  (`r23_a_ledger_fragment_without_its_newline_or_after_damage_is_not_a_discharge`). Any genuine terminal outcome discharges a mark.
+- B, order positions: fixed. A position must be a line boundary whose line begins `adopt <that request> `, checked at admission, at the
+  checkpoint and at recovery where the order file is read (`r23_a_position_must_be_the_adopt_line_of_its_request`). The state module's
+  own check stays a range check and its documentation says where the line check lives.
+- C, closure construction: fixed. `from_closure` returns `None` for a closure that names a path twice
+  (`r23_a_closure_with_two_captures_of_one_path_is_not_a_document`).
+- D, state replacement: documented, not enforced. The module documentation of `commit_lane_state.rs` and both Narrower rows say that this
+  layer does not check transitions (`Install`, `MergeInstall`, `AttachWatch`, the marker) and name where they are checked (the models of
+  the index replacement and the install). A `Suppress` entry may now outlive the envelope of its request; an obligation-carrying kind
+  must still name an adopted request (`r23_a_suppression_may_outlive_its_request_and_an_obligation_may_not`).
+- Finding 5, capture-reclaim model: rebuilt with root selection (an unrelated higher-generation candidate is the root and does not cover
+  an old capture), the departure's recapture, and the ENOENT open of an unlinked path. Consequence recorded in the map: with recapture the
+  lineage restriction on removal is green in the model, so it is not what keeps a departure's promise.
+- Finding 6, disposal: fixed on the component side, in the direction the review recommended. The procedure is the disposed line, a durable
+  replacement root that no longer names the item (its closure holds the forced ledger prefix), then the unlink
+  (`commit_disposal.rs`; `removing_the_content_before_the_replacement_root_leaves_recovery_with_no_root` shows the wrong order on the real
+  recovery). The model was rebuilt to that procedure.
+- Finding 7: the visible-cover control is named a combined weakening; two disposal guards are equivalent mutants (removal needs both the
+  line and the root durable); overlapping representation tests are named in the map row.
+- Finding 8: the two Narrower rows name what is not shown.
+
+Plan step 2, built as callables that nothing in the shipped commit path calls. Reachability pick: the shipped `cli-git-service` does
+not schedule the syncer pass; the functions exist and are tested, and `git commit` reaches nothing new (plan step 3 is the cutover). The
+only change to a shipped binary is the `--flush-lane <lane>` mode of `cli-git-service`, which runs the flusher entry and exits and is
+reached only when that flag is passed.
+- `commit_lane_lifecycle.rs`: `create_receipt`, `client_after_accept` (receipt first, ring a running service, otherwise launch),
+  `syncer_pass` (retries the recorded errors by renaming the record to `receipt-errors.retrying`, merging unmatched lines back on failure),
+  `startup_sweep` (one read of the state log, the same pass, takes up a dead syncer's copy), `seal_for_shutdown` (final pass, then a
+  reclaiming checkpoint of `capture_lane_closure`, carrying the newest checked document's state and naming dropped requests as retired),
+  `departure_acknowledge` (retries ENOENT and a root that does not cover, at most the caller's attempts).
+- `commit_flusher_unit.rs`: decision 22. The primary route is `systemd-run --user --collect --quiet --unit=<fresh name>` waited for until
+  the start is confirmed (no `--no-block`), running `cli-git-service --flush-lane <lane>`; the double fork is the fallback when the manager
+  refuses, is missing or does not confirm within the service start ceiling (measured, `wait_ceilings.rs`). A fresh unit name per launch,
+  so a refusal never means a flusher already runs. No `CPUQuota` or `MemoryMax` on the unit: no measurement of a flusher exists to cite.
+  Deviation to tell the owner: the route is `systemd-run`, not a D-Bus `StartTransientUnit` call; the repository's bus client marshals
+  only string arguments, and `systemd-run` is the manager's own tool for this. The single-thread requirement binds the fork only.
+- `commit_drain.rs` and the register row `DRAIN-REQUEST`: the caller's bounded poll and its "draining, upgrade not applied" answer. No
+  `WAIT_DRAIN` constant is shipped because it must be measured and no measurement exists.
+- Tests: `commit_lane_lifecycle_tests.rs` (17, including the real user manager and the departure racing the real seal through the fault
+  point after the capture), `commit_disposal_tests.rs` (4), `commit_drain_tests.rs` (3), the register test.
+- Guard removals: `mutations-lifecycle-2.log`, `mutations-disposal.log`, `mutations-models-2.log` beside the step 1 logs. A first run
+  showed three unproven guards (the ENOENT retry, the merge-back of unmatched record lines, the unit start wait); the controls were
+  strengthened and all then turned red.
+
+Rows: "hook outlasting an upgrade caller, the caller returns within its bound", "reclamation during capture" and "saved content
+survives until authorized disposal" are Narrower; 65 covered, 19 narrower, 9 historical, 15 not yet. Not shown, left for the next steps:
+the spool and attempt data that recomputation needs (durable request dependencies), a recovery that lets a root discharge a missing item
+(deliberately not built), I/O errors other than ENOENT at the departure's forcing, the person's disposal command, the shipped service
+scheduling the syncer, a real ring to a running service, the `WAIT_DRAIN` constant, and the establishment record for "damaged established
+roots fail closed".
+
+Gates: `native:test:model` 543 passed, 0 failed (4 leaky, the same stalled children as before); `native:clippy` and
+`native:clippy:seams` clean; `source_guard` 39 of 39 (logs in `/var/home/user/temp/agent/r23/`).

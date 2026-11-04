@@ -41,7 +41,7 @@ fn saved_in_root(state: &Path) -> Vec<String> {
 #[test]
 fn the_disposal_leaves_an_eligible_root_without_the_item_and_a_disposed_line() {
     let (lane, state, name) = lane_with_saved("dispose-whole");
-    assert_eq!(saved_in_root(&state), [name.clone()]);
+    assert_eq!(saved_in_root(&state), std::slice::from_ref(&name));
     dispose_saved_content(&lane, &state, &DisposalAuthorization::explicit(&name)).expect("the disposal");
     assert!(!lane.join("saved").join(&name).exists(), "the content is removed");
     assert!(saved_in_root(&state).is_empty(), "the root no longer names it");

@@ -264,11 +264,11 @@ fn r23_a_ledger_fragment_without_its_newline_or_after_damage_is_not_a_discharge(
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.append_with(1, &document_with(&both, LaneState::default()).encode(), &both).expect("a record that retains the request and its mark");
     let line: Vec<u8> = ledger_line_of(&id, "conflicted");
-    let retire = |writer: &mut StateWriter, bytes: &[u8]| -> std::io::Result<git_policy_cli::commit_state_log::Candidate> {
+    let retire = |owner: &mut StateWriter, bytes: &[u8]| -> std::io::Result<git_policy_cli::commit_state_log::Candidate> {
         std::fs::write(lane.join("ledger"), bytes).expect("the ledger");
         let ledger: ClosureEntry = ClosureEntry::capture(&lane, &lane.join("ledger"), EntryKind::AppendPrefix).expect("capture the ledger");
         let discharged: Vec<ClosureEntry> = vec![ledger];
-        return writer.begin_checkpoint_reclaiming_retiring(2, &document_with(&discharged, LaneState::default()), &discharged, std::slice::from_ref(&id));
+        return owner.begin_checkpoint_reclaiming_retiring(2, &document_with(&discharged, LaneState::default()), &discharged, std::slice::from_ref(&id));
     };
     assert!(retire(&mut writer, &line[..line.len() - 1]).is_err(), "an unterminated final fragment discharged the request");
     let mut damaged: Vec<u8> = b"not a ledger line\n".to_vec();

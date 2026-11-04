@@ -65,7 +65,7 @@ fn the_receipt_exists_before_the_ring_and_a_rung_service_launches_nothing() {
     let step: ClientStep = client_after_accept(
         &lane,
         RECEIPT_ID,
-        &mut |lane: &Path| { existed_at_ring.set(Some(lane.join(RECEIPT_DIR).join(RECEIPT_ID).exists())); return Ok(true); },
+        &mut |asked: &Path| { existed_at_ring.set(Some(asked.join(RECEIPT_DIR).join(RECEIPT_ID).exists())); return Ok(true); },
         &mut route,
     )
     .expect("the client step");
@@ -239,7 +239,11 @@ fn a_departures_acknowledgment_survives_the_seal_that_replaces_its_segment() {
     seal_for_shutdown(&lane, &state).expect("the seal");
     assert!(!state.join("state.log.1").exists(), "the seal reclaimed the segment that holds the acknowledged record");
     assert!(state_covers(&state, &promised).expect("readable"), "the acknowledgment is covered by the sealed checkpoint");
+}
 
+/// Over an opaque record the seal reclaims nothing, and the acknowledgment is not covered (the departure's verification says so).
+#[test]
+fn a_departures_acknowledgment_of_an_opaque_record_is_not_covered_by_the_seal() {
     let (lane, state, _id) = lane_with_everything("life-seal-opaque");
     StateWriter::acquire(&state).expect("writer").append(1, b"an opaque document").expect("an opaque record");
     let promised = sync_prefix(&state).expect("acknowledged");
@@ -367,7 +371,7 @@ fn race_at_capture(point: &str) {
 /// The step-1 review's departure race, on the component: the departure captured the selected segment, the seal unlinks it, and the open
 /// of the path fails; the departure selects again and acknowledges the sealed root, which covers its promise (finding 5, the ENOENT schedule).
 #[test]
-fn a_departure_whose_captured_segment_is_unlinked_by_the_seal_selects_again() {
+fn the_open_of_a_segment_the_seal_unlinked_fails_with_enoent() {
     let (lane, state, _id) = lane_with_everything("life-race-seal");
     let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
     let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible");
@@ -379,6 +383,11 @@ fn a_departure_whose_captured_segment_is_unlinked_by_the_seal_selects_again() {
     set_fault_point(None);
     assert!(matches!(&first, Err(error) if error.kind() == io::ErrorKind::NotFound), "the open of the unlinked path fails with ENOENT: {:?}", first.map(|prefix| { return prefix.number; }));
     assert!(!state.join("state.log.1").exists(), "the seal removed the segment the departure had captured");
+}
+
+/// The departure's own retry: the open of the unlinked path fails inside `departure_acknowledge`, which selects the sealed root.
+#[test]
+fn a_departure_that_finds_its_captured_segment_unlinked_acknowledges_the_sealed_root() {
     let (lane, state, _id) = lane_with_everything("life-race-seal-retry");
     let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
     let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible");
