@@ -530,8 +530,11 @@ Status:
 0.1.0 published and released on 2026-11-04;
 Trusted Publishing configured and exercised by CI.
 Owner action remaining:
-revoke the `cargo login` token made for this publish,
-then the agent runs `cargo logout` to remove the dead credential from `~/.cargo/credentials.toml`.
+none.
+The owner revoked the `cargo login` token made for this publish on 2026-11-04 (question tool:
+"Revoked it (Recommended)"),
+and `cargo logout` then removed the dead credential from `~/.cargo/credentials.toml`
+(no `token` line left).
 
 Crate `monochromatic-cargo-shadow`,
 version `0.1.0`,
