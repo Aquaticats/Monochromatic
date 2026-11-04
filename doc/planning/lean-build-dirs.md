@@ -271,11 +271,12 @@ Under that rule the target directories that remain to be copied, by apparent siz
 `package/ide/app/target`, 12.1 GiB for `package/nested-wayland-session/cli/target`, 1.2 GiB for
 `package/git-policy/cli.fuzz/target`, 0.5 GiB for `package/linter/monochromatic-lint/target`,
 0.3 GiB for `package/git-policy/cli/target` and 0.1 GiB for `package/terminal/app/target`: 35.0 GiB.
-That does not reconcile with the 49.5 GB per add in the brief; the difference is not explained by anything measured
-here (an installed wrapper older than this rule, or ignored state outside `target/`, are the untested candidates).
+That does not reconcile with the 49.5 GB per add in the brief, which is within a percent of the brief's listed total
+minus incremental state (70.5 GB less 21.3 GB is 49.2 GB), as if a build that skips incremental state but not
+`target/verification` or the `node_modules` caches had run.
+Which wrapper build ran was not verified.
 Of the 35.0 GiB, the stale non-incremental units found by the fingerprint grouping are 13.3 GiB of
-`package/ide/app/target` and 5.0 GiB of
-`package/nested-wayland-session/cli/target`.
+`package/ide/app/target` and 5.0 GiB of `package/nested-wayland-session/cli/target`.
 If the wrapper binary in use predates the rule, the incremental state (19.3 GiB) is copied as well.
 
 ## What always lean can mean
@@ -423,6 +424,9 @@ rename before deleting it, so a reader sees either the unit or nothing.
   never deletes under one.
   Held only for the renames; deletion happens after the lock is released.
   A cargo build in another worktree uses another tree and is untouched.
+  For container builds the lock is the same file through the bind mount: a probe on 2026-11-04 held `flock` on a file
+  in a bind-mounted throwaway directory inside a podman container, and a host `flock --nonblock` on the same path
+  reported busy (exit 1) while the container held it and succeeded (exit 0) after it ended.
 - Owner (proposed): `package/cargo-shadow/cli`, as a new subcommand beside `install` and `update`, because it is
   already on the path of every host cargo run and ships the same release cycle as the repository's Cargo policy.
   Alternative owners: a new package (more surface), `toolchain:update` alone (misses containers and workspaces
