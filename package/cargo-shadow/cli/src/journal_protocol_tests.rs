@@ -11,7 +11,7 @@
 // ```ts
 // import { Name } from './module.ts';
 // ```
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 // Imports `std::fs::{self, File, OpenOptions}`.
 use std::fs::{self, File, OpenOptions};
 // Imports `std::io::Write`.
@@ -853,6 +853,16 @@ fn replace_with(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::
     return replace_with_seams(path, "expected", "new text", keep, &Seams { between: &none, after_exchange: &none, swap: &swap, link, sync_file, sync_dir });
 }
 
+/// Like `replace_with`, and also returns the inode the live path names right after the exchange, which is the replacement's (9b 3.1).
+fn replace_capturing(path: &Path, keep: &KeepAs, link: &dyn Fn(&Path, &Path) -> std::io::Result<()>, sync_file: &dyn Fn(&Path) -> std::io::Result<()>, sync_dir: &dyn Fn(&Path) -> std::io::Result<()>) -> (std::io::Result<ReplaceOutcome>, Option<u64>) {
+    let replacement: Cell<Option<u64>> = Cell::new(None);
+    let none = |_path: &Path| {};
+    let capture = |live: &Path| { replacement.set(fs::metadata(live).ok().map(|found| { return found.ino(); })); };
+    let swap = |first: &Path, second: &Path| -> std::io::Result<()> { return crate::journal_replace::exchange_paths(first, second); };
+    let outcome = replace_with_seams(path, "expected", "new text", keep, &Seams { between: &none, after_exchange: &capture, swap: &swap, link, sync_file, sync_dir });
+    return (outcome, replacement.get());
+}
+
 /// The real hard link.
 fn real_link(existing: &Path, new: &Path) -> std::io::Result<()> {
     return fs::hard_link(existing, new);
@@ -1210,7 +1220,8 @@ fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_na
         let path = root.path().join(CRATE_DIR).join("Cargo.lock");
         let displaced: u64 = fs::metadata(&path).expect("examines").ino();
 
-        let outcome = replace_with(&path, &KeepAs::next_to_target(".displaced"), link, sync_file, sync_dir);
+        let (outcome, replacement) = replace_capturing(&path, &KeepAs::next_to_target(".displaced"), link, sync_file, sync_dir);
+        let replacement: u64 = replacement.unwrap_or_else(|| { panic!("{label}: the exchange was never reached, so the replacement inode was not captured"); });
 
         // Every link failing is an outcome (the file stays under its temporary name and the path is returned); a failing barrier is an error.
         let message: String = match outcome {
@@ -1225,8 +1236,12 @@ fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_na
         assert!(!names.is_empty(), "{label}: the displaced inode lost its last name");
         // The diagnostic names a pathname under which the displaced inode really survives, not a word.
         assert!(names.iter().any(|name| { return message.contains(&name.display().to_string()); }), "{label}: the message does not name a surviving path of the file ({names:?}): {message}");
-        // The replacement text is still reachable under the live name or a kept one when the swap happened.
-        let _ = names_of_inode(root.path(), fs::metadata(&path).expect("the live path still names a file").ino());
+        // The replacement inode captured at the exchange keeps a name too (R2: neither inode loses its last name), and it is a different
+        // inode from the displaced one, so the live path cannot hold some other file while both assertions pass.
+        assert_ne!(replacement, displaced, "{label}: the replacement is the displaced inode");
+        let replacement_names: Vec<PathBuf> = names_of_inode(root.path(), replacement);
+        assert!(!replacement_names.is_empty(), "{label}: the replacement inode lost its last name");
+        assert!(replacement_names.contains(&path), "{label}: the replacement is not at the live path: {replacement_names:?}");
     }
 }
 
@@ -1280,6 +1295,7 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
         total
     };
     assert!(counted >= 4, "the chain should have several barriers: {counted}");
+    let mut reported_preserved: usize = 0;
     for failing in 0..counted {
         let root = repository("expected");
         let path = root.path().join(CRATE_DIR).join("Cargo.lock");
@@ -1287,20 +1303,32 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
         fs::create_dir_all(root.path().join("a")).expect("the pre-existing anchor");
         let displaced: u64 = fs::metadata(&path).expect("examines").ino();
         let seen: RefCell<usize> = RefCell::new(0);
-        let fail_nth = |_directory: &Path| -> std::io::Result<()> {
+        let barrier_log: RefCell<Vec<(PathBuf, bool)>> = RefCell::new(Vec::new());
+        let fail_nth = |directory: &Path| -> std::io::Result<()> {
             let index: usize = *seen.borrow();
             *seen.borrow_mut() += 1;
-            if index == failing { return Err(std::io::Error::other("injected barrier failure")); }
+            if index == failing {
+                barrier_log.borrow_mut().push((directory.to_path_buf(), false));
+                return Err(std::io::Error::other("injected barrier failure"));
+            }
+            barrier_log.borrow_mut().push((directory.to_path_buf(), true));
             return Ok(());
         };
 
-        let outcome = replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &fail_nth);
+        let (outcome, _replacement) = replace_capturing(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &fail_nth);
 
         let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
         assert!(!names.is_empty(), "barrier {failing}: the displaced inode lost its last name");
         if outcome.is_ok() {
-            // Reported as preserved: the copy must then be one whose barriers all held, beside the target and not in the new chain.
-            assert!(names.iter().any(|name| { return !name.starts_with(root.path().join("a")); }), "barrier {failing}: reported as preserved through the unsynced chain: {names:?}");
+            reported_preserved += 1;
+            // Reported as preserved: the protected copy is the fallback beside the target (a `.displaced` name next to the lockfile,
+            // not an exchange temporary and not a name in the new chain), and the barrier of that directory succeeded after it was made.
+            let crate_dir: PathBuf = path.parent().expect("a parent").to_path_buf();
+            let protected: Vec<&PathBuf> = names.iter().filter(|name| { return name.parent() == Some(crate_dir.as_path()) && name.file_name().is_some_and(|file| { return file.to_string_lossy().contains(".displaced"); }); }).collect();
+            assert!(!protected.is_empty(), "barrier {failing}: reported as preserved without a protected name beside the target: {names:?}");
+            assert!(barrier_log.borrow().iter().any(|(directory, ok)| { return *ok && directory == &crate_dir; }), "barrier {failing}: the directory of the protected copy was never synced successfully: {:?}", barrier_log.borrow());
         }
     }
+    // The branch that checks the protected copy must have been exercised by at least one barrier of the chain.
+    assert!(reported_preserved > 0, "no failed barrier ended in a reported preservation, so the fallback was never checked");
 }
