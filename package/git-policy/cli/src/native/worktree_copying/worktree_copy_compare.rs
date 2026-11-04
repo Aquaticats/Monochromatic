@@ -12,7 +12,7 @@
 //! ```
 
 use crate::scoped_start::start_or_run;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
 };
@@ -68,16 +68,16 @@ fn regular_file_bytes_equal(
     right_path: &Path,
 ) -> Result<bool, WorktreeCopyError> {
     let mut left: std::fs::File =
-        std::fs::File::open(left_path).map_err(|error| return raw_failure(&error))?;
+        std::fs::File::open(left_path).map_err(raw_failure_of)?;
     let mut right: std::fs::File =
-        std::fs::File::open(right_path).map_err(|error| return raw_failure(&error))?;
+        std::fs::File::open(right_path).map_err(raw_failure_of)?;
     let left_size: u64 = left
         .metadata()
-        .map_err(|error| return raw_failure(&error))?
+        .map_err(raw_failure_of)?
         .len();
     let right_size: u64 = right
         .metadata()
-        .map_err(|error| return raw_failure(&error))?
+        .map_err(raw_failure_of)?
         .len();
     if left_size != right_size {
         return Ok(false);
@@ -121,7 +121,7 @@ fn regular_file_bytes_equal(
 /// await readlink(path)
 /// ```
 fn link_target(path: &Path) -> Result<PathBuf, WorktreeCopyError> {
-    return std::fs::read_link(path).map_err(|error| return raw_failure(&error));
+    return std::fs::read_link(path).map_err(raw_failure_of);
 }
 
 /// What:

@@ -12,7 +12,7 @@
 //! ```
 
 use crate::json_record::quote;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_stage::StagedSnapshot;
 use crate::worktree_copy_stage_claim::{judge_stage_owners, reap_judged_stages, stage_claims_exist};
@@ -284,7 +284,7 @@ pub fn report_recovered(
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
     for notice in &report.notices {
-        writeln!(stderr, "{notice}").map_err(|error| return raw_failure(&error))?;
+        writeln!(stderr, "{notice}").map_err(raw_failure_of)?;
     }
     if report.recovered > 0 {
         let noun: &str = if report.recovered == 1 {
@@ -297,7 +297,7 @@ pub fn report_recovered(
             "cli-git: recovered ignored-state copies for {} worktree {noun}.",
             report.recovered
         )
-        .map_err(|error| return raw_failure(&error))?;
+        .map_err(raw_failure_of)?;
     }
     return Ok(());
 }

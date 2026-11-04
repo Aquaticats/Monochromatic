@@ -19,7 +19,7 @@ use crate::json_record::quote;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
 use crate::random_id::random_uuid;
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use crate::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path, js_order};
@@ -534,7 +534,7 @@ impl Role {
 pub fn assert_private_path(path: &Path, role: Role) -> Result<(), WorktreeCopyError> {
     use std::os::unix::fs::MetadataExt;
     let metadata: std::fs::Metadata =
-        std::fs::symlink_metadata(path).map_err(|error| return raw_failure(&error))?;
+        std::fs::symlink_metadata(path).map_err(raw_failure_of)?;
     let shape: bool = match role {
         Role::JournalFile => metadata.is_file() && metadata.nlink() == 1,
         Role::JournalDirectory | Role::PrivateStage => metadata.is_dir(),
@@ -542,7 +542,7 @@ pub fn assert_private_path(path: &Path, role: Role) -> Result<(), WorktreeCopyEr
     // SAFETY: `geteuid` has no preconditions and cannot fail.
     let effective_user: u32 = unsafe { libc::geteuid() };
     let canonical: bool = std::fs::canonicalize(path)
-        .map_err(|error| return raw_failure(&error))?
+        .map_err(raw_failure_of)?
         .as_path()
         == path;
     if !shape
@@ -808,7 +808,7 @@ pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Opti
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(raw_failure(&error)),
     }
-    sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+    sync_directory(parent).map_err(raw_failure_of)?;
     return Ok(Some(PendingJournal { path: adopted, journal: pending.journal.clone() }));
 }
 
@@ -886,7 +886,7 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
         return failure_with_cause(message.as_str(), Some(&error));
     })?;
     for listed in listing {
-        let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
+        let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if name.ends_with(JOURNAL_SUFFIX) {
             names.push(name);
@@ -945,14 +945,14 @@ pub fn prepare_stage_removal(stage_container: &Path) -> Result<(), WorktreeCopyE
             continue;
         }
         std::fs::set_permissions(directory.as_path(), std::fs::Permissions::from_mode(0o700))
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         for listed in
-            std::fs::read_dir(directory.as_path()).map_err(|error| return raw_failure(&error))?
+            std::fs::read_dir(directory.as_path()).map_err(raw_failure_of)?
         {
-            let child: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
+            let child: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
             let child_type: std::fs::FileType = child
                 .file_type()
-                .map_err(|error| return raw_failure(&error))?;
+                .map_err(raw_failure_of)?;
             if child_type.is_dir() {
                 pending.push(child.path());
             }
@@ -1001,7 +1001,7 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
     remove_file_if_present(pending.path.as_path())?;
     remove_unfinished_writes(pending.path.as_path())?;
     if let Some(parent) = pending.path.parent() {
-        sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+        sync_directory(parent).map_err(raw_failure_of)?;
     }
     return Ok(());
 }
@@ -1139,8 +1139,8 @@ fn remove_unfinished_writes(path: &Path) -> Result<(), WorktreeCopyError> {
         "{}.",
         path.file_name().unwrap_or_default().to_string_lossy()
     );
-    for listed in std::fs::read_dir(parent).map_err(|error| return raw_failure(&error))? {
-        let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
+    for listed in std::fs::read_dir(parent).map_err(raw_failure_of)? {
+        let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if name.starts_with(prefix.as_str()) && name.ends_with(TEMPORARY_SUFFIX) {
             remove_file_if_present(entry.path().as_path())?;

@@ -20,7 +20,7 @@
 use crate::git_metadata::path_from_git_bytes;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_add_binding::bind_registration;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
@@ -233,7 +233,7 @@ fn read_registered_roots(
         without_prefix: true,
         ..GitRequest::default()
     };
-    let output = run_git(context, &request).map_err(|error| return raw_failure(&error))?;
+    let output = run_git(context, &request).map_err(raw_failure_of)?;
     if !output.succeeded() {
         return Err(raw_failure(&String::from_utf8_lossy(
             output.stderr.as_slice(),

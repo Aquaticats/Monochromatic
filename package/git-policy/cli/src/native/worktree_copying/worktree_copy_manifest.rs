@@ -13,7 +13,7 @@
 //! await applyEntryModes({ root: stageRoot, entries });
 //! ```
 
-use crate::worktree_copy_error::raw_failure;
+use crate::worktree_copy_error::raw_failure_of;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{filesystem_path, js_order};
@@ -238,7 +238,7 @@ pub fn collect_pruned_manifest(
             continue;
         }
         let metadata: std::fs::Metadata = std::fs::symlink_metadata(item.filesystem_path.as_path())
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         let kind: EntryKind = entry_kind(metadata.file_type(), item.filesystem_path.as_path())?;
         if !readable_by_user(item.filesystem_path.as_path(), kind) {
             unreadable.push(item.relative_path.clone());
@@ -254,9 +254,9 @@ pub fn collect_pruned_manifest(
         }
         let mut names: Vec<String> = Vec::new();
         for listed in std::fs::read_dir(item.filesystem_path.as_path())
-            .map_err(|error| return raw_failure(&error))?
+            .map_err(raw_failure_of)?
         {
-            let child: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
+            let child: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
             names.push(child.file_name().to_string_lossy().into_owned());
         }
         // A directory that is a checkout of its own is left out whole, with no entry of its own.
@@ -362,7 +362,7 @@ pub fn apply_entry_modes(
     for entry in files.chain(directories) {
         let path: PathBuf = filesystem_path(root, entry.relative_path.as_str())?;
         std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(entry.mode))
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
     }
     return Ok(());
 }

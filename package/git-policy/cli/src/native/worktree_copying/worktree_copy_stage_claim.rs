@@ -19,7 +19,7 @@
 use crate::json_record::quote;
 use crate::private_storage::sync_directory;
 use crate::worktree_add_binding::{Binding, Recorded, decode_record, planned_record};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use crate::worktree_copy_journal::{
     Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
@@ -87,7 +87,7 @@ impl StageClaim {
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
         crate::add_timing::step("markCompleteFile", || { return write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); })?;
         if let Some(parent) = self.path.parent() {
-            crate::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(|error| return raw_failure(&error))?;
+            crate::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(raw_failure_of)?;
         }
         return Ok(());
     }
@@ -141,7 +141,7 @@ impl StageClaim {
         let Some(record) = self.destination_record.as_deref() else { return Ok(()) };
         write_atomic(record, binding.encode().as_bytes(), "destination record")?;
         if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+            sync_directory(parent).map_err(raw_failure_of)?;
         }
         return Ok(());
     }
@@ -163,7 +163,7 @@ impl StageClaim {
         remove_file_if_present(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path())?;
         remove_file_if_present(self.path.as_path())?;
         if let Some(parent) = self.path.parent() {
-            sync_directory(parent).map_err(|error| return raw_failure(&error))?;
+            sync_directory(parent).map_err(raw_failure_of)?;
         }
         return Ok(());
     }
@@ -347,7 +347,7 @@ fn claim_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
     let mut names: Vec<String> = Vec::new();
     for listed in listing {
         let name: String = listed
-            .map_err(|error| return raw_failure(&error))?
+            .map_err(raw_failure_of)?
             .file_name()
             .to_string_lossy()
             .into_owned();
@@ -483,7 +483,7 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
     // In name order, so which temporary is judged first (and which refusal is reported first) does not depend on the directory's order.
     let mut temporaries: Vec<(String, PathBuf)> = Vec::new();
     for listed in listing {
-        let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
+        let entry: std::fs::DirEntry = listed.map_err(raw_failure_of)?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
         if name.ends_with(TEMPORARY_SUFFIX) {
             temporaries.push((name, entry.path()));

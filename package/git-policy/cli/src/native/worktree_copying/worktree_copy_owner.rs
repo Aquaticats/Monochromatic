@@ -16,7 +16,7 @@
 
 use crate::pid_namespace::{ExpiredForeignRecord, current_pid_namespace, foreign_owner_standing};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
-use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use std::path::Path;
 
 /// What:
@@ -164,7 +164,7 @@ impl CopyOwner {
             None => {}
         }
         // `match` on the platform's answer: a live process with the recorded birth is the owner; no process is a dead owner.
-        match process_birth_identity(self.pid).map_err(|error| return raw_failure(&error))? {
+        match process_birth_identity(self.pid).map_err(raw_failure_of)? {
             Some(current) => return Ok(current == self.birth_identity),
             None => return Ok(false),
         }

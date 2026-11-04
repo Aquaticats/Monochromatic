@@ -13,7 +13,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::transaction_git::GitContext;
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_install::{InstallRecorder, install_snapshot};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_install_log::{InstallLog, open_install_log};
@@ -371,7 +371,7 @@ pub fn synchronize_created_worktree_noting(
         Err(error) => {
             // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there.
             std::fs::remove_dir_all(snapshot.stage_container.as_path())
-                .map_err(|removal| return raw_failure(&removal))?;
+                .map_err(raw_failure_of)?;
             claim.release()?;
             return Err(error);
         }

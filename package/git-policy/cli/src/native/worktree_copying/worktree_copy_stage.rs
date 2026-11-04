@@ -18,7 +18,7 @@ use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
 use crate::diagnostic_log::debug;
 use crate::worktree_copy_compare::{FinalCheck, assert_final_source_equivalence_pruned};
-use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, wrap_raw};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of, wrap_raw};
 use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, collect_pruned_manifest, stamp_of,
 };
@@ -81,7 +81,7 @@ fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
         .recursive(true)
         .mode(0o700)
         .create(path)
-        .map_err(|error| return raw_failure(&error));
+        .map_err(raw_failure_of);
 }
 
 /// What:
@@ -96,7 +96,7 @@ fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
 fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
-    return std::fs::create_dir_all(path).map_err(|error| raw_failure(&error));
+    return std::fs::create_dir_all(path).map_err(raw_failure_of);
 }
 
 /// What:
@@ -191,16 +191,16 @@ fn copy_file_exclusive_with(
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
 ) -> Result<Option<FileStamp>, WorktreeCopyError> {
     let mut input: std::fs::File =
-        std::fs::File::open(source).map_err(|error| return raw_failure(&error))?;
+        std::fs::File::open(source).map_err(raw_failure_of)?;
     let mut output: std::fs::File = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(destination)
-        .map_err(|error| return raw_failure(&error))?;
+        .map_err(raw_failure_of)?;
     let before: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
     // A successful clone already holds every byte, so only a refused clone copies them.
     if !clone(&input, &output) {
-        std::io::copy(&mut input, &mut output).map_err(|error| return raw_failure(&error))?;
+        std::io::copy(&mut input, &mut output).map_err(raw_failure_of)?;
         return Ok(None);
     }
     let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
@@ -302,7 +302,7 @@ fn copy_leaves(
             }
             EntryKind::Symlink => {
                 let target: PathBuf = std::fs::read_link(source_path.as_path())
-                    .map_err(|error| return raw_failure(&error))?;
+                    .map_err(raw_failure_of)?;
                 symlink_at(target.as_path(), stage_path.as_path())?;
             }
         }
@@ -393,7 +393,7 @@ fn parent_of(path: &Path) -> PathBuf {
 /// ```
 #[cfg(unix)]
 fn symlink_at(target: &Path, link: &Path) -> Result<(), WorktreeCopyError> {
-    return std::os::unix::fs::symlink(target, link).map_err(|error| return raw_failure(&error));
+    return std::os::unix::fs::symlink(target, link).map_err(raw_failure_of);
 }
 
 /// What:
@@ -502,7 +502,7 @@ pub fn stage_ignored_snapshot(
         "worktreeCopyStage",
         format!("selected {} ignored roots in {} ms", git_selected.len(), selecting.elapsed().as_millis()).as_str(),
     );
-    create_private_directory(stage_container).map_err(|error| return raw_failure(&error))?;
+    create_private_directory(stage_container).map_err(raw_failure_of)?;
     let stage_root: PathBuf = stage_container.join(PAYLOAD_NAME);
     create_private_tree(stage_root.as_path())?;
     let staged: Result<StagedSnapshot, WorktreeCopyError> = stage_into(
@@ -519,7 +519,7 @@ pub fn stage_ignored_snapshot(
         Err(error) => {
             // A failed removal replaces the copy failure, as the incumbent's cleanup throws its own error there.
             std::fs::remove_dir_all(stage_container)
-                .map_err(|removal| return raw_failure(&removal))?;
+                .map_err(raw_failure_of)?;
             return Err(words_for_source(error, source_root));
         }
     }

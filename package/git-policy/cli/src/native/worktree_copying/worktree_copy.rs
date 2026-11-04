@@ -23,7 +23,7 @@
 use crate::add_timing::{begin as begin_timing, begin_step, end_step, finish as finish_timing, step as timed};
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
-use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
+use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure_of};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_registry::{
@@ -250,7 +250,7 @@ fn synchronize_after(
     let Some(destination) = invocation.destination.as_deref() else {
         stderr
             .write_all(UNKNOWN_DESTINATION_NOTICE.as_bytes())
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         return Ok(Vec::new());
     };
     let mut found: CreatedWorktrees =
@@ -264,7 +264,7 @@ fn synchronize_after(
         let line: String = unconfirmed_destination_notice(destination);
         stderr
             .write_all(line.as_bytes())
-            .map_err(|error| return raw_failure(&error))?;
+            .map_err(raw_failure_of)?;
         return Ok(Vec::new());
     }
     let created_roots: Vec<PathBuf> = found.created.iter().map(|worktree| { return worktree.root.clone(); }).collect();
@@ -298,7 +298,7 @@ fn synchronize_after(
     );
     stderr
         .write_all(line.as_bytes())
-        .map_err(|error| return raw_failure(&error))?;
+        .map_err(raw_failure_of)?;
     return Ok(created_roots);
 }
 
