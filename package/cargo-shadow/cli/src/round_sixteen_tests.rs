@@ -430,3 +430,75 @@ fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends()
     assert!(started.is_ok(), "the control: with the member gone the transaction was still refused: {:?}", started.err());
 }
 //endregion
+
+//region deadlines of the scope (V6, certification group 1)
+// What the region covers: a stalled scope startup and an unsuccessful shutdown, at their real boundaries, with elapsed-time bounds.
+
+/// Acceptance row V6 (certification group 1): a scope startup that stalls before the payload runs is bounded.
+/// The launcher (the stand-in for `systemd-run` that the manager would answer) is held at its gate and never released, so the
+/// program never runs; the run ends at its bound with `TimedOut`, the payload never started, the direct child (the held launcher) was
+/// reaped, and quiescence was shown (nothing could have started), so the transaction reports no writers that may remain.
+#[test]
+fn a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let directory = scratch();
+    let root = scratch();
+    fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
+    fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
+    let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+    let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+    use_route_settings_for_test(Some(RouteSettings { systemd_run: gated_systemd_run(directory.path()).display().to_string(), ..RouteSettings::default() }));
+    let marker: PathBuf = directory.path().join("payload-ran");
+    let started = std::time::Instant::now();
+
+    let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound(Duration::from_secs(2)));
+    let elapsed: Duration = started.elapsed();
+    use_route_settings_for_test(None);
+
+    assert!(directory.path().join("pid-1").exists(), "the launcher never started, so the startup was not held");
+    assert!(matches!(result, Err(RunError::TimedOut { .. })), "a stalled startup did not end as a timeout: {result:?}");
+    assert!(elapsed >= Duration::from_secs(2) && elapsed < Duration::from_secs(8), "the run returned after {elapsed:?}: not at its bound of two seconds");
+    assert!(!marker.exists(), "the payload ran although its startup was held");
+    let launcher: i32 = fs::read_to_string(directory.path().join("pid-1")).expect("pid").trim().parse::<i32>().expect("a pid");
+    crate::contain_counterexample_tests::assert_reaped(launcher, "a stalled startup");
+    assert!(!transaction.writers_may_remain(), "nothing could have started, yet the scope reports writers that may remain");
+    crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
+}
+
+/// Acceptance row V6 (certification group 1): an unsuccessful shutdown has a deadline and produces uncertainty.
+/// A member survives every signal (the stop runs its real loop, which signals again every interval), the writer is ready before the
+/// stop, and the run returns `NotQuiescent` only once the quiescence bound has passed, and not much later; the scope reports that
+/// writers may remain and the journal is retained.
+#[test]
+fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let root = scratch();
+    fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
+    fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
+    let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+    let journal: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+    let ready: PathBuf = root.path().join("writer-ready");
+    let script: String = format!("setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0", ready = ready.display());
+    crate::failpoints::arm(crate::failpoints::Point::ContainmentSurvivor);
+    let started = std::time::Instant::now();
+
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(60)));
+    let elapsed: Duration = started.elapsed();
+
+    let groups: String = journal.join("groups").display().to_string();
+    let scope: PathBuf = crate::cgroup_test_support::scope_directory_of(&groups);
+    let _ = fs::write(scope.join("cgroup.kill"), "1");
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::ContainmentSurvivor), "the surviving member was never reached");
+    assert!(ready.exists(), "the writer was not ready before the shutdown");
+    assert!(matches!(result, Err(RunError::NotQuiescent { .. })), "{result:?}");
+    let bound_of_the_stop: Duration = crate::bounded_run::QUIESCE_BOUND;
+    assert!(elapsed >= bound_of_the_stop && elapsed < bound_of_the_stop + Duration::from_secs(6), "the shutdown returned after {elapsed:?}, not at its bound of {bound_of_the_stop:?}");
+    assert!(transaction.writers_may_remain(), "the scope was not told that writers may remain");
+    assert!(journal.exists() && !journal.to_string_lossy().ends_with(".done"), "the journal was not retained");
+    wait_until("the scope's end", &|| { return !scope.exists() || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| { return text.contains("populated 0"); }); });
+}
+//endregion

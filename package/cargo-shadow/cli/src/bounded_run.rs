@@ -109,7 +109,7 @@ const REAP_BOUND: Duration = Duration::from_secs(5);
 /// (handover "Picks made under the owner's delegation"), veto open,
 /// with the measurement of `REAP_BOUND` beside it:
 /// 1 ms to 5 ms in the probes, 5 s as the bound that ends the wait for a member that cannot be killed.
-const QUIESCE_BOUND: Duration = Duration::from_secs(5);
+pub(crate) const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 
 /// How long the output workers are given to report once every writer is gone.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
