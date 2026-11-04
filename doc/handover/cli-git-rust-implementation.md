@@ -486,6 +486,44 @@ each in its own worktree:
   push and invocation files,
   then the merge passes.
 
+Flagged for the owner (measured,
+not forecasts):
+cargo-shadow has had seven review rounds with no part passing,
+and the commit protocol design six revisions (12 to 17) each drawing new P1s,
+with the protocol verdict "approve continued model work only" since revision 12.
+Cause found:
+no written contract says what is promised and what is assumed,
+so each review moves the adversary one level deeper (threads,
+mount views,
+a same-uid process that leaves its group).
+Remedy taken:
+cargo-shadow writes `doc/planning/cargo-shadow-guarantees.md` (guarantees,
+assumptions,
+behavior where an assumption fails) before more code,
+and the reviewer turns it into a finite acceptance list;
+the design reviewer is asked (`commits-never-fail-sol-17c.txt`) which of R17a-1 to R17a-5 are rule gaps,
+for the finite property set that would move its verdict,
+and which owner rules cannot all hold together for some schedule.
+The cargo-shadow assumptions are coordinator's picks (veto open):
+no deliberate same-uid escape (such a process can write `Cargo.lock` after the run anyway);
+directories that existed before the transaction are durable;
+the journal resolves to the same mount and inode at recovery,
+else recovery refuses;
+the weaker path promises what pnpm promises and its recovery waits for a person's acknowledgment.
+cargo-shadow P1 re-review (round 7):
+7a "not closed" (F1 to F6:
+the spawn lock does not stop capturing another thread's child;
+discovery outside the spawn lock;
+failure to leave the group returns an ordinary I/O error;
+a completed process-group record cannot authorize recovery;
+the boundary is writable by the payload;
+recovery checks the cgroup namespace,
+not the mount view);
+7b "not closed" (a mount boundary is not a durable anchor;
+`begin` turns an entry-level `NotFound` into "no earlier journals");
+7c "not closed" (weaker-path recovery without quiescence;
+the documented same-uid escape).
+
 Queue,
 in order:
 - Design revision 17 (started by 2026-11-04T04:05:21-05:00,
