@@ -98,3 +98,17 @@ B beats C because C is excluded by the owner's directive while B only costs spee
   Forcing a fresh system upgrade on every run would restore "newest" literally and cost the cached gate layers each time.
 - `strace` stays at 6.13 by checksum while upstream has released 7.3;
   it is a fixed test tool, not a base image, so the base rule does not move it.
+
+## Measured on 2026-11-04 (this host under its ordinary load, two-CPU containers)
+
+Gate image build with the cache switched off, alternating old and new:
+ old 293.4 s and 260.6 s, new 276.3 s and 267.4 s (the spread of the old pair is larger than the difference).
+Gate image build with the cache warm: old 27.0 s, new 11.2 s plus 2.0 s for the pull check and base lookup.
+New base image, built once per CachyOS republish or Containerfile edit: 107 s at two CPUs, with the package cache warm.
+Gate test run: old control 451.8 s (earlier gates of this size: 442 s to 460 s); new 458.4 s when the host was otherwise
+ quiet and 511.0 s while lint and type checks ran beside it, so the new image adds no time that the load did not explain.
+Both gates ran 4707 tests with 7 skipped, and the lists of passing test names are identical.
+End-to-end suite: old and new both run the same 38 scenario runs, with the same one failure
+ (`sigkill-service-during-work`, the service settles no push records within 30 s) on the old and the new containers,
+ so that failure is not caused by the base image.
+Its image build: compile stage 284 s old, 277 s new; suite run 47 s old, 48 s new; base cold build 131 s old, 94 s new.
