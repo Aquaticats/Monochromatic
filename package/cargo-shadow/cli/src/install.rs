@@ -770,6 +770,13 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<InstallReport, InstallError>`.
     let outcome: Result<InstallReport, InstallError> = update_stale_roots(request, &before, &produced);
+    // A process that cargo started could not be stopped: it may still write the lockfiles, so they are neither rolled back nor
+    // accepted. The transaction is dropped without `finish`, the journal stays, and the command does not run (round 6, 5c N2).
+    if transaction.writers_may_remain() {
+        return Err(InstallError::Unsettled {
+            message: "cargo-shadow: a process started by cargo could not be stopped, so it may still write the lockfiles; they were not rolled back or accepted, the journal of this run was kept and the next run settles it, and the command was not run".to_string(),
+        });
+    }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.
     // Typed binding: `keep: bool`.

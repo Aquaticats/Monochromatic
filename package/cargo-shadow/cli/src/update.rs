@@ -1117,6 +1117,10 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // Borrow `&before`: lends the value without copying or giving it away.
     // Typed binding: `outcome: Result<UpdateReport, UpdateError>`.
     let outcome: Result<UpdateReport, UpdateError> = run_update(request, kind, &before, &produced, &edits, &transaction);
+    // See `install_rust_lockfiles`: writers that may remain forbid both the rollback and the acceptance (round 6, 5c N2).
+    if transaction.writers_may_remain() {
+        return Err(other_text("a process started by cargo could not be stopped, so it may still write the lockfiles and manifests; they were not rolled back or accepted, the journal of this run was kept and the next run settles it"));
+    }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.
     // Typed binding: `keep: bool`.
