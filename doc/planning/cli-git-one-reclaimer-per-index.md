@@ -136,3 +136,25 @@ index fail the commit at `LOCK_CEILING`, against "Commits should never fail."
 
 A lock removed by hand (a person running `rm`), and a Git on another host sharing the filesystem, are not parties to any
 serialization this service can make.
+
+## What was built
+
+B1, at all three reclaim sites, in `package/git-policy/cli/src/native/landing/service_index_reclaim.rs`:
+`reclaim_if` opens the lock with `O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC`, reads the marker from that descriptor, takes
+`LOCK_EX | LOCK_NB` on it, checks device and inode against the name, and unlinks the name through `Platform::unlink`.
+It answers `Removed`, `Changed`, `Busy`, `Kept` or `Stuck`; `remove_stale` ignores the answer, `try_acquire_on` places again after
+`Removed` and `Changed` and otherwise leaves the batch open, and `wait_and_place` continues after `Removed` and `Changed`,
+fails with `Unavailable` after `Stuck`, and waits as for any held lock after `Busy` and `Kept`.
+The lock is on the inventory in `source_guard/service_lock_inventory_tests.rs` with its reason above the call.
+
+Controls in `service_index_reclaim_tests.rs`:
+- red first (`dd37f0c462`), green now: `a_live_lock_found_by_a_late_reclaimer_is_never_open_to_a_third_program`;
+- refused: `a_second_reclaimer_of_one_stale_lock_backs_off_while_the_first_holds_it`,
+  `a_reclaimer_whose_judged_file_was_replaced_removes_nothing`, `a_lock_placed_after_the_stale_one_was_found_is_not_removed`,
+  `a_foreign_lock_and_a_running_holders_lock_stay`, `a_landing_waits_for_the_reclaimer_that_holds_a_stale_lock`;
+- allowed: `a_stale_lock_is_removed_and_leaves_no_file`, `a_reclaimer_that_backed_off_can_reclaim_once_the_hold_is_dropped`.
+
+Each guard was shown to matter: with the `flock` result ignored, the controls for the backed-off reclaimer and the landing's
+wait fail; with the inode comparison always true, the controls for a replaced file fail.
+
+Not exercised: a file system that gives no `flock` (`Hold::Unavailable`), which no fixture on this host can be made to have.
