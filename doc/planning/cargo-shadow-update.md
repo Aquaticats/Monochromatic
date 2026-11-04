@@ -469,3 +469,58 @@ and the owner's veto is open when they are back.
 Still open:
 nothing from the earlier list;
 the cost of the git start on every call is the one thing to look at again.
+
+## Review findings of the fifth cross-vendor review (started 2026-11-04T01:50:38Z)
+
+Owner answer, round 6: "Warn past a count, never refuse (Recommended)".
+Past 1,000 kept files every run prints the count, the total size and the folder; nothing is refused or deleted.
+The 1,000 is a warning point carried over from round 5 and open to veto; the rate at which files are kept was not measured.
+
+Fixed, each with a red test committed before the fix:
+
+- Kept folder: a notice instead of a refusal (`a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_refuses`),
+  and an unreadable folder is reported instead of read as small.
+  The notice counts the kept folder only; files kept beside their target and stranded temporaries are reported by the recovery
+  (`report_leftover_temporaries`), so a reservation of capacity before a transaction is overtaken by the owner's answer.
+- Cleanup advice never recommends copying and deleting (`the_exhausted_names_advice_does_not_recommend_archiving_and_names_the_open_file_risk`).
+- Finish: a failed durability barrier stops the command and a refusal survives it; only a journal that cannot be removed after its
+  durable marker is a warning (`an_accepted_run_whose_outputs_cannot_be_forced_to_disk_stops_the_command`,
+  `a_refusal_with_a_failed_durability_barrier_keeps_the_refusal_and_names_the_barrier`,
+  `an_accepted_run_whose_journal_cannot_be_removed_afterwards_still_passes`).
+- Journals are listed after the workspace lock; an unreadable or malformed group record is a survivor; a survivor of one journal
+  holds back every recovery and every new transaction (`a_group_record_that_cannot_be_read_defers_the_recovery`,
+  `a_malformed_group_record_defers_the_recovery`, `a_survivor_of_one_journal_stops_the_recovery_of_another`,
+  `a_new_transaction_does_not_start_beside_a_survivor`).
+  Not tested: a journal published between the listing and the lock (the order is by construction now).
+- A journal without a ready record is removed only when lockfiles, manifest snapshots and unknown files are all accounted for and the
+  live files are durable; the ready record names exactly the payload the indexes imply
+  (`an_unready_journal_whose_manifest_differs_from_its_snapshot_is_kept`, `an_unready_journal_that_lost_its_index_but_holds_snapshots_is_kept`,
+  `an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable`, `a_ready_record_that_omits_a_manifest_snapshot_is_rejected`,
+  `a_ready_record_with_a_duplicate_entry_is_rejected`, `a_ready_record_with_an_unexpected_entry_is_rejected`).
+- The kept file's directory entries are synced up to the directory that holds the replaced file, which is the durable anchor
+  (`every_ancestor_of_the_kept_directory_is_synced_up_to_the_directory_that_holds_the_target`).
+- A failed lockfile root keeps the warnings of the others and does not stop their restore
+  (`a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others`).
+- Containment: the process tree, not the group, bounds a run (this process is a child subreaper while it runs);
+  the child records its own group before it executes anything, and a child whose group cannot be recorded is not started;
+  the record belongs to a scope owned by the transaction (nesting and any drop order are correct, and a transaction stays on its thread);
+  pipe workers are cancelled when the call ends; a descendant that cannot be stopped makes install and update stop with the journal kept
+  (`a_writer_in_another_session_is_stopped_before_a_normal_exit_returns`, `a_writer_in_another_session_is_stopped_at_the_bound`,
+  `a_child_whose_group_cannot_be_recorded_is_not_started`, `nested_transactions_keep_their_own_records`,
+  `a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete`,
+  `a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal`).
+  Zombies are not writers: the scan counts them as gone and reaps the adopted ones.
+- Git reader: a fatal or signalled Git is an operational failure, not "not a commit"; system-configuration answers are reused only for a
+  compiled program, keyed by its file identity and the variables that move the configuration, and the Git on the search path is the
+  one `execvp` would run; a declined native attempt counts its starts; object files are opened without waiting and inspected on the
+  descriptor; a commit is confirmed only under its own name (SHA-1), with Git's exact length rules and no bytes after a loose stream.
+- The command named in errors is POSIX-quoted (`an_argument_with_a_space_is_quoted`).
+
+Open picks, for the owner's veto:
+
+- Containment by the process tree and `PR_SET_CHILD_SUBREAPER` instead of a control group; the cost is that a descendant that outlives a
+  killed wrapper is found only through its recorded group.
+- One bounded run in flight per process.
+- The runner constants and the name-search ceilings are delegated picks, cited beside each value, not measurements.
+- The "else background" half of "Force at leaving, else background" is still not built.
+- A scan of `/proc` per run: 7.9 ms to 14.6 ms for 894 processes on 2026-11-04 (node, load average 6.7), twice per run at least.
