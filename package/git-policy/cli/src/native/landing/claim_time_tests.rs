@@ -169,3 +169,16 @@ fn the_machine_id_is_the_first_file_that_holds_one() {
     assert_eq!(machine_id_from(&[]), "");
     remove(directory.as_path());
 }
+
+/// A machine ID is 32 lowercase hexadecimal digits that are not all zero: anything else is no evidence of a machine, and taking it
+///  as one would make every such host look like the same machine.
+#[test]
+fn only_lowercase_hexadecimal_that_is_not_all_zero_is_a_machine_id() {
+    assert!(is_machine_id("0123456789abcdef0123456789abcdef"));
+    assert!(!is_machine_id("0123456789ABCDEF0123456789ABCDEF"), "uppercase");
+    assert!(!is_machine_id("00000000000000000000000000000000"), "all zero");
+    assert!(!is_machine_id("0123456789abcdef0123456789abcde"), "short");
+    assert!(!is_machine_id("0123456789abcdef0123456789abcdefa"), "long");
+    assert!(!is_machine_id("0123456789abcdef0123456789abcdeg"), "not hexadecimal");
+    assert!(!is_machine_id("uninitialized"), "a fresh image's text");
+}
