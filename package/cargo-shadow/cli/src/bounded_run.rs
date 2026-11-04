@@ -657,6 +657,8 @@ pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
 /// ```
 fn contain() -> Containment {
     let weaker = |unavailable: GroupUnavailable| -> Containment {
+        // The notice this run is given is part of the trace, so a test sees the notice of the run and not a text it formats itself.
+        trace(|| { return format!("notice {}", weaker_notice(&unavailable)); });
         WEAKER_NOTICE.call_once(|| { eprintln!("{}", weaker_notice(&unavailable)); });
         return Containment::ProcessGroup;
     };

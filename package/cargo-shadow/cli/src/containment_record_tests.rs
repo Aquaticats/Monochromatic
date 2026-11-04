@@ -113,6 +113,7 @@ fn each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_be
         let root = repository();
         let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
         let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
+        let _ = crate::bounded_run::take_trace_for_test();
         let seen_at_start: Rc<RefCell<String>> = Rc::new(RefCell::new(String::new()));
         let observer: Rc<RefCell<String>> = Rc::clone(&seen_at_start);
         let watched: PathBuf = journal.join("groups");
@@ -123,6 +124,11 @@ fn each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_be
         use_route_settings_for_test(None);
 
         let output = result.expect(class);
+        // The notice the run itself gave (certification, second pass): one per run, with the class's reason and the promised wording.
+        let given: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("notice "); }).collect();
+        assert_eq!(given.len(), 1, "{class}: the run gave {} notices: {given:?}", given.len());
+        assert_eq!(given[0], format!("notice {notice}"), "{class}: the run's notice is not the one for this class");
+        assert!(given[0].contains(words) && given[0].contains("quiescence is not shown") && given[0].contains("cargo-shadow acknowledge"), "{class}: {}", given[0]);
         assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ok", "{class}");
         assert_eq!(seen_at_start.borrow().as_str(), "pgroup starting\n", "{class}: the announcement was not on disk before the start");
         let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
