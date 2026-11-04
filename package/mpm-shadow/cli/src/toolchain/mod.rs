@@ -335,6 +335,9 @@ mod fakes_cargo;
 #[cfg(test)]
 mod cargo_installs_tests;
 
+/// The failure of a repository crate whose `cargo binstall` found no usable release archive.
+pub mod binstall_no_archive;
+
 /// The unit tests of the `cargo binstall` command: which crates may fall back to compiling.
 #[cfg(test)]
 mod install_cargo_tests;
