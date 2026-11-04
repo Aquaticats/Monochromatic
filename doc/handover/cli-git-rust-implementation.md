@@ -550,6 +550,21 @@ directories that existed before the transaction are durable;
 the journal resolves to the same mount and inode at recovery,
 else recovery refuses;
 the weaker path promises what pnpm promises and its recovery waits for a person's acknowledgment.
+cargo-shadow contract (`doc/planning/cargo-shadow-guarantees.md` on `feat/cargo-shadow-cli`,
+`29af137137`):
+cross-vendor review `cargo-shadow-sol-contract-1.txt` "fit after the named edits",
+with a finite acceptance list (sixteen rows) and "No remaining round-7 safety finding inherently requires going another adversarial level deeper.";
+the delegated-scope probe works (`systemd-run --user --scope --property=Delegate=yes`;
+strace showed no cgroup file opened by cargo-shadow;
+`user.delegate` appears only on `user@1000.service`).
+Coordinator's picks for the two choices it left open (veto open):
+a verified-absent scope is proof of no members (systemd removes a scope only when empty or after stopping its members),
+scope names carry a random token and are never reused while a journal can name them;
+every wait cargo-shadow controls has a deadline,
+and blocking kernel and file-system calls rest on a stated storage-progress assumption mirroring "Assume the final disk save would never be cut short.".
+Round 8 started:
+the contract edits,
+then every row of the acceptance list with a coverage map.
 cargo-shadow P1 re-review (round 7):
 7a "not closed" (F1 to F6:
 the spawn lock does not stop capturing another thread's child;
