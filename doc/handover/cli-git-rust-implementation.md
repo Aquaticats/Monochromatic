@@ -3745,6 +3745,57 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   Known gap the agent left:
   `RERUNNABLE` names `symbolic-ref` and `init` in every form,
   and the cut experiment never ran them.
+  Round-2 reviews returned 2026-11-04,
+  both "correct after named fixes".
+  sol-1:
+  a provisional `withdrawn` decision can be acknowledged by a second withdrawer,
+  so the commit lands while the command says it was withdrawn;
+  digit-only side refs do not rule out a reflog or a symbolic ref;
+  `fast-import` is allowed by name;
+  reading captured output has no bound;
+  `.tmp` decision files leak on a failed write.
+  sol-2:
+  a review that panics after its timeout leaves service reviews refused until restart;
+  admission is not atomic;
+  the timeout path still waits on `child.wait()`;
+  `has_shadow_log` runs outside containment.
+  Round 2 still merges after gate r7 (it narrows the 0.5.31 and 0.5.32 races;
+  owner rule "Treat reviews as async.");
+  every finding went to the agent as round 3.
+  Owner answers (question tool,
+  2026-11-04,
+  verbatim choices):
+  - Foreign-owner patience:
+    "Refuse and name it (Recommended)"
+    (option B:
+    an expired record from another PID namespace stops the command,
+    changes nothing,
+    and names the record,
+    its owner's PID and namespace,
+    its age and the exact `rm`;
+    the `rm` condition also covers Git processes the wrapper left running,
+    the reviewer's addition;
+    applies to merge intent recovery,
+    claim takeover and worktree-copy journals).
+    Sent to agent `aa0fee0c2cf70bb31` with round 3.
+  - Commit notices (commit protocol plan question 4):
+    "Line plus what was kept"
+    (option B,
+    not the ranked-first one-line option:
+    every outcome prints its first line,
+    then the indented `kept:` lines and their siblings from the drafts;
+    command names stay placeholders).
+    Sent to the models agent `a9c775c9196f1d836` as decision 24.
+  Models agent:
+  step 1 (the real state document as `LaneDocument`,
+  `commit_lane_state.rs`) built;
+  `native:test:model` 499 passed,
+  both clippy tasks clean,
+  `source_guard` 39 of 39;
+  decisions 21 to 23 recorded (`e2df97729c`);
+  next:
+  the reclamation-during-capture and disposal models,
+  then a review bundle for the coordinator.
   - Every other live pick in `doc/planning/cli-git-delegated-picks-status.md`,
     asked in seven grouped questions,
     each answered "Keep all (Recommended)":
