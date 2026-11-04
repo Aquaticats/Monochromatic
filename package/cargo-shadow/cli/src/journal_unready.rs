@@ -351,16 +351,16 @@ fn assess(directory: &Path) -> Option<Finding> {
     let mut unsettled: Vec<PathBuf> = Vec::new();
     // The whole record is read first: the launcher line of a scope comes after the scope line, and a scope is judged by it.
     let records: Vec<Result<Record, String>> = text.lines().map(parse_record).collect();
-    let settled_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Settled { path }) = record { Some(path) } else { None }; }).collect();
-    let scope_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Scope { path, .. }) = record { Some(path) } else { None }; }).collect();
+    let settled_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Settled { path: settled_path }) = record { Some(settled_path) } else { None }; }).collect();
+    let scope_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Scope { path: listed_path, .. }) = record { Some(listed_path) } else { None }; }).collect();
     for record in &records {
-        if let Ok(Record::Launcher { path, .. }) = record
-            && !scope_paths.contains(&path)
+        if let Ok(Record::Launcher { path: noted_path, .. }) = record
+            && !scope_paths.contains(&noted_path)
         {
             note_uncertain(format!(
                 "{}: the record notes a launcher for the scope {}, which the journal does not list, so what it shows cannot be used; {hint}",
                 directory.display(),
-                path.display()
+                noted_path.display()
             ));
         }
     }
@@ -376,8 +376,8 @@ fn assess(directory: &Path) -> Option<Finding> {
                 // what the scope shows afterwards is final; one that is alive keeps blocking, and no acknowledgement overrides it.
                 let settled: bool = settled_paths.contains(&&scope_path);
                 let launcher: Option<(i32, u64, u64)> = records.iter().rev().find_map(|other| {
-                    return if let Ok(Record::Launcher { pid, start, pid_namespace, path }) = other
-                        && *path == scope_path
+                    return if let Ok(Record::Launcher { pid, start, pid_namespace, path: noted_path }) = other
+                        && *noted_path == scope_path
                     {
                         Some((*pid, *start, *pid_namespace))
                     } else {

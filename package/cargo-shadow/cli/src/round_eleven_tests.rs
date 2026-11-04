@@ -68,12 +68,10 @@ fn live_lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("lock");
 }
 
-/// A process that stands for a launcher that has not reached the manager: it waits at a gate file, then becomes `sleep`.
+/// A process that stands for a launcher that has not reached the manager: it waits at a gate file that the tests never create.
 struct HeldLauncher {
     /// The process.
     child: Child,
-    /// The file whose creation lets it go on.
-    gate: PathBuf,
 }
 
 /// The methods of the held launcher.
@@ -89,7 +87,7 @@ impl HeldLauncher {
             .stderr(Stdio::null())
             .spawn()
             .expect("starts the held launcher");
-        return HeldLauncher { child, gate };
+        return HeldLauncher { child };
     }
 
     /// The process id.
