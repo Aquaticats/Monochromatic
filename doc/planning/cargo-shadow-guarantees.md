@@ -678,6 +678,10 @@ the tests that discriminate; the planted regressions that turned the old asserti
 to judge them again: no row is certified by this map.
 The shared helper `journal_dirs` now stops on every listing error except the initial absence of the journal directory
 (`the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty`, red against the old helper).
+Suite counts at the round 18 code tip `c82ee474fc` (written 2026-11-04T15:22:00-05:00): the debug run and the release gate each ran
+634 tests: 634 passed, 0 failed, 14 skipped (the thirteen `#[ignore]` helper entries of before and the helper of
+`each_missing_capability_class_prints_the_notice_on_the_real_standard_error`); `lint:clippy` with warnings denied is clean; logs
+`/home/user/temp/agent/r18-debug.log`, `r18-gate.log`, `r18-clippy.log`.
 Suite counts at the round 17 code tip `8e009bc256` (written 2026-11-04T14:50:00-05:00): the debug run and the release gate each ran
 618 tests: 618 passed, 0 failed, 13 skipped (the same thirteen `#[ignore]` helper entries); `lint:clippy` with warnings denied is
 clean; logs `/home/user/temp/agent/r17-debug.log`, `r17-gate.log`, `r17-clippy.log`.
