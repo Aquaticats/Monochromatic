@@ -75,7 +75,19 @@ fn replace_root_without_disposed(lane: &Path, writer: &mut StateWriter, state: &
         .with_state(document.state().clone());
     // Several disposals can be pending at once (their lines durable, their replacements not): every omitted item is named, or the non-drop
     // check would refuse the one whose name was left out.
-    let retired: Vec<String> = document.saved().iter().filter(|held| { return !replacement.saved().contains(held); }).map(|held| { return key_of(held); }).collect();
+    // The previous root holds an item by its document or by its retained set alone (the public append admits a set that over-approximates the
+    // document), and the non-drop check needs the name of each item the replacement leaves out, whichever way it was held.
+    let held_by_closure = selected.items.iter().filter_map(|entry| { return entry.path().strip_prefix("saved").ok().and_then(|name| { return name.to_str(); }).map(str::to_string); });
+    let retired: Vec<String> = document
+        .saved()
+        .iter()
+        .cloned()
+        .chain(held_by_closure)
+        .filter(|held| { return !replacement.saved().contains(held); })
+        .map(|held| { return key_of(&held); })
+        .collect::<std::collections::BTreeSet<String>>()
+        .into_iter()
+        .collect();
     let candidate = writer.begin_checkpoint_reclaiming_retiring(selected.generation + 1, &replacement, &closure, &retired)?;
     fault_point("disposal:after-candidate");
     return writer.complete_checkpoint(&candidate);

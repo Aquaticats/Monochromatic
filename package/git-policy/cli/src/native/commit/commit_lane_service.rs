@@ -3,13 +3,20 @@
 //!  and a loop that runs the syncer's pass when it is rung and when a pass is due.
 //! Why:
 //!  Plan step 3. A client that finds a service running rings it and creates nothing else; a unit that died after its execution (the manager
-//!  confirms an execution, not a sweep) leaves its receipts to the next pass, which is this loop's periodic one, so a receipt waits no longer
-//!  than a pass interval for a service that is alive (a service that has died, or never started, serves nothing: the next client's ring finds
-//!  nobody and launches a flusher, and the next start sweeps). The doorbell is a datagram socket in the lane directory, `service.ring`,
-//!  reached through the lane directory's descriptor (a socket path is limited to a little over a hundred bytes, a lane path need not be),
-//!  so that only who may write the lane directory may bind or replace it (an abstract name belongs to the whole network namespace and to
-//!  anyone). One service owns a lane at a time, by an exclusive lock on `service.lock`. A send never blocks: a full queue means rings are
-//!  waiting that one pass will serve. The switch is the flag: without it the service touches no lane, which is how the shipped unit files run it.
+//!  confirms an execution, not a sweep) leaves its receipts to the next pass, which is this loop's periodic one. Passes start at most one
+//!  interval apart while each takes less than an interval; that is a spacing of pass starts and no bound on the time from a receipt to its
+//!  forcing (a pass that waits on the file system takes as long as the file system takes, and a pass over receipts that keep arriving
+//!  sweeps one round and is followed at once by the next). A service that has died, or never started, serves nothing: the next client's
+//!  ring finds nobody and launches a flusher, and the next start sweeps. The doorbell is a datagram socket in the lane directory,
+//!  `service.ring`, reached through the lane directory's descriptor (a socket path is limited to a little over a hundred bytes, a lane path
+//!  need not be), so that only who may write the lane directory may bind or replace it (an abstract name belongs to the whole network
+//!  namespace and to anyone). A ring is sent only to a socket that is private to the account (a link or another account's socket is not
+//!  this lane's service). One service owns a lane at a time, by an exclusive lock on `service.lock`, which is also what keeps two services
+//!  that meet at a stale doorbell from both starting: the lock is held for the life of the service, not only through the binding. The lane
+//!  directory is checked once and every later step goes through that descriptor, so a rename of the lane or of a directory above it after
+//!  the check changes nothing the service touches; the directories above the lane are not checked, and a directory above that other accounts
+//!  can rename into can still change what the name leads to before the check. A send never blocks: a full queue means rings are waiting that
+//!  one pass will serve. The switch is the flag: without it the service touches no lane, which is how the shipped unit files run it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,8 +40,8 @@ pub const RING_FILE: &str = "service.ring";
 /// The lock file that makes one service the owner of a lane.
 pub const SERVICE_LOCK: &str = "service.lock";
 
-/// The interval between passes when nobody rings. A unit that died after its execution leaves its receipts to the next pass, so this is how
-/// long such a receipt can wait for a running service. It is the service start ceiling (one minute; measured basis there: the slowest of 52
+/// The interval between passes when nobody rings. A unit that died after its execution leaves its receipts to the next pass, so this is the
+/// spacing at which a running service looks for such a receipt (not a bound on the time until it is forced). It is the service start ceiling (one minute; measured basis there: the slowest of 52
 /// cold starts took 1,041 ms); no workload gives a rate of dead units, so the value is a pick with the owner's veto open, and
 /// `--lane-interval-millis` overrides it for a test.
 pub const SYNC_INTERVAL: Duration = crate::wait_ceilings::START_CEILING;

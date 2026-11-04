@@ -385,3 +385,27 @@ fn a_frozen_clock_does_not_make_two_launches_share_a_unit_name() {
     git_policy_cli::commit_flusher_unit::inject_frozen_clock(None);
     assert_ne!(first, second);
 }
+
+/// The fifth review: the lane is checked once and used through its descriptor. A lane that is renamed after the service started is still
+/// the directory the service works on: the pass creates its flusher lock in the renamed directory, and a new directory at the old name is
+/// not touched.
+#[test]
+fn the_real_service_works_on_the_directory_it_checked_even_when_the_name_leads_elsewhere_afterwards() {
+    let lane: PathBuf = lane_with_receipts("service-pinned");
+    let service = start_service("pinned", Some(&lane), Some("120"));
+    service.wait_for_line("lane startup complete");
+    let moved: PathBuf = lane.with_file_name(format!("{}-moved", lane.file_name().expect("a name").to_string_lossy()));
+    fs::rename(&lane, &moved).expect("the lane is renamed");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("another directory at the old name");
+    fs::write(moved.join(RECEIPT_DIR).join(RECEIPT_ID), b"receipt").expect("a receipt in the checked directory");
+    let passes: usize = service.count_lines("lane pass complete");
+    let deadline: Instant = Instant::now() + WAIT;
+    while service.count_lines("lane pass complete") < passes + 2 {
+        assert!(Instant::now() < deadline, "the service ran no pass");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(moved.join(FLUSHER_LOCK).exists(), "the service did not work on the directory it had checked");
+    let mut at_the_old_name: Vec<String> = fs::read_dir(&lane).expect("the directory").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    at_the_old_name.sort();
+    assert_eq!(at_the_old_name, [RECEIPT_DIR.to_string()], "the service touched the directory that took the name afterwards");
+}

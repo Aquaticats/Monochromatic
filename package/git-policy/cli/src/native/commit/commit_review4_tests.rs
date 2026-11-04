@@ -394,6 +394,9 @@ fn a_healthy_concurrent_seal_does_not_make_a_selection_report_damage() {
     assert!(SEEN.with(|seen| { return seen.borrow().iter().any(|note| { return note == "sealed"; }); }), "the hook never ran inside the selection");
     seen();
     assert!(!matches!(selected, Err(StateError::Damaged)), "a healthy concurrent seal made the selection report damage");
+    // Not only "not damaged": a healthy selection succeeds, and it selects the record the departure saw or the checkpoint that replaced it.
+    let root = selected.expect("a healthy concurrent seal made the selection fail").expect("a root");
+    assert!(root.generation >= 1, "{:?}", root.generation);
 }
 
 /// The hook of the selection race: a seal, once.
@@ -463,13 +466,16 @@ fn an_old_flusher_and_a_new_one_run_at_the_same_time_over_arriving_receipts() {
     let new_barrier = barrier.clone();
     let new = std::thread::spawn(move || {
         new_barrier.wait();
-        let mut outcomes: usize = 0;
+        let mut held: usize = 0;
+        let mut forced: usize = 0;
         for _ in 0..40 {
-            flush_lane(&new_lane).expect("the new flusher");
-            outcomes += 1;
+            match flush_lane(&new_lane).expect("the new flusher") {
+                git_policy_cli::commit_flusher::Flushed::Held => held += 1,
+                git_policy_cli::commit_flusher::Flushed::Finished { forced: count } | git_policy_cli::commit_flusher::Flushed::Handed { forced: count } | git_policy_cli::commit_flusher::Flushed::Yielded { forced: count } => forced += count,
+            }
             std::thread::yield_now();
         }
-        return outcomes;
+        return (held, forced);
     });
     barrier.wait();
     for number in 0..80 {
@@ -477,7 +483,11 @@ fn an_old_flusher_and_a_new_one_run_at_the_same_time_over_arriving_receipts() {
         std::thread::yield_now();
     }
     assert!(old.join().expect("the old flusher") > 0);
-    assert_eq!(new.join().expect("the new flusher"), 40);
+    // The new flusher is never `Held` (there is no other new flusher; an old holder's lock is another name), and it forced receipts itself
+    // while the old holder held its lock: a new flusher that took the old lock name would be `Held` for as long as the old holder lives.
+    let (held, forced) = new.join().expect("the new flusher");
+    assert_eq!(held, 0, "the new flusher was held by the old flusher's lock");
+    assert!(forced > 0, "the new flusher forced nothing");
     assert_eq!(fs::read_dir(lane.join(RECEIPT_DIR)).expect("receipts").count(), 80, "a receipt is missing");
     flush_lane(&lane).expect("a last sweep forces whatever arrived after the others ended");
 }

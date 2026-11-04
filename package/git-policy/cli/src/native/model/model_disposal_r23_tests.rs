@@ -152,3 +152,16 @@ fn a_power_loss_ends_the_capture_the_writer_ownership_and_the_read() {
     let disposing: State = replay(initial(Rules::Ordered), steps, &[AUTHORIZES, APPENDS, LOSS]);
     assert!(!disposing.disposal_in_flight);
 }
+
+/// The fifth review of the diffs: the read of the root that the recheck-only control rests on is volatile. The schedule reaches a state in
+/// which the read was made (`checked`), and a power loss ends it; with the reset removed the read would survive the loss.
+#[test]
+fn a_power_loss_ends_a_read_of_the_root_that_was_actually_made() {
+    let schedule: [&str; 6] = [AUTHORIZES, APPENDS, FORCES_LINE, CHECKPOINTS, FORCES_ROOT, CHECKS];
+    let read_made: State = replay(initial(Rules::RecheckOnly), steps, &schedule);
+    assert!(read_made.checked, "the schedule never made the read the test is about");
+    let mut with_loss: Vec<&str> = schedule.to_vec();
+    with_loss.push(LOSS);
+    let after_loss: State = replay(initial(Rules::RecheckOnly), steps, &with_loss);
+    assert!(!after_loss.checked, "a read of the root survived a power loss");
+}

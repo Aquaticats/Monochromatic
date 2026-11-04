@@ -19,14 +19,15 @@ use git_policy_cli::commit_disposal::{DisposalAuthorization, dispose_saved_conte
 use git_policy_cli::commit_flusher::{RECEIPT_DIR, flush_lane};
 use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, inject_pending_child, launch_routed, pending_reaps};
 use git_policy_cli::commit_identity::set_fault_point;
-use git_policy_cli::commit_lane_lifecycle::{ClientStep, capture_lane_closure, client_after_accept, create_receipt, seal_for_shutdown, syncer_pass};
-use git_policy_cli::commit_lane_service::{bind_ring, ring_running_service};
+use git_policy_cli::commit_lane_lifecycle::{ClientStep, capture_lane_closure, client_after_accept, create_receipt, seal_for_shutdown, syncer_pass, syncer_pass_with};
+use git_policy_cli::commit_lane_service::{bind_ring, lock_service, ring_running_service, start_lane_service};
 use git_policy_cli::commit_state_log::{ClosureEntry, LaneDocument, StateWriter, create_saved_content, select};
 use std::cell::{Cell, RefCell};
 use std::ffi::CString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// The exit status of a child that died at its crash point.
 const CRASHED: i32 = 77;
@@ -318,6 +319,168 @@ fn a_pending_child_that_never_ends_does_not_stop_the_next_two_fallback_launches(
         return result;
     });
     assert_eq!(outcome, Some(0), "the second launch failed (1), the child left the list (2) or a thread was started (3)");
+}
+
+//endregion
+
+//region the lock and the doorbell that make one service the owner of a lane
+
+/// The fifth review of the diffs: the service lock is created private to the account, and a lock another account could open (it could take
+/// the exclusive lock and keep every service out) or that has another name (a hard link couples two lanes) is refused.
+#[test]
+fn the_service_lock_is_private_and_a_lock_others_can_open_or_a_second_name_of_one_is_refused() {
+    use std::os::unix::fs::PermissionsExt;
+    let lane: PathBuf = scratch("rev5-lock");
+    let held = lock_service(&lane).expect("the lock");
+    let mode: u32 = fs::metadata(lane.join("service.lock")).expect("the lock file").permissions().mode();
+    assert_eq!(mode & 0o077, 0, "the lock file was created open to the group or to others ({:o})", mode);
+    drop(held);
+    fs::set_permissions(lane.join("service.lock"), fs::Permissions::from_mode(0o644)).expect("open to others");
+    assert!(matches!(lock_service(&lane), Err(error) if error.kind() == io::ErrorKind::InvalidInput), "a lock others can open was taken");
+    fs::set_permissions(lane.join("service.lock"), fs::Permissions::from_mode(0o600)).expect("private again");
+    let other: PathBuf = scratch("rev5-lock-other");
+    fs::hard_link(lane.join("service.lock"), other.join("service.lock")).expect("a second name");
+    assert!(matches!(lock_service(&lane), Err(error) if error.kind() == io::ErrorKind::InvalidInput), "a lock with a second name was taken");
+}
+
+/// The fifth review of the diffs: the public start function itself enforces the lane boundary (the earlier control checked `validate_lane`
+/// only), and creates neither the lock nor the doorbell in a directory it refuses.
+#[test]
+fn the_public_start_function_refuses_a_writable_lane_a_linked_lane_directory_and_a_non_lane() {
+    use std::os::unix::fs::PermissionsExt;
+    let writable: PathBuf = scratch("rev5-start-writable");
+    fs::create_dir_all(writable.join(RECEIPT_DIR)).expect("receipt directory");
+    fs::set_permissions(&writable, fs::Permissions::from_mode(0o777)).expect("open to everyone");
+    assert!(start_lane_service(&writable, Duration::from_secs(60)).is_err(), "a lane everyone can write was started");
+    let linked: PathBuf = scratch("rev5-start-linked");
+    fs::create_dir_all(linked.join(RECEIPT_DIR)).expect("receipt directory");
+    let outside: PathBuf = scratch("rev5-start-outside");
+    std::os::unix::fs::symlink(&outside, linked.join("saved")).expect("a saved directory that is a link");
+    assert!(start_lane_service(&linked, Duration::from_secs(60)).is_err(), "a lane whose saved directory is a link was started");
+    let bare: PathBuf = scratch("rev5-start-bare");
+    assert!(start_lane_service(&bare, Duration::from_secs(60)).is_err(), "a directory with no receipt directory was started");
+    for lane in [&writable, &linked, &bare] {
+        assert!(!lane.join("service.lock").exists() && !lane.join("service.ring").exists(), "{} got a lock or a doorbell from a refused start", lane.display());
+    }
+}
+
+thread_local! {
+    /// The directory in which the paused service and the second service leave their markers.
+    static PAUSE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+/// Pauses the service at the point between its inspection of a stale doorbell and its removal of it, until the second service is done.
+fn pause_at_the_stale_socket(point: &str) {
+    if point != "service:before-stale-removal" {
+        return;
+    }
+    let Some(markers) = PAUSE.with(|cell| { return cell.borrow().clone(); }) else { return };
+    fs::write(markers.join("first-paused"), b"").expect("a marker");
+    let deadline: std::time::Instant = std::time::Instant::now() + Duration::from_secs(10);
+    while !markers.join("second-done").exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// The fourth review of the diffs: two services start on one lane with a stale doorbell. The first has inspected the stale socket and not
+/// yet removed it when the second starts. Exactly one of them may run: without the lock the second binds, and the first then removes the
+/// second's live socket and binds over it, so both run and one is unreachable.
+#[test]
+fn two_services_that_meet_at_a_stale_doorbell_are_not_both_started() {
+    let lane: PathBuf = scratch("rev5-stale-race");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    drop(bind_ring(&lane).expect("a service that died and left its doorbell"));
+    let markers: PathBuf = scratch("rev5-stale-markers");
+    let first_lane: PathBuf = lane.clone();
+    let first_markers: PathBuf = markers.clone();
+    let first = std::thread::spawn(move || {
+        return in_single_threaded_process(move || {
+            PAUSE.with(|cell| { *cell.borrow_mut() = Some(first_markers); });
+            set_fault_point(Some(pause_at_the_stale_socket));
+            return if start_lane_service(&first_lane, Duration::from_secs(60)).is_ok() { 0 } else { 1 };
+        });
+    });
+    let deadline: std::time::Instant = std::time::Instant::now() + Duration::from_secs(10);
+    while !markers.join("first-paused").exists() {
+        assert!(std::time::Instant::now() < deadline, "the first service never reached the stale doorbell");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let second_lane: PathBuf = lane.clone();
+    let second_markers: PathBuf = markers.clone();
+    let second: Option<i32> = in_single_threaded_process(move || {
+        let started: bool = start_lane_service(&second_lane, Duration::from_secs(60)).is_ok();
+        fs::write(second_markers.join("second-done"), b"").expect("a marker");
+        return if started { 0 } else { 1 };
+    });
+    let first: Option<i32> = first.join().expect("the first service's process");
+    let started: usize = [first, second].iter().filter(|status| { return **status == Some(0); }).count();
+    assert_eq!(started, 1, "the first service ended with {:?} and the second with {:?}: exactly one may run", first, second);
+}
+
+/// The fifth review of the diffs: the probe of a stale-looking doorbell is not blocking either. A receiver that is bound and never reads has
+/// a full queue; the probe of a second service must report it as answering, at once, and not wait.
+#[test]
+fn the_probe_of_a_doorbell_whose_queue_is_full_does_not_block() {
+    let lane: PathBuf = scratch("rev5-probe-full");
+    let _receiver = bind_ring(&lane).expect("a bound receiver that never reads");
+    let qlen: usize = fs::read_to_string("/proc/sys/net/unix/max_dgram_qlen").ok().and_then(|text| { return text.trim().parse::<usize>().ok(); }).unwrap_or(512);
+    let child_lane: PathBuf = lane.clone();
+    let outcome: Option<i32> = in_single_threaded_process(move || {
+        for _ in 0..qlen * 4 {
+            if !matches!(ring_running_service(&child_lane), Ok(true)) {
+                return 1;
+            }
+        }
+        return if matches!(bind_ring(&child_lane), Err(error) if error.kind() == io::ErrorKind::AddrInUse) { 0 } else { 2 };
+    });
+    assert_eq!(outcome, Some(0), "a ring failed (1), the probe blocked (None) or did not report the service (2)");
+}
+
+//endregion
+
+//region the error record cleared in place
+
+/// The fifth review of the diffs: a hard link put in the record's place between the pass's read and its clearing (to a file that holds the
+/// same bytes) is refused, and the file it leads to is not truncated.
+#[test]
+fn a_hard_link_in_the_error_records_place_is_refused_at_the_clearing() {
+    let lane: PathBuf = scratch("rev5-record-hardlink");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt");
+    fs::write(lane.join("receipt-errors"), b"r1\told\n").expect("the record");
+    let outside: PathBuf = lane.join("outside-the-record");
+    fs::write(&outside, b"r1\told\n").expect("a file with the record's bytes");
+    let replace_lane: PathBuf = lane.clone();
+    let target: PathBuf = outside.clone();
+    let pass = syncer_pass_with(&lane, &mut || {
+        fs::remove_file(replace_lane.join("receipt-errors")).expect("remove the record");
+        fs::hard_link(&target, replace_lane.join("receipt-errors")).expect("a hard link in its place");
+    });
+    assert!(pass.is_err(), "the clearing accepted a hard link in the record's place");
+    assert_eq!(fs::read(&outside).expect("the target"), b"r1\told\n", "the file the hard link leads to was truncated");
+}
+
+//endregion
+
+//region recovery that finishes a disposal a newer record retains only in its closure
+
+/// The fifth review of the diffs: a crash after the `disposed` line, and then a newer record that retains the item only in its closure
+/// (admitted by the public append). Recovery must replace that root and finish the disposal; without the closure test it refuses the unlink
+/// and fails on every start.
+#[test]
+fn recovery_finishes_a_disposal_that_a_newer_record_retains_only_in_its_closure() {
+    let (lane, state, name) = lane_with_saved("rev5-closure-only-recovery");
+    let (child_lane, child_state, child_name) = (lane.clone(), state.clone(), name.clone());
+    assert_eq!(crash_at("disposal:after-line", move || { let _ = dispose_saved_content(&child_lane, &child_state, &DisposalAuthorization::explicit(&child_name)); }), Some(CRASHED));
+    let saved: ClosureEntry = ClosureEntry::capture_sealed_saved(&lane, &lane.join("saved").join(&name)).expect("the item is still on disk");
+    let mut items: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let document: LaneDocument = LaneDocument::from_closure(&items).expect("a document that does not list the item");
+    items.push(saved);
+    let generation: u64 = select(&state).expect("readable").expect("root").generation + 1;
+    StateWriter::acquire(&state).expect("writer").append_with(generation, &document.encode(), &items).expect("an over-approximating record is admitted");
+    assert_eq!(resume_disposals(&lane, &state).expect("the recovery finishes the disposal"), 1);
+    assert!(!lane.join("saved").join(&name).exists(), "the item is still there");
+    assert_eq!(resume_disposals(&lane, &state).expect("a second recovery"), 0, "nothing is left to finish");
 }
 
 //endregion

@@ -28,7 +28,8 @@ use super::commit_integrity::sha256_hex;
 /// Opens a file that must be a regular file: without following a link and without blocking, and refused when it is a FIFO, a device or a
 /// directory. A file of the lane or of the state directory can be put there by anyone who can write the directory, and a FIFO named like a
 /// log or a ledger would otherwise block recovery for ever. The type is read from the descriptor that was opened, so a swap of the name
-/// after the open changes nothing.
+/// after the open changes nothing. Not blocking at the open is all `O_NONBLOCK` gives: it does not put a deadline on a read of a regular
+/// file, which waits on the file system for as long as the file system takes.
 pub(super) fn open_regular(path: &Path) -> io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
     let file: File = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
