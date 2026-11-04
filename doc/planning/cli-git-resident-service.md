@@ -623,6 +623,18 @@ repository. A claim that was held by a service that died is taken back when its 
 three times in that span while it works, so a push that outlasts the lease keeps its claim) and the item is tried again up to
 three times. Items of other kinds, the standards review, are never claimed.
 
+A service that starts looks at its repositories without a wake (2026-11-04, `service_claim_watch.rs`). Before this, the service
+learned which repository to drain only from a wake, which only a commit sends, so a service killed while it held a claim was
+started again by the next connection and then had nothing to drain until the next commit, which might never come: the backup
+push of the last commit of the day waited without a bound ("nothing should ever wait forever or indefinitely"). The work thread
+now writes the Git directory of every wake it is about to drain as one small file in `claim-watch/` of the instance's own journal
+(once per directory per process, before the first claim, never on the landing thread), and a starting service reads those files
+and puts each directory on the same schedule that the lease wake uses, due after the schedule's one second of slack. That pass
+runs what is pending, takes back what has run out its lease, and says when the first claim still held will run out, which the
+schedule waits for; the service counts itself busy while the schedule is not empty, so it does not exit idle before then. A
+directory with no work directory any more has its file removed at the start. The bound after a kill is therefore the lease plus
+one pass, with no commit needed, and the lease still decides that a holder is dead: a claim renewed a moment ago is left alone.
+
 How a claim is held (2026-11-01, the service queue fix). A claim is one file in `claimed/` named
 `<id>~<generation>~<boot id>~<monotonic ms>~<wall s>`: the generation is unique to one acquisition and the last two parts are
 the holder's clock reading at its last renewal. A renewal renames the file to the same name with a new reading, and a

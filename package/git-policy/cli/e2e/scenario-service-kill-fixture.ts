@@ -13,6 +13,12 @@
 import { setTimeout as sleep, } from 'node:timers/promises';
 
 import { synthesizeText, } from './content-fixture.ts';
+import type { SeededRandom, } from './seeded-random-fixture.ts';
+import type { RepositoryOptions, } from './repository-model-fixture.ts';
+import {
+  claimsHeldExpectation,
+  claimsRunExpectation,
+} from './scenario-claim-recovery-fixture.ts';
 import {
   FILE_BYTES,
   recoverAndCommit,
@@ -38,7 +44,10 @@ import {
 } from './scenario-queue-fixture.ts';
 import { planFaultOffset, } from './seeded-schedule-fixture.ts';
 import { waitForServiceWork, } from './service-settle-fixture.ts';
-import { waitForPushRecord, } from './work-record-fixture.ts';
+import {
+  readBranchTip,
+  waitForPushRecord,
+} from './work-record-fixture.ts';
 import {
   startAttempt,
   writeWorktree,
@@ -176,20 +185,36 @@ async function killServiceAtOffset(context: ScenarioContext,): Promise<Expectati
 }
 
 /**
+ Whether the commit after the kill wakes the restarted service.
+ */
+type FollowUp = 'commits' | 'none';
+
+/**
  Kills the service once it claimed the after-commit record of a landed commit.
  The claim is the earliest observable instant of the service's own after-commit work,
  so the kill comes while the push and the upkeep run.
+ Then it restarts the service and waits for the dead service's claims to be taken back.
 
  @param context - scenario context
+
+ @param followUp - `commits` makes a follow-up commit after the restart, whose wake reaches the service;
+ `none` runs no wrapper command and sends no wake,
+ so the claims can only be run by the restarted service itself
 
  @returns expectations
 
  @example
  ```ts
- await killServiceDuringWork(context);
+ await killServiceDuringWork({ context, followUp: 'none' });
  ```
  */
-async function killServiceDuringWork(context: ScenarioContext,): Promise<Expectations> {
+async function killServiceDuringWork({
+  context,
+  followUp,
+}: Readonly<{
+  context: ScenarioContext;
+  followUp: FollowUp;
+}>,): Promise<Expectations> {
   await writeWorktree({
     ...context,
     path: 'victim.txt',
@@ -216,33 +241,52 @@ async function killServiceDuringWork(context: ScenarioContext,): Promise<Expecta
     running: victim.running,
     states: ['claimed',],
   },);
+  /**
+   The commit the claimed records are about, the only one on the branch so far.
+   */
+  const commit = await readBranchTip(context.repository,);
   await context.repository
     .service
     .kill();
   /**
-   When the service died, with its claim on the landed commit's records.
+   When the service died, with its claims on the landed commit's records.
    */
   const killedAt = Date.now();
+  /**
+   What the dead service held.
+   */
+  const held = await claimsHeldExpectation({
+    repository: context.repository,
+    commit,
+  },);
   await context.repository
     .service
     .restart();
   /**
-   The follow-up commit wakes the restarted service, which finds the dead service's claims held and looks again when their lease is over.
+   Expectations of the follow-up commit; a restarted service with no follow-up gets no wake at all.
    */
-  const recovered = await recoverAndCommit(context,);
+  const recovered = followUp === 'commits' ? await recoverAndCommit(context,) : [];
   /**
    Records still waiting after the lease and the margin.
    */
   const unfinished = await waitForServiceWork({
     gitDir: context.repository.gitDir,
-    deadlineMilliseconds: CLAIM_RECOVERY_BUDGET_MS - (Date.now() - killedAt),
+    deadlineMilliseconds: Math.max(
+      0,
+      CLAIM_RECOVERY_BUDGET_MS - (Date.now() - killedAt),
+    ),
   },);
+  /**
+   How long after the kill the wait ended.
+   */
+  const recoveredAfter = Date.now() - killedAt;
   return [
     {
       name: 'service-killed-with-work-claimed',
       holds: arrival === 'record',
       detail: `the agent ${arrival} before the service claimed its record`,
     },
+    held,
     allSucceeded({
       name: 'agent-succeeds',
       attempts: [await victim.finished,],
@@ -250,10 +294,14 @@ async function killServiceDuringWork(context: ScenarioContext,): Promise<Expecta
     ...recovered,
     {
       name: 'killed-service-claims-recovered-within-lease',
-      holds: unfinished.length === 0,
-      detail: `${unfinished.join(', ',)} still unfinished ${String(Date.now() - killedAt,)} ms after the kill, `
+      holds: (unfinished.length === 0) && (recoveredAfter <= CLAIM_RECOVERY_BUDGET_MS),
+      detail: `${unfinished.length === 0 ? 'nothing' : unfinished.join(', ',)} unfinished ${String(recoveredAfter,)} ms after the kill, `
         + `a lease of ${String(CLAIM_LEASE_MS,)} ms and ${String(CLAIM_RECOVERY_MARGIN_MS,)} ms of margin`,
     },
+    await claimsRunExpectation({
+      repository: context.repository,
+      commit,
+    },),
   ];
 }
 
@@ -284,28 +332,64 @@ const serviceOffset: ScenarioDefinition = {
 };
 
 /**
- External kill of the service while it works on a landed commit's after-commit records.
+ Repository setup of the scenarios that kill the service while it works on a landed commit.
+
+ @param random - the scenario's seeded source
+
+ @returns repository options
+
+ @example
+ ```ts
+ repositoryOf(random);
+ ```
+ */
+function repositoryOf(random: SeededRandom,): RepositoryOptions {
+  return repositoryOptions({
+    seedFiles: seedTexts({
+      random,
+      paths: [
+        'victim.txt',
+        'follow-up.txt',
+      ],
+    },),
+    afterCommitRecords: true,
+  },);
+}
+
+/**
+ External kill of the service while it works on a landed commit's after-commit records,
+ followed by a commit whose wake reaches the restarted service.
  */
 const serviceDuringWork: ScenarioDefinition = {
   name: 'sigkill-service-during-work',
   group: 'concurrency',
   replayPlumbing: 'unused',
   summary: 'SIGKILL the commit service once it claimed a landed commit\'s push record, restart it, recover, and wait out the claim\'s lease',
-  repository(random,) {
-    return repositoryOptions({
-      seedFiles: seedTexts({
-        random,
-        paths: [
-          'victim.txt',
-          'follow-up.txt',
-        ],
-      },),
-      afterCommitRecords: true,
+  repository: repositoryOf,
+  async run(context,) {
+    return await killServiceDuringWork({
+      context,
+      followUp: 'commits',
     },);
   },
-  run: killServiceDuringWork,
 };
 
+/**
+ The same kill with nobody committing afterwards: no wrapper command runs and no wake reaches the restarted service.
+ */
+const serviceThenIdle: ScenarioDefinition = {
+  name: 'sigkill-service-then-idle',
+  group: 'concurrency',
+  replayPlumbing: 'unused',
+  summary: 'SIGKILL the commit service once it claimed a landed commit\'s push record, restart it, send it nothing, and wait out the claim\'s lease',
+  repository: repositoryOf,
+  async run(context,) {
+    return await killServiceDuringWork({
+      context,
+      followUp: 'none',
+    },);
+  },
+};
 
 //endregion Workload
 
@@ -315,4 +399,5 @@ const serviceDuringWork: ScenarioDefinition = {
 export const SERVICE_KILL_SCENARIOS: readonly ScenarioDefinition[] = [
   serviceOffset,
   serviceDuringWork,
+  serviceThenIdle,
 ];
