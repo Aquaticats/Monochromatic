@@ -977,9 +977,15 @@ Package folders are exempt.
 
 LYD:
  Show who depends on whom in the tree:
- every source folder holds a `uses/` folder of links to the folders its code uses;
- two folders never use each other,
- and the package's lint fails when the code and the links disagree.
+ every source folder inside a crate holds a `uses/` folder of links to the folders its code uses.
+
+LYL:
+ Two source folders never use each other,
+ and the package's lint fails when a folder's `uses/` folder of links and its code disagree.
+
+LYC:
+ A crate lists the crates it uses in its `Cargo.toml` dependencies, never in a `uses/` folder;
+ cargo refuses loops between crates.
 
 LYF:
  Files inside one folder never use each other in a loop;
