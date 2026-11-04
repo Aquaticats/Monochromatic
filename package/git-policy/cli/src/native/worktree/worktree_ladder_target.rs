@@ -18,7 +18,7 @@ use crate::landed_summary::short_name;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::from_hex;
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{CommitFields, FlatEntry, flatten_tree, parse_commit, subject_of};
+use crate::repo_read_tree::{FlatEntry, flatten_tree, parse_commit, subject_of};
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean::head_commit;
@@ -62,11 +62,13 @@ pub struct Target {
 /// function attributeFiles(tree: FlatEntry[]): [Uint8Array, Uint8Array][];
 /// ```
 fn attribute_files(tree: &[FlatEntry]) -> Vec<(&[u8], &[u8])> {
-    return tree
-        .iter()
-        .filter(|entry: &&FlatEntry| { return entry.path == b".gitattributes" || entry.path.ends_with(b"/.gitattributes"); })
-        .map(|entry: &FlatEntry| { return (entry.path.as_slice(), entry.id.as_slice()); })
-        .collect();
+    let mut files: Vec<(&[u8], &[u8])> = Vec::new();
+    for entry in tree {
+        if entry.path == b".gitattributes" || entry.path.ends_with(b"/.gitattributes") {
+            files.push((entry.path.as_slice(), entry.id.as_slice()));
+        }
+    }
+    return files;
 }
 
 /// What:
@@ -112,11 +114,13 @@ const CONVERSION_KEYS: &[&str] = &[
 /// function conversionSettings(entries: ConfigEntry[]): [string, string | undefined][];
 /// ```
 fn conversion_settings(entries: &[ConfigEntry]) -> Vec<(String, Option<Vec<u8>>)> {
-    return entries
-        .iter()
-        .filter(|entry: &&ConfigEntry| { return entry.key.starts_with("filter.") || entry.key.starts_with("extensions.") || CONVERSION_KEYS.contains(&entry.key.as_str()); })
-        .map(|entry: &ConfigEntry| { return (entry.key.clone(), entry.value.clone()); })
-        .collect();
+    let mut settings: Vec<(String, Option<Vec<u8>>)> = Vec::new();
+    for entry in entries {
+        if entry.key.starts_with("filter.") || entry.key.starts_with("extensions.") || CONVERSION_KEYS.contains(&entry.key.as_str()) {
+            settings.push((entry.key.clone(), entry.value.clone()));
+        }
+    }
+    return settings;
 }
 
 /// What:
@@ -137,18 +141,39 @@ fn conversion_agrees(source: &[ConfigEntry], target: &[ConfigEntry]) -> Result<(
     if old == new {
         return Ok(());
     }
-    let first: usize = (0..old.len().max(new.len())).find(|index: &usize| { return old.get(*index) != new.get(*index); }).unwrap_or(0);
-    let key: String = old.get(first).or_else(|| { return new.get(first); }).map(|(name, _value): &(String, Option<Vec<u8>>)| { return name.clone(); }).unwrap_or_default();
+    // The first position where the two lists differ; the loop stops there, as `find` did.
+    let mut first: usize = 0;
+    for index in 0..old.len().max(new.len()) {
+        if old.get(index) != new.get(index) {
+            first = index;
+            break;
+        }
+    }
+    let named: Option<&(String, Option<Vec<u8>>)> = match old.get(first) {
+        Some(setting) => Some(setting),
+        None => new.get(first),
+    };
+    let key: String = match named {
+        Some((name, _value)) => name.clone(),
+        None => String::new(),
+    };
     return Err(format!("the conversion setting {key} differs between the source and the new worktree, or comes in another order"));
 }
 
 /// The attribute names a line of an attributes file applies as a filter, one per `filter=<name>` token.
 fn filters_named(text: &str) -> Vec<String> {
-    return text
-        .lines()
-        .filter(|line: &&str| { return !line.trim_start().starts_with('#'); })
-        .flat_map(|line: &str| { return line.split_whitespace().filter_map(|token: &str| { return token.strip_prefix("filter=").map(str::to_owned); }); })
-        .collect();
+    let mut names: Vec<String> = Vec::new();
+    for line in text.lines() {
+        if line.trim_start().starts_with('#') {
+            continue;
+        }
+        for token in line.split_whitespace() {
+            if let Some(name) = token.strip_prefix("filter=") {
+                names.push(name.to_owned());
+            }
+        }
+    }
+    return names;
 }
 
 /// The standard definition of the Git LFS filter, which converts a file by its content alone.
@@ -171,20 +196,86 @@ const LFS_FILTER: [(&str, &str); 4] = [
 /// ```ts
 /// function externalConversionRefusal(settings: ConfigEntry[], attributeTexts: string[]): string | undefined;
 /// ```
-fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[String]) -> Option<String> {
-    if let Some(entry) = entries.iter().find(|entry: &&ConfigEntry| { return entry.key == "core.attributesfile" && !entry.value.as_deref().is_some_and(|value: &[u8]| { return value.starts_with(b"/"); }); }) {
-        return Some(format!("core.attributesFile is {:?}, which is not an absolute path", entry.value.as_deref().map(String::from_utf8_lossy)));
+/// What:
+///  The last value the configuration gives `key`, as text, if any entry has the key.
+/// Why:
+///   Git reads later entries over earlier ones, so the search runs from the end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// entries.findLast((entry) => entry.key === key)?.value?.toString()
+/// ```
+fn last_value_of(entries: &[ConfigEntry], key: &str) -> Option<String> {
+    for entry in entries.iter().rev() {
+        if entry.key == key {
+            return match entry.value.as_deref() {
+                Some(bytes) => Some(String::from_utf8_lossy(bytes).into_owned()),
+                None => None,
+            };
+        }
     }
-    let used: Vec<String> = attribute_texts.iter().flat_map(|text: &String| { return filters_named(text.as_str()); }).collect();
+    return None;
+}
+
+/// What:
+///  Whether the configuration holds the four settings of the standard Git LFS filter, each with its standard value.
+/// Why:
+///   Only the standard definition is proven to give the same result in both worktrees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// LFS_FILTER.every(([key, expected]) => lastValueOf(entries, key) === expected)
+/// ```
+fn lfs_filter_is_standard(entries: &[ConfigEntry]) -> bool {
+    for (key, expected) in LFS_FILTER {
+        if last_value_of(entries, key).as_deref() != Some(expected) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  Whether the configuration has any `lfs.extension.*` entry.
+/// Why:
+///   Extensions change what the LFS filter does, so they are not proven equal in both worktrees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// entries.some((entry) => entry.key.startsWith('lfs.extension.'))
+/// ```
+fn has_lfs_extension(entries: &[ConfigEntry]) -> bool {
+    for entry in entries {
+        if entry.key.starts_with("lfs.extension.") {
+            return true;
+        }
+    }
+    return false;
+}
+
+fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[String]) -> Option<String> {
+    // The first entry that names a relative attributes file; the loop stops there, as `find` did.
+    for entry in entries {
+        let absolute: bool = match entry.value.as_deref() {
+            Some(value) => value.starts_with(b"/"),
+            None => false,
+        };
+        if entry.key == "core.attributesfile" && !absolute {
+            return Some(format!("core.attributesFile is {:?}, which is not an absolute path", entry.value.as_deref().map(String::from_utf8_lossy)));
+        }
+    }
+    let mut used: Vec<String> = Vec::new();
+    for text in attribute_texts {
+        used.extend(filters_named(text.as_str()));
+    }
     for name in &used {
         if name != "lfs" {
             return Some(format!("an attribute applies the filter {name}, whose result is not proven equal in both worktrees"));
         }
-        let value = |key: &str| -> Option<String> { return entries.iter().rev().find(|entry: &&ConfigEntry| { return entry.key == key; }).and_then(|entry: &ConfigEntry| { return entry.value.as_deref().map(|bytes: &[u8]| { return String::from_utf8_lossy(bytes).into_owned(); }); }); };
-        if LFS_FILTER.iter().any(|(key, expected): &(&str, &str)| { return value(key).as_deref() != Some(*expected); }) {
+        if !lfs_filter_is_standard(entries) {
             return Some(String::from("the lfs filter is not the standard Git LFS definition"));
         }
-        if entries.iter().any(|entry: &ConfigEntry| { return entry.key.starts_with("lfs.extension."); }) {
+        if has_lfs_extension(entries) {
             return Some(String::from("Git LFS extensions are configured"));
         }
     }
@@ -195,8 +286,14 @@ fn external_conversion_refusal(entries: &[ConfigEntry], attribute_texts: &[Strin
 ///  `info/attributes`, the file `core.attributesFile` names and the default global file.
 fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -> Vec<String> {
     let mut paths: Vec<PathBuf> = vec![source.common_dir.join("info/attributes")];
-    if let Some(value) = entries.iter().rev().find(|entry: &&ConfigEntry| { return entry.key == "core.attributesfile"; }).and_then(|entry: &ConfigEntry| { return entry.value.as_deref(); }) {
-        paths.push(PathBuf::from(String::from_utf8_lossy(value).into_owned()));
+    // The last entry that names an attributes file decides, even when its value is empty; the loop stops there.
+    for entry in entries.iter().rev() {
+        if entry.key == "core.attributesfile" {
+            if let Some(value) = entry.value.as_deref() {
+                paths.push(PathBuf::from(String::from_utf8_lossy(value).into_owned()));
+            }
+            break;
+        }
     }
     if let Some(home) = std::env::var_os("HOME") {
         paths.push(PathBuf::from(home).join(".config/git/attributes"));
@@ -204,7 +301,13 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
     if let Some(config) = std::env::var_os("XDG_CONFIG_HOME") {
         paths.push(PathBuf::from(config).join("git/attributes"));
     }
-    return paths.iter().filter_map(|path: &PathBuf| { return std::fs::read(path.as_path()).ok(); }).map(|bytes: Vec<u8>| { return String::from_utf8_lossy(bytes.as_slice()).into_owned(); }).collect();
+    let mut texts: Vec<String> = Vec::new();
+    for path in &paths {
+        if let Ok(bytes) = std::fs::read(path.as_path()) {
+            texts.push(String::from_utf8_lossy(bytes.as_slice()).into_owned());
+        }
+    }
+    return texts;
 }
 
 /// What:
@@ -217,7 +320,10 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
 /// await runStep(runGit, args, env);
 /// ```
 pub(crate) fn run_step(run_git: &mut GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
-    return run_git(&GitStep::Other { arguments, environment }).map_err(|error| { return error.0; });
+    return match run_git(&GitStep::Other { arguments, environment }) {
+        Ok(status) => Ok(status),
+        Err(error) => Err(error.0),
+    };
 }
 
 /// What:
@@ -255,18 +361,34 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     if path_identity(destination) != Some(bound.binding.destination_id) {
         return Err(String::from("the destination is no longer the directory Git made"));
     }
-    let held_entries: usize = std::fs::read_dir(handle_path(&bound.destination)).map_err(|error| { return format!("the destination is unreadable ({error})"); })?.count();
+    let held_listing = match std::fs::read_dir(handle_path(&bound.destination)) {
+        Ok(listing) => listing,
+        Err(error) => return Err(format!("the destination is unreadable ({error})")),
+    };
+    let held_entries: usize = held_listing.count();
     if held_entries != 1 {
         return Err(String::from("the destination holds more than Git's .git file"));
     }
-    let target_config = read_config_snapshot(context, destination).ok_or_else(|| { return String::from("the new worktree's configuration could not be read"); })?;
+    let Some(target_config) = read_config_snapshot(context, destination) else {
+        return Err(String::from("the new worktree's configuration could not be read"));
+    };
     conversion_agrees(source.config.entries(), target_config.entries())?;
     let format: ObjectFormat = if source.clean.hash_length == 32 { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
-    let commit: String = head_commit(admin.as_path(), source.common_dir.as_path(), format).ok_or_else(|| { return String::from("the new HEAD is not a plain ref to a commit"); })?;
-    let database: ObjectDatabase = ObjectDatabase::open(source.common_dir.as_path(), None, format).ok_or_else(|| { return String::from("the object database is not plain"); })?;
-    let name: Vec<u8> = from_hex(commit.as_bytes(), format).ok_or_else(|| { return String::from("the new HEAD is not an object name"); })?;
-    let raw = database.read(name.as_slice()).ok_or_else(|| { return String::from("the new HEAD commit is unreadable"); })?;
-    let fields: CommitFields = parse_commit(raw.bytes.as_slice(), format).ok_or_else(|| { return String::from("the new HEAD commit has a layout the reader does not know"); })?;
+    let Some(commit) = head_commit(admin.as_path(), source.common_dir.as_path(), format) else {
+        return Err(String::from("the new HEAD is not a plain ref to a commit"));
+    };
+    let Some(database) = ObjectDatabase::open(source.common_dir.as_path(), None, format) else {
+        return Err(String::from("the object database is not plain"));
+    };
+    let Some(name) = from_hex(commit.as_bytes(), format) else {
+        return Err(String::from("the new HEAD is not an object name"));
+    };
+    let Some(raw) = database.read(name.as_slice()) else {
+        return Err(String::from("the new HEAD commit is unreadable"));
+    };
+    let Some(fields) = parse_commit(raw.bytes.as_slice(), format) else {
+        return Err(String::from("the new HEAD commit has a layout the reader does not know"));
+    };
     let differs: bool = fields.tree != source.clean.head_tree;
     if differs {
         attributes_agree(&database, source.clean.head_tree.as_slice(), fields.tree.as_slice(), format)?;
@@ -274,7 +396,9 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     // The tracked attributes files are the same in both trees by now, so the source's stand for both.
     let mut attribute_texts: Vec<String> = untracked_attribute_texts(source, target_config.entries());
     for (path, id) in &source.clean.attribute_blobs {
-        let blob = database.read(id.as_slice()).ok_or_else(|| { return format!("{} is unreadable", String::from_utf8_lossy(path)); })?;
+        let Some(blob) = database.read(id.as_slice()) else {
+            return Err(format!("{} is unreadable", String::from_utf8_lossy(path)));
+        };
         attribute_texts.push(String::from_utf8_lossy(blob.bytes.as_slice()).into_owned());
     }
     if let Some(reason) = external_conversion_refusal(target_config.entries(), attribute_texts.as_slice()) {
@@ -283,7 +407,9 @@ pub fn prepare_target(source: &SnapshotSource, plan: &AddPlan, context: &GitCont
     let line: String = if plan.quiet {
         String::new()
     } else {
-        let subject: Vec<u8> = subject_of(fields.message.as_slice()).ok_or_else(|| { return String::from("the subject of the new HEAD needs Git to print"); })?;
+        let Some(subject) = subject_of(fields.message.as_slice()) else {
+            return Err(String::from("the subject of the new HEAD needs Git to print"));
+        };
         format!("HEAD is now at {} {}\n", short_name(context, destination, source.common_dir.join("objects").as_path(), Some(&source.config), commit.as_str()), String::from_utf8_lossy(subject.as_slice()))
     };
     return Ok(Target { admin, pointer, commit, differs, line });

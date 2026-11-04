@@ -103,7 +103,11 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
         end_step(apply_difference_entered);
         apply_difference_outcome?;
     }
-    let mode: u32 = std::fs::metadata(source.root.as_path()).map_err(|error| { return format!("the source's root is unreadable ({error})"); })?.mode() & 0o7777;
+    let root_metadata = match std::fs::metadata(source.root.as_path()) {
+        Ok(found) => found,
+        Err(error) => return Err(Ended::from(format!("the source's root is unreadable ({error})"))),
+    };
+    let mode: u32 = root_metadata.mode() & 0o7777;
     let exchange_entered: bool = begin_step("exchange");
     let exchange_outcome = put_in_place(stage, plan.destination.as_path(), mode, bound.binding.destination_id);
     end_step(exchange_entered);
@@ -128,6 +132,22 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
 }
 
 /// What:
+///  The paths the source has changed since its last commit, when there are any.
+/// Why:
+///   A snapshot carries the source's uncommitted state, so the person is told which of it was left out of the new worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// source.dirty?.hasChanges() ? source.dirty : undefined
+/// ```
+fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
+    return match source.dirty.as_ref() {
+        Some(found) if found.has_changes() => Some(found),
+        _ => None,
+    };
+}
+
+/// What:
 ///  The clone rung: clone the tracked files into the destination, install the index, apply the tree difference.
 /// Why:
 ///   The destination is filled in place; an error removes nothing: the entries the run created stay, are reported, and Git's
@@ -141,7 +161,10 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
     let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
-    let applied: Result<(), String> = verify_association(bound).and_then(|()| { return apply_difference(source, &target, plan.destination.as_path(), run_git); });
+    let applied: Result<(), String> = match verify_association(bound) {
+        Ok(()) => apply_difference(source, &target, plan.destination.as_path(), run_git),
+        Err(reason) => Err(reason),
+    };
     if let Err(reason) = applied {
         warn(TAG, format!("cli-git: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
         return Err(reason);
@@ -333,11 +356,11 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
             if source.git_dir == source.common_dir && !plan.quiet {
                 let _noted = std::io::stderr().write_all(crate::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
-                if let Some(changed) = source.dirty.as_ref().filter(|found: &&ChangedPaths| { return found.has_changes(); }) {
+                if let Some(changed) = changes_left_out(source) {
                     let _left_out = std::io::stderr().write_all(left_out_note(changed).as_bytes());
                 }
             }
-            if let Some(changed) = source.dirty.as_ref().filter(|found: &&ChangedPaths| { return found.has_changes(); }) {
+            if let Some(changed) = changes_left_out(source) {
                 record_left_out(plan.destination.as_path(), changed);
             }
             LadderResult { git: GitStatus { code: Some(0) }, carried: Some(plan.destination.clone()) }

@@ -13,6 +13,7 @@
 //! const source = await chooseSnapshotSource({ context, identity, plan }); // throws the reason it cannot be one
 //! ```
 
+use crate::add_timing::{begin_work, end_work};
 use crate::scoped_start::start_or_run;
 use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot};
 use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
@@ -21,6 +22,7 @@ use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, dirty_source};
 use crate::worktree_identity::WorktreeIdentity;
+use std::ffi::OsString;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -87,7 +89,11 @@ pub struct ChangedPaths {
 /// text.replace(/\p{Cc}/gu, '?')
 /// ```
 pub fn plain(text: &str) -> String {
-    return text.chars().map(|character: char| { return if character.is_control() { '?' } else { character }; }).collect();
+    let mut shown: String = String::new();
+    for character in text.chars() {
+        shown.push(if character.is_control() { '?' } else { character });
+    }
+    return shown;
 }
 
 impl ChangedPaths {
@@ -95,6 +101,49 @@ impl ChangedPaths {
     pub fn has_changes(&self) -> bool {
         return self.count > 0;
     }
+}
+
+/// What:
+///  Whether a byte is NUL, the end of each entry of Git's `-z` output.
+/// Why:
+///   Status entries are split on it, and a path may hold any other byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+///  Run Git with `arguments` in `root` and give its standard output; the error says what Git said or why it did not start.
+/// Why:
+///   Both listings of the changed paths ask the same way and word a failure the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(root, arguments) // throws a sentence
+/// ```
+fn ask_git(context: &GitContext, root: &Path, arguments: &[&str]) -> Result<Vec<u8>, String> {
+    let words: String = arguments.iter().skip(1).copied().take(1).collect::<Vec<&str>>().join(" ");
+    let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: arguments.iter().copied().map(OsString::from).collect(), without_prefix: true, ..GitRequest::default() };
+    return match run_git(context, &request) {
+        Ok(found) if found.code == Some(0) => Ok(found.stdout),
+        Ok(found) => {
+            let said: String = String::from_utf8_lossy(found.stderr.as_slice()).trim().to_string();
+            let code: String = match found.code {
+                Some(number) => format!("ended with exit code {number}"),
+                None => String::from("was stopped by a signal"),
+            };
+            crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes (`git {words}` {code}: {said})").as_str());
+            Err(if said.is_empty() { format!("`git {words}` {code} and said nothing") } else { format!("`git {words}` {code}: {}", plain(said.as_str())) })
+        }
+        Err(error) => {
+            crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({error})").as_str());
+            Err(format!("`git {words}` could not be started ({error})"))
+        }
+    };
 }
 
 /// What:
@@ -112,29 +161,31 @@ impl ChangedPaths {
 /// const changed = await changedPaths(context, root); // throws the reason Git could not say
 /// ```
 pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, String> {
-    let ask = |arguments: &[&str]| -> Result<Vec<u8>, String> {
-        let words: String = arguments.iter().skip(1).copied().take(1).collect::<Vec<&str>>().join(" ");
-        let request: GitRequest = GitRequest { cwd: root.to_path_buf(), arguments: arguments.iter().map(|word: &&str| { return (*word).into(); }).collect(), without_prefix: true, ..GitRequest::default() };
-        return match run_git(context, &request) {
-            Ok(found) if found.code == Some(0) => Ok(found.stdout),
-            Ok(found) => {
-                let said: String = String::from_utf8_lossy(found.stderr.as_slice()).trim().to_string();
-                let code: String = found.code.map_or_else(|| { return String::from("was stopped by a signal"); }, |number: i32| { return format!("ended with exit code {number}"); });
-                crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes (`git {words}` {code}: {said})").as_str());
-                Err(if said.is_empty() { format!("`git {words}` {code} and said nothing") } else { format!("`git {words}` {code}: {}", plain(said.as_str())) })
-            }
-            Err(error) => {
-                crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({error})").as_str());
-                Err(format!("`git {words}` could not be started ({error})"))
-            }
-        };
-    };
-    let listing: Vec<u8> = ask(&["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--no-renames"])?;
-    let untracked_attributes: Vec<u8> = ask(&["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
+    let listing: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=normal", "--no-renames"])?;
+    let untracked_attributes: Vec<u8> = ask_git(context, root, &["--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z", "--", ":(glob)**/.gitattributes"])?;
     // Each status entry is two status letters, a space, then the path.
-    let paths: Vec<&[u8]> = listing.split(|byte: &u8| { return *byte == 0; }).filter(|entry: &&[u8]| { return !entry.is_empty(); }).filter_map(|entry: &[u8]| { return entry.get(3..); }).collect();
-    let attributes_changed: bool = !untracked_attributes.is_empty() || paths.iter().any(|path: &&[u8]| { return *path == b".gitattributes" || path.ends_with(b"/.gitattributes"); });
-    return Ok(ChangedPaths { count: paths.len(), first: paths.first().map(|path: &&[u8]| { return plain(String::from_utf8_lossy(path).as_ref()); }), attributes_changed });
+    let mut paths: Vec<&[u8]> = Vec::new();
+    for entry in listing.split(is_nul_byte) {
+        if entry.is_empty() {
+            continue;
+        }
+        if let Some(path) = entry.get(3..) {
+            paths.push(path);
+        }
+    }
+    let mut names_attributes: bool = false;
+    for path in &paths {
+        if *path == b".gitattributes" || path.ends_with(b"/.gitattributes") {
+            names_attributes = true;
+            break;
+        }
+    }
+    let attributes_changed: bool = !untracked_attributes.is_empty() || names_attributes;
+    let first: Option<String> = match paths.first() {
+        Some(path) => Some(plain(String::from_utf8_lossy(path).as_ref())),
+        None => None,
+    };
+    return Ok(ChangedPaths { count: paths.len(), first, attributes_changed });
 }
 
 /// What:
@@ -214,10 +265,12 @@ fn on_one_btrfs(first: &Path, second: &Path) -> bool {
 /// function nestedOrdinaryWorktree(nested: string[]): string | undefined;
 /// ```
 fn nested_ordinary_worktree(nested: &[PathBuf]) -> Option<PathBuf> {
-    return nested
-        .iter()
-        .find(|path: &&PathBuf| { return path.exists() && !is_subvolume_root(path.as_path()).unwrap_or(false); })
-        .cloned();
+    for path in nested {
+        if path.exists() && !is_subvolume_root(path.as_path()).unwrap_or(false) {
+            return Some(path.clone());
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -231,10 +284,12 @@ fn nested_ordinary_worktree(nested: &[PathBuf]) -> Option<PathBuf> {
 /// function nestedThroughLink(nested: string[]): string | undefined;
 /// ```
 fn nested_through_link(nested: &[PathBuf]) -> Option<PathBuf> {
-    return nested
-        .iter()
-        .find(|path: &&PathBuf| { return path.exists() && std::fs::canonicalize(path.as_path()).ok().as_ref() != Some(*path); })
-        .cloned();
+    for path in nested {
+        if path.exists() && std::fs::canonicalize(path.as_path()).ok().as_ref() != Some(path) {
+            return Some(path.clone());
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -279,6 +334,22 @@ pub fn snapshot_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<S
 }
 
 /// What:
+///  The device number of what a path leads to, or nothing when it cannot be examined.
+/// Why:
+///   Two paths share data blocks only on one device.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// statSync(path).dev
+/// ```
+fn device_of_path(path: &Path) -> Option<u64> {
+    return match std::fs::metadata(path) {
+        Ok(found) => Some(found.dev()),
+        Err(_unreadable) => None,
+    };
+}
+
+/// What:
 ///  Whether the filesystem of `path` may share data blocks between files: btrfs, XFS (reflink is a per-filesystem
 ///  feature that the first clone reveals) and overlayfs (a clone inside the overlay reaches the layers' filesystem).
 /// Why:
@@ -317,7 +388,7 @@ pub fn clone_refusal(identity: &WorktreeIdentity, plan: &AddPlan) -> Option<Stri
     let one_domain: bool = if filesystem_kind(root.as_path()) == Ok(FilesystemKind::Btrfs) {
         on_one_btrfs(root.as_path(), parent)
     } else {
-        std::fs::metadata(root.as_path()).map(|found: std::fs::Metadata| { return found.dev(); }).ok() == std::fs::metadata(parent).map(|found: std::fs::Metadata| { return found.dev(); }).ok()
+        device_of_path(root.as_path()) == device_of_path(parent)
     };
     return if one_domain { None } else { Some(format!("{} and {} are on different filesystems", root.display(), parent.display())) };
 }
@@ -394,28 +465,43 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
     if git_dir.join("info/sparse-checkout").exists() || common_dir.join("info/sparse-checkout").exists() {
         return Err(Refusal::unsupported("the source has a sparse checkout"));
     }
-    let nested: Vec<PathBuf> = registered_roots(common_dir.as_path()).into_iter().filter(|path: &PathBuf| { return path != root && path.starts_with(root); }).collect();
+    let mut nested: Vec<PathBuf> = Vec::new();
+    for path in registered_roots(common_dir.as_path()) {
+        if path != *root && path.starts_with(root) {
+            nested.push(path);
+        }
+    }
     // The configuration, the cleanliness of the files and (for a main checkout) the ignore rule for the place left-out directories
     //  are set aside read different things and write nothing, so they run side by side; the verdicts are read in the order the
     //  checks have always had.
     let (read_config, checked, trash_ignored): (Option<ConfigSnapshot>, Result<CleanSource, CleanRefusal>, bool) = std::thread::scope(|scope| {
-        let config = start_or_run(scope, || { return crate::add_timing::work("readConfig", || { return read_config_snapshot(context, root.as_path()); }); });
-        let trash = start_or_run(scope, || { return crate::add_timing::work("trashIgnored", || { return git_dir == common_dir && crate::worktree_trash::trash_location_is_ignored(context, root.as_path()); }); });
+        let config = start_or_run(scope, || {
+            let began: std::time::Instant = begin_work();
+            let read: Option<ConfigSnapshot> = read_config_snapshot(context, root.as_path());
+            end_work("readConfig", began);
+            return read;
+        });
+        let trash = start_or_run(scope, || {
+            let began: std::time::Instant = begin_work();
+            let ignored: bool = git_dir == common_dir && crate::worktree_trash::trash_location_is_ignored(context, root.as_path());
+            end_work("trashIgnored", began);
+            return ignored;
+        });
         let checked = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path());
         return (config.join().unwrap_or(None), checked, trash.join().unwrap_or(false));
     });
-    let snapshot: ConfigSnapshot = read_config.ok_or_else(|| { return Refusal::unsupported("the Git configuration could not be read"); })?;
+    let Some(snapshot) = read_config else {
+        return Err(Refusal::unsupported("the Git configuration could not be read"));
+    };
     if let Some(reason) = configuration_refusal(snapshot.entries()) {
         return Err(Refusal::unsupported(reason));
     }
-    let unclean = |why: CleanRefusal| -> Refusal { return Refusal { reason: why.reason, kind: RefusalKind::Unclean(why.kind) }; };
     let (clean, dirty): (CleanSource, Option<ChangedPaths>) = match checked {
         Ok(found) => (found, None),
         Err(why) if allow_dirty && restorable_here(identity) && why.kind.restorable() => {
             let found = dirty_source(git_dir.as_path(), common_dir.as_path(), why).map_err(unclean)?;
             // A source whose files Git finds equal to the commit is snapshotted too: the stat data was all that kept it from being clean.
-            let changed: ChangedPaths = changed_paths(context, root.as_path())
-                .map_err(|reason: String| { return Refusal { reason, kind: RefusalKind::StatusFailed }; })?;
+            let changed: ChangedPaths = changed_paths(context, root.as_path()).map_err(status_failed)?;
             if changed.attributes_changed {
                 return Err(Refusal::unsupported("a .gitattributes file is among the uncommitted changes, and its rules could change how the restore writes other files"));
             }
@@ -425,6 +511,32 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
         Err(why) => return Err(unclean(why)),
     };
     return Ok(SnapshotSource { root: root.clone(), git_dir: git_dir.clone(), common_dir: common_dir.clone(), clean, nested, config: snapshot, trash_ignored, dirty });
+}
+
+/// What:
+///  A refusal for a source that is not clean, carrying the reason and kind of the clean check's refusal.
+/// Why:
+///   The ladder reports a refusal of its own kind, and an unclean source is one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new Refusal(why.reason, { unclean: why.kind })
+/// ```
+fn unclean(why: CleanRefusal) -> Refusal {
+    return Refusal { reason: why.reason, kind: RefusalKind::Unclean(why.kind) };
+}
+
+/// What:
+///  A refusal for a source whose changed paths Git could not list.
+/// Why:
+///   A source with changes is snapshotted only when its changes can be listed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new Refusal(reason, 'statusFailed')
+/// ```
+fn status_failed(reason: String) -> Refusal {
+    return Refusal { reason, kind: RefusalKind::StatusFailed };
 }
 
 /// What:
@@ -451,7 +563,10 @@ fn restorable_here(identity: &WorktreeIdentity) -> bool {
 /// async function commonSource(context: GitContext, identity: WorktreeIdentity): Promise<SnapshotSource>; // throws a reason
 /// ```
 pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Result<SnapshotSource, String> {
-    return source_refusal(context, identity).map_err(|refusal: Refusal| { return refusal.reason; });
+    return match source_refusal(context, identity) {
+        Ok(source) => Ok(source),
+        Err(refusal) => Err(refusal.reason),
+    };
 }
 
 /// What:
@@ -471,7 +586,10 @@ pub fn snapshot_blocker(source: &SnapshotSource) -> Option<String> {
     if source.git_dir == source.common_dir {
         return None;
     }
-    return nested_ordinary_worktree(source.nested.as_slice()).map(|path: PathBuf| { return format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display()); });
+    return match nested_ordinary_worktree(source.nested.as_slice()) {
+        Some(path) => Some(format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display())),
+        None => None,
+    };
 }
 
 /// What:
