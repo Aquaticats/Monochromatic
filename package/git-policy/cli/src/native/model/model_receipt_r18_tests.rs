@@ -29,7 +29,10 @@ const EXIT: &str = "owner: the service exits";
 const NEXT_OWNER: &str = "environment: a later wrapper command starts a next owner, which removes lane/sealed (L3)";
 const STARTUP_SWEEP: &str = "owner: the next owner's syncer sweeps lane/receipt/ at startup";
 const F0_ENUM: &str = "owner: flusher 0 enumerates lane/receipt/";
-const F0_ERROR: &str = "environment: flusher 0 meets a forcing error, records it in lane/receipt-errors and exits";
+const F0_ERROR_LISTS: &str = "environment: flusher 0 meets a forcing error and lists the receipts it has not forced";
+const F0_RECORDS: &str = "owner: flusher 0 records its listing in lane/receipt-errors";
+const F0_RELEASES: &str = "owner: flusher 0 releases the lock on its error path";
+const F0_RELISTS: &str = "owner: flusher 0 lists the lane once more and records the receipts that joined";
 
 /// Whether the search found nothing wrong and covered every state.
 fn green(rules: Rules) -> bool {
@@ -120,11 +123,12 @@ fn many_outstanding_receipts_keep_one_flusher_and_the_lock_free_control_runs_two
 /// client 1's receipt without an executor. The next owner then retries each recorded error, and without that sweep the error stays.
 #[test]
 fn a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each() {
-    let joined = [SHUTDOWN_SEALED, ENUMERATE, FORCE_FINAL, EXIT, C0_CREATES, C0_READS, C0_STARTS, F0_ENUM, C1_CREATES, C1_READS, C1_STARTS, F0_ERROR];
+    let joined = [SHUTDOWN_SEALED, ENUMERATE, FORCE_FINAL, EXIT, C0_CREATES, C0_READS, C0_STARTS, F0_ENUM, C1_CREATES, C1_READS, C1_STARTS, F0_ERROR_LISTS, F0_RECORDS, F0_RELEASES, F0_RELISTS];
     let recorded: State = replay(initial(Rules::Eighteen), steps, &joined);
     assert_eq!(recorded.receipts, [Receipt::Err, Receipt::Err], "both receipts carry the recorded error");
     assert_eq!(terminal(&recorded), None);
-    let control: State = replay(initial(Rules::EighteenErrorIgnoresJoiners), steps, &joined);
+    // The control has no second listing, so its schedule ends at the release.
+    let control: State = replay(initial(Rules::EighteenErrorIgnoresJoiners), steps, &joined[..joined.len() - 1]);
     assert_eq!(control.receipts, [Receipt::Err, Receipt::V]);
     assert!(terminal(&control).is_some_and(|message| { return message.contains("client 1's receipt is V"); }), "{:?}", terminal(&control));
     assert!(red(Rules::EighteenErrorIgnoresJoiners).contains("no executor"));
@@ -133,6 +137,26 @@ fn a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_eac
     let unretried: State = replay(replay(initial(Rules::EighteenNoStartupSweep), steps, &joined), steps, &[NEXT_OWNER, STARTUP_SWEEP]);
     assert!(terminal(&unretried).is_some_and(|message| { return message.contains("recorded forcing error was not retried"); }), "{:?}", terminal(&unretried));
     assert!(red(Rules::EighteenNoStartupSweep).contains("not retried") || red(Rules::EighteenNoStartupSweep).contains("no executor"));
+    assert!(green(Rules::Eighteen));
+}
+
+/// Review 9b item 1 (with 9a section 3D): the error handler is not one atomic transition. The flusher meets the error and lists R; client 1
+/// then creates its receipt, finds the lock held and joins; the handler records its listing, releases the lock and exits. Without the
+/// second listing after the release, client 1's receipt is V with no executor and no record.
+#[test]
+fn a_receipt_that_joins_between_the_error_listing_and_the_release_is_recorded_by_the_second_listing() {
+    let before_join = [SHUTDOWN_SEALED, ENUMERATE, FORCE_FINAL, EXIT, C0_CREATES, C0_READS, C0_STARTS, F0_ENUM, F0_ERROR_LISTS, C1_CREATES, C1_READS, C1_STARTS];
+    let joined: State = replay(initial(Rules::Eighteen), steps, &before_join);
+    assert_eq!(joined.receipts, [Receipt::V, Receipt::V], "the joiner joined the holder after the listing: nothing is recorded for it yet");
+    assert_eq!(joined.clients[1], Client::Done);
+    assert!(joined.flushers.iter().filter(|phase| { return **phase != Flusher::Off; }).count() == 1, "the join started no flusher: the lock was held");
+    let covered: State = replay(joined.clone(), steps, &[F0_RECORDS, F0_RELEASES, F0_RELISTS]);
+    assert_eq!(covered.receipts, [Receipt::Err, Receipt::Err]);
+    assert_eq!(terminal(&covered), None);
+    let without: State = replay(replay(initial(Rules::EighteenErrorNoRelist), steps, &before_join), steps, &[F0_RECORDS, F0_RELEASES]);
+    assert_eq!(without.receipts, [Receipt::Err, Receipt::V]);
+    assert!(terminal(&without).is_some_and(|message| { return message.contains("client 1's receipt is V"); }), "{:?}", terminal(&without));
+    assert!(red(Rules::EighteenErrorNoRelist).contains("no executor"));
     assert!(green(Rules::Eighteen));
 }
 

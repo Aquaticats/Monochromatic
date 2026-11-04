@@ -46,8 +46,12 @@ pub enum Rules {
     EighteenForegroundForcing,
     /// Control: a client whose enqueue a running service rejects treats the receipt as handed over and starts no flusher.
     EighteenIgnoresRejection,
-    /// Control: a flusher that meets a forcing error records the receipts of its snapshot only, not the receipts that joined it.
+    /// Control: a flusher that meets a forcing error lists and records the receipts of its snapshot only, not the receipts that joined it,
+    /// and does not list the lane again after it releases the lock.
     EighteenErrorIgnoresJoiners,
+    /// Control: the error handler lists the lane when the error is met, records that listing, releases the lock and exits without
+    /// listing again, so a receipt that joins between its listing and its release has no executor and no record (review 9b item 1).
+    EighteenErrorNoRelist,
     /// Control: the flusher lives in the incarnation scope that the next owner's L2 reaps, and the next owner does not sweep at startup.
     EighteenReapedFlusherNoStartupSweep,
 }
@@ -110,6 +114,12 @@ pub enum Flusher {
     Empty,
     /// Released the lock after an empty sweep; one more sweep follows.
     Released,
+    /// Met a forcing error and listed the receipts it has not forced (the bit set is its listing); holds the lock; recording is next.
+    ErrListed(u8),
+    /// Recorded its listing; holds the lock; the release is next.
+    ErrRecorded,
+    /// Released the lock on the error path; the listing of the lane once more is next.
+    ErrReleased,
 }
 
 /// Whether an unrelated command's dispatch has happened.
@@ -150,6 +160,8 @@ pub struct State {
     pub killed: bool,
     /// A forcing error happened once.
     pub errored: bool,
+    /// An error record was written since the last startup sweep: it waits for a next owner's sweep, which has not happened since.
+    pub fresh_record: bool,
     /// The unrelated command.
     pub dispatch: Dispatch,
 }
@@ -172,6 +184,7 @@ pub fn initial(rules: Rules) -> State {
         crashed: false,
         killed: false,
         errored: false,
+        fresh_record: false,
         dispatch: Dispatch::Done,
     };
 }
@@ -189,7 +202,7 @@ fn seals(rules: Rules) -> bool {
 
 /// Whether a flusher in `phase` holds `lane/flusher.lock`.
 fn holds_lock(phase: Flusher) -> bool {
-    return matches!(phase, Flusher::Enum | Flusher::Force(_) | Flusher::Empty);
+    return matches!(phase, Flusher::Enum | Flusher::Force(_) | Flusher::Empty | Flusher::ErrListed(_) | Flusher::ErrRecorded);
 }
 
 /// The bit set of receipts that are V.
@@ -210,6 +223,21 @@ fn force(receipts: &mut [Receipt; CLIENTS], mask: u8) {
             *receipt = Receipt::D;
         }
     }
+}
+
+/// Marks the receipts in `mask` that are still V as carrying a recorded forcing error.
+fn record_errors(state: &mut State, mask: u8) {
+    for (at, receipt) in state.receipts.iter_mut().enumerate() {
+        if mask & (1 << at) != 0 && *receipt == Receipt::V {
+            *receipt = Receipt::Err;
+            state.fresh_record = true;
+        }
+    }
+}
+
+/// Whether the error path lists the lane once more after it releases the lock.
+fn relists(rules: Rules) -> bool {
+    return !matches!(rules, Rules::EighteenErrorIgnoresJoiners | Rules::EighteenErrorNoRelist);
 }
 
 /// Starts a flusher for a client's launch. Under the lock the holder's recheck sweep covers a receipt created before this client read the
@@ -379,6 +407,7 @@ fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
             after.service = Service::Running;
             after.bell = false;
             after.replaced = true;
+            after.fresh_record = false;
             for client in after.clients.iter_mut() {
                 // A receipt whose flusher could not start is the next owner's to sweep; from here on no outside cause excuses it.
                 if *client == Client::NotYet {
@@ -410,20 +439,30 @@ fn flusher_steps(state: &State, slot: usize, found: &mut Vec<(String, State)>) {
                 force(&mut forced.receipts, mask);
                 push_step(found, &format!("owner: flusher {} forces its snapshot", slot), forced);
                 if !state.errored {
-                    // A forcing error: the worker records the error for every receipt it has not forced (the directory enumerates them), so
-                    // a receipt that joined it after its snapshot is recorded too; the control records only its snapshot.
-                    let mut errored: State = with(Flusher::Off);
-                    let recorded: u8 = if state.rules == Rules::EighteenErrorIgnoresJoiners { mask } else { visible(&state.receipts) };
-                    for (at, receipt) in errored.receipts.iter_mut().enumerate() {
-                        if recorded & (1 << at) != 0 && *receipt == Receipt::V {
-                            *receipt = Receipt::Err;
-                        }
-                    }
+                    // A forcing error, in observable phases: the handler lists the receipts it has not forced (the directory enumerates
+                    // them), records that listing, releases the lock and lists the lane once more. A receipt that joins between the
+                    // listing and the release found the lock held and started no flusher; only the second listing covers it.
+                    let listed: u8 = if state.rules == Rules::EighteenErrorIgnoresJoiners { mask } else { visible(&state.receipts) };
+                    let mut errored: State = with(Flusher::ErrListed(listed));
                     errored.errored = true;
                     errored.replaced = false;
-                    push_step(found, &format!("environment: flusher {} meets a forcing error, records it in lane/receipt-errors and exits", slot), errored);
+                    push_step(found, &format!("environment: flusher {} meets a forcing error and lists the receipts it has not forced", slot), errored);
                 }
             }
+        }
+        Flusher::ErrListed(listed) => {
+            let mut recorded: State = with(Flusher::ErrRecorded);
+            record_errors(&mut recorded, listed);
+            push_step(found, &format!("owner: flusher {} records its listing in lane/receipt-errors", slot), recorded);
+        }
+        Flusher::ErrRecorded => {
+            let next: Flusher = if relists(state.rules) { Flusher::ErrReleased } else { Flusher::Off };
+            push_step(found, &format!("owner: flusher {} releases the lock on its error path", slot), with(next));
+        }
+        Flusher::ErrReleased => {
+            let mut relisted: State = with(Flusher::Off);
+            record_errors(&mut relisted, visible(&state.receipts));
+            push_step(found, &format!("owner: flusher {} lists the lane once more and records the receipts that joined", slot), relisted);
         }
         Flusher::Empty => {
             let next: Flusher = if state.rules == Rules::EighteenNoRecheck { Flusher::Off } else { Flusher::Released };
@@ -473,7 +512,7 @@ pub fn terminal(state: &State) -> Option<String> {
         if state.receipts[c] == Receipt::V && !excused && state.clients[c] != Client::NotYet {
             return Some(format!("client {}'s receipt is V and no executor is responsible for it", c));
         }
-        if state.receipts[c] == Receipt::Err && state.replaced {
+        if state.receipts[c] == Receipt::Err && state.replaced && !state.fresh_record {
             return Some(format!("client {}'s recorded forcing error was not retried after the next owner took over", c));
         }
     }
