@@ -1040,9 +1040,9 @@ MKY:
  jargon nothing can replace is explained in that file's top doc.
 
 VGW:
- Name files and folders by what their contents do;
- words fitting any code (`native`, `core`, `utils`, `common`, `shared`, `helpers`) appear in no name.
-Tool-required names (`mod.rs`) are exempt.
+ Each file and folder name says what its contents do;
+ a word that fits any code (`native`, `core`, `utils`, `common`, `helpers`) never stands alone:
+ `helpers_for_git_push`, not `helpers`.
 
 LYD:
  Show who depends on whom in the tree:

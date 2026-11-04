@@ -18,6 +18,8 @@ Owner, 2026-11-04, verbatim:
 - "Don't discard work, but aside from layout + linting fixes, pause everything else - but let work already in flight run to their natural conclusions. Layout + linting fixes are the biggest priority."
 - "Add in AGENTS.md to not use vague words like `native` when naming dirents." (AGENTS.md VGW;
   the draft names in section "Proposed top-level folder names" follow it, and `src/native/` goes away.)
+  Then: "helper_<specific> is fine. The rule language needs to be better."
+  So a vague word is allowed beside the specific part and never alone; VGW was reworded to say so.
 
 Question tool answers, 2026-11-04:
 
