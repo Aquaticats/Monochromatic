@@ -107,7 +107,7 @@ fn a_departure_syncs_the_promised_records_in_dependency_order_before_it_returns(
     let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
     let (request, new_files, old_files) = one_path_request();
     accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
-    write_state(&lane.join("state"), 1, b"adopted").expect("state");
+    commit_state_log::append(&lane.join("state"), 1, b"adopted").expect("state");
     start_events();
     depart(&lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).expect("depart");
     let events: Vec<String> = take_events();
@@ -116,15 +116,10 @@ fn a_departure_syncs_the_promised_records_in_dependency_order_before_it_returns(
         vec![
             format!("file-sync:{}", lane.join("inbox").join(&request.id).display()),
             format!("dir:{}", lane.join("inbox").display()),
-            format!("file-sync:{}", sync_newest_path(&lane)),
+            format!("file-sync:{}", lane.join("state").join("state.log.1").display()),
+            format!("dir:{}", lane.join("state").display()),
         ]
     );
-    assert!(sync_newest(&lane.join("state")).is_ok());
-}
-
-/// The path of the newest state file after one write (generation 1 goes to `state.a`).
-fn sync_newest_path(lane: &std::path::Path) -> String {
-    return lane.join("state").join("state.a").display().to_string();
 }
 
 /// What power loss may leave is recovered, not trusted: every truncation of the inbox file fails its checksum (it is treated as never
@@ -181,9 +176,9 @@ fn a_partly_written_newer_state_leaves_the_older_generation_valid() {
 #[test]
 fn independent_identical_requests_get_different_identities_and_a_resend_the_same() {
     let (first, _, _) = one_path_request();
-    let mut second: Request = first.clone();
-    second.nonce = vec![2; 16];
-    let second: Request = with_identity(INSTANCE, second).expect("identity");
+    let mut other: Request = first.clone();
+    other.nonce = vec![2; 16];
+    let second: Request = with_identity(INSTANCE, other).expect("identity");
     assert_ne!(first.id, second.id);
     let resend: Request = with_identity(INSTANCE, first.clone()).expect("identity");
     assert_eq!(resend.id, first.id);

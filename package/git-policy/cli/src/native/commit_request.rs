@@ -21,7 +21,7 @@ use super::commit_integrity::{hex, is_identity, is_object_name, sha256_hex, unhe
 /// The record format version this module reads and writes. These components are unreleased and no request of version 1 or 2 was ever
 /// accepted anywhere, so earlier versions are rejected rather than migrated (version 3 adds the mandatory `operation` line and the
 /// amend parents); a later format change would need a reader of the older one.
-pub const REQUEST_VERSION: u32 = 3;
+pub const REQUEST_VERSION: u32 = 4;
 
 /// What:
 ///  `struct Change { ... }`: one path of a request: its mode (`000000` for a deletion), and the SHA-256 of its captured
@@ -125,6 +125,9 @@ pub struct Request {
     pub message: Vec<u8>,
     /// What the request asks for, so an empty commit and a message-only amend differ.
     pub operation: Operation,
+    /// A fresh 16-byte invocation nonce, generated once per logical request and retained across retries: two independent invocations with
+    /// equal payloads get different identities, a resend of one invocation the same.
+    pub nonce: Vec<u8>,
     /// The changes, in path order.
     pub changes: Vec<Change>,
 }
@@ -222,6 +225,9 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
     // ```ts
     // switch (value.kind) { case ...: ...; }
     // ```
+    if request.nonce.len() != 16 {
+        return Err(RequestError::Invalid("nonce"));
+    }
     match &request.operation {
         Operation::Commit if request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
         Operation::EmptyCommit if !request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
@@ -301,6 +307,7 @@ pub fn encode(request: &Request) -> Result<Vec<u8>, RequestError> {
             body.push_str(&format!("operation amend {} {}\n", target, listed));
         }
     }
+    body.push_str(&format!("nonce {}\n", hex(&request.nonce)));
     for change in &request.changes {
         body.push_str(&format!("change {} {} {} {} {}\n", change.mode, change.sha256, change.old_mode, change.old_sha256, hex(&change.path)));
     }
@@ -376,6 +383,7 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
     // ```ts
     // const found: T[] = [];
     // ```
+    let nonce: Vec<u8> = unhex(field(lines.next(), "nonce ", "nonce")?.trim_end()).ok_or(RequestError::Damaged("nonce"))?;
     let mut changes: Vec<Change> = Vec::new();
     let mut end: Option<String> = None;
     for line in lines {
@@ -415,6 +423,7 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
         base,
         message: unhex(message_hex).ok_or(RequestError::Damaged("message"))?,
         operation,
+        nonce,
         changes,
     };
     let again: Vec<u8> = encode(&request).map_err(|_| { return RequestError::Damaged("fields"); })?;

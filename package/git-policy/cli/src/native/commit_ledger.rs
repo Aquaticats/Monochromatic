@@ -404,6 +404,8 @@ pub fn lookup(ledger: &Path, id: &str) -> Result<Option<LedgerEntry>, LedgerErro
 pub struct LedgerOwner {
     /// The locked file; closing it (dropping the owner) releases the lock.
     _lock: File,
+    /// The ledger this owner owns, absolute.
+    ledger: PathBuf,
 }
 
 impl LedgerOwner {
@@ -413,15 +415,24 @@ impl LedgerOwner {
         name.push(".owner");
         let lock: File = OpenOptions::new().create(true).write(true).truncate(false).open(PathBuf::from(name))?;
         match lock.try_lock() {
-            Ok(()) => return Ok(LedgerOwner { _lock: lock }),
+            Ok(()) => return Ok(LedgerOwner { _lock: lock, ledger: std::path::absolute(ledger)? }),
             Err(std::fs::TryLockError::WouldBlock) => return Err(LedgerError::OwnedElsewhere),
             Err(std::fs::TryLockError::Error(error)) => return Err(LedgerError::Io(error)),
         }
     }
 
+    /// Whether `ledger` is the ledger this owner owns; an owner of one ledger may not touch another.
+    fn owns(&self, ledger: &Path) -> Result<(), LedgerError> {
+        if std::path::absolute(ledger)? != self.ledger {
+            return Err(LedgerError::InvalidField("another owner's ledger"));
+        }
+        return Ok(());
+    }
+
     /// Repairs the torn tail of `ledger` after making its parent chain durable through `anchor` (so the saved bytes cannot sit under a
     /// name a power loss could remove).
     pub fn repair_tail(&self, anchor: &Path, ledger: &Path) -> Result<Repair, LedgerError> {
+        self.owns(ledger)?;
         let parent: PathBuf = match ledger.parent() {
             Some(directory) if !directory.as_os_str().is_empty() => directory.to_path_buf(),
             _ => PathBuf::from("."),
@@ -432,6 +443,7 @@ impl LedgerOwner {
 
     /// Appends one line as `append` does, as the ledger's owner.
     pub fn append(&self, anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
+        self.owns(ledger)?;
         return append(anchor, ledger, entry);
     }
 }

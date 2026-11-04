@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{create_dir_all_durable, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::sha256_hex;
 use super::commit_request::{Request, RequestError, decode, encode};
-use super::commit_state::sync_newest;
+use super::commit_state_log::sync_newest_log;
 
 /// What:
 ///  `enum InboxError { ... }`: why a request cannot be encoded, decoded or accepted.
@@ -253,11 +253,35 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
 /// function depart(inbox: string, ids: string[], stateDir: string): void;
 /// ```
 pub fn depart(inbox: &Path, ids: &[String], state_dir: &Path) -> io::Result<()> {
+    return depart_closure(inbox, ids, None, state_dir, None);
+}
+
+/// What:
+///  The departure barrier with its whole closure, in the order of the dependency chain: each promised request file, the `inbox/`
+///  directory, the order file (when the exit promises an adoption) and its directory, the newest state log file and the state
+///  directory (the state's name), then the ledger file (when it promises a terminal outcome) and its directory.
+/// Why:
+///  A saving exit promises everything it depends on: a synced file under a directory entry that a power loss can remove promises nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function departClosure(inbox: string, ids: string[], order: string | undefined, stateDir: string, ledger: string | undefined): void;
+/// ```
+pub fn depart_closure(inbox: &Path, ids: &[String], order: Option<&Path>, state_dir: &Path, ledger: Option<&Path>) -> io::Result<()> {
     for id in ids {
         let path: PathBuf = inbox.join(id);
         let file: File = File::open(&path)?;
         sync_file(&file, &path)?;
     }
     sync_directory(inbox)?;
-    return sync_newest(state_dir);
+    if let Some(path) = order {
+        sync_file(&File::open(path)?, path)?;
+        sync_directory(path.parent().unwrap_or(Path::new(".")))?;
+    }
+    sync_newest_log(state_dir)?;
+    if let Some(path) = ledger {
+        sync_file(&File::open(path)?, path)?;
+        sync_directory(path.parent().unwrap_or(Path::new(".")))?;
+    }
+    return Ok(());
 }

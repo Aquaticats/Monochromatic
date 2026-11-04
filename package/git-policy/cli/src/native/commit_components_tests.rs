@@ -254,7 +254,7 @@ fn request_validation_refuses_bad_fields() {
 #[test]
 fn request_of_an_unknown_version_is_left_alone() {
     let bytes: Vec<u8> = encode(&request('b', "m")).expect("encode");
-    let text: String = String::from_utf8(bytes).expect("utf-8").replacen("cli-git-request 3", "cli-git-request 4", 1);
+    let text: String = String::from_utf8(bytes).expect("utf-8").replacen("cli-git-request 4", "cli-git-request 5", 1);
     let inbox: PathBuf = scratch("request-version").join("inbox");
     std::fs::create_dir_all(&inbox).expect("inbox");
     let file: PathBuf = inbox.join(identity('b'));

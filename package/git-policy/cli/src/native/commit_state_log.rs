@@ -121,6 +121,9 @@ pub fn read(dir: &Path) -> Option<(u64, Vec<u8>)> {
 /// function append(dir: string, generation: number, payload: Uint8Array): void;
 /// ```
 pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
+    if read(dir).is_some_and(|(newest, _)| { return generation <= newest; }) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the generation must increase"));
+    }
     let number: u64 = rotation_number(dir).unwrap_or(1);
     let path: PathBuf = log_path(dir, number);
     let existing: Vec<u8> = fs::read(&path).unwrap_or_default();
@@ -136,6 +139,23 @@ pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
     io::Seek::seek(&mut file, io::SeekFrom::Start(keep as u64))?;
     file.write_all(&record)?;
     return Ok(());
+}
+
+/// What:
+///  Syncs the newest log file and then the directory that holds its name (a departure barrier's step for the state).
+/// Why:
+///  A synced file whose name is not durable can vanish with its directory entry; the state's name is part of what a departure forces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function syncNewestLog(dir: string): void;
+/// ```
+pub fn sync_newest_log(dir: &Path) -> io::Result<()> {
+    let number: u64 = rotation_number(dir).ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
+    let path: PathBuf = log_path(dir, number);
+    let file: File = File::open(&path)?;
+    sync_file(&file, &path)?;
+    return sync_directory(dir);
 }
 
 /// What:
