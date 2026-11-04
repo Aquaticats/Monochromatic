@@ -3869,7 +3869,14 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     `-3-a1a2-v6` 230 KB,
     `-4-a2r4-a3a4-r3r5-k1-k2-v1` 235 KB);
     prompts `cargo-shadow-cert2-prompt-1..4.txt` written (group 1 without the manifest to stay under 250 KB);
-    queued behind the index-lock and branch-write reviews;
+    second certification pass running (outputs `cargo-shadow-cert2-sol-1..4.txt`);
+    group 4 returned "not certified":
+    A2/R4 and V1 shown,
+    A3/A4,
+    R3/R5,
+    K1 and K2 partly (five evidence fixes,
+    no production defect);
+    the fixes go to the agent once groups 1 to 3 return;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
