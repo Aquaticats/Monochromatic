@@ -23,15 +23,15 @@
 /// ```ts
 /// import { ConfigError } from './config-error.ts';
 /// ```
-use super::config_error::ConfigError;
+use crate::config_error::ConfigError;
 /// The check of a `rulesFile` value and the words of each refusal.
-use super::config_rules_file::{check_rules_file, rules_file_refusal_reason};
-use super::config_schema::{
+use crate::config_rules_file::{check_rules_file, rules_file_refusal_reason};
+use crate::config_schema::{
     ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicyConfig, RulesFileEntry,
     markdown_rule_from_name,
 };
-use super::config_values::{boolean, member_keys, member_path, strings, text, wrong_kind};
-use super::policy_registry::{
+use crate::config_values::{boolean, member_keys, member_path, strings, text, wrong_kind};
+use crate::policy_registry::{
     POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_by_name, severity_from_name,
 };
 /// What:

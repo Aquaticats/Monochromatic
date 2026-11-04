@@ -21,7 +21,7 @@
 /// ```ts
 /// import { ConfigError } from './config-error.ts';
 /// ```
-use super::config_error::ConfigError;
+use crate::config_error::ConfigError;
 /// What:
 ///  Import the repository's JSONC value model and its UTF-16 decoder.
 /// Why:

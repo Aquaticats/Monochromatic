@@ -12,14 +12,14 @@
 //! ```
 
 /// Import the sibling modules this lookup combines.
-use super::config_error::ConfigError;
-use super::config_file::{LoadedConfig, ignored_legacy_notice, load_repository_config};
-use super::config_schema::CliGitConfig;
-use super::diagnostics::{
+use crate::config_error::ConfigError;
+use crate::config_file::{LoadedConfig, ignored_legacy_notice, load_repository_config};
+use crate::config_schema::CliGitConfig;
+use crate::diagnostics::{
     EngineFailureCode, LEGACY_CONFIG_IGNORED_CODE, render_configuration_warning,
     render_engine_failure,
 };
-use super::worktree_identity::{WorktreeIdentity, worktree_root};
+use crate::worktree_identity::{WorktreeIdentity, worktree_root};
 /// `PathBuf` is an owned filesystem path of raw OS bytes.
 use std::path::PathBuf;
 

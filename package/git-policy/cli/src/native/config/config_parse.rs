@@ -22,11 +22,11 @@
 /// ```ts
 /// import { ConfigError } from './config-error.ts';
 /// ```
-use super::config_error::ConfigError;
-use super::config_discarded::{SECTION, parse_discarded_copies};
-use super::config_policies::parse_policies;
-use super::config_schema::{CliGitConfig, ConcurrencyConfig};
-use super::config_values::{boolean, member_keys, member_path, safe_integer, wrong_kind};
+use crate::config_error::ConfigError;
+use crate::config_discarded::{SECTION, parse_discarded_copies};
+use crate::config_policies::parse_policies;
+use crate::config_schema::{CliGitConfig, ConcurrencyConfig};
+use crate::config_values::{boolean, member_keys, member_path, safe_integer, wrong_kind};
 /// What:
 ///  Import the repository's JSONC parser and its value type.
 /// Why:

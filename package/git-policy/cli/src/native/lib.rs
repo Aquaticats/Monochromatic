@@ -23,36 +23,14 @@ pub mod announced_query;
 ///  lock PID injection and the forward-target marker.
 pub mod child_environment;
 
-/// The one failure type for rejected configuration content or files.
-pub mod config_error;
+/// Reading and validating `cli-git.config.jsonc` and the Git configuration one invocation is judged by.
+pub mod config;
 
-/// Repository-root discovery and bounded reading of `cli-git.config.jsonc`.
-pub mod config_file;
-
-/// Lazy configuration loading for known inspection versus mutation/ambiguous commands.
-pub mod config_loading;
-
-/// Whole-document JSONC validation into typed settings.
-pub mod config_parse;
-
-/// Validation of the `policies` section and per-policy options.
-mod config_policies;
-
-/// The `rulesFile` option:
-///  a repository-relative name that stays inside the repository.
-pub mod config_rules_file;
-
-/// Typed settings and their defaults.
-pub mod config_schema;
+/// Re-exports every module of `config` at the crate root, as above.
+pub use config::*;
 
 /// Whether the checkout of a new worktree may be given Git's parallel checkout, and the option that does it.
 pub mod checkout_workers;
-
-/// One `git config --list` read, parsed, and the lookups the commit path makes against it.
-pub mod config_snapshot;
-
-/// Key-naming typed readers over parsed JSONC values.
-mod config_values;
 
 /// JSONL event rendering for wrapper-made diagnostics.
 pub mod diagnostics;
@@ -75,9 +53,6 @@ pub mod git_metadata;
 
 /// Git 2.56.0 global-argument boundaries over unchanged operating-system strings.
 pub mod global_arguments;
-
-/// Configuration of the repository one invocation selects.
-pub mod invocation_config;
 
 /// The `git cli-git` decision:
 ///  help,

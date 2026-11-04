@@ -11,7 +11,7 @@
 //! ```
 
 /// Import the exact current-Git global boundary and native arguments.
-use super::global_arguments::{GlobalOutcome, global_layout};
+use crate::global_arguments::{GlobalOutcome, global_layout};
 use std::ffi::OsString;
 
 /// Whether this invocation needs the shipped policy configuration.

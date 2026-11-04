@@ -21,9 +21,9 @@
 /// ```ts
 /// import { ConfigError } from './config-error.ts';
 /// ```
-use super::config_error::ConfigError;
-use super::config_parse::parse_config;
-use super::config_schema::CliGitConfig;
+use crate::config_error::ConfigError;
+use crate::config_parse::parse_config;
+use crate::config_schema::CliGitConfig;
 /// What:
 ///  Import the trait that gives files `.take(..)` and `.read_to_end(..)`.
 ///       A trait is an interface;

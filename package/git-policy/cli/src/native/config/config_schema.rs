@@ -19,8 +19,8 @@
 /// ```ts
 /// import { POLICY_REGISTRY, type PolicyId, type Severity } from './policy-registry.ts';
 /// ```
-use super::discarded_prune::Limits;
-use super::policy_registry::{
+use crate::discarded_prune::Limits;
+use crate::policy_registry::{
     POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_descriptor,
 };
 

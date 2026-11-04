@@ -18,9 +18,9 @@
 //! ```
 
 /// Debug logging of a snapshot that could not be used.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// One required Git start with the caller's context.
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// Ordered map of the four maintenance keys to the text Git prints for them.
 use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
