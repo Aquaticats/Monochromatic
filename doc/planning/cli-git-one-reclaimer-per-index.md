@@ -229,8 +229,14 @@ That is also why the rule needs no birth time of the file: an orphan claim left 
 inode is a gone claim at a low slot and is passed over.
 
 Leftovers: a claimer killed between the unlink and the removal of claims leaves `<lock>.cli-reclaim-*` files. They are inert,
-passed over by every later reclaim of a file with that key, and removed by the first reclaim that finishes one; the recipe to
-remove them by hand is next to the one for the `.aside-*` files below.
+passed over by every later reclaim of a file with that key, and removed by the first reclaim that finishes one. To remove them by
+hand, once no git command and no commit of this service is running in the repository:
+
+```sh
+# claims are named <lock>.cli-reclaim-<device>-<inode>-<slot>; each holds one line starting "cli-git-service "
+ls -l -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*
+rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*
+```
 
 What this does not close, with the schedule:
 - The mixed case: reclaimer one's `flock` works and holds, reclaimer two's `flock` on the same file answers "not there"
@@ -265,6 +271,16 @@ Alternatives considered:
 - A claim file kept after the fact (never removed, one per reclaim). Rejected: unbounded leftovers.
 
 Ranking: the claim chain after the `flock` > never removing (the second build) > the fall back to a rename aside > removing anyway.
+
+### What was built for the claim chain
+
+`package/git-policy/cli/src/native/landing/service_index_claim.rs` (`take_claim`, `ClaimHold`), called from `reclaim_if` in
+`service_index_reclaim.rs` when `hold` answers `Unavailable`. `hold` answers `Busy` for `EWOULDBLOCK`, `EINTR` and `ENOMEM`, and
+`Unavailable` for every other error. The controls are in `service_index_claim_tests.rs`; the controls that encoded the second
+build's behaviour (`a_failed_flock_never_has_the_stale_lock_removed`, and the landing that waited to its ceiling) are inverted
+there (`a_stale_lock_is_removed_where_flock_is_not_available`, `a_landing_takes_a_stale_lock_where_flock_is_not_available_without_waiting`),
+and the ceiling and notice controls now refuse the placement of claims as well, since `Unguarded` is what remains when neither
+the `flock` nor a claim is possible.
 
 ## A busy stale lock
 
