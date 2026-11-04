@@ -82,7 +82,7 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
         return Reclaimed::Kept;
     }
     crate::service_fault::reach("reclaim-judged");
-    match hold(&file) {
+    match hold(platform, &file) {
         Hold::Taken => {}
         Hold::Busy => return Reclaimed::Busy,
         Hold::Unavailable(error) => {
@@ -128,15 +128,32 @@ enum Hold {
 }
 
 /// What:
-///  Takes an exclusive `flock` on `file` without waiting.
+///  Takes the reclaim hold on `file` through the platform's `flock`, without waiting.
 /// Why:
-///   Two reclaimers of one stale lock must not both remove a name; the reason is written beside the call.
+///   Two reclaimers of one stale lock must not both remove a name; the reason is written beside the call in `flock_exclusive`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const hold = tryFlock(file) // 'taken' | 'busy' | { unavailable: error }
 /// ```
-fn hold(file: &std::fs::File) -> Hold {
+fn hold(platform: &Platform, file: &std::fs::File) -> Hold {
+    return match (platform.flock)(file) {
+        Ok(()) => Hold::Taken,
+        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => Hold::Busy,
+        Err(error) => Hold::Unavailable(error),
+    };
+}
+
+/// What:
+///  The system's exclusive `flock` on `file`, without waiting; `WouldBlock` when another descriptor holds it.
+/// Why:
+///   The one place the lock is taken, so a control can stand in a file system that gives none (`Platform::flock`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// flockExclusive(file) // throws WouldBlock when held
+/// ```
+pub fn flock_exclusive(file: &std::fs::File) -> std::io::Result<()> {
     // Lock kept: two reclaimers of one stale lock must not both remove a name, because the second removal would remove what a
     //  live landing placed after the first. A design without a lock needs an atomic conditional unlink, which Linux does not have
     //  (a rename aside leaves a live lock off its name for a while, in which Git can take the name). The hold is non-blocking,
@@ -145,11 +162,7 @@ fn hold(file: &std::fs::File) -> Hold {
     //  reclaim.
     // SAFETY: `flock` takes an open descriptor, which `file` keeps open for the call.
     let result: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if result == 0 {
-        return Hold::Taken;
-    }
-    let error: std::io::Error = std::io::Error::last_os_error();
-    return if error.kind() == std::io::ErrorKind::WouldBlock { Hold::Busy } else { Hold::Unavailable(error) };
+    return if result == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
 }
 
 /// Whether the name `lock` refers to the very file `file` has open: the same device and the same inode, so a replaced file whose

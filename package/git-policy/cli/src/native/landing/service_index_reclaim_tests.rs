@@ -187,3 +187,36 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_stale_lock() {
     drop(reclaimed);
     remove(root.as_path());
 }
+
+/// Allowed without the hold: a file system that gives no `flock` (the call fails with `ENOLCK`, as on a network file system
+///  that does not lock) still has its stale lock removed, so the commit does not fail for it; the log says the hold was missing.
+///  A hold another reclaimer has taken (`WouldBlock`) is the refused case (`a_reclaimer_that_backed_off_can_reclaim_once_the_hold_is_dropped`).
+#[test]
+fn a_file_system_with_no_flock_still_has_its_stale_lock_removed() {
+    let (root, index) = index_in("reclaim-no-flock");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
+    let tried = std::cell::Cell::new(0_usize);
+    let refusing = |_: &std::fs::File| -> std::io::Result<()> {
+        tried.set(tried.get() + 1);
+        return Err(std::io::Error::from_raw_os_error(libc::ENOLCK));
+    };
+    let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
+    assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed);
+    assert_eq!(tried.get(), 1, "the hold was asked for once");
+    assert!(!lock.exists());
+    remove(root.as_path());
+}
+
+/// The hold the platform reports as taken by another reclaimer is a back-off whatever the file system is.
+#[test]
+fn a_hold_reported_as_taken_by_another_reclaimer_is_a_back_off() {
+    let (root, index) = index_in("reclaim-platform-busy");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
+    let held = |_: &std::fs::File| -> std::io::Result<()> { return Err(std::io::Error::from(std::io::ErrorKind::WouldBlock)); };
+    let platform: Platform = Platform { flock: &held, ..SYSTEM };
+    assert_eq!(reclaim(&platform, &lock), Reclaimed::Busy);
+    assert!(lock.exists());
+    remove(root.as_path());
+}
