@@ -419,3 +419,20 @@ fn a_query_during_the_unresolved_mark_never_says_nothing_can_land() {
     assert!(!violations(&fourteen).contains(&"a query was answered withdrawn while the original attempt may still complete".to_string()));
     assert!(c3_says_nothing_can_land(Rules::Fourteen, Mark::Withdraw), "a plain mark can still be answered withdrawn");
 }
+
+/// Models review 6a, 4 (P1): a planned exit never causes the parent-death termination of a protected hook. With the hook still running
+/// (the transaction process is `Preparing`), the service's planned exit followed by the process ending is the schedule the review reported;
+/// the model must reject it as caused by the planned exit.
+#[test]
+fn p1_a_planned_exit_never_ends_a_protected_hook() {
+    let reached: State = replay(
+        initial(Rules::Fourteen),
+        steps,
+        &[START, SHUTDOWN, "environment: the transaction process is ended (parent-death signal or a kill)"],
+    );
+    assert!(
+        violations(&reached).contains(&"the planned exit ended a protected execution".to_string()),
+        "{:?}",
+        violations(&reached)
+    );
+}

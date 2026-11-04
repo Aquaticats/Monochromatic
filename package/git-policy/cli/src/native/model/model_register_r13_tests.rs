@@ -236,3 +236,39 @@ fn fifteen_gives_the_final_save_no_escape_where_fourteen_does() {
     assert_eq!(own(&at_barrier(Rules::Fifteen)), 0);
     assert!(own(&at_barrier(Rules::Fourteen)) > 0);
 }
+
+/// Models review 6a, 1 (P1): ordinary wait completion, final-save completion and normal return are different events. Under revision 15 the
+/// "other party progresses" step must not carry a departing command to a normal return without its final save.
+#[test]
+fn p1_an_ordinary_wait_completion_cannot_stand_in_for_the_final_save() {
+    for index in [DEPART, STOP] {
+        let done: State = replay(initial(Rules::Fifteen, single(index)), steps, &["environment: the other party progresses and the wait ends"]);
+        assert_eq!(done.phase, Phase::Done);
+        assert!(invariant(&done).is_some(), "{} returned normally with no final save", ENTRIES[index].name);
+    }
+}
+
+/// Models review 6a, 3 (P1): forcing the final save cannot create a mark that was never created. When the mark stage fails the command may
+/// not return normally (revision 17: an outside-fault exit), whatever it says; the barrier that follows does not repair it.
+#[test]
+fn p1_a_failed_mark_creation_never_returns_normally() {
+    let reached: State = replay(
+        initial(Rules::Fifteen, single(FOREGROUND)),
+        steps,
+        &[
+            "timer: the monotonic clock advances one tick",
+            "timer: the monotonic clock advances one tick",
+            "client: the deadline is reached and the action starts",
+            "client: the stage succeeds",
+            "client: the stage fails",
+            "client: the stage succeeds",
+            "environment: the other party completes the stage",
+            "environment: the other party completes the stage",
+            "client: the stage succeeds",
+            "client: the command exits",
+        ],
+    );
+    assert_eq!(reached.phase, Phase::Done);
+    assert!(reached.authority_lost);
+    assert!(invariant(&reached).is_some_and(|message| { return message.contains("normal return"); }), "{:?}", invariant(&reached));
+}
