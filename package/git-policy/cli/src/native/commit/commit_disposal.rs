@@ -120,14 +120,18 @@ pub fn retire_saved_content(lane: &Path, state: &Path, authorization: &DisposalA
 /// item is not yet a durable cover; a candidate a crash left uncompleted is such a root), and only then the file goes. The token is consumed.
 pub fn unlink_retired(retired: Retired) -> io::Result<()> {
     let _writer: StateWriter = StateWriter::acquire(&retired.state)?;
-    let (_selected, document) = newest_checked_root(&retired.state)?;
-    if document.saved().contains(&retired.name) {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the current root names this saved content again, so the retirement is stale and nothing is deleted"));
+    let (selected, document) = newest_checked_root(&retired.state)?;
+    // The document's references are not the whole retained set: the public append admits a set that over-approximates them, and recovery's
+    // eligibility depends on every retained entry. A root that retains the item in its closure alone would be made ineligible by the unlink.
+    let retained_in_closure: bool = selected.items.iter().any(|entry| { return entry.path() == Path::new("saved").join(&retired.name); });
+    if document.saved().contains(&retired.name) || retained_in_closure {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the current root retains this saved content again, so the retirement is stale and nothing is deleted"));
     }
     let prefix = super::commit_state_log::sync_prefix(&retired.state)?;
     super::commit_state_log::force_items(&retired.lane, &prefix.items)?;
     let directory: PathBuf = retired.lane.join("saved");
     let path: PathBuf = directory.join(&retired.name);
+    fault_point("disposal:before-unlink");
     match std::fs::remove_file(&path) {
         Ok(()) => record_event_lazy(|| { return format!("unlink:{}", path.display()); }),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -176,8 +180,9 @@ pub fn resume_disposals(lane: &Path, state: &Path) -> io::Result<usize> {
     // One replacement root omits every pending item at once; a writer that is busy means another owner is at it, and the next sweep retries.
     match StateWriter::acquire(state) {
         Ok(mut writer) => {
-            let (_selected, document) = newest_checked_root(state)?;
-            if pending.iter().any(|name| { return document.saved().contains(name); }) {
+            let (selected, document) = newest_checked_root(state)?;
+            let retained = |name: &String| -> bool { return document.saved().contains(name) || selected.items.iter().any(|entry| { return entry.path() == Path::new("saved").join(name); }); };
+            if pending.iter().any(retained) {
                 replace_root_without_disposed(lane, &mut writer, state)?;
             }
         }
