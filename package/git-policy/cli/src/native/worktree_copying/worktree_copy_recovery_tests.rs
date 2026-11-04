@@ -486,3 +486,25 @@ fn racing_commands_take_a_dead_journal_exactly_once() {
     assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "one journal remains, under the winner's name");
     remove(root.as_path());
 }
+
+/// A journal whose owner is in another PID namespace and whose file is older than the patience is neither alive nor dead (owner,
+/// 2026-11-04, "Refuse and name it (Recommended)"): recovery stops with an error that names the journal, the owner, its namespace and
+/// the `rm`, and nothing is taken over, finished or removed: the journal and its stage stay.
+#[cfg(unix)]
+#[test]
+fn a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing() {
+    let root: PathBuf = fixture("recovery-foreign-expired");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let snapshot: StagedSnapshot =
+        stage_ignored_snapshot(&git_context(), source.as_path(), new_stage_container(topic.as_path()).expect("container").as_path(), &[], &CopySelection::Ignored).expect("staged");
+    let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    let pending: PendingJournal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &foreign).expect("journal");
+    std::fs::File::options().write(true).open(pending.path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign journal stops recovery");
+    assert!(refused.0.contains(pending.path.to_string_lossy().as_ref()) && refused.0.contains("31337") && refused.0.contains("pid:[1]") && refused.0.contains("rm -- "), "{}", refused.0);
+    assert!(pending.path.exists() && stage.exists(), "the journal and its stage are untouched");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
+    remove(root.as_path());
+}

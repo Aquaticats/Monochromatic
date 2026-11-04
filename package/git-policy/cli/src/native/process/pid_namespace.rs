@@ -17,7 +17,9 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 /// How long an owner of another PID namespace counts as alive, measured from when its record was written.
-///  A commit or a lock hold lasts seconds to minutes; a crashed foreign owner stops blocking after this long.
+///  A commit or a lock hold lasts seconds to minutes. Past this age a record is neither alive nor dead: the command that finds it stops,
+///  changes nothing and names it (`ExpiredForeignRecord`; owner, 2026-11-04, "Refuse and name it (Recommended)"), because the age proves no
+///  death, and a crashed foreign owner's record is removed by the person with the `rm` the error gives.
 ///  Three kinds of record are judged by this age. A merge's intent record (`merge_isolation_journal.rs`, `write_merge_intent`,
 ///  written once and synced per merge) and a claim file (`single_owner_claim.rs`, `write_private`, written once) are not
 ///  rewritten while the owner works, so the age is the owner's whole hold; the item path of a worktree add is judged by its own
@@ -74,23 +76,18 @@ pub fn is_other_namespace(recorded: Option<&str>, current: Option<&str>) -> bool
 }
 
 /// What:
-///  Whether a record written by an owner of another namespace is old enough to stop counting as alive.
+///  The age of a record file, or nothing when it cannot be measured.
 /// Why:
-///   The record file's modification time stands for when the owner started; a record that cannot be measured keeps
-///  its owner alive, because the wrapper never retires what it cannot prove dead.
+///   The record file's modification time stands for when the owner started; a record that cannot be measured keeps its owner alive,
+///  because the wrapper never retires what it cannot prove dead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// Date.now() - statSync(recordPath).mtimeMs > FOREIGN_OWNER_PATIENCE_MS
+/// Date.now() - statSync(recordPath).mtimeMs
 /// ```
-pub fn foreign_record_has_expired(record_path: &Path) -> bool {
-    let Ok(modified) = std::fs::metadata(record_path).and_then(|metadata| { return metadata.modified(); }) else {
-        return false;
-    };
-    return match SystemTime::now().duration_since(modified) {
-        Ok(age) => age_outlives_patience(age),
-        Err(_) => false,
-    };
+pub fn foreign_record_age(record_path: &Path) -> Option<Duration> {
+    let modified: SystemTime = std::fs::metadata(record_path).and_then(|metadata| { return metadata.modified(); }).ok()?;
+    return SystemTime::now().duration_since(modified).ok();
 }
 
 /// What:
@@ -107,19 +104,76 @@ pub fn age_outlives_patience(age: Duration) -> bool {
 }
 
 /// What:
-///  Whether an owner recorded in `recorded` counts as alive without any PID probe, or nothing when the PID decides.
+///  A record of another PID namespace that is older than the patience: neither alive nor dead.
 /// Why:
-///   Callers share one rule: an owner of another namespace is alive until its record outlives the patience.
+///   Owner, 2026-11-04, "Refuse and name it (Recommended)": expiry no longer authorizes a command to treat a foreign owner as dead
+///  and to recover, take over or remove what it holds. The age is a length that nothing bounds (a write that cannot be run twice may
+///  run past any number, and a step the wrapper left running outlives the wrapper), so it proves no death. The command stops, changes
+///  nothing, and says which record it found and what a person checks before removing it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isOtherNamespace(recorded, current) ? !hasExpired(recordPath) : undefined
+/// type ExpiredForeignRecord = { record: string; namespace: string; age: number };
 /// ```
-pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<bool> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExpiredForeignRecord {
+    /// The record file.
+    pub record: std::path::PathBuf,
+    /// The PID namespace the record names.
+    pub namespace: String,
+    /// How old the record file is.
+    pub age: Duration,
+}
+
+impl ExpiredForeignRecord {
+    /// What:
+    ///  The error a command stops with: the record file, the owner's PID and namespace, the age, that the owner may be live in
+    ///  another container or a Git process left running, and the exact `rm`.
+    /// Why:
+    ///   The person must be able to decide, and the condition for removing the record covers the Git processes the wrapper leaves
+    ///  running (a step that cannot be run twice survives the wrapper that started it), not only a running cli-git command.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// `cli-git: the record ${record} was written by process ${pid} ... rm -- ${quoted(record)}`
+    /// ```
+    pub fn describe(&self, owner_pid: i64) -> String {
+        return format!(
+            "cli-git: the record {record} was written by process {owner_pid} in the PID namespace {namespace}, which is not this one, and it is {minutes} \
+             minutes old, past the {patience} minutes after which cli-git no longer takes such a record for a live owner's. Nothing was \
+             changed. The owner may still be alive in another container, and a Git process that cli-git left running (a write it could not \
+             safely end, such as a merge, a reset or a branch update) may still be working for it. Look in every container and on this host \
+             that use this repository for a cli-git command and for a Git process cli-git left running (`ps` shows them); when none runs, \
+             remove the record with `rm -- {path}` and run the command again.",
+            record = self.record.display(),
+            namespace = self.namespace,
+            minutes = self.age.as_secs() / 60,
+            patience = FOREIGN_OWNER_PATIENCE.as_secs() / 60,
+            path = crate::stale_ref_lock_message::shell_quote(self.record.as_path())
+        );
+    }
+}
+
+/// What:
+///  How a record is judged when it names another PID namespace: alive while it is younger than the patience, refused after it, and
+///  nothing for a record of this namespace or of none, which the PID decides.
+/// Why:
+///   Callers share one rule: an owner of another namespace is alive until its record outlives the patience, and then the command
+///  stops (`ExpiredForeignRecord`) and changes nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isOtherNamespace(recorded, current) ? (ageOutlivesPatience(age(recordPath)) ? refused : alive) : undefined
+/// ```
+pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Option<Result<(), ExpiredForeignRecord>> {
     if !is_other_namespace(recorded, current_pid_namespace().as_deref()) {
         return None;
     }
-    return Some(!foreign_record_has_expired(record_path));
+    let namespace: String = recorded.map_or_else(String::new, String::from);
+    return Some(match foreign_record_age(record_path) {
+        Some(age) if age_outlives_patience(age) => Err(ExpiredForeignRecord { record: record_path.to_path_buf(), namespace, age }),
+        Some(_) | None => Ok(()),
+    });
 }
 
 /// Namespace controls stay out of the release executable.

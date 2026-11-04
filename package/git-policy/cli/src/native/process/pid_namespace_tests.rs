@@ -35,23 +35,23 @@ fn only_two_known_and_different_names_are_another_namespace() {
 fn a_foreign_record_expires_only_after_the_patience() {
     let directory: std::path::PathBuf = crate::test_support::fixture("pid-namespace-1");
     let fresh = record_aged(directory.as_path(), Duration::from_secs(60));
-    assert!(!foreign_record_has_expired(fresh.as_path()));
+    assert!(!age_outlives_patience(foreign_record_age(fresh.as_path()).expect("a measurable age")));
     let old = record_aged(directory.as_path(), FOREIGN_OWNER_PATIENCE + Duration::from_secs(60));
-    assert!(foreign_record_has_expired(old.as_path()));
+    assert!(age_outlives_patience(foreign_record_age(old.as_path()).expect("a measurable age")));
     let nearly = record_aged(directory.as_path(), FOREIGN_OWNER_PATIENCE - Duration::from_secs(60));
-    assert!(!foreign_record_has_expired(nearly.as_path()), "just inside the patience stays alive");
+    assert!(!age_outlives_patience(foreign_record_age(nearly.as_path()).expect("a measurable age")), "just inside the patience stays alive");
 }
 
 /// A record that cannot be measured keeps its owner alive.
 #[test]
 fn a_record_that_cannot_be_measured_does_not_expire() {
     let directory: std::path::PathBuf = crate::test_support::fixture("pid-namespace-2");
-    assert!(!foreign_record_has_expired(directory.as_path().join("absent.json").as_path()));
+    assert_eq!(foreign_record_age(directory.as_path().join("absent.json").as_path()), None);
     let future = record_aged(directory.as_path(), Duration::ZERO);
     File::options().write(true).open(future.as_path()).expect("open").set_modified(
         SystemTime::now() + Duration::from_secs(7200),
     ).expect("move the time ahead");
-    assert!(!foreign_record_has_expired(future.as_path()), "a record from the future is not old");
+    assert_eq!(foreign_record_age(future.as_path()), None, "a record from the future has no age, so it is not old");
 }
 
 /// The shared rule: unknown or same namespace leaves the decision to the PID; another one answers by age.
@@ -63,9 +63,13 @@ fn a_foreign_owner_is_alive_until_its_record_expires() {
     let own: String = current_pid_namespace().expect("namespace");
     assert_eq!(foreign_owner_standing(Some(own.as_str()), fresh.as_path()), None);
     assert_eq!(foreign_owner_standing(None, fresh.as_path()), None);
-    assert_eq!(foreign_owner_standing(Some("pid:[1]"), fresh.as_path()), Some(true));
+    assert_eq!(foreign_owner_standing(Some("pid:[1]"), fresh.as_path()), Some(Ok(())));
     let old = record_aged(directory.as_path(), FOREIGN_OWNER_PATIENCE + Duration::from_secs(60));
-    assert_eq!(foreign_owner_standing(Some("pid:[1]"), old.as_path()), Some(false));
+    // Neither alive nor dead (owner, 2026-11-04, "Refuse and name it (Recommended)"): the record is refused, with what a person needs.
+    let Some(Err(expired)) = foreign_owner_standing(Some("pid:[1]"), old.as_path()) else { panic!("an expired foreign record is refused") };
+    let text: String = expired.describe(31337);
+    assert!(text.contains("31337") && text.contains("pid:[1]") && text.contains("21 minutes old") && text.contains("20 minutes") && text.contains("rm -- "), "{text}");
+    assert!(text.contains("another container") && text.contains("left running") && text.contains(old.to_string_lossy().as_ref()), "{text}");
 }
 
 /// Exactly the patience is still alive; one nanosecond more is expired.

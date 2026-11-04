@@ -57,10 +57,10 @@ fn a_process_id_nobody_has_is_dead() {
 fn only_a_proven_dead_or_nameless_owner_is_dead() {
     let here: CopyOwner = current_copy_owner().expect("current owner");
     let anchor: &Path = Path::new("/");
-    assert!(!token_owner_is_dead(Some(here.token().as_str()), anchor));
-    assert!(token_owner_is_dead(Some(crate::test_support::dead_copy_owner().token().as_str()), anchor));
-    assert!(token_owner_is_dead(None, anchor));
-    assert!(token_owner_is_dead(Some("json"), anchor));
+    assert!(!token_owner_is_dead(Some(here.token().as_str()), anchor).expect("judged"));
+    assert!(token_owner_is_dead(Some(crate::test_support::dead_copy_owner().token().as_str()), anchor).expect("judged"));
+    assert!(token_owner_is_dead(None, anchor).expect("judged"));
+    assert!(token_owner_is_dead(Some("json"), anchor).expect("judged"));
 }
 
 /// An owner in another process-id namespace cannot be judged by its id: it stays alive while its item is recent.
