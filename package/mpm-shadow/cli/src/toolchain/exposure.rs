@@ -129,7 +129,7 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
 /// or relative to the scope root),
 /// or the
 /// scope's link directory.
-fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
+pub fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
     return match link_dir {
         None => scope.link_dir.clone(),
         Some(directory) => {
@@ -137,6 +137,60 @@ fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
             if path.is_absolute() { path.to_path_buf() } else { scope.root.join(path) }
         }
     };
+}
+
+/// One postinstall link that was just made.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MadeLink {
+    /// The file name of the link.
+    pub name: String,
+    /// The full path of the link.
+    pub path: PathBuf,
+    /// What the link points at.
+    pub target: PathBuf,
+}
+
+/// The links a pass made and the error that stopped it,
+/// if any:
+/// the links made before the error still exist and must be recorded.
+#[derive(Debug, Default)]
+pub struct MadeLinks {
+    /// The links made, in plan order.
+    pub made: Vec<MadeLink>,
+    /// The error that ended the pass.
+    pub error: Option<ToolchainError>,
+}
+
+/// What:
+/// Makes each postinstall link of `tools`:
+/// `<link dir>/<link name>` pointing at the tool's `sourceBin`,
+/// and reports every link made even when a later one failed.
+/// Why:
+/// The cleanup of links the lock no longer declares needs the full path and target of each link made.
+pub fn make_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> MadeLinks {
+    let mut outcome: MadeLinks = MadeLinks::default();
+    for tool in tools {
+        let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall else {
+            continue;
+        };
+        let Some(found) = find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx)) else {
+            continue;
+        };
+        let target: PathBuf = match exposed_target(ctx.scope, tool, &link.source_bin, &found) {
+            Ok(target) => target,
+            Err(error) => {
+                outcome.error = Some(error);
+                return outcome;
+            }
+        };
+        let path: PathBuf = link_directory(ctx.scope, &link.link_dir).join(&link.link_name);
+        if let Err(error) = atomic_symlink(&path, &target) {
+            outcome.error = Some(error);
+            return outcome;
+        }
+        outcome.made.push(MadeLink { name: link.link_name.clone(), path, target });
+    }
+    return outcome;
 }
 
 /// What:
@@ -150,20 +204,11 @@ fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
 /// export function runPostinstallLinks(ctx: Context, tools: LockedTool[]): string[]
 /// ```
 pub fn run_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<Vec<String>, ToolchainError> {
-    let mut created: Vec<String> = Vec::new();
-    for tool in tools {
-        let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall else {
-            continue;
-        };
-        let Some(found) = find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx)) else {
-            continue;
-        };
-        let target: PathBuf = exposed_target(ctx.scope, tool, &link.source_bin, &found)?;
-        let directory: PathBuf = link_directory(ctx.scope, &link.link_dir);
-        atomic_symlink(&directory.join(&link.link_name), &target)?;
-        created.push(link.link_name.clone());
+    let outcome: MadeLinks = make_postinstall_links(ctx, tools);
+    if let Some(error) = outcome.error {
+        return Err(error);
     }
-    return Ok(created);
+    return Ok(outcome.made.into_iter().map(|link| return link.name).collect());
 }
 
 /// The postinstall commands' outcome:

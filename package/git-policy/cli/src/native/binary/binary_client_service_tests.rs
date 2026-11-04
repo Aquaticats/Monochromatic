@@ -180,7 +180,7 @@ fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: 
     let runtime: PathBuf = runtime_for(name);
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
-    let child: Child = Command::new(env!("CARGO_BIN_EXE_cli-git-service"))
+    let child: Child = super::support::service_command()
         .args(["--journal"])
         .arg(fixture.root.join("journal"))
         .arg("--path")

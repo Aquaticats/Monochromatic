@@ -235,10 +235,7 @@ await Promise.all([
  changed.
  */
 const service = await makeService({
-  program: join(
-    dirname(resolve(values.binary)),
-    'cli-git-service',
-  ),
+  program: resolve(values.binary),
   root,
   scratchParent,
   ...(traceDirectory === undefined ? {} : { traceDirectory, }),
