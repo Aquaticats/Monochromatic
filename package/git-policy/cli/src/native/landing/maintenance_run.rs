@@ -4,8 +4,9 @@
 //!  then `git maintenance run --auto`, detached or not, in the real worktree, with Git's words kept in the journal.
 //!  Its exit status is returned for the caller to ignore, as native Git does.
 //! Why:
-//!  Every landing migrates its objects into one pack;
-//!  without this step the pack count grows by one per commit and every later Git process searches every pack.
+//!  A landing writes its objects with `git fast-import`, which leaves them loose when the batch holds at most
+//!  `fastimport.unpackLimit` objects (100 by default; Git 2.56.0 `builtin/fast-import.c`, `end_packfile`) and keeps one pack
+//!  otherwise; without this step the loose objects and packs accumulate and every later Git process searches them all.
 //!  Failures are logged and never fail the landed commit.
 //!
 //! In TS you'd write (pseudocode):
