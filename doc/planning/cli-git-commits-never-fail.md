@@ -2210,6 +2210,19 @@ rule precedence in the next section. Then the following are the gates for moving
 named fixes". Textual declarations alone do not satisfy them. Every model must separate observation, admission, write,
 force and reclamation, and not assume an atomic "safe handoff".
 
+Supported scope (fixed 2026-11-04 by the coordinator under the owner's rules, veto open; the owner's related decisions:
+the tests run on pacman's current Git and "Raise minimum, drop the test, merely print a warning on older git and not
+refuse."; level 2 "Keep level 2 off (Recommended)"): Linux; the Git version the tests run on (pacman's current Git in
+the test image, 2.56.0 when models round 15 ran; an older Git only warns); the files and reftable ref backends; local
+file systems. Packed refs, linked worktrees, the side-ref transaction, and the creation, deletion and symbolic-ref
+updates through the transaction are supported, and each is an obligation to demonstrate with a disposable backend
+experiment before the live protocol ships; until its test exists its row stays Narrower. Excluded from the supported
+scope: level 2 (off by the owner's decision), a launch from a process with more than one thread (refused by design), a
+memory or process cap (outside our control), and the manager-started transient unit launch route until it is built.
+Coordinator picks recorded with it (veto open): saved content enters the store only through the component, created
+read-only before it is named (`O_TMPFILE` or a private name in a 0700 directory), with read leases an extra check and
+never a refusal; the running owner's syncer retries recorded receipt errors instead of leaving them to the next start.
+
 ### L1 to L7, L5, X1, service drain
 
 Required property. Ownership and restart target the correct incarnation; normal lifecycle operations never cancel a
