@@ -158,7 +158,10 @@ Each guard was shown to matter: with the `flock` result ignored, the controls fo
 wait fail; with the inode comparison always true, the controls for a replaced file fail.
 
 Added after the cross-vendor review of `9db8794047` (`/var/home/user/temp/agent/reviews/one-reclaimer-sol-1.txt`, verdict
-"correct after named fixes"): the three fixes in the next sections, and the sweep of aside files.
+"correct after named fixes"): the three fixes in the next sections. The sweep of aside files that was added with them is removed
+again (see the last section); a second review's two other findings are fixed: the notice for a stale lock that is not removed is
+written from the marker of the file that was judged, so a live replacement is never called gone, and the controls for a busy
+stale lock hand off between threads so that they always meet the busy case.
 
 ## No `flock`
 
@@ -206,7 +209,25 @@ to its `.aside-` name in the events; against the current code it passes.
 
 ## Aside files an earlier release left
 
-`remove_stranded_asides` runs after each placement, beside the sweep of dead staging files. It removes
-`<lock>.aside-<process>-<time>` files that have no other name and that no process has open (a live holder keeps its file open),
-and writes what each held into the log line. They are lock files, not user data. A scan that stopped at its time bound leaves them.
-The descriptors of other accounts' processes cannot be listed; a holder of these files is a service of this account.
+Release 0.5.28 took a live lock aside by a rename and put it back by a hard link; when a third program took the name in between,
+the file stayed at `<lock>.aside-<process>-<time>` beside the lock (for example `index.lock.aside-4242-18e4cb0dfc4e8cad` in the
+Git directory, or beside an alternate index). This release makes none, and **nothing removes the ones already there**.
+
+An automatic sweep was built and removed again (the coordinator's pick under the owner's delegation, veto open; the second
+cross-vendor review, `/var/home/user/temp/agent/reviews/one-reclaimer-sol-2.txt`): a scan of the processes this process can see
+does not prove that no process holds the file (another account, another PID namespace), and deleting the only name of a live
+holder's lock loses it; the name prefix does not prove the content is a service marker, since the old reclaim could take a native
+Git lock aside, whose bytes are a pending index; and the sweep ran while the landing held the lock. The owner's "Allow the rare
+leftover" covers the files, and the risk of deleting a live lock outweighs the tidiness.
+
+To remove them, once no git command and no commit of this service is running in this repository, look at them first and then
+remove exactly what is listed:
+
+```sh
+# list, then read the first line of each: a service lock starts with "cli-git-service "
+ls -l -- "$(git rev-parse --absolute-git-dir)"/index.lock.aside-*
+rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.aside-*
+```
+
+A file that does not start with `cli-git-service ` may be a native Git lock holding an index its Git never installed; keep it
+until you know. For an alternate index (`GIT_INDEX_FILE`), use the directory of that index instead of the Git directory.

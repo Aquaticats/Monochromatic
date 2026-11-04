@@ -135,14 +135,14 @@ fn a_second_reclaimer_of_one_stale_lock_backs_off_while_the_first_holds_it() {
     let (root, index) = index_in("reclaim-two-reclaimers");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
-    let second = std::rc::Rc::new(std::cell::Cell::new(None));
+    let second: std::rc::Rc<std::cell::RefCell<Option<Reclaimed>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
     let (hook_lock, hook_second) = (lock.clone(), std::rc::Rc::clone(&second));
     hooks::set("reclaim-held", std::rc::Rc::new(move || {
         // The second reclaimer reaches the same file while the first holds it, and reaches no point of the hold itself.
-        hook_second.set(Some(reclaim(&SYSTEM, &hook_lock)));
+        *hook_second.borrow_mut() = Some(reclaim(&SYSTEM, &hook_lock));
     }));
     let first: Reclaimed = reclaim(&SYSTEM, &lock);
-    assert_eq!(second.get(), Some(Reclaimed::Busy), "the second reclaimer backs off");
+    assert_eq!(*second.borrow(), Some(Reclaimed::Busy), "the second reclaimer backs off");
     assert_eq!(first, Reclaimed::Removed, "the first reclaimer removes the stale lock");
     assert!(!lock.exists());
     remove(root.as_path());
@@ -166,25 +166,91 @@ fn a_reclaimer_that_backed_off_can_reclaim_once_the_hold_is_dropped() {
     remove(root.as_path());
 }
 
-/// A landing that meets a stale lock another reclaimer holds neither removes it nor fails at once: it waits as for any held lock
-///  and ends at its ceiling, and the stale lock stays for the reclaimer that holds it.
+/// The hold of the system, counting the times another reclaimer's hold refused it and telling the holder thread the first time.
+fn counting_hold<'a>(refused: &'a std::cell::Cell<usize>, first_refusal: &'a std::sync::mpsc::Sender<()>) -> impl Fn(&std::fs::File) -> std::io::Result<()> + 'a {
+    return move |file: &std::fs::File| -> std::io::Result<()> {
+        let answer = crate::service_index_reclaim::flock_exclusive(file);
+        if answer.as_ref().is_err_and(|error| { return error.kind() == std::io::ErrorKind::WouldBlock; }) {
+            refused.set(refused.get() + 1);
+            if refused.get() == 1 {
+                let _told = first_refusal.send(());
+            }
+        }
+        return answer;
+    };
+}
+
+/// The thread that plays another reclaimer: it takes the hold on the stale lock, says so, and keeps it until told to let go (or
+///  until `give_up`, so a failed control cannot hang).
+fn spawn_other_reclaimer(lock: PathBuf, taken: std::sync::mpsc::Sender<()>, let_go: std::sync::mpsc::Receiver<()>, give_up: std::time::Duration) -> std::thread::JoinHandle<()> {
+    return std::thread::spawn(move || {
+        let holding = std::fs::File::open(&lock).expect("the other reclaimer's descriptor");
+        // SAFETY: `flock` takes an open descriptor, which `holding` keeps open for the call.
+        let result: i32 = unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&holding), libc::LOCK_EX | libc::LOCK_NB) };
+        assert_eq!(result, 0, "the control plays the other reclaimer");
+        taken.send(()).expect("the control waits for the hold");
+        let _told = let_go.recv_timeout(give_up);
+        drop(holding);
+    });
+}
+
+/// A landing that meets a stale lock another reclaimer holds neither removes it nor fails at once: it looks again at the poll
+///  pace, which the count of refusals shows, and ends at its ceiling; the stale lock stays for the reclaimer that holds it.
 #[test]
 fn a_landing_waits_for_the_reclaimer_that_holds_a_stale_lock() {
     let (root, index) = index_in("reclaim-landing-busy");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
-    let holding = std::fs::File::open(&lock).expect("the other reclaimer's descriptor");
-    // SAFETY: `flock` takes an open descriptor, which `holding` keeps open for the call.
-    let taken: i32 = unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&holding), libc::LOCK_EX | libc::LOCK_NB) };
-    assert_eq!(taken, 0, "the control plays the other reclaimer");
-    let ceiling: std::time::Duration = std::time::Duration::from_millis(200);
-    let failure = acquire_within(&SYSTEM, &index, 9, ceiling, &|_| {}).expect_err("the lock is not taken while the other reclaimer holds it");
+    let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 20;
+    let (taken_tx, taken_rx) = std::sync::mpsc::channel::<()>();
+    let (let_go_tx, let_go_rx) = std::sync::mpsc::channel::<()>();
+    let reclaimer = spawn_other_reclaimer(lock.clone(), taken_tx, let_go_rx, ceiling * 4);
+    taken_rx.recv().expect("the hold is taken");
+    let refused = std::cell::Cell::new(0_usize);
+    let (first_tx, _first_rx) = std::sync::mpsc::channel::<()>();
+    let hold = counting_hold(&refused, &first_tx);
+    let platform: Platform = Platform { flock: &hold, ..SYSTEM };
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure = acquire_within(&platform, &index, 9, ceiling, &|_| {}).expect_err("the lock is not taken while the other reclaimer holds it");
     assert_eq!(failure.code, FailureCode::IndexInUse, "the wait ends at its ceiling, as for any held lock");
+    assert!(began.elapsed() >= ceiling, "the wait ended before its ceiling");
+    assert!(refused.get() > 1, "the landing looked again while the hold lasted: {} refusals", refused.get());
     assert!(lock.exists(), "the stale lock stays for the reclaimer that holds it");
-    assert!(try_acquire(&index, 9).is_none(), "a restart's single attempt leaves the batch open");
-    drop(holding);
-    let reclaimed = acquire_within(&SYSTEM, &index, 9, ceiling, &|_| {}).expect("the stale lock is reclaimed once nobody holds it");
-    drop(reclaimed);
+    let_go_tx.send(()).expect("the other reclaimer is told to let go");
+    reclaimer.join().expect("the other reclaimer ends");
+    remove(root.as_path());
+}
+
+/// A landing that meets a stale lock another reclaimer holds waits in the same acquisition and takes the lock once the hold is
+///  dropped without the file being unlinked: the hold leaves no event in the directory, so the wait looks again at the poll pace.
+///  The other reclaimer lets go only after the landing was refused the hold, so the control always meets the busy case.
+#[test]
+fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_hold_is_dropped() {
+    let (root, index) = index_in("reclaim-landing-wakes");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
+    let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 20;
+    let (taken_tx, taken_rx) = std::sync::mpsc::channel::<()>();
+    let (first_tx, first_rx) = std::sync::mpsc::channel::<()>();
+    let reclaimer = spawn_other_reclaimer(lock.clone(), taken_tx, first_rx, ceiling * 4);
+    taken_rx.recv().expect("the hold is taken");
+    let refused = std::cell::Cell::new(0_usize);
+    // The landing's first refusal is what lets the other reclaimer go: `first_tx` is the sender the hold reports to.
+    let hold = counting_hold(&refused, &first_tx);
+    let platform: Platform = Platform { flock: &hold, ..SYSTEM };
+    let holders = std::cell::RefCell::new(Vec::<String>::new());
+    let began: std::time::Instant = std::time::Instant::now();
+    let taken = acquire_within(&platform, &index, 9, ceiling, &|announce| {
+        if let Announce::Holder(who) = announce {
+            holders.borrow_mut().push(who);
+        }
+    })
+    .expect("the stale lock is reclaimed in the same acquisition once the hold is dropped");
+    assert!(refused.get() >= 1, "the acquisition met the other reclaimer's hold");
+    assert!(began.elapsed() < ceiling, "the acquisition took the whole ceiling");
+    assert!(holders.borrow().is_empty(), "a held stale lock is no dead holder to give up on: {:?}", holders.borrow());
+    drop(taken);
+    reclaimer.join().expect("the other reclaimer ends");
     remove(root.as_path());
 }
 
@@ -216,7 +282,7 @@ fn a_failed_flock_never_has_the_stale_lock_removed() {
     };
     let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
     let outcome: Reclaimed = reclaim(&platform, &lock);
-    assert_eq!(outcome, Reclaimed::Unguarded, "the stale lock is left, and the caller is told why");
+    assert!(matches!(outcome, Reclaimed::Unguarded(_)), "the stale lock is left, and the caller is told why: {outcome:?}");
     assert_eq!(tried.get(), 1, "the hold was asked for once");
     assert!(lock.exists(), "the stale lock stays");
     remove(root.as_path());
@@ -252,42 +318,6 @@ fn a_landing_with_no_flock_waits_to_its_ceiling_and_names_the_stale_lock() {
     remove(root.as_path());
 }
 
-/// A landing that meets a stale lock another reclaimer holds waits in the same acquisition and takes the lock once the hold is
-///  dropped without the file being unlinked: the hold leaves no event in the directory, so the wait looks again at the poll pace.
-#[test]
-fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_hold_is_dropped() {
-    let (root, index) = index_in("reclaim-landing-wakes");
-    let lock: PathBuf = lock_path_of(&index);
-    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
-    let hold: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 3;
-    let ceiling: std::time::Duration = hold * 40;
-    let (taken_tx, taken_rx) = std::sync::mpsc::channel::<()>();
-    let hook_lock: PathBuf = lock.clone();
-    let reclaimer = std::thread::spawn(move || {
-        let holding = std::fs::File::open(&hook_lock).expect("the other reclaimer's descriptor");
-        // SAFETY: `flock` takes an open descriptor, which `holding` keeps open for the call.
-        let taken: i32 = unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&holding), libc::LOCK_EX | libc::LOCK_NB) };
-        assert_eq!(taken, 0, "the control plays the other reclaimer");
-        taken_tx.send(()).expect("the landing is waiting for the hold");
-        std::thread::sleep(hold);
-        drop(holding);
-    });
-    taken_rx.recv().expect("the hold is taken");
-    let holders = std::cell::RefCell::new(Vec::<String>::new());
-    let began: std::time::Instant = std::time::Instant::now();
-    let taken = acquire_within(&SYSTEM, &index, 9, ceiling, &|announce| {
-        if let Announce::Holder(who) = announce {
-            holders.borrow_mut().push(who);
-        }
-    })
-    .expect("the stale lock is reclaimed in the same acquisition once the hold is dropped");
-    assert!(began.elapsed() < ceiling, "the acquisition took the whole ceiling");
-    assert!(holders.borrow().is_empty(), "a held stale lock is no dead holder to give up on: {:?}", holders.borrow());
-    drop(taken);
-    reclaimer.join().expect("the other reclaimer ends");
-    remove(root.as_path());
-}
-
 /// The old sequence took a live lock aside by a rename, so the lock's name was empty for a while and Git could take it. The
 ///  directory is watched while a reclaimer works on a live lock, and no event may name the lock: no rename, no removal, no
 ///  creation. The scheduling is the kernel's own, so the control needs no hook inside the reclaimer and fails against the old
@@ -311,6 +341,8 @@ fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
     let read: isize = unsafe { libc::read(watch, buffer.as_mut_ptr().cast(), buffer.len()) };
     // SAFETY: the descriptor was opened above and is closed once.
     unsafe { libc::close(watch) };
+    let read_error: std::io::Error = std::io::Error::last_os_error();
+    assert!(read >= 0 || read_error.kind() == std::io::ErrorKind::WouldBlock, "the events could not be read: {read_error}");
     let seen: String = if read > 0 { String::from_utf8_lossy(&buffer[..read as usize]).into_owned() } else { String::new() };
     assert!(!seen.contains("index.lock"), "the live lock's name saw events: {seen:?}");
     assert_eq!(std::fs::read_to_string(&lock).expect("the live lock stands"), marker_text(7, &crate::service_index_marker::own_identity).expect("this process has an identity"));

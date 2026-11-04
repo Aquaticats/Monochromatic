@@ -122,7 +122,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         //  one, and one that cannot be removed leave the batch open for the next round.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match reclaim(platform, &lock) {
             Reclaimed::Removed | Reclaimed::Changed => place_marked(platform, &staged, &lock),
-            Reclaimed::Busy | Reclaimed::Kept | Reclaimed::Stuck | Reclaimed::Unguarded => Err(error),
+            Reclaimed::Busy | Reclaimed::Kept | Reclaimed::Stuck | Reclaimed::Unguarded(_) => Err(error),
         },
         other => other,
     };

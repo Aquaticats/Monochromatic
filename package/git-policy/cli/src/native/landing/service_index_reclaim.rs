@@ -19,14 +19,14 @@
 //! ```
 
 use crate::service_index_lock::lock_path_of;
-use crate::service_index_marker::{Marked, holder_is_gone, marker_of_file};
+use crate::service_index_marker::{LOCK_MARKER, Marked, holder_is_gone, marker_of_file};
 use crate::service_index_placement::{Platform, SYSTEM};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 /// What a reclaimer made of the file at a lock's name.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Reclaimed {
     /// No lock is left in the way: the stale file was removed, or was already gone.
     Removed,
@@ -39,8 +39,9 @@ pub enum Reclaimed {
     /// The file is stale and cannot be removed; the log says why.
     Stuck,
     /// The file is stale, but the hold a safe removal needs could not be taken (no `flock` on the file system, or the kernel
-    ///  refused it): the file is left where it is, and the person is told how to remove it.
-    Unguarded,
+    ///  refused it): the file is left where it is, and the person is told how to remove it. It carries the marker read from the
+    ///  very file that was judged, so the notice never describes a file that replaced it.
+    Unguarded(Marked),
 }
 
 /// What:
@@ -93,7 +94,7 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
                  remove it by hand once no git command runs in this repository",
                 lock.display()
             );
-            return Reclaimed::Unguarded;
+            return Reclaimed::Unguarded(marked);
         }
     }
     crate::service_fault::reach("reclaim-held");
@@ -182,24 +183,30 @@ fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
 }
 
 /// What:
-///  The words for a stale lock that was not removed: which lock, which batch and process left it, and how to remove it.
+///  The words for a stale lock that was not removed: which lock, which batch and process left it, how to tell it is still that
+///  lock, and how to remove it.
 /// Why:
 ///   Native Git leaves a stale `index.lock` to the person, and so does a service that cannot take the hold a safe removal needs;
-///  the person must be able to act from the notice alone.
+///  the person must be able to act from the notice alone. `marked` is the marker read from the file that was judged, never a
+///  second read of the name, which another landing may have taken since; the first line to look for lets the person see that
+///  the file is still the one described.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `The index lock ${lock} was left by cli-git-service batch ${seq} (process ${pid}, gone). ... remove it yourself: rm ${lock}`
 /// ```
-pub fn stale_lock_words(lock: &Path) -> String {
-    let who: String = match crate::service_index_marker::marker_of(lock) {
-        Some(Marked { seq, holder: Some((pid, _)) }) => format!("cli-git-service batch {seq} (process {pid}, which is gone)"),
-        Some(Marked { seq, holder: None }) => format!("cli-git-service batch {seq}"),
-        None => String::from("cli-git-service"),
+pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
+    let (who, first_line): (String, String) = match marked.holder.as_ref() {
+        Some((pid, birth)) => (
+            format!("cli-git-service batch {} (process {pid}, which is gone)", marked.seq),
+            format!("{LOCK_MARKER}{} {pid} {birth}", marked.seq),
+        ),
+        None => (format!("cli-git-service batch {}", marked.seq), format!("{LOCK_MARKER}{}", marked.seq)),
     };
     return format!(
         "The index lock {} was left by {who} and is not removed here, because the file lock that makes its removal safe could not be taken on this file system. \
-         The commit waits as for any held lock. Once no git command is running in this repository, remove it yourself (`rm {}`).",
+         The commit waits as for any held lock. Once no git command and no commit of this service is running in this repository, and the first line of the file \
+         still reads `{first_line}`, remove it yourself (`rm {}`).",
         lock.display(),
         lock.display()
     );
