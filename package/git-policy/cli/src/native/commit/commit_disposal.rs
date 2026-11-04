@@ -48,7 +48,7 @@ fn key_of(name: &str) -> String {
 
 /// Whether the ledger already holds the `disposed` line for `key` (complete valid lines only).
 fn has_disposed_line(ledger: &Path, key: &str) -> io::Result<bool> {
-    let bytes: Vec<u8> = match std::fs::read(ledger) {
+    let bytes: Vec<u8> = match super::commit_state_log::read_regular(ledger) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(error),
@@ -96,6 +96,8 @@ fn replace_root_without_disposed(lane: &Path, writer: &mut StateWriter, state: &
 /// ```
 pub fn retire_saved_content(lane: &Path, state: &Path, authorization: &DisposalAuthorization) -> io::Result<Retired> {
     let mut writer: StateWriter = StateWriter::acquire(state)?;
+    // Before any line is written: a saved directory that is a link is not the lane's, and nothing in it is the person's to dispose of here.
+    super::commit_state_log::open_lane_subdirectory(lane, "saved")?;
     let (_selected, document) = newest_checked_root(state)?;
     if !document.saved().contains(&authorization.name) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the newest root does not hold that saved content"));
@@ -131,14 +133,27 @@ pub fn unlink_retired(retired: Retired) -> io::Result<()> {
     super::commit_state_log::force_items(&retired.lane, &prefix.items)?;
     let directory: PathBuf = retired.lane.join("saved");
     let path: PathBuf = directory.join(&retired.name);
+    // The directory is opened here without following a link and the name is removed relative to that descriptor: a `saved` that became a
+    // link since the checks removes nothing outside the lane.
+    let Some(opened) = super::commit_state_log::open_lane_subdirectory(&retired.lane, "saved")? else { return Ok(()) };
     fault_point("disposal:before-unlink");
-    match std::fs::remove_file(&path) {
-        Ok(()) => record_event_lazy(|| { return format!("unlink:{}", path.display()); }),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
+    if remove_in(&opened, &retired.name)? {
+        record_event_lazy(|| { return format!("unlink:{}", path.display()); });
     }
     fault_point("disposal:after-unlink");
-    return super::commit_flusher::sync_path(&directory);
+    return opened.sync_all();
+}
+
+/// Removes the entry `name` of the opened directory `directory`: `true` when it removed one, `false` when the entry was gone already.
+fn remove_in(directory: &std::fs::File, name: &str) -> io::Result<bool> {
+    use std::os::fd::AsRawFd;
+    let entry: std::ffi::CString = std::ffi::CString::new(name).map_err(|error| { return io::Error::new(io::ErrorKind::InvalidInput, error); })?;
+    // SAFETY: `unlinkat` takes a descriptor, a NUL-terminated name that lives through the call, and flags; it touches no other memory.
+    if unsafe { libc::unlinkat(directory.as_raw_fd(), entry.as_ptr(), 0) } == 0 {
+        return Ok(true);
+    }
+    let error: io::Error = io::Error::last_os_error();
+    return if error.kind() == io::ErrorKind::NotFound { Ok(false) } else { Err(error) };
 }
 
 /// The whole disposal: the line, the replacement root, the unlink.
@@ -159,12 +174,8 @@ pub fn dispose_saved_content(lane: &Path, state: &Path, authorization: &Disposal
 /// function resumeDisposals(lane: string, state: string): number;
 /// ```
 pub fn resume_disposals(lane: &Path, state: &Path) -> io::Result<usize> {
-    let directory: PathBuf = lane.join("saved");
-    let entries = match std::fs::read_dir(&directory) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
-        Err(error) => return Err(error),
-    };
+    let Some(opened) = super::commit_state_log::open_lane_subdirectory(lane, "saved")? else { return Ok(0) };
+    let entries = std::fs::read_dir(super::commit_state_log::listing_path(&opened))?;
     let ledger: PathBuf = lane.join(super::commit_state_log::LANE_LEDGER);
     let mut pending: Vec<String> = Vec::new();
     for listed in entries {

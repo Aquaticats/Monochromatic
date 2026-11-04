@@ -16,7 +16,7 @@ use crate::commit_state_log_tests::{lane_with_envelope, raw_record};
 use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_disposal::{DisposalAuthorization, dispose_saved_content, retire_saved_content, unlink_retired};
 use git_policy_cli::commit_flusher::{FlushError, RECEIPT_DIR, RECEIPT_ERRORS, flush_lane, open_error_record};
-use git_policy_cli::commit_flusher_unit::{inject_unreapable_child, pending_reaps, reap_pending, reap_in_background, run_within, validate_lane};
+use git_policy_cli::commit_flusher_unit::{inject_pending_child, inject_unreapable_child, pending_reaps, reap_pending, run_within, validate_lane};
 use git_policy_cli::commit_identity::{inject_sync_error, set_fault_point, start_events, take_events};
 use git_policy_cli::commit_lane_lifecycle::{capture_lane_closure, seal_for_shutdown, startup_sweep, syncer_pass, syncer_pass_with};
 use git_policy_cli::commit_lane_service::{bind_ring, ring_running_service, start_lane_service};
@@ -315,10 +315,10 @@ fn the_disk_parsers_refuse_a_duplicate_path_and_a_refused_append_leaves_the_prev
     assert_eq!(read(&state).expect("readable").expect("a root"), (1, document), "the refusal changed the root");
 }
 
-/// Review of step 3 (tests, 9): a child that a command left unreaped is reaped by a thread of its own, and that thread is not started while a
-/// fork may still follow (the thread count of the process is what the fork requires to be one).
+/// Review of step 3 (tests, 9) and the fifth review: a child that a command left unreaped waits in the pending list, no thread is started
+/// for it (a fork may follow), and a later poll reaps it once it has ended.
 #[test]
-fn a_killed_command_that_is_not_reaped_in_its_window_waits_in_the_pending_list_and_is_reaped_afterwards() {
+fn a_killed_command_that_is_not_reaped_in_its_window_waits_in_the_pending_list_and_is_reaped_when_polled() {
     let threads = || -> usize { return fs::read_dir("/proc/self/task").expect("tasks").count(); };
     let before: usize = threads();
     inject_unreapable_child(true);
@@ -327,25 +327,29 @@ fn a_killed_command_that_is_not_reaped_in_its_window_waits_in_the_pending_list_a
     let result = run_within(command, Duration::from_millis(20));
     inject_unreapable_child(false);
     assert!(result.is_err());
-    assert_eq!(pending_reaps(), 1, "the child was not left in the pending list");
-    assert_eq!(threads(), before, "a reaper thread was started before the fork that may follow");
-    reap_pending();
-    assert_eq!(pending_reaps(), 0);
+    assert_eq!(threads(), before, "a reaper thread was started");
+    let deadline: Instant = Instant::now() + WAIT;
+    while pending_reaps() != 0 {
+        assert!(Instant::now() < deadline, "the killed child was never reaped by a poll");
+        reap_pending();
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
-/// Review of step 3 (tests, 9): the reaper reaps. A child that ends 300 ms after it is handed over leaves no zombie: its process number is
-/// gone (a zombie still answers signal zero).
+/// The fifth review: polling reaps a child that has ended. A child that ends by itself after it was handed over leaves no zombie once a
+/// poll has seen it: its process number is gone (a zombie still answers signal zero).
 #[test]
-fn the_background_reaper_leaves_no_zombie() {
+fn polling_the_pending_list_leaves_no_zombie() {
     let mut command = std::process::Command::new("sleep");
     command.arg("0.3");
     let child = command.spawn().expect("a child that ends by itself");
     let pid: i32 = i32::try_from(child.id()).expect("a pid");
-    reap_in_background(child);
+    inject_pending_child(child);
     let deadline: Instant = Instant::now() + WAIT;
     // SAFETY: `kill` with signal zero takes two integers and sends nothing.
     while unsafe { libc::kill(pid, 0) } == 0 {
-        assert!(Instant::now() < deadline, "the child {} is still there (a zombie nobody waits for)", pid);
+        assert!(Instant::now() < deadline, "the child {} is still there (a zombie nobody polled)", pid);
+        reap_pending();
         std::thread::sleep(Duration::from_millis(10));
     }
 }

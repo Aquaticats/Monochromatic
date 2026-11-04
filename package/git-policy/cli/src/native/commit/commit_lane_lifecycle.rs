@@ -16,11 +16,11 @@
 //! ```
 
 use super::commit_identity::fault_point;
-use super::commit_flusher::{FlushError, Flushed, FlusherLaunchError, RECEIPT_ERRORS, flush_lane};
+use super::commit_flusher::{FlushError, Flushed, FlusherLaunchError, RECEIPT_ERRORS, flush_lane_one_round};
 pub use super::commit_flusher_unit::{ManagerRoute, Routed, launch_routed};
 pub use super::commit_state_log::capture_lane_closure;
 use super::commit_state_log::{ClosureEntry, LaneDocument, LaneState, Selected, StateError, StateWriter, select};
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -32,7 +32,13 @@ pub fn create_receipt(lane: &Path, id: &str) -> io::Result<PathBuf> {
     let directory: PathBuf = lane.join(super::commit_flusher::RECEIPT_DIR);
     fs::create_dir_all(&directory)?;
     let path: PathBuf = directory.join(id);
-    OpenOptions::new().write(true).create(true).truncate(false).open(&path)?;
+    // Without following a link and without blocking, and judged by the descriptor: a FIFO named like the receipt would otherwise hold the
+    // acceptance for ever, and a link would register the obligation on some other file.
+    use std::os::unix::fs::OpenOptionsExt;
+    let file: File = OpenOptions::new().write(true).create(true).truncate(false).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&path)?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the receipt's name is held by something that is not a regular file"));
+    }
     return Ok(path);
 }
 
@@ -104,14 +110,15 @@ pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<Syn
     };
     let retried: usize = read.iter().filter(|byte| { return **byte == b'\n'; }).count();
     after_read();
-    match flush_lane(lane)? {
+    let flushed: Flushed = flush_lane_one_round(lane)?;
+    match flushed {
         Flushed::Held => return Ok(SyncPass { forced: 0, retried: 0, held: true, more: false }),
-        Flushed::Finished { forced } | Flushed::Handed { forced } => {
+        Flushed::Finished { forced } | Flushed::Handed { forced } | Flushed::Yielded { forced } => {
             // A record longer than the read limit was read in part: it is never cleared, so no line goes unretried.
             if retried > 0 && whole {
                 clear_if_unchanged(lane, &read)?;
             }
-            return Ok(SyncPass { forced, retried, held: false, more: false });
+            return Ok(SyncPass { forced, retried, held: false, more: matches!(flushed, Flushed::Yielded { .. }) });
         }
     }
 }
@@ -235,8 +242,8 @@ fn dropped_since(previous: &Selected, closure: &[ClosureEntry]) -> Vec<String> {
 
 /// What:
 ///  The planned-shutdown seal: a final pass over the receipts, then a reclaiming checkpoint of everything the lane holds, carrying the state
-///  of the newest checked document (a newest document that is not in the checked representation contributes no state, and its segment is
-///  not reclaimed).
+///  of the newest checked document. A newest root that is not in the checked representation is refused: its state cannot be carried, and a
+///  newer root with an empty state would be the one recovery selects.
 /// Why:
 ///  The seal is the state log's real reclaimer. Requests the lane no longer holds are named as retired, and the component accepts them only
 ///  where a ledger line in the checkpoint's own closure proves the discharge; a state that names a request the lane no longer holds is not a
@@ -253,7 +260,15 @@ pub fn seal_for_shutdown(lane: &Path, state: &Path) -> Result<Sealed, LifecycleE
     let mut writer: StateWriter = StateWriter::acquire(state)?;
     let closure: Vec<ClosureEntry> = capture_lane_closure(lane)?;
     let previous: Option<Selected> = select(state)?;
-    let carried: LaneState = previous.as_ref().and_then(|chosen| { return LaneDocument::parse(&chosen.payload); }).map_or_else(LaneState::default, |document| { return document.state().clone(); });
+    // A root outside the checked representation carries state this seal cannot read; publishing a newer root with an empty state would make
+    // recovery select the empty one. The seal refuses and the root stays the root.
+    let carried: LaneState = match previous.as_ref() {
+        Some(chosen) => LaneDocument::parse(&chosen.payload)
+            .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, format!("the newest root (generation {}) is not in the checked representation, so a seal would replace its state with an empty one", chosen.generation)); })?
+            .state()
+            .clone(),
+        None => LaneState::default(),
+    };
     fault_point("lifecycle:seal-after-capture");
     let retired: Vec<String> = previous.as_ref().map_or_else(Vec::new, |chosen| { return dropped_since(chosen, &closure); });
     let document: LaneDocument = LaneDocument::from_closure(&closure)

@@ -108,13 +108,27 @@ pub enum Flushed {
     Finished { forced: usize },
     /// The recheck sweep found work and another flusher had taken the lock: that flusher carries it.
     Handed { forced: usize },
+    /// A one-round flush forced the receipts that were there when it began, and receipts arrived meanwhile: they are still to be forced by
+    /// whoever called the one-round flush (the service runs its next pass at once).
+    Yielded { forced: usize },
+}
+
+/// How long a flush that holds the lock keeps sweeping.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Drain {
+    /// Until a sweep finds nothing unforced: the one-shot flusher, whose launchers rely on the holder to carry what arrives while it works.
+    UntilEmpty,
+    /// One sweep: the receipts that were there when it began. Receipts that keep arriving cannot keep the caller from its other work.
+    OneRound,
 }
 
 /// What:
 ///  The lane's flusher lock, held for the value's life: an exclusive non-blocking `flock` on `<lane>/flusher.v2.lock`.
 /// Why:
-///  At most one flusher holds the lock. A client probes it and forks a helper only when it was free; the helper takes the lock itself, so
-///  no process but the one that works carries a copy of it. A foreign special file at the path is refused without being opened.
+///  At most one flusher of this protocol holds the lock (an older flusher that holds the old lock name is not excluded: the two may force the
+///  same receipt at once, which is harmless). A client does not probe it: `launch_flusher` always starts a helper, and the helper takes the
+///  lock itself and ends at once when another flusher holds it, so no process but the one that works carries a copy of it. A foreign
+///  special file at the path is refused without being opened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,9 +136,8 @@ pub enum Flushed {
 /// ```
 #[derive(Debug)]
 pub struct FlusherLock {
-    // Lock kept: at most one flusher holds it and forces a lane's receipts at a time (the helpers in their release, recheck and exit step hold nothing), and a client forks a helper only when it took this lock, so many
-    // outstanding receipts start one process and not one per client. It covers one lane, is never waited for (`try_lock`), and is released
-    // after the last empty sweep, before the recheck sweep.
+    // Lock kept: at most one flusher holds it and forces a lane's receipts at a time (the helpers in their release, recheck and exit step hold
+    // nothing). It covers one lane, is never waited for (`try_lock`), and is released after the last empty sweep, before the recheck sweep.
     _file: File,
 }
 
@@ -350,6 +363,12 @@ fn end_on_forcing_error(lane: &Path, forced: &BTreeSet<OsString>, lock: FlusherL
 /// function flushHeld(lane: string, lock: Lock, force: (path: string) => void, afterRelease: () => void): Flushed; // throws FlushError
 /// ```
 pub fn flush_held(lane: &Path, first_lock: FlusherLock, force: &mut dyn FnMut(&Path) -> io::Result<()>, after_release: &mut dyn FnMut()) -> Result<Flushed, FlushError> {
+    return flush_held_draining(lane, first_lock, force, after_release, Drain::UntilEmpty);
+}
+
+/// `flush_held` with the choice of how long to keep sweeping: with `Drain::OneRound` the flush sweeps once, releases the lock, and returns
+/// `Yielded` when receipts arrived meanwhile (the recheck does not take the lock again).
+pub fn flush_held_draining(lane: &Path, first_lock: FlusherLock, force: &mut dyn FnMut(&Path) -> io::Result<()>, after_release: &mut dyn FnMut(), drain: Drain) -> Result<Flushed, FlushError> {
     let mut forced: BTreeSet<OsString> = BTreeSet::new();
     let mut total: usize = 0;
     let mut lock: FlusherLock = first_lock;
@@ -360,12 +379,18 @@ pub fn flush_held(lane: &Path, first_lock: FlusherLock, force: &mut dyn FnMut(&P
                 Ok(count) => total += count,
                 Err(error) => return Err(end_on_forcing_error(lane, &forced, lock, error, after_release)),
             }
+            if drain == Drain::OneRound {
+                break;
+            }
         }
         fault_point("flusher:after-last-empty-sweep");
         drop(lock);
         after_release();
         if unforced(lane, &forced)?.is_empty() {
             return Ok(Flushed::Finished { forced: total });
+        }
+        if drain == Drain::OneRound {
+            return Ok(Flushed::Yielded { forced: total });
         }
         match FlusherLock::try_acquire(lane)? {
             Some(next) => lock = next,
@@ -388,6 +413,14 @@ pub fn flush_lane_with(lane: &Path, force: &mut dyn FnMut(&Path) -> io::Result<(
         return Ok(Flushed::Held);
     };
     return flush_held(lane, lock, force, after_release);
+}
+
+/// Runs one round of the flusher for `lane` with the real forcing (`sync_path`): the service's pass, which must end whatever arrives.
+pub fn flush_lane_one_round(lane: &Path) -> Result<Flushed, FlushError> {
+    let Some(lock) = FlusherLock::try_acquire(lane)? else {
+        return Ok(Flushed::Held);
+    };
+    return flush_held_draining(lane, lock, &mut sync_path, &mut || {}, Drain::OneRound);
 }
 
 /// Runs the flusher for `lane` with the real forcing (`sync_path`).

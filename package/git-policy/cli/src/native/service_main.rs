@@ -34,11 +34,15 @@ fn main() {
     // The internal flusher mode (plan step 2, owner decision 22): a transient unit the user manager starts runs the receipt flusher on one
     //  lane and exits with its code. It listens to nothing and serves nothing; without the flag this program is the service as before.
     if let Some(lane) = option(&arguments, git_policy_cli::commit_flusher_unit::FLUSH_LANE_FLAG) {
-        if let Err(reason) = git_policy_cli::commit_flusher_unit::validate_lane(std::path::Path::new(&lane)) {
-            git_policy_cli::service_error!("--flush-lane {lane}: {reason}");
-            std::process::exit(2);
-        }
-        std::process::exit(git_policy_cli::commit_flusher::flusher_entry(std::path::Path::new(&lane)));
+        // The lane directory is opened and checked once, and the flush runs on that directory through its descriptor.
+        let directory: std::fs::File = match git_policy_cli::commit_flusher_unit::open_lane(std::path::Path::new(&lane)) {
+            Ok(directory) => directory,
+            Err(reason) => {
+                git_policy_cli::service_error!("--flush-lane {lane}: {reason}");
+                std::process::exit(2);
+            }
+        };
+        std::process::exit(git_policy_cli::commit_flusher::flusher_entry(&git_policy_cli::commit_flusher_unit::pinned_path(&directory)));
     }
     let Some(journal) = option(&arguments, "--journal").map(PathBuf::from) else {
         git_policy_cli::service_error!("--journal <directory> is required");
@@ -101,10 +105,6 @@ fn main() {
     // The lane switch (plan step 3): only a service started with `--lane <dir>` sweeps and serves that lane's receipts; the shipped unit files
     //  do not pass it, so the shipped service touches no lane. The loop runs on a thread of its own and ends with the process.
     if let Some(lane) = option(&arguments, "--lane").map(PathBuf::from) {
-        if let Err(reason) = git_policy_cli::commit_flusher_unit::validate_lane(&lane) {
-            git_policy_cli::service_error!("--lane {}: {reason}", lane.display());
-            std::process::exit(2);
-        }
         let interval: Duration = option(&arguments, "--lane-interval-millis").and_then(|text| { return text.parse::<u64>().ok(); }).map_or(git_policy_cli::commit_lane_service::SYNC_INTERVAL, Duration::from_millis);
         if let Err(error) = git_policy_cli::commit_lane_service::start_lane_service(&lane, interval) {
             git_policy_cli::service_error!("--lane {}: {error}", lane.display());

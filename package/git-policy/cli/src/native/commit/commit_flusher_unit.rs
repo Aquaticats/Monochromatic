@@ -78,43 +78,72 @@ pub fn inject_frozen_clock(value: Option<u64>) {
 }
 
 /// What:
-///  Checks that `lane` is a lane directory before the internal flush mode touches it: an absolute path that is a directory and not a symbolic
-///  link, holding a `receipt` directory that is not a link either. Nothing is created.
+///  Opens `lane` as a lane directory and checks the directory that was opened: an absolute path whose last component is a directory and not
+///  a symbolic link, owned by the account that runs the program and writable by no one else, holding a `receipt` directory that is a real
+///  directory with the same ownership, and no `state`, `saved`, `inbox` or `decision` that is a link or a file. Nothing is created. The
+///  returned descriptor is the lane: everything done afterwards through `pinned_path` is done to this directory, however the name is changed.
 /// Why:
-///  `cli-git-service --flush-lane <dir>` is reachable by anyone who can run the program. A wrong caller can name a directory it can write and
-///  have `flusher.v2.lock` and `receipt-errors` created there and the regular files under its `receipt/` forced (a read-only operation on file
-///  data); it cannot make the mode delete, rewrite or follow a link, and a FIFO or other special file named as a receipt is refused.
+///  `cli-git-service --flush-lane <dir>` and `--lane <dir>` are reachable by anyone who can run the program. A wrong caller can name a
+///  directory it can write and have `flusher.v2.lock` and `receipt-errors` created there and the regular files under its `receipt/` forced
+///  (a read-only operation on file data); a link named like one of the lane's directories is refused, so nothing is read or removed
+///  outside the lane through it. The ancestors of the lane are not checked: a directory above it that other accounts can rename into can
+///  still change what a name leads to before this call, and cannot change the directory this call returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function validateLane(lane: string): void; // throws
+/// function openLane(lane: string): Directory; // throws a reason
 /// ```
-pub fn validate_lane(lane: &Path) -> Result<(), String> {
+pub fn open_lane(lane: &Path) -> Result<std::fs::File, String> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
     if !lane.is_absolute() {
         return Err("the lane is not an absolute path".to_string());
     }
-    let is_real_directory = |path: &Path| -> bool { return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.file_type().is_dir(); }); };
-    if !is_real_directory(lane) {
-        return Err("the lane is not a directory (a symbolic link does not count)".to_string());
-    }
-    if !is_real_directory(&lane.join(super::commit_flusher::RECEIPT_DIR)) {
-        return Err("the directory has no receipt directory, so it is not a lane".to_string());
-    }
-    // A lane belongs to the account that runs the program and can be written by no one else: the doorbell and the error record in it are
-    // trusted only because of that. (Everything the program does to the lane is done with this account's rights.)
-    use std::os::unix::fs::MetadataExt;
+    let directory: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
+        .open(lane)
+        .map_err(|error| { return format!("the lane is not a directory (a symbolic link does not count): {}", error); })?;
+    let pinned: PathBuf = pinned_path(&directory);
     // SAFETY: `geteuid` takes no argument and touches no memory.
     let me: u32 = unsafe { libc::geteuid() };
-    for directory in [lane.to_path_buf(), lane.join(super::commit_flusher::RECEIPT_DIR)] {
-        let metadata = std::fs::symlink_metadata(&directory).map_err(|error| { return format!("{} cannot be read: {}", directory.display(), error); })?;
+    // A lane belongs to the account that runs the program and can be written by no one else: the doorbell and the error record in it are
+    // trusted only because of that. (Everything the program does to the lane is done with this account's rights.)
+    let own = |label: &str, metadata: &std::fs::Metadata| -> Result<(), String> {
         if metadata.uid() != me {
-            return Err(format!("{} belongs to another account", directory.display()));
+            return Err(format!("{} belongs to another account", label));
         }
         if metadata.mode() & 0o022 != 0 {
-            return Err(format!("{} can be written by its group or by others", directory.display()));
+            return Err(format!("{} can be written by its group or by others", label));
+        }
+        return Ok(());
+    };
+    own("the lane", &directory.metadata().map_err(|error| { return format!("the lane cannot be read: {}", error); })?)?;
+    let receipt: std::fs::Metadata = std::fs::symlink_metadata(pinned.join(super::commit_flusher::RECEIPT_DIR))
+        .map_err(|_error| { return "the directory has no receipt directory, so it is not a lane".to_string(); })?;
+    if !receipt.file_type().is_dir() {
+        return Err("the directory has no receipt directory, so it is not a lane".to_string());
+    }
+    own("the receipt directory", &receipt)?;
+    for name in ["state", "saved", "inbox", "decision"] {
+        match std::fs::symlink_metadata(pinned.join(name)) {
+            Ok(metadata) if !metadata.file_type().is_dir() => return Err(format!("{} of the lane is not a directory of the lane (a link does not count)", name)),
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("{} of the lane cannot be read: {}", name, error)),
         }
     }
-    return Ok(());
+    return Ok(directory);
+}
+
+/// Checks `lane` as `open_lane` does and lets the descriptor go.
+pub fn validate_lane(lane: &Path) -> Result<(), String> {
+    return open_lane(lane).map(|_directory| {});
+}
+
+/// The path through which the opened lane directory is reached for as long as the descriptor is open, whatever its name becomes.
+pub fn pinned_path(directory: &std::fs::File) -> PathBuf {
+    use std::os::fd::AsRawFd;
+    return PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
 }
 
 /// The unit name for one launch: the lane's digest and `nonce`, which differs per launch.
@@ -156,8 +185,8 @@ pub fn run_within(mut command: Command, wait: Duration) -> Result<ExitStatus, Ma
             Err(error) => return Err(ManagerRefused(format!("the manager's command could not be waited for: {}", error))),
         }
         if Instant::now() >= deadline {
-            // The kill is attempted and never waited for without a bound. A child that has not died within the window is handed to a thread of
-            // its own that waits for it, so it is reaped when it does end and is never left a zombie of a long-lived caller.
+            // The kill is attempted and never waited for without a bound. A child that has not died within the window goes to the pending list,
+            // which later launches poll without waiting, so it is reaped once it does end.
             let killed: bool = child.kill().is_ok();
             let reap_until: Instant = Instant::now() + Duration::from_millis(100);
             while killed && Instant::now() < reap_until && matches!(child.try_wait(), Ok(None)) {
@@ -168,8 +197,7 @@ pub fn run_within(mut command: Command, wait: Duration) -> Result<ExitStatus, Ma
             #[cfg(not(feature = "test-seams"))]
             let unreaped_by_force: bool = false;
             if unreaped_by_force || !matches!(child.try_wait(), Ok(Some(_))) {
-                // Not handed to a thread here: the caller may have to fork next, and a fork needs a process with one thread. The child waits
-                // in the pending list until `reap_pending` runs, which `launch_routed` does after its fallback has been tried.
+                // No thread waits for it: the caller may have to fork next, and a fork needs a process with one thread.
                 PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }).push(child);
             }
             return Err(ManagerRefused(format!("the manager did not confirm the start within {:?}", wait)));
@@ -178,7 +206,7 @@ pub fn run_within(mut command: Command, wait: Duration) -> Result<ExitStatus, Ma
     }
 }
 
-/// Children that were killed after a timeout and had not been reaped within the window; `reap_pending` hands them to a thread.
+/// Children that were killed after a timeout and had not been reaped within the window; `reap_pending` polls them.
 static PENDING_REAP: std::sync::Mutex<Vec<std::process::Child>> = std::sync::Mutex::new(Vec::new());
 
 /// Makes the cleanup window of `run_within` treat the killed child as not yet reaped (a test cannot make a process survive SIGKILL).
@@ -202,18 +230,21 @@ pub fn pending_reaps() -> usize {
     return PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }).len();
 }
 
-/// Hands every pending child to a reaper thread. Called when no fork is still to come.
+/// Reaps the pending children that have ended, without waiting for any, and keeps the rest in the list. No thread is started: the caller
+/// may have to fork next (the fork needs a process with one thread), and a child that never ends would otherwise keep a waiter thread alive
+/// across every later launch. A child that has not ended stays until a later call finds it ended.
 pub fn reap_pending() {
-    let children: Vec<std::process::Child> = std::mem::take(&mut *PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }));
-    for child in children {
-        reap_in_background(child);
-    }
-}
-
-/// Hands a child that has not been reaped to a thread of its own that waits for it, so it is reaped when it does end and is never left a
-/// zombie of a long-lived caller.
-pub fn reap_in_background(mut child: std::process::Child) {
-    std::thread::spawn(move || { let _ = child.wait(); });
+    let mut pending = PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); });
+    pending.retain_mut(|child| {
+        return match child.try_wait() {
+            Ok(None) => true,
+            Ok(Some(_)) => false,
+            Err(error) => {
+                crate::service_error!("a killed manager command could not be polled and is dropped from the list: {error}");
+                false
+            }
+        };
+    });
 }
 
 /// The real route: `systemd-run --user` with the service program.
@@ -268,11 +299,13 @@ pub enum Routed {
 /// function launchRouted(lane: string, manager: ManagerRoute): Routed; // throws FlusherLaunchError
 /// ```
 pub fn launch_routed(lane: &Path, manager: &mut dyn ManagerRoute) -> Result<Routed, FlusherLaunchError> {
+    // Children an earlier launch left that have ended are reaped before this one, and polled again after it.
+    reap_pending();
     let routed: Result<Routed, FlusherLaunchError> = match manager.start(lane) {
         Ok(unit) => Ok(Routed::Manager { unit }),
         Err(_refused) => launch_flusher(lane).map(|_started| { return Routed::Fork; }),
     };
-    // The fork, if it was needed, is done: a child the manager command left unreaped can have a thread to wait for it now.
+    // The command of this launch may have timed out: its child is polled without waiting.
     reap_pending();
     return routed;
 }

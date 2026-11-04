@@ -247,7 +247,7 @@ fn flood(point: &str) {
     FLOOD.with(|cell| {
         if let Some((lane, count)) = cell.borrow_mut().as_mut() {
             *count += 1;
-            fs::write(lane.join(RECEIPT_DIR).join(format!("{:032x}", *count)), b"receipt").expect("a receipt arrives");
+            fs::write(lane.join(RECEIPT_DIR).join(format!("f{:031x}", *count)), b"receipt").expect("a receipt arrives");
         }
     });
 }
@@ -260,7 +260,7 @@ fn receipts_that_keep_arriving_do_not_keep_a_service_pass_from_ending() {
     let lane: PathBuf = scratch("rev5-flood");
     fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
     for number in 0..3_u128 {
-        fs::write(lane.join(RECEIPT_DIR).join(format!("{:032x}", 1_000 + number)), b"receipt").expect("a receipt");
+        fs::write(lane.join(RECEIPT_DIR).join(format!("a{:031x}", number)), b"receipt").expect("a receipt");
     }
     let pass_lane: PathBuf = lane.clone();
     let outcome: Option<i32> = in_single_threaded_process(move || {

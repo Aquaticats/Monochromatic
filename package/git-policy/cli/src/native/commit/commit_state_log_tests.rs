@@ -109,6 +109,10 @@ fn a_rotation_interrupted_at_each_step_keeps_a_valid_log() {
     start_events();
     finish(&dir, &candidate).expect("complete");
     let events: Vec<String> = take_events();
+    // The establishment record is written under a fresh name, so its event is matched by the shape of the name.
+    let temporary: String = events.get(3).cloned().unwrap_or_default();
+    let prefix: String = format!("file-sync:{}", dir.join("state.established.").display());
+    assert!(temporary.starts_with(&prefix) && temporary.ends_with(".tmp"), "{:?}", events);
     assert_eq!(
         events,
         vec![
@@ -116,7 +120,7 @@ fn a_rotation_interrupted_at_each_step_keeps_a_valid_log() {
             format!("dir:{}", dir.display()),
             // The establishment record: forced, renamed over the record, the directory forced, and only then the predecessor removed.
             format!("dir:{}", dir.parent().expect("the lane").display()),
-            format!("file-sync:{}", dir.join("state.established.tmp").display()),
+            temporary,
             format!("dir:{}", dir.display()),
             format!("remove:{}", dir.join("state.log.1").display()),
         ]

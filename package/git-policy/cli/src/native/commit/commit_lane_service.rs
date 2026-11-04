@@ -17,6 +17,7 @@
 //! // startLaneService(lane, interval): lock service.lock; bind the doorbell; thread { startupSweep; loop { recv(until due) -> syncerPass } }
 //! ```
 
+use super::commit_identity::fault_point;
 use super::commit_lane_lifecycle::{startup_sweep, syncer_pass};
 use std::fs::{File, OpenOptions};
 use std::io;
@@ -48,15 +49,36 @@ fn ring_path(directory: &File) -> PathBuf {
     return PathBuf::from(format!("/proc/self/fd/{}/{}", directory.as_raw_fd(), RING_FILE));
 }
 
+/// Checks that what the doorbell's name leads to is this account's private socket: a socket (not a link, which `symlink_metadata` does not
+/// follow, and not a file), owned by the account that runs the program, that no one else can open. A send succeeds against any socket the
+/// name leads to, so a link to another lane's doorbell, or a socket another account made, would be taken for this lane's service.
+fn check_doorbell(found: &std::fs::Metadata) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    if !found.file_type().is_socket() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the doorbell name is held by something that is not a socket"));
+    }
+    // SAFETY: `geteuid` takes no argument and touches no memory.
+    if found.uid() != unsafe { libc::geteuid() } || found.mode() & 0o077 != 0 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the doorbell is not a socket private to this account"));
+    }
+    return Ok(());
+}
+
 /// Binds the doorbell of `lane`. A socket file left by a service that died is replaced (nobody answers a send to it); one that answers is a
 /// service already running, and that is an error; anything else at the name is refused.
 pub fn bind_ring(lane: &Path) -> io::Result<UnixDatagram> {
-    let directory: File = open_lane_directory(lane)?;
-    let path: PathBuf = ring_path(&directory);
+    return bind_ring_in(&open_lane_directory(lane)?);
+}
+
+/// `bind_ring` on the lane directory that is already open.
+fn bind_ring_in(directory: &File) -> io::Result<UnixDatagram> {
+    let path: PathBuf = ring_path(directory);
     match std::fs::symlink_metadata(&path) {
-        Ok(found) if found.file_type().is_socket() => {
+        Ok(found) => {
+            check_doorbell(&found)?;
             let probe: UnixDatagram = UnixDatagram::unbound()?;
             probe.set_nonblocking(true)?;
+            fault_point("service:before-stale-removal");
             match probe.send_to(b"ring", &path) {
                 Ok(_) => return Err(io::Error::new(io::ErrorKind::AddrInUse, "a service already answers at the doorbell")),
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Err(io::Error::new(io::ErrorKind::AddrInUse, "a service already answers at the doorbell")),
@@ -64,7 +86,6 @@ pub fn bind_ring(lane: &Path) -> io::Result<UnixDatagram> {
                 Err(error) => return Err(error),
             }
         }
-        Ok(_) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "the doorbell name is held by something that is not a socket")),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
     }
@@ -74,13 +95,20 @@ pub fn bind_ring(lane: &Path) -> io::Result<UnixDatagram> {
 }
 
 /// Rings the doorbell of `lane`: `true` when a socket answered (or its queue is full of rings that one pass will serve), `false` when nobody
-/// is bound to it. Never blocks.
+/// is bound to it. Never blocks. A doorbell that is not this account's private socket (a link, a file, another account's socket) is an
+/// error, which the client reads as "nobody answered" and launches the flusher.
 pub fn ring_running_service(lane: &Path) -> io::Result<bool> {
     let directory: File = match open_lane_directory(lane) {
         Ok(directory) => directory,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
         Err(error) => return Err(error),
     };
+    // The entry is checked through the descriptor of the directory that is then used for the send, without following a link.
+    match std::fs::symlink_metadata(ring_path(&directory)) {
+        Ok(found) => check_doorbell(&found)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    }
     let sender: UnixDatagram = UnixDatagram::unbound()?;
     // Never blocking: a service that does not read leaves its datagram queue full, and a blocking send would wait for it for ever. A full
     // queue is itself the answer: rings are waiting that a pass will serve, and a pass serves every receipt, so one more ring adds nothing.
@@ -94,12 +122,24 @@ pub fn ring_running_service(lane: &Path) -> io::Result<bool> {
 }
 
 /// Takes the lock that makes this process the lane's service, without waiting; the file is kept open for the life of the service.
-fn lock_service(lane: &Path) -> io::Result<File> {
-    let directory: File = open_lane_directory(lane)?;
+pub fn lock_service(lane: &Path) -> io::Result<File> {
+    return lock_service_in(&open_lane_directory(lane)?);
+}
+
+/// `lock_service` on the lane directory that is already open. The lock file is created private to the account (0600) and an existing one is
+/// checked: another account that could open it for reading could take its exclusive lock and keep every service out, and a hard link to it
+/// from another lane would couple two lanes.
+fn lock_service_in(directory: &File) -> io::Result<File> {
+    use std::os::unix::fs::MetadataExt;
     let path: PathBuf = PathBuf::from(format!("/proc/self/fd/{}/{}", directory.as_raw_fd(), SERVICE_LOCK));
-    let file: File = OpenOptions::new().read(true).write(true).create(true).truncate(false).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&path)?;
-    if !file.metadata()?.file_type().is_file() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the service lock is not a regular file"));
+    let file: File = OpenOptions::new().read(true).write(true).create(true).truncate(false).mode(0o600).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&path)?;
+    let found = file.metadata()?;
+    if !found.file_type().is_file() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("{SERVICE_LOCK} is not a regular file")));
+    }
+    // SAFETY: `geteuid` takes no argument and touches no memory.
+    if found.uid() != unsafe { libc::geteuid() } || found.mode() & 0o077 != 0 || found.nlink() != 1 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("{SERVICE_LOCK} is not private to this account or has another name")));
     }
     return match file.try_lock() {
         Ok(()) => Ok(file),
@@ -108,61 +148,76 @@ fn lock_service(lane: &Path) -> io::Result<File> {
     };
 }
 
+/// When the next pass is due: `interval` after the start of the pass that just ended, and at once when that pass left receipts that
+/// arrived while it swept.
+pub fn next_due(started: Instant, interval: Duration, more: bool) -> Instant {
+    return if more { Instant::now() } else { started + interval };
+}
+
 /// What:
-///  Starts the lane service for `lane`: refuses a zero interval, takes the lane's service lock, binds the doorbell (an error when a service
-///  already holds either, so a second service on one lane fails visibly instead of running without a lane), and runs the loop on a thread of
-///  its own, which ends with the process.
+///  Starts the lane service for `lane`: refuses a zero interval, opens and checks the lane directory once (`open_lane`), takes the lane's
+///  service lock, binds the doorbell (an error when a service already holds either, so a second service on one lane fails visibly instead
+///  of running without a lane), and runs the loop on a thread of its own, which ends with the process.
 /// Why:
-///  The caller (the service program) learns of an initialization failure before it announces readiness. The loop sweeps the lane once, then
-///  waits for a ring or until a pass is due and runs the syncer's pass, again and again. A pass is due `interval` after the start of the
-///  previous one, so passes start at most `interval` apart while they take less than `interval`; a pass that takes longer is followed at once
-///  by the next. Errors in the loop are logged and the loop goes on: a pass that fails leaves its record for the next.
+///  The caller (the service program) learns of an initialization failure before it announces readiness. The directory that was checked is the
+///  one the lock, the doorbell and every pass use, through its descriptor, so a rename of the lane or of a directory above it after the
+///  check changes nothing the service touches. The loop sweeps the lane once, then waits for a ring or until a pass is due and runs the
+///  syncer's pass, again and again. A pass is due `interval` after the start of the previous one, so passes start at most `interval` apart
+///  while they take less than `interval`; a pass that left newly arrived receipts is followed at once by the next. Errors in the loop are
+///  logged and the loop goes on: a pass that fails leaves its record for the next.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function startLaneService(lane: string, interval: number): void; // throws when the interval is zero or the lane has a service
+/// function startLaneService(lane: string, interval: number): void; // throws when the interval is zero, the lane is not a lane, or it has a service
 /// ```
 pub fn start_lane_service(lane: &Path, interval: Duration) -> io::Result<()> {
     if interval.is_zero() {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the interval between passes is zero"));
     }
-    let lock: File = lock_service(lane)?;
-    let ring: UnixDatagram = bind_ring(lane).map_err(|error| { return io::Error::new(error.kind(), format!("the doorbell of the lane {} cannot be bound: {}", lane.display(), error)); })?;
+    let directory: File = super::commit_flusher_unit::open_lane(lane).map_err(|reason| { return io::Error::new(io::ErrorKind::InvalidInput, reason); })?;
+    let lock: File = lock_service_in(&directory)?;
+    let ring: UnixDatagram = bind_ring_in(&directory).map_err(|error| { return io::Error::new(error.kind(), format!("the doorbell of the lane {} cannot be bound: {}", lane.display(), error)); })?;
     crate::service_log!("lane doorbell bound {}", lane.display());
-    let owned: PathBuf = lane.to_path_buf();
+    let shown: PathBuf = lane.to_path_buf();
     std::thread::spawn(move || {
-        // The lock lives as long as the loop.
+        // The lock and the directory live as long as the loop.
         let _lock: File = lock;
-        run_lane_service(&owned, &ring, interval);
+        let pinned: PathBuf = super::commit_flusher_unit::pinned_path(&directory);
+        run_lane_service(&shown, &pinned, &ring, interval);
     });
     return Ok(());
 }
 
 /// One pass of the loop: the syncer's pass, then the interrupted disposals the person authorized (a writer that was busy at an earlier try
 /// is tried again here, on every pass).
-fn pass(lane: &Path, state: &Path) {
-    if let Err(error) = syncer_pass(lane) {
-        crate::service_error!("a pass over {} failed: {error:?}", lane.display());
+/// `shown` is the lane as the person named it (for the log), `lane` the pinned path the work is done through. Returns whether receipts
+/// arrived while the pass swept, so another pass is due at once.
+fn pass(shown: &Path, lane: &Path, state: &Path) -> bool {
+    let mut more: bool = false;
+    match syncer_pass(lane) {
+        Ok(done) => more = done.more,
+        Err(error) => crate::service_error!("a pass over {} failed: {error:?}", shown.display()),
     }
     if let Err(error) = super::commit_disposal::resume_disposals(lane, state) {
-        crate::service_error!("the interrupted disposals of {} could not be finished: {error}", lane.display());
+        crate::service_error!("the interrupted disposals of {} could not be finished: {error}", shown.display());
     }
     // Said whether or not the pass succeeded: a pass that recorded an error for a receipt it could not force is a pass that ran.
-    crate::service_log!("lane pass complete {}", lane.display());
+    crate::service_log!("lane pass complete {}", shown.display());
+    return more;
 }
 
 /// The loop of the lane service.
-fn run_lane_service(lane: &Path, ring: &UnixDatagram, interval: Duration) {
+fn run_lane_service(shown: &Path, lane: &Path, ring: &UnixDatagram, interval: Duration) {
     let state: PathBuf = lane.join("state");
     match startup_sweep(lane, &state) {
         Ok(recovery) => {
             if let Some(reason) = &recovery.state_error {
-                crate::service_error!("the state log of {} is not readable: {reason}", lane.display());
+                crate::service_error!("the state log of {} is not readable: {reason}", shown.display());
             }
         }
-        Err(error) => crate::service_error!("the startup sweep of {} failed: {error:?}", lane.display()),
+        Err(error) => crate::service_error!("the startup sweep of {} failed: {error:?}", shown.display()),
     }
-    crate::service_log!("lane startup complete {}", lane.display());
+    crate::service_log!("lane startup complete {}", shown.display());
     let mut buffer: [u8; 16] = [0; 16];
     let mut due: Instant = Instant::now() + interval;
     loop {
@@ -170,16 +225,16 @@ fn run_lane_service(lane: &Path, ring: &UnixDatagram, interval: Duration) {
         // left until the pass is due (at least a millisecond, since a zero timeout is refused by the socket).
         let wait: Duration = due.saturating_duration_since(Instant::now()).max(Duration::from_millis(1));
         if let Err(error) = ring.set_read_timeout(Some(wait)) {
-            crate::service_error!("the doorbell of {} has no timeout: {error}", lane.display());
+            crate::service_error!("the doorbell of {} has no timeout: {error}", shown.display());
             return;
         }
         if let Err(error) = ring.recv(&mut buffer)
             && !matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut)
         {
-            crate::service_error!("the doorbell of {} failed: {error}", lane.display());
+            crate::service_error!("the doorbell of {} failed: {error}", shown.display());
         }
         let started: Instant = Instant::now();
-        pass(lane, &state);
-        due = started + interval;
+        let more: bool = pass(shown, lane, &state);
+        due = next_due(started, interval, more);
     }
 }

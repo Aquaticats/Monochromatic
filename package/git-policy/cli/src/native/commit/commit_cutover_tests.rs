@@ -19,7 +19,7 @@ use crate::commit_state_log_tests::lane_with_envelope;
 use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_disposal::{DisposalAuthorization, dispose_saved_content};
 use git_policy_cli::commit_flusher::{FLUSHER_LOCK, FlusherLock, LEGACY_FLUSHER_LOCK, RECEIPT_DIR, RECEIPT_ERRORS, flush_lane, hold_legacy_lock, launch_flusher};
-use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, reap_in_background};
+use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute};
 use git_policy_cli::commit_identity::set_fault_point;
 use git_policy_cli::commit_lane_lifecycle::{ClientStep, Routed, client_after_accept};
 use git_policy_cli::commit_lane_service::{bind_ring, ring_running_service};
@@ -120,8 +120,9 @@ impl Drop for Service {
             std::thread::sleep(Duration::from_millis(5));
         }
         if matches!(self.child.try_wait(), Ok(None)) {
-            // Not reaped in its bound: handed to a thread that waits, so the test does not.
-            reap_in_background(std::mem::replace(&mut self.child, Command::new("true").spawn().expect("a placeholder child")));
+            // Not reaped in its bound: handed to a thread of the test that waits, so the test does not.
+            let mut stuck: Child = std::mem::replace(&mut self.child, Command::new("true").spawn().expect("a placeholder child"));
+            std::thread::spawn(move || { let _ = stuck.wait(); });
         }
     }
 }

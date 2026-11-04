@@ -258,16 +258,16 @@ fn a_departures_acknowledgment_survives_the_seal_that_replaces_its_segment() {
     assert!(state_covers(&state, &promised).expect("readable"), "the acknowledgment is covered by the sealed checkpoint");
 }
 
-/// Over an opaque record the seal reclaims nothing, and the acknowledgment is not covered (the departure's verification says so).
+/// Over an opaque record the seal refuses (the fifth review: a newer checked root with an empty state would have been the one recovery
+/// selects), the opaque record stays the root, and the acknowledgment of it is still covered.
 #[test]
-fn a_departures_acknowledgment_of_an_opaque_record_is_not_covered_by_the_seal() {
+fn a_departures_acknowledgment_of_an_opaque_record_is_kept_because_the_seal_refuses_it() {
     let (lane, state, _id) = lane_with_everything("life-seal-opaque");
     StateWriter::acquire(&state).expect("writer").append(1, b"an opaque document").expect("an opaque record");
     let promised = sync_prefix(&state).expect("acknowledged");
-    let result = seal_for_shutdown(&lane, &state);
-    assert!(result.is_ok(), "{:?}", result.map(|sealed| { return sealed.generation; }));
-    assert!(state.join("state.log.1").exists(), "an opaque predecessor is never reclaimed");
-    assert!(!state_covers(&state, &promised).expect("readable"), "a seal is not shown to contain an opaque record's promise, so the departure's verification says so and does not report it kept");
+    assert!(seal_for_shutdown(&lane, &state).is_err(), "the seal replaced a root it could not read");
+    assert!(state.join("state.log.1").exists(), "the opaque record's segment is still there");
+    assert!(state_covers(&state, &promised).expect("readable"), "the opaque record is still the root, so its acknowledgment is covered");
 }
 
 /// A seal refuses what it cannot capture: a lane file that the representation cannot hold makes the seal fail rather than write a document

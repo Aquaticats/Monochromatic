@@ -25,17 +25,46 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{fault_point, record_event_lazy, sync_chain, sync_directory, sync_file};
 use super::commit_integrity::sha256_hex;
 
-/// Reads a whole file that must be a regular file: opened without following a link and without blocking, and refused when it is a FIFO, a
-/// device or a directory. A file of the lane or of the state directory can be put there by anyone who can write the directory, and a FIFO
-/// named like a log or a ledger would otherwise block recovery for ever.
-fn read_regular(path: impl AsRef<Path>) -> io::Result<Vec<u8>> {
+/// Opens a file that must be a regular file: without following a link and without blocking, and refused when it is a FIFO, a device or a
+/// directory. A file of the lane or of the state directory can be put there by anyone who can write the directory, and a FIFO named like a
+/// log or a ledger would otherwise block recovery for ever. The type is read from the descriptor that was opened, so a swap of the name
+/// after the open changes nothing.
+pub(super) fn open_regular(path: &Path) -> io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
-    let mut file: File = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path.as_ref())?;
+    let file: File = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
     if !file.metadata()?.file_type().is_file() {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "a file the log depends on is not a regular file"));
     }
+    return Ok(file);
+}
+
+/// Opens the directory `name` of the lane without following a link: a `saved/`, `inbox/` or `decision/` that is a link to somewhere else is
+/// not the lane's directory, and what is read or removed through it belongs to someone else. `Ok(None)` when the lane has no such directory.
+pub(super) fn open_lane_subdirectory(lane: &Path, name: &str) -> io::Result<Option<File>> {
+    use std::os::unix::fs::OpenOptionsExt;
+    return match OpenOptions::new().read(true).custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW).open(lane.join(name)) {
+        Ok(directory) => Ok(Some(directory)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) if matches!(error.raw_os_error(), Some(libc::ELOOP | libc::ENOTDIR)) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("{} of the lane is not a directory of the lane (a link does not count)", name))),
+        Err(error) => Err(error),
+    };
+}
+
+/// The path through which the entries of an opened directory are listed: the descriptor's own, so the listing is of the directory that was
+/// checked and not of whatever the name leads to by then.
+pub(super) fn listing_path(directory: &File) -> PathBuf {
+    use std::os::fd::AsRawFd;
+    return PathBuf::from(format!("/proc/self/fd/{}", directory.as_raw_fd()));
+}
+
+/// Reads a whole file that must be a regular file (see `open_regular`), to the length it had when it was opened: a file that grows while it
+/// is read (a legitimate append, or a writer that never stops) is read as it was, and the next read sees the rest.
+pub(super) fn read_regular(path: impl AsRef<Path>) -> io::Result<Vec<u8>> {
+    let mut file: File = open_regular(path.as_ref())?;
+    let extent: u64 = file.metadata()?.len();
+    fault_point("state:read-after-open");
     let mut bytes: Vec<u8> = Vec::new();
-    io::Read::read_to_end(&mut file, &mut bytes)?;
+    io::Read::read_to_end(&mut io::Read::take(&mut file, extent), &mut bytes)?;
     return Ok(bytes);
 }
 
@@ -298,11 +327,9 @@ pub fn capture_lane_closure(lane: &Path) -> io::Result<Vec<ClosureEntry>> {
         Err(error) => return Err(error),
     };
     for directory in [INBOX, SAVED, DECISION] {
-        let entries = match fs::read_dir(lane.join(directory)) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error),
-        };
+        // A directory of the lane that is a link is refused: what it lists and what is later removed through it is not the lane's.
+        let Some(opened) = open_lane_subdirectory(lane, directory)? else { continue };
+        let entries = fs::read_dir(listing_path(&opened))?;
         let mut names: Vec<String> = Vec::new();
         for listed in entries {
             if let Some(text) = listed?.file_name().to_str() {
@@ -740,10 +767,12 @@ fn stage_file(temporary: &Path, bytes: &[u8]) -> io::Result<()> {
 fn check_saved_content_sealed(path: &Path) -> io::Result<()> {
     use std::os::fd::AsRawFd;
     use std::os::unix::fs::PermissionsExt;
-    if fs::metadata(path)?.permissions().mode() & 0o222 != 0 {
+    // Opened first, without blocking and without following a link, and judged by its descriptor: a read-only FIFO named like saved content
+    // passes a mode test by path and would block the open.
+    let file: File = open_regular(path)?;
+    if file.metadata()?.permissions().mode() & 0o222 != 0 {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "saved content enters the store only through create_saved_content; an existing writable file is not saved content"));
     }
-    let file: File = File::open(path)?;
     // SAFETY: `fcntl` with `F_SETLEASE` takes a descriptor and an integer argument and touches no memory.
     let granted: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
     let refused_with: Option<i32> = injected_lease_errno().or_else(|| { return if granted != 0 { io::Error::last_os_error().raw_os_error() } else { None }; });
@@ -1110,11 +1139,21 @@ fn honors_establishment(established: &Established, selected: Option<&Selected>) 
 /// Records, durably, that the checkpoint `candidate` is established: written to a temporary name, forced, renamed over the record and the
 /// directory forced. Called by completion after the candidate and its directory entry are durable and before any predecessor is removed.
 fn establish(dir: &Path, candidate: &Candidate) -> io::Result<()> {
-    let temporary: PathBuf = dir.join("state.established.tmp");
-    let mut file: File = OpenOptions::new().create(true).write(true).truncate(true).open(&temporary)?;
-    file.write_all(format!("cli-git-established {} {} {}\n", candidate.number, candidate.generation, candidate.hash).as_bytes())?;
-    sync_file(&file, &temporary)?;
-    fs::rename(&temporary, dir.join(ESTABLISHED))?;
+    use std::os::unix::fs::OpenOptionsExt;
+    // A fresh name, created exclusively: a name that exists already (a link, a hard link to a file the account cares about, a FIFO) is never
+    // opened, so nothing is truncated or waited for, and the record is renamed over `state.established` as the inode it created.
+    let temporary: PathBuf = dir.join(format!("state.established.{:016x}.tmp", super::commit_flusher_unit::fresh_nonce()));
+    let mut file: File = OpenOptions::new().create_new(true).write(true).mode(0o600).custom_flags(libc::O_NOFOLLOW).open(&temporary)?;
+    let written: io::Result<()> = file
+        .write_all(format!("cli-git-established {} {} {}\n", candidate.number, candidate.generation, candidate.hash).as_bytes())
+        .and_then(|()| { return sync_file(&file, &temporary); })
+        .and_then(|()| { return fs::rename(&temporary, dir.join(ESTABLISHED)); });
+    if let Err(error) = written {
+        if let Err(removal) = fs::remove_file(&temporary) {
+            crate::service_error!("the temporary establishment record {} could not be removed: {removal}", temporary.display());
+        }
+        return Err(error);
+    }
     return sync_directory(dir);
 }
 
@@ -1324,7 +1363,7 @@ pub fn sync_prefix(dir: &Path) -> io::Result<Prefix> {
     // The prefix is fixed here; records appended while the sync runs are not claimed by it.
     fault_point("state:after-capture");
     let path: PathBuf = log_path(dir, selected.number);
-    let file: File = File::open(&path)?;
+    let file: File = open_regular(&path)?;
     sync_file(&file, &path)?;
     sync_directory(dir)?;
     // The state directory's own entry lives in the lane directory, which an empty closure would otherwise never force.
@@ -1509,7 +1548,7 @@ fn complete_checkpoint(dir: &Path, candidate: &Candidate) -> io::Result<()> {
     }
     force_items(&lane, &selected.items)?;
     let path: PathBuf = log_path(dir, candidate.number);
-    let file: File = File::open(&path)?;
+    let file: File = open_regular(&path)?;
     sync_file(&file, &path)?;
     sync_directory(dir)?;
     sync_directory(&lane)?;
@@ -1534,7 +1573,7 @@ pub fn force_items(lane: &Path, items: &[ClosureEntry]) -> io::Result<()> {
 /// Forces one retained item with its name chain through the lane directory, and checks that saved content is still sealed.
 pub fn force_item(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     let path: PathBuf = lane.join(&entry.path);
-    let file: File = File::open(&path)?;
+    let file: File = open_regular(&path)?;
     sync_file(&file, &path)?;
     sync_chain(path.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")), lane)?;
     if entry.kind == EntryKind::Opaque {
@@ -1568,7 +1607,7 @@ impl StateWriter {
             let kind = if metadata.file_type().is_fifo() { "a FIFO" } else { "not a regular file" };
             return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the state writer lock path is {}", kind)));
         }
-        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK).open(&path)?;
+        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(&path)?;
         match lock.try_lock() {
             Ok(()) => return Ok(StateWriter { _lock: lock, dir: absolute }),
             Err(std::fs::TryLockError::WouldBlock) => return Err(io::Error::new(io::ErrorKind::WouldBlock, "another writer holds the state")),
