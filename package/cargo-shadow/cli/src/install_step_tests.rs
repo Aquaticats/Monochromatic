@@ -916,7 +916,11 @@ fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permiss
     assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore: an earlier refusal left the fault armed");
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        StepOutcome::Refused(message) => {
+            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            // Sixth pass, group 5: the refusal of the policy travels with the rollback failure.
+            assert!(message.contains("The policy refused it"), "the policy refusal was dropped: {message}");
+        }
         other => panic!("the command would build the refused lockfile: {other:?}"),
     }
 }
@@ -1138,7 +1142,11 @@ fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_fa
     assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore");
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
     match outcome {
-        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        StepOutcome::Refused(message) => {
+            assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}");
+            // Sixth pass, group 5: what cargo itself reported before the rollback failed is not dropped.
+            assert!(message.contains("failed after writing"), "the original failure of cargo was dropped: {message}");
+        }
         other => panic!("the command would fall back onto the unrestored lockfile: {other:?}"),
     }
 }

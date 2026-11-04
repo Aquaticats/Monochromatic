@@ -823,6 +823,8 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
                 // `Ok(...)`: builds the success or the failure variant of a `Result`.
                 // Macro `format!`: builds or prints text (or a list) from a template.
                 Ok(report) if !report.problems.is_empty() => format!("\nThe policy refused it: {}", report.problems.join("; ")),
+                // The command's own failure came first: the rollback failure is added to it, never put in its place.
+                Err(original) => format!("\nThe run had already failed: {original}"),
                 // Constructor `String::new()`: an empty owned collection or a boxed value.
                 _ => String::new(),
             };
