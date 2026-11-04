@@ -18,6 +18,7 @@ use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::{MODE_GITLINK, TreeEntry, is_tree_mode, parse_commit, parse_tree};
+use std::collections::HashMap;
 use std::path::Path;
 
 /// How many tree entries one proof may examine before it gives up and leaves the question to Git.
@@ -122,15 +123,22 @@ impl Proof<'_> {
         }
         let Some(wanted) = self.entries(new) else { return Found::Unproven };
         let before: Vec<TreeEntry> = old.and_then(|name| { return self.entries(name); }).unwrap_or_default();
-        if wanted.len() > self.budget {
+        // Both directories are paid for from the budget: a wide one is bounded by its width, whatever the other holds.
+        let cost: usize = wanted.len().saturating_add(before.len());
+        if cost > self.budget {
             return Found::Unproven;
         }
-        self.budget -= wanted.len();
+        self.budget -= cost;
+        // The tip's entries are indexed by name once, so each new entry is matched with one lookup and the work grows with the
+        //  two directories and not with their product.
+        let mut by_name: HashMap<&[u8], &TreeEntry> = HashMap::with_capacity(before.len());
+        for candidate in &before {
+            NAME_STEPS.with(|steps| { steps.set(steps.get() + 1); });
+            by_name.insert(candidate.name.as_slice(), candidate);
+        }
         for entry in wanted {
-            let same_name = before.iter().find(|candidate| {
-                NAME_STEPS.with(|steps| { steps.set(steps.get() + 1); });
-                return candidate.name == entry.name;
-            });
+            NAME_STEPS.with(|steps| { steps.set(steps.get() + 1); });
+            let same_name: Option<&&TreeEntry> = by_name.get(entry.name.as_slice());
             if same_name.is_some_and(|candidate| { return candidate.id == entry.id && candidate.mode == entry.mode; }) || entry.mode == MODE_GITLINK {
                 continue;
             }
