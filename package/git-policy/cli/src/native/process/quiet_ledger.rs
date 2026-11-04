@@ -43,10 +43,14 @@ pub fn note(step: &str, gap: Duration, ended_for_being_quiet: bool) {
     let name: String = if ended_for_being_quiet { format!("{step}{ENDED_SUFFIX}") } else { step.to_owned() };
     // A poisoned lock means another thread panicked while holding it; the list is still a list of gaps.
     let mut gaps = GAPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    match gaps.iter_mut().find(|(known, _)| { return *known == name; }) {
-        Some((_, longest)) => *longest = (*longest).max(gap),
-        None => gaps.push((name, gap)),
+    // The first entry with this name keeps the longest gap seen; no entry means a new one.
+    for (known, longest) in gaps.iter_mut() {
+        if *known == name {
+            *longest = (*longest).max(gap);
+            return;
+        }
     }
+    gaps.push((name, gap));
 }
 
 /// What:
@@ -71,6 +75,48 @@ fn milliseconds(gap: Duration) -> String {
 }
 
 /// What:
+///  One figure as a JSON member: the quoted step name, a colon, and the gap in milliseconds.
+/// Why:
+///  `object_json` maps every figure through it, so no closure is needed to join the two parts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const memberJson = ([step, gap]: [string, number]) => `${JSON.stringify(step)}:${milliseconds(gap)}`;
+/// ```
+fn member_json(figure: &(String, Duration)) -> String {
+    let (step, gap) = figure;
+    return format!("{}:{}", quote(step.as_str()), milliseconds(*gap));
+}
+
+/// What:
+///  Whether a figure is a step that ended by itself, which is a name without the quiet-end suffix.
+/// Why:
+///  `longest_healthy` filters with it; `filter` hands over a reference to each item, so the figure arrives as `&&(..)`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endedByItself = ([step]: [string, number]) => !step.endsWith(ENDED_SUFFIX);
+/// ```
+fn ended_by_itself(figure: &&(String, Duration)) -> bool {
+    let (step, _gap) = *figure;
+    return !step.ends_with(ENDED_SUFFIX);
+}
+
+/// What:
+///  The gap of a figure.
+/// Why:
+///  `longest_healthy` maps every figure to its gap before taking the maximum.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gapOf = ([, gap]: [string, number]) => gap;
+/// ```
+fn gap_of(figure: &(String, Duration)) -> Duration {
+    let (_step, gap) = figure;
+    return *gap;
+}
+
+/// What:
 ///  The figures as a JSON object from step name to milliseconds.
 /// Why:
 ///   Both timing records carry it under one key, so a reader asks one question of both files.
@@ -80,7 +126,7 @@ fn milliseconds(gap: Duration) -> String {
 /// JSON.stringify(Object.fromEntries(figures.map(([step, gap]) => [step, gap])))
 /// ```
 pub fn object_json(figures: &[(String, Duration)]) -> String {
-    let members: Vec<String> = figures.iter().map(|(step, gap)| { return format!("{}:{}", quote(step.as_str()), milliseconds(*gap)); }).collect();
+    let members: Vec<String> = figures.iter().map(member_json).collect();
     return format!("{{{}}}", members.join(","));
 }
 
@@ -96,8 +142,8 @@ pub fn object_json(figures: &[(String, Duration)]) -> String {
 pub fn longest_healthy(figures: &[(String, Duration)]) -> String {
     let longest: Duration = figures
         .iter()
-        .filter(|(step, _)| { return !step.ends_with(ENDED_SUFFIX); })
-        .map(|(_, gap)| { return *gap; })
+        .filter(ended_by_itself)
+        .map(gap_of)
         .max()
         .unwrap_or(Duration::ZERO);
     return milliseconds(longest);

@@ -101,11 +101,12 @@ impl HostResources {
     /// ```
     pub fn read() -> HostResources {
         let parallelism: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        let system: Option<u64> = std::fs::read_to_string(MEMORY_INFORMATION).ok().and_then(|text: String| { return memory_available_from(text.as_str()); });
-        let group: Option<u64> = std::fs::read_to_string(CONTROL_GROUP_NAME)
-            .ok()
-            .and_then(|text: String| { return control_group_path(text.as_str()); })
-            .and_then(|path: String| { return group_headroom(Path::new(CONTROL_GROUP_ROOT), path.as_str()); });
+        // A file that cannot be read gives no figure, as `.ok()` did before.
+        let system: Option<u64> = match std::fs::read_to_string(MEMORY_INFORMATION) {
+            Ok(text) => memory_available_from(text.as_str()),
+            Err(_unreadable) => None,
+        };
+        let group: Option<u64> = own_group_headroom();
         let memory_available: Option<u64> = match (system, group) {
             (Some(left), Some(right)) => Some(left.min(right)),
             (left, right) => left.or(right),
@@ -114,16 +115,47 @@ impl HostResources {
     }
 }
 
+/// What:
+///  The headroom of the control group this process runs in, nothing when the group cannot be named or has no numeric limit.
+/// Why:
+///  `HostResources::read` takes the smaller of this and the system figure, and each step here gives up with `None` as the
+///  `.ok().and_then(..)` chain it replaces did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const name = tryRead(CONTROL_GROUP_NAME); const path = name && controlGroupPath(name); return path && groupHeadroom(ROOT, path);
+/// ```
+fn own_group_headroom() -> Option<u64> {
+    let Ok(name_text) = std::fs::read_to_string(CONTROL_GROUP_NAME) else {
+        return None;
+    };
+    let path: String = control_group_path(name_text.as_str())?;
+    return group_headroom(Path::new(CONTROL_GROUP_ROOT), path.as_str());
+}
+
 /// The `MemAvailable` figure of `/proc/meminfo` text, in bytes.
 pub fn memory_available_from(text: &str) -> Option<u64> {
-    let line: &str = text.lines().find(|candidate: &&str| { return candidate.starts_with("MemAvailable:"); })?;
+    // The first line that starts with the label is the figure.
+    let mut found: Option<&str> = None;
+    for candidate in text.lines() {
+        if candidate.starts_with("MemAvailable:") {
+            found = Some(candidate);
+            break;
+        }
+    }
+    let line: &str = found?;
     let kibibytes: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
     return kibibytes.checked_mul(1024);
 }
 
 /// The path of the unified (version 2) control group in `/proc/self/cgroup` text: the line that starts with `0::`.
 pub fn control_group_path(text: &str) -> Option<String> {
-    return text.lines().find_map(|line: &str| { return line.strip_prefix("0::").map(String::from); });
+    for line in text.lines() {
+        if let Some(path) = line.strip_prefix("0::") {
+            return Some(String::from(path));
+        }
+    }
+    return None;
 }
 
 /// The bytes a control group can still take under its limit: `max` minus `current`, nothing when there is no numeric limit.
@@ -143,7 +175,10 @@ fn group_headroom(root: &Path, path: &str) -> Option<u64> {
         if let (Some(max_text), Some(current_text)) = (limit, current)
             && let Some(room) = headroom_from(max_text.as_str(), current_text.as_str())
         {
-            least = Some(least.map_or(room, |known: u64| { return known.min(room); }));
+            least = Some(match least {
+                Some(known) => known.min(room),
+                None => room,
+            });
         }
         if directory == root || !directory.pop() || !directory.starts_with(root) {
             break;

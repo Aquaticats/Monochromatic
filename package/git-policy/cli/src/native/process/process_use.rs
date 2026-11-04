@@ -114,7 +114,10 @@ fn effective_user() -> u32 {
 fn belongs_to_this_account(path: &Path) -> bool {
     /// The Unix metadata accessors, for the owning account.
     use std::os::unix::fs::MetadataExt;
-    return std::fs::metadata(path).is_ok_and(|metadata| { return metadata.uid() == effective_user(); });
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    return metadata.uid() == effective_user();
 }
 
 /// What:
@@ -254,9 +257,11 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
         }
         let (uses, unreadable) = scan_process(proc_root, name.as_str(), target);
         if uses {
-            let command: Option<String> = std::fs::read_to_string(item.path().join("comm"))
-                .ok()
-                .map(|text| { return String::from(text.trim()); });
+            // A `comm` file that cannot be read leaves the command unknown, as the `.ok()` before did.
+            let command: Option<String> = match std::fs::read_to_string(item.path().join("comm")) {
+                Ok(text) => Some(String::from(text.trim())),
+                Err(_) => None,
+            };
             scan.users.push(ProcessUser { pid: number, command });
         }
         if let Some(reason) = unreadable

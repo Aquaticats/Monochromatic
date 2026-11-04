@@ -401,7 +401,11 @@ enum Selection {
 /// function statusGitDir(globalArguments, environment, realGit): string | undefined;
 /// ```
 fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Selection {
-    let named: Vec<(OsString, OsString)> = real_git.map_or_else(|| { return environment.to_vec(); }, |found| { return with_real_git(environment, found); });
+    // The real Git is added to the environment only when one was found.
+    let named: Vec<(OsString, OsString)> = match real_git {
+        Some(found) => with_real_git(environment, found),
+        None => environment.to_vec(),
+    };
     if let Some(prefix) = directory_options(global_arguments)
         && let Some(layout) = read_layout_after_success_for(prefix.as_slice(), named.as_slice())
     {
@@ -411,12 +415,12 @@ fn status_git_dir(global_arguments: &[OsString], environment: &[(OsString, OsStr
         return Selection::Unresolved(String::from("no real Git was found to ask"));
     };
     let mut asking = std::process::Command::new(real);
-    asking
-        .args(global_arguments)
-        .args(["rev-parse", "--path-format=absolute", "--absolute-git-dir"])
-        .envs(environment.iter().map(|(name, value)| { return (name, value); }))
-        .env("LC_ALL", "C")
-        .stdin(std::process::Stdio::null());
+    asking.args(global_arguments).args(["rev-parse", "--path-format=absolute", "--absolute-git-dir"]);
+    // One `env` call per entry, in order, as `envs` made; `LC_ALL` is set after them so it wins.
+    for (name, value) in environment {
+        asking.env(name, value);
+    }
+    asking.env("LC_ALL", "C").stdin(std::process::Stdio::null());
     // This start of the real Git says so too, like every other (`started_as_git.rs`).
     crate::started_as_git::mark_real_git_start(&mut asking, crate::started_as_git::StartMode::Child);
     let asked = asking.output();
@@ -486,7 +490,11 @@ fn optional_real_git(inputs: &ResolutionInputs) -> (Option<PathBuf>, Option<Stri
 /// function planServiceWith(globalArguments, environment, realGit?: string): Action;
 /// ```
 fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
-    let runtime: Option<PathBuf> = environment_value(environment, "XDG_RUNTIME_DIR").filter(|text| { return !text.is_empty(); }).map(PathBuf::from);
+    // An empty runtime directory is no directory.
+    let runtime: Option<PathBuf> = match environment_value(environment, "XDG_RUNTIME_DIR") {
+        Some(text) if !text.is_empty() => Some(PathBuf::from(text)),
+        _ => None,
+    };
     // The worktree the command runs in has its own service; outside a repository the answer counts any.
     let git_dir: Option<PathBuf> = match status_git_dir(global_arguments, environment, real_git) {
         Selection::Found(found) => Some(found),
@@ -655,7 +663,20 @@ pub fn plan_management(
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
 ) -> Action {
-    return plan_management_with_section(arguments, git_global_arguments, controls, environment, inputs, &|_cwd: &Path| { return String::new(); });
+    return plan_management_with_section(arguments, git_global_arguments, controls, environment, inputs, &no_filesystem_section);
+}
+
+/// What:
+///  The doctor's filesystem section for a plan that has none to show: the empty text.
+/// Why:
+///  `plan_management` hands it to `plan_management_with_section` where no caller supplies a section of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noFilesystemSection = (_cwd: string): string => '';
+/// ```
+fn no_filesystem_section(_cwd: &Path) -> String {
+    return String::new();
 }
 
 /// What:

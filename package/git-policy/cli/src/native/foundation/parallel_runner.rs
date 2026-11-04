@@ -140,14 +140,21 @@ pub fn run_ordered<T: Sync, R: Send>(run: OrderedRun<'_, T, R>) {
     let OrderedRun { items, lanes, workers, work, on_event } = run;
     let mut covered: Vec<bool> = vec![false; items.len()];
     for &index in lanes.iter().flatten() {
-        let slot: &mut bool = covered.get_mut(index).unwrap_or_else(|| { panic!("a lane names item {index}, but there are {} items", items.len()); });
+        let Some(slot) = covered.get_mut(index) else {
+            panic!("a lane names item {index}, but there are {} items", items.len());
+        };
         assert!(!*slot, "item {index} is in two lanes");
         *slot = true;
     }
-    assert!(covered.iter().all(|seen: &bool| { return *seen; }), "a lane set must cover every item");
+    assert!(!covered.contains(&false), "a lane set must cover every item");
     let next_lane: AtomicUsize = AtomicUsize::new(0);
     let (sender, receiver) = channel::<Message<R>>();
-    let mut cursor: Cursor<R> = Cursor { head: 0, begun: false, held_lines: items.iter().map(|_item: &T| { return Vec::new(); }).collect(), finished: items.iter().map(|_item: &T| { return None; }).collect() };
+    // One empty slot per item: no held lines and no result yet.
+    let mut held_lines: Vec<Vec<String>> = Vec::new();
+    held_lines.resize_with(items.len(), Vec::new);
+    let mut finished: Vec<Option<R>> = Vec::new();
+    finished.resize_with(items.len(), Option::default);
+    let mut cursor: Cursor<R> = Cursor { head: 0, begun: false, held_lines, finished };
     std::thread::scope(|scope| {
         // A worker whose thread cannot start runs its lanes here, before the events are read; a panic it had is raised after them.
         let mut inline_panic: Option<Box<dyn std::any::Any + Send>> = None;

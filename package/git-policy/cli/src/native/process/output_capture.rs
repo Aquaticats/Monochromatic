@@ -86,8 +86,8 @@ impl Capture {
     /// ```
     pub fn snapshot(&self, limit: usize) -> Captured {
         let mut notes: Vec<String> = Vec::new();
-        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, &mut || {});
-        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes, &mut || {});
+        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, &mut do_nothing);
+        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes, &mut do_nothing);
         return Captured { stdout, stderr, notes };
     }
 
@@ -118,6 +118,17 @@ pub struct Captured {
     /// What was left out or could not be read, in words for the person.
     pub notes: Vec<String>,
 }
+
+/// What:
+///  A callback that does nothing, for the snapshot calls that have no use for the per-chunk hook.
+/// Why:
+///  A named function replaces the empty closure, and `&mut do_nothing` lends it as the `&mut dyn FnMut()` that `snapshot_of` takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function doNothing(): void {}
+/// ```
+fn do_nothing() {}
 
 /// The last `limit` bytes of the first `length` bytes of `file`, where `length` is the size when the call began; a note for the bytes
 ///  left out and for a read that failed.

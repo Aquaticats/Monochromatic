@@ -441,7 +441,11 @@ fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks:
     }
     // The records are the worktree's own, so a notice shows in the worktree whose push failed.
     let Some(git_dir) = checks.facts.known_git_dir() else { return };
-    let common_dir: PathBuf = checks.facts.known_common_dir().unwrap_or_else(|| { return git_dir.clone(); });
+    // Without a known common directory, the worktree's own Git directory stands in.
+    let common_dir: PathBuf = match checks.facts.known_common_dir() {
+        Some(known) => known,
+        None => git_dir.clone(),
+    };
     // A worktree Git removed took its Git directory along; what it held is shown to whoever asks next. What could not be kept
     //  for the person is said here, each time, until it can be.
     for problem in settle_removals(common_dir.as_path()) {
@@ -455,7 +459,10 @@ fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks:
         return;
     }
     let context = checks.facts.transaction_context();
-    let cwd: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return git_dir.clone(); });
+    let cwd: PathBuf = match std::env::current_dir() {
+        Ok(directory) => directory,
+        Err(_unreadable) => git_dir.clone(),
+    };
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate = |commit: &str| -> String { return short_name(&context, cwd.as_path(), objects.as_path(), None, commit); };
@@ -483,7 +490,10 @@ fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &StrippedInvoc
     if command_word(stripped) != b"worktree" {
         return;
     }
-    let removes: bool = command_region(stripped).first().is_some_and(|word| { return matches!(word.as_encoded_bytes(), b"remove" | b"prune"); });
+    let removes: bool = match command_region(stripped).first() {
+        Some(word) => matches!(word.as_encoded_bytes(), b"remove" | b"prune"),
+        None => false,
+    };
     if !removes {
         return;
     }
@@ -644,11 +654,14 @@ fn prepare_manual_push<F: RepositoryFacts>(
     let context = checks.facts.transaction_context();
     let cwd = match worktree {
         Some(root) => root,
-        None => std::env::current_dir().map_err(|error| {
-            return crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
-                "the working directory could not be read: {error}"
-            ));
-        })?,
+        None => match std::env::current_dir() {
+            Ok(directory) => directory,
+            Err(error) => {
+                return Err(crate::manual_push_lifecycle::ManualPushFailure::step(ManualPushCause::SelfExplained, format!(
+                    "the working directory could not be read: {error}"
+                )));
+            }
+        },
     };
     let git = PushGit {
         real_git: context.real_git,

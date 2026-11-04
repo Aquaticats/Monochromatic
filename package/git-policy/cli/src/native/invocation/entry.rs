@@ -804,9 +804,11 @@ fn needs_lfs_upload(
     if command.word() != b"push" {
         return (false, String::new(), None);
     }
-    let dry_run: bool = parse_push_region(command.region(), &[]).is_ok_and(|region| {
-        return region.dry_run;
-    });
+    // A push region that does not parse is not known to be a dry run.
+    let dry_run: bool = match parse_push_region(command.region(), &[]) {
+        Ok(region) => region.dry_run,
+        Err(_refused) => false,
+    };
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
@@ -824,9 +826,8 @@ fn needs_lfs_upload(
     return match snapshot {
         Some(found) => {
             let uses: bool = uses_lfs(&found);
-            let settings: Option<Vec<(String, String)>> = uses.then(|| {
-                return settings_from_snapshot(&found);
-            });
+            // The settings are read only for a repository that uses LFS.
+            let settings: Option<Vec<(String, String)>> = if uses { Some(settings_from_snapshot(&found)) } else { None };
             (uses, warning, settings)
         }
         None => (true, warning, None),

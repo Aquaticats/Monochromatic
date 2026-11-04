@@ -59,9 +59,11 @@ impl std::error::Error for SignalGuardActive {}
 /// error instanceof SignalGuardActiveError
 /// ```
 pub fn is_guard_active_refusal(error: &io::Error) -> bool {
-    return error
-        .get_ref()
-        .is_some_and(|inner| { return inner.is::<SignalGuardActive>(); });
+    // An error without an inner error cannot be the guard refusal.
+    let Some(inner) = error.get_ref() else {
+        return false;
+    };
+    return inner.is::<SignalGuardActive>();
 }
 
 /// `c_int` is the C integer type signal numbers and status codes use.
@@ -192,7 +194,15 @@ extern "C" fn relay_handler(
     if !is_process_sender(code) {
         return;
     }
-    let Some(slot) = RELAYED_SIGNALS.iter().position(|candidate| return *candidate == signal) else {
+    // A plain loop, because this is a signal handler: it must not allocate or call anything that is not async-signal-safe.
+    let mut found: Option<usize> = None;
+    for (index, candidate) in RELAYED_SIGNALS.iter().enumerate() {
+        if *candidate == signal {
+            found = Some(index);
+            break;
+        }
+    }
+    let Some(slot) = found else {
         return;
     };
     PENDING[slot].store(signal, std::sync::atomic::Ordering::SeqCst);
@@ -402,7 +412,7 @@ impl SignalGuard {
 fn run_relayed(command: &mut Command) -> io::Result<ChildOutcome> {
     let mut child: std::process::Child = command.spawn_retrying()?;
     let pid: libc::pid_t = libc::pid_t::try_from(child.id())
-        .map_err(|error| return io::Error::other(error))?;
+        .map_err(io::Error::other)?;
     CHILD_PID.store(pid, std::sync::atomic::Ordering::SeqCst);
     relay_pending();
     let waited: io::Result<()> = wait_without_reaping(pid);
