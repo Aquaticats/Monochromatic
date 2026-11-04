@@ -324,9 +324,15 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   "No exposing underlying machinary to always-loaded context.";
   then,
   "(debuginfo level, incremental off for dependencies - no messing with these."
+  and
+  "other profile settings (split-debuginfo, strip, codegen-units) should be off-limits too".
   So the wrapper's copy stays,
   no AGENTS.md rule is added,
-  and debuginfo and incremental settings stay as they are.
+  and no build profile setting changes (debuginfo level,
+  incremental,
+  split-debuginfo,
+  strip,
+  codegen-units).
   Agent `a0cd49729007486f4` measures what each build directory holds,
   researches mechanisms that keep them lean without changing what a build produces,
   and writes `doc/planning/lean-build-dirs.md` with ranked options and a cross-vendor review;
