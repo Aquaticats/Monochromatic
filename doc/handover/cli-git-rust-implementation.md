@@ -4133,6 +4133,23 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the reviewer's four regressions red first,
   claims corrected;
   parts to `commit-models-15-part-<n>-<topic>.diff`.
+  Round 20 done (tip `924f8edd76`,
+  476 model tests passed):
+  the probe is dropped,
+  every client forks a helper (launch to acknowledgment median 0.66 ms,
+  20 samples),
+  and only processes that list after acquiring hold the lock.
+  Review `commit-models-sol-15.txt`:
+  "Yes after named fixes,
+  for the models/components' claimed coverage—not approval of the live protocol";
+  fixes:
+  the late-receipt argument (release and recheck,
+  not acquisition order),
+  the three probe controls do not establish their interleavings,
+  reap and timing wording,
+  and a cutover obligation for old probe-capable clients.
+  Round 21 sent with those;
+  parts to `commit-models-16-part-<n>-<topic>.diff`.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
