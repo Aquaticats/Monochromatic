@@ -263,12 +263,23 @@ pub fn holder_state_in(
     view: &ReaderView,
     ask: &dyn Fn(i64) -> Result<Option<String>, ProcessIdentityError>,
 ) -> HolderState {
-    let Some((pid, birth)) = holder else { return HolderState::Gone };
+    // A marker that names no process (an earlier release's) is no evidence of anything: it could be a dead instance's or a live
+    //  service's on another machine, so it is never read as gone.
+    let Some((pid, birth)) = holder else { return HolderState::Unknown };
     let (identity, boot, scope, machine) = split_birth(birth.as_str());
     // A service on another machine, or one whose machine ID is not valid, is never gone: a different boot ID there says
-    //  nothing about it. A marker without a machine ID (an earlier release's) keeps the reading below.
+    //  nothing about it.
     if let Some(recorded) = machine
         && (!is_machine_id(recorded) || view.machine != Some(recorded))
+    {
+        return HolderState::Unknown;
+    }
+    // A marker with no machine ID (an earlier release's, or a host with none) cannot tell a reboot of this machine from a service
+    //  on another one. A reader that has a machine ID of its own therefore reads another boot there as unknown; a reader with none
+    //  has nothing better and keeps the earlier reading.
+    if machine.is_none()
+        && view.machine.is_some()
+        && boot.is_some_and(|recorded| { return !view.boot.is_empty() && recorded != view.boot; })
     {
         return HolderState::Unknown;
     }
@@ -294,12 +305,15 @@ pub fn holder_state_in(
     };
 }
 
-/// Whether the marker's holder is on another machine than this one, or on one that cannot be compared with this one: the holder
-///  names a machine ID and this reader has none or another. A holder that names none (an earlier release's) is not.
+/// Whether the marker's holder cannot be proven to be on this machine, so that no boot ID can say it is gone: it names a machine ID
+///  that is not this reader's (or none is valid), or it names none and a boot other than this one, or it names no process at all.
 pub fn holder_is_elsewhere_in(holder: Option<&(i64, String)>, view: &ReaderView) -> bool {
-    let Some((_, birth)) = holder else { return false };
-    let (_, _, _, machine) = split_birth(birth.as_str());
-    return machine.is_some_and(|recorded| { return !is_machine_id(recorded) || view.machine != Some(recorded); });
+    let Some((_, birth)) = holder else { return true };
+    let (_, boot, _, machine) = split_birth(birth.as_str());
+    return match machine {
+        Some(recorded) => !is_machine_id(recorded) || view.machine != Some(recorded),
+        None => view.machine.is_some() && boot.is_some_and(|recorded| { return !view.boot.is_empty() && recorded != view.boot; }),
+    };
 }
 
 /// `holder_is_elsewhere_in` for this process's view.

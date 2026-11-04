@@ -24,6 +24,12 @@ use std::path::Path;
 /// the holding process and its birth identity.
 pub const LOCK_MARKER: &str = "cli-git-service ";
 
+/// What follows `LOCK_MARKER` in a marker of this release: a word that no earlier release's reader reads as a batch number, so
+///  an earlier release that finds such a lock reads no marker in it, and leaves it to a person as a lock it does not know. The
+///  stale-lock exclusion of this release (the claim chain) and the one of earlier releases (a `flock`) do not see each other, and
+///  this keeps each release's reclaimers to the locks written in its own format.
+pub const MARKER_VERSION: &str = "v2 ";
+
 /// The longest marker this reader looks at.
 const MARKER_LIMIT: u64 = 512;
 
@@ -35,6 +41,8 @@ pub struct Marked {
     /// The holding process and its birth identity;
     /// none in a marker a release before this one wrote.
     pub holder: Option<(i64, String)>,
+    /// Whether the marker is in the format of this release (`MARKER_VERSION`), as opposed to an earlier release's.
+    pub current: bool,
 }
 
 /// What:
@@ -51,7 +59,7 @@ pub struct Marked {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git-service ${seq} ${process.pid} ${birth}\n`
+/// `cli-git-service v2 ${seq} ${process.pid} ${birth}\n`
 /// ```
 ///
 /// # Errors
@@ -59,7 +67,7 @@ pub struct Marked {
 /// The identity error when this process's birth identity cannot be read.
 pub fn marker_text(seq: u64, identity: &dyn Fn() -> Result<String, ProcessIdentityError>) -> Result<String, ProcessIdentityError> {
     let birth: String = identity()?;
-    return Ok(format!("{LOCK_MARKER}{seq} {} {birth}\n", std::process::id()));
+    return Ok(format!("{LOCK_MARKER}{MARKER_VERSION}{seq} {} {birth}\n", std::process::id()));
 }
 
 /// What:
@@ -74,7 +82,11 @@ pub fn marker_text(seq: u64, identity: &dyn Fn() -> Result<String, ProcessIdenti
 /// parseMarker(text) // { seq, holder?: [pid, birth] } | undefined
 /// ```
 pub fn parse_marker(text: &str) -> Option<Marked> {
-    let rest: &str = text.strip_prefix(LOCK_MARKER)?;
+    let after_prefix: &str = text.strip_prefix(LOCK_MARKER)?;
+    let (rest, current): (&str, bool) = match after_prefix.strip_prefix(MARKER_VERSION) {
+        Some(versioned) => (versioned, true),
+        None => (after_prefix, false),
+    };
     // A marker is a whole line: one cut anywhere before its newline is a marker that was not finished, whatever its fields look like.
     let line: &str = rest.strip_suffix('\n')?;
     let mut parts = line.splitn(3, ' ');
@@ -84,7 +96,11 @@ pub fn parse_marker(text: &str) -> Option<Marked> {
         (Some(pid), Some(birth)) if !birth.is_empty() => Some((pid.parse::<i64>().ok()?, birth.to_string())),
         _ => return None,
     };
-    return Some(Marked { seq, holder });
+    // A marker of this release always names its holder.
+    if current && holder.is_none() {
+        return None;
+    }
+    return Some(Marked { seq, holder, current });
 }
 
 pub use crate::service_index_identity::{
