@@ -195,6 +195,11 @@ mod commit_inbox_tests;
 #[path = "../commit/commit_state_log_tests.rs"]
 mod commit_state_log_tests;
 
+/// The real lane state document in the checked representation (round 23, plan step 1, owner decision 21).
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_lane_state_tests.rs"]
+mod commit_lane_state_tests;
+
 /// The detached helper launch: no inherited descriptor, a new session, no program start.
 #[cfg(target_os = "linux")]
 #[path = "../commit/commit_helper_launch_tests.rs"]
