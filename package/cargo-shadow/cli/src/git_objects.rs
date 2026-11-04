@@ -342,7 +342,11 @@ fn is_regular_file(path: &Path) -> bool {
 /// function openRegular(path: string): FileHandle  // throws when the path is not a regular file
 /// ```
 pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
-    let file: File = File::open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
+    // Opened without waiting and without following a final link: a path swapped for a FIFO after any earlier check cannot block
+    // the open, and the descriptor that was opened is the one inspected (round 6, 5a F7).
+    use std::os::unix::fs::OpenOptionsExt;
+    let flags: i32 = (rustix::fs::OFlags::NONBLOCK | rustix::fs::OFlags::NOFOLLOW).bits().try_into().unwrap_or(0);
+    let file: File = std::fs::OpenOptions::new().read(true).custom_flags(flags).open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
     let is_file: bool = file.metadata().map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
     if !is_file {
         return Err(format!("{} is not a regular file, so only Git reads it", path.display()));
@@ -545,12 +549,7 @@ fn canonical_size(text: &str) -> Option<usize> {
 /// function looseCommit(path: string): void  // throws when the object is not a whole commit
 /// ```
 fn loose_commit(path: &Path) -> Result<(), String> {
-    if !is_regular_file(path) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        return Err(format!("{} is not a regular file, so only Git reads it", path.display()));
-    }
-    let file: File = File::open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
+    let file: File = open_regular(path)?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|message|`: an anonymous function, like a TS arrow function.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
@@ -738,12 +737,7 @@ fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool,
         // Typed binding: `pack_path: PathBuf`.
         let pack_path: PathBuf = path.with_extension("pack");
         // Borrow `&path`: lends the value without copying or giving it away.
-        if !is_regular_file(&path) || !is_regular_file(&pack_path) {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("{} or its pack is not a regular file, so only Git reads it", path.display()));
-        }
-        let index: File = File::open(&path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
+        let index: File = open_regular(&path)?;
         let Some(offset) = pack_offset(&index, name)? else {
             continue;
         };
@@ -751,7 +745,7 @@ fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool,
         // Borrow `&pack_path`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `pack: File`.
-        let pack: File = File::open(&pack_path).map_err(pack_failure)?;
+        let pack: File = open_regular(&pack_path)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&pack`: lends the value without copying or giving it away.
         check_pack_opens(&pack, &index)?;
