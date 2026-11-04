@@ -1092,6 +1092,8 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             configure_stdio(&mut launch, has_input);
             trace(|| { return format!("launch scope {}", group.directory().file_name().map_or_else(String::new, |name| { return name.to_string_lossy().into_owned(); })); });
             let child: Child = launch.spawn().map_err(RunError::Io)?;
+            // The direct child of this process, as the kernel numbered it: a test compares it with what the program says it is.
+            trace(|| { return format!("spawned {}", child.id()); });
             if let Some(state) = scope {
                 note_launcher(&state.log, group.directory(), &child);
             }
@@ -1112,6 +1114,7 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             run_start_hook();
             trace(|| { return "launch pgroup".to_string(); });
             let mut child: Child = command.spawn().map_err(RunError::Io)?;
+            trace(|| { return format!("spawned {}", child.id()); });
             let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
             if let Some(state) = scope
                 && let Err(error) = append_record(&state.log, &Record::ProcessGroup(leader))
