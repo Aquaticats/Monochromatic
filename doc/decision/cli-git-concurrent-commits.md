@@ -524,6 +524,15 @@ and runs a "reject commits to main" check.
   While the scratch ref exists the new objects are reachable,
   so `git prune` and `git gc --prune=now` keep them
   (checked on a throwaway repository with a linked worktree on 2026-11-04).
+  That protection holds only against maintenance that reads the references after the scratch ref exists:
+  `git prune --expire=now`,
+  `git gc --prune=now` and `git repack -a -d` started while a commit is landing are not supported,
+  because one that read the references just before the scratch ref was created can delete the batch's objects;
+  Git's default prune keeps unreachable objects younger than two weeks (`gc.pruneExpire`),
+  so default maintenance is not affected.
+  Added 2026-11-04 with the owner's approval ("Add the limit now"),
+  after the latency round 3 review found the gap (`SPEC.md`,
+  "Maintenance that may run while a commit is made").
   `fast-import` removes its own `.keep` when it exits;
   the wrapper holds no kept pack.
   Corrected 2026-11-04 with the owner's approval ("Correct it now."):
@@ -531,7 +540,7 @@ and runs a "reject commits to main" check.
   until the compare-and-swap succeeds",
   which described the shadow-repository landing path that the resident service replaced.
 - No `refs/cli-git/` pending ref exists;
-  the scratch ref above protects the pending commit
+  the scratch ref named in the landing entry protects the pending commit
   (corrected 2026-11-04:
   this entry said "the shadow store protects the pending commit").
 - Culled:
