@@ -1203,17 +1203,28 @@ fn a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a
         let path = root.path().join(CRATE_DIR).join("Cargo.lock");
         let kept_dir = root.path().join("kept");
         let displaced: u64 = fs::metadata(&path).expect("examines").ino();
+        // Each queued error must have been injected (certification group 3): the refusal is counted when it fires.
+        let injected: Cell<u32> = Cell::new(0);
         let refuse_in_kept = |existing: &Path, new: &Path| -> std::io::Result<()> {
-            if new.starts_with(&kept_dir) { return Err(std::io::Error::from_raw_os_error(code.raw_os_error())); }
+            if new.starts_with(&kept_dir) {
+                injected.set(injected.get() + 1);
+                return Err(std::io::Error::from_raw_os_error(code.raw_os_error()));
+            }
             return fs::hard_link(existing, new);
         };
 
-        let outcome = replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &refuse_in_kept, &real_sync_file, &real_sync_dir);
+        // The replacement is captured at the exchange, so both original inodes can be inventoried afterwards.
+        let (outcome, captured) = replace_capturing(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &refuse_in_kept, &real_sync_file, &real_sync_dir);
 
         assert!(outcome.is_ok(), "{label}: {:?}", outcome.err().map(|error| { return error.to_string(); }));
+        assert!(injected.get() >= 1, "{label}: the refusal in the kept directory never fired, so the fallback was not exercised");
         let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
         assert!(!names.is_empty(), "{label}: the displaced inode lost its last name");
         assert!(names.iter().all(|name| { return !name.starts_with(&kept_dir); }), "{label}: {names:?}");
+        let replacement: u64 = captured.unwrap_or_else(|| { panic!("{label}: the exchange was never reached"); });
+        assert_ne!(replacement, displaced, "{label}: the replacement is the displaced inode");
+        let replacement_names: Vec<PathBuf> = names_of_inode(root.path(), replacement);
+        assert!(replacement_names.contains(&path), "{label}: the replacement inode is not at the live path: {replacement_names:?}");
     }
 }
 
