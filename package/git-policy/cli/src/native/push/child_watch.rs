@@ -33,6 +33,8 @@
 use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
 /// The longest one step runs.
 use crate::wait_ceilings::OBJECT_STEP_CEILING;
+/// The captured output of a step that is never ended, in files that outlive the command.
+use crate::output_capture::Capture;
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
 /// The notice cadence, its ticker and the child-wait line.
@@ -613,6 +615,12 @@ impl std::fmt::Display for CeilingReached {
 
 impl std::error::Error for CeilingReached {}
 
+/// The output of a step that ended: its status and what it wrote to the captured files.
+fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Output {
+    let (stdout, stderr): (Vec<u8>, Vec<u8>) = captured.map_or_else(|| { return (Vec::new(), Vec::new()); }, Capture::read);
+    return Output { status, stdout, stderr };
+}
+
 /// What:
 ///  The sentence for a step left running: what it was, how long it was waited for, and what to check.
 /// Why:
@@ -684,7 +692,18 @@ pub fn output_watched_within(
         StepBound::EndAt(limit) => Some(limit),
         StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
     };
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    // A step that is never ended writes into files that outlive this command, not into pipes this command holds: when the command
+    // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut.
+    let captured: Option<Capture> = if matches!(bound, StepBound::EndAt(_)) { None } else { Some(Capture::new()?) };
+    match captured.as_ref() {
+        Some(files) => {
+            let (out, err) = files.stdio()?;
+            command.stdout(out).stderr(err);
+        }
+        None => {
+            command.stdout(Stdio::piped()).stderr(Stdio::piped());
+        }
+    }
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
     let child: Child = command.spawn_retrying()?;
@@ -702,24 +721,29 @@ pub fn output_watched_within(
         StepBound::LeaveRunning { after, extra } => {
             // The child moves to a thread that waits for it and collects its output, so the command can stop waiting and the child
             // goes on; the thread reaps it when it ends.
-            let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<Output>>();
+            let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
             let waiter = std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
+                let mut child: Child = child;
                 // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
-                let _abandoned = sender.send(child.wait_with_output());
+                let _abandoned = sender.send(child.wait());
             });
             if let Err(error) = waiter {
                 watch.end();
                 return Err(std::io::Error::other(format!("{waiting_for} was started but no thread could be started to wait for it: {error}")));
             }
             match receiver.recv_timeout(after.saturating_add(extra)) {
-                Ok(finished) => finished,
+                Ok(finished) => finished.map(|status| { return output_of(status, captured.as_ref()); }),
                 Err(_timeout_or_gone) => {
                     watch.end();
                     return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra))));
                 }
             }
         }
-        StepBound::EndAt(_) | StepBound::Unbounded => child.wait_with_output(),
+        StepBound::EndAt(_) => child.wait_with_output(),
+        StepBound::Unbounded => {
+            let mut child: Child = child;
+            child.wait().map(|status| { return output_of(status, captured.as_ref()); })
+        }
     };
     watch.end();
     if let Some(limit) = ceiling
