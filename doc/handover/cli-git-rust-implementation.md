@@ -3637,7 +3637,12 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   Shipping under the owner's rule that reviews are async (2026-11-04):
   branch-write `bafebbd512` merged to main (`9cc1060ecb`),
   clippy clean,
-  release 0.5.31 dispatched (run 41886727366);
+  release 0.5.31 dispatched (run 41886727366),
+  published to crates.io 2026-11-04T18:30:46Z (built from `e55cb35b07`)
+  and installed:
+  the 0.5.30 service retired on the client's request,
+  0.5.31 started (protocol 7),
+  and the sample commit on main landed in 31 ms (lock hold 28 ms);
   its review findings follow as fixes.
   Known in 0.5.31 and being fixed:
   a withdrawal can be answered after the commit landed,
