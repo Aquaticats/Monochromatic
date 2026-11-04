@@ -435,6 +435,108 @@ pub(crate) fn current_identity() -> Result<Identity, String> {
     return read_current_identity(Path::new(BOOT_ID_PATH), Path::new(MACHINE_ID_PATH));
 }
 
+/// What `launcher_state` found about the process a launcher record names.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum LauncherState {
+    /// No process with that id and start time exists in the namespace of the record: it can never join the scope.
+    Gone,
+    /// The process exists (a zombie that is not reaped yet counts, because only its reaping shows it ended).
+    Alive,
+    /// The question cannot be answered, with the reason.
+    Unknown(
+        /// Why.
+        String,
+    ),
+}
+
+/// What:
+/// `pub(crate) fn pid_namespace_id() -> io::Result<u64>` is the inode number of this process's process id namespace.
+/// Why:
+/// A recorded process id means the same process only inside the namespace it was recorded in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pidNamespaceId(): number
+/// ```
+pub(crate) fn pid_namespace_id() -> io::Result<u64> {
+    return Ok(fs::metadata("/proc/self/ns/pid")?.ino());
+}
+
+/// What:
+/// `pub(crate) fn process_start(pid: i32) -> io::Result<u64>` is the start time of a process, in clock ticks since boot
+/// (field 22 of `/proc/<pid>/stat`).
+/// Why:
+/// A process id alone can be reused; the id with its start time cannot name two processes in one boot.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function processStart(pid: number): number
+/// ```
+pub(crate) fn process_start(pid: i32) -> io::Result<u64> {
+    return Ok(read_stat(pid)?.0);
+}
+
+/// What:
+/// `fn read_stat(pid: i32) -> io::Result<(u64, char)>` reads the start time and the state letter of a process.
+/// Why:
+/// The name field of the stat file may hold spaces and brackets, so the fields are counted after its last closing parenthesis.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readStat(pid: number): [number, string]
+/// ```
+fn read_stat(pid: i32) -> io::Result<(u64, char)> {
+    let text: String = fs::read_to_string(format!("/proc/{pid}/stat"))?;
+    let invalid = || -> io::Error { return io::Error::new(io::ErrorKind::InvalidData, format!("/proc/{pid}/stat is not understood: {text:?}")); };
+    let after: &str = text.rsplit_once(')').ok_or_else(invalid)?.1;
+    let fields: Vec<&str> = after.split_whitespace().collect();
+    // After the name: state is field 3, start time is field 22, so index 0 and 19 of what follows.
+    let state: char = fields.first().and_then(|field| { return field.chars().next(); }).ok_or_else(invalid)?;
+    let start: u64 = fields.get(19).ok_or_else(invalid)?.parse::<u64>().map_err(|_| { return invalid(); })?;
+    return Ok((start, state));
+}
+
+/// What:
+/// `pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64) -> LauncherState` says whether the recorded launcher can
+/// still join its scope.
+/// Why:
+/// The launcher becomes the program, and a process that is gone cannot be attached to a scope later (round 11).
+/// It is gone only when this process is in the namespace of the record and no process with that id and that start time exists;
+/// a different namespace, a hidden or unreadable process and a state that is not understood are "unknown", never "gone".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function launcherState(pid: number, start: number, pidNamespace: number): 'gone' | 'alive' | { unknown: string }
+/// ```
+pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64) -> LauncherState {
+    match pid_namespace_id() {
+        Ok(found) if found == pid_namespace => {}
+        Ok(_) => return LauncherState::Unknown(format!("the launcher {pid} was recorded in another process id namespace than this process is in")),
+        Err(error) => return LauncherState::Unknown(format!("the process id namespace of this process cannot be identified ({error})")),
+    }
+    let Some(found) = Pid::from_raw(pid) else {
+        return LauncherState::Unknown(format!("{pid} is not a process id"));
+    };
+    let exists: bool = match rustix::process::test_kill_process(found) {
+        Ok(()) | Err(Errno::PERM) => true,
+        Err(Errno::SRCH) => false,
+        Err(error) => return LauncherState::Unknown(format!("whether process {pid} exists cannot be told ({error})")),
+    };
+    if !exists {
+        return LauncherState::Gone;
+    }
+    return match read_stat(pid) {
+        Ok((seen, _)) if seen != start => LauncherState::Gone,
+        Ok(_) => LauncherState::Alive,
+        // The process exists but its stat cannot be read: hidden by a `/proc` mount option, or ended between the two looks.
+        Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::SRCH.raw_os_error()) => match rustix::process::test_kill_process(found) {
+            Err(Errno::SRCH) => LauncherState::Gone,
+            _ => LauncherState::Unknown(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({error})")),
+        },
+        Err(error) => LauncherState::Unknown(format!("/proc/{pid}/stat cannot be read ({error})")),
+    };
+}
+
 /// What:
 /// `fn is_cgroup2(path: &Path) -> io::Result<bool>` says whether the directory is on a cgroup v2 file system.
 /// Why:
@@ -699,6 +801,19 @@ pub(crate) enum Record {
     /// from here an absent scope means a scope that ended, not one that was never made (round 9, 8a F1).
     Settled {
         /// The directory of the scope that is settled.
+        path: PathBuf,
+    },
+    /// The launcher of the scope with this path, noted right after it was spawned (round 11): its process id, its start time (clock
+    /// ticks since boot, field 22 of `/proc/<pid>/stat`) and the inode of its process id namespace.
+    /// A launcher that is gone can never join the scope later, so a recovery that finds it gone may read the scope as final.
+    Launcher {
+        /// The process id of the launcher, which becomes the program.
+        pid: i32,
+        /// The start time of that process.
+        start: u64,
+        /// The inode number of the process id namespace of the wrapper, which is the one the pid belongs to.
+        pid_namespace: u64,
+        /// The directory of the scope the launcher was to enter.
         path: PathBuf,
     },
     /// The weaker path: only a process group (round 5), recorded by the process id of its leader.
@@ -1103,6 +1218,7 @@ impl fmt::Display for Record {
         return match self {
             Record::Scope { namespace, parent_view, path } => write!(formatter, "scope {namespace} {parent_view} {}", path.display()),
             Record::Settled { path } => write!(formatter, "settled {}", path.display()),
+            Record::Launcher { pid, start, pid_namespace, path } => write!(formatter, "launcher {pid} {start} {pid_namespace} {}", path.display()),
             Record::ProcessGroup(leader) => write!(formatter, "pgroup {leader}"),
             Record::ProcessGroupStarting => write!(formatter, "pgroup starting"),
         };
@@ -1141,6 +1257,21 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
             return Err(format!("{line:?} is not a process group"));
         }
         return Ok(Record::ProcessGroup(leader));
+    }
+    if let Some(rest) = line.strip_prefix("launcher ") {
+        let mut parts = rest.splitn(4, ' ');
+        let pid_text: &str = parts.next().unwrap_or("");
+        let pid: i32 = pid_text.parse::<i32>().map_err(|error| { return format!("{line:?} has no launcher process id ({error})"); })?;
+        if pid <= 0 {
+            return Err(format!("{line:?} has no launcher process id"));
+        }
+        let start: u64 = parse_number(parts.next().unwrap_or(""), "start time", line)?;
+        let pid_namespace: u64 = parse_number(parts.next().unwrap_or(""), "process id namespace", line)?;
+        let path: &str = parts.next().unwrap_or("");
+        if path.is_empty() {
+            return Err(format!("{line:?} has no path"));
+        }
+        return Ok(Record::Launcher { pid, start, pid_namespace, path: PathBuf::from(path) });
     }
     if let Some(rest) = line.strip_prefix("settled ") {
         if rest.is_empty() {

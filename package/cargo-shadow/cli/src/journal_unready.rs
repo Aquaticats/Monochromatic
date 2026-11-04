@@ -355,6 +355,8 @@ fn assess(directory: &Path) -> Option<Finding> {
                 directory.display()
             )),
             Ok(Record::Settled { path: scope_path }) => unsettled.retain(|open| { return *open != scope_path; }),
+            // Scaffold of round 11: the launcher record is parsed and not used yet.
+            Ok(Record::Launcher { .. }) => {}
             Ok(Record::Scope { namespace, parent_view, path: scope_path }) => {
                 unsettled.push(scope_path.clone());
                 match query(namespace, parent_view, &scope_path) {
