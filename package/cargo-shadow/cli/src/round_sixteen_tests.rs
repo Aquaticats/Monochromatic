@@ -594,7 +594,8 @@ fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_a
 /// A stand-in for `systemd-run` that the manager refuses: it says so and exits, and never runs the program.
 fn refusing_systemd_run(directory: &Path) -> PathBuf {
     let script: PathBuf = directory.join("refusing-systemd-run");
-    fs::write(&script, "#!/bin/sh\necho 'Failed to start transient scope unit: delegation refused' >&2\nexit 1\n").expect("write the stand-in");
+    // It leaves a sentinel file when it runs, so a test sees that the refusal came from this stand-in and not from an earlier failure.
+    fs::write(&script, format!("#!/bin/sh\n: > '{}'\necho 'Failed to start transient scope unit: delegation refused' >&2\nexit 1\n", directory.join("refusal-ran").display())).expect("write the stand-in");
     fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("make it executable");
     return script;
 }
@@ -639,8 +640,9 @@ fn a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_run
     let trace: Vec<String> = take_trace_for_test();
     drop(second);
 
+    assert!(directory.path().join("refusal-ran").exists(), "the refusing stand-in never ran, so the failure was not the manager's refusal");
     assert!(!marker.exists(), "the program ran although the manager refused its scope");
-    assert!(result.as_ref().map_or(true, |output| { return !output.status.success(); }), "a refused scope was read as a successful run: {result:?}");
+    assert!(result.as_ref().is_ok_and(|output| { return !output.status.success(); }) || result.as_ref().is_err_and(|error| { return !matches!(error, RunError::NotQuiescent { .. } | RunError::TimedOut { .. }); }), "a refused scope was read as a successful run or as an uncertain one: {result:?}");
     assert_eq!(trace[..2], ["attempt scope", "written scope"], "the run did not record a scope before the refusal: {trace:?}");
     let groups: String = fs::read_to_string(second_journal.join("groups")).expect("the record");
     assert!(groups.lines().any(|line| { return line.starts_with("settled "); }), "the run's end was not recorded: {groups:?}");
