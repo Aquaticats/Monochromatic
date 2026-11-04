@@ -416,6 +416,24 @@ each in its own worktree:
   or a sidecar,
   whichever the agent shows has fewer moving parts);
   options in `doc/planning/cli-git-one-reclaimer-per-index.md`.
+  Built as B1 (the `flock` on the stale lock's own inode;
+  ranking B1 > B2 > A > C):
+  tip `9db8794047`,
+  gate 4714 of 4714 (7 skipped);
+  `reclaim_if` opens,
+  reads the marker,
+  takes `LOCK_EX|LOCK_NB`,
+  checks device and inode against the name and unlinks;
+  no `.aside-*` files any more.
+  Left open:
+  a person's `rm index.lock` between the inode check and the unlink;
+  file systems without `flock` (reclaim unguarded,
+  logged);
+  reclaimers on different hosts;
+  `.aside-*` files 0.5.28 already left are not swept (queued);
+  `native:clippy:windows` not run (paused by the owner).
+  Cross-vendor review running (`one-reclaimer-sol-1.txt`);
+  merge into main after it.
   The older index review's P2 and P3 findings (`private_index_path` aliasing,
   `head_names` revalidation,
   `Interrupted` writes) are already fixed on main,
