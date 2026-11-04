@@ -529,7 +529,8 @@ fn a_record_that_cannot_be_written_or_made_durable_starts_no_program() {
 
             let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
             crate::bounded_run::use_route_settings_for_test(None);
-            let trace: Vec<String> = crate::bounded_run::take_trace_for_test();
+            // The weaker-path notice is traced too and is observed by its own test; this case compares the order of the record events.
+            let trace: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).collect();
             // The containment the runner actually attempted at the fault (certification group 2), also when the write itself fails:
             // the first record it tried to make, not the route that discovery could have given.
             let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
