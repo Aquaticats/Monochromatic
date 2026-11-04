@@ -43,7 +43,7 @@ pub use crate::service_index_placement::{Platform, SYSTEM, placement_failure_tex
 pub use crate::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use crate::service_index_watch::Watch;
 use crate::service_index_placement::{log_placement_failure, place_marked, reclaim};
-pub use crate::service_index_reclaim::{Reclaimed, remove_stale, stale_lock_words};
+pub use crate::service_index_reclaim::{Reclaimed, foreign_words, remove_stale, stale_lock_words};
 use crate::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
@@ -122,7 +122,7 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         //  one, and one that cannot be removed leave the batch open for the next round.
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match reclaim(platform, &lock) {
             Reclaimed::Removed | Reclaimed::Changed => place_marked(platform, &staged, &lock),
-            Reclaimed::Busy | Reclaimed::Kept | Reclaimed::Stuck | Reclaimed::Unguarded(_) => Err(error),
+            Reclaimed::Busy | Reclaimed::Kept | Reclaimed::Stuck | Reclaimed::Unguarded(_) | Reclaimed::Foreign { .. } => Err(error),
         },
         other => other,
     };
@@ -306,6 +306,11 @@ mod reclaim_tests;
 #[cfg(test)]
 #[path = "service_index_claim_tests.rs"]
 mod claim_tests;
+
+/// Controls for the machine ID in a marker stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_machine_tests.rs"]
+mod machine_tests;
 
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]

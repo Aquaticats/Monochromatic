@@ -3634,7 +3634,31 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   (the agent designs options;
   owner question to follow).
   All sent to the agent.
-  Release 0.5.31 waits for both branches' fixes and their re-reviews.
+  Shipping under the owner's rule that reviews are async (2026-11-04):
+  branch-write `bafebbd512` merged to main (`9cc1060ecb`),
+  clippy clean,
+  release 0.5.31 dispatched (run 41886727366),
+  published to crates.io 2026-11-04T18:30:46Z (built from `e55cb35b07`)
+  and installed:
+  the 0.5.30 service retired on the client's request,
+  0.5.31 started (protocol 7),
+  and the sample commit on main landed in 31 ms (lock hold 28 ms);
+  its review findings follow as fixes.
+  Known in 0.5.31 and being fixed:
+  a withdrawal can be answered after the commit landed,
+  a step left running can die of SIGPIPE when the command exits,
+  and the 20-minute foreign-owner patience is shorter than main's one hour
+  (`branch-write-sol-2.txt` section 1 C;
+  options then an owner question).
+  Index lock `69650ced17` merged onto main in the integration worktree
+  `.claude/worktrees/index-lock-claims-on-main` (branch `fix/git-policy-cli-index-lock-claims-on-main`);
+  combined gate `gpc-gate-index-lock-claims-on-main-20261104T132517-0500` running;
+  on pass,
+  merge to main and release 0.5.32.
+  cargo-shadow 0.1.0:
+  the agent merges main into `feat/cargo-shadow-cli` (799 commits behind),
+  wires it into `crate-release` as `7036dca934` did for mpm-shadow,
+  then the coordinator merges and dispatches.
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
@@ -3869,7 +3893,35 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     `-3-a1a2-v6` 230 KB,
     `-4-a2r4-a3a4-r3r5-k1-k2-v1` 235 KB);
     prompts `cargo-shadow-cert2-prompt-1..4.txt` written (group 1 without the manifest to stay under 250 KB);
-    queued behind the index-lock and branch-write reviews;
+    second certification pass running (outputs `cargo-shadow-cert2-sol-1..4.txt`);
+    group 4 returned "not certified":
+    A2/R4 and V1 shown,
+    A3/A4,
+    R3/R5,
+    K1 and K2 partly (five evidence fixes,
+    no production defect);
+    group 1:
+    A1,
+    V2 amended c and weaker path all partly (process and thread oracles that can still pass falsely,
+    fixtures and unsettled-scope bodies missing from the bundle,
+    lost-record evidence stopping at classification,
+    a notice formatted but not observed,
+    writer-side acknowledgement durability untested);
+    group 2:
+    R1 shown;
+    A1/V3,
+    R2 (circular EROFS inventory,
+    conflict and undo preservation failures unexercised),
+    V3/V4 and V5 partly;
+    group 3:
+    A1/A2 shown;
+    V6 partly (pipe draining has no bounded-return assertion;
+    helper bodies missing from the bundle);
+    4 of 16 rows shown across the pass,
+    no production defect;
+    all four groups' fixes sent to the agent,
+    with a cutter that fails when a named test's helpers are not in its group,
+    and as many smaller groups as needed;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
@@ -4067,11 +4119,67 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   `record_errors` writes each line in one write after interleaved lines were seen);
   map and comparison claims narrowed,
   the round 18 ranking withdrawn.
-  Round 19 sent:
-  record the owner's override in the map and the target notes,
-  and fix the two save-losing schedules of review 13 (handover timeout then launcher death;
-  the intermediate child's inherited lock copy with failed cleanup);
-  parts to `commit-models-14-part-<n>-<topic>.diff`.
+  Round 19 done (tip `e514bb736d`,
+  473 model tests passed):
+  the launcher holds no lock for the launch,
+  it probes the lock and forks only when it was free,
+  and the helper takes the lock itself;
+  the handover byte and its timeouts are gone.
+  Review `commit-models-sol-14.txt`:
+  "no, as submitted":
+  the probe itself is a false owner
+  (a client holding its probe makes another client return `LockHeld`,
+  then dies before launching,
+  and nobody forces the second receipt);
+  claims about who holds the lock and for how long overstated.
+  Round 20 sent:
+  only a process that lists and forces after acquiring may hold the flusher lock
+  (drop the probe or test without acquiring),
+  the reviewer's four regressions red first,
+  claims corrected;
+  parts to `commit-models-15-part-<n>-<topic>.diff`.
+  Round 20 done (tip `924f8edd76`,
+  476 model tests passed):
+  the probe is dropped,
+  every client forks a helper (launch to acknowledgment median 0.66 ms,
+  20 samples),
+  and only processes that list after acquiring hold the lock.
+  Review `commit-models-sol-15.txt`:
+  "Yes after named fixes,
+  for the models/components' claimed coverage—not approval of the live protocol";
+  fixes:
+  the late-receipt argument (release and recheck,
+  not acquisition order),
+  the three probe controls do not establish their interleavings,
+  reap and timing wording,
+  and a cutover obligation for old probe-capable clients.
+  Round 21 done (tip `be89e6a319`,
+  479 model tests passed,
+  map 64,
+  17,
+  9,
+  18 not yet,
+  108 rows):
+  the release-and-recheck argument with a new control,
+  three production acquisition sites listed,
+  negative controls rebuilt on a test-only legacy probe seam,
+  reap and timing wording corrected,
+  and one Not-yet cutover row for old probe-capable clients.
+  Review `commit-models-sol-16.txt`:
+  "Yes—for the models/components' claimed,
+  explicitly limited coverage.
+  Not approval of the live protocol."
+  The model rounds have converged
+  (limits kept:
+  `assert_never_recorded` observes 1.5 s;
+  `the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock` does not force a failed recheck acquisition).
+  Next phase sent to the models agent:
+  the declared disposable Git experiments for the supported scope,
+  and an ordered plan for the remaining live-approval gates (cutover fence,
+  lifecycle and forcing at real call sites,
+  recovery and preservation,
+  installation and latency) in the design file,
+  owner decisions marked as questions.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
@@ -4624,7 +4732,19 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   a dry-run publish and a real-credential commit have passed."
   It was given for that session;
   releases since have gone through `crate-release` under it.
-  Any other first crates.io publication needs the owner's explicit approval (the cargo-shadow 0.1.0 publish is one).
+  This session (2026-11-04) the owner said:
+  "I'm authorizing you to bump and publish any updates this session."
+  It covers every crate,
+  a crate's first publication included;
+  the owner,
+  2026-11-04,
+  on an earlier coordinator line that required approval for a first publication:
+  "Didn't I always give you approval to publish?"
+  and "By "first" I meant "first in this session of any crate"",
+  and "didn't I also say reviews and mutation testings don't block publishing?".
+  Earlier (session transcript): "Mutation runs don't block publish and release."
+  So reviews and mutation campaigns never block a merge or a publish;
+  their findings become follow-up fixes and later releases.
 - Release order for the wrapper:
   gate passes (`gate-exit-status=0` and the nextest summary),
   merge to main,

@@ -203,7 +203,7 @@ needs no `flock` at all.
 Used only when the `flock` on the stale file answers that the file system gives none (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`,
 `EBADF`). `EWOULDBLOCK`, `EINTR` and `ENOMEM` are back-offs, and any other error is `Unguarded` (see the cross-vendor review below).
 All claims are files beside the lock, named `<lock>.cli-reclaim-<key>-<slot>`, with a key made from the stale lock's marker (batch,
-process, birth identity in hexadecimal) and a slot number counted from zero. The first design keyed on the device and inode of the
+process, birth identity with the bytes a file name cannot hold escaped, which keeps the name within the limit of a file name beside a long lock name) and a slot number counted from zero. The first design keyed on the device and inode of the
 stale file; the review found that two mounts of one remote tree can give one file different device numbers, so two reclaimers would
 place at different names. The marker is the file's own content, the process it names is gone and places no further lock with that
 marker, and so no later lock carries the key.
@@ -298,6 +298,61 @@ a slot read as gone long before, and the cleanup against a reused inode were eac
 from the device and inode (above); an unreadable claim must not read as gone (it never did: only a successful read of text that is
 no marker does; a claim is now mode 0644 so another account can read it); an ambiguous placement answer (the claim carries a random
 token, and a file at the slot with this attempt's text is its own); the mixed case and the remote live claimer (above, kept open).
+
+## Claims on every file system, and the machine ID (2026-11-04)
+
+Two owner-side decisions followed the first claim chain.
+
+### Claim files always
+
+The owner picked "Claim files always (Recommended)" on 2026-11-04 through the question tool: "Every wrapper uses the claim files, on every
+file system; the `flock` path for this is retired. Pro: one mechanism, race closed." So `reclaim_if` always takes its place in the claim
+chain and never takes the `flock` on the stale lock's inode; `Platform::flock`, `flock_exclusive` and the routing by `flock` error are
+removed, and `service_index_reclaim.rs` leaves the lock inventory because it holds no lock primitive (the inventory test would report
+a stale entry). This closes the mixed case that the first chain left open (one reclaimer on the `flock`, another on a claim): there is
+one path. The sections above that describe the `flock` path (B1, "What was built", the routing by errno) are history.
+
+What the routing keeps: an interrupted or out-of-memory placement of a claim (`EINTR`, `ENOMEM`, `EWOULDBLOCK`) is a back-off and not a
+refusal; a refusal of the placement is `Unguarded`, as before; a claim whose maker is on another machine is `Foreign`.
+
+### The machine ID in the marker
+
+The review of the first chain, and the coordinator's follow-up, found that `holder_state_in` answered `Gone` for any marker whose boot ID
+differed from the reader's. Over a repository on a shared file system that makes a live service on another machine look gone, and its lock
+(or claim) is removed. The rule now is the one the owner kept for the claims of work (`claim_time.rs`; "same machine id plus a different
+boot id clears liveness only"):
+
+- a marker's identity ends `#<boot>#<namespace>#<machine>` when the host has a valid machine ID (32 lowercase hexadecimal digits, not all
+  zero; `/etc/machine-id`, else `/var/lib/dbus/machine-id`); a writer without a valid one writes none and is read as before;
+- same machine ID and a different boot ID: gone (a reboot ends every process);
+- a machine ID that is not the reader's, is not valid, or a reader with none: unknown, never gone; the lock or claim stays, and the
+  landing's notice (`foreign_words`) names the file, the batch and the process and gives the `rm`;
+- a marker with no machine ID (an earlier release's, or a writer without one): today's reading.
+
+An earlier release reading a new marker sees a namespace field that carries `#<machine>` and answers unknown when the boot is the same, which
+keeps the lock; it compares the boot first, so on another boot (another machine over a shared file system) it still answers gone, as it
+always did. Every caller of the boot comparison was searched for: `holder_state_in`
+(`service_index_identity.rs`) is the only one for markers and their claims; the claims of work (`claim_time.rs`,
+`work_item_recovery.rs`) already compare the machine ID; the reference-lock judge reads the boot time by the wall clock only.
+Machines cloned with one machine ID cannot be told apart and are judged as one machine.
+
+Release overlap: the release before this one reclaims under the `flock` and this one under claims, and the two do not see each other.
+The service of one worktree never runs two releases at once (an upgrade retires the old release first, `SPEC.md`, "One marker-writing
+taker at a time"), so the overlap needs two worktrees sharing one alternate index across an upgrade, or a host that runs both releases
+on one repository; stop the older service first, as `SPEC.md` says for a downgrade.
+
+Where this does not hold, in addition: an earlier release's reader on another machine still reads the marker of this release as gone (the
+boot comparison comes first in the earlier code); a claim name `<lock>.cli-reclaim-<key>-<slot>` is the lock's file name plus about a
+hundred more bytes (the birth identity is written as it is), so a lock whose own name is near the limit of a file name (255 bytes) cannot have
+a claim placed beside it and the reclaim answers `Unguarded`; the control covers a 45-byte lock name.
+
+Strictness of the machine ID: `is_machine_id` also governs the claims of work (`claim_time.rs`), so an uppercase or all-zero machine ID there
+now reads as none. That is safe: `machine-id(5)` specifies 32 lowercase hexadecimal digits and says an all-zero value is not valid, so no
+real host is affected, and a reading with no machine ID falls back to the wall clock, as before for hosts without one.
+
+Where this does not hold: a service on another machine whose marker carries no machine ID (written by a release before this one, or by a
+host with no valid machine ID) is read as before, so over a shared file system a live holder of that kind can still read as gone.
+No Linux call can tell a process of another machine from a gone one by the marker alone; the machine ID is the only evidence.
 
 ## A busy stale lock
 
