@@ -671,11 +671,9 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
     }
 }
 
-/// The most names tried to take the stand-in under (owner rule of 2026-11-03:
-/// "nothing should ever wait forever or indefinitely");
-/// the names carry the process id,
-/// the clock and a counter,
-/// so one try is the normal case.
+/// The most names tried to take the stand-in under.
+/// Unmeasured, like the other name searches: one try is the normal case and the collision count was not counted.
+/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
 const MAX_TAKEN_NAMES: u32 = 100;
 
 /// What:

@@ -420,11 +420,10 @@ pub struct Seams<'a> {
     pub sync_dir: &'a dyn Fn(&Path) -> io::Result<()>,
 }
 
-/// The most names tried when a kept file's name is taken,
-/// and the most temporary names tried.
-/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"):
-/// far above any real number of kept copies,
-/// so reaching it means something else is filling the directory.
+/// The most names tried when a kept file's name is taken, and the most temporary names tried.
+/// Unmeasured: collisions were not counted; the names carry the process id, a nanosecond clock and a counter, so one try is the normal case.
+/// What must be measured is the collision count over many concurrent runs; the cap only ends a search that something else is filling.
+/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
 const MAX_NAME_ATTEMPTS: u32 = 10_000;
 
 /// What:

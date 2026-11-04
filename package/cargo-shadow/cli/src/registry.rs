@@ -193,17 +193,18 @@ const API_URL: &str = "https://crates.io/api/v1";
 pub const API_MIN_INTERVAL: Duration = Duration::from_millis(1_100);
 
 /// How many times a rate-limited request is tried.
+/// Unmeasured: the number of 429 answers crates.io gives in a row must be observed.
 const RATE_LIMIT_ATTEMPTS: u32 = 5;
 
 /// The longest pause for an HTTP 429 that cargo-shadow sits through.
-/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely"),
-/// not measured:
-/// crates.io asks for seconds,
-/// so a day-long request is a different problem and ends the call.
+/// Unmeasured: no `Retry-After` value was observed in this repository's logs or runs; what must be measured is the distribution of `Retry-After` values crates.io sends.
+/// Two minutes is a guess that crates.io asks for seconds; a longer request ends the call.
+/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
 const MAX_PAUSE: Duration = Duration::from_secs(120);
 
 /// The first backoff when a 429 carries no `Retry-After`;
 /// it doubles each attempt.
+/// Unmeasured: used only when a 429 carries no `Retry-After`; the values crates.io sends must be observed.
 const RATE_LIMIT_BACKOFF: Duration = Duration::from_secs(30);
 
 /// The HTTP status for "too many requests".

@@ -115,10 +115,12 @@ pub struct RealCargo {
     pub bound: std::time::Duration,
 }
 
-/// The default bound of one cargo call,
-/// in seconds.
-/// Chosen generously (half an hour) because a first resolution may fetch an index over a slow network,
-/// not measured.
+/// The default bound of one cargo call, in seconds.
+/// Measured 2026-11-04 on this repository (load average 6.2 to 6.9 on 32 CPUs, capped scopes, 3 runs each, `~/temp/agent/bench_bounds.py` and `bench_online.py`): `cargo update --workspace --locked --offline` took 0.11 s to 0.91 s and `cargo metadata --locked --offline` 0.05 s to 0.65 s
+/// (slowest: `package/music-player/desktop-app`, the largest lockfile here); an online `cargo update --workspace --dry-run` took 0.09 s to 0.12 s.
+/// Half an hour is about 2,000 times the slowest measured call and is meant for a cold index fetch over a slow network, which was not measured:
+/// a run that resolves with an empty registry cache (and so shows the real upper end) is what must be measured to set this number.
+/// The owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely") justifies that a bound exists, not this number.
 pub const CARGO_CALL_SECONDS: u64 = 1_800;
 
 /// What:

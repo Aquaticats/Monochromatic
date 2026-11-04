@@ -73,11 +73,8 @@ use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST
 use crate::manifest_edit::ManifestEdit;
 
 /// The most journal names tried when one exists already.
-/// A bound chosen for the owner's rule of 2026-11-03 ("nothing should ever wait forever or indefinitely");
-/// the names carry a
-/// clock,
-/// a process id and a counter,
-/// so a second try is already unreachable in practice.
+/// Unmeasured: the names carry a clock, a process id and a counter, so a second try is the exception; what must be measured is the collision count.
+/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
 const MAX_JOURNAL_NAME_ATTEMPTS: u32 = 100;
 
 /// The counter that keeps two journals of one process apart.

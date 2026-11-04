@@ -119,8 +119,11 @@ pub struct GitProgram {
     pub environment: Vec<(String, String)>,
 }
 
-/// The bound of one Git call,
-/// in seconds.
+/// The bound of one Git call, in seconds.
+/// Measured 2026-11-04 on this repository (load average 6.2 to 6.9 on 32 CPUs, capped scopes, 3 runs each, `~/temp/agent/bench_bounds.py` and `bench_online.py`): `git cat-file --batch-check` with the four inputs took 0.007 s to 0.018 s, `git rev-parse --verify HEAD^{commit}` 0.007 s to 0.008 s,
+/// `git show HEAD:<dir>/Cargo.lock` 0.008 s to 0.009 s and `git var GIT_CONFIG_SYSTEM` 0.006 s to 0.007 s, all in a warm repository.
+/// A minute is about 3,000 times the slowest of these and leaves room for a cold disk or a promisor fetch, neither of which was measured.
+/// The owner's rule of 2026-11-03 justifies that a bound exists, not this number.
 pub const GIT_CALL_SECONDS: u64 = 60;
 
 /// The methods of the type above.
