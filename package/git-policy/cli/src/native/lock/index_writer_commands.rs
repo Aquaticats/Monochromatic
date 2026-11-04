@@ -30,7 +30,7 @@
 //! ```
 
 /// The resolved command.
-use super::forwarded_command::ResolvedCommand;
+use crate::forwarded_command::ResolvedCommand;
 
 /// Commands that write the index in every form.
 pub const ALWAYS_WRITING_COMMANDS: [&[u8]; 15] = [

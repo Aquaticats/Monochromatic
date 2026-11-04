@@ -1,5 +1,5 @@
 /**
- The file operations of a numbered claim series, as `package/git-policy/cli/src/native/single_owner_claim.rs` does them: a
+ The file operations of a numbered claim series, as `package/git-policy/cli/src/native/lock/single_owner_claim.rs` does them: a
  record is written whole into a private file and then published with one exclusive `link`, so a claim file is never seen
  half written and the kernel lets exactly one command create a given generation.
  */

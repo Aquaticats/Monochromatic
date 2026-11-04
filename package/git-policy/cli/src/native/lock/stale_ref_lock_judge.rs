@@ -11,15 +11,15 @@
 //! const examined = judge.examine(lockPath); // { verdict, pidFile, size, born, identity }
 //! ```
 
-use super::fs_mount_options::read_mount_facts;
-use super::pid_namespace::current_pid_namespace;
-use super::process_start::{ProcessStart, linux_start, now_ms};
-use super::process_use::{UseScan, UseTarget, processes_using_through};
-use super::stale_ref_lock_found::PidFile;
-use super::stale_ref_lock_nested_numbers::nested_holders_of;
-use super::stopped_git_locks::pid_named_by;
-use super::stale_ref_lock_walk::pid_file_beside;
-pub use super::stale_ref_lock_identity::{Identity, identity_of};
+use crate::fs_mount_options::read_mount_facts;
+use crate::pid_namespace::current_pid_namespace;
+use crate::process_start::{ProcessStart, linux_start, now_ms};
+use crate::process_use::{UseScan, UseTarget, processes_using_through};
+use crate::stale_ref_lock_found::PidFile;
+use crate::stale_ref_lock_nested_numbers::nested_holders_of;
+use crate::stopped_git_locks::pid_named_by;
+use crate::stale_ref_lock_walk::pid_file_beside;
+pub use crate::stale_ref_lock_identity::{Identity, identity_of};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 

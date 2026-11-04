@@ -14,12 +14,12 @@
 //! if (attempt.exitCode !== 0) attempt.output += outcome.notice();
 //! ```
 
-use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
-use super::bounded_push::{Patience, run_bounded_push_once};
-use super::diagnostic_log::warn;
-use super::git_directory_roots::roots_of_command;
-use super::stale_ref_lock_judge::Judge;
-use super::stale_ref_locks::clear_stale_ref_locks;
+use crate::auto_push_single_flight::{PushAttempt, SingleFlightError};
+use crate::bounded_push::{Patience, run_bounded_push_once};
+use crate::diagnostic_log::warn;
+use crate::git_directory_roots::roots_of_command;
+use crate::stale_ref_lock_judge::Judge;
+use crate::stale_ref_locks::clear_stale_ref_locks;
 use std::ffi::OsString;
 use std::process::Command;
 use std::time::Duration;

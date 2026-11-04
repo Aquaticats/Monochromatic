@@ -9,7 +9,7 @@
 //! type Outcome = { cleared: Found[]; left: Found[]; displaced: string[] };
 //! ```
 
-use super::stale_ref_lock_judge::Verdict;
+use crate::stale_ref_lock_judge::Verdict;
 use std::path::PathBuf;
 use std::time::SystemTime;
 

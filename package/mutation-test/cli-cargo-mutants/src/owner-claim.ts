@@ -1,7 +1,7 @@
 /**
  The right of one running command to one item, held as a numbered claim file that names its owner by process birth.
 
- This is the TypeScript counterpart of `package/git-policy/cli/src/native/single_owner_claim.rs`, with the same rules, and
+ This is the TypeScript counterpart of `package/git-policy/cli/src/native/lock/single_owner_claim.rs`, with the same rules, and
  the comments cite its lines. A claim file is made whole in a private temporary file and published with one exclusive
  `link` under the next generation number `<prefix>.<generation>` (`single_owner_claim.rs:182`), so the kernel lets exactly
  one command create generation `n + 1`. No lock is held and nothing ever waits: a command that finds a live owner is told

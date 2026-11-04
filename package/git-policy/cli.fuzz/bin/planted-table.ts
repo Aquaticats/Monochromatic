@@ -25,7 +25,7 @@ export type Plant = {
 export const plants: readonly Plant[] = [
   {
     name: 'PID file text keeps trailing whitespace before the pid prefix is read',
-    file: 'package/git-policy/cli/src/native/index_lock_evidence.rs',
+    file: 'package/git-policy/cli/src/native/lock/index_lock_evidence.rs',
     edits: [{
       from: 'let trimmed: &str = super::js_text::trim_javascript_end(text);',
       to: 'let trimmed: &str = text;'

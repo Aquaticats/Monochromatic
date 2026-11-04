@@ -55,14 +55,14 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   },
   {
     name: 'PID file proof skips the holder scan',
-    file: 'src/native/index_lock_evidence.rs',
+    file: 'src/native/lock/index_lock_evidence.rs',
     from: 'if let PidFile::Owner(pid, PidOwner::StartedBeforeLock(_)) = &pid_file {',
     to: 'if let PidFile::Owner(pid, PidOwner::Missing) = &pid_file {',
     failing: 'index_lock_evidence::tests::gathering_skips_the_scan_only_for_a_proven_live_owner',
   },
   {
     name: 'open descriptor precedence over the PID file',
-    file: 'src/native/index_lock_evidence.rs',
+    file: 'src/native/lock/index_lock_evidence.rs',
     from: 'if let Some(scan) = &evidence.holders',
     to: 'if let Some(scan) = &None::<HolderEvidence>',
     failing: 'index_lock_evidence::tests::classification_prefers_a_descriptor_then_the_pid_file',

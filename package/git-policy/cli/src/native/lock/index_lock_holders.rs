@@ -262,7 +262,7 @@ pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, sel
             evidence.partial.push(reason);
         }
     }
-    super::diagnostic_log::debug(
+    crate::diagnostic_log::debug(
         "scanProcFdHolders",
         format!(
             "scanned {} processes: {} holders, {} unreadable",
@@ -286,7 +286,7 @@ pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, sel
 /// ```
 #[cfg(unix)]
 fn trimmed(text: String) -> String {
-    return String::from(super::js_text::trim_javascript(text.as_str()));
+    return String::from(crate::js_text::trim_javascript(text.as_str()));
 }
 
 /// How long the commit service's scan for the processes that have a lock open may take.
@@ -439,7 +439,7 @@ fn scan_restart_manager_holders(lock_path: &Path) -> HolderEvidence {
 
 /// Holders found by the parsers,
 ///  re-exported for the scans and their controls.
-pub use super::index_lock_holder_parsers::{LsofProcess, matching_holders, parse_lsof_fields, parse_lsof_number, parse_restart_manager_output};
+pub use crate::index_lock_holder_parsers::{LsofProcess, matching_holders, parse_lsof_fields, parse_lsof_number, parse_restart_manager_output};
 
 /// Holder-scan controls stay out of the release executable.
 #[cfg(test)]

@@ -16,7 +16,7 @@
 //! ```
 
 /// The holder record type the parsers produce.
-use super::index_lock_holders::Holder;
+use crate::index_lock_holders::Holder;
 
 /// What:
 ///  One `lsof -F pcDi` process record:
@@ -55,7 +55,7 @@ pub struct LsofProcess {
 /// BigInt(text)
 /// ```
 pub fn parse_lsof_number(text: &str) -> Option<u128> {
-    let trimmed: &str = super::js_text::trim_javascript(text);
+    let trimmed: &str = crate::js_text::trim_javascript(text);
     if trimmed.is_empty() {
         return Some(0);
     }
@@ -137,7 +137,7 @@ pub fn parse_lsof_fields(output: &str) -> Vec<LsofProcess> {
             files.push((number_field(file.as_slice(), 'D'), number_field(file.as_slice(), 'i')));
         }
         processes.push(LsofProcess {
-            pid: super::js_text::decimal_attempt(&group[0][1..]),
+            pid: crate::js_text::decimal_attempt(&group[0][1..]),
             command,
             files,
         });
@@ -183,7 +183,7 @@ pub fn matching_holders(processes: &[LsofProcess], device: u64, inode: u64) -> V
 pub fn parse_restart_manager_output(output: &str) -> Vec<Holder> {
     let mut holders: Vec<Holder> = Vec::new();
     for raw in output.split('\n') {
-        let line: &str = super::js_text::trim_javascript(raw);
+        let line: &str = crate::js_text::trim_javascript(raw);
         if line.is_empty() {
             continue;
         }
@@ -191,7 +191,7 @@ pub fn parse_restart_manager_output(output: &str) -> Vec<Holder> {
             Some((pid, name)) => (pid, name),
             None => (line, ""),
         };
-        let Some(pid) = super::js_text::decimal_attempt(super::js_text::trim_javascript(pid_text)) else {
+        let Some(pid) = crate::js_text::decimal_attempt(crate::js_text::trim_javascript(pid_text)) else {
             continue;
         };
         holders.push(Holder {

@@ -10,7 +10,7 @@
 //! const candidates = refLockCandidates(roots); // packed-refs.lock, HEAD.lock, refs/**/*.lock
 //! ```
 
-use super::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
+use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 use std::path::{Path, PathBuf};
 
 /// The staging file Git writes beside `packed-refs.lock` while it holds that lock (`refs/packed-backend.c:1398`).

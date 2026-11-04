@@ -1,5 +1,5 @@
 /**
- The text of a claim file and the names of a claim series, as `package/git-policy/cli/src/native/single_owner_claim.rs`
+ The text of a claim file and the names of a claim series, as `package/git-policy/cli/src/native/lock/single_owner_claim.rs`
  spells them: a claim file is `<prefix>.<generation>`, and says either that its owner gave the item back or which process
  owns it (id, birth, PID namespace).
  */

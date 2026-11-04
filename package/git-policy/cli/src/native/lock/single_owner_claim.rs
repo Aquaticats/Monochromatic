@@ -22,9 +22,9 @@
 //! await claim.release();
 //! ```
 
-use super::pid_namespace::{current_pid_namespace, foreign_owner_standing};
-use super::process_identity::{current_birth_identity, process_birth_identity};
-use super::subvolume_error::MigrateError;
+use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
+use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::subvolume_error::MigrateError;
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
@@ -189,7 +189,7 @@ fn publish_new(directory: &Path, target: &Path, record: &Record) -> std::io::Res
 
 /// The claim file's record, or nothing when the file is gone, or an error when it is not a claim of this command.
 fn read_record(path: &Path) -> Result<Option<Record>, MigrateError> {
-    let bytes: Vec<u8> = match super::worktree_convert_journal::read_plain_file(path, SMALL_RECORD_LIMIT) {
+    let bytes: Vec<u8> = match crate::worktree_convert_journal::read_plain_file(path, SMALL_RECORD_LIMIT) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(MigrateError::io("read the claim", path, &error)),

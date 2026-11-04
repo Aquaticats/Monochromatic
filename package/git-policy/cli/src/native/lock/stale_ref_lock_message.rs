@@ -11,9 +11,9 @@
 //! process.stderr.write(outcome.notice()); // "cli-git: left the reference lock ... alone: ...\ncli-git:   rm -- '...'\n"
 //! ```
 
-use super::iso_time::format_iso_milliseconds;
-use super::stale_ref_lock_found::{Found, Outcome, PidFile};
-use super::stale_ref_lock_judge::{Proof, Verdict};
+use crate::iso_time::format_iso_milliseconds;
+use crate::stale_ref_lock_found::{Found, Outcome, PidFile};
+use crate::stale_ref_lock_judge::{Proof, Verdict};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};

@@ -21,20 +21,20 @@
 //! ```
 
 /// Evidence about the holder of a lock.
-use super::index_lock_evidence::{
+use crate::index_lock_evidence::{
     Evidence, Verdict, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
 /// The bounded scan of open descriptors.
-use super::index_lock_holders::scan_platform_holders_bounded;
+use crate::index_lock_holders::scan_platform_holders_bounded;
 /// The start time of a process.
-use super::process_start::resolve_process_start;
+use crate::process_start::resolve_process_start;
 /// The place of the lock and the watch on its directory.
-use super::service_index_lock::{Watch, lock_path_of};
+use crate::service_index_lock::{Watch, lock_path_of};
 /// The longest a wait lasts.
-use super::wait_ceilings::LOCK_CEILING;
+use crate::wait_ceilings::LOCK_CEILING;
 /// How long a wait without a watch sleeps between looks.
-use super::service_index_watch::POLL_PAUSE;
-use super::wait_progress::{Cadence, Ticker};
+use crate::service_index_watch::POLL_PAUSE;
+use crate::wait_progress::{Cadence, Ticker};
 /// Writing the notices.
 use std::io::Write;
 /// `Path` is a borrowed filesystem path.

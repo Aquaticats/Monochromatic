@@ -1,6 +1,6 @@
 /**
  Whether the owner a claim file names is still alive, by the rules of
- `package/git-policy/cli/src/native/single_owner_claim.rs`, except that no age ever decides.
+ `package/git-policy/cli/src/native/lock/single_owner_claim.rs`, except that no age ever decides.
 
  An owner is alive or gone by evidence about the process: its id with its start time and boot. In this PID namespace the
  process directory answers directly. For an owner of another namespace, or of one the record or this process does not name,

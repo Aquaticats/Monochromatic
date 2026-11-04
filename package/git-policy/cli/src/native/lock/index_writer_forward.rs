@@ -15,33 +15,33 @@
 //! ```
 
 /// The wait for any program's hold on the index lock, before a merge that native Git runs.
-use super::index_holder_wait::wait_for_index_release_here;
+use crate::index_holder_wait::wait_for_index_release_here;
 /// The wait for the commit service's own hold on the index.
-use super::service_index_wait::wait_for_service_hold_here;
+use crate::service_index_wait::wait_for_service_hold_here;
 /// Starting a command again when the commit service took the index first.
-use super::service_hold_retry::{may_run_again, run_again_while_service_holds};
+use crate::service_hold_retry::{may_run_again, run_again_while_service_holds};
 /// Running real Git, settling the linked-worktree copy around it when one applies.
-use super::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
+use crate::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
 /// The resolved forwarded command.
-use super::forwarded_command::ResolvedCommand;
+use crate::forwarded_command::ResolvedCommand;
 /// The classification of index writers.
-use super::index_writer_commands::is_index_writer;
+use crate::index_writer_commands::is_index_writer;
 /// The index a command writes.
-use super::landing_location::{LandingLocation, resolve_landing_location};
+use crate::landing_location::{LandingLocation, resolve_landing_location};
 /// The failure event rendered for standard error.
-use super::diagnostics::{EngineFailureCode, render_engine_failure};
+use crate::diagnostics::{EngineFailureCode, render_engine_failure};
 /// The once-per-process Git version check.
-use super::git_version::check_git_version;
+use crate::git_version::check_git_version;
 /// The repository shape the invocation selects.
-use super::worktree_identity::WorktreeIdentity;
+use crate::worktree_identity::WorktreeIdentity;
 /// A merge the staged index would make native Git refuse, completed without disturbing the staged work.
-use super::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
+use crate::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
 /// A pull that merges, split into its fetch and its merge so the merge is completed in isolation.
-use super::pull_isolation::{PullStep, pull_step};
+use crate::pull_isolation::{PullStep, pull_step};
 /// The word-level second pass for the conflicts a merge, rebase, cherry-pick or revert created.
-use super::merge_second_pass_worktree::{Watch, resolve_after, watch_before};
+use crate::merge_second_pass_worktree::{Watch, resolve_after, watch_before};
 /// Running real Git for the location query.
-use super::transaction_git::GitContext;
+use crate::transaction_git::GitContext;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// Writing the merge's own output.
@@ -277,7 +277,7 @@ fn from_forwarded(run: ForwardedRun) -> CoordinatedRun {
 fn failed_with(code: EngineFailureCode, message: &str) -> CoordinatedRun {
     return CoordinatedRun::Failed {
         stderr: render_engine_failure(0, code, message),
-        code: super::action::ENGINE_FAILURE_EXIT_CODE,
+        code: crate::action::ENGINE_FAILURE_EXIT_CODE,
     };
 }
 

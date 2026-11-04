@@ -826,7 +826,7 @@ Mutation rerun 2 ran over the six files that gained controls, on the snapshot of
 It was stopped by the coordinator's trailing-gate decision after 18 timeouts, with its `io_text` mutant
 running, so it is partial.
 Its four missed mutants are all inside platform-gated code that the Linux gate cannot compile:
-`scan_lsof_holders` is under `#[cfg(target_os = "macos")]` in `src/native/index_lock_holders.rs`, and
+`scan_lsof_holders` is under `#[cfg(target_os = "macos")]` in `src/native/lock/index_lock_holders.rs`, and
 `scan_restart_manager_holders` is under `#[cfg(windows)]` in the same file.
 The Linux test binary contains neither function, so no Linux test can observe a mutant of them.
 The same holds for the `#[cfg(not(unix))]` `same_file_identity` in `src/native/real_index_lock.rs`, whose
@@ -871,7 +871,7 @@ The rerun commands, run from the worktree root, are:
   rebuilds the snapshot that the mutation campaign reads, and must run before any campaign.
 - `node ${HOME}/temp/agent/gate-slot.ts env MISE_AUTO_INSTALL=0 MISE_EXEC_AUTO_INSTALL=0 GIT_POLICY_NATIVE_IMAGE_TAG=tra
 - nsactions mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/git_version.rs' --file 'src/n
-- ative/index_lock_evidence.rs' --file 'src/native/index_lock_holders.rs' --file 'src/native/index_lock_wait_host.rs' --
+- ative/index_lock_evidence.rs' --file 'src/native/lock/index_lock_holders.rs' --file 'src/native/index_lock_wait_host.rs' --
 - file 'src/native/index_writer_coordination.rs' --file 'src/native/real_index_lock.rs'`
   reruns the six files that gained controls; expect the macOS and Windows survivors above and the timeouts.
 

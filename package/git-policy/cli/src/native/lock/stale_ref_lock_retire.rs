@@ -14,11 +14,11 @@
 //! judgeAndClear(candidate, judge, outcome); // rename(lock, aside); same(aside, judged) ? unlink(aside) : link(aside, lock)
 //! ```
 
-use super::diagnostic_log::warn;
-use super::stale_ref_lock_found::{Found, Outcome};
-use super::stale_ref_lock_judge::{Examined, Identity, Judge, Verdict, identity_of};
-use super::service_index_placement::rename_noreplace;
-use super::stale_ref_lock_walk::{Candidate, companions_of};
+use crate::diagnostic_log::warn;
+use crate::stale_ref_lock_found::{Found, Outcome};
+use crate::stale_ref_lock_judge::{Examined, Identity, Judge, Verdict, identity_of};
+use crate::service_index_placement::rename_noreplace;
+use crate::stale_ref_lock_walk::{Candidate, companions_of};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 

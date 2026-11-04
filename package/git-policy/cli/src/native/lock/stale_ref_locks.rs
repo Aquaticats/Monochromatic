@@ -18,15 +18,15 @@
 //! ```
 
 /// The Git directories a command works in.
-use super::git_directory_roots::roots_of_command;
+use crate::git_directory_roots::roots_of_command;
 /// How a candidate is judged and what a judgement can say.
-pub use super::stale_ref_lock_judge::{Judge, Proof, Verdict};
+pub use crate::stale_ref_lock_judge::{Judge, Proof, Verdict};
 /// The shapes of a finding and of the outcome of one clearing.
-pub use super::stale_ref_lock_found::{Found, Outcome, PidFile};
+pub use crate::stale_ref_lock_found::{Found, Outcome, PidFile};
 /// Candidates are found here.
-use super::stale_ref_lock_walk::ref_lock_candidates;
+use crate::stale_ref_lock_walk::ref_lock_candidates;
 /// Judging and removing one candidate.
-use super::stale_ref_lock_retire::judge_and_clear;
+use crate::stale_ref_lock_retire::judge_and_clear;
 /// The command whose repository is searched.
 use std::process::Command;
 

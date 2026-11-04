@@ -89,7 +89,7 @@ mise run //package/mutation-test/cli-cargo-mutants:campaign:gate-slot -- mise ru
 
 The limiter holds no lock.
 Each slot is a series of numbered claim files, `slot-1.owner.<generation>` to `slot-N.owner.<generation>`, in the lock directory,
-made as `package/git-policy/cli/src/native/single_owner_claim.rs` makes its claims (see "Single writer").
+made as `package/git-policy/cli/src/native/lock/single_owner_claim.rs` makes its claims (see "Single writer").
 A gate takes the lowest free slot at once, with one exclusive `link` of a new generation, and runs the command inside it at
 nice 19 with inherited stdio; the command's exit status becomes the limiter's.
 A slot is free when its newest generation is released, or names a process that no longer exists with that start time and boot,
@@ -198,7 +198,7 @@ status 3 although the last attempt, handed nothing to score, exits 0), plus `att
 ### Single writer
 
 The right to run a campaign is a numbered claim file in its evidence directory, held by the campaign process itself
-(`src/campaign-lock.ts`, `src/owner-claim.ts`), made as `package/git-policy/cli/src/native/single_owner_claim.rs` makes its claims.
+(`src/campaign-lock.ts`, `src/owner-claim.ts`), made as `package/git-policy/cli/src/native/lock/single_owner_claim.rs` makes its claims.
 `campaign.owner.<generation>` is written whole into a private file and published with one exclusive `link`, so exactly one
 process creates generation `n + 1`; the newest generation is the claim, and it names its owner by process id, birth (start
 time from `/proc/<pid>/stat` field 22 plus the boot id) and PID namespace (`src/process-identity.ts`).

@@ -764,7 +764,7 @@ before and after the read, and the read is bounded at the limit plus one byte, s
 the one file that was judged.
 The rungs of the add keep the stat-only check.
 A real run takes no lock. It owns the conversion through a numbered claim file in the administrative directory
-(`cli-git-convert.owner.<generation>`, `src/native/single_owner_claim.rs`) that it takes before it reads the journal and gives
+(`cli-git-convert.owner.<generation>`, `src/native/lock/single_owner_claim.rs`) that it takes before it reads the journal and gives
 back when it ends, so two commands never read, write or resume one journal. The file is written whole in a private temporary
 file and published with one exclusive `link` under the next generation number, so the kernel lets exactly one command create a
 generation; the newest generation is the claim and records the owner's process id, process birth identity and PID namespace.
@@ -2022,8 +2022,8 @@ Release 0.5.23 judged the lock files of a Git child that the wrapper itself stop
 A lock that any other killed Git leaves (a terminal closed mid-fetch, the out-of-memory killer, a reboot, a release before
 0.5.23) blocked every later `git fetch` and `git push` of the same reference with "Unable to create ... File exists"
 until someone deleted the file by hand.
-This entry extends the same code (`src/native/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/git_directory_roots.rs`
-for the Git directories it shares, `src/native/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
+This entry extends the same code (`src/native/lock/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/git_directory_roots.rs`
+for the Git directories it shares, `src/native/lock/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
 locks, with one rule: a lock is removed only when its holder is
 **proven** gone, and otherwise the wrapper says what it found and prints the command that clears it.
 
@@ -2213,7 +2213,7 @@ file after the lock was looked for and found absent has no live maker, and it is
 #### Where it applies
 
 - The wrapper's own pushes and fetches (the commit service's auto-push and its reconcile fetch, the stacked push, the Git LFS
-  upload's pushes) all start through `run_bounded_push`, which judges and clears first (`src/native/push_lock_clearing.rs`).
+  upload's pushes) all start through `run_bounded_push`, which judges and clears first (`src/native/lock/push_lock_clearing.rs`).
   Every repetition of a push starts through it too, so the service's repetitions after a refused tracking reference
   (`PUSH_LOCK_RETRIES`) clear again before each one; no repetition of its own was added, and nothing waits.
   These are the commands that run unattended, so a lock that blocks them is repaired with nobody present.
@@ -2221,7 +2221,7 @@ file after the lock was looked for and found absent has no live maker, and it is
   ended, removes the provably stale ones, and logs the notice of the rest; it removes nothing the judgement does not prove.
 - A plain forwarded `git fetch` or `git push` replaces the wrapper process with Git, so there is no "after" to look at: the
   wrapper judges and clears before it hands over, and the notice (standard error) precedes Git's own words
-  (`src/native/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
+  (`src/native/lock/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
   The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
   A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
 - The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file

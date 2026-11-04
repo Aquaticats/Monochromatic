@@ -30,15 +30,15 @@
 //! ```
 
 /// The diagnostic log of the wrapper.
-use super::diagnostic_log::warn;
+use crate::diagnostic_log::warn;
 /// The Git directories a command works in.
-use super::git_directory_roots::roots_of_command;
+use crate::git_directory_roots::roots_of_command;
 /// How reference locks are judged, and what the judge knows of the wrapper's own stopped child.
-use super::stale_ref_lock_judge::{Judge, OwnEnded};
+use crate::stale_ref_lock_judge::{Judge, OwnEnded};
 /// The processes of the stopped tree and whether each still runs.
-use super::process_tree::{TreeMember, still_running};
+use crate::process_tree::{TreeMember, still_running};
 /// The judgement and conditional removal of the reference locks below some Git directories.
-use super::stale_ref_locks::clear_stale_ref_locks;
+use crate::stale_ref_locks::clear_stale_ref_locks;
 /// Paths of the repository.
 use std::path::{Path, PathBuf};
 /// The command whose children are stopped.

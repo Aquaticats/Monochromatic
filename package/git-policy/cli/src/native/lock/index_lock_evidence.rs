@@ -22,11 +22,11 @@
 //! ```
 
 /// Open-holder scans.
-use super::index_lock_holders::{HolderEvidence, scan_platform_holders};
+use crate::index_lock_holders::{HolderEvidence, scan_platform_holders};
 /// Process start times.
-use super::process_start::{ProcessStart, resolve_process_start};
+use crate::process_start::{ProcessStart, resolve_process_start};
 /// Git's PID file path.
-use super::recovery_files::lock_pid_path;
+use crate::recovery_files::lock_pid_path;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -249,9 +249,9 @@ fn is_missing(error: &std::io::Error) -> bool {
 /// parsePidFileText('pid 42\n') // 42
 /// ```
 pub fn parse_pid_file_text(text: &str) -> Option<i64> {
-    let trimmed: &str = super::js_text::trim_javascript_end(text);
+    let trimmed: &str = crate::js_text::trim_javascript_end(text);
     let digits: &str = trimmed.strip_prefix("pid ")?;
-    return super::js_text::decimal_attempt(digits);
+    return crate::js_text::decimal_attempt(digits);
 }
 
 /// What:
@@ -382,7 +382,7 @@ pub fn gather_with(
     };
     let pid_file: PidFile = read_pid_file_evidence(lock_pid_path(real_index).as_path(), &lock, resolve);
     if let PidFile::Owner(pid, PidOwner::StartedBeforeLock(_)) = &pid_file {
-        super::diagnostic_log::debug(
+        crate::diagnostic_log::debug(
             "gatherIndexLockEvidence",
             format!("PID file proves live owner {pid}").as_str(),
         );

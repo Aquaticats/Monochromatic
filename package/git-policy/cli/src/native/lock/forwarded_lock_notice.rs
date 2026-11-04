@@ -12,12 +12,12 @@
 //! const notice = forwardedLockNotice({ word: 'fetch', globalPrefix, environment, judge }); process.stderr.write(notice);
 //! ```
 
-use super::child_environment::environment_value;
-use super::diagnostic_log::debug;
-use super::git_directory_roots::roots_for;
-use super::stale_ref_lock_judge::Judge;
-use super::stale_ref_locks::clear_stale_ref_locks;
-use super::worktree_add_plan::start_directory;
+use crate::child_environment::environment_value;
+use crate::diagnostic_log::debug;
+use crate::git_directory_roots::roots_for;
+use crate::stale_ref_lock_judge::Judge;
+use crate::stale_ref_locks::clear_stale_ref_locks;
+use crate::worktree_add_plan::start_directory;
 use std::ffi::OsString;
 use std::path::PathBuf;
 

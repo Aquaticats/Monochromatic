@@ -187,7 +187,7 @@ They were not run in this lane:
 - Container Clippy (part of the same task): fails on files this lane did not change,
   which already fail on the base commit `0faec78d77`:
   `src/native/entry_tests.rs:114` (`forward_after` is never used),
-  `src/native/index_lock_wait_tests.rs:190` and `:201` (missing `return`),
+  `src/native/lock/index_lock_wait_tests.rs:190` and `:201` (missing `return`),
   and `src/native/index_writer_coordination_tests.rs:192` (`match` replaceable by `?`).
   The lane's own files pass Clippy with these lines excluded.
   These need fixing on the base branch, outside this lane.
@@ -330,7 +330,7 @@ What ran, and what is still open:
   and passes in the test gate. That lane is investigating it.
 - Baseline skip (committed in `fb10924147`): `bin/mutate-native-container.mjs` appends
   `-- --skip <name>` when `NATIVE_MUTATION_BASELINE_SKIP` names a test path. Unset, nothing changes.
-  The skipped test is referenced only in `src/native/index_lock_holders_tests.rs`.
+  The skipped test is referenced only in `src/native/lock/index_lock_holders_tests.rs`.
   No file in the ten mutated set uses `index_lock_holders`; only `index_lock_evidence.rs` does.
   Run C (`shadow_create` and `shadow_links` with that skip) was stopped by the coordinator before any outcome.
 
