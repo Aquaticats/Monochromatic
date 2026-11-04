@@ -452,3 +452,20 @@ Left:
 - The review of these inputs (the coordinator launches it).
 - The `NotYet` rows of the map, which need components or models that do not exist yet (see the coverage section).
 - The queued P2 and P3 items listed under "Still queued".
+
+## Round 15 state
+
+Round 15 answers `commit-models-sol-9a.txt` (components and evidence) and `commit-models-sol-9b.txt` (models and map) against the
+unchanged revision 19 acceptance target. The sections below are filled as the work lands; an item listed under "Queue" is not done.
+
+### Queue
+
+- 9b item 1: split the receipt model's error path into observable phases (pairs with 9a 3D).
+- 9b item 2: fresh-attempt model, Settled reconciliation, attempt-bound delivery, split print/remove/force-remove.
+- 9b item 3 and 9a section 4: map status and `remains` corrections.
+- Owner decision of 2026-11-04 ("Reclaim it (Recommended)"): R-never is replaced; the lane reclaims a proven-stale `index.lock` of
+  its own dead incarnation. Change the models and the map rows that encode R-never; keep "no foreign lock is removed" and "a live lock
+  is never removed" as checks; the mechanism's steps (holder proven gone, one reclaimer, identity checked before removal, no atomic
+  remove-if-same) are modeled as stated, and the part that waits for the review of
+  `fix/git-policy-cli-index-lock-reclaim-without-flock` is named below when done.
+- 9a 2D, 2E, section 4 test limitations, the supported-scope exclusion paragraph.
