@@ -18,9 +18,9 @@ import { realpath, } from 'node:fs/promises';
 const SERVICE_PROGRAM = '/opt/native/cli-git-service';
 
 /**
- The Git the service runs, which the image keeps off the default path.
+ The Git the service runs: the image's installed Git.
  */
-const SERVICE_GIT = '/opt/git/2.55.0/bin/git';
+const SERVICE_GIT = '/usr/bin/git';
 
 /**
  Environment variable that arms one fault point of the service

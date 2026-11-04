@@ -27,7 +27,6 @@ import {
   runArguments,
   testContainerfile,
 } from './native-test-containerfile.ts';
-import { pnpmCopyLines, } from './native-pnpm-snapshot.ts';
 import { runCommand, } from './native-verification-process.ts';
 import {
   pathCrates,
@@ -448,8 +447,8 @@ await describe({
           expect(copy).toBeLessThan(subjectCopy);
         }
         // Every source copy is followed by a compile before the next copy, and the last line is a compile.
-        // The only layers after the last compile install the real pnpm.
-        const lastCompile = lines.at(-2 - pnpmCopyLines().length);
+        // The last line is the empty line that ends the file, so the compile is the one before it.
+        const lastCompile = lines.at(-2);
         expect(lastCompile).toContain('touch');
         expect(lastCompile).toContain('--no-run');
         for (const crate of wrapperCrates)
