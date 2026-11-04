@@ -256,3 +256,61 @@ fn no_copy_of_the_lock_but_the_executors_exists_when_the_handover_is_sent() {
         std::thread::sleep(Duration::from_millis(5));
     }
 }
+
+/// The fault point of the launcher-death control: client X joins while the launcher holds the lock, then the launcher dies before it sends
+/// the handover byte.
+fn client_joins_then_the_launcher_dies(name: &str) {
+    if name != "launch:after-report" {
+        return;
+    }
+    let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
+    let joined = launch_flusher(&lane).expect("client X's launch");
+    assert_eq!(joined, git_policy_cli::commit_flusher::Launched::LockHeld);
+    // SAFETY: `_exit` takes an integer; the launcher dies here, before the handover, with no accounting of its own.
+    unsafe { libc::_exit(0) };
+}
+
+/// Review 12 section 3A: the launcher dies after the helper reported ready and before the handover byte. The helper reads the end of the
+/// handover pipe and used to exit without working, with nobody left to record X, who found the lock held by the dead launcher's
+/// description. The helper takes the lock itself after the handover, whatever its outcome, and works when it gets it.
+#[test]
+fn a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor() {
+    let lane: PathBuf = lane_with("flusher-launcher-dies", &[]);
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
+    let launch_lane: PathBuf = lane.clone();
+    let _ = in_single_threaded_process(move || {
+        LAUNCH_WINDOW.with(|cell| { *cell.borrow_mut() = Some(launch_lane.clone()); });
+        set_fault_point(Some(client_joins_then_the_launcher_dies));
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    let deadline: Instant = Instant::now() + Duration::from_secs(5);
+    while !(recorded(&lane).iter().any(|name| { return name == "x"; }) && recorded(&lane).iter().any(|name| { return name == "r1"; })) {
+        assert!(Instant::now() < deadline, "the receipts have no executor and no record: {:?}", recorded(&lane));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Review 12 section 3B, the failure tail: the helper's setup failed, it wrote the failure byte and lingers before it exits, still holding
+/// a copy of the lock. The launcher returned the error and recorded the receipts then visible; client X, arriving after that, found the lock
+/// held by the lingering helper, which exits without any accounting. No process but the launcher holds the lock now, so X finds it free and
+/// starts its own flusher.
+#[test]
+fn a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor() {
+    let lane: PathBuf = lane_with("flusher-failure-tail", &["r1"]);
+    let launch_lane: PathBuf = lane.clone();
+    let failed: Option<i32> = in_single_threaded_process(move || {
+        git_policy_cli::commit_helper_launch::inject_launch_fault(Some(git_policy_cli::commit_helper_launch::LaunchFault::Streams));
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    assert_eq!(failed, Some(14), "the launch failed in the helper's setup");
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
+    let second_lane: PathBuf = lane.clone();
+    let second: Option<i32> = in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&second_lane)); });
+    assert_eq!(second, Some(0));
+    let deadline: Instant = Instant::now() + Duration::from_secs(5);
+    while !recorded(&lane).iter().any(|name| { return name == "x"; }) {
+        assert!(Instant::now() < deadline, "X found the lock held by an unaccounted holder: {:?}", recorded(&lane));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}

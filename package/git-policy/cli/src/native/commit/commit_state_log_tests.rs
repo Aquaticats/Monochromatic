@@ -1027,3 +1027,22 @@ fn r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_
     assert!(!state.join("state.log.1").exists(), "the contained predecessor was not reclaimed");
     assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "a document that contains the acknowledged references did not cover it");
 }
+
+/// Review 12 section 3C: a parseable checked document naming request R was admitted through `append_with` with an empty closure, and
+/// recovery selected it, without R. Checked references are dependencies wherever a record can become acknowledged authority: admission and
+/// recovery refuse a record whose retained set lacks what its checked document names.
+#[test]
+fn r18_a_checked_document_that_names_a_dependency_the_set_lacks_is_neither_admitted_nor_selected() {
+    let (lane, state, envelope) = lane_with_envelope("r18-checked-admission");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let document: Vec<u8> = checked(std::slice::from_ref(&request)).encode();
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    assert!(writer.append_with(1, &document, &[]).is_err(), "a checked document naming R was admitted without R in its set");
+    drop(writer);
+    let (record, _) = raw_record(1, &"0".repeat(64), &document);
+    std::fs::write(state.join("state.log.1"), record).expect("a log the writer did not produce");
+    assert!(!matches!(read(&state), Ok(Some(_))), "recovery selected a checked document whose dependency is not in its set");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    std::fs::remove_file(state.join("state.log.1")).expect("start again");
+    writer.append_with(1, &document, std::slice::from_ref(&request)).expect("with R in the set it is admitted");
+}

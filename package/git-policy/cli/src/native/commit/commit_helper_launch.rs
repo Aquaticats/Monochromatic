@@ -505,6 +505,10 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
         let mut with_handover: Vec<libc::c_int> = kept.clone();
         with_handover.push(go_read.as_raw_fd());
         if !helper_setup(report_write.as_raw_fd(), &with_handover) {
+            if injected(2) {
+                // A helper that failed its setup lingers before it exits (the schedule of review 12 section 3B).
+                std::thread::sleep(Duration::from_millis(400));
+            }
             // SAFETY: `_exit` takes an integer and never returns.
             unsafe { libc::_exit(3) };
         }
