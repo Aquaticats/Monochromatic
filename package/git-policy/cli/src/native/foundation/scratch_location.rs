@@ -21,14 +21,14 @@
 //! ```
 
 /// The environment lookup shared by the wrapper.
-use super::child_environment::environment_value;
+use crate::child_environment::environment_value;
 /// Debug lines for problems that never fail a command.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The private creation primitives shared by every durable record.
-use super::private_storage::{create_private_directory, create_private_directory_all};
+use crate::private_storage::{create_private_directory, create_private_directory_all};
 /// The mode a private directory ends with, and the call that sets it, which only Unix has.
 #[cfg(unix)]
-use super::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
+use crate::private_storage::{PRIVATE_DIRECTORY_MODE, protect_path};
 /// OS strings, paths and time.
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};

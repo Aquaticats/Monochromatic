@@ -272,32 +272,23 @@ pub mod candidate;
 /// Re-exports every module of `candidate` at the crate root, as above.
 pub use candidate::*;
 
-/// Private,
-///  crash-safe file primitives shared by every durable record.
-pub mod private_storage;
+/// Small shared building blocks:
+///  private files,
+///  scratch locations,
+///  JSON,
+///  time,
+///  random ids,
+///  paths and bounded parallelism.
+pub mod foundation;
 
-/// Where short-lived private files live:
-///  the per-user scratch directory and the repository scratch directory,
-///  never the system temporary directory.
-pub mod scratch_location;
-
-/// Compact JSON records read and written with the incumbent's `JSON` semantics.
-pub mod json_record;
-
-/// Random identifiers in the layout of the incumbent's `randomUUID`.
-pub mod random_id;
-
-/// Text operations with the exact semantics of JavaScript's built-ins.
-pub mod js_text;
+/// Re-exports every module of `foundation` at the crate root, as above.
+pub use foundation::*;
 
 /// The PID namespace an owner record names, and the rule for owners of another one.
 pub mod pid_namespace;
 
 /// Process-birth identities in the incumbent's exact spelling.
 pub mod process_identity;
-
-/// Line-oriented debug and warning diagnostics on standard error.
-pub mod diagnostic_log;
 
 /// The fail-closed failure of reading or recovering durable transaction state.
 pub mod recovery_error;
@@ -308,15 +299,9 @@ pub mod transaction_owner;
 /// The schema-version-2 journal records of one commit transaction and their filenames.
 pub mod transaction_journal;
 
-/// UTC timestamps in the exact form of JavaScript's `toISOString`.
-pub mod iso_time;
-
 /// Running real Git for transaction,
 ///  recovery and landing work.
 pub mod transaction_git;
-
-/// Lexical path normalization.
-pub mod lexical_path;
 
 /// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
 #[cfg(test)]
@@ -794,12 +779,6 @@ pub use subvolume::*;
 /// A point where threads must all arrive, for controls that prove work overlapped.
 #[cfg(test)]
 mod parallel_test_support;
-
-/// How many workers independent items may use together, from the CPUs allowed, the memory free and a measured ceiling.
-pub mod parallel_budget;
-
-/// Independent items on a bounded number of threads, reported in input order with no lock.
-pub mod parallel_runner;
 
 /// Package-manager and toolchain repair after a worktree is created.
 pub mod repair;

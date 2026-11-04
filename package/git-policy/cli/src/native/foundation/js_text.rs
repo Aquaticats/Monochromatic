@@ -108,7 +108,7 @@ pub fn decimal_attempt(text: &str) -> Option<i64> {
         return None;
     }
     let value: i64 = text.parse::<i64>().ok()?;
-    if !(1..=super::json_record::MAX_SAFE_INTEGER).contains(&value) {
+    if !(1..=crate::json_record::MAX_SAFE_INTEGER).contains(&value) {
         return None;
     }
     return Some(value);

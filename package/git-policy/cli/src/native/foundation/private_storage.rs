@@ -41,9 +41,9 @@ use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path of raw bytes; `PathBuf` is the owned one.
 use std::path::{Path, PathBuf};
 /// Diagnostics for a decision no failure reports.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// Unguessable staging names.
-use super::random_id::random_uuid;
+use crate::random_id::random_uuid;
 
 /// Mode of every private directory the wrapper creates:
 ///  owner only.

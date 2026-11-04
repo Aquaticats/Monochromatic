@@ -17,7 +17,7 @@
 //! ```
 
 /// The current time in `toISOString` form.
-use super::iso_time::now_iso;
+use crate::iso_time::now_iso;
 /// The trait that gives output streams `.write_all(..)`.
 use std::io::Write;
 
