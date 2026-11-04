@@ -1,11 +1,11 @@
 //! What:
 //!  The controls of revision 18's receipt responsibility: the delayed client after the final sweep (red under revision 17, green under 18),
-//!  the single-defect controls (seal after sweep, no recheck sweep, no flusher lock, flusher in the owner's scope, no startup sweep,
-//!  foreground forcing before dispatch), enqueue and launch failures, a forcing error, replacement startup and unrelated dispatch while
-//!  receipt forcing is paused.
+//!  an enqueue rejected by a running service, the release window of the flusher lock with two flushers representable, a forcing error that
+//!  records every unforced receipt (including one that joined after the snapshot), a flusher killed or reaped mid-sync, replacement
+//!  startup, a launch refused by a cap, and unrelated dispatch while receipt forcing is paused, with a single-defect control for each.
 //! Why:
-//!  The acceptance target for P2c, receipt forcing, L2 and L4 and shutdown names these showing controls; each is a literal schedule where
-//!  the property needs one, and an exhaustive search over both clients for the property itself.
+//!  The acceptance target for P2c, receipt forcing, L2 and L4 and shutdown names these showing controls. Each has a literal schedule where
+//!  the property needs one and an exhaustive search over both clients for the property itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,21 +13,34 @@
 //! ```
 
 use crate::model_explore::{Report, replay};
-use crate::model_receipt_r18::{Client, Dispatch, Flusher, Receipt, Rules, Service, State, check, check_dispatch, initial, initial_with_unrelated_command, steps, terminal};
+use crate::model_receipt_r18::{Client, Dispatch, Flusher, Receipt, Rules, Service, State, check, check_dispatch, initial, initial_with_unrelated_command, invariant, steps, terminal};
 
 const C0_CREATES: &str = "client 0: creates its receipt";
+const C1_CREATES: &str = "client 1: creates its receipt";
 const C0_READS: &str = "client 0: reads the seal and whether a service holds the lane";
+const C1_READS: &str = "client 1: reads the seal and whether a service holds the lane";
+const C0_STARTS: &str = "client 0: starts a one-shot flusher";
+const C1_STARTS: &str = "client 1: starts a one-shot flusher";
 const SHUTDOWN_SEALED: &str = "environment: a planned shutdown creates lane/sealed";
 const SHUTDOWN_PLAIN: &str = "environment: a planned shutdown begins its final sweep";
 const ENUMERATE: &str = "owner: the final sweep enumerates lane/receipt/";
 const FORCE_FINAL: &str = "owner: the final sweep forces what it enumerated";
 const EXIT: &str = "owner: the service exits";
+const NEXT_OWNER: &str = "environment: a later wrapper command starts a next owner, which removes lane/sealed (L3)";
+const STARTUP_SWEEP: &str = "owner: the next owner's syncer sweeps lane/receipt/ at startup";
+const F0_ENUM: &str = "owner: flusher 0 enumerates lane/receipt/";
+const F0_ERROR: &str = "environment: flusher 0 meets a forcing error, records it in lane/receipt-errors and exits";
 
 /// Whether the search found nothing wrong and covered every state.
 fn green(rules: Rules) -> bool {
     let report: Report = check(rules);
     assert!(report.violation.is_none(), "{:?}: {:?}", rules, report.violation.map(|found| { return (found.message, found.trace); }));
     return report.exhausted;
+}
+
+/// The message of the first violation the search finds, or a panic when it finds none.
+fn red(rules: Rules) -> String {
+    return check(rules).violation.unwrap_or_else(|| { panic!("{:?} must be red", rules) }).message;
 }
 
 /// R17a-1, the acceptance target's delayed client after the final sweep: the service enumerates, then the client creates its receipt and
@@ -38,88 +51,113 @@ fn a_delayed_client_after_the_final_sweep_is_red_under_seventeen_and_green_under
     let lost: State = replay(initial(Rules::Seventeen), steps, &[SHUTDOWN_PLAIN, ENUMERATE, C0_CREATES, C0_READS, FORCE_FINAL, EXIT, "client 0: rings the service"]);
     assert_eq!(lost.receipts[0], Receipt::V);
     assert!(lost.clients[0] == Client::Done && lost.service == Service::Exited);
-    assert!(check(Rules::Seventeen).violation.is_some_and(|found| { return found.message.contains("no executor"); }));
+    assert!(red(Rules::Seventeen).contains("no executor"));
     let sealed: State = replay(initial(Rules::Eighteen), steps, &[SHUTDOWN_SEALED, ENUMERATE, C0_CREATES, C0_READS]);
     assert_eq!(sealed.clients[0], Client::Read(false), "the client sees the seal and does not ring");
     assert!(green(Rules::Eighteen));
 }
 
-/// The ordering of the seal before the final sweep is the clause that makes the delayed client safe: the control that seals after the sweep
-/// is red with the same schedule.
+/// The ordering of the seal before the final sweep is the clause that makes the delayed client safe.
 #[test]
 fn sealing_after_the_final_sweep_loses_the_delayed_receipt() {
-    assert!(check(Rules::EighteenSealAfterSweep).violation.is_some_and(|found| { return found.message.contains("no executor"); }));
+    assert!(red(Rules::EighteenSealAfterSweep).contains("no executor"));
 }
 
-/// The flusher releases its lock after the last empty sweep and sweeps once more: the control that does not is red because a client that
-/// found the lock held and created its receipt after the empty sweep has no executor.
+/// Enqueue rejection by a running service: the ring is refused (the queue is draining or full), so nothing handed the receipt over. Under 18
+/// the client starts a flusher; the control that takes the refused ring for a handover leaves a V receipt with a running service that was
+/// never woken.
 #[test]
-fn a_flusher_that_does_not_sweep_once_more_after_releasing_its_lock_loses_a_wakeup() {
-    assert!(check(Rules::EighteenNoRecheck).violation.is_some_and(|found| { return found.message.contains("no executor"); }));
+fn an_enqueue_rejected_by_a_running_service_falls_back_to_a_flusher() {
+    let reject = "environment: the running service rejects client 0's enqueue";
+    let handled: State = replay(initial(Rules::Eighteen), steps, &[C0_CREATES, C0_READS, reject]);
+    assert_eq!(handled.clients[0], Client::Read(false));
+    assert!(!handled.bell, "a rejected enqueue woke nobody");
+    let ignored: State = replay(initial(Rules::EighteenIgnoresRejection), steps, &[C0_CREATES, C0_READS, reject]);
+    assert_eq!(ignored.clients[0], Client::Done);
+    assert_eq!(ignored.receipts[0], Receipt::V);
+    assert!(red(Rules::EighteenIgnoresRejection).contains("no executor"));
+    assert!(green(Rules::Eighteen));
 }
 
-/// At most one flusher runs per lane under the lock; without the lock many outstanding receipts start many flushers.
+/// The release window of the flusher lock, with two flushers representable: flusher 0 has swept nothing and released the lock; client 1
+/// creates its receipt, finds the lock free and starts flusher 1, which takes it; flusher 0's one more sweep finds a holder and exits;
+/// flusher 1 forces the receipt. The no-lock control runs both flushers at once, and the control that does not sweep again after the release
+/// loses the receipt of a client that found the lock held.
 #[test]
-fn many_outstanding_receipts_start_one_flusher_and_the_lock_free_control_starts_more() {
-    let report: Report = check(Rules::EighteenNoFlusherLock);
-    assert!(report.violation.is_some_and(|found| { return found.message.contains("more than one flusher"); }));
-    let launches: State = replay(
+fn a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock() {
+    let window: State = replay(
         initial(Rules::Eighteen),
         steps,
-        &[
-            SHUTDOWN_SEALED,
-            "client 0: creates its receipt",
-            "client 1: creates its receipt",
-            "client 0: reads the seal and whether a service holds the lane",
-            "client 1: reads the seal and whether a service holds the lane",
-            "client 0: starts a one-shot flusher",
-            "client 1: starts a one-shot flusher",
-        ],
+        &[SHUTDOWN_SEALED, ENUMERATE, FORCE_FINAL, EXIT, C0_CREATES, C0_READS, C0_STARTS, F0_ENUM, "owner: flusher 0 forces its snapshot", F0_ENUM, "owner: flusher 0 releases the lock after its last empty sweep"],
     );
-    assert_eq!(launches.extra_flushers, 0);
-    assert_eq!(launches.flusher, Flusher::Enum);
+    assert_eq!(window.flushers[0], Flusher::Released, "flusher 0 has released the lock and will sweep once more");
+    let contending: State = replay(window, steps, &[C1_CREATES, C1_READS, C1_STARTS]);
+    assert_eq!(contending.flushers, [Flusher::Released, Flusher::Enum], "a second flusher took the free lock");
+    assert_eq!(invariant(&contending), None);
+    let settled: State = replay(contending, steps, &["owner: flusher 0 sweeps once more without the lock", "owner: flusher 1 enumerates lane/receipt/", "owner: flusher 1 forces its snapshot"]);
+    assert_eq!(settled.flushers[0], Flusher::Off, "flusher 0 saw a holder and exited");
+    assert_eq!(settled.receipts[1], Receipt::D);
+    assert!(red(Rules::EighteenNoRecheck).contains("no executor"));
+    assert!(green(Rules::Eighteen));
 }
 
-/// A flusher that ends with the inline owner's scope leaves a receipt with no executor until some later command: red. The green flusher
-/// outlives the owner (a transient unit, or a double-forked child in its own session).
+/// Many outstanding receipts: the lock keeps one flusher; the control without it runs two at once.
 #[test]
-fn a_flusher_in_the_owners_scope_is_ended_by_the_owner_exit() {
-    assert!(check(Rules::EighteenFlusherInOwnerScope).violation.is_some_and(|found| { return found.message.contains("no executor"); }));
+fn many_outstanding_receipts_keep_one_flusher_and_the_lock_free_control_runs_two() {
+    let schedule = [SHUTDOWN_SEALED, C0_CREATES, C1_CREATES, C0_READS, C1_READS, C0_STARTS, C1_STARTS];
+    let locked: State = replay(initial(Rules::Eighteen), steps, &schedule);
+    assert_eq!(locked.flushers, [Flusher::Enum, Flusher::Off]);
+    assert_eq!(invariant(&locked), None);
+    let unlocked: State = replay(initial(Rules::EighteenNoFlusherLock), steps, &schedule);
+    assert_eq!(unlocked.flushers, [Flusher::Enum, Flusher::Enum]);
+    assert!(invariant(&unlocked).is_some_and(|message| { return message.contains("more than one flusher"); }));
+    assert!(red(Rules::EighteenNoFlusherLock).contains("more than one flusher"));
 }
 
-/// A next owner sweeps `lane/receipt/` at startup: without it a receipt whose forcing failed (or whose flusher could not start) stays
-/// registered and unforced after replacement.
+/// Worker error: the schedule of the review. The service has sealed and gone; client 0 starts flusher 0, which enumerates its snapshot; client
+/// 1 creates its receipt and joins the lock holder; forcing the snapshot fails. Revision 18 records an error for every receipt the worker has
+/// not forced, the joiner's included, so no receipt is left as V behind an exited worker; the control records the snapshot only and leaves
+/// client 1's receipt without an executor. The next owner then retries each recorded error, and without that sweep the error stays.
 #[test]
-fn the_next_owner_sweeps_at_startup_and_retries_a_recorded_error() {
-    let errored: State = replay(
-        initial(Rules::Eighteen),
-        steps,
-        &[
-            SHUTDOWN_SEALED,
-            ENUMERATE,
-            FORCE_FINAL,
-            EXIT,
-            C0_CREATES,
-            C0_READS,
-            "client 0: starts a one-shot flusher",
-            "owner: the flusher enumerates lane/receipt/",
-            "environment: a forcing error is recorded in lane/receipt-errors and the flusher exits",
-        ],
-    );
-    assert_eq!(errored.receipts[0], Receipt::Err);
-    assert!(terminal(&errored).is_none(), "an error that is recorded is not a lost receipt");
-    let retried: State = replay(
-        errored,
-        steps,
-        &["environment: a later wrapper command starts a next owner, which removes lane/sealed (L3)", "owner: the next owner's syncer sweeps lane/receipt/ at startup"],
-    );
-    assert_eq!(retried.receipts[0], Receipt::D);
-    assert!(!retried.seal && retried.service == Service::Running);
-    assert!(check(Rules::EighteenNoStartupSweep).violation.is_some());
+fn a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each() {
+    let joined = [SHUTDOWN_SEALED, ENUMERATE, FORCE_FINAL, EXIT, C0_CREATES, C0_READS, C0_STARTS, F0_ENUM, C1_CREATES, C1_READS, C1_STARTS, F0_ERROR];
+    let recorded: State = replay(initial(Rules::Eighteen), steps, &joined);
+    assert_eq!(recorded.receipts, [Receipt::Err, Receipt::Err], "both receipts carry the recorded error");
+    assert_eq!(terminal(&recorded), None);
+    let control: State = replay(initial(Rules::EighteenErrorIgnoresJoiners), steps, &joined);
+    assert_eq!(control.receipts, [Receipt::Err, Receipt::V]);
+    assert!(terminal(&control).is_some_and(|message| { return message.contains("client 1's receipt is V"); }), "{:?}", terminal(&control));
+    assert!(red(Rules::EighteenErrorIgnoresJoiners).contains("no executor"));
+    let retried: State = replay(recorded.clone(), steps, &[NEXT_OWNER, STARTUP_SWEEP]);
+    assert_eq!(retried.receipts, [Receipt::D, Receipt::D]);
+    let unretried: State = replay(replay(initial(Rules::EighteenNoStartupSweep), steps, &joined), steps, &[NEXT_OWNER, STARTUP_SWEEP]);
+    assert!(terminal(&unretried).is_some_and(|message| { return message.contains("recorded forcing error was not retried"); }), "{:?}", terminal(&unretried));
+    assert!(red(Rules::EighteenNoStartupSweep).contains("not retried") || red(Rules::EighteenNoStartupSweep).contains("no executor"));
+    assert!(green(Rules::Eighteen));
 }
 
-/// Enqueue rejection and launch failure: a flusher refused by someone else's cap is the stated outside cause (the command says the receipt
-/// is not yet forced and the receipt stays registered); under 18 that is the only quiescent state with a V receipt.
+/// Reap mid-sync: a flusher in its forcing phase is killed (by the reap of its incarnation scope, in the control where it lives there, or
+/// from outside). Its receipts stay V; the next owner's startup sweep forces them. The control whose flusher is reaped with the scope and
+/// whose next owner does not sweep loses them.
+#[test]
+fn a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep() {
+    let mid_sync = [SHUTDOWN_SEALED, ENUMERATE, FORCE_FINAL, EXIT, C0_CREATES, C0_READS, C0_STARTS, F0_ENUM];
+    let killed: State = replay(initial(Rules::Eighteen), steps, &[mid_sync.as_slice(), &["environment: flusher 0 is killed from outside"]].concat());
+    assert_eq!(killed.flushers[0], Flusher::Off);
+    assert_eq!(killed.receipts[0], Receipt::V);
+    assert_eq!(terminal(&killed), None, "an outside kill excuses the receipt until a next owner has swept");
+    let swept: State = replay(killed, steps, &[NEXT_OWNER, STARTUP_SWEEP]);
+    assert_eq!(swept.receipts[0], Receipt::D);
+    let survivor: State = replay(initial(Rules::Eighteen), steps, &[mid_sync.as_slice(), &[NEXT_OWNER]].concat());
+    assert!(matches!(survivor.flushers[0], Flusher::Force(_)), "the flusher lives outside the incarnation scope and survives the reap");
+    let reaped: State = replay(initial(Rules::EighteenReapedFlusherNoStartupSweep), steps, &[mid_sync.as_slice(), &[NEXT_OWNER]].concat());
+    assert_eq!(reaped.flushers[0], Flusher::Off, "the control's flusher was reaped with the scope");
+    assert!(red(Rules::EighteenReapedFlusherNoStartupSweep).contains("no executor"));
+    assert!(red(Rules::EighteenFlusherInOwnerScope).contains("no executor"));
+}
+
+/// A launch refused by a cap set by someone else is the stated outside cause (the command says the receipt is not yet forced and the receipt
+/// stays registered); after a next owner has swept it no longer excuses anything.
 #[test]
 fn a_launch_refused_by_a_cap_is_the_stated_outside_cause_and_nothing_else_is_excused() {
     let refused: State = replay(
@@ -129,6 +167,9 @@ fn a_launch_refused_by_a_cap_is_the_stated_outside_cause_and_nothing_else_is_exc
     );
     assert_eq!(refused.clients[0], Client::NotYet);
     assert_eq!(refused.receipts[0], Receipt::V);
+    assert_eq!(terminal(&refused), None);
+    let after: State = replay(refused, steps, &[NEXT_OWNER, STARTUP_SWEEP]);
+    assert_eq!(after.receipts[0], Receipt::D);
     assert!(green(Rules::Eighteen));
 }
 
@@ -156,8 +197,8 @@ fn revision_eighteen_is_green_with_an_unrelated_command_at_any_point() {
     assert!(report.violation.is_none() && report.exhausted, "{:?}", report.violation.map(|found| { return (found.message, found.trace); }));
 }
 
-/// Revision 18's search over both clients, the service, the flusher, a crash, a forcing error, a refused launch and a paused disk is green
-/// and exhaustive.
+/// Revision 18's search over both clients, the service, both flusher slots, a crash, a kill, a forcing error, a refused launch, a rejected
+/// enqueue and a paused disk is green and exhaustive.
 #[test]
 fn revision_eighteen_is_exhaustively_green() {
     assert!(green(Rules::Eighteen));

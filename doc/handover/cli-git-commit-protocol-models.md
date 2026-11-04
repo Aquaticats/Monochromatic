@@ -342,3 +342,32 @@ Models review 6a, 6b and 7: the P2 and P3 items other than those closed above re
 no-timeout test, the acceptance manifest checking a configuration prerequisite, the watch excluding
 unauthorized-overwrite schedules, the bound model's asserted departure barrier, and the buffered-commit schedule
 that the shutdown green does not assert it reaches).
+
+## Resume point (round 14, partial)
+
+Round 14 follows the review in `commit-models-sol-8.txt` (section 4 is the path). State at this commit: the coverage map test
+`every_covered_or_historical_row_has_its_test` in `model/model_target_tests.rs` is expected red until item 4 is done, because
+several tests it names were renamed or removed.
+
+Done:
+
+- Item 1 and item 2 (components), committed green earlier (`ecc36c5216`): complete document-bound retained sets, path-derived kinds,
+  content-addressed saved content, ledger prefix as retirement proof, one stop per request, whole retained state forced, every save
+  attempted after errors, content-bound acknowledgment (`state_covers`, `Acknowledgment::still_covers`). Red tests have the `r14_` prefix.
+- Item 3 (models), written and passing individually, in this commit: support model with stale, rebuild, checkpoint and crash steps and a
+  separately written reference interpreter; receipt model with two flusher slots, enqueue rejection, per-receipt error recording, kill and
+  reap controls, startup retry of recorded errors.
+- Item 6: `model/model_fresh_attempt_r19.rs` and its tests (decision 19), passing.
+
+Next:
+
+- Item 4: rewrite `TARGET` in `model/model_target_tests.rs` row by row from the review's section 2; add a `Narrower` status; fix the renamed
+  test names (receipt: `many_outstanding_receipts_keep_one_flusher_and_the_lock_free_control_runs_two`,
+  `a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each`,
+  `a_launch_in_the_release_window_starts_a_second_flusher_that_takes_the_lock`,
+  `a_flusher_killed_or_reaped_mid_sync_leaves_its_receipts_to_the_startup_sweep`; support:
+  `a_crash_between_a_checkpoint_and_a_rebuild_is_rebuilt_from_the_tail`); replace the question 8 row by the fresh attempt tests; regenerate
+  the coverage section of these notes with `/var/home/user/temp/agent/scripts/gen-notes-r13.py`.
+- Item 5: real Git experiments in disposable repositories (FIFO `update-ref --stdin`, hook phases, diagnostics), a helper launch component
+  with `close_range`, a `flusher.lock` contention test, and a non-recursive internal entry point test. Not started.
+- Then: full `native:test:model`, both clippy variants (they passed at this commit), review inputs from base `bf786b2004`, final report.

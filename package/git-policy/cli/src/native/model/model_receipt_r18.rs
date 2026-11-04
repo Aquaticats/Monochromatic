@@ -44,6 +44,12 @@ pub enum Rules {
     EighteenNoStartupSweep,
     /// Control: L4 forces outstanding receipts in the foreground before it dispatches an unrelated command.
     EighteenForegroundForcing,
+    /// Control: a client whose enqueue a running service rejects treats the receipt as handed over and starts no flusher.
+    EighteenIgnoresRejection,
+    /// Control: a flusher that meets a forcing error records the receipts of its snapshot only, not the receipts that joined it.
+    EighteenErrorIgnoresJoiners,
+    /// Control: the flusher lives in the incarnation scope that the next owner's L2 reaps, and the next owner does not sweep at startup.
+    EighteenReapedFlusherNoStartupSweep,
 }
 
 /// A receipt's durability.
@@ -130,10 +136,8 @@ pub struct State {
     pub seal: bool,
     /// The service.
     pub service: Service,
-    /// The flusher.
-    pub flusher: Flusher,
-    /// Flushers beyond the one the lock allows (only the no-lock control creates them).
-    pub extra_flushers: u8,
+    /// The flushers: two slots, so that a launch in the window where the holder has released the lock is representable.
+    pub flushers: [Flusher; FLUSHER_SLOTS],
     /// A client rang the service since its last sweep (a wake-up only).
     pub bell: bool,
     /// Forcing is paused by the disk (an outside condition): no forcing step completes.
@@ -142,11 +146,16 @@ pub struct State {
     pub replaced: bool,
     /// The service has crashed once.
     pub crashed: bool,
+    /// A flusher was killed from outside once.
+    pub killed: bool,
     /// A forcing error happened once.
     pub errored: bool,
     /// The unrelated command.
     pub dispatch: Dispatch,
 }
+
+/// How many flushers the model can hold at once: one per client is the most a launch can start.
+pub const FLUSHER_SLOTS: usize = CLIENTS;
 
 /// The start state: a running service, no receipts.
 pub fn initial(rules: Rules) -> State {
@@ -156,12 +165,12 @@ pub fn initial(rules: Rules) -> State {
         receipts: [Receipt::Absent; CLIENTS],
         seal: false,
         service: Service::Running,
-        flusher: Flusher::Off,
-        extra_flushers: 0,
+        flushers: [Flusher::Off; FLUSHER_SLOTS],
         bell: false,
         stalled: false,
         replaced: false,
         crashed: false,
+        killed: false,
         errored: false,
         dispatch: Dispatch::Done,
     };
@@ -176,6 +185,11 @@ pub fn initial_with_unrelated_command(rules: Rules) -> State {
 
 fn seals(rules: Rules) -> bool {
     return rules != Rules::Seventeen;
+}
+
+/// Whether a flusher in `phase` holds `lane/flusher.lock`.
+fn holds_lock(phase: Flusher) -> bool {
+    return matches!(phase, Flusher::Enum | Flusher::Force(_) | Flusher::Empty);
 }
 
 /// The bit set of receipts that are V.
@@ -198,20 +212,15 @@ fn force(receipts: &mut [Receipt; CLIENTS], mask: u8) {
     }
 }
 
-/// Starts a flusher for a client's launch: with the lock it is one-shot per lane.
+/// Starts a flusher for a client's launch. Under the lock the holder's recheck sweep covers a receipt created before this client read the
+/// lock; with the lock free a new flusher takes it. Without the lock (the control) every launch starts another flusher.
 fn launch(state: &mut State) {
-    if state.rules == Rules::EighteenNoFlusherLock {
-        if state.flusher == Flusher::Off {
-            state.flusher = Flusher::Enum;
-        } else {
-            state.extra_flushers += 1;
-        }
+    let lock_held: bool = state.flushers.iter().any(|phase| { return holds_lock(*phase); });
+    if lock_held && state.rules != Rules::EighteenNoFlusherLock {
         return;
     }
-    // The lock is held in Enum and Force: the holder's recheck covers the receipt this client created first. Released has not
-    // enumerated again yet, so it covers it too.
-    if state.flusher == Flusher::Off {
-        state.flusher = Flusher::Enum;
+    if let Some(slot) = state.flushers.iter_mut().find(|phase| { return **phase == Flusher::Off; }) {
+        *slot = Flusher::Enum;
     }
 }
 
@@ -239,6 +248,12 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
                 after.clients[c] = Client::Done;
                 after.bell = after.service == Service::Running || after.service == Service::Starting;
                 push_step(&mut found, &format!("client {}: rings the service", c), after);
+                if state.service == Service::Running {
+                    // A running service can refuse the enqueue (draining queue, full queue): the receipt is not handed over.
+                    let mut rejected: State = state.clone();
+                    rejected.clients[c] = if state.rules == Rules::EighteenIgnoresRejection { Client::Done } else { Client::Read(false) };
+                    push_step(&mut found, &format!("environment: the running service rejects client {}'s enqueue", c), rejected);
+                }
             }
             Client::Read(false) => {
                 let mut started: State = state.clone();
@@ -253,7 +268,9 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         }
     }
     service_steps(state, &mut found);
-    flusher_steps(state, &mut found);
+    for slot in 0..FLUSHER_SLOTS {
+        flusher_steps(state, slot, &mut found);
+    }
     if !state.stalled {
         let mut paused: State = state.clone();
         paused.stalled = true;
@@ -265,28 +282,19 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         push_step(&mut found, "environment: an unrelated command reaches L4", asked);
     }
     if state.dispatch == Dispatch::Requested && state.service == Service::Running {
-        let mut ready: bool = true;
-        if state.rules == Rules::EighteenForegroundForcing || state.rules == Rules::Seventeen {
-            // The foreground forcing of outstanding receipts before dispatch: it waits for each V receipt to be forced.
-            ready = visible(&state.receipts) == 0;
-        }
-        if ready {
+        let foreground: bool = state.rules == Rules::EighteenForegroundForcing || state.rules == Rules::Seventeen;
+        if !foreground || visible(&state.receipts) == 0 {
             let mut after: State = state.clone();
             after.dispatch = Dispatch::Done;
             push_step(&mut found, "owner: L4 queues the outstanding receipts and dispatches", after);
+        } else if !state.stalled {
+            // The foreground forcing of outstanding receipts before dispatch: it waits for each V receipt to be forced.
+            let mut after: State = state.clone();
+            force(&mut after.receipts, visible(&state.receipts));
+            push_step(&mut found, "owner: L4 forces the outstanding receipts in the foreground", after);
         }
     }
-    if state.service == Service::Running && state.dispatch == Dispatch::Requested && !ready_dispatch(state) && !state.stalled {
-        let mut after: State = state.clone();
-        force(&mut after.receipts, visible(&state.receipts));
-        push_step(&mut found, "owner: L4 forces the outstanding receipts in the foreground", after);
-    }
     return found;
-}
-
-/// Whether dispatch is not held by receipts under the rule.
-fn ready_dispatch(state: &State) -> bool {
-    return !(state.rules == Rules::EighteenForegroundForcing || state.rules == Rules::Seventeen) || visible(&state.receipts) == 0;
 }
 
 fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
@@ -312,7 +320,9 @@ fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
                 crash.service = Service::Exited;
                 crash.crashed = true;
                 crash.replaced = false;
-                crash.flusher = if state.rules == Rules::EighteenFlusherInOwnerScope { Flusher::Off } else { state.flusher };
+                if state.rules == Rules::EighteenFlusherInOwnerScope {
+                    crash.flushers = [Flusher::Off; FLUSHER_SLOTS];
+                }
                 push_step(found, "environment: the service crashes", crash);
             }
         }
@@ -336,7 +346,7 @@ fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
                 after.seal = true;
             }
             if state.rules == Rules::EighteenFlusherInOwnerScope {
-                after.flusher = Flusher::Off;
+                after.flushers = [Flusher::Off; FLUSHER_SLOTS];
             }
             push_step(found, "owner: the service exits", after);
         }
@@ -344,6 +354,10 @@ fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
             let mut after: State = state.clone();
             after.seal = false;
             after.service = Service::Starting;
+            // The next owner's L2 reaps the scope of the previous incarnation: a flusher that lives in it ends mid-sync.
+            if state.rules == Rules::EighteenReapedFlusherNoStartupSweep {
+                after.flushers = [Flusher::Off; FLUSHER_SLOTS];
+            }
             // An unrelated command waiting at L4 is itself the later command that starts the next owner.
             let label: &str = if state.dispatch == Dispatch::Requested {
                 "owner: the unrelated command starts a next owner, which removes lane/sealed (L3)"
@@ -354,7 +368,8 @@ fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
         }
         Service::Starting => {
             let mut after: State = state.clone();
-            if state.rules != Rules::EighteenNoStartupSweep && !state.stalled {
+            let sweeps: bool = !matches!(state.rules, Rules::EighteenNoStartupSweep | Rules::EighteenReapedFlusherNoStartupSweep);
+            if sweeps && !state.stalled {
                 for receipt in after.receipts.iter_mut() {
                     if matches!(*receipt, Receipt::V | Receipt::Err) {
                         *receipt = Receipt::D;
@@ -375,64 +390,74 @@ fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
     }
 }
 
-fn flusher_steps(state: &State, found: &mut Vec<(String, State)>) {
-    match state.flusher {
+fn flusher_steps(state: &State, slot: usize, found: &mut Vec<(String, State)>) {
+    let phase: Flusher = state.flushers[slot];
+    let with = |next: Flusher| -> State {
+        let mut after: State = state.clone();
+        after.flushers[slot] = next;
+        return after;
+    };
+    match phase {
         Flusher::Off => {}
         Flusher::Enum => {
-            let mut after: State = state.clone();
             let mask: u8 = visible(&state.receipts);
-            if mask != 0 {
-                after.flusher = Flusher::Force(mask);
-            } else {
-                after.flusher = Flusher::Empty;
-            }
-            push_step(found, "owner: the flusher enumerates lane/receipt/", after);
+            let next: Flusher = if mask != 0 { Flusher::Force(mask) } else { Flusher::Empty };
+            push_step(found, &format!("owner: flusher {} enumerates lane/receipt/", slot), with(next));
         }
         Flusher::Force(mask) => {
             if !state.stalled {
-                let mut after: State = state.clone();
-                force(&mut after.receipts, mask);
-                after.flusher = Flusher::Enum;
-                push_step(found, "owner: the flusher forces its snapshot", after);
+                let mut forced: State = with(Flusher::Enum);
+                force(&mut forced.receipts, mask);
+                push_step(found, &format!("owner: flusher {} forces its snapshot", slot), forced);
                 if !state.errored {
-                    let mut errored: State = state.clone();
+                    // A forcing error: the worker records the error for every receipt it has not forced (the directory enumerates them), so
+                    // a receipt that joined it after its snapshot is recorded too; the control records only its snapshot.
+                    let mut errored: State = with(Flusher::Off);
+                    let recorded: u8 = if state.rules == Rules::EighteenErrorIgnoresJoiners { mask } else { visible(&state.receipts) };
                     for (at, receipt) in errored.receipts.iter_mut().enumerate() {
-                        if mask & (1 << at) != 0 && *receipt == Receipt::V {
+                        if recorded & (1 << at) != 0 && *receipt == Receipt::V {
                             *receipt = Receipt::Err;
                         }
                     }
                     errored.errored = true;
                     errored.replaced = false;
-                    errored.flusher = Flusher::Off;
-                    push_step(found, "environment: a forcing error is recorded in lane/receipt-errors and the flusher exits", errored);
+                    push_step(found, &format!("environment: flusher {} meets a forcing error, records it in lane/receipt-errors and exits", slot), errored);
                 }
             }
         }
         Flusher::Empty => {
-            let mut after: State = state.clone();
-            after.flusher = if state.rules == Rules::EighteenNoRecheck { Flusher::Off } else { Flusher::Released };
-            push_step(found, "owner: the flusher releases the lock after its last empty sweep", after);
+            let next: Flusher = if state.rules == Rules::EighteenNoRecheck { Flusher::Off } else { Flusher::Released };
+            push_step(found, &format!("owner: flusher {} releases the lock after its last empty sweep", slot), with(next));
         }
         Flusher::Released => {
-            let mut after: State = state.clone();
-            let mask: u8 = visible(&state.receipts);
-            after.flusher = if mask == 0 { Flusher::Off } else { Flusher::Enum };
-            push_step(found, "owner: the flusher sweeps once more without the lock and takes it again if it finds work", after);
+            // The one more sweep, without the lock; it takes the lock again when it finds work and nobody else holds it (a holder's own
+            // recheck covers the receipt otherwise).
+            let work: bool = visible(&state.receipts) != 0;
+            let other_holder: bool = state.flushers.iter().enumerate().any(|(other, held)| { return other != slot && holds_lock(*held); });
+            let next: Flusher = if work && !other_holder { Flusher::Enum } else { Flusher::Off };
+            push_step(found, &format!("owner: flusher {} sweeps once more without the lock", slot), with(next));
         }
+    }
+    if phase != Flusher::Off && !state.killed {
+        let mut killed: State = with(Flusher::Off);
+        killed.killed = true;
+        killed.replaced = false;
+        push_step(found, &format!("environment: flusher {} is killed from outside", slot), killed);
     }
 }
 
-/// Safety: at most one flusher per lane.
+/// Safety: at most one flusher holds the lock.
 pub fn invariant(state: &State) -> Option<String> {
-    if state.extra_flushers > 0 {
+    if state.flushers.iter().filter(|phase| { return holds_lock(**phase); }).count() > 1 {
         return Some("more than one flusher runs for the lane".to_string());
     }
     return None;
 }
 
-/// A quiescent state (only the environment can move) is acceptable only if no receipt is V with nothing responsible for it, and no
-/// unrelated command is still waiting at L4. The stated outside causes excuse a stalled disk, a crash of the service or a forcing error (the next owner sweeps
-/// `lane/receipt/` at startup and retries what was recorded) and a launch refused by someone else's cap.
+/// A quiescent state (only the environment can move) is acceptable only if no receipt is V with nothing responsible for it, no recorded
+/// error was left unretried after a next owner took over, and no unrelated command is still waiting at L4. The stated outside causes
+/// excuse a stalled disk, a crash of the service, a flusher killed from outside, and a launch refused by someone else's cap, each only until
+/// a next owner has swept. A forcing error does not excuse a receipt: the error is recorded per receipt.
 pub fn terminal(state: &State) -> Option<String> {
     // A command that arrives while the service is in its shutdown sweep waits for the lane, and that wait is the register's ACQUIRE entry,
     // bounded by its own deadline; only a command that reached L4 on a running service is the property here.
@@ -440,12 +465,16 @@ pub fn terminal(state: &State) -> Option<String> {
     if state.dispatch == Dispatch::Requested && !lane_busy_with_shutdown {
         return Some("an unrelated command's dispatch is still waiting for receipts".to_string());
     }
-    let excused_before_replacement: bool = state.crashed || state.errored;
-    if !state.stalled && (state.replaced || !excused_before_replacement) {
-        for c in 0..CLIENTS {
-            if state.receipts[c] == Receipt::V && state.clients[c] != Client::NotYet {
-                return Some(format!("client {}'s receipt is V and no executor is responsible for it", c));
-            }
+    if state.stalled {
+        return None;
+    }
+    let excused: bool = (state.crashed || state.killed) && !state.replaced;
+    for c in 0..CLIENTS {
+        if state.receipts[c] == Receipt::V && !excused && state.clients[c] != Client::NotYet {
+            return Some(format!("client {}'s receipt is V and no executor is responsible for it", c));
+        }
+        if state.receipts[c] == Receipt::Err && state.replaced {
+            return Some(format!("client {}'s recorded forcing error was not retried after the next owner took over", c));
         }
     }
     return None;
@@ -453,7 +482,7 @@ pub fn terminal(state: &State) -> Option<String> {
 
 /// The caps.
 pub fn limits() -> Limits {
-    return Limits { max_states: 400_000, max_depth: 80 };
+    return Limits { max_states: 1_500_000, max_depth: 100 };
 }
 
 /// Explores every schedule under `rules`.

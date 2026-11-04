@@ -211,6 +211,14 @@ mod model_receipt_r18;
 #[path = "model_receipt_r18_tests.rs"]
 mod model_receipt_r18_tests;
 
+/// Decision 19's fresh attempt with a stored notice, after a power loss with no decisive positive authority.
+#[path = "model_fresh_attempt_r19.rs"]
+mod model_fresh_attempt_r19;
+
+/// The controls of decision 19's fresh attempt.
+#[path = "model_fresh_attempt_r19_tests.rs"]
+mod model_fresh_attempt_r19_tests;
+
 /// The coverage map of the revision 18 acceptance target, checked against the tests it names.
 #[path = "model_target_tests.rs"]
 mod model_target_tests;
