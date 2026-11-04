@@ -85,7 +85,24 @@ pub fn is_repository_published(tool: &LockedTool) -> bool {
     if is_published_archive(tool) {
         return true;
     }
-    return tool.declaration.route == Route::CargoBinstall && package_name(tool).starts_with(OWN_CRATE_PREFIX);
+    return tool.declaration.route == Route::CargoBinstall && is_own_crate_name(&package_name(tool));
+}
+
+/// What:
+/// Whether a crate name is in this repository's crate namespace:
+/// it starts with `OWN_CRATE_PREFIX` once letter case and `_` versus `-` are ignored.
+/// Why:
+/// crates.io treats `Monochromatic_X` and `monochromatic-x` as one crate,
+/// so a spelling variant of a repository crate must not be taken for a third-party one
+/// (a third-party crate may fall back to compiling; a repository crate never does).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function isOwnCrateName(name: string): boolean
+/// ```
+pub fn is_own_crate_name(name: &str) -> bool {
+    let canonical: String = name.to_ascii_lowercase().replace('_', "-");
+    return canonical.starts_with(OWN_CRATE_PREFIX);
 }
 
 /// What:

@@ -24,23 +24,28 @@ use std::path::PathBuf;
 use super::cargo_installs::{is_repository_published, point_current_at_newest, remove_older_than_newest, version_directory};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `no_archive_failure` from `super::binstall_no_archive`.
+use super::binstall_no_archive::no_archive_failure;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
-/// Imports `run_checked` from `super::install_support`.
-use super::install_support::run_checked;
+/// Imports what this module uses from `super::install_support`.
+use super::install_support::{failed_step, run_checked};
 /// Imports `tool_install_dir` from `super::layout`.
 use super::layout::tool_install_dir;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Origin};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
-/// Imports `RunRequest` from `super::runner`.
-use super::runner::RunRequest;
+/// Imports what this module uses from `super::runner`.
+use super::runner::{RunOutcome, RunRequest};
 
 /// What:
 /// Installs one crate with `cargo binstall --root <version directory>` into the crate's own version-keyed cargo
 /// root,
 /// passing the GitHub token when one is available.
+/// A crate this repository publishes also gets `--disable-strategies compile`:
+/// it installs from its release archive or fails with a message naming what to do,
+/// and only a third-party crate may fall back to compiling.
 /// For a repository-published crate it then points `current` at the newest installed version and deletes every
 /// older one.
 /// Why:
@@ -72,6 +77,12 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
         "--version".to_string(),
         tool.version.clone(),
     ];
+    // A crate this repository publishes installs from its release archive or fails loudly, never from source.
+    let repository_crate: bool = is_repository_published(tool);
+    if repository_crate {
+        args.push("--disable-strategies".to_string());
+        args.push("compile".to_string());
+    }
     for feature in tool.declaration.options.cargo_features.clone().unwrap_or_default() {
         args.push(format!("--features={feature}"));
     }
@@ -81,8 +92,14 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
         env.insert("GITHUB_TOKEN".to_string(), token);
     }
     let request: RunRequest = RunRequest { command: "cargo".to_string(), args, env: Some(env), cwd: None };
-    run_checked(ctx, &request, "cargo binstall", &tool.declaration.id)?;
-    if is_repository_published(tool) {
+    let outcome: RunOutcome = ctx.run(&request);
+    if !outcome.succeeded() {
+        if repository_crate && let Some(error) = no_archive_failure(&tool.declaration.id, &crate_name, &tool.version, &outcome) {
+            return Err(error);
+        }
+        return Err(failed_step("cargo binstall", &tool.declaration.id, &outcome));
+    }
+    if repository_crate {
         point_current_at_newest(&ctx.scope.toolchain_root, &crate_name)?;
         remove_older_than_newest(&ctx.scope.toolchain_root, &crate_name)?;
     }
