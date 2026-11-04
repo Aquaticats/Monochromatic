@@ -707,11 +707,16 @@ and this documentation edit makes no claim of measured improvement in agent beha
  so knowing it existed could not help an agent rewrite its way past it,
  and satisfying it meant doing the work.
  Since 2026-10-18 it asks Luna what situation the final message describes
- (announces a next step, waits on background work, waits on the user, pauses, or is closed),
+ (announces a next step,
+waits on background work,
+waits on the user,
+pauses,
+or is closed),
  so it now conditions on wording too,
  and the reasoning for not naming it applies again.
  Two properties keep it from being a pure wording gate:
- the state-based releases (depth limit, no tool call since the last block) still read no text,
+ the state-based releases (depth limit,
+no tool call since the last block) still read no text,
  and a background wait is blocked only when no background task is running,
  which is state the agent cannot rewrite.
  Every other detector conditions on wording,
