@@ -202,3 +202,19 @@ mod model_barrier_r13;
 /// The controls of rule V's barriers.
 #[path = "model_barrier_r13_tests.rs"]
 mod model_barrier_r13_tests;
+
+/// Capture against a withdrawn base, the deferred merge install against later staging, and the lagging file's three-way capture.
+#[path = "model_capture_r13.rs"]
+mod model_capture_r13;
+
+/// The controls of the capture models.
+#[path = "model_capture_r13_tests.rs"]
+mod model_capture_r13_tests;
+
+/// `attach-watch` with MG6c and T1's registry comparison.
+#[path = "model_watch_r13.rs"]
+mod model_watch_r13;
+
+/// The controls of `attach-watch` and T1's registry comparison.
+#[path = "model_watch_r13_tests.rs"]
+mod model_watch_r13_tests;
