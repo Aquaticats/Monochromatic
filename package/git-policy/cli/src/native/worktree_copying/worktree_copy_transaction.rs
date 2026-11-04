@@ -11,19 +11,19 @@
 //! const outcome = await completeJournal({ pending, snapshot });
 //! ```
 
-use super::diagnostic_log::debug;
-use super::transaction_git::GitContext;
-use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
-use super::worktree_copy_install::{InstallRecorder, install_snapshot};
-use super::worktree_copy_install_entry::InstalledPath;
-use super::worktree_copy_install_log::{InstallLog, open_install_log};
-use super::worktree_copy_journal::{
+use crate::diagnostic_log::debug;
+use crate::transaction_git::GitContext;
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::worktree_copy_install::{InstallRecorder, install_snapshot};
+use crate::worktree_copy_install_entry::InstalledPath;
+use crate::worktree_copy_install_log::{InstallLog, open_install_log};
+use crate::worktree_copy_journal::{
     Journal, PendingJournal, Phase, create_journal, remove_pending_journal, write_journal,
 };
-use super::worktree_copy_manifest::{WorktreeCopyEntry, collect_entry_manifest};
-use super::worktree_copy_selection::CopySelection;
-use super::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};
-use super::worktree_copy_stage_claim::{StageClaim, claim_stage};
+use crate::worktree_copy_manifest::{WorktreeCopyEntry, collect_entry_manifest};
+use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};
+use crate::worktree_copy_stage_claim::{StageClaim, claim_stage};
 use crate::json_record::quote;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -130,7 +130,7 @@ pub fn snapshot_from_journal(
                     "cli-git: worktree-copy journal intent is absent from private stage {}.",
                     quote(pending.journal.stage_root.as_str())
                 );
-                return Err(super::worktree_copy_error::failure_with_cause(
+                return Err(crate::worktree_copy_error::failure_with_cause(
                     message.as_str(),
                     None,
                 ));
@@ -146,7 +146,7 @@ pub fn snapshot_from_journal(
                 "cli-git: could not recover staged ignored state at {}.",
                 quote(pending.journal.stage_root.as_str())
             );
-            return Err(super::worktree_copy_error::failure_with_cause(
+            return Err(crate::worktree_copy_error::failure_with_cause(
                 message.as_str(),
                 Some(&error.0),
             ));

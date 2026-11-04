@@ -11,18 +11,18 @@
 //! const snapshot = await stageIgnoredSnapshot({ sourceRoot, destinationRoot, registeredRoots, gitPath });
 //! ```
 
-use super::private_storage::create_private_directory;
-use super::parallel_budget::{HostResources, sliced_workers};
-use super::random_id::random_uuid;
-use super::transaction_git::GitContext;
-use super::diagnostic_log::debug;
-use super::worktree_copy_compare::{FinalCheck, assert_final_source_equivalence_pruned};
-use super::worktree_copy_error::{WorktreeCopyError, raw_failure, wrap_raw};
-use super::worktree_copy_manifest::{
+use crate::private_storage::create_private_directory;
+use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::random_id::random_uuid;
+use crate::transaction_git::GitContext;
+use crate::diagnostic_log::debug;
+use crate::worktree_copy_compare::{FinalCheck, assert_final_source_equivalence_pruned};
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, wrap_raw};
+use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, apply_entry_modes, collect_pruned_manifest, stamp_of,
 };
-use super::worktree_copy_prune::Prune;
-use super::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, select_roots};
+use crate::worktree_copy_prune::Prune;
+use crate::worktree_copy_selection::{CopySelection, STAGE_PREFIX, filesystem_path, select_roots};
 use std::sync::atomic::{AtomicBool, Ordering};
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
@@ -110,7 +110,7 @@ fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
 #[cfg(target_os = "linux")]
 fn try_clone(source: &std::fs::File, destination: &std::fs::File) -> bool {
     // The one `FICLONE` call lives with the other Linux filesystem primitives, which the cheap-worktree ladder shares.
-    return super::fs_clone_exchange::clone_file(source, destination, std::path::Path::new("")).is_ok();
+    return crate::fs_clone_exchange::clone_file(source, destination, std::path::Path::new("")).is_ok();
 }
 
 /// What:
@@ -223,7 +223,7 @@ fn copy_file_exclusive_with(
 /// ```ts
 /// const PARALLEL_COPY_MIN_ENTRIES = PARALLEL_BREAK_EVEN_ENTRIES;
 /// ```
-const PARALLEL_COPY_MIN_ENTRIES: usize = super::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
+const PARALLEL_COPY_MIN_ENTRIES: usize = crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What:
 ///  The most threads one copy starts.

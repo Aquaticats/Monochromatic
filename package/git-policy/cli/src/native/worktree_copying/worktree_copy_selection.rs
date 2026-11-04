@@ -12,9 +12,9 @@
 //! const roots = await readIgnoredRoots({ sourceRoot, gitPath, excludedRoots });
 //! ```
 
-use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::worktree_copy_prune::Prune;
-use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::worktree_copy_prune::Prune;
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
 use crate::json_record::quote;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};

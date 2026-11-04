@@ -6,7 +6,7 @@
  `slot-<n>.lock` held by the process that ran the gated command. Neither is taken any more (the numbered claim files of
  `src/owner-claim.ts` replace them), but a campaign or gate that started before the change may still be running, and two
  runs must never share one item, whichever release they are. The probe asks without waiting and gives the lock straight back
- (`package/git-policy/cli/src/native/worktree_convert_journal.rs:268`, `legacy_lock_is_held`): a held lock is a live owner,
+ (`package/git-policy/cli/src/native/worktree/worktree_convert_journal.rs:268`, `legacy_lock_is_held`): a held lock is a live owner,
  and a lock file nobody holds is removed while the probe still holds it, so no earlier command can take the name between the
  probe and the removal and the leftover disappears after the upgrade. A file that is absent costs nothing, and a file that is
  not a plain file is left where it is.

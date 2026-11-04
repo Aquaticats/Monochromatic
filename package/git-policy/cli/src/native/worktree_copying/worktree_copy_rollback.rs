@@ -10,11 +10,11 @@
 //! const retained = await rollbackCreated({ snapshot, destinationRoot, created });
 //! ```
 
-use super::worktree_copy_compare::{entry_matches, lstat_or_absent};
-use super::worktree_copy_error::WorktreeCopyError;
-use super::worktree_copy_install_entry::InstalledPath;
-use super::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
-use super::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
+use crate::worktree_copy_error::WorktreeCopyError;
+use crate::worktree_copy_install_entry::InstalledPath;
+use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
+use crate::worktree_copy_selection::filesystem_path;
 use std::collections::BTreeMap;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;

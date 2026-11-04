@@ -1694,7 +1694,7 @@ Left out by directory name, wherever the name sits below the main checkout:
  `incremental` and `zig-global-cache` below a `target` directory;
  and the records of earlier runs, `.monochromatic` below a `node_modules` directory, `target/verification`, `mutants.out`,
  `mutants.out.old`, `playwright-report`, `test-results` and `.serena/cache`.
-The run records follow the constant `COPY_RUN_RECORDS` in `src/native/worktree_copy_prune.rs`, which is `false`.
+The run records follow the constant `COPY_RUN_RECORDS` in `src/native/worktree_copying/worktree_copy_prune.rs`, which is `false`.
 A linked or bare source copies everything it ignores except its nested registered worktrees.
 An ignored file or directory that the user cannot read, such as a log written by `root`, is left out of any copy instead of
  failing it, and one stderr line says how many and which first paths: `cli-git: left out 2 unreadable ignored entries from

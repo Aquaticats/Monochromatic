@@ -14,9 +14,9 @@
 //! if (!CopyOwner.fromToken(token).isAlive(path)) { /* the item may be taken over */ }
 //! ```
 
-use super::pid_namespace::{current_pid_namespace, foreign_owner_standing};
-use super::process_identity::{current_birth_identity, process_birth_identity};
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
+use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use std::path::Path;
 
 /// What:

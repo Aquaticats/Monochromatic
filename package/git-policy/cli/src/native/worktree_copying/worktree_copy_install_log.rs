@@ -11,14 +11,14 @@
 //! await opened.log.appendIntents(paths);
 //! ```
 
-use super::json_record::quote;
-use super::private_storage::sync_directory;
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use super::worktree_copy_install_entry::InstalledPath;
-use super::worktree_copy_journal::{
+use crate::json_record::quote;
+use crate::private_storage::sync_directory;
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_install_entry::InstalledPath;
+use crate::worktree_copy_journal::{
     Role, assert_private_path, encode_installed_entry, installed_entry, string_array,
 };
-use super::worktree_copy_selection::assert_safe_repository_path;
+use crate::worktree_copy_selection::assert_safe_repository_path;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};

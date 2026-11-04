@@ -16,17 +16,17 @@
 //! const notices = await reapAbandonedStages(commonDir);
 //! ```
 
-use super::json_record::quote;
-use super::private_storage::sync_directory;
-use super::worktree_add_binding::{Binding, Recorded, decode_record, planned_record};
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use super::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
-use super::worktree_copy_journal::{
+use crate::json_record::quote;
+use crate::private_storage::sync_directory;
+use crate::worktree_add_binding::{Binding, Recorded, decode_record, planned_record};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
+use crate::worktree_copy_journal::{
     Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
     read_pending_journals, remove_file_if_present, remove_stage, temporary_writer_token, write_atomic, write_atomic_unsynced,
 };
-use super::worktree_copy_selection::{STAGE_PREFIX, js_order};
-use super::worktree_copy_stage::new_stage_container;
+use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
+use crate::worktree_copy_stage::new_stage_container;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -85,9 +85,9 @@ impl StageClaim {
     /// await claim.markComplete();
     /// ```
     pub fn mark_complete(&self) -> Result<(), WorktreeCopyError> {
-        super::add_timing::step("markCompleteFile", || { return write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); })?;
+        crate::add_timing::step("markCompleteFile", || { return write_atomic(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); })?;
         if let Some(parent) = self.path.parent() {
-            super::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(|error| return raw_failure(&error))?;
+            crate::add_timing::step("markCompleteDirectory", || { return sync_directory(parent); }).map_err(|error| return raw_failure(&error))?;
         }
         return Ok(());
     }
@@ -105,7 +105,7 @@ impl StageClaim {
     /// await claim.markCompleteUnsynced();
     /// ```
     pub fn mark_complete_unsynced(&self) -> Result<(), WorktreeCopyError> {
-        return super::add_timing::step("markCompleteFile", || { return write_atomic_unsynced(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); });
+        return crate::add_timing::step("markCompleteFile", || { return write_atomic_unsynced(self.path.with_extension(&COMPLETE_SUFFIX[1..]).as_path(), b"complete", "completion marker"); });
     }
 
     /// What:

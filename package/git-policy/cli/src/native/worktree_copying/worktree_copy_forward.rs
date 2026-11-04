@@ -13,10 +13,10 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use super::forwarding::{ChildOutcome, exit_code as child_exit_code, run_real_git};
-use super::worktree_add_plan::AddPlan;
-use super::worktree_remove_plan::RemovePlan;
-use super::worktree_identity::WorktreeIdentity;
+use crate::forwarding::{ChildOutcome, exit_code as child_exit_code, run_real_git};
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -149,7 +149,7 @@ fn run_plain(
         Err(error) => {
             return ForwardedRun::Failed {
                 stderr: format!("cli-git: cannot start {}: {error}\n", real_git.display()),
-                code: super::action::ENGINE_FAILURE_EXIT_CODE,
+                code: crate::action::ENGINE_FAILURE_EXIT_CODE,
             };
         }
     }
@@ -203,8 +203,8 @@ pub fn run_forwarded_git(
 #[cfg(all(unix, target_os = "linux"))]
 fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts) -> Option<ForwardedRun> {
     use std::io::Write;
-    use super::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
-    use super::worktree_identity::WorktreeIdentity;
+    use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
+    use crate::worktree_identity::WorktreeIdentity;
     let plan = facts.remove_plan.as_ref()?;
     let common_dir: &Path = match &facts.identity {
         WorktreeIdentity::MainWorktree { common_dir, .. }
@@ -212,7 +212,7 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         | WorktreeIdentity::BareRepository { common_dir, .. } => common_dir.as_path(),
         WorktreeIdentity::OutsideWorktree => return None,
     };
-    let context: super::transaction_git::GitContext = super::transaction_git::GitContext {
+    let context: crate::transaction_git::GitContext = crate::transaction_git::GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
         global_prefix: Vec::new(),
@@ -222,11 +222,11 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed => {
             // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it.
-            let _closed = writeln!(std::io::stderr(), "{}", super::worktree_remove::DESTROY_NOTICE);
+            let _closed = writeln!(std::io::stderr(), "{}", crate::worktree_remove::DESTROY_NOTICE);
             return Some(ForwardedRun::Ran(0));
         }
         RemoveOutcome::Incomplete(report) => {
-            return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: super::action::ENGINE_FAILURE_EXIT_CODE });
+            return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: crate::action::ENGINE_FAILURE_EXIT_CODE });
         }
     }
 }
@@ -248,10 +248,10 @@ fn run_settled(
     facts: &CopyFacts,
 ) -> ForwardedRun {
     use std::io::Write;
-    use super::checkout_workers::{insert_parallel_checkout, is_fallback_checkout, parallel_checkout_wanted};
-    use super::transaction_git::GitContext;
-    use super::worktree_copy::{GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
-    use super::worktree_copy_error::WorktreeCopyError;
+    use crate::checkout_workers::{insert_parallel_checkout, is_fallback_checkout, parallel_checkout_wanted};
+    use crate::transaction_git::GitContext;
+    use crate::worktree_copy::{GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
+    use crate::worktree_copy_error::WorktreeCopyError;
 
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
@@ -271,7 +271,7 @@ fn run_settled(
         context,
         add_plan: facts.add_plan.clone(),
         #[cfg(target_os = "linux")]
-        repair: super::package_repair::RepairSwitch::from_arguments(arguments),
+        repair: crate::package_repair::RepairSwitch::from_arguments(arguments),
     };
     let mut stderr = std::io::stderr();
     // Whether the checkout may get parallel workers, decided at the first checkout step from what the person set, and not again.
@@ -325,7 +325,7 @@ fn run_settled(
         Err(failure) => {
             return ForwardedRun::Failed {
                 stderr: format!("{}\n", failure.0),
-                code: super::action::ENGINE_FAILURE_EXIT_CODE,
+                code: crate::action::ENGINE_FAILURE_EXIT_CODE,
             };
         }
     }

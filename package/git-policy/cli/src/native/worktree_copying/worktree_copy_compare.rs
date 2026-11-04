@@ -11,12 +11,12 @@
 //! await assertFinalSourceEquivalence({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries });
 //! ```
 
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use super::worktree_copy_manifest::{
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
 };
-use super::worktree_copy_prune::Prune;
-use super::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_prune::Prune;
+use crate::worktree_copy_selection::filesystem_path;
 use crate::json_record::quote;
 use std::io::Read;
 use std::path::{Path, PathBuf};

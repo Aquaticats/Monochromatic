@@ -14,15 +14,15 @@
 //! const pending = await readPendingWorktreeCopyJournals(commonDir);
 //! ```
 
-use super::json_record::quote;
-use super::parallel_budget::{HostResources, sliced_workers};
-use super::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
-use super::random_id::random_uuid;
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use super::worktree_copy_install_entry::InstalledPath;
-use super::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
-use super::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path, js_order};
-use super::worktree_copy_stage::{PARALLEL_COPY_MAX_WORKERS, StagedSnapshot};
+use crate::json_record::quote;
+use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
+use crate::random_id::random_uuid;
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_install_entry::InstalledPath;
+use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
+use crate::worktree_copy_selection::{STAGE_PREFIX, assert_safe_repository_path, js_order};
+use crate::worktree_copy_stage::{PARALLEL_COPY_MAX_WORKERS, StagedSnapshot};
 use std::path::{Path, PathBuf};
 
 /// What:

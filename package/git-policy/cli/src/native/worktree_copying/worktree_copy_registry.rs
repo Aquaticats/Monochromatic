@@ -17,12 +17,12 @@
 //! const { created, registeredRoots } = await findCreatedWorktree({ observation, destination, registeredBefore, gitPath });
 //! ```
 
-use super::git_metadata::path_from_git_bytes;
-use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::worktree_add_binding::bind_registration;
-use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
-use super::worktree_copy_selection::CopySelection;
-use super::worktree_identity::WorktreeIdentity;
+use crate::git_metadata::path_from_git_bytes;
+use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::worktree_add_binding::bind_registration;
+use crate::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
 
 /// What:

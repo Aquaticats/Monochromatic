@@ -13,10 +13,10 @@
 //! await applyEntryModes({ root: stageRoot, entries });
 //! ```
 
-use super::worktree_copy_error::raw_failure;
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
-use super::worktree_copy_prune::Prune;
-use super::worktree_copy_selection::{filesystem_path, js_order};
+use crate::worktree_copy_error::raw_failure;
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use crate::worktree_copy_prune::Prune;
+use crate::worktree_copy_selection::{filesystem_path, js_order};
 use crate::json_record::quote;
 use std::path::{Path, PathBuf};
 

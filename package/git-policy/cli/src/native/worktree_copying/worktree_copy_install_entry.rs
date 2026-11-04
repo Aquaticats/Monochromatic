@@ -14,11 +14,11 @@
 //! created.push(await captureInstalledPath({ destinationPath, relativePath, selected: true }));
 //! ```
 
-use super::worktree_copy_compare::lstat_or_absent;
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
-use super::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
-use super::worktree_copy_selection::filesystem_path;
-use super::worktree_copy_stage::copy_file_exclusive;
+use crate::worktree_copy_compare::lstat_or_absent;
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
+use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
+use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_stage::copy_file_exclusive;
 use crate::json_record::quote;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};

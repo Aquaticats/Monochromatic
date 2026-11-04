@@ -12,16 +12,16 @@
 //! const copied = await installSnapshot({ snapshot, destinationRoot, journalState, priorCreations });
 //! ```
 
-use super::worktree_copy_compare::{entry_matches, lstat_or_absent};
-use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
-use super::parallel_budget::{HostResources, sliced_workers};
-use super::worktree_copy_stage::PARALLEL_COPY_MAX_WORKERS;
-use super::worktree_copy_install_entry::{
+use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
+use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
+use crate::parallel_budget::{HostResources, sliced_workers};
+use crate::worktree_copy_stage::PARALLEL_COPY_MAX_WORKERS;
+use crate::worktree_copy_install_entry::{
     InstalledPath, capture_installed_path, create_selected_entry, ensure_parents_remembering,
 };
-use super::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry, apply_entry_modes};
-use super::worktree_copy_rollback::rollback_created;
-use super::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry, apply_entry_modes};
+use crate::worktree_copy_rollback::rollback_created;
+use crate::worktree_copy_selection::filesystem_path;
 use crate::json_record::quote;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -195,7 +195,7 @@ fn install_batch(
 /// ```ts
 /// const PARALLEL_INSTALL_MIN_LEAVES = PARALLEL_BREAK_EVEN_ENTRIES;
 /// ```
-const PARALLEL_INSTALL_MIN_LEAVES: usize = super::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
+const PARALLEL_INSTALL_MIN_LEAVES: usize = crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What:
 ///  Creates one slice of files and links, stopping at the first failure, and returns what it created with that failure.
@@ -363,7 +363,7 @@ fn install_all(
     }
     let created_after: std::time::Duration = started.elapsed();
     apply_entry_modes(destination_root, entries)?;
-    super::diagnostic_log::debug(
+    crate::diagnostic_log::debug(
         "worktreeCopyInstall",
         format!(
             "installed {} entries: preflight {} ms, create and record {} ms, modes {} ms",

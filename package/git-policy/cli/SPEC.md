@@ -618,7 +618,7 @@ The snapshot carries the whole ignored state of the source, so the ignored-state
 
 Leaving out of a snapshot of the main checkout:
 before the stage is made private and its stubs removed, the wrapper prunes a snapshot whose source is the main checkout
-with the main-checkout rule of `src/native/worktree_copy_prune.rs`.
+with the main-checkout rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
 First it works out what the source's index tracks: every directory above a tracked file, and every directory-valued
 index entry (a gitlink) at its own path. None of those is ever moved, whatever its name.
 A registered nested worktree that is an ordinary directory and holds or is a tracked path cannot be left out, so the
@@ -944,7 +944,7 @@ that instant can remove an empty directory at most, never data; that residual is
 Before staging,
 exclude every registered worktree root strictly nested under the source.
 A main-checkout source also applies a leave-out rule of directory names, the same everywhere below the source root,
-implemented in `src/native/worktree_copy_prune.rs`:
+implemented in `src/native/worktree_copying/worktree_copy_prune.rs`:
 a directory that holds a `.git` file or directory is another checkout and is left out whole;
 a cache is left out (`.pnpm-store`, `.gradle`, `.kotlin`, `.cache` anywhere but the repository root,
 and `incremental` and `zig-global-cache` below a `target` directory);
@@ -1096,7 +1096,7 @@ preserve its status after writing the successful copy summary.
 ### Package-manager repair of a new worktree
 
 Design, survey and measurements: `doc/planning/cli-git-main-worktree-ignored-copy.md`, section "Package-manager state of a new worktree".
-Code: `src/native/package_repair*.rs`; the call is in `repair_created` of `src/native/worktree_copy.rs`.
+Code: `src/native/package_repair*.rs`; the call is in `repair_created` of `src/native/worktree_copying/worktree_copy.rs`.
 
 A copy, a clone and a snapshot keep links and build state exactly as the source had them, which is wrong for tools that record the
 place they were installed or built at.

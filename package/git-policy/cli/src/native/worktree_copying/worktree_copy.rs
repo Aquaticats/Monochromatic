@@ -20,21 +20,21 @@
 //! await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 //! ```
 
-use super::add_timing::{begin as begin_timing, finish as finish_timing, step as timed};
-use super::json_record::quote;
-use super::transaction_git::GitContext;
-use super::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
-use super::worktree_copy_recovery::recover_pending_worktree_copies;
-use super::worktree_copy_selection::CopySelection;
-use super::worktree_copy_registry::{
+use crate::add_timing::{begin as begin_timing, finish as finish_timing, step as timed};
+use crate::json_record::quote;
+use crate::transaction_git::GitContext;
+use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
+use crate::worktree_copy_recovery::recover_pending_worktree_copies;
+use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_registry::{
     CreatedWorktrees, WorktreeCopyObservation, destination_is_registered, find_created_worktree, observe_copy_source,
 };
-use super::worktree_copy_transaction::synchronize_created_worktree_noting;
-use super::worktree_identity::WorktreeIdentity;
-use super::worktree_add_plan::AddPlan;
-use super::worktree_ladder::{LadderResult, begin_ladder};
+use crate::worktree_copy_transaction::synchronize_created_worktree_noting;
+use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_ladder::{LadderResult, begin_ladder};
 #[cfg(target_os = "linux")]
-use super::package_repair::{RepairEnvironment, RepairRequest, RepairSwitch, repair_worktree};
+use crate::package_repair::{RepairEnvironment, RepairRequest, RepairSwitch, repair_worktree};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
