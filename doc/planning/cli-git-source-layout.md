@@ -51,6 +51,15 @@ Question tool answers, 2026-11-04:
   and the package's lint fails any file or folder that breaks its layer.
 - Scope: "Repo-wide rules (Recommended)": AGENTS.md MKY, LYD and LYF (`b1955e0b49`).
 - TypeScript in the crate: "A: port all to Rust (Recommended)" (separate work, paused).
+- Question tool answers, 2026-11-04 (after the group order and the draft names were shown):
+  - Top-level folder names: "A: plain sentences (Recommended)",
+    the list in section "Proposed top-level folder names", with `src/native/` gone and the folders directly in `src/`.
+  - The two in-process recursions (`stacked_merge_push` planning a new invocation,
+    `merge_second_pass_finish` running a nested command): "A: hand back 'run this next' (Recommended)":
+    the part returns the next command and the top level runs it in its own loop.
+  - The four smaller call changes (current-step record, the watcher's after-stop action from its caller,
+    the system settings path passed to the reader, "finished" results for commands that only finish):
+    "Make all four (Recommended)".
 
 ## What the code looks like now
 
