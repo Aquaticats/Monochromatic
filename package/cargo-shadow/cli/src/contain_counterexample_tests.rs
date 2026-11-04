@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-use rustix::process::{Pid, Signal, kill_process, test_kill_process};
+use rustix::process::{Pid, Signal, kill_process};
 
 use crate::bounded_run::{Bound, output_within};
 use crate::cgroup_test_support::{assert_ran_in_recorded_scope, wrapper_group};
@@ -113,26 +113,11 @@ pub(crate) fn read_pid(path: &Path) -> i32 {
     }
 }
 
-/// Whether a process with this id exists and is not a zombie.
+/// Whether a process with this id is running (neither ended nor a zombie that waits to be reaped).
+/// The inspection fails closed (certification, second pass): it reads through the pinned procfs and a pidfd, and one that cannot tell
+/// (a procfs that numbers processes as another namespace does, an unreadable entry) stops the test instead of reading as "gone".
 pub(crate) fn is_running(pid: i32) -> bool {
-    let Some(found) = Pid::from_raw(pid) else {
-        return false;
-    };
-    // Only the absence error shows a process is gone; `EPERM` or anything else means the inspection did not establish absence (9b 3.7).
-    match test_kill_process(found) {
-        Ok(()) => {}
-        Err(rustix::io::Errno::SRCH) => return false,
-        Err(error) => panic!("signal 0 to {pid} failed with {error}: the process may still exist"),
-    }
-    // A process that was reaped between the two reads is gone; one whose state cannot be read for another reason stops the test.
-    let stat: String = match fs::read_to_string(format!("/proc/{pid}/stat")) {
-        Ok(text) => text,
-        // A process that is exiting reads as missing (ENOENT) or as gone (ESRCH).
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) => return false,
-        Err(error) => panic!("/proc/{pid}/stat cannot be read ({error}): the state of the process is unknown"),
-    };
-    let state: &str = stat.rsplit(')').next().unwrap_or("").trim_start();
-    return !state.starts_with('Z') && !state.starts_with('X');
+    return crate::control_group::process_is_running(pid).unwrap_or_else(|reason| { panic!("whether process {pid} runs cannot be told: {reason}"); });
 }
 
 /// Asserts that the wrapper (this process) can no longer wait for the child with this id: a checked `waitpid` gives `ECHILD`, which
@@ -166,6 +151,10 @@ pub(crate) fn compile_leader(directory: &Path) -> PathBuf {
 /// Only a thread that is gone (`ENOENT`) or a zombie is "not alive"; anything the helper cannot read or parse stops the test,
 /// because an unknown state is not a stopped one (8b 2.2).
 pub(crate) fn thread_is_alive(tid: i32) -> bool {
+    // A procfs that numbers threads as another namespace does would read a live thread as absent: the test environment is refused.
+    if let Err(reason) = crate::control_group::procfs_matches_namespace() {
+        panic!("the thread oracle cannot be trusted here: {reason}");
+    }
     let stat: String = match fs::read_to_string(format!("/proc/{tid}/stat")) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) => return false,

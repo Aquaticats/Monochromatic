@@ -639,6 +639,23 @@ fn start_of(pid: i32) -> StartOf {
 }
 
 /// What:
+/// `pub(crate) fn procfs_matches_namespace() -> Result<(), String>` says whether the mounted procfs numbers processes as this
+/// process's own namespace does, and why not when it does not.
+/// Why:
+/// An oracle of the tests that reads a numeric entry of `/proc` (a thread, for one) must not run in an environment whose procfs
+/// names other processes than the caller's namespace does: it would read "no such entry" for a live process (certification, second
+/// pass).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function procfsMatchesNamespace(): void  // throws the reason
+/// ```
+#[cfg(test)]
+pub(crate) fn procfs_matches_namespace() -> Result<(), String> {
+    return open_proc_root().map(|_root| {});
+}
+
+/// What:
 /// `pub(crate) fn process_is_running(pid: i32) -> Result<bool, String>` says whether a process with this id is running (not ended,
 /// not a zombie that is waiting to be reaped), and fails when it cannot tell.
 /// Why:
