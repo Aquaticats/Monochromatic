@@ -12,26 +12,26 @@
 //! const done: boolean = resetIndexFile({ git, repository, commit, paths, indexFile }); // false: run `git reset --no-refresh`
 //! ```
 
-use super::diagnostic_log::debug;
-use super::index_full::{FullIndex, parse_full_index};
-use super::index_full_write::write_full_index;
-use super::index_reset::reset_paths;
-use super::index_reset_publish::publish;
-use super::service_index_lock::IndexLock;
-use super::index_reset_tree::{changed_paths, root_tree, tree_entries_at};
-use super::index_settings::{IndexSettings, read_settings};
-use super::repo_read_config_list::list_config;
-use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_hook::{enabled, guarded};
-use super::repo_read_layout::{ObjectFormat, RepoLayout, read_layout_with};
-use super::repo_read_object::{name_length, to_hex};
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_tree::FlatEntry;
-use super::service_land_follow::{IndexPaths, PrivateCopy};
-use super::service_land_start::StartEntry;
-use super::service_protocol::is_zero_object;
-use super::subvolume_sha::{sha1, sha256};
-use super::transaction_git::GitContext;
+use crate::diagnostic_log::debug;
+use crate::index_full::{FullIndex, parse_full_index};
+use crate::index_full_write::write_full_index;
+use crate::index_reset::reset_paths;
+use crate::index_reset_publish::publish;
+use crate::service_index_lock::IndexLock;
+use crate::index_reset_tree::{changed_paths, root_tree, tree_entries_at};
+use crate::index_settings::{IndexSettings, read_settings};
+use crate::repo_read_config_list::list_config;
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_hook::{enabled, guarded};
+use crate::repo_read_layout::{ObjectFormat, RepoLayout, read_layout_with};
+use crate::repo_read_object::{name_length, to_hex};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_tree::FlatEntry;
+use crate::service_land_follow::{IndexPaths, PrivateCopy};
+use crate::service_land_start::StartEntry;
+use crate::service_protocol::is_zero_object;
+use crate::subvolume_sha::{sha1, sha256};
+use crate::transaction_git::GitContext;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -70,7 +70,7 @@ struct Surroundings {
 
 /// Read the layout, the configuration and the objects, or decline.
 fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
-    let added: Vec<(OsString, OsString)> = super::git_system_config::with_real_git(git.overlay.as_slice(), git.real_git.as_path());
+    let added: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(git.overlay.as_slice(), git.real_git.as_path());
     if !enabled(added.as_slice()) {
         return None;
     }
@@ -94,7 +94,7 @@ fn surroundings(git: &GitContext, repository: &Path) -> Option<Surroundings> {
 
 /// The index of the file, its modification time in whole seconds, or `None` when the checksum or the layout is not plain.
 fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, u32)> {
-    let bytes: Vec<u8> = super::private_storage::read_regular_file(file, INDEX_LIMIT).ok()?;
+    let bytes: Vec<u8> = crate::private_storage::read_regular_file(file, INDEX_LIMIT).ok()?;
     let hash_length: usize = name_length(format);
     let (body, stored) = bytes.split_at(bytes.len().checked_sub(hash_length)?);
     // Git refuses a file whose checksum is wrong; an all-zero checksum is what a skipped hash looks like.

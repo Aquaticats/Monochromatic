@@ -12,8 +12,8 @@
 //! const settings: IndexSettings | undefined = readIndexSettings(listedConfig); // undefined: ask Git
 //! ```
 
-use super::repo_read_config_list::ListedEntry;
-use super::repo_read_config_text::parse_bool;
+use crate::repo_read_config_list::ListedEntry;
+use crate::repo_read_config_text::parse_bool;
 
 /// What Git does with the untracked-cache extension while reading an index (`core.untrackedCache`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -97,7 +97,7 @@ pub fn shared_permission(value: Option<&[u8]>) -> Option<i32> {
 
 /// The settings of a configuration, or `None` when a key or value is outside what this update reproduces.
 pub fn read_settings(listed: &[ListedEntry]) -> Option<IndexSettings> {
-    let last = |key: &str| -> Option<&super::repo_read_config_text::ConfigEntry> {
+    let last = |key: &str| -> Option<&crate::repo_read_config_text::ConfigEntry> {
         return listed.iter().rev().map(|item| { return &item.entry; }).find(|entry| { return entry.key == key; });
     };
     if listed.iter().any(|item| { return DECLINED.contains(&item.entry.key.as_str()); }) {

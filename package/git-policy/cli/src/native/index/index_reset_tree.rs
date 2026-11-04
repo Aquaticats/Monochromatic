@@ -11,10 +11,10 @@
 //! const tree = rootTreeOf(db, commit); const entries = entriesAt(db, tree, names); const paths = changedPaths(db, oldTree, newTree);
 //! ```
 
-use super::repo_read_layout::ObjectFormat;
-use super::repo_read_object::{ObjectKind, from_hex, name_length};
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_tree::{FlatEntry, TreeEntry, flatten_pair, flatten_tree, is_tree_mode, parse_commit, parse_tree};
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_object::{ObjectKind, from_hex, name_length};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_tree::{FlatEntry, TreeEntry, flatten_pair, flatten_tree, is_tree_mode, parse_commit, parse_tree};
 
 /// The root tree of the commit named by `hex`, or of the tree it names.
 pub fn root_tree(database: &ObjectDatabase, hex: &str, format: ObjectFormat) -> Option<Vec<u8>> {

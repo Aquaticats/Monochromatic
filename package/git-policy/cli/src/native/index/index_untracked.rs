@@ -12,7 +12,7 @@
 //! cache.invalidatePath(path); // clears `valid` and the listing of each affected directory
 //! ```
 
-use super::index_stat::StatData;
+use crate::index_stat::StatData;
 
 /// The directory-flags bit that makes the cache list untracked directories as a whole (`DIR_SHOW_OTHER_DIRECTORIES`).
 pub const SHOW_OTHER_DIRECTORIES: u32 = 1 << 1;

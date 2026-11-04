@@ -11,12 +11,12 @@
 //! const index: FullIndex | undefined = parseFullIndex(bytes, hashLength); // undefined: ask Git
 //! ```
 
-use super::index_cache_tree::CacheTree;
-use super::index_fsmonitor::{Fsmonitor, read_fsmonitor};
-use super::index_resolve_undo::ResolveUndo;
-use super::index_stat::{StatData, be32};
-use super::index_untracked::Untracked;
-use super::index_untracked_io::read_untracked;
+use crate::index_cache_tree::CacheTree;
+use crate::index_fsmonitor::{Fsmonitor, read_fsmonitor};
+use crate::index_resolve_undo::ResolveUndo;
+use crate::index_stat::{StatData, be32};
+use crate::index_untracked::Untracked;
+use crate::index_untracked_io::read_untracked;
 
 /// The flag bit of an entry that Git was told to assume unchanged.
 pub const ASSUME_VALID: u16 = 0x8000;
@@ -117,7 +117,7 @@ fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: us
     }
     let name_start: usize = at + head;
     let (path, next): (Vec<u8>, usize) = if version == 4 {
-        let (strip, after) = super::index_stat::decode_varint(bytes.get(name_start..end)?)?;
+        let (strip, after) = crate::index_stat::decode_varint(bytes.get(name_start..end)?)?;
         let keep: usize = previous.len().checked_sub(usize::try_from(strip).ok()?)?;
         let cursor: usize = end - after.len();
         let terminator: usize = after.iter().position(|byte| { return *byte == 0; })?;

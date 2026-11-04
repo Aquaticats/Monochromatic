@@ -15,10 +15,10 @@
 //! const done: boolean = resetPaths(index, names, treeEntries, settings, timestampSeconds); // false: ask Git
 //! ```
 
-use super::index_full::{FullEntry, FullIndex, SKIP_WORKTREE};
-use super::index_settings::{IndexSettings, UntrackedMode};
-use super::index_stat::StatData;
-use super::repo_read_tree::{FlatEntry, MODE_GITLINK};
+use crate::index_full::{FullEntry, FullIndex, SKIP_WORKTREE};
+use crate::index_settings::{IndexSettings, UntrackedMode};
+use crate::index_stat::StatData;
+use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
 
 /// The mode a regular file with an executable bit gets in the index.
 const MODE_EXECUTABLE: u32 = 0o100_755;

@@ -11,9 +11,9 @@
 //! const out = writeUntracked(cache);
 //! ```
 
-use super::index_ewah::Ewah;
-use super::index_stat::{CACHE_STAT_LENGTH, StatData, be32, decode_varint, encode_varint};
-use super::index_untracked::{Untracked, UntrackedDir};
+use crate::index_ewah::Ewah;
+use crate::index_stat::{CACHE_STAT_LENGTH, StatData, be32, decode_varint, encode_varint};
+use crate::index_untracked::{Untracked, UntrackedDir};
 
 /// The deepest directory nesting the reader follows: the depth the tree reader follows (`TREE_DEPTH_LIMIT` in `repo_read_tree.rs`), as a directory of the cache cannot nest deeper than a tree.
 const DEPTH_LIMIT: usize = 256;

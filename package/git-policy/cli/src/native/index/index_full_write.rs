@@ -12,10 +12,10 @@
 //! const bytes = writeFullIndex(index, (data) => sha1(data)); // undefined: a name or size outside what the format holds
 //! ```
 
-use super::index_fsmonitor::write_fsmonitor;
-use super::index_full::{EXTENDED, FullEntry, FullIndex, INTENT_TO_ADD, SKIP_WORKTREE};
-use super::index_stat::encode_varint;
-use super::index_untracked_io::write_untracked;
+use crate::index_fsmonitor::write_fsmonitor;
+use crate::index_full::{EXTENDED, FullEntry, FullIndex, INTENT_TO_ADD, SKIP_WORKTREE};
+use crate::index_stat::encode_varint;
+use crate::index_untracked_io::write_untracked;
 
 /// The largest name length the flags hold; a longer name stores this value.
 const NAME_MASK: usize = 0x0fff;

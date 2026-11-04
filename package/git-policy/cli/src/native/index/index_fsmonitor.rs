@@ -11,8 +11,8 @@
 //! const { token, dirty } = readFsmonitor(bytes); const out = writeFsmonitor(token, dirtyPositions);
 //! ```
 
-use super::index_ewah::Ewah;
-use super::index_stat::be32;
+use crate::index_ewah::Ewah;
+use crate::index_stat::be32;
 
 /// The extension version Git writes, which carries the token as text.
 const VERSION_TEXT_TOKEN: u32 = 2;
