@@ -186,3 +186,11 @@ mod model_w1_r13;
 /// The controls of revision 13's W1 against publication.
 #[path = "model_w1_r13_tests.rs"]
 mod model_w1_r13_tests;
+
+/// Revision 13's register of waits with a clock, failing and stalling stages, and the one-deadline budget.
+#[path = "model_register_r13.rs"]
+mod model_register_r13;
+
+/// The controls of revision 13's register.
+#[path = "model_register_r13_tests.rs"]
+mod model_register_r13_tests;
