@@ -416,7 +416,10 @@ What the clients are told, because the single landing thread also answers every 
   that reads each connection sends a `waiting` message naming the write, again whenever the whole-minute count changes.
   The client prints it, and keeps it as the blocker its error names (`StillWithService`, and now `WithdrawalUnconfirmed`).
 - A `withdraw` for a request that is not in the group being landed is answered by the connection thread
-  (`withdrawn`, or `landed` when the journal says so) while the record shows a stuck write;
+  (`withdrawn`, or `landed` when a finished batch of the journal names it) while the record shows a stuck write;
+  a request that a batch still open names is left to the landing thread, because that batch may hold its commit on the branch
+  already (`a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_early`, found in review of this branch;
+  red before the fix);
   the request is remembered and dropped when its group would begin, under the same lock that marks a group as in flight.
   So a later commit ends at its own `ANSWER_CEILING` (20 minutes), not 10 minutes after it, and the error names the write.
 - The request inside the stuck write is not withdrawn that way:

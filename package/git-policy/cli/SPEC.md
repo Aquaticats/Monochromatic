@@ -1557,8 +1557,9 @@ What happens at the bound, on the commit path:
   `waiting` message naming it (the command, the repository, the branch and commit it moves, and the scratch ref that holds the
   commit until the update ends; a whole new minute count each minute) and the landing thread's record
   (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
-  not begun to land: the request is remembered, dropped when its group would begin, and answered `withdrawn` (or `landed`, when the
-  journal says it did), so a commit queued behind the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`, with
+  not begun to land: the request is remembered, dropped when its group would begin, and answered `withdrawn` (or `landed`, when a
+  finished batch of the journal names it; a request that a batch still open names is left to the landing thread, because that batch
+  may hold its commit on the branch already, and its client ends as the one inside the write does), so a commit queued behind the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`, with
   the write named in the error and the log and restart commands as the way out. A request of the group in flight is not withdrawn
   that way, because its commit may be made by the write: its client waits `WITHDRAW_CEILING` for the landing, then ends with the
   "not known whether the commit was made" failure, which names the write and says `git log -1` and `git status`. The

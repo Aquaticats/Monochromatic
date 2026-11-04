@@ -3,7 +3,7 @@
 //!  naming it". The write here waits for a release file instead of hanging for good, so every control ends in seconds and leaves
 //!  no process behind; the ceilings of the clients are seconds too.
 
-use super::tests::{World, request, world};
+use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
 use crate::service_client::{Activation, ClientConfig, Submitted, submit};
 use crate::service_messages::ClientFailure;
@@ -181,4 +181,23 @@ fn the_error_for_a_commit_behind_a_hung_write_names_the_way_out() {
     let failure: ClientFailure = ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("cli-git: the commit service has been inside a write for 21 minutes")) };
     let text: String = crate::service_messages::render(&failure);
     assert!(text.contains("21 minutes") && text.contains(crate::service_messages::RESTART_COMMAND) && text.contains(crate::service_messages::LOG_COMMAND), "{text}");
+}
+
+/// A request whose commit is on the branch but whose batch is still open (the index update did not install, so the batch waits for a
+/// restart to finish it) is never answered "withdrawn" by a connection thread, whatever the landing thread is stuck in: the landing
+/// thread knows the commit landed and answers "already" when the write returns. The finished batches are not enough to tell it:
+/// this one is open. A request that is neither in flight nor named by any batch is withdrawn, as the control that must move.
+#[test]
+fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_early() {
+    let world: World = world("service-hung-write-open-batch");
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
+    crate::service_busy::use_on_this_thread(std::sync::Arc::clone(&board));
+    assert!(board.begin_group(&[String::from("stuck")]).is_empty());
+    let _step = crate::service_busy::enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(Duration::from_millis(20));
+    assert_eq!(board.withdraw_early("landed"), crate::service_busy::EarlyAnswer::Queued, "its commit is on the branch");
+    assert!(matches!(board.withdraw_early("never-seen"), crate::service_busy::EarlyAnswer::Withdrawn(_)), "a request no batch names is withdrawn");
+    remove(world.root.as_path());
 }

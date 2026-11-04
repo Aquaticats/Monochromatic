@@ -19,7 +19,7 @@
 //! const answer = board.withdrawEarly(id);                                      // a connection thread
 //! ```
 
-use crate::service_journal::landed_commits;
+use crate::service_journal::{OPEN_EXTENSION, landed_commits, list_intents};
 use crate::service_messages::RESTART_COMMAND;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -158,6 +158,14 @@ impl LandingBoard {
         };
         // Read before the lock is taken again: a request that is not in flight cannot land while the thread is stuck.
         let landed: Option<String> = landed_commits(self.journal.as_path()).remove(id);
+        // A batch still open may hold the commit on the branch already (its index update did not install, and a restart finishes
+        // it), and only the landing thread knows which: it answers "already" when the write returns, so the withdrawal waits for it.
+        let named_by_open_batch: bool = list_intents(self.journal.as_path(), OPEN_EXTENSION)
+            .iter()
+            .any(|(_, intent)| { return intent.as_ref().is_some_and(|open| { return open.ids.iter().any(|named| { return named == id; }); }); });
+        if named_by_open_batch {
+            return EarlyAnswer::Queued;
+        }
         let mut state: MutexGuard<'_, State> = self.locked();
         if state.in_flight.contains(id) || state.step.is_none() {
             return EarlyAnswer::Queued;
