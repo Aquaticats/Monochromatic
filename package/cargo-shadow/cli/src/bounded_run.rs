@@ -120,7 +120,18 @@ pub(crate) const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 const READER_GRACE: Duration = Duration::from_secs(2);
 
 /// Makes the one-line notice of the weaker path appear once per process.
-static WEAKER_NOTICE: Once = Once::new();
+/// It is a flag that one caller wins with a swap, not a `Once`: a caller that loses returns at once, where `Once::call_once` would make
+/// it wait, with no deadline, for the winner's write to standard error (fifth certification pass, V6: no wait the runner controls may
+/// depend on another run's slow write).
+static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// A test holds this lock to keep the winner of the notice inside its emission, so that another run can show it does not wait for it.
+#[cfg(test)]
+pub(crate) static NOTICE_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Set when the winner of the notice reached its emission (a test build only).
+#[cfg(test)]
+pub(crate) static NOTICE_ENTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 thread_local! {
     /// The command the user ran,
@@ -682,7 +693,14 @@ fn contain() -> Containment {
     let weaker = |unavailable: GroupUnavailable| -> Containment {
         // The notice this run is given is part of the trace, so a test sees the notice of the run and not a text it formats itself.
         trace(|| { return format!("notice {}", weaker_notice(&unavailable)); });
-        WEAKER_NOTICE.call_once(|| { eprintln!("{}", weaker_notice(&unavailable)); });
+        if !WEAKER_NOTICE_GIVEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            #[cfg(test)]
+            {
+                NOTICE_ENTERED.store(true, std::sync::atomic::Ordering::SeqCst);
+                drop(NOTICE_GATE.lock());
+            }
+            eprintln!("{}", weaker_notice(&unavailable));
+        }
         return Containment::ProcessGroup;
     };
     return match find_route() {

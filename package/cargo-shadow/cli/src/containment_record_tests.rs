@@ -749,3 +749,51 @@ fn a_started_child_whose_process_group_was_never_recorded_is_a_possible_survivor
 
     assert!(note.is_some_and(|text| { return text.contains("never recorded"); }), "a recovery would restore files a child may still be writing");
 }
+
+/// The environment variable that tells the notice-concurrency helper process to run.
+const FIXTURE_NOTICE_RACE: &str = "CARGO_SHADOW_NOTICE_RACE_FIXTURE";
+
+/// The helper process of the notice-concurrency test (a fresh process, because the notice is given once per process): the first
+/// weaker-path run wins the notice and is held inside its emission; a second weaker-path run on another thread must complete while
+/// the winner is still held. Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_run_does_not_wait_for_another_runs_slow_notice"]
+fn notice_concurrency_fixture() {
+    use std::sync::atomic::Ordering;
+    if std::env::var(FIXTURE_NOTICE_RACE).is_err() {
+        return;
+    }
+    let plain = scratch();
+    let settings = RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() };
+    let gate = crate::bounded_run::NOTICE_GATE.lock().expect("the gate");
+    let first_settings = settings.clone();
+    let first = std::thread::spawn(move || {
+        use_route_settings_for_test(Some(first_settings));
+        return output_within(Command::new("sh").args(["-c", "echo first"]), None, &bound());
+    });
+    crate::cgroup_test_support::wait_until("the first run to be inside its notice", &|| { return crate::bounded_run::NOTICE_ENTERED.load(Ordering::SeqCst); });
+    let second = crate::round_sixteen_tests::answers_within("the second weaker-path run", Duration::from_secs(20), move || {
+        use_route_settings_for_test(Some(settings));
+        return output_within(Command::new("sh").args(["-c", "echo second"]), None, &bound());
+    });
+    assert!(second.is_ok_and(|output| { return output.status.success(); }), "the second run did not complete");
+    drop(gate);
+    assert!(first.join().expect("first thread").is_ok_and(|output| { return output.status.success(); }));
+}
+
+/// Acceptance rows V6 and "Weaker path" (fifth certification pass): the weaker-path notice, given once per process, does not make
+/// another run wait for the winner's slow write. A helper process holds the winner inside the emission and requires the second run to
+/// answer; the notice is on standard error exactly once.
+#[test]
+fn a_run_does_not_wait_for_another_runs_slow_notice() {
+    let output = Command::new(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "containment_record_tests::notice_concurrency_fixture", "--nocapture"])
+        .env(FIXTURE_NOTICE_RACE, "1")
+        .output()
+        .expect("the helper");
+
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "the helper failed: {stderr}");
+    let notices: usize = stderr.lines().filter(|line| { return line.starts_with("cargo-shadow: no delegated control group"); }).count();
+    assert_eq!(notices, 1, "the notice was not given exactly once: {stderr}");
+}
