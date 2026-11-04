@@ -185,6 +185,16 @@ used by both.
 Some need a closer look at the functions,
 for example the placement, reclaim and claim files of the `index.lock` hold, which may call each other in a cycle.
 
+## Oversized files
+
+The 37 files over the `rust/max-lines` limit overlap with the file loops
+(`transaction_git`, `service_land`, `child_watch`, the `index.lock` files, `bounded_push`, `service_work`).
+They are split now by the lint agents (branches `refactor/git-policy-cli-lint-*`, from `7663284896`),
+each given its folders' loop list so a split moves shared types into a file of their own and breaks a loop
+rather than adding one.
+The layout pass then renames and moves the resulting files;
+the scan reruns on the merged result before the owner sees the tree.
+
 ## Next
 
 Break the file loops with named changes,
