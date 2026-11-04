@@ -83,3 +83,15 @@ fn a_ready_helper_does_not_make_the_launch_succeed_while_the_intermediate_child_
     });
     assert_eq!(code, Some(0), "the launch left its intermediate child unreaped");
 }
+
+/// Review 11 section 3A: the cleanup of an intermediate child that does not leave ignored the results of `kill` and `waitpid`. A refused
+/// kill is a failed launch, never success, and the launcher accounts for the child it could not reap.
+#[test]
+fn a_refused_kill_of_the_intermediate_child_is_a_failed_launch() {
+    let code: Option<i32> = in_single_threaded_process(|| {
+        inject_launch_fault(Some(LaunchFault::KillRefused));
+        return launch_code(launch_detached(|| { return 0; }));
+    });
+    // 12 is `LaunchError::Wait`: the failed kill is reported.
+    assert_eq!(code, Some(12), "a launch whose cleanup could not kill the intermediate child did not report it");
+}

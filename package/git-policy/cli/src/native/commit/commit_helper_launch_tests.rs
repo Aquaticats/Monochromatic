@@ -75,6 +75,8 @@ pub fn launch_code<T>(result: Result<T, LaunchError>) -> i32 {
         Err(LaunchError::Threaded(_)) => 16,
         Err(LaunchError::ThreadsUnknown(_)) => 17,
         Err(LaunchError::LowDescriptor(_)) => 18,
+        Err(LaunchError::HandoverNotAcknowledged) => 19,
+        Err(LaunchError::IntermediateNotReaped) => 21,
     };
 }
 
@@ -267,4 +269,37 @@ fn a_fork_refused_by_the_process_limit_is_reported_as_refused() {
         return launch_code(launch_detached(|| { return 0; }));
     });
     assert_eq!(code, Some(10), "a refused fork is a Refused launch");
+}
+
+/// The number of descriptors this process holds, without the one the listing itself uses.
+fn open_descriptor_count() -> usize {
+    return open_descriptors().len();
+}
+
+/// Review 11 section 3B: with the standard descriptors closed and only enough descriptors left for the two pipes, moving the pipe ends
+/// above the standard streams fails with `EMFILE`. Every descriptor has an owner on that path, so the failed launch leaves none behind.
+#[test]
+fn a_launch_whose_descriptor_normalization_fails_leaks_no_descriptor() {
+    let code: Option<i32> = in_single_threaded_process(|| {
+        let mut original = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: `getrlimit` and `setrlimit` take a pointer to a live local `rlimit`; `close` takes plain integers.
+        let prepared: bool = unsafe {
+            libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut original) == 0
+                && libc::close(0) == 0
+                && libc::close(1) == 0
+                && libc::close(2) == 0
+                && libc::setrlimit(libc::RLIMIT_NOFILE, &libc::rlimit { rlim_cur: 4, rlim_max: original.rlim_max }) == 0
+        };
+        if !prepared {
+            return 99;
+        }
+        let launched: i32 = launch_code(launch_detached(|| { return 0; }));
+        // SAFETY: restores the limit read above.
+        unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &original) };
+        if launched != 10 {
+            return launched;
+        }
+        return if open_descriptor_count() == 0 { 0 } else { 41 };
+    });
+    assert_eq!(code, Some(0), "the failed normalization left descriptors open (41) or did not fail as a refusal (10 expected)");
 }

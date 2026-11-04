@@ -45,6 +45,10 @@ pub enum LaunchFault {
     Descriptors,
     /// The first child stalls (and is killed by its own alarm) after its second fork, before it exits.
     FirstChildHangs,
+    /// The helper waits only a short while for the handover byte.
+    ShortHandoverWait,
+    /// The first child stalls as with `FirstChildHangs`, and the kill that cleans it up is refused.
+    KillRefused,
 }
 
 #[cfg(feature = "test-seams")]
@@ -53,7 +57,7 @@ static FAULT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 /// Makes the next launches of this process (and of the children it forks) fail at `fault`; `None` clears it.
 #[cfg(feature = "test-seams")]
 pub fn inject_launch_fault(fault: Option<LaunchFault>) {
-    let code: u8 = match fault { None => 0, Some(LaunchFault::SecondFork) => 1, Some(LaunchFault::Streams) => 2, Some(LaunchFault::Descriptors) => 3, Some(LaunchFault::FirstChildHangs) => 4 };
+    let code: u8 = match fault { None => 0, Some(LaunchFault::SecondFork) => 1, Some(LaunchFault::Streams) => 2, Some(LaunchFault::Descriptors) => 3, Some(LaunchFault::FirstChildHangs) => 4, Some(LaunchFault::ShortHandoverWait) => 5, Some(LaunchFault::KillRefused) => 6 };
     FAULT.store(code, std::sync::atomic::Ordering::SeqCst);
 }
 
@@ -90,6 +94,10 @@ pub enum LaunchError {
     /// A descriptor the helper must keep is numbered 0, 1 or 2, where the helper's standard-stream setup would overwrite it; nothing was
     /// forked.
     LowDescriptor(libc::c_int),
+    /// The helper did not acknowledge the handover (it gave up waiting, or it is gone); it ran no entry, and the caller accounts for it.
+    HandoverNotAcknowledged,
+    /// The intermediate child could not be killed and reaped within the bound.
+    IntermediateNotReaped,
 }
 
 impl fmt::Display for LaunchError {
@@ -103,6 +111,8 @@ impl fmt::Display for LaunchError {
             LaunchError::LostBeforeReady => write!(formatter, "the helper was lost before it reported ready"),
             LaunchError::Threaded(count) => write!(formatter, "a helper was not forked because this process has {} threads and a fork would copy locks they may hold", count),
             LaunchError::ThreadsUnknown(error) => write!(formatter, "a helper was not forked because the thread count could not be read: {}", error),
+            LaunchError::HandoverNotAcknowledged => write!(formatter, "the helper did not acknowledge the handover and ran nothing"),
+            LaunchError::IntermediateNotReaped => write!(formatter, "the intermediate child of the launch could not be killed and reaped in time"),
             LaunchError::LowDescriptor(number) => write!(formatter, "a helper was not forked because descriptor {} is among the standard streams the helper redirects", number),
         };
     }
@@ -433,7 +443,7 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
                 libc::_exit(2);
             }
             if second > 0 {
-                if injected(4) {
+                if injected(4) || injected(6) {
                     libc::alarm(20);
                     loop {
                         libc::pause();
@@ -448,7 +458,7 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
             // SAFETY: `_exit` takes an integer and never returns.
             unsafe { libc::_exit(3) };
         }
-        await_handover(go_read, Instant::now() + LAUNCH_CONFIRM_LIMIT);
+        await_handover(go_read, Instant::now() + if injected(5) { Duration::from_millis(100) } else { LAUNCH_CONFIRM_LIMIT });
         let code: i32 = catch_unwind(AssertUnwindSafe(move || { return entry(holding); })).unwrap_or(PANICKED_EXIT);
         // SAFETY: the helper ends here without unwinding into the launcher's stack.
         unsafe { libc::_exit(code) };
@@ -459,7 +469,7 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
         libc::close(write_end);
         libc::close(go_read);
     }
-    let deadline: Instant = Instant::now() + if injected(4) { Duration::from_millis(200) } else { LAUNCH_CONFIRM_LIMIT };
+    let deadline: Instant = Instant::now() + if injected(4) || injected(6) { Duration::from_millis(200) } else { LAUNCH_CONFIRM_LIMIT };
     let outcome = read_report(read_end, deadline);
     super::commit_identity::fault_point("launch:after-report");
     // SAFETY: the read end is this call's own.
@@ -473,6 +483,7 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
         unsafe { libc::write(go_write, (&raw const go).cast::<libc::c_void>(), 1) };
     }
     // SAFETY: the handover write end is this call's own; closing it also tells a waiting helper that the launcher is gone.
+    super::commit_identity::fault_point("launch:after-handover");
     unsafe { libc::close(go_write) };
     let (byte, timed_out) = outcome?;
     let mut status: Option<libc::c_int> = reap_first_child(first, deadline)?;

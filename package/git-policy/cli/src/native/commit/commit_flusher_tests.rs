@@ -244,3 +244,35 @@ fn a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock() {
     assert_eq!(launched, Some(0));
     assert!(holds, "the helper's lock description was overwritten by its standard-stream setup");
 }
+
+/// Review 11 section 3B: `FlusherLock::try_acquire` opened the lock, took its raw descriptor and then failed to move it above the standard
+/// streams (`EMFILE`), and the descriptor had no owner. A failed acquisition leaves no descriptor open.
+#[test]
+fn a_lock_acquisition_whose_descriptor_move_fails_leaks_no_descriptor() {
+    let lane: PathBuf = lane_with("flusher-lock-emfile", &[]);
+    let lane_for_child: PathBuf = lane.clone();
+    let code: Option<i32> = in_single_threaded_process(move || {
+        let mut original = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: `getrlimit` and `setrlimit` take a pointer to a live local `rlimit`; `close` takes plain integers.
+        let prepared: bool = unsafe {
+            libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut original) == 0
+                && libc::close(0) == 0
+                && libc::close(1) == 0
+                && libc::close(2) == 0
+                && libc::setrlimit(libc::RLIMIT_NOFILE, &libc::rlimit { rlim_cur: 3, rlim_max: original.rlim_max }) == 0
+        };
+        if !prepared {
+            return 99;
+        }
+        let acquired = FlusherLock::try_acquire(&lane_for_child);
+        // SAFETY: restores the limit read above.
+        unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &original) };
+        if acquired.is_ok() {
+            return 40;
+        }
+        let open = std::fs::read_dir("/proc/self/fd").map_or(usize::MAX, |entries| { return entries.count(); });
+        // The listing holds one descriptor of its own.
+        return if open == 1 { 0 } else { 41 };
+    });
+    assert_eq!(code, Some(0), "the failed acquisition did not fail (40) or left a descriptor open (41)");
+}
