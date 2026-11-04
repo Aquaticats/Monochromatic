@@ -2,7 +2,8 @@
 //!  The controls of the capture models: a withdrawn request's base, the deferred merge install against later staging, and a lagging
 //!  file captured as the three-way merge. Each is red under revision 12 and green over every schedule under revision 13.
 //! Why:
-//!  Controls 13 and 14 of the twelfth review. The schedules are replayed as written, then the whole space is searched.
+//!  Controls 13 and 14 of the twelfth review and control 13 of the thirteenth. The schedules are replayed as written, then the whole space
+//!  of each model is searched; each green is a local lemma under the abstractions its module states, not closure of the subsystem.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

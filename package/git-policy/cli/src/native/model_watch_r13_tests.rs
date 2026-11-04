@@ -2,7 +2,7 @@
 //!  The controls of the late observers: `attach-watch` with a switch paused longer than the span, a switch that begins after the
 //!  install and the leftover test; and T1's registry comparison with a lost baseline, the probe and a non-atomic listing.
 //! Why:
-//!  Controls 15, 16 and 17 of the twelfth review. Each is red under revision 12 and green under 13; the revision 13 residue (a
+//!  Controls 15, 16 and 17 of the twelfth review and 17 and 18 of the thirteenth. Each is red under the earlier revision; the revision 13 residue (a
 //!  switch that finishes after the span leaves the merge's files in the new branch) is reached and is stated, not hidden.
 //!
 //! In TS you'd write (pseudocode):

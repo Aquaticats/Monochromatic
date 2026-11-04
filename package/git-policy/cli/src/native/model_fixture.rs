@@ -38,6 +38,9 @@ pub fn scratch(label: &str) -> PathBuf {
     return directory;
 }
 
+/// The longest the runner waits to reap a leader it has signalled.
+pub const TEARDOWN_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// The longest any process a fixture starts may run before it is killed ("nothing should ever wait forever or indefinitely").
 pub const PROCESS_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
 
@@ -73,8 +76,16 @@ pub fn run_bounded(command: &mut Command, limit: std::time::Duration) -> Result<
         // SAFETY: `kill` takes plain integers and has no memory preconditions.
         unsafe { libc::kill(-group, libc::SIGKILL); }
         let _ = leader.kill();
-        let _ = leader.wait();
-        return format!("the process timed out after {:?} and was killed with its descendants", limit);
+        // The reaping is bounded too: a process in an uninterruptible wait may not die, and the runner then says so instead of waiting.
+        let reap_deadline = std::time::Instant::now() + TEARDOWN_LIMIT;
+        loop {
+            match leader.try_wait() {
+                Ok(Some(_)) => return format!("the process timed out after {:?}; its process group was signalled and the leader was reaped", limit),
+                Ok(None) if std::time::Instant::now() < reap_deadline => std::thread::sleep(std::time::Duration::from_millis(5)),
+                Ok(None) => return format!("the process timed out after {:?}; its process group was signalled and the leader was not reaped within {:?}", limit, TEARDOWN_LIMIT),
+                Err(error) => return format!("the process timed out after {:?}; reaping it failed: {}", limit, error),
+            }
+        }
     };
     let status = loop {
         match child.try_wait().map_err(|error| { return error.to_string(); })? {

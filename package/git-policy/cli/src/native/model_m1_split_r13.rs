@@ -66,7 +66,7 @@ pub fn steps(state: &Lock) -> Vec<(String, Lock)> {
         after.creator_alive = false;
         push_step(&mut found, "environment: the creator dies with its lock file in place", after);
     }
-    if state.holder == Holder::Mine && !state.matched {
+    if state.holder == Holder::Mine && !state.matched && state.creator_alive {
         let mut after: Lock = state.clone();
         after.holder = Holder::Absent;
         push_step(&mut found, "environment: the creator's own release removes the lock", after);
@@ -74,7 +74,8 @@ pub fn steps(state: &Lock) -> Vec<(String, Lock)> {
     if state.holder != Holder::Foreign {
         let mut after: Lock = state.clone();
         after.holder = Holder::Foreign;
-        after.premise_broken = state.premise_broken || state.creator_alive;
+        // Only replacing a live creator's own lock breaks the premise; acquiring after a release or after the creator died does not.
+        after.premise_broken = state.premise_broken || (state.holder == Holder::Mine && state.creator_alive);
         push_step(&mut found, "environment: a foreign program replaces the file at the name", after);
     }
     if !state.matched && state.holder == Holder::Mine && (state.creator_alive || state.rules == Rules::Twelve) {

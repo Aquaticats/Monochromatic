@@ -8,7 +8,7 @@
 //!  between omitted a path that nobody would now commit; replaced a path the person staged during the install's lag with the merge
 //!  result; and captured a lagging file whole, reverting the merge's change. Revision 13 makes W1 wait for W2 and C1 refuse a base that
 //!  still holds a marked request, records `E` at publication so an entry that differs is left alone and reported as `later-staging`,
-//!  and captures the three-way merge. Each model is red under 12 and green under 13 over every interleaving of the person's edits.
+//!  and captures the three-way merge. Each model checks one local property under stated abstractions: the first three are single-transition lemmas (the document and the marks are read in one step, the line composition is stipulated, the staging ghost sees one overwrite); `Sampled` (revision 14) has C1's observations as separate steps; `Rules::Twelve` there is a deliberately broken variant, not a claim about what revision 12 executed.
 //!  The person's own staging and edits are environment steps; the protocol's steps never assume them.
 //!
 //! In TS you'd write (pseudocode):
