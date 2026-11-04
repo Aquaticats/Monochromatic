@@ -576,7 +576,10 @@ The search skips every candidate that resolves to the shadow,
 and every candidate that is a toolchain launcher whose record (`<launcher>.launch`, its `real` binary)
 names the shadow, directly or through further launchers, before it is run:
 the shadow does not start itself a second time.
-A loop guard bound to the process stays as the last stop for a link that leads back by some other means.
+A cargo-shadow that finds it was started by another cargo-shadow's own start of the real cargo (a script or launcher named `cargo`
+with no `.launch` record beside it that leads back) stops at once with exit status 2, before doing any work, and prints what happened,
+the chain, the PATH it saw, every `cargo` on it, and two fixes with lines that can be copied as printed: put the real cargo's folder
+first on PATH, or write the `.launch` record beside the launcher.
 
 Settings (`minimumReleaseAge`,
 `minimumReleaseAgeExclude`,
