@@ -226,11 +226,10 @@ classification is the author's until a review accepts it.
   `model_receipt_r18_tests.rs`. Not shown: the error path is now four observable phases (list, record, release,
   list again; a_receipt_that_joins_between_the_error_listing_and_the_release_is_recorded_by_the_second_listing
   shows the joiner), with one forcing error per run and one erroring flusher; a failure of the recording itself,
-  repeated errors and the real error file are not modeled here (the file is shown by the component tests); OPEN
-  FINDING: a record written after the last startup sweep while an owner runs waits for another owner's start,
-  which the default check names and excuses
-  (an_error_recorded_after_the_startup_sweep_waits_for_another_owner_unless_the_running_syncer_retries_it shows
-  it and the option that closes it).
+  repeated errors and the real error file are not modeled here (the file is shown by the component tests); a
+  record written after the last startup sweep while an owner runs is retried by that owner's syncer (coordinator
+  pick of round 15; a_running_owner_retries_an_error_recorded_after_its_startup_sweep, red for the control whose
+  syncer never retries).
 - Covered, control: worker error on the actual lane files (every receipt whose name is not forced is recorded,
   the joiner too, also one that joins after the listing):
   `a_receipt_that_joins_after_the_error_listing_is_recorded` in `commit_flusher_window_tests.rs`.
@@ -328,12 +327,14 @@ classification is the author's until a review accepts it.
   `model_discharge_r14_tests.rs`.
 - Narrower, control: mutable dependency (an existing ledger writer after capture):
   `r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger` in
-  `commit_state_log_tests.rs`. Not shown: saved content is sealed at capture and refused while any process holds
-  a writable descriptor
-  (r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_content_cannot_be_reopened),
-  asked of the kernel by a read lease, so it needs a file system and an owner that grant one (otherwise it fails
-  closed) and a privileged writer or a writable parent directory can still replace sealed content, which the
-  checksum name then detects and does not prevent.
+  `commit_state_log_tests.rs`. Not shown: saved content enters the store only through create_saved_content
+  (O_TMPFILE or a private 0700 staging directory, sealed 0444 before its name, linked without replace), and an
+  existing writable file is refused at capture
+  (r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_made_one_cannot_be_reopened_for_writing);
+  a read lease is an extra check where granted and never a refusal
+  (r15_a_file_system_that_refuses_read_leases_still_creates_and_checkpoints_saved_content); the premise is that
+  nobody with the lane's account chmods and rewrites sealed content, and a privileged writer or a writable
+  parent directory can still replace it, which the checksum name then detects and does not prevent.
 - Covered, property: maximum-generation conflicts are rejected:
   `two_documents_at_one_generation_are_a_conflict_not_a_root` in `commit_state_log_tests.rs`.
 - Narrower, property: damaged established roots fail closed:
@@ -553,25 +554,28 @@ its fix; where the red is a single-defect control of a model and not a failing r
   - Ranking: needs lines > non-reclaiming, because reclamation stays available with a checkable obligation;
     non-reclaiming > typed parse, because it is safe without trusting a caller. The owner or the design reviewer may
     prefer the second; switching is one change of `reclaims`.
-- 2B, content addressing detects and does not prevent. Red:
-  `r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_content_cannot_be_reopened`.
-  Green: capture and completion seal the file (no write permission) and ask the kernel for a read lease, which is
-  granted only when no process holds a writable descriptor; the check fails closed where no lease can be asked for.
-  Remains: a privileged writer or a writable parent directory can still replace sealed content, and a raw creator
-  that writes through a descriptor it opened before capture is refused only while that descriptor is open.
-  FLAGGED CHOICE, veto open: the lease check fails closed wherever `F_SETLEASE` is refused for a reason other than a
-  writer being open (NFS, CIFS, 9p, FUSE without lock support, a file the effective user does not own), so every
-  checkpoint with saved content then fails there. The owner's words on the neighbouring `flock` mechanism were
-  "Must work
-  perfectly even when flock isn't available. Do better." Options:
-  - Fail closed (built): prevention is certain where it works; con: no checkpoint with saved content on those file
-    systems, against "Commits should never fail."
-  - Degrade to detection only where leases are absent: the checksum name still detects a changed file at recovery; con:
-    prevention holds only where leases exist, and the remains must say so.
-  - Add "grants read leases" to the supported scope (the scope paragraph below does): con: it narrows the scope.
-  - Ranking: degrade to detection > fail closed, because the owner's rule favours working everywhere and the checksum
-    keeps detection; fail closed > scope narrowing alone, because it at least states the limit in code. I did not
-    switch; this is for the owner to veto.
+- 2B, content addressing detects and does not prevent. Red (first version, superseded by the coordinator pick below):
+  `r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_content_cannot_be_reopened`. Coordinator
+  pick under the owner's rule "Must work perfectly even when flock isn't available. Do better." (veto open to the
+  owner):
+  the protection may not depend on read leases, so immutability is enforced by the creator. Saved content enters
+  the store
+  only through `create_saved_content`, from bytes and never as an existing file: `O_TMPFILE` where the file system
+  supports it, else a random private name in the lane's 0700 `saved-staging` directory; written, forced, made 0444
+  before
+  it has its final name, linked in without replace, the directory chain forced to the lane, the only descriptor closed.
+  Capture and completion refuse an existing file with a write bit. The checksum name stays as detection. A read lease is
+  an extra check where the kernel grants it (a writer that is open is refused) and never a refusal.
+  Red first:
+  `r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_made_one_cannot_be_reopened_for_writing`
+  and `r15_a_file_system_that_refuses_read_leases_still_creates_and_checkpoints_saved_content`. Green coverage
+  written with
+  the code, not red first: `r15_saved_content_created_without_tmpfile_ends_sealed_and_leaves_no_staging_file` and
+  `r15_creating_saved_content_twice_replaces_nothing_and_a_writable_occupant_is_refused`.
+  Premise, stated next to the lane's other assumptions (the state log module header): the only way to write saved
+  content
+  afterwards is a deliberate chmod by the account that owns the lane. Remains: a privileged writer or a writable parent
+  directory can still replace sealed content, which the checksum name detects and does not prevent.
 - 2C, retirement and the authoritative ledger. Red:
   `r15_recovery_reaches_a_retirement_record_after_the_disposal_removed_the_content`
   (`Damaged`) and `r15_a_disposal_line_in_an_unrelated_prefix_file_does_not_discharge_saved_content`. Green: recovery
@@ -604,23 +608,14 @@ its fix; where the red is a single-defect control of a model and not a failing r
 - Item 1, the receipt error path is four observable phases (list, record, release, list again). Red by control:
   `EighteenErrorNoRelist` and `EighteenErrorIgnoresJoiners` in
   `a_receipt_that_joins_between_the_error_listing_and_the_release_is_recorded_by_the_second_listing`; the old
-  transition could not express the schedule. A new flag (`fresh_record`) records that an error written after the last
-  startup sweep waits for the next owner.
-- OPEN FINDING (design choice, not decided here): with the error path in phases, a receipt that joins a flusher in
-  its error path after the next owner already did its startup sweep is recorded in `receipt-errors`, and nothing
-  retries it
-  while that owner runs (its syncer wakes only on a ring); it waits for yet another owner's start. The submitted atomic
-  transition excluded the schedule. The model keeps the default check green by naming and excusing exactly this
-  (`fresh_record`), and
-  `an_error_recorded_after_the_startup_sweep_waits_for_another_owner_unless_the_running_syncer_retries_it`
-  shows it under the strict check and shows the option closing it. Options:
-  - The running owner's syncer also retries recorded errors (modeled as `EighteenSyncerRetriesErrors`, green under the
-    strict check): bounded extra work, no new lock; con: a retry loop to bound.
-  - Leave it to the next owner's start (the design text): nothing new; con: a receipt can stay unforced as long as one
-    owner lives.
-  - Ranking: the syncer retry > waiting, because the owner's "Force at leaving, else background" and "nothing
-    should ever
-    wait forever" both favour a retry at a bound. The worker-error map row says so.
+  transition could not express the schedule.
+- Found by the split, picked by the coordinator under the owner's rule "nothing should ever wait forever or
+  indefinitely" (veto open): a receipt that joins a flusher's error path after the next owner's startup sweep is
+  recorded,
+  and waiting for yet another owner's start can wait without end. The running owner's syncer therefore retries recorded
+  errors, and the final sweep enumerates them; this is the default rule, not an excused case.
+  `a_running_owner_retries_an_error_recorded_after_its_startup_sweep` is green for the rule and red for the control
+  `EighteenSyncerNeverRetries`. The first draft of this round carried a named excuse (`fresh_record`); it is gone.
 - Item 2, the fresh-attempt model. A: `a_settled_recovery_reconciles_a_notice_that_still_says_scheduled` (red under
   `SettledKeepsNotice`). B: `an_earlier_attempts_delivery_does_not_authorize_reclaiming_a_later_attempt` (red under
   `DeliveryIsRequestWide`). Delivery is the forced removal of the attempt's own final notice; print, remove and
@@ -645,34 +640,34 @@ that reason. The design file was not edited.
 
 ### Supported scope: paragraph for the design, not yet placed
 
-The design lives on `fix/git-policy-cli-commits-never-fail` in another worktree, so it was not edited from here. The
-paragraph the acceptance target's "Fix the supported Git, backend and filesystem scope" needs, without a new criterion:
+The design lives on `fix/git-policy-cli-commits-never-fail` in another worktree, so it was not edited from here; the
+coordinator places this text (coordinator picks under the owner's rules, veto open):
 
-> Supported scope for the acceptance target: Linux; Git 2.56.0; the files and reftable ref backends;
-  `update-ref --stdin`
-> with an update as the transaction invocation; a local file system that grants `flock`, directory fsync and read
-> leases. Excluded from the supported scope until a test shows them: packed refs, linked worktrees, the side-ref
-> transaction, creation, deletion and symbolic-ref updates through the transaction, other Git versions, the
-> manager-started transient unit launch route (only the double-forked fallback is built), a launch from a process with
-> more than one thread, memory-cap refusal of a launch, and level 2.
+> Supported scope for the acceptance target: Linux; the Git version the tests run on (pacman's current Git in the test
+> image, 2.56.0 when round 15 ran; an older Git only warns); the files and reftable ref backends; local file systems.
+> Packed refs, linked worktrees, the side-ref transaction, and the creation, deletion and symbolic-ref updates through
+> the transaction are supported, and each is an obligation to demonstrate with a disposable backend experiment before
+> the live protocol ships; until its test exists its row stays Narrower. Excluded from the supported scope: level 2 (off
+> by the owner's decision), a launch from a process with more than one thread (refused by design), a memory or process
+> cap (outside our control), and the manager-started transient unit launch route until it is built.
 
 ### Findings and limits for the reviewer (none adds a row)
 
 - The launch refusal of a threaded process means the real call sites must be single-threaded at the launch; no call site
   exists yet, so this is shown on test copies of a process only.
 - `r15_` in test names is the round number and is unrelated to design revision 15 (`model_submission_r15`).
-- `a_fork_refused_by_the_process_limit_is_reported_as_refused` returns early when run as root, because
-  `RLIMIT_NPROC` does
-  not bind a process with `CAP_SYS_RESOURCE`; run it as the unprivileged user (the host does).
+- `a_fork_refused_by_the_process_limit_is_reported_as_refused` returns early when run as root, because `RLIMIT_NPROC`
+  does not bind a process with `CAP_SYS_RESOURCE`; run it as the unprivileged user (the host does).
 - The `cli-git-service` processes on the host are the shipped wrapper's own services started by commits, not helpers of
   these tests.
 - The model-level reds for items 9b 1 and 2 are single-defect controls, not failing replays of the submitted model.
-- Contradictions with the design: the design still says R-never in its choices list (the coordinator amends
-  revision 19);
-  the lease requirement of 2B and the receipt retry gap above are choices the design does not settle; the supported
-  scope now needs "a file system that grants read leases" unless the owner picks detection-only.
+- The needs-line grammar binds a document's declared dependencies; a writer that omits a needs line for something its
+  document depends on is still accepted (the non-reclaiming alternative is ranked above).
+- Contradictions with the design: the design still says R-never in its choices list (the coordinator amends revision
+  19); the design's "supported scope" had no text, now supplied above; the receipt retry by the running syncer is a
+  coordinator pick the design text (retry at the next owner's start) does not state.
 
-Gates at the tip: the full `native:test:model` run is 440 passed, 0 failed
+Gates at the tip: the full `native:test:model` run is 442 passed, 0 failed
 (`/var/home/user/temp/agent/r15/full-model.log`); `native:clippy` and `native:clippy:seams` are clean
 (`/var/home/user/temp/agent/r15/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has
