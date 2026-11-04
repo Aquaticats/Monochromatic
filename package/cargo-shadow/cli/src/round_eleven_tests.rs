@@ -325,6 +325,17 @@ fn assert_entry_points_refuse_for_a_member(root: &Path, journal: &Path, label: &
     assert_eq!(journal_dirs(root).len(), 1, "{label}: the refused admission left a journal behind");
 }
 
+/// The real recovery and admission hold an uncertainty the launcher record cannot settle: the recovery says how to acknowledge, nothing
+/// is restored, the journal stays, and a new transaction is not admitted (sixth pass, group 3).
+fn assert_entry_points_hold_for_uncertainty(root: &Path, journal: &Path, label: &str) {
+    let messages: Vec<String> = recover(root, &refusing);
+    assert!(messages.iter().any(|message| { return message.contains("cargo-shadow acknowledge"); }), "{label}: the recovery did not name the way out: {messages:?}");
+    assert_eq!(live_lock(root), LEFT_BY_THE_KILLED_RUN, "{label}: a recovery went ahead on an uncertain launcher: {messages:?}");
+    assert!(journal.exists(), "{label}: the journal was removed on an uncertain launcher");
+    assert!(begin(root, &[snapshot("original")], false).is_err(), "{label}: a transaction was admitted on an uncertain launcher");
+    assert_eq!(journal_dirs(root).len(), 1, "{label}: the refused admission left a journal behind");
+}
+
 /// Acceptance rows A1, V2 (round 11): what the launcher record cannot prove still waits for an acknowledgement:
 /// another process id namespace, a missing launcher record (a journal of an older version), a launcher record that names no scope of
 /// the journal, and a launcher record that is not understood.
@@ -354,8 +365,13 @@ fn what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement() {
         let journal: PathBuf = journal_with_records(root.path(), &records);
         let blocked: Option<String> = survivor_note(&journal);
         assert!(blocked.as_ref().is_some_and(|text| { return text.contains("cargo-shadow acknowledge"); }), "{label}: not refused with the way out: {blocked:?}");
+        // Sixth pass, group 3: the real recovery and admission hold the same uncertainty, then the acknowledgement lets the recovery settle.
+        assert_entry_points_hold_for_uncertainty(root.path(), &journal, label);
         acknowledge(&journal).expect("acknowledges");
         assert_eq!(survivor_note(&journal), None, "{label}: the acknowledgement did not clear it");
+        let settled: Vec<String> = recover(root.path(), &refusing);
+        assert_eq!(live_lock(root.path()), "original", "{label}: the acknowledged journal was not settled by the recovery: {settled:?}");
+        assert!(!journal.exists(), "{label}: the settled journal was not removed");
     }
 }
 
