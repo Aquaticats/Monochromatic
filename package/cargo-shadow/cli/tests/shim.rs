@@ -356,7 +356,7 @@ fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
     std::fs::create_dir_all(&directory).expect("make the launcher directory");
     let count: PathBuf = directory.join("count");
     let script: String = format!(
-        "#!/bin/sh\nn=$(cat '{count}' 2>/dev/null || echo 0)\necho $((n + 1)) > '{count}'\ndepth=$((${{LAUNCHER_DEPTH:-0}} + 1))\nif [ \"$depth\" -gt 3 ]; then echo 'launcher nested too deep' >&2; exit 99; fi\nexport LAUNCHER_DEPTH=$depth\nexec '{shadow}' \"$@\"\n",
+        "#!/bin/sh\necho run >> '{count}'\ndepth=$((${{LAUNCHER_DEPTH:-0}} + 1))\nif [ \"$depth\" -gt 3 ]; then echo 'launcher nested too deep' >&2; exit 99; fi\nexport LAUNCHER_DEPTH=$depth\nexec '{shadow}' \"$@\"\n",
         count = count.display(),
         shadow = world.shadow_directory.join("cargo").display()
     );
@@ -389,7 +389,7 @@ fn output_within(command: &mut Command, seconds: u64) -> Option<Output> {
 }
 
 #[test]
-fn a_launcher_that_leads_back_to_the_shadow_is_skipped_by_the_install_step_and_the_command() {
+fn a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs() {
     let world = make_world();
     write_lock(&world, STALE);
     let (launcher_directory, count) = write_launcher(&world);
@@ -407,8 +407,11 @@ fn a_launcher_that_leads_back_to_the_shadow_is_skipped_by_the_install_step_and_t
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(read_lock(&world), SATISFIED);
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
-    let runs: u32 = std::fs::read_to_string(&count).unwrap_or_default().trim().parse().unwrap_or(0);
-    assert!(runs <= 6, "the launcher ran {runs} times: the install step must not lead back into the shadow");
+    // This launcher has no `.launch` record, so the PATH search cannot know it leads back; the process-bound guard is what ends the
+    // chain, and the append-only counter (a shell builtin, so PATH does not matter) shows it ended within a bounded number of runs.
+    // The skipping of a launcher with a record is `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`.
+    let runs: usize = std::fs::read_to_string(&count).unwrap_or_default().lines().count();
+    assert!((1..=6).contains(&runs), "the launcher ran {runs} times: the guard did not end the chain within a bounded number of runs");
 }
 
 /// Review finding (recursion guard kind):

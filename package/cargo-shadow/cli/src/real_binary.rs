@@ -98,6 +98,9 @@ fn is_executable_file(path: &Path) -> bool {
 /// export function findInPath(name: string, pathVariable: string, skip: string[]): string | undefined
 /// ```
 pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf> {
+    // The skipped executables by file identity: a hard link to the shadow resolves to another pathname than the shadow's own and is
+    // still the same file, so the pathname alone cannot tell it (certification, third pass).
+    let skipped: Vec<(u64, u64)> = skip.iter().filter_map(|path| { return identity_of(path); }).collect();
     for directory in path_variable.split(':') {
         // An empty PATH entry means the current directory in a shell; the shadow ignores it on purpose.
         if directory.is_empty() {
@@ -111,8 +114,11 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
         // `fs::canonicalize(&candidate)` resolves every symlink to the final path, so every link to the shadow
         // resolves to the one executable and is recognized under whatever name it was found. The `&&` joins two
         // conditions inside one `if let`.
+        if identity_of(&candidate).is_some_and(|found| { return skipped.contains(&found); }) {
+            continue;
+        }
         if let Ok(resolved) = fs::canonicalize(&candidate)
-            && (skip.contains(&resolved) || leads_back_to(&resolved, skip))
+            && (skip.contains(&resolved) || leads_back_to(&resolved, skip, &skipped))
         {
             continue;
         }
@@ -131,6 +137,21 @@ const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 const MAX_LAUNCHER_HOPS: usize = 8;
 
 /// What:
+/// `fn identity_of(path: &Path) -> Option<(u64, u64)>` is the device and inode of the file a path names, through links.
+/// Why:
+/// Two names of one executable (hard links) have different resolved pathnames and one identity; `None` for a path that cannot be
+/// examined, which then matches nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function identityOf(path: string): [bigint, bigint] | undefined { const s = statSync(path, { bigint: true, throwIfNoEntry: false }); return s && [s.dev, s.ino]; }
+/// ```
+fn identity_of(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    return fs::metadata(path).ok().map(|found| { return (found.dev(), found.ino()); });
+}
+
+/// What:
 /// `fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool` says whether a PATH candidate is a launcher whose record names a
 /// binary that is one of the skipped paths, directly or through further launchers.
 /// Why:
@@ -143,7 +164,7 @@ const MAX_LAUNCHER_HOPS: usize = 8;
 /// ```ts
 /// function leadsBackTo(resolved: string, skip: string[]): boolean
 /// ```
-fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool {
+fn leads_back_to(resolved: &Path, skip: &[PathBuf], skipped: &[(u64, u64)]) -> bool {
     let mut current: PathBuf = resolved.to_path_buf();
     for _hop in 0..MAX_LAUNCHER_HOPS {
         let mut record_name: std::ffi::OsString = current.as_os_str().to_os_string();
@@ -157,7 +178,7 @@ fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool {
         let Ok(target) = fs::canonicalize(&real) else {
             return false;
         };
-        if skip.contains(&target) {
+        if skip.contains(&target) || identity_of(&target).is_some_and(|found| { return skipped.contains(&found); }) {
             return true;
         }
         current = target;
