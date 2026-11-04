@@ -969,6 +969,9 @@ fn a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile was rolled back under a writer that may still write it");
     let journals = crate::journal_support::journal_dirs(root.path());
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    // Kept unfinished (fifth certification pass): a journal that was marked done would be read by the next recovery as a completed
+    // transaction although writers may remain.
+    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done under writers that may remain: {journals:?}");
 }
 
 /// Round 7 (6c R1):
@@ -1190,6 +1193,7 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     }
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile cargo wrote was rolled back or replaced");
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done although the run could not show quiescence: {journals:?}");
     let log: Vec<String> = calls.lock().expect("the call log").clone();
     assert!(log.last().is_some_and(|last| { return last.starts_with("update") && !last.contains("--locked"); }), "something ran after the run that could not be stopped: {log:?}");
 }
