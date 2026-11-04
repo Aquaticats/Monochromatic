@@ -1688,3 +1688,11 @@ pub mod commit_spool;
 /// Pure tree comparison and captured-delta replay over flattened trees.
 #[cfg(target_os = "linux")]
 pub mod commit_replay;
+
+/// The lane's state document as a double-buffered pair of files (rule V, revision 12; unused by the live protocol).
+#[cfg(target_os = "linux")]
+pub mod commit_state;
+
+/// A request as one checksummed file in `inbox/`, the departure barrier and the content-hash identity (rule V, revision 12).
+#[cfg(target_os = "linux")]
+pub mod commit_inbox;
