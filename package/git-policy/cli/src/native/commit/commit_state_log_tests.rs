@@ -657,7 +657,7 @@ fn r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its
     writer.append_with(3, b"later", std::slice::from_ref(&request)).expect("append that keeps the item");
     assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "after a later append that keeps the items");
     let forged_hash: Prefix = Prefix { hash: "0".repeat(64), ..promised.clone() };
-    assert!(git_policy_cli::commit_state_log::state_covers(&state, &forged_hash).expect("readable"), "a successor that carries every item covers the same promise");
+    assert!(!git_policy_cli::commit_state_log::state_covers(&state, &forged_hash).expect("readable"), "a record the successor does not descend from is not coverage, whatever items it carries");
     // A substitute root that dropped the request: a second lane directory standing in for a verified-substitution failure.
     let other_lane: PathBuf = scratch("r14-ack-substitute");
     let other_state: PathBuf = other_lane.join("state");
@@ -803,4 +803,24 @@ fn r15_saved_content_with_a_surviving_writable_descriptor_is_refused_and_sealed_
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.checkpoint(2, b"retains s", std::slice::from_ref(&content)).expect("checkpoint");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+}
+
+/// Review 9a section 2E: the acknowledged state D retained S. A different document E at a higher generation retained the same S, and
+/// `still_covers` accepted it because the items were included. Keeping the same dependency bytes does not show that E descends from D:
+/// the replacement authority names the hashes of the records it replaces, and coverage across segments needs the promised record among them.
+#[test]
+fn r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment() {
+    let (lane, state, envelope) = lane_with_envelope("r15-succession");
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.append_with(2, b"d adopts the request", std::slice::from_ref(&request)).expect("append d");
+    let promised: Prefix = sync_prefix(&state).expect("d is acknowledged");
+    let unrelated: PathBuf = lane.join("state-of-another-history");
+    std::fs::create_dir(&unrelated).expect("another state directory in the same lane");
+    StateWriter::acquire(&unrelated).expect("writer").checkpoint(9, b"e is another document", std::slice::from_ref(&request)).expect("checkpoint e");
+    assert!(!git_policy_cli::commit_state_log::state_covers(&unrelated, &promised).expect("readable"), "an unrelated document with the same items was taken for the acknowledged state");
+    writer.checkpoint(3, b"d, replayed", std::slice::from_ref(&request)).expect("the real successor replaces the segment");
+    assert!(!state.join("state.log.1").exists(), "the acknowledged record's segment was reclaimed");
+    assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "the checkpoint that replaced the acknowledged record covers it");
 }
