@@ -1794,3 +1794,30 @@ only); the person's disposal command; crash injection inside the replacement roo
 
 Gates: `native:test:model` 577 passed, 0 failed (4 leaky, the same stalled children); both clippy tasks clean; `source_guard` 39 of 39
 (`/var/home/user/temp/agent/r24/`).
+
+## Round 26: plan step 3, the cutover fence and the service side behind a switch (2026-11-04)
+
+Built on the models branch, nothing reachable from `git commit`:
+- The fence (owner decision 23): the new protocol's lock is `flusher.v2.lock`; `flusher.lock` is `LEGACY_FLUSHER_LOCK`, taken only by a test
+  seam (`hold_legacy_lock`) and by the legacy-probe seam. The two window controls of review 14 that lost a receipt to an old probe are now
+  fenced (an old probe cannot make a new helper lose, and cannot take a recheck's handover); the old clients' own loss (probe against probe)
+  stays as a negative control outside this protocol. Old and new flushers overlap harmlessly.
+- The service side, behind `--lane <dir>` (and `--lane-interval-millis`) of `cli-git-service`: the doorbell (an abstract datagram socket named
+  by the lane), the startup sweep, and a loop that runs the syncer's pass on a ring and at least once per `SYNC_INTERVAL` (the service
+  start ceiling, one minute; a pick, veto open). The periodic pass is the failure owner of a unit that died after its execution. The switch
+  is the flag: the shipped unit files do not pass it, so the shipped service touches no lane; a test starts the real binary without it and
+  shows that. Tests on the real binary: startup sweep, periodic pass (readiness read from the startup sweep, not from a ring), ring, the
+  client step's real ring (`ring_running_service`).
+- The nonce control forces a clock collision (`inject_frozen_clock`); with the random source removed it goes red. The `is_absolute` removal
+  was rerun after a relative-path control was added, and is red.
+- Guard removals: `mutations-step3.log`, `mutations-step3b.log` (nonce, lane path, startup sweep, periodic pass, ring, lock name).
+
+What the rest of the leftovers belong to:
+- the person's disposal command: plan step 6 (the commands and notices; the authorization has one constructor and its caller is the command);
+- crash injection inside the replacement root's own steps (the candidate written, forced, named, established, the predecessor removed):
+  plan step 4 (recovery and preservation, "crash injection at every step");
+- successive replacements of the segment in the capture model: plan step 4 as well (preservation); the component test of two seals exists;
+- `WAIT_DRAIN`: when a step makes the service handle a drain request, measure it on that real path with a person's hook; if no workload bounds
+  it, it is an owner question with options, not a constant.
+
+Rows: the cutover obligation is Narrower now (66 covered, 20 narrower, 9 historical, 13 not yet).
