@@ -650,35 +650,24 @@ fn remove_placeholder(lock_path: &Path, keep_dir: &Path) {
             false
         }
     };
-    if is_placeholder {
-        // Typed binding: `keep: crate::journal::KeepAs`.
-        let keep: crate::journal::KeepAs = crate::journal::KeepAs::in_directory(keep_dir, ".placeholder");
-        // `match`: picks the arm whose pattern fits the value.
-        // Borrow `&taken`: lends the value without copying or giving it away.
-        match crate::journal_replace::keep_name(&taken, lock_path, &keep) {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            Ok(_) => {
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
-                // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-                // Borrow `&taken`: lends the value without copying or giving it away.
-                if let Err(error) = std::fs::remove_file(&taken) {
-                    // Macro `eprintln!`: builds or prints text (or a list) from a template.
-                    eprintln!("cargo-shadow: warning: the stand-in {} could not be removed: {error}", taken.display());
-                }
+    // One rule for both branches (review finding 4c F3): the taken inode gets a surviving name in the kept directory before its
+    // taken name is removed; linking it back to the live path is not a preservation name, because the path is writable by others.
+    let keep: crate::journal::KeepAs = crate::journal::KeepAs::in_directory(keep_dir, if is_placeholder { ".placeholder" } else { ".lockfile" });
+    let kept = match crate::journal_replace::keep_name(&taken, lock_path, &keep) {
+        Ok(found) => found,
+        Err(error) => {
+            eprintln!("cargo-shadow: warning: the lockfile taken from {} is kept as {} because it could not be given a kept name ({error})", lock_path.display(), taken.display());
+            if !is_placeholder {
+                let _ = std::fs::hard_link(&taken, lock_path);
             }
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `eprintln!`: builds or prints text (or a list) from a template.
-            Err(error) => eprintln!("cargo-shadow: warning: the stand-in is kept as {} ({error})", taken.display()),
+            return;
         }
-        return;
+    };
+    if !is_placeholder && let Err(error) = std::fs::hard_link(&taken, lock_path) {
+        eprintln!("cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})", kept.display());
     }
-    match std::fs::hard_link(&taken, lock_path) {
-        Ok(()) => {
-            if let Err(error) = std::fs::remove_file(&taken) {
-                eprintln!("cargo-shadow: warning: {} could not be removed after it was put back: {error}", taken.display());
-            }
-        }
-        Err(error) => eprintln!("cargo-shadow: warning: a lockfile written during the run is kept as {} ({error})", taken.display()),
+    if let Err(error) = std::fs::remove_file(&taken) {
+        eprintln!("cargo-shadow: warning: {} could not be removed after it was kept as {}: {error}", taken.display(), kept.display());
     }
 }
 

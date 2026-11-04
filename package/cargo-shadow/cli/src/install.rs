@@ -821,13 +821,19 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     }
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // `.map_err(...)`: converts the callee's error into this function's error type.
-    transaction.finish().map_err(io_error)?;
+    // Review finding (4c F1): a finish error never replaces an established refusal (or any other result): it is reported beside it,
+    // and the journal stays for the next recovery to settle.
+    let finish_warning: Option<String> = transaction.finish().err().map(|error| { return format!("the transaction journal could not be completed ({error}); the next run settles it"); });
+    if let Some(warning) = &finish_warning {
+        eprintln!("cargo-shadow: warning: {warning}");
+    }
     // Closure `|mut report|`: an anonymous function, like a TS arrow function.
     // Adapter `.map(`: transforms or selects items with a closure.
     return match outcome {
         Ok(mut report) => {
             report.warnings.extend(recovered);
             report.warnings.extend(restore_warnings);
+            report.warnings.extend(finish_warning);
             Ok(report)
         }
         Err(error) => Err(error),
