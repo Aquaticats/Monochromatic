@@ -347,7 +347,7 @@ fn bind_substitution_fixture() {
     let root: PathBuf = PathBuf::from(root_text);
     let journal: PathBuf = crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal");
     let groups: String = fs::read_to_string(journal.join("groups")).expect("the records");
-    let mut slice_dir: Option<PathBuf> = None;
+    let mut recorded_slice: Option<PathBuf> = None;
     let mut rewritten: String = String::new();
     for line in groups.lines() {
         match crate::control_group::parse_record(line) {
@@ -355,7 +355,7 @@ fn bind_substitution_fixture() {
                 let parent: PathBuf = path.parent().expect("a parent").to_path_buf();
                 let here: crate::control_group::View = view_of(&parent).expect("the view of the parent here");
                 rewritten.push_str(&format!("{}\n", crate::control_group::Record::Scope { namespace, parent_view: here, path }));
-                slice_dir = Some(parent);
+                recorded_slice = Some(parent);
             }
             _ => rewritten.push_str(&format!("{line}\n")),
         }
@@ -366,7 +366,7 @@ fn bind_substitution_fixture() {
     fs::write(journal.join("view"), format!("view {}\n{rest}", view_of(&journal).expect("views"))).expect("rewrite the view");
 
     let baseline: Option<String> = crate::journal_recover::survivor_note(&journal);
-    let slice_dir: PathBuf = slice_dir.expect("a scope record");
+    let slice_dir: PathBuf = recorded_slice.expect("a scope record");
     let substitute: PathBuf = slice_dir.parent().expect("a directory above the slice").to_path_buf();
     mount_in_namespace(&["--bind", &substitute.display().to_string(), &slice_dir.display().to_string()]);
     let substituted: Option<String> = crate::journal_recover::survivor_note(&journal);

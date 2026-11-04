@@ -352,12 +352,12 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
             if boot_text.replace(found.to_string()).is_some() {
                 return None;
             }
-        } else if let Some(found) = line.strip_prefix("machine ") {
+        } else {
+            // Any line that is neither a boot nor a machine line makes the record unusable.
+            let found: &str = line.strip_prefix("machine ")?;
             if machine_text.replace(found.to_string()).is_some() {
                 return None;
             }
-        } else {
-            return None;
         }
     }
     let identity: Identity = Identity { boot: boot_text?, machine: machine_text? };

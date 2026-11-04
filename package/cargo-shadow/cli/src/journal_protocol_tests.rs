@@ -1220,8 +1220,8 @@ fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_na
         let path = root.path().join(CRATE_DIR).join("Cargo.lock");
         let displaced: u64 = fs::metadata(&path).expect("examines").ino();
 
-        let (outcome, replacement) = replace_capturing(&path, &KeepAs::next_to_target(".displaced"), link, sync_file, sync_dir);
-        let replacement: u64 = replacement.unwrap_or_else(|| { panic!("{label}: the exchange was never reached, so the replacement inode was not captured"); });
+        let (outcome, captured) = replace_capturing(&path, &KeepAs::next_to_target(".displaced"), link, sync_file, sync_dir);
+        let replacement: u64 = captured.unwrap_or_else(|| { panic!("{label}: the exchange was never reached, so the replacement inode was not captured"); });
 
         // Every link failing is an outcome (the file stays under its temporary name and the path is returned); a failing barrier is an error.
         let message: String = match outcome {
