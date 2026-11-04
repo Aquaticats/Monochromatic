@@ -908,3 +908,42 @@ fn r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_docu
     writer.checkpoint(2, b"declares nothing", &[request, content, whole]).expect("the closure that holds everything the lane holds is accepted");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2);
 }
+
+/// Review 9a section 2E: the acknowledged state D retained S. A different document E at a higher generation retained the same S, and
+/// `still_covers` accepted it because the items were included. Keeping the same dependency bytes does not show that E descends from D:
+/// the replacement authority names the hashes of the records it replaces, and coverage across segments needs the promised record among them.
+/// (Restored in round 16: an edit of round 15 had cut this test out of the file while the commit that added it was green.)
+#[test]
+fn r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment() {
+    let (lane, state, envelope) = lane_with_envelope("r15-succession");
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.append_with(2, b"d adopts the request", std::slice::from_ref(&request)).expect("append d");
+    let promised: Prefix = sync_prefix(&state).expect("d is acknowledged");
+    let unrelated: PathBuf = lane.join("state-of-another-history");
+    std::fs::create_dir(&unrelated).expect("another state directory in the same lane");
+    StateWriter::acquire(&unrelated).expect("writer").checkpoint(9, b"e is another document", std::slice::from_ref(&request)).expect("checkpoint e");
+    assert!(!git_policy_cli::commit_state_log::state_covers(&unrelated, &promised).expect("readable"), "an unrelated document with the same items was taken for the acknowledged state");
+    writer.checkpoint(2, b"d adopts the request", std::slice::from_ref(&request)).expect("the compaction of the head replaces the segment");
+    assert!(!state.join("state.log.1").exists(), "the acknowledged record's segment was reclaimed");
+    assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "the checkpoint that replaced the acknowledged record covers it");
+}
+
+/// Review 10a section 2E: the recorded ancestry was automatic, so any checkpoint that the writer began after D named D in its lineage. D was
+/// acknowledged retaining S; the writer then checkpointed an unrelated document E at a higher generation that retains S and omits what D
+/// promised, and `state_covers` said yes. A checked covering relation: across segments only a compaction of the head covers (the
+/// checkpoint holds the head's document at the head's generation, so it replays the chain the acknowledgment is part of); a checkpoint
+/// that changes the document records no lineage and covers nothing.
+#[test]
+fn r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowledgment() {
+    let (lane, state, envelope) = lane_with_envelope("r16-checked-covering");
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.append_with(2, b"d adopts the request", std::slice::from_ref(&request)).expect("append d");
+    let promised: Prefix = sync_prefix(&state).expect("d is acknowledged");
+    writer.checkpoint(3, b"e is another document that retains the same request", std::slice::from_ref(&request)).expect("checkpoint e");
+    assert!(!state.join("state.log.1").exists(), "the acknowledged record's segment was reclaimed");
+    assert!(!git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "a checkpoint that changed the document covered the acknowledgment");
+}
