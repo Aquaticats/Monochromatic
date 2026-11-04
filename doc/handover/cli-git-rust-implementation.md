@@ -159,7 +159,19 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   tip `07076dc23b`,
   host suite 4874/4874) re-gated without the link:
   unit `gpc-gate-branch-write-round4-no-cargo-link-20261104T160436-0500`;
-  review `~/temp/agent/reviews/branch-write-r4-sol.txt` running.
+  review `~/temp/agent/reviews/branch-write-r4-sol.txt` returned "correct after named fixes" (B,
+  the side-ref reflog proof,
+  still lacks a valid safety proof).
+  That gate failed 4873/4874:
+  `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  with `thread 'cli-git-durable' ... panicked at library/std/src/thread/scoped.rs:206:46: failed to spawn thread: ... Resource temporarily unavailable`
+  and the same panic on `main`;
+  the test passed on the round 3 and startup-wake gates.
+  Sent to the branch-write agent first,
+  before the review fixes,
+  on its round 5 branch (`fix/git-policy-cli-side-ref-proof-round5`,
+  worktree `~/temp/agent/branch-write-round5`);
+  round 4 and round 5 merge together once that gate passes.
   Owner decision on the earlier single service,
   2026-11-04 (question tool):
   "A: fail, retry (Recommended)",
