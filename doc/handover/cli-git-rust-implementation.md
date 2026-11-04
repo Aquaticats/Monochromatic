@@ -47,7 +47,22 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-0.5.28:
+None.
+0.5.28 was published to crates.io at 2026-11-04T03:09:07Z (publish run 41764751088,
+built from `7b41c215ec`) and installed by `upgrade-wrapper.ts 0.5.28`
+(`git --version`:
+"monochromatic-git-policy-cli 0.5.28,
+shadowing git at /usr/bin/git").
+Its lock commit on main took 1743 ms in all,
+1140 ms of it provisioning the new service (the 0.5.27 service refused the protocol-7 request line,
+then retired after its batch);
+the 0.5.28 service's landing took 44 ms (`lock_hold_ms=25`,
+`sync_ms=22`).
+`sync_ms` is not a disk sync:
+it times removing the conclusion state and building and installing the new index (`service_timing.rs:84`);
+queued:
+rename it by its role.
+History of the 0.5.28 release:
 base gate `gpc-gate-base-0-5-28-final-20261103T214518-0500` passed 4706 of 4706 (7 skipped) on `d9e8907ae8`;
 the base was merged into main as `920fdce60d` (2026-11-03T21:57:04-05:00,
 body `Closes #6260`);
