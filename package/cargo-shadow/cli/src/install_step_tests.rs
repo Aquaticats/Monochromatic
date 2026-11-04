@@ -828,8 +828,14 @@ fn a_refusal_survives_a_journal_that_cannot_be_finished() {
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
 
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(matches!(outcome, StepOutcome::Refused(_)), "the refusal was replaced: {outcome:?}");
+    // Certification, second pass (A3, A4): the fault was reached, and the refusal carries both the policy diagnostic and the failure of
+    // the output barrier; an earlier error that hid the mandatory failure, or a finish that was skipped, would show only one.
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::FinishDurability), "the output barrier of the finish was never reached");
+    let StepOutcome::Refused(message) = &outcome else {
+        panic!("the refusal was replaced: {outcome:?}");
+    };
+    assert!(message.contains("could not be forced to disk (injected durability failure)"), "the failure of the output barrier is hidden behind the refusal: {message}");
+    assert!(message.contains("dep@1.0.1 has trust level"), "the policy diagnostic is missing: {message}");
 }
 
 /// Review finding (4c,
