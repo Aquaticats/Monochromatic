@@ -80,6 +80,9 @@ pub mod journal_finish;
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
+/// SHA-1, only to check that a stored Git object has the name it is stored under.
+pub mod git_sha1;
+
 /// Containment of everything a bounded run starts, by the process tree.
 pub mod bounded_contain;
 
@@ -332,6 +335,10 @@ mod git_differential_tests;
 /// The tests of the third review of the replace protocol and the journal.
 #[cfg(test)]
 mod journal_protocol_tests;
+
+/// The tests of the SHA-1 used for object names.
+#[cfg(test)]
+mod git_sha1_tests;
 
 /// The round 6 tests of the recovery of unready journals and of the ready record.
 #[cfg(test)]
