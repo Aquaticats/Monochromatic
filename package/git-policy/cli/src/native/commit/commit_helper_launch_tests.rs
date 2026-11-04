@@ -249,6 +249,11 @@ fn a_launch_from_a_single_threaded_process_runs_an_entry_that_takes_a_mutex() {
 /// exists. The limit is per process, so the host's other processes are not affected.
 #[test]
 fn a_fork_refused_by_the_process_limit_is_reported_as_refused() {
+    // A process with `CAP_SYS_RESOURCE` (root in a container) ignores `RLIMIT_NPROC`, so the control cannot refuse a fork there.
+    // SAFETY: `geteuid` takes no argument and cannot fail.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
     let code: Option<i32> = in_single_threaded_process(|| {
         let limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
         let mut current = libc::rlimit { rlim_cur: 0, rlim_max: 0 };

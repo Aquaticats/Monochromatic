@@ -81,7 +81,7 @@ Revision 18 models, built to the acceptance target:
 ## Coverage of the revision 18 acceptance target
 
 Each row names the test that shows the property or control, says that the test shows a narrower control and what it leaves unshown, or says
-what it needs. A build test (`model/model_target_tests.rs`) checks that every named test exists. Counts: 65 covered by a current test, 16
+what it needs. A build test (`model/model_target_tests.rs`) checks that every named test exists. Counts: 64 covered by a current test, 17
 covered only by a narrower control (the row says what remains), 9 shown only by a labelled historical control, 17 not yet. Models review 8
 (`commit-models-sol-8.txt`, section 2) is the source of the narrower rows; the map checks inventory, not semantic coverage, and the
 classification is the author's until a review accepts it.
@@ -226,7 +226,11 @@ classification is the author's until a review accepts it.
   `model_receipt_r18_tests.rs`. Not shown: the error path is now four observable phases (list, record, release,
   list again; a_receipt_that_joins_between_the_error_listing_and_the_release_is_recorded_by_the_second_listing
   shows the joiner), with one forcing error per run and one erroring flusher; a failure of the recording itself,
-  repeated errors and the real error file are not modeled here (the file is shown by the component tests).
+  repeated errors and the real error file are not modeled here (the file is shown by the component tests); OPEN
+  FINDING: a record written after the last startup sweep while an owner runs waits for another owner's start,
+  which the default check names and excuses
+  (an_error_recorded_after_the_startup_sweep_waits_for_another_owner_unless_the_running_syncer_retries_it shows
+  it and the option that closes it).
 - Covered, control: worker error on the actual lane files (every receipt whose name is not forced is recorded,
   the joiner too, also one that joins after the listing):
   `a_receipt_that_joins_after_the_error_listing_is_recorded` in `commit_flusher_window_tests.rs`.
@@ -276,8 +280,7 @@ classification is the author's until a review accepts it.
 - Narrower, property: captured authority valid through completion or verified substitution:
   `r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support` in
   `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer (the reclamation-during-capture
-  control is not yet); succession is by the hashes of the records a checkpoint replaces
-  (a_replacement_state_that_does_not_descend... is
+  control is not yet); succession is by the hashes of the records a checkpoint replaces (shown by
   r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment), one hop only, so an
   acknowledgment older than the previous checkpoint is not covered; the older test
   p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows only the state-directory refusal.
@@ -296,8 +299,13 @@ classification is the author's until a review accepts it.
 
 - Covered, control: non-drop counterexample: `p1_a_checkpoint_never_erases_a_still_live_request` in
   `model_discharge_r14_tests.rs`.
-- Covered, control: non-drop for later appends (a record cannot omit what its predecessor retained):
-  `r14_a_record_cannot_omit_what_the_previous_record_retained` in `commit_state_log_tests.rs`.
+- Narrower, control: non-drop for later appends (a record cannot omit what its predecessor retained):
+  `r14_a_record_cannot_omit_what_the_previous_record_retained` in `commit_state_log_tests.rs`. Not shown:
+  document-bound authority: a document names its dependencies with needs lines and the writer and recovery
+  refuse a record whose set does not cover them
+  (r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it), but a writer that
+  omits a needs line for something its document semantically depends on is still accepted, because the state log
+  cannot read the meaning of the document; the alternative is a non-reclaiming checkpoint (handover, round 15).
 - Covered, control: retirement discharge forces the ledger prefix that proves it:
   `r14_a_retirement_forces_the_ledger_prefix_that_discharges_it` in `commit_state_log_tests.rs`.
 - Covered, control: a later record retaining new saved content is not selected without it:
@@ -537,6 +545,11 @@ its fix; where the red is a single-defect control of a model and not a failing r
   - Non-reclaiming checkpoints (empty `reclaims`): no grammar; con: the log never shrinks and the reclamation rows lose
     their evidence.
   - A typed document parsed by the caller: con: the same independence as before.
+  - Plainly: the needs lines bind the declaration into the document bytes; a writer that omits a needs line for
+    something
+    its document semantically depends on is still accepted, because the state log cannot read the meaning of the
+    document. The reviewer asked for document-bound authority or a non-reclaiming checkpoint, and will test exactly
+    this.
   - Ranking: needs lines > non-reclaiming, because reclamation stays available with a checkable obligation;
     non-reclaiming > typed parse, because it is safe without trusting a caller. The owner or the design reviewer may
     prefer the second; switching is one change of `reclaims`.
@@ -546,6 +559,19 @@ its fix; where the red is a single-defect control of a model and not a failing r
   granted only when no process holds a writable descriptor; the check fails closed where no lease can be asked for.
   Remains: a privileged writer or a writable parent directory can still replace sealed content, and a raw creator
   that writes through a descriptor it opened before capture is refused only while that descriptor is open.
+  FLAGGED CHOICE, veto open: the lease check fails closed wherever `F_SETLEASE` is refused for a reason other than a
+  writer being open (NFS, CIFS, 9p, FUSE without lock support, a file the effective user does not own), so every
+  checkpoint with saved content then fails there. The owner's words on the neighbouring `flock` mechanism were
+  "Must work
+  perfectly even when flock isn't available. Do better." Options:
+  - Fail closed (built): prevention is certain where it works; con: no checkpoint with saved content on those file
+    systems, against "Commits should never fail."
+  - Degrade to detection only where leases are absent: the checksum name still detects a changed file at recovery; con:
+    prevention holds only where leases exist, and the remains must say so.
+  - Add "grants read leases" to the supported scope (the scope paragraph below does): con: it narrows the scope.
+  - Ranking: degrade to detection > fail closed, because the owner's rule favours working everywhere and the checksum
+    keeps detection; fail closed > scope narrowing alone, because it at least states the limit in code. I did not
+    switch; this is for the owner to veto.
 - 2C, retirement and the authoritative ledger. Red:
   `r15_recovery_reaches_a_retirement_record_after_the_disposal_removed_the_content`
   (`Damaged`) and `r15_a_disposal_line_in_an_unrelated_prefix_file_does_not_discharge_saved_content`. Green: recovery
@@ -580,6 +606,21 @@ its fix; where the red is a single-defect control of a model and not a failing r
   `a_receipt_that_joins_between_the_error_listing_and_the_release_is_recorded_by_the_second_listing`; the old
   transition could not express the schedule. A new flag (`fresh_record`) records that an error written after the last
   startup sweep waits for the next owner.
+- OPEN FINDING (design choice, not decided here): with the error path in phases, a receipt that joins a flusher in
+  its error path after the next owner already did its startup sweep is recorded in `receipt-errors`, and nothing
+  retries it
+  while that owner runs (its syncer wakes only on a ring); it waits for yet another owner's start. The submitted atomic
+  transition excluded the schedule. The model keeps the default check green by naming and excusing exactly this
+  (`fresh_record`), and
+  `an_error_recorded_after_the_startup_sweep_waits_for_another_owner_unless_the_running_syncer_retries_it`
+  shows it under the strict check and shows the option closing it. Options:
+  - The running owner's syncer also retries recorded errors (modeled as `EighteenSyncerRetriesErrors`, green under the
+    strict check): bounded extra work, no new lock; con: a retry loop to bound.
+  - Leave it to the next owner's start (the design text): nothing new; con: a receipt can stay unforced as long as one
+    owner lives.
+  - Ranking: the syncer retry > waiting, because the owner's "Force at leaving, else background" and "nothing
+    should ever
+    wait forever" both favour a retry at a bound. The worker-error map row says so.
 - Item 2, the fresh-attempt model. A: `a_settled_recovery_reconciles_a_notice_that_still_says_scheduled` (red under
   `SettledKeepsNotice`). B: `an_earlier_attempts_delivery_does_not_authorize_reclaiming_a_later_attempt` (red under
   `DeliveryIsRequestWide`). Delivery is the forced removal of the attempt's own final notice; print, remove and
@@ -620,8 +661,19 @@ paragraph the acceptance target's "Fix the supported Git, backend and filesystem
 - The launch refusal of a threaded process means the real call sites must be single-threaded at the launch; no call site
   exists yet, so this is shown on test copies of a process only.
 - `r15_` in test names is the round number and is unrelated to design revision 15 (`model_submission_r15`).
+- `a_fork_refused_by_the_process_limit_is_reported_as_refused` returns early when run as root, because
+  `RLIMIT_NPROC` does
+  not bind a process with `CAP_SYS_RESOURCE`; run it as the unprivileged user (the host does).
+- The `cli-git-service` processes on the host are the shipped wrapper's own services started by commits, not helpers of
+  these tests.
 - The model-level reds for items 9b 1 and 2 are single-defect controls, not failing replays of the submitted model.
-- Contradictions with the design: none found. The design still says R-never in its choices list; the coordinator amends
-  revision 19.
+- Contradictions with the design: the design still says R-never in its choices list (the coordinator amends
+  revision 19);
+  the lease requirement of 2B and the receipt retry gap above are choices the design does not settle; the supported
+  scope now needs "a file system that grants read leases" unless the owner picks detection-only.
 
-Gates at the tip: see the report; the full run, both clippy variants and the `source_guard` tests are green.
+Gates at the tip: the full `native:test:model` run is 440 passed, 0 failed
+(`/var/home/user/temp/agent/r15/full-model.log`); `native:clippy` and `native:clippy:seams` are clean
+(`/var/home/user/temp/agent/r15/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
+map has
+64 covered, 17 narrower, 9 historical and 17 not yet.
