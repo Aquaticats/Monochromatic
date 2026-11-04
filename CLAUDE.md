@@ -1041,14 +1041,14 @@ MKY:
 
 LYD:
  Show who depends on whom in the tree:
- sibling folders carry layer numbers,
- and code uses only lower-numbered siblings of its own folder or of any folder above it,
- never an equal number.
+ every source folder holds a `uses/` folder of links to the folders its code uses;
+ two folders never use each other,
+ and the package's lint fails when the code and the links disagree.
 
 LYF:
  Files inside one folder never use each other in a loop;
  the folder's top doc lists them in dependency order,
- and the package's lint fails any file or folder that breaks its layer.
+ and the package's lint fails any loop.
 
 ### Concurrency
 

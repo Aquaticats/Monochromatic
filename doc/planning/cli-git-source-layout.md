@@ -18,11 +18,28 @@ Owner, 2026-11-04, verbatim:
 
 Question tool answers, 2026-11-04:
 
-- Structure: "B: numbered layers (Recommended)",
+- Structure, first answer: "B: numbered layers (Recommended)",
   with the note "Don't be afraid of using extremely long names. B, but make sure a monkey even just looking at one thing know what it means."
-  Sibling folders carry a layer number;
-  code uses only lower-numbered siblings of its own folder or of any folder above it,
-  never an equal number.
+  Shown a sketch with two-digit layer numbers (`01_tools_for_files_programs_and_time/` to
+  `11_deciding_what_to_do_with_one_git_command/`),
+  the owner asked:
+  "What if I still think this is pretty un-understandable? What is 01 to 11 supposed to mean?"
+  The numbers meant "a folder uses only folders with a smaller number",
+  which no name says on its own.
+  Second answer, replacing the numbers: "A: a uses/ list in each folder (Recommended)".
+  Every source folder holds a `uses/` folder whose entries are links to the folders its code uses;
+  no layer numbers;
+  two folders never use each other;
+  the package's lint fails when the code and the links disagree.
+  The sketch's names were rewritten from the view of someone who knows only `git commit` and `git push`
+  (`small_helpers_for_files_programs_and_clocks`,
+  `reading_what_git_saved_on_disk`,
+  `running_git_for_you`,
+  `your_settings`,
+  `checking_your_changes_before_they_are_committed`,
+  `what_happens_when_you_type_git_commit`);
+  the owner named none of them as wrong.
+  AGENTS.md LYD and LYF now say this.
 - Granularity: "Files too, checked (Recommended)":
   files inside one folder never use each other in a loop,
   the folder's top doc lists them in dependency order,
