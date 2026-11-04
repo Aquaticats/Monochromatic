@@ -24,7 +24,13 @@ non-Git tools during `git worktree add` (silence plus a ceiling),
 the design's R-never (reclaim the lane's own stale `index.lock`),
 and the CM7 carve-out (CM7 unchanged; the package docs record that the test images take tools from pacman).
 
-## Live picks still open to the owner's veto
+## Picks the owner kept on 2026-11-04
+
+Every pick in this section was put to the owner through the question tool in grouped questions,
+and each group was answered "Keep all (Recommended)" (`H`,
+"Answers after the restart (2026-11-04)").
+None is open any longer;
+the unmeasured numbers are still to be replaced by measured values as the logs fill.
 
 ### Waits and bounds (`NUW`, "Picks", shipped in 0.5.28)
 

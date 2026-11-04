@@ -3543,7 +3543,42 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     the new protocol reclaims a proven-stale lock of its own dead incarnation through the shipped mechanism once that passes review;
     revision 19 is to be amended (coordinator),
     and the models agent was told.
-  The first two are built on `fix/git-policy-cli-branch-write-and-tool-ceilings`.
+  The first two are built on `fix/git-policy-cli-branch-write-and-tool-ceilings`,
+  with the never-run follow-up of shipped-limits pick 7 (re-derive the one-hour namespace-record block from the 10-minute lock ceiling).
+  - Every other live pick in `doc/planning/cli-git-delegated-picks-status.md`,
+    asked in seven grouped questions,
+    each answered "Keep all (Recommended)":
+    waits and bounds (150 s connected-push quiet window,
+    10-minute foreign `index.lock` ceiling,
+    a quiet Git step redone once,
+    the 20-minute,
+    60 s,
+    10-minute and 150 s numbers,
+    to be replaced by measured values);
+    the commit design's stuck-Git and hook picks (A-kill,
+    B-hand,
+    C-kind,
+    H-version,
+    H-episode);
+    its edge-case picks (rev 6 Q1,
+    Q3,
+    Q4,
+    G-order,
+    N-silent);
+    cargo-shadow's first-round picks with its own-call limits and the 1,000-file warning;
+    reference-lock removal Q1 to Q3;
+    the merge and pull picks;
+    and the smaller shipped limits (picks 1,
+    2 remnants,
+    3,
+    5 remnants,
+    8,
+    11,
+    12,
+    13,
+    14,
+    15).
+    No delegated pick is left open.
   The other container picks (resolve `latest` once per run,
   run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
 - #6261 native-layer move:
