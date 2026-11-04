@@ -432,8 +432,21 @@ each in its own worktree:
   reclaimers on different hosts;
   `.aside-*` files 0.5.28 already left are not swept (queued);
   `native:clippy:windows` not run (paused by the owner).
-  Cross-vendor review running (`one-reclaimer-sol-1.txt`);
-  merge into main after it.
+  Cross-vendor review (`one-reclaimer-sol-1.txt`):
+  "correct after named fixes" (P1 a failed `flock` permits unlinking a live lock,
+  through the no-`flock` fallback;
+  P2 the `Busy` test does not show a wait;
+  P3 the regression control does not probe the old aside window;
+  "Can the lock be avoided?
+  Not with an equivalent sequence of ordinary pathname operations under the current protocol.").
+  Fix round sent to the agent,
+  with the coordinator's pick (veto open):
+  where `flock` is unavailable,
+  never remove the lock;
+  the landing waits as for a held lock (bounded by `LOCK_CEILING`) and its notice names the stale lock,
+  the dead holder and how to remove it;
+  plus the sweep of 0.5.28's `.aside-*` files.
+  Merge into main after its gate.
   The older index review's P2 and P3 findings (`private_index_path` aliasing,
   `head_names` revalidation,
   `Interrupted` writes) are already fixed on main,
