@@ -384,6 +384,45 @@ pub fn take_workspace(root: &Path) -> io::Result<Result<File, String>> {
     )));
 }
 
+#[cfg(test)]
+thread_local! {
+    /// A hook that runs after each step of the preparation of a journal in `begin`, with the step's name, so a test can stop or kill a
+    /// real wrapper at each real boundary of the preparation.
+    static BEGIN_STEP: std::cell::RefCell<Option<std::rc::Rc<dyn Fn(&str)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+/// `pub(crate) fn begin_step_for_test(hook: Option<Rc<dyn Fn(&str)>>)` sets the hook that runs after each step of `begin` on this thread.
+/// Why:
+/// The cuts of V3/V4 are made by killing a real wrapper at each step, not by building the files of each state by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function beginStepForTest(hook?: (step: string) => void): void
+/// ```
+#[cfg(test)]
+pub(crate) fn begin_step_for_test(hook: Option<std::rc::Rc<dyn Fn(&str)>>) {
+    BEGIN_STEP.with(|slot| { *slot.borrow_mut() = hook; });
+}
+
+/// What:
+/// `fn at_step(name: &str)` runs the test hook, if any, after a step of the preparation of a journal.
+/// Why:
+/// The production build has no hook.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function atStep(name: string): void
+/// ```
+fn at_step(name: &str) {
+    #[cfg(test)]
+    if let Some(hook) = BEGIN_STEP.with(|slot| { return slot.borrow().clone(); }) {
+        hook(name);
+    }
+    #[cfg(not(test))]
+    let _ = name;
+}
+
 /// What:
 /// `pub fn begin(root, snapshots, expects_manifests) -> io::Result<Transaction>` takes the workspace lock,
 /// creates a new journal
@@ -449,12 +488,14 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     let Some(directory) = created else {
         return Err(io::Error::other(format!("{} could not be given a new journal name; run the command again", journals.display())));
     };
+    at_step("directory");
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&directory.join`: lends the value without copying or giving it away.
     // Macro `format!`: builds or prints text (or a list) from a template.
     // The record of children comes first: a journal directory without it holds nothing that could have started a child
     // (an empty directory), and one that has other files but lost it is uncertain (round 7, 6b2 2).
     write_synced(&directory.join(GROUPS_FILE), "")?;
+    at_step("groups");
     // How this journal directory is seen now (mount and inode); a recovery that sees another view refuses (contract assumption c).
     // With the mount view go the machine id and the boot id: a recovery after a reboot of the same machine knows that the run's
     // processes ended (contract assumption c). An identity that cannot be read is not recorded as a guess: the journal then has none,
@@ -464,21 +505,26 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         Err(_) => String::new(),
     };
     write_synced(&directory.join(crate::journal::VIEW_FILE), &format!("view {}\n{identity_text}", crate::control_group::view_of(&directory)?))?;
+    at_step("view");
     write_synced(&directory.join(OWNER_FILE), &format!("v3\n{}\n", std::process::id()))?;
+    at_step("owner");
     let mut index: String = String::from("v2\n");
     let mut listed: Vec<String> = Vec::new();
     for (position, snapshot) in snapshots.iter().enumerate() {
         let name: String = format!("{position}.lock");
         write_synced(&directory.join(&name), &snapshot.source)?;
+        at_step(&format!("lock-{position}"));
         listed.push(name);
         index.push_str(&snapshot.crate_dir);
         index.push('\n');
     }
     index.push_str(&format!("end {}\n", snapshots.len()));
     atomic_write(&directory.join(INDEX_FILE), &index)?;
+    at_step("index");
     listed.insert(0, INDEX_FILE.to_string());
     if !expects_manifests {
         write_ready(&directory, &listed, false)?;
+        at_step("ready");
     }
     sync_directory(&directory)?;
     sync_directory(&journals)?;
