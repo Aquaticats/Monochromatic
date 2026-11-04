@@ -628,8 +628,9 @@ fn r14_a_departure_forces_the_saved_content_of_the_candidate_it_acknowledges() {
     assert!(events.contains(&format!("file-sync:{}", saved.display())), "the saved content of the acknowledged candidate was not forced: {:?}", events);
 }
 
-/// Models review 8 (remaining saves after errors): the stop cannot be forced and a saved-content force fails too. The state, the order file
-/// and the ledger are still attempted, each failure is reported, and nothing is acknowledged.
+/// Models review 8 (remaining saves after errors): the stop cannot be forced, a saved-content force fails and the order file cannot be forced
+/// either. The state and the ledger are still attempted, the whole failure inventory is reported (those three and nothing else), and nothing
+/// is acknowledged.
 #[test]
 fn r14_every_save_is_attempted_after_a_stop_error_and_a_saved_content_error() {
     let root: PathBuf = scratch("r14-all-attempted");
@@ -640,16 +641,26 @@ fn r14_every_save_is_attempted_after_a_stop_error_and_a_saved_content_error() {
     std::fs::create_dir(lane.join("decision")).expect("decision");
     let missing_mark: PathBuf = lane.join("decision").join(&request.id);
     let missing_saved: PathBuf = lane.join("saved-missing");
+    let missing_order: PathBuf = lane.join("order-missing");
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, b"").expect("ledger");
     start_events();
     let outcome = Departure::new(Disposition::Unresolved, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state"))
         .with_stop(&missing_mark)
         .with_closure(&[missing_saved.as_path()])
+        .with_order(&missing_order)
         .with_ledger(&ledger)
         .run();
     let events: Vec<String> = take_events();
-    assert!(outcome.is_err());
+    let Err(git_policy_cli::commit_inbox::DepartureError::Incomplete { stop_failed, failures }) = outcome else { panic!("the departure acknowledged despite the errors") };
+    assert!(stop_failed);
+    let labels: Vec<String> = failures.iter().map(|(label, _)| { return label.clone(); }).collect();
+    let expected: Vec<String> = vec![
+        format!("stop receipt {}", missing_mark.display()),
+        format!("saved content {}", missing_saved.display()),
+        format!("order file {}", missing_order.display()),
+    ];
+    assert_eq!(labels, expected, "the failure inventory is exactly the three saves that could not be made");
     assert!(events.contains(&format!("dir:{}", lane.join("state").display())), "the state was not attempted after the errors: {:?}", events);
     assert!(events.contains(&format!("file-sync:{}", ledger.display())), "the ledger was not attempted after the errors: {:?}", events);
 }
