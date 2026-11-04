@@ -3458,6 +3458,23 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
 - Commit-speed picks (no `fast-import` pack flush unless `core.fsync` names loose objects;
   `sync_ms` renamed `index_update_ms`):
   "Keep both (Recommended)".
+- CachyOS test containers:
+  "Make as many pkgs as possible come from podman.",
+  then,
+  asked which was meant:
+  "Sorry, typo. Yes I meant from pacman. And I believe pacman can give a specific Git version. If not possible, bring me the evidence and re-ask."
+  So Git,
+  Node and strace move to pacman inside the CachyOS image wherever pacman can supply what the tests need,
+  Git at the pinned version through pacman if pacman can install it;
+  if it cannot,
+  bring the evidence and ask again.
+  Work on `feat/git-policy-cli-test-images-from-pacman`.
+  The other container picks (resolve `latest` once per run,
+  run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
+- #6261 native-layer move:
+  "Defer until branches merge (Recommended)".
+- Fallback to the installed real Git (four picks):
+  "Keep all (Recommended)".
 
 ### Nothing waits forever
 
