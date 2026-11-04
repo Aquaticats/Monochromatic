@@ -132,7 +132,20 @@ two delegate agents and four cross-vendor reviews running:
   accurate attribution of the post-success exception is not yet shown to be the owner's approval;
   R15-6,
   start-only materialization adds an unbounded foreground phase the owner never approved.
-  It writes a new questions file only if one is needed.
+  Done:
+  tip `f8d83c760f` (2026-11-04T03:30:19-05:00);
+  R15-2 to R15-5 closed,
+  R15-6 closed by mechanism (only a terminating,
+  size-limited,
+  child-free class runs inline),
+  R15-7 a unit configuration obligation (stop timeout infinity,
+  drain on upgrade),
+  R15-1 narrowed to owner question 8 (a lost success receipt and a replay after a power loss;
+  recommended B,
+  force the receipt before success only when no service runs)
+  in `commits-never-fail-questions-f8d83c760f.md`;
+  not asked until review 16 checks it.
+  The design is 254 KB (history moved to `commits-never-fail-history-f8d83c760f.md`).
 - Models round 11,
   `feat/git-policy-cli-commit-protocol-models` (from `ffc98d1eae`,
   293 of 293):
@@ -296,20 +309,48 @@ Done since the last list:
   components items 3.5 to 3.7 and removal of unused legacy modules.
 - #6260 merged into the base.
 
+Started at 2026-11-04T03:40-05:00 from main `05c16d73d2`,
+each in its own worktree:
+- Latency round 3,
+  `perf/git-policy-cli-less-foreground-work`:
+  the sections "Git's pack sync in `fast-import`",
+  "Less work in the client and the landing",
+  "The service unit and the host's swap" and "The queue and the next commit"
+  of `doc/planning/cli-git-commit-latency-under-disk-pressure.md`,
+  and the `sync_ms` rename.
+  The plan's option B (loose objects in process) conflicts with `doc/decision/cli-git-concurrent-commits.md` lines 512 to 514
+  ("Landing migrates the shadow's new objects into the real store as a pack kept with a `.keep` file
+  until the compare-and-swap succeeds");
+  the agent builds only an option that keeps that guarantee,
+  else it writes an owner question.
+- Index reclamation pick A,
+  `fix/git-policy-cli-one-reclaimer-per-physical-index`,
+  plus a check of the older index review's P2 and P3 findings (`private_index_path` aliasing,
+  `head_names` revalidation,
+  `Interrupted` writes).
+- Test containers to CachyOS,
+  `build/git-policy-cli-cachyos-test-containers`:
+  `e2e/concurrent-commits.Containerfile` (Debian `node:24.11.0-slim`)
+  and the `native:test:container` base,
+  per `doc/decision/container-base-distro.md`.
+- Design review 16 in two parts (`commits-never-fail-sol-16a.txt`:
+  R15 closure,
+  decisions 15 to 18 and question 8 from the diff;
+  `-16b.txt`:
+  the whole design),
+  before question 8 is asked.
+
 Queue,
 in order:
-- After the integration:
-  gate the base,
-  release 0.5.28,
-  install,
-  time commits against native Git on main.
-- Then #6261 (directory regroup;
-  the #6260 agent listed the paths it must update),
-  lint task 88,
-  the gate container base check (Debian trixie against the CachyOS rule),
-  the reclamation pick A,
-  and the reviews of cargo-shadow round 5,
-  models round 7 and revision 13.
+- cargo-shadow round 7 once all four sixth-review parts are in (6b:
+  "Not correct",
+  the directory sync stops at a presumed durable anchor).
+- Models round 12 with review 16.
+- Lint task 88 once the open branches of this package merge.
+- Native-layer removal (#6261 option A,
+  veto open).
+- Ask the owner for the measured span values (decision 17) before that part ships.
+- Final re-review.
 
 Older entries,
 from the 2026-11-03T10:00-05:00 list,
