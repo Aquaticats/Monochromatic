@@ -143,20 +143,16 @@ pub fn journal_dirs(root: &Path) -> Vec<PathBuf> {
     // ```ts
     // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
     // ```
-    let Ok(listing) = fs::read_dir(&directory) else {
-        // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-        // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const list: string[] = [];   // or new Set() / new Map()
-        // ```
-        return Vec::new();
+    // Only the initial absence of the journal directory is an empty listing; any other failure to list it, and any failure on an
+    // entry, stops the test (certification group 3: a journal parent that became unreadable must not read as "no journals").
+    let listing = match fs::read_dir(&directory) {
+        Ok(found) => found,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(error) => panic!("the journals of {} cannot be listed ({error}): an unreadable directory is not an empty one", directory.display()),
     };
-    // Closure `|entry|`: an anonymous function, like a TS arrow function.
-    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    return listing.flatten().map(|entry| { return entry.path(); }).collect();
+    return listing
+        .map(|entry| { return entry.unwrap_or_else(|error| { panic!("an entry of {} cannot be read ({error})", directory.display()); }).path(); })
+        .collect();
 }
 
 /// The only journal directory under the root.

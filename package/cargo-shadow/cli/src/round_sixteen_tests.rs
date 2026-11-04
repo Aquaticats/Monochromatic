@@ -249,3 +249,27 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
     }
 }
 //endregion
+
+//region the listing helper
+// What the region covers: the shared helper that lists the journals of a workspace fails closed (certification group 3).
+
+/// The helper that lists the journals reads a missing journal directory as no journals and stops on every other failure, so that an
+/// unreadable journal parent cannot make "every journal is gone" pass.
+#[test]
+fn the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty() {
+    let root = scratch();
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "an absent journal directory is no journals");
+    let journals: PathBuf = root.path().join(crate::journal::JOURNAL_DIR);
+    fs::create_dir_all(journals.join("one")).expect("a journal");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1);
+    fs::set_permissions(&journals, fs::Permissions::from_mode(0o000)).expect("make the journals unreadable");
+    if fs::read_dir(&journals).is_ok() {
+        fs::set_permissions(&journals, fs::Permissions::from_mode(0o755)).expect("restore");
+        eprintln!("SKIPPED: this user reads a directory without permission, so the schedule cannot be made");
+        return;
+    }
+    let outcome = std::panic::catch_unwind(|| { return crate::journal_support::journal_dirs(root.path()); });
+    fs::set_permissions(&journals, fs::Permissions::from_mode(0o755)).expect("restore");
+    assert!(outcome.is_err(), "an unreadable journal directory was read as an empty listing");
+}
+//endregion
