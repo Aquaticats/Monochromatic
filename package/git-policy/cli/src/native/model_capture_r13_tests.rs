@@ -10,7 +10,7 @@
 //! ```
 
 use crate::model_capture_r13::{
-    Rules, X, base_initial, base_invariant, base_steps, check_base, check_install, check_lines, lines_initial, lines_invariant, lines_steps,
+    Rules, X, base_initial, check_consumption, consumption_initial, consumption_invariant, consumption_steps, base_invariant, base_steps, check_base, check_install, check_lines, lines_initial, lines_invariant, lines_steps,
 };
 use crate::model_explore::{Report, replay};
 
@@ -50,4 +50,16 @@ fn a_lagging_file_is_captured_as_the_three_way_merge() {
     assert!(check_lines(Rules::Twelve).violation.is_some());
     let thirteen: Report = check_lines(Rules::Thirteen);
     assert!(thirteen.violation.is_none() && thirteen.exhausted);
+}
+
+/// F9 reopened: R1 is refused, and a plain commit captures before the cleanup that drops R1's consumption entry. A cleanup in a separate
+/// replacement leaves a window in which the staging is logically hidden (red); one state-log record that holds the whole document
+/// closes it (green), so the person's staging stays logically available to the next capture.
+#[test]
+fn a_capture_after_a_refusal_sees_the_staging_the_refused_request_had_consumed() {
+    let window = replay(consumption_initial(Rules::Twelve), consumption_steps, &["owner: R1 is refused and the document is replaced", "client: a plain commit captures"]);
+    assert_eq!(consumption_invariant(&window), Some("a capture after the refusal omitted the staging the refused request had consumed".to_string()));
+    assert!(check_consumption(Rules::Twelve).violation.is_some());
+    let atomic: Report = check_consumption(Rules::Thirteen);
+    assert!(atomic.violation.is_none() && atomic.exhausted);
 }

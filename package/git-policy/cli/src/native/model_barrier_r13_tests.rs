@@ -116,3 +116,17 @@ fn a_terminal_outcome_is_reported_only_when_its_line_and_entry_are_durable() {
     assert_eq!(unconfirmed.answer, Answer::NotConfirmed);
     assert_eq!(invariant(&unconfirmed), None, "an unconfirmed answer promises nothing");
 }
+
+/// F7 reopened against the inbox file: client A links `inbox/<id>` (visible, not durable), client B sends the same bytes, its link finds
+/// `EEXIST`, and B then withdraws and promises the request as saved. A barrier that skips what another actor linked first is red; B must
+/// force the existing record and the `inbox/` entry itself, whoever created them.
+#[test]
+fn a_resend_that_finds_the_file_linked_must_still_force_it_before_it_promises() {
+    let resend: usize = SCENARIOS.iter().position(|scenario| { return scenario.name.starts_with("a resend that finds"); }).expect("the scenario");
+    let skips: Report = check(Rules::SkipsExisting, resend);
+    assert!(skips.violation.is_some(), "skipping the existing record loses the request at a power loss");
+    let twelve: Report = check(Rules::Twelve, resend);
+    assert!(twelve.violation.is_some());
+    let thirteen: Report = check(Rules::Thirteen, resend);
+    assert!(thirteen.violation.is_none() && thirteen.exhausted, "{:?}", thirteen.violation.map(|found| { return found.message; }));
+}

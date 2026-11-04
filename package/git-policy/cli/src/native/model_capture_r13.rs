@@ -268,3 +268,62 @@ pub fn lines_invariant(state: &Lines) -> Option<String> {
 pub fn check_lines(rules: Rules) -> Report {
     return explore(vec![lines_initial(rules)], lines_steps, lines_invariant, |_| { return None; }, limits());
 }
+
+/// F9 reopened against the state log: a request consumes staging, is refused, and a plain commit captures before any later cleanup.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct Consumption {
+    /// The rule under test.
+    pub rules: Rules,
+    /// The lane's document still holds R1's consumption entry for `x`.
+    pub consumes_x: bool,
+    /// R1 ended as refused (the person's `pre-commit` style refusal or a hook refusal).
+    pub refused: bool,
+    /// A plain commit captured; its value is whether the capture held `x`.
+    pub captured_with_x: Option<bool>,
+    /// Ghost: the capture happened after the refusal (a capture before it is rightly without `x`).
+    pub captured_after_refusal: bool,
+}
+
+/// The start state: R1 holds `x` in its consumption entry and is pending.
+pub fn consumption_initial(rules: Rules) -> Consumption {
+    return Consumption { rules, consumes_x: true, refused: false, captured_with_x: None, captured_after_refusal: false };
+}
+
+/// Every step enabled in a consumption state.
+pub fn consumption_steps(state: &Consumption) -> Vec<(String, Consumption)> {
+    let mut found: Vec<(String, Consumption)> = Vec::new();
+    if !state.refused {
+        let mut after: Consumption = state.clone();
+        after.refused = true;
+        if state.rules == Rules::Thirteen {
+            // One state-log record holds the whole document: the refusal and the dropped consumption are one append.
+            after.consumes_x = false;
+        }
+        push_step(&mut found, "owner: R1 is refused and the document is replaced", after);
+    }
+    if state.refused && state.consumes_x {
+        let mut after: Consumption = state.clone();
+        after.consumes_x = false;
+        push_step(&mut found, "owner: a later cleanup drops R1's consumption entry", after);
+    }
+    if state.captured_with_x.is_none() {
+        let mut after: Consumption = state.clone();
+        after.captured_with_x = Some(!state.consumes_x);
+        after.captured_after_refusal = state.refused;
+        push_step(&mut found, "client: a plain commit captures", after);
+    }
+    return found;
+}
+
+/// A capture taken after the refusal holds the staging the refused request had consumed.
+pub fn consumption_invariant(state: &Consumption) -> Option<String> {
+    if state.captured_with_x == Some(false) && state.captured_after_refusal {
+        return Some("a capture after the refusal omitted the staging the refused request had consumed".to_string());
+    }
+    return None;
+}
+
+/// Explores the consumption model.
+pub fn check_consumption(rules: Rules) -> Report {
+    return explore(vec![consumption_initial(rules)], consumption_steps, consumption_invariant, |_| { return None; }, limits());
+}

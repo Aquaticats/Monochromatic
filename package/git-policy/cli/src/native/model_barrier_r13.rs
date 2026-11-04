@@ -65,16 +65,19 @@ pub struct Scenario {
     pub promise: u32,
     /// For each fact, the facts it names (recovery drops a record whose reference does not validate).
     pub deps: &'static [(u32, u32)],
+    /// Facts another actor made visible before the command began (a resend that finds the request file already linked).
+    pub preexisting: u32,
 }
 
 /// The scenarios of revision 13.
-pub const SCENARIOS: [Scenario; 8] = [
+pub const SCENARIOS: [Scenario; 9] = [
     Scenario {
         name: "W1 withdrawn",
         writes: &[REQUEST, INBOX_NAME, BUILT, LOG_RECORD, MARK, MARK_NAME],
         d_set: &[REQUEST, INBOX_NAME, BUILT, LOG_RECORD, MARK, MARK_NAME],
         promise: REQUEST | INBOX_NAME | BUILT | LOG_RECORD | MARK | MARK_NAME,
         deps: &[(LOG_RECORD, REQUEST | BUILT), (REQUEST, INBOX_NAME), (MARK, MARK_NAME)],
+        preexisting: 0,
     },
     Scenario {
         name: "the unresolved COMMITTING exit",
@@ -82,6 +85,7 @@ pub const SCENARIOS: [Scenario; 8] = [
         d_set: &[REQUEST, INBOX_NAME, BUILT, LOG_RECORD, MARK, MARK_NAME],
         promise: REQUEST | INBOX_NAME | BUILT | LOG_RECORD | MARK | MARK_NAME,
         deps: &[(LOG_RECORD, REQUEST | BUILT), (REQUEST, INBOX_NAME), (MARK, MARK_NAME)],
+        preexisting: 0,
     },
     Scenario {
         name: "conflicted",
@@ -89,6 +93,7 @@ pub const SCENARIOS: [Scenario; 8] = [
         d_set: &[BUILT, LOG_RECORD, LEDGER_LINE, LEDGER_NAME],
         promise: BUILT | LOG_RECORD | LEDGER_LINE | LEDGER_NAME,
         deps: &[(LOG_RECORD, BUILT), (LEDGER_LINE, LOG_RECORD | LEDGER_NAME)],
+        preexisting: 0,
     },
     Scenario {
         name: "rewritten-away",
@@ -96,6 +101,7 @@ pub const SCENARIOS: [Scenario; 8] = [
         d_set: &[BUILT, LOG_RECORD, LEDGER_LINE, LEDGER_NAME],
         promise: BUILT | LOG_RECORD | LEDGER_LINE | LEDGER_NAME,
         deps: &[(LOG_RECORD, BUILT), (LEDGER_LINE, LOG_RECORD | LEDGER_NAME)],
+        preexisting: 0,
     },
     Scenario {
         name: "W1 finds a terminal outcome",
@@ -103,6 +109,7 @@ pub const SCENARIOS: [Scenario; 8] = [
         d_set: &[LEDGER_LINE, LEDGER_NAME],
         promise: LEDGER_LINE | LEDGER_NAME,
         deps: &[(LEDGER_LINE, LEDGER_NAME)],
+        preexisting: 0,
     },
     Scenario {
         name: "T1 reclamation (the lane releases the request's recovery copy)",
@@ -110,6 +117,7 @@ pub const SCENARIOS: [Scenario; 8] = [
         d_set: &[LEDGER_LINE, LEDGER_NAME, REMOVAL],
         promise: LEDGER_LINE | LEDGER_NAME | REMOVAL,
         deps: &[(LEDGER_LINE, LEDGER_NAME), (REMOVAL, LEDGER_LINE)],
+        preexisting: 0,
     },
     Scenario {
         name: "MG3 preservation (a staged-only version saved before the index entry is replaced)",
@@ -117,6 +125,7 @@ pub const SCENARIOS: [Scenario; 8] = [
         d_set: &[SAVED_CONTENT, SAVED_NAME, SAVED_RECORD],
         promise: SAVED_CONTENT | SAVED_NAME | SAVED_RECORD,
         deps: &[(SAVED_RECORD, SAVED_CONTENT | SAVED_NAME), (SAVED_NAME, SAVED_CONTENT)],
+        preexisting: 0,
     },
     Scenario {
         name: "carry-forward (the saved file made durable in the filesystem's order, then the displacing step)",
@@ -124,6 +133,15 @@ pub const SCENARIOS: [Scenario; 8] = [
         d_set: &[SAVED_CONTENT, SAVED_NAME, SAVED_RECORD],
         promise: SAVED_CONTENT | SAVED_NAME | SAVED_RECORD,
         deps: &[(SAVED_RECORD, SAVED_CONTENT | SAVED_NAME), (SAVED_NAME, SAVED_CONTENT)],
+        preexisting: 0,
+    },
+    Scenario {
+        name: "a resend that finds the request file already linked (EEXIST) and then withdraws",
+        writes: &[LOG_RECORD, MARK, MARK_NAME],
+        d_set: &[REQUEST, INBOX_NAME, LOG_RECORD, MARK, MARK_NAME],
+        promise: REQUEST | INBOX_NAME | LOG_RECORD | MARK | MARK_NAME,
+        deps: &[(LOG_RECORD, REQUEST), (REQUEST, INBOX_NAME), (MARK, MARK_NAME)],
+        preexisting: REQUEST | INBOX_NAME,
     },
 ];
 
@@ -136,6 +154,8 @@ pub enum Rules {
     Thirteen,
     /// Control: revision 13 whose barrier forgets the last directory entry of the D-set.
     MissesLastName,
+    /// Control: revision 13 whose barrier skips the facts another actor linked first (the resend's `EEXIST` fast path).
+    SkipsExisting,
 }
 
 /// The kind of answer the command gave.
@@ -180,16 +200,29 @@ pub struct State {
 
 /// The start state.
 pub fn initial(rules: Rules, scenario: usize) -> State {
-    return State { rules, scenario, world: World { visible: 0, durable: 0 }, written: 0, synced: 0, answer: Answer::No, crashed: false, gated_done: false };
+    let preexisting: u32 = SCENARIOS[scenario].preexisting;
+    return State { rules, scenario, world: World { visible: preexisting, durable: 0 }, written: 0, synced: 0, answer: Answer::No, crashed: false, gated_done: false };
 }
 
 fn gated(scenario: &Scenario) -> bool {
     return scenario.name.starts_with("MG3") || scenario.name.starts_with("carry-forward") || scenario.name.starts_with("T1");
 }
 
+/// The facts the barrier forces, in order, under the state's rule.
+fn barrier(state: &State) -> Vec<u32> {
+    let scenario: Scenario = SCENARIOS[state.scenario];
+    let mut facts: Vec<u32> = scenario.d_set.to_vec();
+    if state.rules == Rules::MissesLastName {
+        facts.pop();
+    }
+    if state.rules == Rules::SkipsExisting {
+        facts.retain(|fact| { return scenario.preexisting & *fact == 0; });
+    }
+    return facts;
+}
+
 fn barrier_len(state: &State) -> usize {
-    let len: usize = SCENARIOS[state.scenario].d_set.len();
-    return if state.rules == Rules::MissesLastName { len - 1 } else { len };
+    return barrier(state).len();
 }
 
 /// Every step enabled in `state`.
@@ -215,7 +248,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         }
         let writes_before_barrier: usize = if gate { last } else { scenario.writes.len() };
         if state.rules != Rules::Twelve && state.written >= writes_before_barrier && state.synced < barrier_len(state) {
-            let fact: u32 = scenario.d_set[state.synced];
+            let fact: u32 = barrier(state)[state.synced];
             if state.world.visible & fact != 0 {
                 let mut after: State = state.clone();
                 after.world = sync(state.world, fact);
