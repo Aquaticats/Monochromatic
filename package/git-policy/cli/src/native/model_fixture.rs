@@ -68,12 +68,12 @@ pub fn run_bounded(command: &mut Command, limit: std::time::Duration) -> Result<
     std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stdout.read_to_end(&mut bytes); let _ = out_sender.send(bytes); });
     std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stderr.read_to_end(&mut bytes); let _ = err_sender.send(bytes); });
     let deadline = std::time::Instant::now() + limit;
-    let timed_out = |child: &mut std::process::Child| -> String {
+    let timed_out = |leader: &mut std::process::Child| -> String {
         // A negative pid addresses the whole process group the child leads.
         // SAFETY: `kill` takes plain integers and has no memory preconditions.
         unsafe { libc::kill(-group, libc::SIGKILL); }
-        let _ = child.kill();
-        let _ = child.wait();
+        let _ = leader.kill();
+        let _ = leader.wait();
         return format!("the process timed out after {:?} and was killed with its descendants", limit);
     };
     let status = loop {
