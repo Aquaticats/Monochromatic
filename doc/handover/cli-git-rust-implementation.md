@@ -3876,7 +3876,14 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     R3/R5,
     K1 and K2 partly (five evidence fixes,
     no production defect);
-    the fixes go to the agent once groups 1 to 3 return;
+    group 1:
+    A1,
+    V2 amended c and weaker path all partly (process and thread oracles that can still pass falsely,
+    fixtures and unsettled-scope bodies missing from the bundle,
+    lost-record evidence stopping at classification,
+    a notice formatted but not observed,
+    writer-side acknowledgement durability untested);
+    the fixes go to the agent once groups 2 and 3 return;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
