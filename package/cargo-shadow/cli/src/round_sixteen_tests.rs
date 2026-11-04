@@ -502,3 +502,45 @@ fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
     wait_until("the scope's end", &|| { return !scope.exists() || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| { return text.contains("populated 0"); }); });
 }
 //endregion
+
+//region the finish of an active recovery (V5, certification group 3)
+// What the region covers: a recovery that restores the files finishes with the same mandatory phases as a transaction.
+
+/// The journals of a workspace in the order they are named: whether each is a completed (`.done`) one.
+fn journal_states(root: &Path) -> Vec<bool> {
+    return crate::journal_support::journal_dirs(root).iter().map(|journal| { return journal.to_string_lossy().ends_with(".done"); }).collect();
+}
+
+/// Acceptance row V5 (certification group 3): an active recovery that restores the files finishes with its own mandatory phases, and
+/// each failure of one is visible and leaves a state the next recovery completes:
+/// the output barrier fails (the journal stays active, no marker), the completion rename fails (the journal stays active), the sync
+/// of the marker's directory fails (the marker is published, the journal is `.done` and a later recovery only removes it), and the
+/// removal after the marker fails (the cleanup-only case: `.done` stays and is removed later).
+/// Each fault must have been consumed, the restored lockfile is the snapshot in every case, and the later recovery completes the
+/// journal and judges nothing again.
+#[test]
+fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart() {
+    use crate::failpoints::{Point, arm};
+    // (fault, journal is `.done` after the failed recovery)
+    for (fault, done_afterwards) in [(Point::RecoverDurability, false), (Point::CompletionRename, false), (Point::CompletionSync, true), (Point::FinishCleanup, true)] {
+        let root = repository();
+        let _journal = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
+        arm(fault);
+
+        let failed: Vec<String> = crate::journal::recover(root.path(), &refusing);
+
+        assert!(!crate::failpoints::fires(fault), "{fault:?}: the fault was never reached");
+        assert_eq!(live_lock(root.path()), "original", "{fault:?}: the files were not restored before the finish: {failed:?}");
+        assert!(failed.iter().any(|message| { return message.contains("journal was kept") || message.contains("could not be removed") || message.contains("tried again"); }), "{fault:?}: the failure of the finish is not reported: {failed:?}");
+        assert_eq!(journal_states(root.path()), vec![done_afterwards], "{fault:?}: the journal is not in the state that this failure leaves: {failed:?}");
+
+        let judged: std::cell::Cell<u32> = std::cell::Cell::new(0);
+        let later: Vec<String> = crate::journal::recover(root.path(), &|before, live| { judged.set(judged.get() + 1); return refusing(before, live); });
+        assert!(journal_states(root.path()).is_empty(), "{fault:?}: the later recovery did not complete the journal: {later:?}");
+        assert_eq!(live_lock(root.path()), "original");
+        if done_afterwards {
+            assert_eq!(judged.get(), 0, "{fault:?}: a journal that was already marked done was judged again");
+        }
+    }
+}
+//endregion

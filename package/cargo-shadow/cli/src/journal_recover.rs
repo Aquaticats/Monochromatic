@@ -469,6 +469,12 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[
     }
     if settled {
         // Borrow `&decisions`: lends the value without copying or giving it away.
+        // The output barrier of the finish: a test makes it fail with the recovery's own durability fault.
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::RecoverDurability) {
+            messages.push(format!("{}: the restored files could not be synced (injected durability failure); the journal was kept", directory.display()));
+            return;
+        }
         for (crate_dir, _decision) in &decisions {
             if let Err(error) = make_durable(&root.join(crate_dir).join(LOCKFILE_NAME)) {
                 messages.push(format!("{crate_dir}/{LOCKFILE_NAME} could not be synced ({error}); the journal was kept"));

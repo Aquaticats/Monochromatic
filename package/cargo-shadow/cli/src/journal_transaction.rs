@@ -795,6 +795,11 @@ pub fn remove_done(done: &Path) -> io::Result<()> {
 /// ```
 pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
     let done: PathBuf = publish_done(directory)?;
+    // The removal of a journal that is already marked done is the cleanup, which a test can make fail after the marker (V5).
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
+        return Err(io::Error::other("injected cleanup failure"));
+    }
     return remove_done(&done);
 }
 
