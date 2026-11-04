@@ -10,10 +10,10 @@
 //! const finding = await repairPnpm(destination, environment); // undefined when pnpm has nothing to relink
 //! ```
 
-use super::package_repair::RepairEnvironment;
-use super::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
-use super::package_repair_report::{Finding, Tool, finding_from, missing_tool};
-use super::shell_quote::shell_quote;
+use crate::package_repair::RepairEnvironment;
+use crate::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
+use crate::package_repair_report::{Finding, Tool, finding_from, missing_tool};
+use crate::shell_quote::shell_quote;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -53,7 +53,7 @@ pub fn manual_command(destination: &Path) -> String {
 /// ```
 pub fn repair_pnpm(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
     if !destination.join(LOCKFILE).is_file() || !destination.join(MODULES).is_dir() {
-        super::diagnostic_log::debug("packageRepairPnpm", format!("{}: no lockfile or no node_modules, nothing to relink", destination.display()).as_str());
+        crate::diagnostic_log::debug("packageRepairPnpm", format!("{}: no lockfile or no node_modules, nothing to relink", destination.display()).as_str());
         return None;
     }
     let manual: String = manual_command(destination);
@@ -62,7 +62,7 @@ pub fn repair_pnpm(destination: &Path, environment: &RepairEnvironment) -> Optio
     };
     let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: Vec::new() };
     let run: ToolRun = run_tool(program.as_path(), &command, environment.quiet_window);
-    super::diagnostic_log::debug("packageRepairPnpm", format!("{}: {} ended {:?} after {} ms", destination.display(), program.display(), run.end, run.millis).as_str());
+    crate::diagnostic_log::debug("packageRepairPnpm", format!("{}: {} ended {:?} after {} ms", destination.display(), program.display(), run.end, run.millis).as_str());
     return Some(finding_from(Tool::Pnpm, &run, "pnpm relinked node_modules", manual.as_str()));
 }
 

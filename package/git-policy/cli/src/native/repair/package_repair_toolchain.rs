@@ -16,10 +16,10 @@
 //! const finding = await repairToolchain(destination, environment); // undefined when the launchers already name this worktree
 //! ```
 
-use super::diagnostic_log::debug;
-use super::package_repair::RepairEnvironment;
-use super::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
-use super::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
+use crate::diagnostic_log::debug;
+use crate::package_repair::RepairEnvironment;
+use crate::package_repair_command::{ToolCommand, ToolRun, find_program, run_tool};
+use crate::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 

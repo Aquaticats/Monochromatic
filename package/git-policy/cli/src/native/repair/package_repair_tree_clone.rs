@@ -11,7 +11,7 @@
 //! const cloned = await cloneTree({ source, destination, workers });
 //! ```
 
-use super::worktree_copy_stage::copy_file_exclusive;
+use crate::worktree_copy_stage::copy_file_exclusive;
 use std::fs::{FileTimes, Metadata};
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
@@ -46,7 +46,7 @@ struct Entry {
 /// ```ts
 /// const PARALLEL_MIN_ENTRIES = PARALLEL_BREAK_EVEN_ENTRIES;
 /// ```
-const PARALLEL_MIN_ENTRIES: usize = super::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
+const PARALLEL_MIN_ENTRIES: usize = crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What a clone made and what it left out.
 #[derive(Debug, Eq, PartialEq)]

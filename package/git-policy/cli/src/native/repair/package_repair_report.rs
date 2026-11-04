@@ -10,7 +10,7 @@
 //! process.stderr.write(render(destination, findings, quiet));
 //! ```
 
-use super::package_repair_command::{ToolEnd, ToolRun};
+use crate::package_repair_command::{ToolEnd, ToolRun};
 use std::path::Path;
 
 /// What:

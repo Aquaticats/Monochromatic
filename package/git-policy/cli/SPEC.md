@@ -1400,7 +1400,7 @@ is the rule.
   same
   meter with the push's stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`), and `QUERY_CEILING` (120 seconds) no longer
   exists.
-- A package-manager tool of the worktree repair (`src/native/package_repair_command.rs`) is judged on its process
+- A package-manager tool of the worktree repair (`src/native/repair/package_repair_command.rs`) is judged on its process
   group's
   leader with a window of 600 seconds, and ends with its whole process group.
   An install that downloads for a long time is never reported as having run past a limit.

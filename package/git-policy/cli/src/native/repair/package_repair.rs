@@ -14,13 +14,13 @@
 //! repairWorktree({ git, source, destination, switch: { quiet, noCheckout }, environment }, process.stderr);
 //! ```
 
-use super::add_timing::work;
-use super::diagnostic_log::debug;
-use super::package_repair_cargo::repair_cargo;
-use super::package_repair_pnpm::repair_pnpm;
-use super::package_repair_report::{Finding, render};
-use super::package_repair_toolchain::repair_toolchain;
-use super::transaction_git::GitContext;
+use crate::add_timing::work;
+use crate::diagnostic_log::debug;
+use crate::package_repair_cargo::repair_cargo;
+use crate::package_repair_pnpm::repair_pnpm;
+use crate::package_repair_report::{Finding, render};
+use crate::package_repair_toolchain::repair_toolchain;
+use crate::transaction_git::GitContext;
 use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::path::Path;

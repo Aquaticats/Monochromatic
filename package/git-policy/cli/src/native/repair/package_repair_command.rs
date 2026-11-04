@@ -15,11 +15,11 @@
 //! ```
 
 /// The patience of a run that ends on a stall.
-use super::bounded_push::Patience;
+use crate::bounded_push::Patience;
 /// The clock that reads the signs of work of a process tree.
-use super::push_progress::Clock;
+use crate::push_progress::Clock;
 /// The longest quiet gap of each tool, kept for the timing records.
-use super::quiet_ledger;
+use crate::quiet_ledger;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};

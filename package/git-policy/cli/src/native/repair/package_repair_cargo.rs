@@ -15,14 +15,14 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
-use super::add_timing::work;
-use super::diagnostic_log::debug;
-use super::package_repair::RepairRequest;
-use super::package_repair_command::{ToolCommand, ToolEnd, ToolRun, find_program, run_tool};
-use super::package_repair_report::{Finding, Outcome, Tool, missing_tool};
-use super::package_repair_tree_clone::clone_tree;
-use super::shell_quote::shell_quote;
-use super::transaction_git::{GitRequest, run_git};
+use crate::add_timing::work;
+use crate::diagnostic_log::debug;
+use crate::package_repair::RepairRequest;
+use crate::package_repair_command::{ToolCommand, ToolEnd, ToolRun, find_program, run_tool};
+use crate::package_repair_report::{Finding, Outcome, Tool, missing_tool};
+use crate::package_repair_tree_clone::clone_tree;
+use crate::shell_quote::shell_quote;
+use crate::transaction_git::{GitRequest, run_git};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
