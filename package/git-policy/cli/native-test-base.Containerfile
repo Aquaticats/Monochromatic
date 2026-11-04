@@ -32,7 +32,8 @@ ADD --checksum=sha256:26c56c296b38c0695b26fa95f475f1d01704d2d38e73465ca30b0b2f5d
 ARG BUILD_JOBS=2
 
 # CLI tests use English diagnostics and no Tk UI. Perl, Python, curl and Git's default Rust support stay enabled; Git's
-# Rust crate has no registry dependencies, so Cargo runs offline. The source tree is removed in the same step.
-RUN ["sh", "-c", "tar --extract --xz --file=/src/git-2.56.0.tar.xz --directory=/src && make --directory=/src/git-2.56.0 --jobs=${BUILD_JOBS} prefix=/usr NO_GETTEXT=YesPlease NO_TCLTK=YesPlease PYTHON_PATH=/usr/bin/python3 'CARGO_ARGS=--offline --release' install && rm --recursive --force /src"]
+# Rust crate has no registry dependencies, so Cargo runs offline. The source tree stays at /work/git-source, built outputs
+# removed: the hook-event guard test reads its Documentation/githooks.adoc, the list that matches the Git under test.
+RUN ["sh", "-c", "mkdir --parents /work/git-source && tar --extract --xz --file=/src/git-2.56.0.tar.xz --directory=/work/git-source --strip-components=1 && make --directory=/work/git-source --jobs=${BUILD_JOBS} prefix=/usr NO_GETTEXT=YesPlease NO_TCLTK=YesPlease PYTHON_PATH=/usr/bin/python3 'CARGO_ARGS=--offline --release' install && make --directory=/work/git-source clean && rm --recursive --force /src"]
 
 RUN ["git", "--version"]
