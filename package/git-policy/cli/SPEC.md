@@ -1563,7 +1563,10 @@ What happens at the bound, on the commit path:
   the write named in the error and the log and restart commands as the way out. A request of the group in flight is not withdrawn
   that way, because its commit may be made by the write: its client waits `WITHDRAW_CEILING` for the landing, then ends with the
   "not known whether the commit was made" failure, which names the write and says `git log -1` and `git status`. The
-  check and the marking are under one lock, so a request is withdrawn or landed, never both. Protocol messages are unchanged.
+  record holds no lock (the owner: "Use as few locks as possible."): the landing thread alone writes a `step` file by rename and
+  creates `<id>.flight` for each request of its group, a connection thread alone creates `<id>.withdrawn`, each creates its own marker
+  first and then looks for the other's, so a request is withdrawn or landed, never both. The directory is `busy` in the journal
+  and is emptied when the service starts. Protocol messages are unchanged.
   A client that waits behind a hung write keeps the service busy only as long as the write lasts; nothing in the wrapper ends it.
 - A merge waits for a foreign `index.lock` until `LOCK_CEILING`; at the bound it names the holder and ends the wait,
   and Git's own

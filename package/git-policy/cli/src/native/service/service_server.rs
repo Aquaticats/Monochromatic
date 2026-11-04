@@ -783,11 +783,11 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
             let group: Vec<Queued> = queued_group.into_iter().filter(|(request, _, _)| { return !dropped.contains(&request.id); }).collect();
             if group.is_empty() {
-                board.end_group();
+                board.end_group(ids.as_slice());
                 continue;
             }
             land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures);
-            board.end_group();
+            board.end_group(ids.as_slice());
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
             if let Some(next_index) = index {

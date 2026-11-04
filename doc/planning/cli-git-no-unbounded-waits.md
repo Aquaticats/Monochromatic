@@ -420,7 +420,10 @@ What the clients are told, because the single landing thread also answers every 
   a request that a batch still open names is left to the landing thread, because that batch may hold its commit on the branch
   already (`a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_early`, found in review of this branch;
   red before the fix);
-  the request is remembered and dropped when its group would begin, under the same lock that marks a group as in flight.
+  the request is remembered and dropped when its group would begin. The record holds no lock (the first build used a mutex and the
+  gate's lock inventory refused it, `source_guard/service_lock_inventory_tests.rs`, in keeping with "Use as few locks as
+  possible."): exclusive creation of a `.flight` marker by the landing thread and a `.withdrawn` marker by a connection thread,
+  each created before the other's is looked for, in `busy` under the journal.
   So a later commit ends at its own `ANSWER_CEILING` (20 minutes), not 10 minutes after it, and the error names the write.
 - The request inside the stuck write is not withdrawn that way:
   its commit may be made by the write.

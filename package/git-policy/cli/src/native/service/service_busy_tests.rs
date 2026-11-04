@@ -84,7 +84,7 @@ fn only_a_request_that_has_not_begun_is_withdrawn_while_the_landing_is_stuck() {
     assert_eq!(record.withdraw_early("running"), EarlyAnswer::Queued, "the request in flight waits for the landing");
     let EarlyAnswer::Withdrawn(words) = record.withdraw_early("later") else { panic!("a request that has not begun is withdrawn") };
     assert!(words.contains("git update-ref --stdin"), "the answer carries the words that name the stuck write: {words}");
-    record.end_group();
+    record.end_group(ids(&["running"]).as_slice());
     let dropped: Vec<String> = record.begin_group(ids(&["later", "other"]).as_slice());
     assert_eq!(dropped, ids(&["later"]), "the withdrawn request is dropped when its group would begin");
     assert_eq!(record.withdraw_early("other"), EarlyAnswer::Queued, "the request that begins is in flight");
@@ -101,4 +101,29 @@ fn a_withdrawal_after_the_stuck_write_returned_goes_to_the_landing_thread() {
     assert!(matches!(record.withdraw_early("a"), EarlyAnswer::Withdrawn(_)));
     drop(guard);
     assert_eq!(record.withdraw_early("b"), EarlyAnswer::Queued);
+}
+
+/// An identity that is not a plain name gets no early answer and no marker, so it cannot name a file outside the record's directory.
+#[test]
+fn an_identity_that_is_not_a_plain_name_is_never_answered_early() {
+    let record: Arc<LandingBoard> = board();
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    for hostile in ["../escape", "a/b", "", "with space", &"x".repeat(LONGEST_ID + 1)] {
+        assert_eq!(record.withdraw_early(hostile), EarlyAnswer::Queued, "{hostile:?}");
+        assert!(record.begin_group(&[String::from(hostile)]).is_empty(), "{hostile:?}");
+    }
+    assert!(!record.directory.parent().expect("parent").join("escape.withdrawn").exists());
+}
+
+/// A service that starts finds no record of a thread that ran before it.
+#[test]
+fn a_new_board_removes_what_an_earlier_service_left() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-restart").join("journal");
+    let first: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+    assert!(first.begin_group(&ids(&["old"])).is_empty());
+    assert!(first.marker("old", "flight").exists());
+    let second: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+    assert!(!second.marker("old", "flight").exists());
 }
