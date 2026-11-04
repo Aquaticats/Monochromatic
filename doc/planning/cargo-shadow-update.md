@@ -398,6 +398,8 @@ The owner is away for about 8 hours and delegated the open questions of the revi
 These are the coordinator's picks under that delegation,
 not owner answers,
 and the owner's veto is open when they are back.
+Owner answer of 2026-11-04 (question tool): "Keep all nine (Recommended)".
+All nine picks of this section are owner decisions now, and none is veto-open any more.
 
 - A local run compares lockfiles with the upstream branch (`@{upstream}`,
   falling back to `origin/main`,
@@ -1334,3 +1336,21 @@ Next:
 
 1. The coordinator launches the certification pass again against the rebuilt bundles.
 2. Nothing is merged into main and nothing is published.
+
+## Owner decisions of 2026-11-04
+
+- A cargo-shadow that is started by cargo-shadow stops at once.
+  Question put to the owner: when PATH holds a launcher named `cargo` that has no `.launch` record and leads back to cargo-shadow,
+  should the bounded fallback (up to six starts) stay, or should the second cargo-shadow exit 2 before doing any work, as the Git
+  wrapper does (`package/git-policy/cli/SPEC.md`, section "The wrapper never starts itself as Git")?
+  Answer: option A, the second cargo-shadow exits 2 before doing any work, with the owner's note, verbatim:
+  "A, but make the help message descriptive enough that even a monkey can understand and execute it."
+  Built in `package/cargo-shadow/cli/src/arrival.rs` and `shim.rs`: the message says in one sentence what happened, shows the chain
+  with full paths, the PATH it saw and every `cargo` on it, why it stops, and two numbered fixes with lines that work as printed
+  (an `export PATH=` line that puts the real cargo's folder first, and a `printf` line that writes the `.launch` record), and how to
+  check (`cargo --version`).
+  Tests: `tests/shim.rs`, `an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied`
+  runs both fixes as printed and shows the command then works, and checks that nothing of the second start ran;
+  `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2` covers a start as a child.
+  The bounded fallback and the hop limit are gone.
+- The nine delegated picks of 2026-11-03 are kept (see the section above).

@@ -253,6 +253,7 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     let journals: Vec<PathBuf> = journal_dirs(&root.path().join("repository"));
     // The helper's run used a delegated scope (13 section 1): the journal's record names one, and the weaker path's notice is absent.
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done although the run could not show quiescence: {journals:?}");
     crate::cgroup_test_support::assert_scope_record(&journals[0].join("groups").display().to_string());
     assert!(!said.contains("no delegated control group"), "the helper fell back to the weaker path: {said}");
     // The intended containment fault was reached and is the refusal: the writers-may-remain refusal of a run that could not be shown

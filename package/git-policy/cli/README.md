@@ -2252,7 +2252,7 @@ How the two passes are seeded, composed and resumed is in
 
 ### Source layout
 
-The crate is one library and two executables,
+The crate is one library and one executable (`cli-git-native`, which is also the commit service in its service mode),
 and its sources live under `src/native/`.
 Each folder there is one subsystem,
 so a contributor opens a folder for a concern instead of searching a flat list of
@@ -2270,7 +2270,7 @@ each with its sidecar test file.
   so `crate::command_options` and
   `git_policy_cli::command_options` still resolve.
   The fuzz crate,
-  the two executables and the integration tests name modules that way and needed no change.
+  the executable and the integration tests name modules that way and needed no change.
 - A glob re-export loses to an item written in `lib.rs`,
   so no folder may share its name with a module.
 - `use super::` in a module that a folder declares directly names the folder,
@@ -2319,7 +2319,8 @@ each with its sidecar test file.
   and the durable transaction records with their recovery.
 - `landing/` and `service/`:
   what the resident commit service does to land a commit,
-  and the service program around
+  and the service mode's
+  code around
   it:
   protocol,
   server,
@@ -2367,7 +2368,7 @@ each with its sidecar test file.
 - At the top:
   `lib.rs`,
   `main.rs` (`cli-git-native`,
-  installed as `git`) and `service_main.rs` (`cli-git-service`).
+  installed as `git`; with the words `cli-git service run` first it is the commit service, `service/service_main.rs`).
 
 #### Where new files go
 
@@ -2419,7 +2420,7 @@ because the targets are named in `Cargo.toml`.
     the redundant segment stays in every path until the follow-up.
 - Move to `src/` now (`src/lib.rs`,
   `src/main.rs`,
-  `src/service_main.rs` and the folders).
+  and the folders).
   - Pros:
     the conventional Cargo layout and shorter paths,
     in one step with the folder move.
@@ -2455,13 +2456,15 @@ The license texts are in `LICENSES/`.
 
 A scoped commit (`git commit -m <message> -- <paths>`, with the message, identity, sign-off, trailer, empty-commit,
 reused-message, fixup and `-a` options listed in `doc/planning/cli-git-resident-service.md`) is landed by a resident commit
-service instead of by the wrapper itself. The service is a separate program, `cli-git-service`, that the operating system
-starts on demand; the wrapper never starts it. Commits queue in arrival order, a batch of whatever is queued lands with one
+service instead of by the wrapper itself. The service is a mode of the same executable, `cli-git-native cli-git service run`
+(options `--journal`, `--git`, `--instance` and, for a development run, `--path` or `--abstract`), that the operating system
+starts on demand; the wrapper never starts it, and typed by hand with no socket from the manager and no address it refuses
+and starts nothing. The release archive holds that one executable, as cargo-binstall requires of every `[[bin]]`. Commits queue in arrival order, a batch of whatever is queued lands with one
 durable write, and a commit that waits says how many commits go first. There is nothing to install and no setting.
 
 - The first commit that needs the service sets up its socket activation itself, and every later one checks it is still
   right: it compares the two installed units with what this release would write and, only when they differ (an upgrade or
-  a downgrade moved the service program), rewrites them, reloads the manager, clears failed state and starts the socket.
+  a downgrade moved the executable the units name), rewrites them, reloads the manager, clears failed state and starts the socket.
   When they match it opens no connection to the bus. Setting up writes two unit files into
   `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory; the next first use after a login does it again)
   and asks the user's service manager, through the session bus, to start the socket. The manager starts the service when

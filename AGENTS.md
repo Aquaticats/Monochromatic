@@ -962,6 +962,24 @@ MXL:
  re-exporting from `index.ts`;
  never strip docs/`//region` or reformat to fit.
 
+### File and folder layout
+
+MKY:
+ Name every file and folder so someone who knows only `git commit` and `git push` understands it alone;
+ long names are fine;
+ jargon nothing can replace is explained in that file's top doc.
+
+LYD:
+ Show who depends on whom in the tree:
+ sibling folders carry layer numbers,
+ and code uses only lower-numbered siblings of its own folder or of any folder above it,
+ never an equal number.
+
+LYF:
+ Files inside one folder never use each other in a loop;
+ the folder's top doc lists them in dependency order,
+ and the package's lint fails any file or folder that breaks its layer.
+
 ### Concurrency
 
 NLK:

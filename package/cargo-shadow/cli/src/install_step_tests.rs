@@ -969,6 +969,9 @@ fn a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile was rolled back under a writer that may still write it");
     let journals = crate::journal_support::journal_dirs(root.path());
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    // Kept unfinished (fifth certification pass): a journal that was marked done would be read by the next recovery as a completed
+    // transaction although writers may remain.
+    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done under writers that may remain: {journals:?}");
 }
 
 /// Round 7 (6c R1):
@@ -1190,6 +1193,7 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     }
     assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile cargo wrote was rolled back or replaced");
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done although the run could not show quiescence: {journals:?}");
     let log: Vec<String> = calls.lock().expect("the call log").clone();
     assert!(log.last().is_some_and(|last| { return last.starts_with("update") && !last.contains("--locked"); }), "something ran after the run that could not be stopped: {log:?}");
 }
@@ -1315,5 +1319,33 @@ fn a_done_journal_whose_completion_barrier_fails_stops_the_command_but_a_failed_
         } else {
             assert!(!runner.commands.borrow().is_empty(), "{fault:?}: a failed removal stopped the command");
         }
+    }
+}
+
+/// Acceptance row K1 (fifth certification pass): on a completed run the command warns exactly when the kept files counted at its start
+/// are past the count: nothing below it, nothing at it, a warning one past it. Each case is its own repository and one completed run;
+/// the count is the files kept in the central folder plus the two kept beside the lockfile.
+#[test]
+fn a_completed_run_warns_exactly_past_the_count_and_not_at_or_below_it() {
+    use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
+    let beside: usize = 2;
+    for kept in [KEPT_FILES_WARNING_COUNT - 1, KEPT_FILES_WARNING_COUNT, KEPT_FILES_WARNING_COUNT + 1] {
+        let root = repository(STALE);
+        let start = root.path().join(CRATE_DIR);
+        let central = root.path().join(QUARANTINE_DIR);
+        fs::create_dir_all(&central).expect("the central folder");
+        for index in 0..(kept - beside) {
+            fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+        }
+        fs::write(start.join("Cargo.lock.refused"), "refused text").expect("a kept copy beside the lockfile");
+        fs::write(start.join(".Cargo.lock.shadow-abc.tmp"), "stranded").expect("a stranded temporary");
+        let _ = crate::bounded_run::take_trace_for_test();
+        let runner: FakeCargo = cargo(SATISFIED);
+
+        let outcome = step(&start, false, &runner, &registry());
+
+        assert!(matches!(outcome, StepOutcome::Updated { .. }), "{kept} kept files: {outcome:?}");
+        let emitted: usize = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("kept notice "); }).count();
+        assert_eq!(emitted, usize::from(kept > KEPT_FILES_WARNING_COUNT), "{kept} kept files (count {KEPT_FILES_WARNING_COUNT}): the warning was {emitted} times");
     }
 }

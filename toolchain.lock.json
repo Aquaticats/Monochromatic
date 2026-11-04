@@ -617,7 +617,7 @@
     },
     "cargo:monochromatic-cargo-shadow": {
       "request": "cargo:monochromatic-cargo-shadow@latest",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "route": "cargo-binstall",
       "bins": [
         "cargo-shadow"
@@ -626,7 +626,16 @@
         "linux"
       ],
       "env": {},
-      "options": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "cargo-shadow",
+            "linkName": "cargo",
+            "linkDir": ".cache/cargo-shadow-bin"
+          }
+        }
+      },
       "artifacts": {}
     },
     "cargo:monochromatic-pnpm-shadow": {
@@ -1516,5 +1525,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:b5a6029506be3f22e945690ddaf327839851a44c33071d59e1abb651f7463e74"
+  "digest": "sha256:084708529622847c87d99a6a9732cc5f2e75a63620b1dd385f5d5384e97a68de"
 }

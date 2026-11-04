@@ -145,6 +145,26 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   (resuming a finished agent was not refused by the five-agent limit).
   `-a1.txt` ("not correct as is": a disposal revalidation hole and the doorbell blocking clients) and `-b.txt`
   ("correct after named fixes") were sent the moment each landed.
+  The fix round is done (models tip `f98a499e8d`;
+  `native:test:model` 625 passed,
+  none leaky;
+  both clippy tasks clean;
+  `source_guard` 39 of 39):
+  revalidation reads the newest record's whole retained set;
+  the doorbell is a socket file `service.ring` in the lane directory with non-blocking sends and one owner by `service.lock`;
+  a double close in `launch_detached_preparing` (a core dump per returned helper in debug builds) fixed;
+  every false-green window of `-a2.txt` checked with its guard removed;
+  one surviving mutation ("a second service may own the lane") stated as redundant with the live-socket refusal.
+  Not done (stated in its handover):
+  the flusher lock spans an until-empty sweep loop.
+  Cross-vendor reviews:
+  `~/temp/agent/reviews/commit-models-step3b-sol-a.txt` (diffs of code,
+  tests,
+  models,
+  handover) "correct after named fixes—not approved as-is" ("The primary disposal fix is convincing.")
+  and `-sol-b.txt` (whole current files) "correct after named fixes—not correct as-is";
+  both sent to the models agent,
+  which is fixing them.
 - cargo-shadow 0.1.1 as `cargo` blocked every wrapper gate:
   `bin/native-scanner-snapshot.ts` runs `cargo vendor --manifest-path` on a staged copy outside the work tree,
   and the shadow counted all 281 locked versions of an unchanged lockfile as new and refused 4 on trust level
@@ -236,11 +256,131 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   15 groups).
   0.1.2 published (crates.io 2026-11-04T21:23:13Z,
   publish run 41915321457 built from `b96ca268de`),
-  locked and installed without the `cargo` link (`3a59c6cc1c`);
-  launcher trace (`~/temp/agent/cgs-installed-launcher-trace.ts`) running before the link goes back;
-  the fifth pass is running (`run-cert5-reviews.ts`,
-  groups read from the manifest,
-  outputs `cargo-shadow-cert5-sol-<n>.txt`).
+  locked and installed without the `cargo` link (`3a59c6cc1c`).
+  The launcher trace (`~/temp/agent/cgs-installed-launcher-trace.ts`) passed at 2026-11-04T16:40-05:00:
+  `cargo --version` and `cargo metadata` exited 0,
+  the link and the shadow each ran once per command,
+  and the real cargo ran only through `.cache/toolchain-bin/cargo`
+  (three times for `metadata`: the shadow's own lockfile checks plus the command).
+  The `cargo` link is back (`c5e3d0d268`);
+  in the repo environment `cargo --version` prints `cargo-shadow 0.1.2, shadowing cargo at .../.cache/toolchain-bin/cargo`.
+  Not yet seen: a wrapper gate's `cargo vendor` step through the link (the next gate an agent launches shows it).
+- Fifth cargo-shadow certification pass:
+  all 15 groups "not certified" (`~/temp/agent/reviews/cargo-shadow-cert5-sol-<n>.txt`).
+  Groups 1,
+  2,
+  4,
+  7,
+  9 and 14 ran without the manifest (packet plus manifest over 250 KB),
+  and several say the bodies the manifest assigns were not in the packet;
+  the rest are findings.
+  Group 15 (launcher):
+  the replacement test injects a fixture identity (false green);
+  the chosen candidate stays a pathname,
+  so a path swapped to the shadow between the check and the exec starts the shadow again;
+  the no-record launcher test allows one to six launcher runs.
+  All sent to the cargo-shadow agent (`ae0fbdf78c31bd757`) with the packet-splitting suggestion.
+  Owner decisions,
+  2026-11-04 (question tool):
+  re-entry through an unrecorded launcher,
+  option A with the note "A, but make the help message descriptive enough that even a monkey can understand and execute it."
+  (the second cargo-shadow exits 2 before any work,
+  like the Git wrapper's arrival stop in `package/git-policy/cli/SPEC.md`,
+  and the bounded fallback goes away);
+  the nine delegated picks of 2026-11-03 (`doc/planning/cargo-shadow-update.md`,
+  "Delegated picks of 2026-11-03"):
+  "Keep all nine (Recommended)",
+  so they are owner decisions now.
+  Both sent to the agent,
+  which records them in the planning doc.
+- cargo-shadow round 20 (tip `7d66717bb6`,
+  gate 652/652,
+  clippy clean) merged to main (`fd6a3cd183`):
+  the second start stops at once with exit 2 (`src/arrival.rs`),
+  and a test runs both printed fixes as printed;
+  the chosen real cargo is checked again before each start.
+  0.1.3 published (crates.io 2026-11-04T21:59:45Z,
+  publish run 41921008620 built from `a9901d3503`),
+  locked and installed as `cargo` (`9c51ac07f2`) after the launcher trace passed again
+  (`~/temp/agent/cgs-trace-013.log`).
+  Sixth certification pass (14 groups,
+  every packet with its manifest,
+  `~/temp/agent/reviews/cargo-shadow-cert6-sol-<n>.txt`):
+  groups 2 and 4 "certified after named fixes",
+  the other 12 "not certified";
+  all sent to the agent.
+  Round 21 (agent `ae0fbdf78c31bd757`):
+  the check-to-start window is closed for a compiled real cargo by starting the checked file through its descriptor
+  (`execveat` with `AT_EMPTY_PATH`;
+  the real cargo here is rustup's ELF proxy);
+  scripts keep the pathname and the re-check,
+  because `man 3 fexecve` and `man 2 execveat` say a script started through a close-on-exec descriptor fails with
+  `ENOENT`,
+  and a hit there ends at the arrival stop.
+  Coordinator's reading,
+  not an owner question:
+  the owner's rule "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively."
+  determines it.
+  Then the open list of the fifth pass and every sixth-pass group's named fixes,
+  groups 2 and 4 first.
+- Worktree adds into `~/temp/agent` take over 15 minutes and fill the disk queue:
+  `~/temp/agent` is `/var/mnt/encrypted/temp/agent`,
+  another filesystem than the main checkout,
+  so the wrapper's add falls to rung 3 (Git's checkout,
+  then the ignored-state copy of `node_modules`,
+  `target/`,
+  `dist/`,
+  local configuration and `.cache/`,
+  README "worktree add" section) as a byte copy.
+  Measured 2026-11-04T16:30-05:00 with `/proc/<pid>/io`:
+  the branch-write round 5 and claim-watch adds had each read about 52 GB and written about 49.5 GB,
+  three ran at once,
+  two waited in `blk_mq_get_tag`,
+  and `/proc/pressure/io` full avg300 was 22%.
+  The same add under `.claude/worktrees/` was a snapshot in seconds (trace worktree `cgs-trace-892d1fa0`).
+  The trace script and new briefs now put worktrees under `.claude/worktrees/`.
+  Measured with `du` (`~/temp/agent/worktree-copy-sizes.txt`, 1 KiB blocks):
+  `package/ide/app/target` 40,582,652,
+  `package/nested-wayland-session/cli/target` 14,144,844,
+  `package/git-policy/cli.fuzz/target` 3,991,544,
+  `node_modules` 3,256,040,
+  `.cache` 52,148.
+  Owner decisions,
+  2026-11-04 (question tool,
+  after asking what "wrapper fix" meant):
+  on the copy,
+  "No lefting out build outputs. The real fix is to make sure every build dir is always lean. That's not the wrapper's responsibility, but I'm assigning this to you to.";
+  on an AGENTS.md rule for worktree placement,
+  "No exposing underlying machinary to always-loaded context.";
+  then,
+  "(debuginfo level, incremental off for dependencies - no messing with these."
+  and
+  "other profile settings (split-debuginfo, strip, codegen-units) should be off-limits too".
+  So the wrapper's copy stays,
+  no AGENTS.md rule is added,
+  and no build profile setting changes (debuginfo level,
+  incremental,
+  split-debuginfo,
+  strip,
+  codegen-units).
+  Agent `a0cd49729007486f4` measures what each build directory holds,
+  researches mechanisms that keep them lean without changing what a build produces,
+  and writes `doc/planning/lean-build-dirs.md` with ranked options and a cross-vendor review;
+  it deletes nothing;
+  the owner picks before anything is built.
+- Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
+  (https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105):
+  "The current layout is still completely unacceptable and far from enough to consider this issue complete."
+  The five agent slots were full,
+  so a child session (`spawn-claude`,
+  spawn id `7ee83419-2ce0-4ac8-a4f7-36f0731b095c`,
+  brief `~/temp/agent/issue-6261/brief.md`) writes the target layout proposal
+  (`doc/planning/cli-git-source-layout.md`, a file-by-file mapping, the crate-root map, the placement guide,
+  the `native` layer decision) and a cross-vendor review,
+  reports in `~/temp/agent/issue-6261/report.md`,
+  and waits:
+  the owner sees the target tree before any file moves,
+  then a re-runnable move tool applies it on the latest main.
 
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,

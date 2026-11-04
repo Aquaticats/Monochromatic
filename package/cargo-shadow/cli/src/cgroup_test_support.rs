@@ -147,8 +147,9 @@ pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 /// ```ts
 /// export function runUntilThePayloadStarted<T>(first: number, reset: () => void, started: () => boolean, attempt: (limit: number) => T): [T, number]
 /// ```
-pub(crate) fn run_until_the_payload_started<T>(first: Duration, reset: &dyn Fn(), started: &dyn Fn() -> bool, attempt: &mut dyn FnMut(Duration) -> T) -> (T, Duration) {
+pub(crate) fn run_until_the_payload_started<T>(first: Duration, reset: &dyn Fn(), started: &dyn Fn() -> bool, attempt: &mut dyn FnMut(Duration) -> T) -> (T, Duration, Duration) {
     let mut limit: Duration = first;
+    let mut began: Instant = Instant::now();
     let mut result: T = attempt(limit);
     for _doubling in 0..LONGEST_ESCALATION {
         if started() {
@@ -156,9 +157,12 @@ pub(crate) fn run_until_the_payload_started<T>(first: Duration, reset: &dyn Fn()
         }
         reset();
         limit *= 2;
+        began = Instant::now();
         result = attempt(limit);
     }
-    return (result, limit);
+    // The judged attempt's own duration comes with it, so a test can still require the run to have ended at its bound (fifth
+    // certification pass: retrying must not disable the bounded-lifetime observation).
+    return (result, limit, began.elapsed());
 }
 
 /// How many times a bound is doubled while the payload has not started (400 ms doubled six times is about 26 s).
