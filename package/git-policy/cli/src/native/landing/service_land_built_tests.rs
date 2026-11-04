@@ -157,3 +157,67 @@ fn the_proof_of_a_wide_directory_is_linear_in_its_width() {
     crate::service_durable::drain();
     remove(world.root.as_path());
 }
+
+/// The store answers only where the history it reads is the history Git shows: every setting that changes what Git shows (a
+/// shallow file or graft file elsewhere, another replacement namespace, replacements switched off, `core.useReplaceRefs`, and
+/// the global option that switches replacements off) sends the checks to `rev-list`, which the landing always ran. The commit
+/// still lands. Each case lands one ordinary commit Git built and counts the `rev-list` starts: two, where an ordinary
+/// repository starts none.
+#[test]
+fn every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list() {
+    let variables: [(&str, &str); 4] = [("GIT_SHALLOW_FILE", "elsewhere-shallow"), ("GIT_GRAFT_FILE", "elsewhere-grafts"), ("GIT_REPLACE_REF_BASE", "refs/other-replace/"), ("GIT_NO_REPLACE_OBJECTS", "1")];
+    for (name, value) in variables {
+        let (mut world, trace) = traced(format!("service-built-env-{}", name.to_lowercase()).as_str());
+        world.context.git.overlay.push((std::ffi::OsString::from(name), std::ffi::OsString::from(value)));
+        let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+        let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+        let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+        assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{name}: {outcomes:?}");
+        assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "{name}: the checks went to rev-list");
+        crate::service_durable::drain();
+        remove(world.root.as_path());
+    }
+    // The configuration and the global option.
+    let (world, trace) = traced("service-built-use-replace-refs");
+    git(world.repo.as_path(), &["config", "core.useReplaceRefs", "false"]);
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    land_batch(&world.context, 1, &[built]).expect("landed");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "core.useReplaceRefs: the checks went to rev-list");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+    let (mut world, trace) = traced("service-built-no-replace-option");
+    world.context.git.global_prefix.push(std::ffi::OsString::from("--no-replace-objects"));
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    land_batch(&world.context, 1, &[built]).expect("landed");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "--no-replace-objects: the checks went to rev-list");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
+
+/// A shallow boundary and a replacement object anywhere in the repository are left to `rev-list` as well.
+#[test]
+fn a_shallow_file_and_a_replacement_object_send_the_checks_to_rev_list() {
+    let (world, trace) = traced("service-built-shallow");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(world.repo.join(".git/shallow"), format!("{base}\n")).expect("a shallow boundary at the tip");
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "shallow: the checks went to rev-list");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+    let (world, trace) = traced("service-built-replaced");
+    let empty: String = git_text(world.repo.as_path(), &["hash-object", "-t", "tree", "-w", "--stdin"]);
+    let first: String = git_text(world.repo.as_path(), &["commit-tree", empty.as_str(), "-m", "unrelated one"]);
+    let second: String = git_text(world.repo.as_path(), &["commit-tree", empty.as_str(), "-m", "unrelated two"]);
+    git(world.repo.as_path(), &["replace", first.as_str(), second.as_str()]);
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 2, "replacement: the checks went to rev-list");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
