@@ -667,14 +667,12 @@ the alternative and a ranking:
   the `user.delegate` route dropped.
 - Commit design:
   level 2 disabled on the execution path where its eligibility cannot be shown.
-- Decision record follow-up (needs approval to edit `doc/decision/cli-git-concurrent-commits.md` again):
-  the latency reviewer found that the scratch ref protects new objects only from a collector that reads references after the ref exists,
-  and the branch's `SPEC.md` now says `prune --expire=now`,
-  `gc --prune=now` and `repack -a -d` are not supported while a commit is made;
-  the corrected record says "While the scratch ref exists the new objects are reachable,
-  so `git prune` and `git gc --prune=now` keep them",
-  which is true but can be read as covering a prune that started before the ref existed;
-  ask whether to add that limit to the record.
+- Answered after the restart,
+  see "Answers after the restart (2026-11-04)" under "Owner decisions in force":
+  the decision record's prune limit,
+  reference-lock removal (shipped lock removal question 5),
+  saved conflict copies that can be the only copy (shipped-limits pick 10's question),
+  and the mutation pause.
 - Index reclamation:
   the `flock` on the stale lock's own inode;
   without `flock` the lock is never removed;
@@ -3410,6 +3408,33 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Answers after the restart (2026-11-04)
+
+Through the question tool,
+answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
+- Mutation runs:
+  "Pause all (Recommended)":
+  no mutation runs until the commit protocol is built and the lint cleanup (task 88) lands,
+  then one fresh campaign on the new code,
+  starting with `native:mutation:planted`.
+- The decision record's scratch-ref sentence:
+  "Add the limit now (Recommended)":
+  written into `doc/decision/cli-git-concurrent-commits.md` (immediate-expiry prune,
+  `gc --prune=now` and `repack -a -d` started while a commit lands are not supported);
+  no code change.
+- Reference-lock removal (the ninth design review's R9-S):
+  "Keep narrowed removal (Recommended)":
+  0.5.28's removal on a proof about the holder,
+  with the second identity check just before the move,
+  stays until the new commit protocol (whose X1 never removes a reference lock) replaces it;
+  the rare two-holders race is accepted for that time.
+- Saved conflict copies that can be the only copy:
+  "Keep pruning by age and size",
+  against the coordinator's recommendation (keep all and warn past a size);
+  the owner was told a copy older than 30 days or past 1 GiB is deleted even if it is the only copy.
+  "Prune by both age and size." therefore stands over "never discard user data" for saved copies;
+  the numbers stay as cited and are set from measurement once saves exist (option O3).
 
 ### Nothing waits forever
 
