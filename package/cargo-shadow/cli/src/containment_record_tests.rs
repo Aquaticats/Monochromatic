@@ -231,19 +231,28 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     // A writer of the process group is running and ready (a handshake) before the bound passes; it would write after the stop.
     // The bound counts the start of the run, so an attempt whose bound ended before the writer was ready is repeated with a doubled
     // bound, and the writer's own delay follows the bound (a second after it) so that it still writes only after the stop.
+    let writer_file = plain.path().join("writer-pid");
+    let started = std::time::Instant::now();
     let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(1500),
         &|| { let _ = fs::remove_file(&ready); let _ = fs::remove_file(&marker); },
         &|| { return ready.exists(); },
         &mut |limit| {
             let delay: f64 = limit.as_secs_f64() + 0.5;
-            let script: String = format!("(: > {ready}; sleep {delay}; : > {late}) & while [ ! -e {ready} ]; do sleep 0.02; done; sleep 600", ready = ready.display(), late = marker.display());
+            let script: String = format!("(: > {ready}; sleep {delay}; : > {late}) & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; sleep 600", ready = ready.display(), late = marker.display(), pid = writer_file.display());
             return output_within(Command::new("sh").args(["-c", &script]), None, &Bound { limit, ..bound() });
         },
     );
     use_route_settings_for_test(None);
     let ready_before: bool = ready.exists();
+    // The run ended at its bound and not long after it (the stop and the reaping have their own small allowances), and the writer is
+    // gone the moment it returned (fourth certification pass).
+    let elapsed: Duration = started.elapsed();
+    let writer: i32 = crate::contain_counterexample_tests::read_pid(&writer_file);
+    let alive_at_return: bool = crate::contain_counterexample_tests::is_running(writer);
     std::thread::sleep(limit + Duration::from_millis(1_200));
+    assert!(!alive_at_return, "the writer of the process group still ran when the run returned");
+    assert!(elapsed < limit * 8 + crate::bounded_run::QUIESCE_BOUND * 2, "the run returned after {elapsed:?}, long after its bound of {limit:?}");
 
     // The result is the timeout (certification group 3), the writer started, and the run was the weaker path.
     assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the run should have passed its bound: {result:?}");
@@ -302,7 +311,7 @@ fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
     let pid_file = plain.path().join("writer-pid");
     // The writer closes its inherited pipes (so the runner's drain does not wait for it) and keeps running after the payload exits.
     let script: String = format!(
-        "(echo $$ > {pid}; : > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        "(: > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
         pid = pid_file.display(),
         ready = ready.display(),
         late = marker.display()
@@ -311,8 +320,13 @@ fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound());
     use_route_settings_for_test(None);
     let ready_before: bool = ready.exists();
+    // The writer is judged the moment the run returned (fourth certification pass), through the fail-closed oracle: a runner that
+    // returned with the writer alive and let a later cleanup kill it before its write would leave no marker and pass the check below.
+    let writer: i32 = crate::contain_counterexample_tests::read_pid(&pid_file);
+    let alive_at_return: bool = crate::contain_counterexample_tests::is_running(writer);
     std::thread::sleep(Duration::from_millis(2_700));
 
+    assert!(!alive_at_return, "the writer of the process group still ran when the run returned: the exit cleanup of the group was not done by then");
     assert!(result.is_ok_and(|output| { return output.status.success(); }), "the payload should have exited successfully");
     assert!(ready_before, "the writer never ran, so its absence proves nothing");
     assert!(!marker.exists(), "a member of the process group wrote after the run returned: the exit cleanup of the group is missing");
