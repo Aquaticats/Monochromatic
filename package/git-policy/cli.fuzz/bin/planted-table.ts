@@ -27,7 +27,7 @@ export const plants: readonly Plant[] = [
     name: 'PID file text keeps trailing whitespace before the pid prefix is read',
     file: 'package/git-policy/cli/src/native/lock/index_lock_evidence.rs',
     edits: [{
-      from: 'let trimmed: &str = super::js_text::trim_javascript_end(text);',
+      from: 'let trimmed: &str = crate::js_text::trim_javascript_end(text);',
       to: 'let trimmed: &str = text;'
     }],
   },
@@ -35,7 +35,7 @@ export const plants: readonly Plant[] = [
     name: 'start ticks past the safe integers are accepted',
     file: 'package/git-policy/cli/src/native/process/process_start.rs',
     edits: [{
-      from: 'if ticks > super::json_record::MAX_SAFE_INTEGER {',
+      from: 'if ticks > crate::json_record::MAX_SAFE_INTEGER {',
       to: 'if ticks > i64::MAX {'
     }],
   },
