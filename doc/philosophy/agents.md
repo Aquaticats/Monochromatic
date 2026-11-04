@@ -673,6 +673,23 @@ A test file covering sync matchers but skipping async matchers is the same as no
 
 #### Enforcement mechanisms: why hook existence is not in AGENTS.md
 
+The principle applies to command wrappers as well as hooks.
+Keep required behavior in `AGENTS.md`;
+keep implementation identities and detection details in maintenance documentation.
+When removing an enforcement clause,
+preserve every behavioral restriction it also conveys.
+For `RT1`,
+"named paths other than repo root" preserves the search-scope restriction.
+Deleting only the enforcement clause would leave "named path",
+which could be read as permitting the repository root.
+For `RGT`,
+keep the replacement-flag explanation while removing the wrapper's refusal.
+Regenerate `CLAUDE.md` through file-enforcer after changing its `AGENTS.md` source.
+
+Avoid adding an always-loaded rule announcing that enforcement details are being withheld.
+The implementation remains inspectable,
+and this documentation edit makes no claim of measured improvement in agent behavior.
+
 `AGENTS.md` deliberately does not expose the existence of Claude Code hooks,
  not merely their names:
  the stop hook (`ccsr`) enforcing hedge-phrase and trailing-question rules
