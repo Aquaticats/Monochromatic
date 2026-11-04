@@ -134,6 +134,34 @@ What changed, each with its evidence (probed 2026-11-04 in `docker.io/cachyos/ca
   rejecting pins ("if an upstream OS update breaks us, we are doing something wrong and we'd have to fix it immediately").
   `mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got.
 
+### Verified on 2026-11-04 (gate and end-to-end suite on the pacman images)
+
+- Gate on this branch, second run (log `/var/home/user/temp/agent/gate/gpc-gate-test-images-from-pacman-second-20261104T090950-0500.log`):
+  4754 tests run, 4754 passed, 7 skipped, `gate-exit-status=0`, nextest 465.8 s, no "NOT RUN" lines (the fault-injection
+  controls ran under pacman's `strace` 7.3).
+  The first run (`gpc-gate-test-images-from-pacman-20261104T085700-0500.log`) failed one test,
+  `package_repair::a_missing_pnpm_never_fails_the_add`: it assumed no `pnpm` in `/usr/bin`, and pacman put one there.
+  The control now builds its own `PATH` (the wrapper's directory and a directory holding only real Git).
+- Control gate on main `d4979bab1b` (log `gpc-gate-main-control-for-pacman-images-20261104T092122-0500.log`): 4753 tests,
+  4753 passed, 7 skipped, nextest 464.6 s.
+  The sorted lists of passing test names differ in the names the owner's decision changed, and nowhere else.
+  Only in main: `git_version::tests::an_older_release_is_refused`, `git_version::tests::the_unsupported_message_names_the_git_and_the_remedy`
+  and `git_version_cache::tests::a_cached_old_release_is_refused_like_a_live_one`.
+  Only on this branch: `git_version::tests::an_older_release_is_accepted`,
+  `git_version::tests::an_older_release_draws_a_warning_that_names_both_releases`,
+  `git_version::tests::the_unreadable_message_names_the_git_and_the_remedy` and
+  `git_version_cache::tests::a_cached_old_release_is_accepted_like_a_live_one`.
+- Release of each tool the gate ran with, from `mise run //package/git-policy/cli:test:git-image`:
+  `git 2.56.0-1.1` (`git version 2.56.0`), `nodejs 26.12.1-2`, `pnpm 12.17.0-1.1`, `strace 7.3-1`,
+  `cargo-nextest 0.9.150-1.1`, `rust 1:1.99.1-1`, on CachyOS image `50d89fb6ea06` (`cachyos-v4:latest`).
+  The host's `/usr/bin/git --version` printed `git version 2.56.0` and its `node --version` printed `v26.13.0`.
+- End-to-end suite on this branch and on main, same seed 2910071103 (logs `e2e.log` and `e2e-control.log` under
+  `/var/home/user/temp/agent/pacman-probe/`): 38 scenario runs each, 35 passed, 2 skipped (`replay-unavailable-*`),
+  1 failed, and the sorted lists of status and scenario name are identical.
+  The failure is `sigkill-service-during-work` on both (the service settled 0 push records within 30 s), so it does not
+  change.
+  The report lines name `git 2.56.0` now and `git 2.55.0` on main.
+
 ## Left open
 
 - `package/git-policy/cli.fuzz/bin/fuzz-images.ts` (base `62ba2f7ce22b...`, Debian Rust image),
