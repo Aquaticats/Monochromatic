@@ -278,3 +278,16 @@ fn output_that_cannot_be_completed_is_an_error_not_a_prefix() {
     let message: String = result.expect_err("an incomplete capture").to_string();
     assert!(message.contains("output"), "{message}");
 }
+
+/// Review finding (4c P3): the error names the command the user ran, not a placeholder.
+#[test]
+fn a_timeout_names_the_command_the_user_ran() {
+    crate::bounded_run::set_rerun(Some("cargo build --release".to_string()));
+    let named = Bound { limit: Duration::from_millis(200), what: "`cargo update`".to_string(), rerun: crate::bounded_run::rerun_text() };
+
+    let result = output_within(Command::new("sleep").arg("5"), None, &named);
+
+    crate::bounded_run::set_rerun(None);
+    let message: String = result.expect_err("a timeout").to_string();
+    assert!(message.contains("`cargo build --release`"), "{message}");
+}

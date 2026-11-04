@@ -44,6 +44,9 @@ const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 const READER_GRACE: Duration = Duration::from_secs(2);
 
 thread_local! {
+    /// The command the user ran, for the error of a bound that was exceeded.
+    static RERUN: RefCell<Option<String>> = const { RefCell::new(None) };
+
     /// The file that records the process group of every child started by this thread, set while a transaction is open.
     static GROUP_LOG: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
@@ -311,4 +314,30 @@ pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound)
         return Err(RunError::Io(error));
     }
     return Ok(Output { status, stdout: out, stderr: err });
+}
+
+/// What:
+/// `pub fn set_rerun(command: Option<String>)` records the command the user ran, for the errors of this thread.
+/// Why:
+/// Review finding (4c P3): an error that says "run the command again" must name it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function setRerun(command?: string): void
+/// ```
+pub fn set_rerun(command: Option<String>) {
+    RERUN.with(|slot| { *slot.borrow_mut() = command; });
+}
+
+/// What:
+/// `pub fn rerun_text() -> String` is the command to name in an error: the recorded one, or a plain description when none was.
+/// Why:
+/// Callers build their `Bound` with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function rerunText(): string
+/// ```
+pub fn rerun_text() -> String {
+    return RERUN.with(|slot| { return slot.borrow().clone().map(|command| { return format!("`{command}`"); }).unwrap_or_else(|| { return "the command you ran".to_string(); }); });
 }

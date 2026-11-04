@@ -267,7 +267,7 @@ pub(crate) fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &
         // Macro `format!`: builds or prints text (or a list) from a template.
         what: format!("`git {}` (cargo-shadow asks it which commit to compare with)", arguments.join(" ")),
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        rerun: "the same cargo command".to_string(),
+        rerun: crate::bounded_run::rerun_text(),
     };
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&mut command`: lends the value without copying or giving it away.
@@ -593,7 +593,7 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
             // Macro `format!`: builds or prints text (or a list) from a template.
             what: format!("`git show {object}` (cargo-shadow reads the lockfile of the verification base)"),
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            rerun: "the same cargo command".to_string(),
+            rerun: crate::bounded_run::rerun_text(),
         };
         // `None`: the present or the absent value of an `Option`.
         // `match`: picks the arm whose pattern fits the value.

@@ -222,7 +222,7 @@ impl Syncer for FileEnforcer {
         // String(value)  // JS strings are always owned values
         // ```
         // Typed binding: `bound: Bound`.
-        let bound: Bound = Bound { limit: Duration::from_secs(FILE_ENFORCER_SECONDS), what: "`file-enforcer write`".to_string(), rerun: "the same cargo command".to_string() };
+        let bound: Bound = Bound { limit: Duration::from_secs(FILE_ENFORCER_SECONDS), what: "`file-enforcer write`".to_string(), rerun: crate::bounded_run::rerun_text() };
         // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
         // Why:      Absence is a value the caller must check; there is no `null`.
         //

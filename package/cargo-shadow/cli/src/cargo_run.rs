@@ -178,7 +178,7 @@ impl CargoRunner for RealCargo {
         // console.error(text);   // eprintln!
         // [a, b]            // vec![a, b]
         // ```
-        let bound: Bound = Bound { limit: self.bound, what: format!("`cargo {}`", args.join(" ")), rerun: "the same cargo command".to_string() };
+        let bound: Bound = Bound { limit: self.bound, what: format!("`cargo {}`", args.join(" ")), rerun: crate::bounded_run::rerun_text() };
         // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
         // Why:      Absence is a value the caller must check; there is no `null`.
         //

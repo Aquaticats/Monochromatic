@@ -233,6 +233,8 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // policy refusal, frozen or local, is different: `--locked` would not stop the build script of a refused release, so
     // `Preflight::Refused` stops the command (below). `arguments` is replaced for the rest of the run, so the notice and
     // guard logic see the same line.
+    // The command the user ran, so an error that says "run it again" names it (review finding 4c P3).
+    crate::bounded_run::set_rerun(Some(format!("cargo {}", arguments.iter().map(|argument| { return argument.to_string_lossy().to_string(); }).collect::<Vec<String>>().join(" "))));
     if hops == 0
         && treatment == Treatment::InstallStep
         // `Some`: the present or the absent value of an `Option`.
