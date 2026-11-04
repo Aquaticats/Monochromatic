@@ -34,6 +34,8 @@ thread_local! {
     static FINISH_CLEANUP: Cell<bool> = const { Cell::new(false) };
     /// Whether the next durability barrier of a recovery on this thread fails.
     static RECOVER_DURABILITY: Cell<bool> = const { Cell::new(false) };
+    static OUTPUT_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
+    static OUTPUT_DIRECTORY_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static ACKNOWLEDGEMENT_PUBLISH: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
@@ -87,6 +89,10 @@ pub enum Point {
     FinishCleanup,
     /// The forcing of live files to disk before a recovery deletes the durable copies that made them recoverable.
     RecoverDurability,
+    /// The sync of an output file inside `make_durable`, the real barrier that finishing and recovery use for lockfiles and manifests.
+    OutputFileSync,
+    /// The sync of the directory that lists an output file inside `make_durable`.
+    OutputDirectorySync,
     /// The publication of an acknowledgement fails before it is visible.
     AcknowledgementPublish,
     /// The sync that makes an acknowledgement durable fails.
@@ -160,6 +166,8 @@ pub fn arm(point: Point) {
         Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
         Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
         Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
+        Point::OutputFileSync => OUTPUT_FILE_SYNC.with(|slot| { slot.set(true); }),
+        Point::OutputDirectorySync => OUTPUT_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
         Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(|slot| { slot.set(true); }),
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| { slot.set(true); }),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(|slot| { slot.set(true); }),
@@ -200,6 +208,8 @@ pub fn fires(point: Point) -> bool {
         Point::FinishDurability => FINISH.with(Cell::take),
         Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
         Point::RecoverDurability => RECOVER_DURABILITY.with(Cell::take),
+        Point::OutputFileSync => OUTPUT_FILE_SYNC.with(Cell::take),
+        Point::OutputDirectorySync => OUTPUT_DIRECTORY_SYNC.with(Cell::take),
         Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(Cell::take),
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(Cell::take),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(Cell::take),
