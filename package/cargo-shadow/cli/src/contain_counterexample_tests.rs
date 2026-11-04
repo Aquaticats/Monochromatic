@@ -17,8 +17,10 @@ use std::time::{Duration, Instant};
 use rustix::process::{Pid, Signal, kill_process, test_kill_process};
 
 use crate::bounded_run::{Bound, output_within};
+use crate::cgroup_test_support::{assert_ran_in_recorded_scope, wrapper_group};
 use crate::crates::LockSnapshot;
-use crate::journal::recover;
+use crate::journal::{begin, recover};
+use crate::journal_support::journal_dirs;
 use crate::test_scratch::scratch;
 
 /// The environment variable that tells the helper process which workspace to use.
@@ -61,8 +63,15 @@ static int leader_is_zombie(void) {
 static void *live_thread(void *argument) {
   (void) argument;
   while (!leader_is_zombie()) { usleep(1000); }
-  FILE *out = fopen(ready_path, "w");
-  if (out != NULL) { fprintf(out, "%ld\n", (long) syscall(SYS_gettid)); fclose(out); }
+  /* The thread id is written whole under another name and renamed, so a reader that sees the file sees a complete id (9b 3.7). */
+  char partial[1024];
+  snprintf(partial, sizeof partial, "%s.part", ready_path);
+  FILE *out = fopen(partial, "w");
+  if (out != NULL) {
+    fprintf(out, "%ld\n", (long) syscall(SYS_gettid));
+    fclose(out);
+    rename(partial, ready_path);
+  }
   sleep(600);
   return NULL;
 }
@@ -109,8 +118,11 @@ pub(crate) fn is_running(pid: i32) -> bool {
     let Some(found) = Pid::from_raw(pid) else {
         return false;
     };
-    if test_kill_process(found).is_err() {
-        return false;
+    // Only the absence error shows a process is gone; `EPERM` or anything else means the inspection did not establish absence (9b 3.7).
+    match test_kill_process(found) {
+        Ok(()) => {}
+        Err(rustix::io::Errno::SRCH) => return false,
+        Err(error) => panic!("signal 0 to {pid} failed with {error}: the process may still exist"),
     }
     // A process that was reaped between the two reads is gone; one whose state cannot be read for another reason stops the test.
     let stat: String = match fs::read_to_string(format!("/proc/{pid}/stat")) {
@@ -195,6 +207,10 @@ fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_ret
     let ready: PathBuf = directory.path().join("ready");
     let pid_file: PathBuf = directory.path().join("pid");
     let group_file: PathBuf = directory.path().join("group");
+    let workspace = recorded_workspace();
+    let transaction = begin(workspace.path(), &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "lock".to_string() }], false).expect("begin");
+    let journal: PathBuf = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
+    let wrapper: String = wrapper_group();
     let script: String = format!(
         "cat /proc/self/cgroup > {}; setsid {} {} </dev/null >/dev/null 2>&1 & echo $! > {}; while [ ! -e {} ]; do sleep 0.02; done; echo done",
         group_file.display(),
@@ -210,7 +226,16 @@ fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_ret
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
     assert!(!thread_is_alive(tid), "the worker thread of a process whose leader had ended is still alive after the run returned");
     let _ = read_pid(&pid_file);
-    assert!(fs::read_to_string(&group_file).expect("the program's group").trim().ends_with(".scope"), "the program did not run in a delegated scope");
+    assert_ran_in_recorded_scope(&journal.join("groups").display().to_string(), &fs::read_to_string(&group_file).expect("the program's group"), &wrapper);
+    drop(transaction);
+}
+
+/// A disposable workspace with the crate root the journal of a test snapshots.
+fn recorded_workspace() -> tempfile::TempDir {
+    let workspace = scratch();
+    fs::create_dir_all(workspace.path().join(CRATE_DIR)).expect("dir");
+    fs::write(workspace.path().join(CRATE_DIR).join("Cargo.lock"), "lock").expect("lock");
+    return workspace;
 }
 
 /// Round 7 (6a R1 B):
@@ -219,13 +244,22 @@ fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_ret
 /// the reviewer's schedule depends on the order in which `/proc` is read, so it is a regression test and no deterministic red.
 #[test]
 fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
     let directory = scratch();
     let pids: PathBuf = directory.path().join("pids");
+    let group_file: PathBuf = directory.path().join("group");
+    let workspace = recorded_workspace();
+    let transaction = begin(workspace.path(), &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "lock".to_string() }], false).expect("begin");
+    let journal: PathBuf = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
+    let wrapper: String = wrapper_group();
     // Forty orphans: each double-forked child records its process id and lives on; the program waits until all forty have.
     let script: String = format!(
-        "i=0; while [ $i -lt 40 ]; do ( ( sh -c 'echo $$ >> {pids}; exec sleep 600' ) & ) & i=$((i+1)); done; \
+        "cat /proc/self/cgroup > {group}; i=0; while [ $i -lt 40 ]; do ( ( sh -c 'echo $$ >> {pids}; exec sleep 600' ) & ) & i=$((i+1)); done; \
          while [ \"$(wc -l < {pids} 2>/dev/null || echo 0)\" -lt 40 ]; do sleep 0.02; done; echo done",
-        pids = pids.display()
+        pids = pids.display(),
+        group = group_file.display()
     );
 
     let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(30))).expect("runs");
@@ -237,6 +271,8 @@ fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
     assert_eq!(distinct.len(), 40, "the orphans did not record their own process ids: {recorded:?}");
     let alive: Vec<(i32, String)> = recorded.iter().filter(|pid| { return is_running(**pid); }).map(|pid| { return (*pid, fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default()); }).collect();
     assert!(alive.is_empty(), "an orphan of the run is still running after the run returned: {alive:?}");
+    assert_ran_in_recorded_scope(&journal.join("groups").display().to_string(), &fs::read_to_string(&group_file).expect("the program's group"), &wrapper);
+    drop(transaction);
 }
 
 /// Round 7 (6a R3):

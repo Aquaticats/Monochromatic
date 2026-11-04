@@ -166,3 +166,35 @@ pub(crate) fn scope_directory_of(groups_file: &str) -> PathBuf {
     }
     panic!("no scope record in {text:?}");
 }
+
+/// What:
+/// `pub(crate) fn wrapper_group() -> String` is the control group line of this process (the wrapper) as `/proc/self/cgroup` gives it.
+/// Why:
+/// A test that claims a run used a delegated scope must show the program's group differs from the wrapper's own, which may itself be
+/// a scope of the harness (9b 3.5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function wrapperGroup(): string
+/// ```
+pub(crate) fn wrapper_group() -> String {
+    return fs::read_to_string("/proc/self/cgroup").expect("the wrapper's own group").trim().to_string();
+}
+
+/// What:
+/// `pub(crate) fn assert_ran_in_recorded_scope(groups_file: &str, program_group: &str, wrapper_group: &str)` asserts that the program
+/// ran in the very scope the journal recorded for the run, and not in the group the wrapper already had.
+/// Why:
+/// Finding a route is not selecting it, and a group that ends in `.scope` is not the run's scope (9b 3.5): a downgraded run inherits
+/// the harness's own scope and would satisfy a suffix check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function assertRanInRecordedScope(groupsFile: string, programGroup: string, wrapperGroup: string): void
+/// ```
+pub(crate) fn assert_ran_in_recorded_scope(groups_file: &str, program_group: &str, wrapper_group: &str) {
+    let recorded: PathBuf = scope_directory_of(groups_file);
+    let relative: &str = recorded.to_str().expect("a UTF-8 scope path").strip_prefix(crate::control_group::CGROUP_ROOT).expect("a scope below the cgroup root");
+    assert_eq!(program_group.trim(), format!("0::{relative}"), "the program did not run in the scope the journal recorded for the run");
+    assert_ne!(program_group.trim(), wrapper_group.trim(), "the program ran in the wrapper's own group");
+}

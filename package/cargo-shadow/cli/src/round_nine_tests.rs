@@ -143,18 +143,35 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
 /// not after the descendant ends.
 #[test]
 fn a_discovery_whose_descendant_holds_the_pipes_ends_at_its_deadline() {
+    let directory = scratch();
+    let shell_file: PathBuf = directory.path().join("shell");
+    let descendant_file: PathBuf = directory.path().join("descendant");
+    // The direct program records its own process id, starts a descendant that records its id and then holds the inherited pipes
+    // open, and exits at once: the boundary of the claim is reached only when both files exist and the program is gone (9b 3.7).
+    let script: String = format!(
+        "echo $$ > {shell}; sh -c 'echo $$ > {descendant}; exec sleep 5' & exit 0",
+        shell = shell_file.display(),
+        descendant = descendant_file.display()
+    );
     let settings: RouteSettings = RouteSettings {
         systemctl: "sh".to_string(),
-        question: Some(vec!["-c".to_string(), "(sleep 5) & exit 0".to_string()]),
-        discovery_bound: Duration::from_millis(300),
+        question: Some(vec!["-c".to_string(), script]),
+        discovery_bound: Duration::from_millis(1500),
         ..RouteSettings::default()
     };
     let started = Instant::now();
 
     let refused = detect_route(&settings).expect_err("a manager whose answer never ends is a missing capability");
+    let elapsed: Duration = started.elapsed();
+    let descendant: i32 = crate::contain_counterexample_tests::read_pid(&descendant_file);
+    let held_the_pipes: bool = crate::contain_counterexample_tests::is_running(descendant);
+    let program_gone: bool = !crate::contain_counterexample_tests::is_running(crate::contain_counterexample_tests::read_pid(&shell_file));
+    crate::contain_counterexample_tests::stop_quietly(descendant);
 
+    assert!(held_the_pipes, "the descendant was not alive at the deadline, so it did not hold the pipes");
+    assert!(program_gone, "the direct program was still running, so the boundary of the claim was not reached");
     assert!(refused.to_string().contains("did not answer"), "{refused}");
-    assert!(started.elapsed() < Duration::from_secs(3), "the discovery waited {:?} for a descendant", started.elapsed());
+    assert!(elapsed < Duration::from_secs(4), "the discovery waited {elapsed:?} for a descendant that lives five seconds");
 }
 
 /// Acceptance row V6 (8a F3):

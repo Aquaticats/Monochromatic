@@ -47,6 +47,15 @@ fn script_with_escaped_writer(directory: &Path, after: &str) -> String {
     );
 }
 
+/// A disposable workspace and the transaction that records the scope of the next run (9b 3.5).
+fn recorded_transaction() -> (tempfile::TempDir, crate::journal::Transaction) {
+    let workspace = scratch();
+    fs::create_dir_all(workspace.path().join("package/c/one")).expect("dir");
+    fs::write(workspace.path().join("package/c/one/Cargo.lock"), "lock").expect("lock");
+    let transaction = begin(workspace.path(), &[LockSnapshot { crate_dir: "package/c/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+    return (workspace, transaction);
+}
+
 /// The process id the escaped writer recorded.
 fn writer_pid(directory: &Path) -> i32 {
     return crate::contain_counterexample_tests::read_pid(&directory.join("pid"));
@@ -57,11 +66,19 @@ fn writer_pid(directory: &Path) -> i32 {
 /// a descendant that left the process group and closed the pipes is stopped before a normal exit returns.
 #[test]
 fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
     let directory = scratch();
     let script = script_with_escaped_writer(directory.path(), "echo done");
+    let (workspace, transaction) = recorded_transaction();
+    let journal = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
 
     let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(20))).expect("runs");
     let writer = writer_pid(directory.path());
+    // The run used the scope it recorded (9b 3.5): a downgraded run records no scope.
+    crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
+    drop(transaction);
 
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
     assert!(!crate::contain_counterexample_tests::is_running(writer), "a descendant is still running after the run had returned");
@@ -72,11 +89,18 @@ fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
 /// the same at the bound.
 #[test]
 fn a_writer_in_another_session_is_stopped_at_the_bound() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
     let directory = scratch();
     let script = script_with_escaped_writer(directory.path(), "sleep 30");
+    let (workspace, transaction) = recorded_transaction();
+    let journal = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
 
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(1)));
     let writer = writer_pid(directory.path());
+    crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
+    drop(transaction);
 
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
     assert!(!crate::contain_counterexample_tests::is_running(writer), "a descendant is still running after the run had returned");
