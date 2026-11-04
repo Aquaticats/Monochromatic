@@ -15,9 +15,11 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use crate::cgroup_test_support::{delegated_route, start_in_scope};
-use crate::control_group::{ControlGroup, Identity, Route, current_identity, read_current_identity, use_identity_for_test, view_of};
+use crate::failpoints::{Point, arm};
+use crate::control_group::{RouteSettings, detect_route, ControlGroup, Identity, Route, current_identity, read_current_identity, use_identity_for_test, view_of};
 use crate::crates::LockSnapshot;
 use crate::journal::recover;
 use crate::journal_recover::survivor_note;
@@ -305,4 +307,28 @@ fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
             assert!(note.contains("still running"), "{mode}: the group is live and the boot is the same: {note}");
         }
     }
+}
+
+/// Acceptance row V6 (9a D3):
+/// a discovery program that does not end is killed at the deadline and its reaping spends only what is left of that deadline.
+/// The child here cannot be reaped (the failpoint), so the return must come at the deadline and say that the child was not reaped,
+/// not a fresh budget later.
+#[test]
+fn a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so() {
+    let bound: Duration = Duration::from_millis(400);
+    let settings: RouteSettings = RouteSettings {
+        systemctl: "sh".to_string(),
+        question: Some(vec!["-c".to_string(), "exec sleep 30".to_string()]),
+        discovery_bound: bound,
+        ..RouteSettings::default()
+    };
+    arm(Point::ReapStuck);
+    let started = Instant::now();
+
+    let refused = detect_route(&settings).expect_err("a manager that does not answer is a missing capability");
+    let elapsed: Duration = started.elapsed();
+
+    assert!(refused.to_string().contains("did not answer"), "{refused}");
+    assert!(refused.to_string().contains("could not be reaped"), "the unreaped child was not reported: {refused}");
+    assert!(elapsed < bound + Duration::from_millis(1500), "the discovery returned after {elapsed:?}, past its deadline of {bound:?} by more than a reaping poll");
 }

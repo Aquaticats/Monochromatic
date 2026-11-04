@@ -573,8 +573,13 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
 /// ```
 fn reap_within(child: &mut std::process::Child) {
     let deadline: Instant = Instant::now() + DISCOVERY_REAP;
+    // A test makes the killed child look unreapable for as long as the budget lasts.
+    #[cfg(test)]
+    let stuck: bool = crate::failpoints::fires(crate::failpoints::Point::ReapStuck);
+    #[cfg(not(test))]
+    let stuck: bool = false;
     while Instant::now() < deadline {
-        if !matches!(child.try_wait(), Ok(None)) {
+        if !stuck && !matches!(child.try_wait(), Ok(None)) {
             return;
         }
         std::thread::sleep(DISCOVERY_POLL);
