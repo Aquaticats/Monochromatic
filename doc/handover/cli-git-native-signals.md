@@ -31,7 +31,7 @@ Neither module is wired into the commit refusal (`Unported::CommitTransaction` i
 
 ## What was built
 
-### Signals (`src/native/signal_relay.rs`)
+### Signals (`src/native/process/signal_relay.rs`)
 
 - `SignalGuard::install()` installs handlers for `SIGINT`, `SIGTERM`, `SIGHUP` and `SIGQUIT`
   with `libc::sigaction`, using `SA_SIGINFO | SA_RESTART`.
@@ -52,7 +52,7 @@ Neither module is wired into the commit refusal (`Unported::CommitTransaction` i
   Keep the guard alive through cleanup, so a signal during cleanup is caught rather than killing the wrapper.
 - One guard may be active per process.
 
-### Automatic maintenance (`src/native/maintenance_decision.rs`, `src/native/maintenance_run.rs`)
+### Automatic maintenance (`src/native/landing/maintenance_decision.rs`, `src/native/landing/maintenance_run.rs`)
 
 - `parse_config_records` reads the NUL-separated output of `git config --type=bool-or-int --null --get-regexp`.
   The last value of a key wins; a key without a newline reads as `true`; output that is not UTF-8 is refused.
@@ -174,7 +174,7 @@ Proof:
   The image was built before a comment-only edit above `run_relayed`; the host run above covers that edit.
 
 Windows: `native:clippy:windows` on `4a525a744c` exits 101 before it reaches the signal files.
-It reports six errors in `src/native/auto_push_single_flight.rs` and `src/native/manual_push_probe.rs`, which call
+It reports six errors in `src/native/push/auto_push_single_flight.rs` and `src/native/push/manual_push_probe.rs`, which call
 unix-only `std::os::unix` APIs without a `cfg`.
 Both files are unchanged from `c2f4219acb`, so the failure is on the base branch and is not this fix.
 No reported error names `signal_relay.rs` or `signal_relay_tests.rs`, and the `#[cfg(not(unix))]` guard branch
@@ -202,13 +202,13 @@ The only change since `385ab5b80b` is test code in `signal_relay_tests.rs` and t
 so the same base-file findings are expected there.
 
 Clippy with `-D warnings` on the host (`native:clippy`) and in the container gives the same findings:
-- Library tests: `forward_after` is never used (`src/native/entry_tests.rs:114`);
-  two `missing return statement` (`src/native/index_lock_wait_tests.rs:190` and `:201`);
+- Library tests: `forward_after` is never used (`src/native/invocation/entry_tests.rs:114`);
+  two `missing return statement` (`src/native/lock/index_lock_wait_tests.rs:190` and `:201`);
   one `this match expression can be replaced with ?` (`src/native/index_writer_coordination_tests.rs:192`).
-- Library: one `large size difference between variants` (`src/native/action.rs:60`).
+- Library: one `large size difference between variants` (`src/native/invocation/action.rs:60`).
 - This lane's files produce no findings on the host or in the container.
 
-Windows GNU Clippy (`native:clippy:windows`, `--lib`) reports only the `src/native/action.rs:60` finding.
+Windows GNU Clippy (`native:clippy:windows`, `--lib`) reports only the `src/native/invocation/action.rs:60` finding.
 The `#[cfg(not(unix))]` branch of the signal guard and the maintenance modules type-check on that target.
 
 ## Planted-defect controls
@@ -247,8 +247,8 @@ The host proof above is the evidence that the guard tests fail; the container no
 
 Per the lane brief's Trailing gates decision, these gates were not run before the cutover:
 
-- Mutation campaigns (`native:mutation`, cargo-mutants) over `src/native/signal_relay.rs`,
-  `src/native/maintenance_decision.rs`, `src/native/maintenance_run.rs` and `src/native/maintenance_hk_config.rs`.
+- Mutation campaigns (`native:mutation`, cargo-mutants) over `src/native/process/signal_relay.rs`,
+  `src/native/landing/maintenance_decision.rs`, `src/native/landing/maintenance_run.rs` and `src/native/maintenance_hk_config.rs`.
   Signals and automatic maintenance are non-core modules.
   Remaining: run the scoped mutation task over these files through the slot limiter and record every survivor with a
   proof.

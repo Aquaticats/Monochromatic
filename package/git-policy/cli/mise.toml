@@ -11,7 +11,7 @@ description = "Plant guard removals and run cargo-mutants for `-- --file <glob>`
 run = "node bin/mutate-native-container.ts"
 
 [tasks."native:mutation:parallel"]
-description = "Start one capped systemd unit per file for `-- [options] <label> <file.rs>...` (files relative to src/native), each running native:mutation:scoped through the shared slot limiter; the shared launcher's options such as --timeout, --build-timeout, --examine <regex> (repeatable, for every file), --memory, --cpus, --unit-memory-max and --unit-cpu-quota follow the same --. Where no campaign evidence proves the planted controls for an image, one more unit runs only the controls beside the file units, which skip them and name that unit; `--setenv NATIVE_MUTATION_SKIP_PLANTED=1` skips them without proof"
+description = "Start one capped systemd unit per file for `-- [options] <label> <file.rs>...` (files relative to src/native, with their folder: command/command_add.rs), each running native:mutation:scoped through the shared slot limiter; the shared launcher's options such as --timeout, --build-timeout, --examine <regex> (repeatable, for every file), --memory, --cpus, --unit-memory-max and --unit-cpu-quota follow the same --. Where no campaign evidence proves the planted controls for an image, one more unit runs only the controls beside the file units, which skip them and name that unit; `--setenv NATIVE_MUTATION_SKIP_PLANTED=1` skips them without proof"
 run = "node bin/native-mutation-parallel.ts --task //package/git-policy/cli:native:mutation:scoped --tag-env GIT_POLICY_NATIVE_IMAGE_TAG --scope-prefix src/native/ --unit-prefix cli-git-mutpar"
 
 [tasks."native:mutation:planted"]

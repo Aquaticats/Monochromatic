@@ -19,7 +19,7 @@ The pre-commit stage found the linter.
 
 ## Cause
 
-`run_staged_gate` in `package/git-policy/cli/src/native/post_commit.rs` built its checks with `shipped_checks(...)`
+`run_staged_gate` in `package/git-policy/cli/src/native/commit/post_commit.rs` built its checks with `shipped_checks(...)`
 and nothing else.
 `shipped_checks` gives the Markdown policy `executable_linter(&[])`, which has no PATH,
 so every Markdown candidate stayed unchecked.
@@ -72,14 +72,14 @@ which declares the `pre-forward` trigger alone, so the post-commit stage does no
 
 ## Tests
 
-Unit tests in `src/native/post_commit_tests.rs`, one per setting:
+Unit tests in `src/native/commit/post_commit_tests.rs`, one per setting:
 
 - `the_linter_is_found_on_the_invocations_path`
 - `the_markdown_options_reach_the_post_commit_policy` (the unchecked case is also its positive control)
 - `the_configured_rules_file_reaches_the_post_commit_scanner`
 - `the_rules_variable_reaches_the_post_commit_scanner`
 
-Binary test in `src/native/binary_markdown_tests.rs`:
+Binary test in `src/native/binary/binary_markdown_tests.rs`:
 `the_post_commit_stage_finds_the_linter_on_the_invocations_path` commits a Markdown file through the built
 executable, in a disposable repository, with a fake `monochromatic-lint` on PATH.
 The fake returns its input and records the commit `main` names on each run.
@@ -115,7 +115,7 @@ Command, through the slot limiter, against the image above:
 # package/git-policy/cli
 NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=post-commit-env \
   node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- \
-  --file src/native/post_commit.rs --file src/native/commit_command.rs --timeout 900
+  --file src/native/commit/post_commit.rs --file src/native/commit/commit_command.rs --timeout 900
 ```
 
 Result: 20 mutants, 12 caught, 8 unviable, 0 missed, 0 timeouts.

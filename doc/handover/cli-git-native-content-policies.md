@@ -72,19 +72,19 @@ Two sources the candidate layer did not provide,
 both staged on a private copy of the real index:
 
 - What `git add` would stage
-  (`src/native/candidate_prediction.rs`, `CandidateRequest::Add`).
+  (`src/native/candidate/candidate_prediction.rs`, `CandidateRequest::Add`).
   The real index path comes from `git rev-parse --path-format=absolute --git-path index`,
   so `GIT_INDEX_FILE`,
   a linked worktree's own index and `--git-dir` are honored.
   The index is copied with its access and modification times
-  (`src/native/candidate_private_index.rs`),
+  (`src/native/candidate/candidate_private_index.rs`),
   as `index-file-timestamps.ts` does for issue #544,
   into a fresh `0700` directory named `cli-git-add-policy-<pid>-<nanoseconds>-<count>` beside it,
   which is removed when the prepared candidates are dropped.
   `git ls-files --stage -z --full-name -- :/` lists the copy before and after
   `git <prefix> add <region>` runs on it,
   and the candidates are the paths whose complete record lists differ
-  (`src/native/candidate_stage.rs`, `staged_delta`),
+  (`src/native/candidate/candidate_stage.rs`, `staged_delta`),
   in the incumbent's order:
   paths the index held first,
   in index order,
@@ -172,8 +172,8 @@ Commit `30ce6cab5`.
   as the incumbent does,
   and reports a scope Git refuses as one `transaction-failed` event with its trigger,
   the incumbent's code for the same failure.
-- `final-newline` (`src/native/policy_final_newline.rs`) and `mono/forbidden-root-context`
-  (`src/native/policy_root_context.rs`) check the candidates with the incumbent's codes and messages.
+- `final-newline` (`src/native/policy/policy_final_newline.rs`) and `mono/forbidden-root-context`
+  (`src/native/policy/policy_root_context.rs`) check the candidates with the incumbent's codes and messages.
 - Superseded on `feat/cli-git-native-dependent-version`: `mono/dependent-version-bump` is wired
   and no longer answers `Unavailable`.
 - At this commit, `markdown/autofix` and `mono/dependent-version-bump` answered `Unavailable`
@@ -199,7 +199,7 @@ so the snapshot held the committed tree.
 
 Commit `b7bed7111`.
 
-- `security/forbidden-strings` (`src/native/policy_forbidden_strings.rs`) scans the lifecycle's candidates
+- `security/forbidden-strings` (`src/native/policy/policy_forbidden_strings.rs`) scans the lifecycle's candidates
   through the linked scanner (`scanner_run::scan_version`).
   Rules load once per invocation,
   and only when at least one candidate is scannable,
@@ -212,7 +212,7 @@ Commit `b7bed7111`.
   and the scanner's masked display path.
   Every result is checked for a failed matcher or a pathname with a line break before any match is reported;
   either ends the policy as `policy-incomplete`.
-- `rulesFile` (`src/native/config_rules_file.rs`) is a new option of the policy.
+- `rulesFile` (`src/native/config/config_rules_file.rs`) is a new option of the policy.
   A value is refused when it is empty,
   starts with `/`,
   starts with a drive letter and a colon,
@@ -227,7 +227,7 @@ Commit `b7bed7111`.
   else `FORBIDDEN_STRINGS_RULES` from the invocation's environment,
   else `forbidden-strings.local.txt` in the top level.
   Only the default file may be missing beside the built-in rules.
-- `src/native/panic_notice.rs` is the executable's panic hook,
+- `src/native/invocation/panic_notice.rs` is the executable's panic hook,
   installed first thing in `main.rs`.
   It prints the source location and never the message,
   which can hold scanned bytes.
@@ -265,7 +265,7 @@ Commit `ed3f10514`.
   (`scanner_run::CandidateBytes` is the reader the scan pass now takes).
   A file whose correction restores its original bytes stops counting as corrected,
   so two states are equal exactly when every file holds the same bytes.
-- `src/native/direct_fix.rs` gives `policy_convergence::converge` its passes,
+- `src/native/policy/direct_fix.rs` gives `policy_convergence::converge` its passes,
   reports only the last pass,
   and appends one `fix-summary`
   (trigger,
@@ -275,7 +275,7 @@ Commit `ed3f10514`.
   A cycle or the pass limit reports one engine failure and nothing else,
   as `fixCycleFailure` and `fixPassLimitFailure` do;
   the cycle message is the incumbent's direct-fix wording.
-- `src/native/direct_fix_install.rs` follows `direct-fix-install.ts`:
+- `src/native/policy/direct_fix_install.rs` follows `direct-fix-install.ts`:
   every corrected file must still hold the bytes the fix read,
   each gets a backup copy and a new file beside it named `.cli-git-direct-fix-<pid>-<nanoseconds>-<count>`,
   the new files are renamed over the originals with mode `0644` or `0755`,
@@ -412,7 +412,7 @@ No source or test changed between the final gate and the campaigns.
 Every changed source file was mutated
 except `src/native/lib.rs`,
 for which cargo-mutants lists no mutant,
-and `src/native/policy_test_support.rs`,
+and `src/native/policy/policy_test_support.rs`,
 which is compiled for tests only.
 
 ### Results

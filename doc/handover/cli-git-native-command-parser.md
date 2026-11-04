@@ -135,7 +135,7 @@ compile only under `cfg(test)`.
 ### Tokenizer functions and types
 
 ```rust
-// package/git-policy/cli/src/native/command_options.rs
+// package/git-policy/cli/src/native/command/command_options.rs
 pub fn parse_options(
     arguments: &[OsString],
     table: &[OptionSpec],
@@ -486,8 +486,8 @@ never when only compilation or Clippy fails.
 - Edit outside the owned files, in `global_arguments.rs`:
 
   ```diff
-  --- a/package/git-policy/cli/src/native/global_arguments.rs
-  +++ b/package/git-policy/cli/src/native/global_arguments.rs
+  --- a/package/git-policy/cli/src/native/invocation/global_arguments.rs
+  +++ b/package/git-policy/cli/src/native/invocation/global_arguments.rs
   @@ -37 +37 @@
   -const VALUE_OPTIONS: &[&[u8]] = &[
   +pub(crate) const VALUE_OPTIONS: &[&[u8]] = &[

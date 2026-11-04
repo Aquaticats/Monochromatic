@@ -618,7 +618,7 @@ The snapshot carries the whole ignored state of the source, so the ignored-state
 
 Leaving out of a snapshot of the main checkout:
 before the stage is made private and its stubs removed, the wrapper prunes a snapshot whose source is the main checkout
-with the main-checkout rule of `src/native/worktree_copy_prune.rs`.
+with the main-checkout rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
 First it works out what the source's index tracks: every directory above a tracked file, and every directory-valued
 index entry (a gitlink) at its own path. None of those is ever moved, whatever its name.
 A registered nested worktree that is an ordinary directory and holds or is a tracked path cannot be left out, so the
@@ -764,7 +764,7 @@ before and after the read, and the read is bounded at the limit plus one byte, s
 the one file that was judged.
 The rungs of the add keep the stat-only check.
 A real run takes no lock. It owns the conversion through a numbered claim file in the administrative directory
-(`cli-git-convert.owner.<generation>`, `src/native/single_owner_claim.rs`) that it takes before it reads the journal and gives
+(`cli-git-convert.owner.<generation>`, `src/native/lock/single_owner_claim.rs`) that it takes before it reads the journal and gives
 back when it ends, so two commands never read, write or resume one journal. The file is written whole in a private temporary
 file and published with one exclusive `link` under the next generation number, so the kernel lets exactly one command create a
 generation; the newest generation is the claim and records the owner's process id, process birth identity and PID namespace.
@@ -944,7 +944,7 @@ that instant can remove an empty directory at most, never data; that residual is
 Before staging,
 exclude every registered worktree root strictly nested under the source.
 A main-checkout source also applies a leave-out rule of directory names, the same everywhere below the source root,
-implemented in `src/native/worktree_copy_prune.rs`:
+implemented in `src/native/worktree_copying/worktree_copy_prune.rs`:
 a directory that holds a `.git` file or directory is another checkout and is left out whole;
 a cache is left out (`.pnpm-store`, `.gradle`, `.kotlin`, `.cache` anywhere but the repository root,
 and `incremental` and `zig-global-cache` below a `target` directory);
@@ -1096,7 +1096,7 @@ preserve its status after writing the successful copy summary.
 ### Package-manager repair of a new worktree
 
 Design, survey and measurements: `doc/planning/cli-git-main-worktree-ignored-copy.md`, section "Package-manager state of a new worktree".
-Code: `src/native/package_repair*.rs`; the call is in `repair_created` of `src/native/worktree_copy.rs`.
+Code: `src/native/package_repair*.rs`; the call is in `repair_created` of `src/native/worktree_copying/worktree_copy.rs`.
 
 A copy, a clone and a snapshot keep links and build state exactly as the source had them, which is wrong for tools that record the
 place they were installed or built at.
@@ -1303,7 +1303,7 @@ The ways each of these can still exit nonzero are listed under "Merging" in `REA
 A `git pull` that is stated to merge (`--no-rebase`, `pull.rebase` or `branch.<name>.rebase` false, or `--ff`
  or `--no-ff`
 with nothing else stated) and that carries only the options and operands the wrapper reads exactly
-(`src/native/pull_isolation.rs`) is split the way Git splits it (`builtin/pull.c`, `run_fetch` and `run_merge`):
+(`src/native/merge/pull_isolation.rs`) is split the way Git splits it (`builtin/pull.c`, `run_fetch` and `run_merge`):
  the wrapper runs
 `git fetch --update-head-ok` with the pull's fetch options and operands,
  moves the working tree along when the fetch moved the
@@ -1325,20 +1325,20 @@ A merge, the person's or the auto-push's, never runs native Git's stash and neve
 the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, the checkout moves with
 `git merge --ff-only`, and the whole is preceded by a bounded wait for `index.lock`.
 A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
-content, and the merge is computed again on the moved head (`src/native/merge_isolation_moved.rs`).
+content, and the merge is computed again on the moved head (`src/native/merge/merge_isolation_moved.rs`).
 A push the service stopped or that failed is tried again by the service on its own, with doubling pauses from
-`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push_retry.rs`).
+`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push/push_retry.rs`).
 The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
 (owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
 these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
 Being offline, a stall, an HTTP 5xx answer of the LFS server and a held lock are tried again.
 A rejection by the server with a reason no rule names is tried again, and the journal names its line.
-The classification reads Git's own words, which are cited beside the rules in `src/native/push_retry.rs`.
+The classification reads Git's own words, which are cited beside the rules in `src/native/push/push_retry.rs`.
 The plan is owned by the service's work loop alone: a round takes what is due for each repository out of it before the
 repositories are drained side by side, hands it to that repository's worker as a value, and applies the plans and forgets the
-workers return, so the workers share it with no lock (`src/native/service_work.rs`, `src/native/service_round.rs`).
+workers return, so the workers share it with no lock (`src/native/landing/service_work.rs`, `src/native/landing/service_round.rs`).
 The plan survives a restart of the service: it is kept on disk, a file per branch, in the instance's own journal
-(`src/native/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
+(`src/native/push/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
 
 #### Git steps, tools and checks end only on no progress
 
@@ -1353,7 +1353,7 @@ The coordinator added the read-only queries of the auto-push to the same rule.
 
 The rule: no run ends because it has taken long.
 A run ends when it has shown no sign of work for its quiet window.
-The signs are the ones the push reads (`src/native/push_progress.rs`): bytes moved by the process and everything it
+The signs are the ones the push reads (`src/native/push/push_progress.rs`): bytes moved by the process and everything it
 started,
 processor time, a task able to run or waiting for the disk, and, for a run that holds a connection to a remote, the open
 connection itself.
@@ -1365,7 +1365,7 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured and a run 
 bound
 is the rule.
 
-- A Git step of a commit (`src/native/child_watch.rs`, `src/native/transaction_git.rs`) is judged by the push meter on
+- A Git step of a commit (`src/native/push/child_watch.rs`, `src/native/transaction/transaction_git.rs`) is judged by the push meter on
   the
   process the wrapper started.
   A step that has shown no sign of work for the window, 60 seconds for a quick query step and 300 seconds for a bulk
@@ -1386,7 +1386,7 @@ is the rule.
   (a compare-and-swap) may join the steps that are ended is an open question for the owner.
 - The person's hook is never ended.
   No hook of the person runs below a step the wrapper starts, because every Git the wrapper starts carries
-  `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/hooks_off.rs`), so the watch
+  `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`), so the watch
   needs no way
   to tell a hook from Git.
   The stop signals the step and the processes it started and never a process beside it.
@@ -1396,19 +1396,19 @@ is the rule.
 - The long-lived object reader (`git cat-file --batch`) is judged the same way per request; a request that stalls ends
   the
   reader and fails with the same sentence. Starting the reader again is not built.
-- A read-only Git query before the push (`src/native/bounded_query.rs`) has no wall-clock ceiling: it is judged by the
+- A read-only Git query before the push (`src/native/push/bounded_query.rs`) has no wall-clock ceiling: it is judged by the
   same
   meter with the push's stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`), and `QUERY_CEILING` (120 seconds) no longer
   exists.
-- A package-manager tool of the worktree repair (`src/native/package_repair_command.rs`) is judged on its process
+- A package-manager tool of the worktree repair (`src/native/repair/package_repair_command.rs`) is judged on its process
   group's
   leader with a window of 600 seconds, and ends with its whole process group.
   An install that downloads for a long time is never reported as having run past a limit.
-- The Markdown linter (`src/native/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
+- The Markdown linter (`src/native/markdown/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
   of that
-  thread (`src/native/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
+  thread (`src/native/process/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
   `/proc/self/task/<tid>/`, with a window of 60 seconds. A linter thread that shows none is abandoned as before.
-- The standards-review gateway call (`src/native/standards_review_client.rs`) has no total deadline. Resolving,
+- The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has no total deadline. Resolving,
   connecting and
   each read and write of the connection may be silent for the window, 10 seconds in the service (`CALL_QUIET_WINDOW`)
   and 30
@@ -1421,7 +1421,7 @@ is the rule.
   last resort), the wait for the signal guard (library tests only), and the notice graces (they time a message, not an
   end).
 
-The longest quiet gap of every Git step and tool a command ran is kept (`src/native/quiet_ledger.rs`) and written into
+The longest quiet gap of every Git step and tool a command ran is kept (`src/native/process/quiet_ledger.rs`) and written into
 the
 timing record the command already writes: `longestQuietMs` (the longest among the steps that ended by themselves) and
 `quietMs` (by step name, in milliseconds, a step that was ended for being quiet listed apart under a name that ends in
@@ -1432,7 +1432,7 @@ step that works between two samples, so no window is set below it outside the co
 The commit service runs the landing's Git steps in its own process, so its figures go to its journal: the `answered`
 line of
 each request ends with `quiet_ms=<longest among the steps that ended by themselves>` and `quiet_steps="<step>=<ms>;..."`
-(`src/native/service_timing.rs`).
+(`src/native/service/service_timing.rs`).
 The landings of one service share the ledger, so the first answer after a batch's steps holds their figures and the
 others of
 that batch hold none; a figure is a gap of some step of the service since the previous answer, not of one request.
@@ -1480,7 +1480,7 @@ The owner answered through the question tool at about 2026-11-03T12:45-05:00, qu
 
 The inventory of every wait, with the end behavior of each and the options for the ones not decided, is
 `doc/planning/cli-git-no-unbounded-waits.md`. The bounds,
-in `src/native/wait_ceilings.rs` with the measurement beside each:
+in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 
 - `ANSWER_CEILING` 20 minutes: the client's wait for the service's answer,
   heartbeats or not (3.9 times the longest answer wait
@@ -2022,8 +2022,8 @@ Release 0.5.23 judged the lock files of a Git child that the wrapper itself stop
 A lock that any other killed Git leaves (a terminal closed mid-fetch, the out-of-memory killer, a reboot, a release before
 0.5.23) blocked every later `git fetch` and `git push` of the same reference with "Unable to create ... File exists"
 until someone deleted the file by hand.
-This entry extends the same code (`src/native/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/git_directory_roots.rs`
-for the Git directories it shares, `src/native/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
+This entry extends the same code (`src/native/lock/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/repo_read/git_directory_roots.rs`
+for the Git directories it shares, `src/native/lock/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
 locks, with one rule: a lock is removed only when its holder is
 **proven** gone, and otherwise the wrapper says what it found and prints the command that clears it.
 
@@ -2213,7 +2213,7 @@ file after the lock was looked for and found absent has no live maker, and it is
 #### Where it applies
 
 - The wrapper's own pushes and fetches (the commit service's auto-push and its reconcile fetch, the stacked push, the Git LFS
-  upload's pushes) all start through `run_bounded_push`, which judges and clears first (`src/native/push_lock_clearing.rs`).
+  upload's pushes) all start through `run_bounded_push`, which judges and clears first (`src/native/lock/push_lock_clearing.rs`).
   Every repetition of a push starts through it too, so the service's repetitions after a refused tracking reference
   (`PUSH_LOCK_RETRIES`) clear again before each one; no repetition of its own was added, and nothing waits.
   These are the commands that run unattended, so a lock that blocks them is repaired with nobody present.
@@ -2221,7 +2221,7 @@ file after the lock was looked for and found absent has no live maker, and it is
   ended, removes the provably stale ones, and logs the notice of the rest; it removes nothing the judgement does not prove.
 - A plain forwarded `git fetch` or `git push` replaces the wrapper process with Git, so there is no "after" to look at: the
   wrapper judges and clears before it hands over, and the notice (standard error) precedes Git's own words
-  (`src/native/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
+  (`src/native/lock/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
   The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
   A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
 - The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
@@ -2564,9 +2564,9 @@ The step:
   A shim never runs through the wrapper (see "Real Git starts with traditional hooks off"), so there is no second
   upload; `git cli-git doctor` explains the shims apart from the unsupported hooks (see "Doctor").
 
-Verified by `src/native/binary_lfs_pre_push_tests.rs`
+Verified by `src/native/binary/binary_lfs_pre_push_tests.rs`
 (a stand-in `git-lfs` that records the arguments, the input and the origin's branch at the moment it ran)
-and `src/native/binary_lfs_server_tests.rs`
+and `src/native/binary/binary_lfs_server_tests.rs`
 (the real `git-lfs` against an LFS server written inline in the test).
 
 ### Direct check
@@ -3031,7 +3031,7 @@ A forwarded index writer that finds a foreign `index.lock` ends as native Git en
 
 Concurrency in the service is lock-free first: atomic rename, exclusive creation, one owner per item.
 Every lock that remains covers the smallest unit and has its reason written beside it in the code.
-`src/native/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
+`src/native/source_guard/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
 an `flock`) appears in the service and support sources outside its inventory, or without the reason above its declaration.
 
 Removed:
@@ -3068,7 +3068,7 @@ The after-commit work of the service (pushes, upkeep, reviews, trash) is drained
 one, by the single work thread that commit `52f06fbe12` made the owner of the review credentials.
 The repository owner's answer of 2026-11-03 to whether the service's independent work should run side by side was
 "Parallelize, no locks (Recommended)", so a round of wakes now drains its repositories on workers within the host budget
-(`src/native/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
+(`src/native/landing/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
 The commit service's unit sets no CPU, memory, task or disk limit (the owner's decisions, `doc/handover/cli-git-rust-implementation.md`, lines 148 to 160), so the width
 of a round is the host budget: an eighth of the threads left free, and half of the memory available over `REPOSITORY_MEMORY`,
 128 MiB, which is the 90th percentile of the peaks of 28 services rounded up to a power of two
@@ -3082,7 +3082,7 @@ Within one repository the items still run in the order the drain gave them: push
 
 ### The service's hold on the index lock
 
-`src/native/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
+`src/native/landing/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
 Its hold,
 ownership check,
 staging files,
@@ -3965,11 +3965,11 @@ parts word by word, the way Jujutsu merges with `merge.hunk-level = "word"`, acc
 and lists each merged part on standard error and in the journal; and that the wrapper's own unattended merges
 (the auto-push reconcile merge, the commit replay merge) and the isolated merge use the same pass.
 
-The merge is `src/native/word_merge.rs`: line hunks first, then every line hunk both sides changed is diffed by word
+The merge is `src/native/merge/word_merge.rs`: line hunks first, then every line hunk both sides changed is diffed by word
 and by the bytes between words (the `similar` crate, Myers algorithm, no other feature of it), and kept only when every part of
 the hunk resolves; a file is resolved only when every hunk resolves.
 The controls hold it to the stored results of Jujutsu 0.46.0 on a corpus of real and measured inputs
-(`src/native/word_merge_corpus/`): the same verdict on every input and the same bytes on every resolved one.
+(`src/native/merge/word_merge_corpus/`): the same verdict on every input and the same bytes on every resolved one.
 It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
 which the owner accepted; it never drops a byte that either side added or kept, and it never orders two insertions at one point,
 so both sides appending different text at one place stays a conflict.
@@ -4123,8 +4123,8 @@ and the number of attempts it made:
 and "changed 3 times" for a commit the wrapper built (its `retry-prepare` rounds)
 and for a batch the service builds again after its reference update finds the branch moved,
 each three attempts at most.
-The bounds are `REBUILD_ATTEMPTS` in `src/native/service_commit.rs`
-and `LANDING_ATTEMPTS` in `src/native/service_land.rs`.
+The bounds are `REBUILD_ATTEMPTS` in `src/native/landing/service_commit.rs`
+and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
@@ -4149,7 +4149,7 @@ with the path quoted for the shell.
 
 The service takes a queued item by renaming its file into `claimed`,
 and the file name carries the clock reading of the holder's last renewal
-(`src/native/claim_time.rs`, `src/native/work_item.rs`).
+(`src/native/landing/claim_time.rs`, `src/native/landing/work_item.rs`).
 The reading holds the machine ID,
 the boot ID,
 the monotonic clock in milliseconds,
@@ -4243,7 +4243,7 @@ makes its processes see each other's claims as of an earlier boot.
 
 A slow worktree add is split by step from `<common-git-dir>/cli-git-worktree-add-timing.jsonl`, written the same way as the commit
 timing file below (one append, no flush to disk, size-capped by the same appender, never changing the add's result).
-Code: `src/native/add_timing.rs`.
+Code: `src/native/worktree/add_timing.rs`.
 Each line has `schemaVersion`, `time`, `startMillis`, `pid`, `release`, `exitCode`, `totalMs`, `steps`, `otherMs`, `work` and `notes`.
 `steps` maps a step name to `{ms, calls}`; steps are disjoint (a step inside another is taken out of the outer one) and
 `otherMs` is what no step covers, so the steps and `otherMs` add up to `totalMs`.

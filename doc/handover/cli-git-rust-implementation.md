@@ -1530,7 +1530,7 @@ Index 2.8 MB with 20,720 entries;
 Main's commit service cgroup
 (`cli-git@fc85fdf7a58f866b7f7a84b44fe0b69a.service`,
 started 08:26:19)
-had hit its `MemoryMax=1G` (`src/native/service_units/cli-git@.service`) 274,736 times,
+had hit its `MemoryMax=1G` (`src/native/service/service_units/cli-git@.service`) 274,736 times,
 with 16,125,924 major page faults;
 the service slice as a whole 582,767 and 29,926,443.
 Inference until observed:

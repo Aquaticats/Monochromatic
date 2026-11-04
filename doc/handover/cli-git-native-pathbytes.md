@@ -32,7 +32,7 @@ Merge the branch `feat/cli-git-native-pathbytes` when the gate evidence satisfie
 
 ## What existed before
 
-`src/native/event_path.rs` already had `EventPath` (readable text with U+FFFD, plus the exact bytes only when
+`src/native/policy/event_path.rs` already had `EventPath` (readable text with U+FFFD, plus the exact bytes only when
 the name is not UTF-8) and standard padded base64.
 Findings and engine failures printed `pathBytes`, and the fix summary printed `changedPathBytes`,
 so `git add`, `check` and `fix` handled such a name.
@@ -55,9 +55,9 @@ Measured on the base commit with the 7 red controls of commit `e613bda1cd` (4 fa
 Every path in the commit transaction is now exact bytes (`Vec<u8>`) from Git's listing to Git's next argument,
 and only a message shown to a person is text.
 
-- `src/native/path_bytes.rs`: `os_from_path_bytes` (the bytes as an operating-system string on Unix) and
+- `src/native/policy/path_bytes.rs`: `os_from_path_bytes` (the bytes as an operating-system string on Unix) and
   `path_message_text` (the readable text for messages).
-- `src/native/event_path.rs`: `base64_decode_standard`, strict and canonical, for reading the journals back.
+- `src/native/policy/event_path.rs`: `base64_decode_standard`, strict and canonical, for reading the journals back.
 - The commit pipeline (`commit_transaction`, `commit_index`, `commit_convergence`, `commit_conclusion`,
   `commit_landing_loop`, `commit_revalidation`, `commit_preparation`, `commit_no_change`, `commit_worktree_records`,
   `private_index_stage`, `landing_attempt`, `landing_index`, `worktree_completion`, `replay_merge`, `replay_commit`):
@@ -84,7 +84,7 @@ hold the same for records.
 
 ## What the commit path does with a bad name
 
-The 17 binary controls in `src/native/binary_event_path_commit_tests.rs` run the built `cli-git-native` in a throwaway
+The 17 binary controls in `src/native/binary/binary_event_path_commit_tests.rs` run the built `cli-git-native` in a throwaway
 repository with the file name `bad` + byte `0xff` + `.txt`, unless the line says otherwise.
 Today every one passes.
 
@@ -233,25 +233,25 @@ The scoped mutation campaign, with the files and the skipped planted phase named
 NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=pathbytes \
   node "${HOME}/temp/agent/gate-slot.ts" \
   mise run //package/git-policy/cli:native:mutation:scoped -- \
-  --file src/native/commit_conclusion.rs \
-  --file src/native/commit_convergence.rs \
-  --file src/native/commit_index.rs \
+  --file src/native/commit/commit_conclusion.rs \
+  --file src/native/commit/commit_convergence.rs \
+  --file src/native/commit/commit_index.rs \
   --file src/native/commit_landing_loop.rs \
-  --file src/native/commit_no_change.rs \
-  --file src/native/commit_preparation.rs \
+  --file src/native/commit/commit_no_change.rs \
+  --file src/native/commit/commit_preparation.rs \
   --file src/native/commit_revalidation.rs \
-  --file src/native/commit_transaction.rs \
-  --file src/native/commit_worktree_records.rs \
-  --file src/native/event_path.rs \
+  --file src/native/commit/commit_transaction.rs \
+  --file src/native/commit/commit_worktree_records.rs \
+  --file src/native/policy/event_path.rs \
   --file src/native/landing_attempt.rs \
   --file src/native/landing_index.rs \
-  --file src/native/path_bytes.rs \
-  --file src/native/policy_events.rs \
-  --file src/native/private_index_stage.rs \
+  --file src/native/policy/path_bytes.rs \
+  --file src/native/policy/policy_events.rs \
+  --file src/native/commit/private_index_stage.rs \
   --file src/native/replay_commit.rs \
-  --file src/native/replay_merge.rs \
-  --file src/native/transaction_journal.rs \
+  --file src/native/shadow/replay_merge.rs \
+  --file src/native/transaction/transaction_journal.rs \
   --file src/native/transaction_journal_encode.rs \
   --file src/native/transaction_journal_parse.rs \
-  --file src/native/worktree_completion.rs
+  --file src/native/worktree/worktree_completion.rs
 ```

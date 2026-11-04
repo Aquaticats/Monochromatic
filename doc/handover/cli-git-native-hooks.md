@@ -100,7 +100,7 @@ Image id of the planted-control run: `6fac1b052593960071bf9ac8fb102d07be8fc265b6
 Host runs, Git 2.55.0 (`/usr/bin/git`, host `cargo` through the slot limiter):
 the hook unit filter passed 24 with one ignored (the probe), and the six binary hook controls passed.
 
-Windows: `native:clippy:windows` stopped at `src/native/action.rs:60` (`large size difference between variants`),
+Windows: `native:clippy:windows` stopped at `src/native/invocation/action.rs:60` (`large size difference between variants`),
 a finding in a file this lane did not change, so the cfg-gated Windows branches of the entries and the
 dispatcher were not reported on.
 

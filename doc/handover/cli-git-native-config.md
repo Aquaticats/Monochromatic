@@ -47,14 +47,14 @@ The container gate and Clippy results are in `Gate results`.
 ## The native format and how the incumbent maps onto it
 
 The native wrapper reads one file, `cli-git.config.jsonc`, at the top level Git reports
-(`src/native/config_file.rs:56`).
+(`src/native/config/config_file.rs:56`).
 The incumbent's `cli-git.config.ts` and `cli-git.config.mjs` are never read or run natively;
-when one sits beside the JSONC file, only `git cli-git check` reports it (`src/native/config_file.rs:69`).
-The top-level keys are `policies`, `hooks`, `indexLock` and `landing` (`src/native/config_parse.rs:52`).
+when one sits beside the JSONC file, only `git cli-git check` reports it (`src/native/config/config_file.rs:69`).
+The top-level keys are `policies`, `hooks`, `indexLock` and `landing` (`src/native/config/config_parse.rs:52`).
 
 The four optional policies are `markdown/autofix`, `mono/forbidden-root-context`, `mono/dependent-version-bump`
 and `security/forbidden-strings`.
-Each one is off unless the file lists it (`off_unless_listed` rows in `src/native/policy_registry.rs:184` to `:208`),
+Each one is off unless the file lists it (`off_unless_listed` rows in `src/native/policy/policy_registry.rs:184` to `:208`),
 and an empty file and no file behave identically.
 This is the user decision of 2026-10-05
 (`doc/handover/cli-git-rust-implementation.md:1255` to `:1260` [moved on 2026-11-03 to
@@ -65,7 +65,7 @@ The mapping from `cli-git.config.ts` to `cli-git.config.jsonc`, setting by setti
 - `markdown/autofix` at `warn` with `exclude: ['package/ssg/']` (`cli-git.config.ts:35`)
   becomes `["warn", { "rules": ["lfs-image-url"], "exclude": ["package/ssg/"] }]`.
   The rule list is the incumbent's default, now stated.
-  The native option set is `rules` and `exclude` only (`src/native/config_policies.rs:278`).
+  The native option set is `rules` and `exclude` only (`src/native/config/config_policies.rs:278`).
 - `mono/forbidden-root-context` at `error` (`cli-git.config.ts:41`) becomes `"error"`.
 - `mono/dependent-version-bump` is absent from `cli-git.config.ts`
   but ran at its default severity, `error`, through the registered repository plugin.
@@ -75,20 +75,20 @@ The mapping from `cli-git.config.ts` to `cli-git.config.jsonc`, setting by setti
 - `security/forbidden-strings` at `error` (`cli-git.config.ts:42`) becomes
   `["error", { "builtinRules": true, "rulesFile": ".cache/forbidden-strings.rules.txt" }]`.
   `builtinRules` is the schema default, stated as the incumbent states it.
-  `rulesFile` is new in the native format (`src/native/config_policies.rs:153`, `src/native/config_schema.rs:130`):
+  `rulesFile` is new in the native format (`src/native/config/config_policies.rs:153`, `src/native/config/config_schema.rs:130`):
   the scanner reads the file it names relative to the top level,
   else the `FORBIDDEN_STRINGS_RULES` variable, else `forbidden-strings.local.txt`
-  (`src/native/scanner_selection.rs:115`;
+  (`src/native/candidate/scanner_selection.rs:115`;
   user decision at `doc/handover/cli-git-rust-implementation.md:1293` [moved on 2026-11-03 to
   `doc/planning/cli-git-rust-open-decisions.md`]).
   The value is the path the root `mise.toml` gives `FORBIDDEN_STRINGS_RULES` (line 1319),
   so both wrappers read one file.
 - The incumbent's `executable` option has no counterpart:
   the scanner is linked into the native wrapper and the option set is `builtinRules` and `rulesFile` only
-  (`src/native/config_schema.rs:117` to `:130`).
+  (`src/native/config/config_schema.rs:117` to `:130`).
 - `plugins` and `trust` (including `children: true`) have no counterpart:
   executable configuration and its consent protocol are retired
-  (`doc/planning/cli-git-rust-behavior-ledger.md:878` to `:895`; `src/native/config_parse.rs:54` to `:60`).
+  (`doc/planning/cli-git-rust-behavior-ledger.md:878` to `:895`; `src/native/config/config_parse.rs:54` to `:60`).
 - The five built-in policies keep their defaults and need no lines.
 
 ## Decisions and their reasons
@@ -108,10 +108,10 @@ The mapping from `cli-git.config.ts` to `cli-git.config.jsonc`, setting by setti
   never as equal.
   `--require-all-equal` turns pending rows into failures; use it once both policies are ported.
 - The control that binds the shipped file is a Rust unit test over the real loader
-  (`src/native/config_repository_tests.rs`), not a copy of the file in a test.
+  (`src/native/config/config_repository_tests.rs`), not a copy of the file in a test.
   It needs the file in the container snapshot,
   so `bin/test-native-container.mjs` copies `cli-git.config.jsonc` into the image next to `clippy.toml`.
-  The inline translation in `src/native/config_parse_acceptance_tests.rs:102` is a separate parser control
+  The inline translation in `src/native/config/config_parse_acceptance_tests.rs:102` is a separate parser control
   and can drift;
   the new control is the one tied to the file the repository ships.
 - Candidate sets build the forbidden-string hit from fragments so no source file here carries a matching literal.
@@ -157,7 +157,7 @@ Positive controls (the check can fail):
   (the native scan then misses the appendix-only rule).
 - Each removal was made in the working tree, the check run, and the file restored; the tree was clean afterwards.
 
-The Rust control (`src/native/config_repository_tests.rs`, four tests) passes on the shipped file
+The Rust control (`src/native/config/config_repository_tests.rs`, four tests) passes on the shipped file
 and fails when any one line is removed:
 the `markdown/autofix` line (two tests fail), the `mono/dependent-version-bump` line,
 the `mono/forbidden-root-context` line, the `security/forbidden-strings` line (two tests fail),
@@ -168,7 +168,7 @@ Each failure names the policy that is missing.
 
 The 36 pending rows are exactly the rows where the native wrapper refuses:
 `ShippedChecks` returns an unavailable outcome for `markdown/autofix` and `mono/dependent-version-bump`
-whenever the lifecycle requested candidates (`src/native/policy_checks.rs:378` and `:427` to `:432`).
+whenever the lifecycle requested candidates (`src/native/policy/policy_checks.rs:378` and `:427` to `:432`).
 Because the translated configuration lists both, every native `git add`, `git cli-git check` without a narrowing
 `--policy`, and `fix` for those two policies exits 2 with
 "the native Markdown linter, which the policy markdown/autofix needs, is not implemented ..."
@@ -217,7 +217,7 @@ So a worktree created through the native wrapper from the main checkout or from 
 `.cache/forbidden-strings.rules.txt`, and a source without that file copies nothing,
 so the missing-file error below stands.
 A worktree created by another tool, or with `--no-worktree-copy`, still has no `.cache`.
-The copy runs in the executable as measured by the binary tests in `src/native/binary_worktree_copy_tests.rs`.
+The copy runs in the executable as measured by the binary tests in `src/native/binary/binary_worktree_copy_tests.rs`.
 
 Measured with both wrappers in a disposable repository that has the configuration and no `.cache`:
 the native `git cli-git check --policy security/forbidden-strings --all` exits 2 with an `engine-failure` event,
@@ -268,7 +268,7 @@ blocks `git add` and the commit.
   Delete `cli-git.config.ts` at the cutover and this notice disappears.
 - Native `check` and `fix` events match the incumbent's field for field, in the same key order, for the three ported
   policies; the differential compares bytes, not parsed values.
-- Files outside this lane that changed: `src/native/config_file.rs` gains a test-module registration at its end,
+- Files outside this lane that changed: `src/native/config/config_file.rs` gains a test-module registration at its end,
   and `bin/test-native-container.mjs` gains one snapshot entry and one `COPY` line for the shipped file.
   No configuration-loading fix was needed.
 - The main handover item "This repository's translated configuration must list all four optional policies and set
@@ -283,7 +283,7 @@ blocks `git add` and the commit.
 Container gate at `31bad9874a` (image `6a81db2ba3034977061a1ab45ebc1b9300a085ce8fffee2a988b4def6deb0022`,
 Git 2.56.0 base `6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802a`):
 
-- The four tests of `src/native/config_repository_tests.rs` pass in the image,
+- The four tests of `src/native/config/config_repository_tests.rs` pass in the image,
   so the snapshot entry and the `COPY` line deliver the shipped file.
 - The library target ran 1337 passed, 1 failed, 4 ignored.
   The one failure, `commit_transaction::tests::a_selected_change_prepares_a_commit_outside_head`,
@@ -298,9 +298,9 @@ Git 2.56.0 base `6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802
 - Because `cargo test` stops after the first failing target, the remaining targets were run in the same image with
   `--no-fail-fast`: the binary target passed 50 tests and the consumer target 1.
 - `mise run //package/git-policy/cli:native:clippy` fails on the base before this branch's files are linted:
-  an unused import `git_text` in `src/native/commit_convergence_tests.rs:14`,
-  a collapsible `if` in `src/native/commit_transaction.rs:148`,
-  and two missing `return` statements in `src/native/commit_transaction_tests.rs:64` and `:139`.
+  an unused import `git_text` in `src/native/commit/commit_convergence_tests.rs:14`,
+  a collapsible `if` in `src/native/commit/commit_transaction.rs:148`,
+  and two missing `return` statements in `src/native/commit/commit_transaction_tests.rs:64` and `:139`.
   None of the four diagnostics is in a file this branch changed.
 
 ## Trailing gates
@@ -309,11 +309,11 @@ No trailing gate is skipped for lack of time; the following were not applicable 
 
 - Mutation testing: not run.
   The only change to a Rust file that has production code is the `#[cfg(test)]` module declaration at the end of
-  `src/native/config_file.rs` (lines 367 to 370),
-  and the added `src/native/config_repository_tests.rs` is a test module.
-  `mise run //package/git-policy/cli:native:mutation:list -- --file src/native/config_file.rs` lists sixteen mutants,
+  `src/native/config/config_file.rs` (lines 367 to 370),
+  and the added `src/native/config/config_repository_tests.rs` is a test module.
+  `mise run //package/git-policy/cli:native:mutation:list -- --file src/native/config/config_file.rs` lists sixteen mutants,
   the last at line 323, all in code this branch did not touch;
-  the same listing for `src/native/config_repository_tests.rs` is empty.
+  the same listing for `src/native/config/config_repository_tests.rs` is empty.
   This branch adds no mutant, so a campaign over it would repeat one over unchanged code.
 - Git 2.56.0: the differential ran only on the host's Git 2.55.0.
   The 2.56.0 image ran the configuration tests, which do not use Git, and the existing suite.

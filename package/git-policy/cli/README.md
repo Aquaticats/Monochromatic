@@ -373,7 +373,7 @@ git cli-git --help
 
 The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
 parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
-A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
+A Clippy rule bans `std::env::current_exe` and `src/native/source_guard/no_self_invocation_tests.rs` scans the source for the rest;
 nothing is on its exception list that starts the wrapper.
 
 Exactly one scope is required:
@@ -710,7 +710,7 @@ A plain notice (an internal error, a push stopped by its deadline or its output 
  a failed worktree copy, a real Git that cannot start, a commit that normalization emptied) ends with the hint.
 The rejections that already carry their own alternatives (`require-root`, `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
-`src/native/event_hints.rs` holds the texts, and its tests fail when a finding code or an engine failure code has no hint.
+`src/native/policy/event_hints.rs` holds the texts, and its tests fail when a finding code or an engine failure code has no hint.
 
 ### Discarding commands
 
@@ -833,7 +833,7 @@ At one mebibyte the file moves aside to the next free number (`cli-git-audit.jso
  A failed write never changes a command's result.
 
 The forms and their alternatives follow.
-Each alternative is run through the built executable by `src/native/binary_discard_tests.rs`.
+Each alternative is run through the built executable by `src/native/binary/binary_discard_tests.rs`.
 
 - `git stash` (every form except `list`, `show` and `create`):
    commit work in progress with explicit paths on a topic branch in its own linked worktree
@@ -1336,7 +1336,7 @@ Concurrent commits cannot be turned off.
 
 Nothing the wrapper waits for waits for ever (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"),
 and the
-wrapper never waits without saying so. Every bound is in `src/native/wait_ceilings.rs` with its measurement,
+wrapper never waits without saying so. Every bound is in `src/native/service/wait_ceilings.rs` with its measurement,
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
 A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
@@ -1544,7 +1544,7 @@ Git accepts (with `extensions.worktreeConfig` on, the file is otherwise read and
 a file that became a directory, a gitlink, a possible rename, replace refs, shallow or grafted history,
 split or sparse indexes, and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
-(`src/native/repo_read_*_tests.rs`, `src/native/binary_budget_tests.rs`).
+(`src/native/repo_read_*_tests.rs`, `src/native/binary/binary_budget_tests.rs`).
 
 Set `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment to start Git for every one of these questions,
 for a measurement that compares both paths or to rule the readers out when output differs.
@@ -1580,7 +1580,7 @@ The owner's words (2026-11-01):
 > The measure is always just commits vs native git should not take 5s longer.
 
 The 5-second `timeout --signal=KILL` of the binary tests is a hang guard of the test harness
-(`TIME_BOUND_SECONDS` in `src/native/binary_support.rs`), short so that a mutant that loops fails every affected control
+(`TIME_BOUND_SECONDS` in `src/native/binary/binary_support.rs`), short so that a mutant that loops fails every affected control
 quickly.
 It says nothing about how long a correct wrapped command may take.
 
@@ -1694,7 +1694,7 @@ Left out by directory name, wherever the name sits below the main checkout:
  `incremental` and `zig-global-cache` below a `target` directory;
  and the records of earlier runs, `.monochromatic` below a `node_modules` directory, `target/verification`, `mutants.out`,
  `mutants.out.old`, `playwright-report`, `test-results` and `.serena/cache`.
-The run records follow the constant `COPY_RUN_RECORDS` in `src/native/worktree_copy_prune.rs`, which is `false`.
+The run records follow the constant `COPY_RUN_RECORDS` in `src/native/worktree_copying/worktree_copy_prune.rs`, which is `false`.
 A linked or bare source copies everything it ignores except its nested registered worktrees.
 An ignored file or directory that the user cannot read, such as a log written by `root`, is left out of any copy instead of
  failing it, and one stderr line says how many and which first paths: `cli-git: left out 2 unreadable ignored entries from
@@ -1725,7 +1725,7 @@ mise run //package/git-policy/cli:native:test:container
   `native:clippy` lints every target with warnings denied.
   `native:build` writes the debug executable to `package/git-policy/cli/target/debug/cli-git-native`.
 - Every process a unit test starts dies with the test thread, however the test ends:
-  start helpers with `spawn_owned` in `src/native/test_support.rs`, which gives the helper a process group of its own
+  start helpers with `spawn_owned` in `src/native/testing/test_support.rs`, which gives the helper a process group of its own
    (so what it starts dies with it) and kills the group when the thread's fixtures are removed,
    the moment a failing or panicking test unwinds (`a_loop_started_by_a_panicking_test_is_gone_when_the_test_ends`).
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.
@@ -1866,7 +1866,7 @@ So no other output-hiding option or redirect stands in for it either.
 A `--quiet` stays on a run whose documented effect is the exit status or what is computed (`rev-parse --verify --quiet`,
 `symbolic-ref --quiet`, `diff-index --quiet`, `diff-files --quiet`; read in the Git 2.56.0 sources, listed in
 `doc/planning/cli-git-slow-server-and-inner-quiet.md`).
-The words of a run that said something are kept in the journal (`src/native/inner_git_words.rs`): the service writes one
+The words of a run that said something are kept in the journal (`src/native/worktree/inner_git_words.rs`): the service writes one
 `info` entry in its log, and the wrapper writes one client entry (`journalctl --identifier=cli-git`), both with the field
 `CLI_GIT_INNER_COMMAND`.
 A test that starts such a run records its arguments with `recording_git.rs` and checks `quiet_starts`.
@@ -1902,7 +1902,7 @@ whole CPUs of the limit, never below one.
 ```sh
 # Run from the repository top level.
 mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
-mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/startup_gate.rs
+mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/invocation/startup_gate.rs
 mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
 mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
 ```
@@ -2170,6 +2170,199 @@ away to switch.
 The selection is written to the manifest (`passOne`) and to the log.
 How the two passes are seeded, composed and resumed is in
 `package/mutation-test/cli-cargo-mutants/README.md` under "Two passes".
+
+### Source layout
+
+The crate is one library and two executables,
+and its sources live under `src/native/`.
+Each folder there is one subsystem,
+so a contributor opens a folder for a concern instead of searching a flat list of
+prefixed file names.
+The small-file rule stays:
+a folder holds many small modules,
+each with its sidecar test file.
+
+#### How a module is reached
+
+- `lib.rs` is the map.
+  It declares each folder (`pub mod command;`) and re-exports the folder's modules with a glob (`pub use command::*;`).
+- Each folder's `mod.rs` declares the modules inside it with one documented line each.
+- The glob re-export keeps every module at its old path,
+  so `crate::command_options` and
+  `git_policy_cli::command_options` still resolve.
+  The fuzz crate,
+  the two executables and the integration tests name modules that way and needed no change.
+- A glob re-export loses to an item written in `lib.rs`,
+  so no folder may share its name with a module.
+- `use super::` in a module that a folder declares directly names the folder,
+  not the crate root.
+  Write `use crate::module_name` to reach a module of another folder.
+- Library test names now start with the folder:
+  `command::command_options::tests::name`.
+  The integration test roots (`native_binary`,
+  `native_candidates`) keep their names.
+
+#### Subsystems
+
+- `invocation/`:
+  what one invocation does from arguments to Git:
+  the decision,
+  real Git resolution,
+  forwarding,
+  startup,
+  management words and the wrapper's own Git version check.
+- `config/`:
+  reading and validating `cli-git.config.jsonc` and the Git configuration a command is judged by.
+- `command/`:
+  the option grammar of each Git command the wrapper understands and the rules that rewrite,
+  refuse or hint.
+- `policy/`:
+  the policy engine:
+  registry,
+  triggers,
+  events,
+  passes over candidates and the direct fix.
+- `markdown/`,
+  `dependent_version/`,
+  `standards_review/`:
+  three policies large enough for a folder each.
+- `candidate/`:
+  what a commit or push would add,
+  read from the index or objects,
+  and the scanner run over it.
+  Its `candidate_consumer_tests.rs` is the `native_candidates` test root.
+- `commit/`,
+  `shadow/`,
+  `transaction/`:
+  the wrapper's commit path,
+  the shadow repository it prepares on and replays
+  onto,
+  and the durable transaction records with their recovery.
+- `landing/` and `service/`:
+  what the resident commit service does to land a commit,
+  and the service program around
+  it:
+  protocol,
+  server,
+  client,
+  journal,
+  provisioning and the unit files in `service/service_units/`.
+- `push/`,
+  `lfs/`,
+  `merge/`,
+  `conflict/`:
+  pushes and their waits,
+  Git LFS,
+  merges with the corpus in
+  `merge/word_merge_corpus/`,
+  and conflict state around commits and checkouts.
+- `worktree/`,
+  `worktree_copying/`,
+  `subvolume/`,
+  `repair/`,
+  `health/`:
+  worktree commands,
+  the ignored-state copy,
+  btrfs subvolumes and the filesystem primitives under them,
+  package-manager repair,
+  and the `doctor` report.
+- `repo_read/`,
+  `index/`,
+  `lock/`,
+  `process/`,
+  `foundation/`:
+  reads without a Git process,
+  the index file,
+  locks and claims,
+  facts about processes,
+  and shared building blocks that depend on no subsystem.
+- `testing/`:
+  test-only fixtures shared by many unit tests,
+  never part of the release executable.
+- `source_guard/`:
+  the controls that read the crate's own source text.
+- `binary/`:
+  the consumer-level controls that start the built executable;
+  `binary_tests.rs` is the `native_binary`
+  test root.
+- At the top:
+  `lib.rs`,
+  `main.rs` (`cli-git-native`,
+  installed as `git`) and `service_main.rs` (`cli-git-service`).
+
+#### Where new files go
+
+- A new module goes in the folder of the subsystem it belongs to.
+  Declare it in that folder's `mod.rs` with a documented line,
+  never in `lib.rs`.
+- Its sidecar test file `<module>_tests.rs` sits beside it and is declared in the module with `#[path]`.
+  Test support used by one subsystem stays in that folder under `#[cfg(test)]`;
+  support used by many goes in `testing/`.
+- A data file that `include_str!` reads sits in a subfolder beside the module that reads it,
+  and its path is added to the
+  `include` list in `Cargo.toml` when the published crate needs it.
+- A new subsystem is a new folder with a `mod.rs`,
+  a `pub mod` and `pub use` pair in `lib.rs`,
+  and a line in the list
+  above.
+  Its name must differ from every module name,
+  singular where it reads naturally.
+- Do not put a module in `lib.rs` or beside it;
+  the folders exist so the top level stays short.
+- The source scans (`source_guard/`) follow `mod` declarations from the `Cargo.toml` targets,
+  so a file that no
+  declaration reaches fails them.
+- Paths in tooling name the folder,
+  for example `src/native/command/command_add.rs`.
+  A mutation scope may name subfolders (`--file src/native/command/command_add.rs`);
+  pass 1 of a two-pass campaign
+  selects tests by top-level folder,
+  so its first pass covers more tests than it did when every module was a top-level
+  entry.
+- Records under `doc/` that predate this layout name the old flat paths.
+  `git log --follow -- <new path>` finds a file's history across the move.
+
+#### The `native` directory layer
+
+The sources sit under `src/native/` although the TypeScript implementation that the name told apart from is gone.
+This is a layout decision,
+picked by the coordinator's agent,
+veto open.
+Removing the layer needs no binary rename and no behaviour change,
+because the targets are named in `Cargo.toml`.
+
+- Keep `src/native/` for now and drop it in a follow-up.
+  - Pros:
+    no second mass rename while other branches still edit these files;
+    nothing else changes paths.
+    The shared mutation scope rules (`nativeSourcePrefix`) and their golden scenarios keep their prefix.
+  - Cons:
+    the redundant segment stays in every path until the follow-up.
+- Move to `src/` now (`src/lib.rs`,
+  `src/main.rs`,
+  `src/service_main.rs` and the folders).
+  - Pros:
+    the conventional Cargo layout and shorter paths,
+    in one step with the folder move.
+  - Cons:
+    a second rename of every file under review in other branches,
+    a change of the prefix in the mutation package
+    and its golden scenarios,
+    and hundreds of path mentions in other packages and documents.
+- Move to `src/` with the executables in `src/bin/`.
+  - Pros:
+    Cargo finds the executables without `[[bin]]` paths.
+  - Cons:
+    everything the previous option costs,
+    plus the executable entry points move away from `lib.rs`.
+
+Ranking:
+keep and drop later > move to `src/` now > `src/` with `src/bin/`,
+because the first avoids a second rename
+while branches are in flight and loses only a path segment,
+the second reaches the same layout as the third at a
+smaller cost,
+and the third only adds moves that nothing requires.
 
 ## License
 

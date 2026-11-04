@@ -264,6 +264,15 @@ await describe({
           },
         }),
         it({
+          name: 'accepts a file in a subdirectory and a glob over subdirectories',
+          fn: async () => {
+            expect(parseFileScopes({
+              options: ['--file', 'src/native/command/command_add.rs', '--file', 'src/native/*/b_*.rs'],
+              rules: nativeScopes,
+            })).toEqual(['src/native/command/command_add.rs', 'src/native/*/b_*.rs']);
+          },
+        }),
+        it({
           name: 'accepts no scopes',
           fn: async () => {
             expect(parseFileScopes({
@@ -277,6 +286,11 @@ await describe({
           [['--file', 'src/native/a b.rs'], '--file must be a src/native/*.rs glob, got src/native/a b.rs.'],
           [['--file', 'src/native/.rs'], '--file must be a src/native/*.rs glob, got src/native/.rs.'],
           [['--file', 'src/native/a.txt'], '--file must be a src/native/*.rs glob, got src/native/a.txt.'],
+          [['--file', 'src/native/../x.rs'], '--file must be a src/native/*.rs glob, got src/native/../x.rs.'],
+          [['--file', 'src/native/./x.rs'], '--file must be a src/native/*.rs glob, got src/native/./x.rs.'],
+          [['--file', 'src/native//x.rs'], '--file must be a src/native/*.rs glob, got src/native//x.rs.'],
+          [['--file', 'src/native/a/.rs'], '--file must be a src/native/*.rs glob, got src/native/a/.rs.'],
+          [['--file', 'src/native/a b/x.rs'], '--file must be a src/native/*.rs glob, got src/native/a b/x.rs.'],
           [['--file'], 'Only repeated --file <glob> options are accepted.'],
           [['--bogus', '1'], 'Only repeated --file <glob> options are accepted.'],
         ].map(function rejection([options, message]) {

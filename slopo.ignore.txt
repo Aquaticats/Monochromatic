@@ -276,7 +276,7 @@ b4653374047d
 # Coincidental shape matches. Units share an implementation idiom but do
 # unrelated work; no common logic to extract.
 # Accepted 2026-10-09 from #659.
-# severity_name in git-policy/cli/src/native/policy_registry.rs maps a three-variant policy
+# severity_name in git-policy/cli/src/native/policy/policy_registry.rs maps a three-variant policy
 # Severity to 'off', 'warn', 'error';
 # severity_name in ide/app/src/annotation.rs maps a four-variant editor diagnostic
 # Severity to 'Error', 'Warning', 'Information', 'Hint'.

@@ -14,7 +14,7 @@ import {
 } from './worker-fixture.ts';
 
 /**
- Directory of the failure notices under the common Git directory (`NOTICE_DIRECTORY` in `src/native/push_failure_notice.rs`).
+ Directory of the failure notices under the common Git directory (`NOTICE_DIRECTORY` in `src/native/push/push_failure_notice.rs`).
  */
 const NOTICE_SEGMENTS: readonly string[] = [
   'cli-git',

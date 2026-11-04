@@ -25,23 +25,23 @@ export type Plant = {
 export const plants: readonly Plant[] = [
   {
     name: 'PID file text keeps trailing whitespace before the pid prefix is read',
-    file: 'package/git-policy/cli/src/native/index_lock_evidence.rs',
+    file: 'package/git-policy/cli/src/native/lock/index_lock_evidence.rs',
     edits: [{
-      from: 'let trimmed: &str = super::js_text::trim_javascript_end(text);',
+      from: 'let trimmed: &str = crate::js_text::trim_javascript_end(text);',
       to: 'let trimmed: &str = text;'
     }],
   },
   {
     name: 'start ticks past the safe integers are accepted',
-    file: 'package/git-policy/cli/src/native/process_start.rs',
+    file: 'package/git-policy/cli/src/native/process/process_start.rs',
     edits: [{
-      from: 'if ticks > super::json_record::MAX_SAFE_INTEGER {',
+      from: 'if ticks > crate::json_record::MAX_SAFE_INTEGER {',
       to: 'if ticks > i64::MAX {'
     }],
   },
   {
     name: 'branch -d is treated as a presentation letter',
-    file: 'package/git-policy/cli/src/native/config_loading.rs',
+    file: 'package/git-policy/cli/src/native/config/config_loading.rs',
     edits: [
       {
         from: 'b"cCdDfmMut"',
@@ -55,7 +55,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a bare git skips configuration',
-    file: 'package/git-policy/cli/src/native/config_loading.rs',
+    file: 'package/git-policy/cli/src/native/config/config_loading.rs',
     edits: [{
       from: 'if layout.outcome == GlobalOutcome::NoCommand {\n        return ConfigLoading::Required;',
       to: 'if layout.outcome == GlobalOutcome::NoCommand {\n        return ConfigLoading::Skip;',
@@ -63,7 +63,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a separated global value is not consumed',
-    file: 'package/git-policy/cli/src/native/global_arguments.rs',
+    file: 'package/git-policy/cli/src/native/invocation/global_arguments.rs',
     edits: [{
       from: 'is_value = true;',
       to: 'is_value = false;'
@@ -71,7 +71,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'warn is read as error',
-    file: 'package/git-policy/cli/src/native/policy_registry.rs',
+    file: 'package/git-policy/cli/src/native/policy/policy_registry.rs',
     edits: [{
       from: 'if name == "warn" {\n        return Some(Severity::Warn);',
       to: 'if name == "warn" {\n        return Some(Severity::Error);',
@@ -79,7 +79,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'the landing section is rejected as unknown',
-    file: 'package/git-policy/cli/src/native/config_parse.rs',
+    file: 'package/git-policy/cli/src/native/config/config_parse.rs',
     edits: [{
       from: 'key == "hooks" || key == "indexLock" || key == "landing"',
       to: 'key == "hooks" || key == "indexLock"',
@@ -87,7 +87,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a control spelling is removed anywhere in a region read without a table',
-    file: 'package/git-policy/cli/src/native/wrapper_invocation.rs',
+    file: 'package/git-policy/cli/src/native/invocation/wrapper_invocation.rs',
     edits: [{
       from: 'break;',
       to: 'continue;'
@@ -95,7 +95,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'keep-going is removed without being recorded',
-    file: 'package/git-policy/cli/src/native/wrapper_controls.rs',
+    file: 'package/git-policy/cli/src/native/invocation/wrapper_controls.rs',
     edits: [{
       from: 'ControlMeaning::KeepGoing => controls.keep_going = true,',
       to: 'ControlMeaning::KeepGoing => controls.keep_going = false,',
@@ -103,7 +103,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a publishing push skips the manual-push gate',
-    file: 'package/git-policy/cli/src/native/wrapped_command.rs',
+    file: 'package/git-policy/cli/src/native/invocation/wrapped_command.rs',
     edits: [{
       from: 'if any_policy_applies(&gate_request, gated.as_slice()) {',
       to: 'if false {',
@@ -111,7 +111,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'object content past its declared size is accepted',
-    file: 'package/git-policy/cli/src/native/candidate_batch.rs',
+    file: 'package/git-policy/cli/src/native/candidate/candidate_batch.rs',
     edits: [{
       from: String.raw`if terminator[0] != b'\n' {`,
       to: 'if false {'
@@ -119,7 +119,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'an object reply for another object is accepted',
-    file: 'package/git-policy/cli/src/native/candidate_batch.rs',
+    file: 'package/git-policy/cli/src/native/candidate/candidate_batch.rs',
     edits: [{
       from: 'if requested.is_some() && requested.as_ref() != Some(&object) {',
       to: 'if false {',
@@ -127,7 +127,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a path whose index records changed is left out of the staged delta',
-    file: 'package/git-policy/cli/src/native/candidate_stage.rs',
+    file: 'package/git-policy/cli/src/native/candidate/candidate_stage.rs',
     edits: [{
       from: 'if later != Some(*records) {',
       to: 'if later.is_none() {'
@@ -135,7 +135,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a rules file named with .. is accepted',
-    file: 'package/git-policy/cli/src/native/config_rules_file.rs',
+    file: 'package/git-policy/cli/src/native/config/config_rules_file.rs',
     edits: [{
       from: 'if component == "." || component == ".." {',
       to: 'if component == "." {',
@@ -151,7 +151,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'the start time is read from the field before it',
-    file: 'package/git-policy/cli/src/native/process_identity.rs',
+    file: 'package/git-policy/cli/src/native/process/process_identity.rs',
     edits: [{
       from: 'const LINUX_START_FIELD_INDEX: usize = 19;',
       to: 'const LINUX_START_FIELD_INDEX: usize = 18;'
@@ -159,7 +159,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'extra final line feeds are kept',
-    file: 'package/git-policy/cli/src/native/policy_final_newline.rs',
+    file: 'package/git-policy/cli/src/native/policy/policy_final_newline.rs',
     edits: [{
       from: 'if content_end + 1 == bytes.len() {',
       to: 'if content_end < bytes.len() {',

@@ -26,7 +26,7 @@ Respond by merging the branch into `main` and by vetoing any item under `Choices
 ## State
 
 The native executable commits for real.
-`git commit` (anything but a dry run) runs the transaction in `src/native/commit_transaction.rs` and
+`git commit` (anything but a dry run) runs the transaction in `src/native/commit/commit_transaction.rs` and
 `commit_conclusion.rs`; `Unported::CommitTransaction` and its refusal are gone.
 The incumbent's end-to-end suite passes against the native executable on Git 2.55.0: 36 of 38 scenarios pass and 2 skip
 by design (seeds 1 to 9; one run in the last batch failed once on a kill-window leftover, see `Results`).
@@ -73,7 +73,7 @@ New modules (each with its `*_tests.rs` where it has pure logic; the transaction
   `capture_order.rs` reaches the `capture-locked` marker; `owner_lock.rs` gained a view of an ancestor's lock.
 - Wiring: `wrapped_command.rs` runs the transaction for a real commit; a valid preparation lease lets a hook's nested
   Git command through and skips recovery (the worktree-copy lease is honored by the forwarding,
-   `src/native/worktree_copy_forward.rs`).
+   `src/native/worktree_copying/worktree_copy_forward.rs`).
 
 ### Decisions with reasons
 
@@ -122,12 +122,12 @@ New modules (each with its `*_tests.rs` where it has pure logic; the transaction
 - Garbage in `objects/pack` after a commit (the flake of `commit::a_pathspec_file_selects_the_committed_paths`, which
   failed once in a mutation baseline with `garbage: 2`): not a defect of the native commit and not a leftover. Git's own
   detached `git maintenance run --auto --quiet --detach`, which the landing starts as native `git commit` does
-  (`src/native/maintenance_run.rs`), repacks in the background: `git repack -d -l -q --cruft --write-midx` writes
+  (`src/native/landing/maintenance_run.rs`), repacks in the background: `git repack -d -l -q --cruft --write-midx` writes
   `tmp_pack_*` and `tmp_idx_*` files that `git count-objects -v` reports as garbage until the repack renames them. The
   Git 2.56.0 image starts that repack after the second landing even in a repository of 11 objects (it settles to one
   pack plus `multi-pack-index`, 0 garbage), so `assert_nothing_left` raced with it: 45 of 100 runs of the test failed in
   the container (2 parallel), none of 800 on the host's Git 2.55.0, which starts no repack at that size. Fix, test only:
-  `edited_repository` in `src/native/binary_commit_tests.rs` sets `maintenance.autoDetach false`, so the wrapper
+  `edited_repository` in `src/native/binary/binary_commit_tests.rs` sets `maintenance.autoDetach false`, so the wrapper
   returns after the maintenance finished; the assertion message now lists the pack directory. Control
   `commit::a_landing_returns_after_its_automatic_maintenance_finished` (a `gc.autoPackLimit` of 1 and 8 MiB of
   incompressible files make the repack outlast the wrapper's last steps) failed 20 of 20 runs without the config line
@@ -172,7 +172,7 @@ New modules (each with its `*_tests.rs` where it has pure logic; the transaction
   fails `the_guard_wait_retries_only_while_another_holder_is_active` at once (its closures panic past their call cap,
    so the
   mutant no longer loops).
-- Mutation of `src/native/commit_convergence.rs` (12 mutants, `bin/mutate-native-container-noplanted.mjs`, report
+- Mutation of `src/native/commit/commit_convergence.rs` (12 mutants, `bin/mutate-native-container-noplanted.mjs`, report
   `target/verification/native-mutation-6BnlGO`): 7 caught, 5 unviable, 0 missed, 0 timeouts. The one survivor of the
   earlier campaign, `CommitPasses::snapshots_equal` replaced by `false`, is killed by
   `commit_convergence::tests::stored_states_compare_equal_exactly_when_the_corrected_bytes_match`, which stores a
@@ -217,7 +217,7 @@ systemd-run --user --unit=int-e2e --collect --property=MemoryMax=10G \
 
 # one mutation scope without the planted-control phase (the container gate must have built the image tag first)
 cd package/git-policy/cli && GIT_POLICY_NATIVE_IMAGE_TAG=integration node "${HOME}/temp/agent/gate-slot.ts" \
-  node bin/mutate-native-container-noplanted.mjs --file src/native/commit_convergence.rs --timeout 900
+  node bin/mutate-native-container-noplanted.mjs --file src/native/commit/commit_convergence.rs --timeout 900
   (Note 2026-10-20: the script `bin/mutate-native-container-noplanted.mjs` was removed; `bin/mutate-native-container.mjs`
   with `NATIVE_MUTATION_SKIP_PLANTED=1` does the same.)
 
