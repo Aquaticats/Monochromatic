@@ -1,6 +1,7 @@
 //! Binary-level controls for the Git version cache:
 //!  a wrapped commit records the version text of the Git it found in the user's cache directory,
-//!  a later commit answers from that record without trusting more than its exact identity,
+//!  a later commit answers from that record without trusting more than its exact identity (an old release in it only
+//!  draws the warning),
 //!  and removing the record makes the next commit record it again.
 
 use super::commit::run_commit;
@@ -35,7 +36,7 @@ fn cache_files(fixture: &Fixture) -> Vec<PathBuf> {
 }
 
 /// A first commit records the version text privately;
-///  a record that names an unsupported release stops the next commit;
+///  a record that names a release before the minimum warns once and the next commit still lands;
 ///  removing the record lets the commit run Git again and record it afresh.
 #[test]
 fn a_commit_records_and_then_trusts_the_version_text() {
@@ -54,19 +55,18 @@ fn a_commit_records_and_then_trusts_the_version_text() {
     assert!(recorded.starts_with("cli-git git-version cache 1\n"), "{recorded}");
     assert!(recorded.contains("\ngit version 2."), "{recorded}");
 
-    // The record is the only source of the answer now: an old release in it stops the commit before anything runs.
+    // The record is the only source of the answer now: an old release in it draws the warning and the commit goes on.
     let (identity_part, _text): (&str, &str) = recorded.rsplit_once("\ngit version ").expect("text line");
     std::fs::write(&files[0], format!("{identity_part}\ngit version 2.54.0\n")).expect("tamper");
-    let head_before: String = String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout.as_slice()).into_owned();
-    let refused: Observed = commit_edit(&fixture, repo.as_path(), "one\ntwo\nthree\n");
-    assert_ne!(refused.code, Some(0));
-    assert!(stderr_of(&refused).contains("2.55.0 or newer"), "{}", stderr_of(&refused));
-    let head_after: String = String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout.as_slice()).into_owned();
-    assert_eq!(head_before, head_after);
+    let warned: Observed = commit_edit(&fixture, repo.as_path(), "one\ntwo\nthree\n");
+    assert_eq!(warned.code, Some(0), "{}", stderr_of(&warned));
+    assert_eq!(stderr_of(&warned).matches("2.54.0").count(), 1, "{}", stderr_of(&warned));
+    assert!(stderr_of(&warned).contains("continues"), "{}", stderr_of(&warned));
+    assert!(!stderr_of(&first).contains("older than"), "{}", stderr_of(&first));
 
     // Without the record Git is asked again, the commit lands and the record comes back.
     std::fs::remove_dir_all(fixture.root.join("home/.cache")).expect("remove cache");
-    let again: Observed = commit_edit(&fixture, repo.as_path(), "one\ntwo\nthree\n");
+    let again: Observed = commit_edit(&fixture, repo.as_path(), "one\ntwo\nthree\nfour\n");
     assert_eq!(again.code, Some(0), "{}", stderr_of(&again));
     assert_eq!(cache_files(&fixture).len(), 1);
     remove(&fixture);

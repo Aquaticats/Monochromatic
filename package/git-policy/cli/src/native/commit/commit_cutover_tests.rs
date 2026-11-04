@@ -167,7 +167,8 @@ impl Service {
 /// switch and its interval (the service is the shipped form without them).
 fn start_service(label: &str, lane: Option<&Path>, interval_millis: Option<&str>) -> Service {
     let journal: PathBuf = scratch(&format!("{}-journal", label));
-    let mut command = Command::new(env!("CARGO_BIN_EXE_cli-git-service"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_cli-git-native"));
+    command.args(git_policy_cli::service_main::SERVICE_WORDS);
     command.arg("--journal").arg(&journal).arg("--abstract").arg(format!("cutover-{}-{}", label, std::process::id())).args(["--idle-seconds", "120"]);
     if let Some(path) = lane {
         command.arg("--lane").arg(path);

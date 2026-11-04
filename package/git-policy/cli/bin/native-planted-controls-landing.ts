@@ -12,11 +12,11 @@ import type { PlantedControl } from './native-planted-controls.ts';
  */
 export const plantedLandingControls: readonly PlantedControl[] = [
   {
-    name: 'worktree copy dead-owner settlement retirement',
-    file: 'src/native/worktree_copy_lock.rs',
-    from: 'if owner_alive(&holder, lock)? {',
-    to: 'if true {',
-    failing: 'worktree_copying::worktree_copy_lock::tests::dead_owner_lock_is_retired_and_taken',
+    name: 'worktree copy recovery leaves a live owner\'s journal',
+    file: 'src/native/worktree_copying/worktree_copy_recovery.rs',
+    from: '        if !journal_owner_is_dead(&journal) {',
+    to: '        if false && !journal_owner_is_dead(&journal) {',
+    failing: 'worktree_copying::worktree_copy_recovery::tests::pending_check_leaves_a_live_journal_and_recovers_a_dead_one',
   },
   {
     name: 'worktree copy preflight refuses differing destination entries',

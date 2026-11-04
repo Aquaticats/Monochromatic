@@ -4,6 +4,10 @@
  The image has no network, and a binary built on the host links the host's newer C library, so the runner is the
  project's own musl release asset. The host downloads it once, verifies the checksum before anything is extracted, and
  copies the executable into the build context.
+
+ The gate and end-to-end images of this package no longer use it: they install `cargo-nextest` from pacman (owner
+ decision, 2026-11-04, `doc/planning/git-policy-cli-cachyos-test-containers.md`). It stays for the images of
+ `package/git-policy/cli.fuzz` and `package/linter/monochromatic-lint(.fuzz)`, which still start from other bases.
  */
 import { createHash } from 'node:crypto';
 import {
@@ -43,7 +47,7 @@ const nextestUrl = `https://github.com/nextest-rs/nextest/releases/download/carg
 const contextFileName = 'cargo-nextest';
 
 /**
- Containerfile lines that install the runner next to `cargo`, so `cargo nextest` resolves it.
+ Containerfile lines that install the runner on `PATH`, where `cargo nextest` resolves it.
 
  @returns lines to place after the base image is chosen, then check that the runner starts
 
@@ -54,7 +58,7 @@ const contextFileName = 'cargo-nextest';
  */
 export function nextestCopyLines(): string[] {
   return [
-    `COPY ${contextFileName} /usr/local/cargo/bin/cargo-nextest`,
+    `COPY ${contextFileName} /usr/local/bin/cargo-nextest`,
     'RUN ["cargo", "nextest", "--version"]',
   ];
 }

@@ -39,6 +39,18 @@ const ALTERNATES_LIMIT: u64 = 1 << 20;
 ///  open to the owner's veto.
 const PACKED_REFS_LIMIT: u64 = 256 << 20;
 
+thread_local! {
+    /// How many loose paths the readers of this thread have looked at. It is per thread, so that a control which shows a packed
+    ///  object costs none cannot be disturbed by another test's reads.
+    static LOOSE_LOOKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The loose paths the readers of this thread have looked at so far.
+#[cfg(test)]
+pub(crate) fn loose_looks() -> u64 {
+    return LOOSE_LOOKS.with(std::cell::Cell::get);
+}
+
 /// The loose directories and packs of a repository and its alternates.
 #[derive(Debug)]
 pub struct ObjectDatabase {
@@ -155,9 +167,22 @@ impl ObjectDatabase {
         if name.len() != name_length(self.format) || depth > 8 {
             return None;
         }
+        // Git searches the packs first and the loose files after, and so does this: nearly every object a commit reads is packed,
+        //  and a look at a loose path that is not there is a system call for each of thousands of objects.
+        let by_name = |base: &[u8]| -> Option<RawObject> { return self.read_at_depth(base, depth + 1); };
+        for pack in &self.packs {
+            if let Some(offset) = pack.find(name) {
+                if let Some(found) = pack.read(offset, &by_name, 0) {
+                    return Some(found);
+                }
+                // A pack entry that cannot be rebuilt leaves the loose copy, if there is one, to answer.
+                break;
+            }
+        }
         let hex: String = to_hex(name);
         for root in &self.roots {
             let path: PathBuf = root.join(&hex[..2]).join(&hex[2..]);
+            LOOSE_LOOKS.with(|looks| { looks.set(looks.get() + 1); });
             let Ok(metadata) = std::fs::symlink_metadata(&path) else {
                 continue;
             };
@@ -165,12 +190,6 @@ impl ObjectDatabase {
                 return None;
             }
             return parse_loose(std::fs::read(&path).ok()?.as_slice());
-        }
-        let by_name = |base: &[u8]| -> Option<RawObject> { return self.read_at_depth(base, depth + 1); };
-        for pack in &self.packs {
-            if let Some(offset) = pack.find(name) {
-                return pack.read(offset, &by_name, 0);
-            }
         }
         return None;
     }

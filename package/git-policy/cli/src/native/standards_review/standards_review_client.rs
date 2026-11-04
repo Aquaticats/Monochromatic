@@ -6,7 +6,8 @@
 //!  (owner, 2026-11-03: "Stop only on no progress"; pick 9 of `doc/planning/cli-git-shipped-limits-audit.md`, the
 //!  coordinator's under the owner's delegation and open to the owner's veto). The transport's own idle timeouts do the
 //!  judging: resolving, connecting, and each read and each write of the connection (TLS handshake, request, response head and
-//!  body) may stay silent for the quiet window and no longer, and there is no total deadline. The longest quiet gap of every
+//!  body) may stay silent for the quiet window and no longer, and one ceiling covers the call as a whole (owner, 2026-11-04,
+//!  "Silence plus a ceiling (Recommended)"; `wait_ceilings.rs`, `REVIEW_CALL_CEILING`). The longest quiet gap of every
 //!  call is measured beside the call and kept in the ledger (`quiet_ledger.rs`, `thread_quiet.rs`). The trust roots are a
 //!  parameter: production uses the roots embedded in the binary, a test passes the fixture authority of its local TLS server.
 //!
@@ -33,7 +34,7 @@ pub const SCRIPT_QUIET_WINDOW: Duration = Duration::from_secs(30);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Gateway = { url: string; apiKey: string; quietWindow: number; trustedPem?: Uint8Array };
+/// type Gateway = { url: string; apiKey: string; quietWindow: number; ceiling: number; trustedPem?: Uint8Array };
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Gateway<'a> {
@@ -43,6 +44,8 @@ pub struct Gateway<'a> {
     pub api_key: &'a str,
     /// How long the call may stay silent (resolving, connecting, one read, one write) before it is ended.
     pub quiet_window: Duration,
+    /// The longest the call runs in all, whatever it shows (`wait_ceilings.rs`, `REVIEW_CALL_CEILING`).
+    pub ceiling: Duration,
     /// A PEM authority that replaces the embedded roots; `None` keeps them.
     pub trusted_pem: Option<&'a [u8]>,
 }
@@ -65,7 +68,7 @@ pub struct Reply {
 }
 
 /// What:
-///  POST `body` as JSON with the bearer key; the call ends when it is silent for the quiet window, never for being slow. Any
+///  POST `body` as JSON with the bearer key; the call ends when it is silent for the quiet window or has run as long as the ceiling. Any
 ///  HTTP status is a reply, not an error.
 ///  Redirects are not followed and no proxy variable is read.
 /// Why:
@@ -96,6 +99,9 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
         .timeout_connect(Some(gateway.quiet_window))
         .timeout_per_read(Some(gateway.quiet_window))
         .timeout_per_write(Some(gateway.quiet_window))
+        // The one clock over the whole call: a call that keeps moving bytes is ended here (owner, 2026-11-04, "Silence plus a
+        // ceiling (Recommended)").
+        .timeout_global(Some(gateway.ceiling))
         .http_status_as_error(false)
         .max_redirects(0)
         .proxy(None)
@@ -107,23 +113,31 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
         .header("content-type", "application/json")
         .header("authorization", format!("Bearer {}", gateway.api_key))
         .send(body.as_bytes())
-        .map_err(describe)?;
+        .map_err(|error| { return describe(error, gateway.ceiling); })?;
     let status: u16 = response.status().as_u16();
-    let text: String = response.body_mut().read_to_string().map_err(describe)?;
+    let text: String = response.body_mut().read_to_string().map_err(|error| { return describe(error, gateway.ceiling); })?;
     return Ok(Reply { status, body: text });
 }
 
 /// What:
-///  A failure as the log line prints it: the script's timeout wording, otherwise `fetch failed` and the cause.
+///  A failure as the log line prints it: the sentence for the ceiling, the script's timeout wording for an idle timeout,
+///  otherwise `fetch failed` and the cause.
 /// Why:
-///   Node prints only `fetch failed` and hides the cause; the cause is what a person needs.
+///   Node prints only `fetch failed` and hides the cause; the cause is what a person needs. The ceiling's sentence names the call,
+///  the ceiling and the command that reviews the commit again, because the call ran as long as cli-git lets it and a person
+///  reading the log entry needs to know that it was not the endpoint's silence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// error instanceof Error ? error.message : String(error)
 /// ```
-fn describe(error: ureq::Error) -> String {
+fn describe(error: ureq::Error, ceiling: Duration) -> String {
     return match error {
+        ureq::Error::Timeout(ureq::Timeout::Global) => format!(
+            "the standards-review gateway call ran for {} seconds, the longest cli-git lets it run, and was ended, so this commit has no \
+             verdict; review it again with `SHADOW_REVIEW_SHA=<commit> mise run shadow-review`",
+            ceiling.as_secs()
+        ),
         ureq::Error::Timeout(_) => String::from("The operation was aborted due to timeout"),
         other => format!("fetch failed: {other}"),
     };

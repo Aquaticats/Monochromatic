@@ -9,7 +9,7 @@
  `E2E_WRAPPER` names the wrapper whose `git` shadows the real Git:
  `native` (the default and the only value);
  `E2E_SEED` replays a seed;
- `E2E_SCENARIOS` and `E2E_GIT_VERSIONS` are comma-separated filters.
+ `E2E_SCENARIOS` and `E2E_GIT_VERSIONS` are comma-separated filters (the Git filter names the installed Git's release).
  Output is terminal report text (AGENTS.md TLG exception):
  workspace packages,
  including the tagged logger,
@@ -18,9 +18,11 @@
  @module
  */
 
+import { execFile, } from 'node:child_process';
 import { randomInt, } from 'node:crypto';
 import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { promisify, } from 'node:util';
 
 import { assertCommitShapeTrace, } from './commit-shape-trace-fixture.ts';
 import { WRAPPER_BIN, } from './repository-fixture.ts';
@@ -46,13 +48,39 @@ import {
 //region Configuration
 
 /**
- Git versions built into the image:
- only 2.55.0,
- the oldest Git the native wrapper accepts.
+ The Git the image installs from its distribution's package: the only Git the suite runs, whatever release that is
+ (owner decision, 2026-11-04: the 2.55.0 source build and its scenarios are dropped and the image's current Git is used).
  */
-const GIT_VERSIONS: readonly string[] = [
-  '2.55.0',
-];
+const INSTALLED_GIT = '/usr/bin/git';
+
+/**
+ Reads the release of the installed Git.
+
+ @returns the dotted release, such as `2.56.0`
+
+ @throws Error when the installed Git's `--version` output has no `git version <release>` line
+
+ @example
+ ```ts
+ await installedGitVersion(); // => '2.56.0'
+ ```
+ */
+async function installedGitVersion(): Promise<string> {
+  /**
+   Output of the installed Git's version command.
+   */
+  const { stdout, } = await promisify(execFile,)(
+    INSTALLED_GIT,
+    ['--version',],
+  );
+  /**
+   The release in the version line.
+   */
+  const release = /^git version (?<release>\d+(?:\.\d+)+)/u.exec(stdout,)?.groups?.['release'];
+  if (release === undefined)
+    throw new Error(`${INSTALLED_GIT} printed no release in its version line: ${stdout.trim()}`,);
+  return release;
+}
 
 /**
  Container work root.
@@ -173,7 +201,7 @@ async function runSuite(): Promise<void> {
   /**
    Selected Git versions.
    */
-  const versions = GIT_VERSIONS.filter(function selected(version,) {
+  const versions = [await installedGitVersion(),].filter(function selected(version,) {
     return (versionFilter.length === 0) || versionFilter.includes(version,);
   },);
   /**

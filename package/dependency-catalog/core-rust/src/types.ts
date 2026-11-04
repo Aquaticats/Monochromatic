@@ -98,6 +98,7 @@ export type RustCatalogTrustPolicy = 'no-downgrade' | 'off';
    trustPolicy: 'no-downgrade',
    trustPolicyExclude: [],
    trustPolicyExcludePrune: false,
+   trustLockfile: false,
  };
  ```
  */
@@ -112,6 +113,10 @@ export type RustCatalogSettings = {
   readonly trustPolicyExclude: readonly string[];
   readonly trustPolicyExcludePrune: boolean;
   readonly trustPolicyIgnoreAfter?: number;
+  /**
+   pnpm's `trustLockfile`: when true, an install does not re-validate the lockfile entries that were already trusted.
+   */
+  readonly trustLockfile: boolean;
 };
 
 //endregion Settings

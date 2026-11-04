@@ -16,7 +16,7 @@
 //! ```
 
 /// The lines and the phase arithmetic.
-use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, SLOW_LOCK_STEP, WaitNotes, answered_line, exit_line, retire_line, stamped_line, started_line, wait_line};
+use super::{Answered, Arrival, ExitReason, LOG_PREFIX, LandTiming, SLOW_LOCK_STEP, WaitNotes, answered_line, exit_line, index_update_ms_of, retire_line, stamped_line, started_line, wait_line};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -30,7 +30,7 @@ const LOCK_WAIT_MS: u64 = 1_000;
 const OBJECTS_MS: u64 = 13;
 const JOURNAL_MS: u64 = 17;
 const REF_MS: u64 = 19;
-const SYNC_MS: u64 = 23;
+const INDEX_UPDATE_MS: u64 = 23;
 /// How long the index lock was held in the controls' landing: the branch move and the index build, so within their sum.
 const HOLD_MS: u64 = 31;
 /// Time of the landing no named phase covers.
@@ -80,7 +80,7 @@ fn landing() -> LandTiming {
         objects: Duration::from_millis(OBJECTS_MS),
         journal: Duration::from_millis(JOURNAL_MS),
         ref_update: Duration::from_millis(REF_MS),
-        sync: Duration::from_millis(SYNC_MS),
+        index_update: Duration::from_millis(INDEX_UPDATE_MS),
         hold: Duration::from_millis(HOLD_MS),
         attempts: 2,
         lock_notes: WaitNotes {
@@ -97,7 +97,7 @@ fn landing() -> LandTiming {
 
 /// The line for the controls' request.
 fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
-    let land_total: Duration = landing.lock_wait + landing.objects + landing.journal + landing.ref_update + landing.sync + Duration::from_millis(READS_MS);
+    let land_total: Duration = landing.lock_wait + landing.objects + landing.journal + landing.ref_update + landing.index_update + Duration::from_millis(READS_MS);
     return answered_line(&Answered {
         request,
         reference,
@@ -138,7 +138,7 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["objects_ms"], OBJECTS_MS.to_string());
     assert_eq!(found["journal_ms"], JOURNAL_MS.to_string());
     assert_eq!(found["ref_ms"], REF_MS.to_string());
-    assert_eq!(found["sync_ms"], SYNC_MS.to_string());
+    assert_eq!(found["index_update_ms"], INDEX_UPDATE_MS.to_string());
     assert_eq!(found["lock_hold_ms"], HOLD_MS.to_string(), "the hold is stated, and is no phase of the landing");
     assert_eq!(found["attempts"], "2");
     assert_eq!(found["answer_ms"], ANSWER_MS.to_string());
@@ -150,7 +150,7 @@ fn the_answered_line_states_each_phase_of_the_wait() {
 fn the_phases_add_up_to_the_totals() {
     let found: HashMap<String, String> = fields(line_for("req-2", "refs/heads/main", &landing()).as_str());
     let number = |name: &str| -> u64 { return found[name].parse::<u64>().expect("a number"); };
-    let landing_phases: u64 = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "sync_ms"].iter().map(|name| { return number(name); }).sum();
+    let landing_phases: u64 = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"].iter().map(|name| { return number(name); }).sum();
     assert_eq!(landing_phases, number("landing_ms"));
     let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|name| { return number(name); }).sum();
     assert_eq!(request_phases, number("total_ms"));
@@ -185,7 +185,7 @@ fn a_hostile_request_text_stays_one_line_and_reads_back() {
 #[test]
 fn the_reads_are_the_remainder_of_the_landing() {
     let phases: LandTiming = landing();
-    let named: Duration = phases.lock_wait + phases.objects + phases.journal + phases.ref_update + phases.sync;
+    let named: Duration = phases.lock_wait + phases.objects + phases.journal + phases.ref_update + phases.index_update;
     assert_eq!(phases.reads(named + Duration::from_millis(READS_MS)), Duration::from_millis(READS_MS));
     assert_eq!(phases.reads(Duration::ZERO), Duration::ZERO);
 }
@@ -356,4 +356,19 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
         "{line}"
     );
     assert!(line_for("r", "refs/heads/main", &landing).ends_with("quiet_ms=0.000 quiet_steps=\"\""));
+}
+
+/// An `answered` line written before the index step was named by its role calls the same duration `sync_ms`: the reader of a
+/// line finds it under either name, and a line that holds both (never written) is read by the new name.
+#[test]
+fn a_record_from_before_the_rename_still_gives_its_index_update() {
+    let recorded: &str = "answered request=\"r\" branch=\"refs/heads/main\" outcome=landed batch=1 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 \
+                          lock_wait_ms=0 lock_hold_ms=21 reads_ms=2 objects_ms=3 journal_ms=1 ref_ms=2 sync_ms=19 attempts=1 landing_ms=27";
+    assert_eq!(index_update_ms_of(recorded), Some(19), "the old name is read");
+    let written: String = line_for("req-3", "refs/heads/main", &landing());
+    assert_eq!(index_update_ms_of(written.as_str()), Some(INDEX_UPDATE_MS), "the new name is read");
+    assert!(!written.contains(" sync_ms="), "the new line no longer calls the step a sync: {written}");
+    let both: String = format!("{recorded} index_update_ms=5");
+    assert_eq!(index_update_ms_of(both.as_str()), Some(5));
+    assert_eq!(index_update_ms_of("answered request=\"r\""), None, "a line without the step gives none");
 }

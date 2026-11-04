@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.5.28"
+version = "0.5.34"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -25,15 +25,14 @@ path = "src/native/lib.rs"
 
 # The artifact is deliberately not named `git`: a `target/*/git` or a tool `bin/git` on PATH would shadow Git by accident.
 # The repository's mise tool entry links it as `git` in a per-worktree directory after installing it.
+# It is the crate's only executable: the resident commit service (doc/planning/cli-git-resident-service.md) is its mode
+# `cli-git-native cli-git service run`, which the operating system starts on demand through socket activation and the
+# wrapper never starts. The release archive holds exactly this one file, and cargo-binstall refuses an archive that lacks
+# any `[[bin]]` of the crate, so a second `[[bin]]` here breaks every install that does not compile
+# (`native_release_bins_tests`, `src/native/binary/binary_release_bins_tests.rs`, fails on it first).
 [[bin]]
 name = "cli-git-native"
 path = "src/native/main.rs"
-
-# The resident commit service (doc/planning/cli-git-resident-service.md): a separate program the operating system starts
-# on demand through socket activation; the wrapper never starts it.
-[[bin]]
-name = "cli-git-service"
-path = "src/native/service_main.rs"
 
 # cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version},
 # but this repository tags each crate's release monochromatic-git-policy-cli-v<version> and names the archive

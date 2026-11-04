@@ -13,7 +13,7 @@
 //! // expect(await runGuarded(() => { throw new Error('planted'); }, ...)).rejects.toEqual({ kind: 'panicked' });
 //! ```
 
-use super::{GuardFailure, run_guarded};
+use super::{GuardFailure, GuardLimits, run_guarded};
 use crate::test_support::{ActionSink, SharedSink};
 use crate::wait_progress::Cadence;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,6 +27,14 @@ const QUIET: Duration = Duration::from_millis(100);
 
 /// A window no control reaches: the jobs that return, panic or are released by a notice always end first.
 const LONG_WINDOW: Duration = Duration::from_secs(60);
+
+/// A ceiling no control reaches unless the control is about the ceiling.
+const ROOMY: Duration = Duration::from_secs(3600);
+
+/// The limits of a control that is about the quiet window only.
+fn limits(window: Duration) -> GuardLimits {
+    return GuardLimits { window, ceiling: ROOMY };
+}
 
 /// A cadence whose notices come at the pace of the short window.
 const FAST: Cadence = Cadence {
@@ -42,7 +50,7 @@ fn a_finished_job_returns_its_value_from_another_thread() {
         move || {
             return std::thread::current().id() != caller;
         },
-        LONG_WINDOW,
+        limits(LONG_WINDOW),
         FAST,
         "a job",
         &mut std::io::sink(),
@@ -58,7 +66,7 @@ fn a_panic_comes_back_as_text() {
         || {
             panic!("{MESSAGE}");
         },
-        LONG_WINDOW,
+        limits(LONG_WINDOW),
         FAST,
         "a job",
         &mut std::io::sink(),
@@ -80,7 +88,7 @@ fn a_job_that_shows_no_sign_of_work_is_abandoned() {
             let _ = blocked.recv();
             marker.store(true, Ordering::SeqCst);
         },
-        QUIET,
+        limits(QUIET),
         FAST,
         "a job",
         &mut std::io::sink(),
@@ -104,7 +112,7 @@ fn a_long_wait_prints_notices_naming_the_file() {
         move || {
             let _ = blocked.recv();
         },
-        LONG_WINDOW,
+        limits(LONG_WINDOW),
         FAST,
         waiting_for,
         &mut counted,
@@ -119,4 +127,37 @@ fn a_long_wait_prints_notices_naming_the_file() {
             "{text}"
         );
     }
+}
+
+/// A job that keeps showing work is abandoned at the ceiling all the same, and the guard answers while it still runs: the
+///  window judges quiet time, the ceiling judges length (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
+#[test]
+fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
+    const CEILING: Duration = Duration::from_secs(2);
+    const WORKING_WINDOW: Duration = Duration::from_millis(1200);
+    let release: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let marker: Arc<AtomicBool> = Arc::clone(&release);
+    let scratch: std::path::PathBuf = crate::test_support::fixture("guard-ceiling");
+    let progress: std::path::PathBuf = scratch.join("progress");
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome: Result<(), GuardFailure> = run_guarded(
+        move || {
+            // Writes a file a round, with a pause between, until the control lets go: never quiet, no busy loop.
+            let mut round: u32 = 0;
+            while !marker.load(Ordering::SeqCst) {
+                std::fs::write(&progress, round.to_string()).expect("the fixture writes its progress");
+                round += 1;
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        },
+        GuardLimits { window: WORKING_WINDOW, ceiling: CEILING },
+        FAST,
+        "a job",
+        &mut std::io::sink(),
+    );
+    let waited: Duration = began.elapsed();
+    release.store(true, Ordering::SeqCst);
+    assert_eq!(outcome, Err(GuardFailure::Ceiling(CEILING)));
+    assert!(waited >= CEILING && waited < CEILING * 5, "the guard answered after {waited:?}");
+    crate::test_support::remove(scratch.as_path());
 }

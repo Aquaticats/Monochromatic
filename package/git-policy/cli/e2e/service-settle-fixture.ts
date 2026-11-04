@@ -59,7 +59,8 @@ async function namesIn(directory: string,): Promise<readonly string[]> {
 
  @returns the records still pending, claimed or being recovered after the deadline, as `<state>/<name>`;
  empty when the service finished everything.
- A claim a killed service held is taken back by a drain once its lease is over; if none ran, the wait reports it instead of failing.
+ A claim a killed service held is taken back by a drain once its lease is over, which is longer than this wait,
+ so a scenario that kills the service while it holds a claim waits with {@link waitForServiceWork} first.
 
  @example
  ```ts
@@ -67,6 +68,34 @@ async function namesIn(directory: string,): Promise<readonly string[]> {
  ```
  */
 export async function settleServiceWork(gitDir: string,): Promise<readonly string[]> {
+  return await waitForServiceWork({
+    gitDir,
+    deadlineMilliseconds: SETTLE_DEADLINE_MILLISECONDS,
+  },);
+}
+
+/**
+ Waits until the service has finished the after-commit work of one repository, for as long as the caller allows.
+
+ @param gitDir - the worktree's own Git directory, which holds its work records
+
+ @param deadlineMilliseconds - how long to wait for the records to leave `pending`, `claimed` and `recovering`
+
+ @returns the records still pending, claimed or being recovered after the deadline, as `<state>/<name>`;
+ empty when the service finished everything
+
+ @example
+ ```ts
+ const unsettled = await waitForServiceWork({ gitDir: repository.gitDir, deadlineMilliseconds: budget });
+ ```
+ */
+export async function waitForServiceWork({
+  gitDir,
+  deadlineMilliseconds,
+}: Readonly<{
+  gitDir: string;
+  deadlineMilliseconds: number;
+}>,): Promise<readonly string[]> {
   /**
    Directory of the repository's after-commit records.
    */
@@ -78,7 +107,7 @@ export async function settleServiceWork(gitDir: string,): Promise<readonly strin
   /**
    When the wait for the records ends.
    */
-  const deadline = Date.now() + SETTLE_DEADLINE_MILLISECONDS;
+  const deadline = Date.now() + deadlineMilliseconds;
   for await (const _tick of ticks(POLL_MILLISECONDS,)) {
     /**
      Records waiting for the service and records it is working on.

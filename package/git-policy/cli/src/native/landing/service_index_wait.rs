@@ -46,7 +46,7 @@ const EMPTY_PAUSE: Duration = Duration::from_millis(2);
 ///
 /// Measured on 2026-11-03 in the commit service's journal: of 715 landings that logged the time the service held the lock
 ///  (`lock_hold_ms`), 13 held it for 58 to 120 seconds, all of it in the sync of the new index to disk
-///  (`sync_ms`; longest 119,721 ms, 99th percentile 65,787 ms, median 34 ms). A hold of that age is a live service on a slow
+///  (then logged as `sync_ms`, now `index_update_ms`; longest 119,721 ms, 99th percentile 65,787 ms, median 34 ms). A hold of that age is a live service on a slow
 ///  disk, so the age is the longest measured hold with a quarter more, 150 seconds; the earlier 60 seconds took those live
 ///  holds for leftovers. A wrong call only lets the forwarded command run into Git's own refusal, which is run again while
 ///  the service has the index (`service_hold_retry.rs`).

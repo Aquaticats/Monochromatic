@@ -6,7 +6,7 @@
 //!  journal,
 //!  provisioning and logging.
 //! Why:
-//!  The service is a second program with its own life.
+//!  The service is a mode of the one executable with a life of its own: the operating system starts it on demand.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,6 +18,9 @@ pub mod service_protocol;
 
 /// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
 pub mod wait_ceilings;
+
+/// What the one landing thread is doing, shared with the threads that talk to waiting clients.
+pub mod service_busy;
 
 /// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
@@ -39,6 +42,9 @@ pub mod service_signal;
 
 /// The commit service's loop.
 pub mod service_server;
+
+/// The service as a mode of the one executable: the words that select it and the start of the service.
+pub mod service_main;
 
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;

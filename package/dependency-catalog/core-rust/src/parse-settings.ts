@@ -297,6 +297,12 @@ export function readSettings(
       issues,
     },),
     ...(ignoreAfter === NO_MINUTES ? {} : { trustPolicyIgnoreAfter: ignoreAfter, }),
+    trustLockfile: readBoolean({
+      key: 'trustLockfile',
+      value: root.trustLockfile,
+      fallback: false,
+      issues,
+    },),
   };
 }
 

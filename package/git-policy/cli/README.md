@@ -37,6 +37,22 @@ Read-only commands,
   The wrapper takes no lock of its own: a commit meets only Git's `index.lock`,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
   A commit the service was landing when it died is settled by the service from its journal when it starts again.
+  A stale `index.lock` that a killed service left (its marker names a process that is gone) is removed by one reclaimer at a time,
+   on every file system: reclaimers take their place in a chain of numbered claim files (`cli-reclaim-*`) beside the lock and check that
+   the name still refers to the file they judged before they unlink, so no `flock` is involved. A killed reclaimer can leave inert
+   claim files, which `SPEC.md` ("The claim chain") says how to remove.
+  A marker carries the machine ID of its host: a reboot of the same machine ends the holder, and a lock or claim of a service on another
+   machine (a repository on a shared file system) is never taken for stale. Neither is a marker of an earlier release, which names no
+   machine and is reclaimed by that release's own exclusion: such a lock, or a claim that cannot be judged, stays, the commit waits as for
+   any held lock, and the notice names the file and gives `rm -- '<path>'` for a person who knows the service is gone. A stale lock that a
+   service of an earlier release left is removed by hand once after the upgrade; every lock this release writes reads
+   `cli-git-service v2 ...`, which an earlier release leaves alone.
+  A lock that cannot be proven stale is never removed (a running Git's lock, or one held by a process of another PID namespace).
+- A record from another PID namespace that is older than 20 minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
+   2026-11-04: "Refuse and name it (Recommended)"). A merge recovery, a conversion claim or a worktree add that finds one stops with an
+   error that names the record file, its owner's process number and namespace, its age, that the owner may be a live command in
+   another container, and the exact `rm -- '<path>'` to run when no cli-git command and no Git that cli-git left running is working
+   on the repository in any container; it changes nothing. Commits are outside this and never fail on it.
 - Merges that do not fail (the owner's rules of 2026-11-03: "Auto merging should never fail." and
    "Manual merge should never fail too.").
   Native Git's merge stashes first and dies when another process holds `index.lock`,
@@ -285,10 +301,20 @@ they narrow the window and do not close it.
   eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
   so the Windows-specific branches in the sources have never run; each is marked `UNTESTED ON WINDOWS` in the source.
   A Windows port is deferred to a later version (owner decision, 2026-10-15).
-- Real Git 2.55.0 or newer on `PATH` after the wrapper.
+- Real Git on `PATH` after the wrapper, tested with 2.56.0 (`MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs`).
   The wrapper checks the version before work that depends on Git's behavior,
-   such as a commit,
-  and refuses older Git.
+   such as a commit.
+  A Git older than that release is not refused:
+   the wrapper prints one warning that names the Git it found,
+   the release it reported and the release the wrapper was tested with,
+   says that the command continues,
+   and runs the command as usual
+   (owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+  Only a Git whose release cannot be read stops the command.
+  The constant follows the test image's Git:
+   the gate image installs the distribution's current `git` package,
+   so when `mise run //package/git-policy/cli:test:git-image` reports a newer release,
+   raise the constant to it with the first gate run on that release.
   The wrapper finds the real Git by walking `PATH`,
    skipping itself and anything that leads back to it:
    a link or a copy of the wrapper,
@@ -1066,7 +1092,7 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
   query step,
    300 seconds for a bulk step; both unmeasured), and is quiet again when run a second time. A step that works is
    never ended
-   for being slow, and a step that may not be run twice (a reference update) is waited for.
+   for being slow, and a step that may not be run twice (a reference update) is waited for, with no end of its own: only you end it.
 - The commit service does not start: a start the manager reports as under way is waited for until `START_CEILING` (60
   seconds),
    a start it reports failed ends the wait at once ("commit service did not start"),
@@ -1339,12 +1365,25 @@ and the
 wrapper never waits without saying so. Every bound is in `src/native/service/wait_ceilings.rs` with its measurement,
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
-A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
-Every Git step the wrapper starts is ended at a ceiling of its class (reads 120 seconds, bulk steps 10 minutes,
-reference updates
-60 seconds) whatever it shows; a reference update ended after it renamed the branch reports the commit as landed,
-and one ended before
-it withdraws the commit as at the lock ceiling. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+A process that works is waited for until its ceiling; a quiet window ends a wait for quiet, a ceiling ends a wait for length, and
+the one step that is never ended is a write in place that is not safe to run twice.
+A Git step the wrapper starts keeps a ceiling of its class (reads 120 seconds, bulk steps 10 minutes) exactly when it can run twice:
+the owner's criterion, decided by cutting each step at every mutating system call, running it again and comparing the end state
+(`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The branch write (`git update-ref`), `git merge`,
+`git reset --hard`, `git checkout`, `git switch`, `git stash store` and `git read-tree -m` came out different and are never ended
+(the owner, 2026-11-04: "Never cut a branch write (Recommended)", whose option read "Steps that can safely run twice keep their
+ceilings; the branch write is never ended. Your command still returns at its bound with "result not yet known" and the `git log -1`
+and side-ref hint. Con: a truly hung write keeps the service busy, and later commits fail at their own 20-minute ceiling with an
+error naming it."). A command that started such a step stops waiting at the step's class bound plus 7 seconds (`SHORT_EXTRA_WAIT`; the owner's
+"Class ceiling + 7 s (Recommended)" and "7 s (Recommended)") and exits non-zero saying the result is not known, naming the step and
+what to check; the step is left running, with its output in files that outlive the command. Only the exact forms the cut experiment
+ran (the table in `doc/planning/cli-git-no-unbounded-waits.md`) keep a ceiling; any other form of a writing step has none. A side-ref
+write keeps one only with `--no-deref` and `-c core.logAllRefUpdates=false` on its command line, and `git fast-import` has none.
+The commit service's landing thread waits for it, and a commit that waits behind it is told what the service is stuck in after a
+minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
+(`journalctl`, and a restart of the service when no program uses the repository). The commit inside the stuck write waits 7 seconds
+past its `ANSWER_CEILING` and then reports that it is not known whether it was made, with `git log -1`, `git status` and the write
+named; the commit lands when the write returns. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
 the commit service's answer until `ANSWER_CEILING` (20 minutes),
 a start until `START_CEILING` (60 seconds), the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
 (10 minutes), and a push whose connection is open and silent until `CONNECTED_PUSH_QUIET_WINDOW` (150 seconds, then the
@@ -1380,15 +1419,23 @@ fractional or non-numeric value is ignored.
   Setting the variable gives every class the same window.
   A step that is safe to run twice and shows no sign of work for the window is ended and run once more;
    if it is quiet again, the command reports which step, its class, the window and how to go on.
-  A step that may not be run twice (a reference update, a commit Git builds) is announced and waited for as long as it
-  lives.
+  A step that cannot be run twice (a branch write above all) is announced and has no ceiling: the commit service waits for it, and
+  any other command stops waiting for it at its bound plus 7 seconds and says the result is not known.
   No hook of yours runs below a step the wrapper starts, and the stop never reaches a process beside the step.
 - The tools and checks that are not Git end on the same rule, with windows that are not measured:
    a package-manager tool of the worktree repair after 600 seconds with no sign of work (with its whole process group),
    the Markdown linter after 60 seconds in which its thread shows none,
    and the standards-review call after 10 seconds of silence on its connection (30 seconds for the script's default).
-  A tool that works, such as an install that downloads for a long time, is never reported as having run past a limit.
-  The 20 second budget around the whole review is gone.
+  Each also has a ceiling on its whole run, whatever it shows (owner, 2026-11-04: "Silence plus a ceiling (Recommended)", which
+   read "Keep ending on silence, and add a generous overall ceiling per tool, measured from real runs, after which it's ended with
+   an error naming the tool. Con: an extremely slow but working run on a huge repository can hit the ceiling."):
+   18 minutes for one repair tool (`REPAIR_TOOL_CEILING`, ended with its whole process group, and the line names the tool, what it
+   was doing and the command to run by hand), 4 minutes for the Markdown check of one file (`LINT_CEILING`, abandoned as a quiet one
+   is), 1 minute for the standards-review call (`REVIEW_CALL_CEILING`) and 2 minutes for the whole review of a commit
+   (`REVIEW_CEILING`, with the command `SHADOW_REVIEW_SHA=<commit> mise run shadow-review` that reviews it again).
+  Each ceiling is the smallest whole number of minutes that is at least five times the longest run measured on this host
+   (`src/native/service/wait_ceilings.rs` has the figures and the method).
+  The ceilings are not variables you can set.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints"),
@@ -1732,7 +1779,7 @@ mise run //package/git-policy/cli:native:test:container
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
 - `native:test:container` is the authority.
-  It builds the crate and runs the tests and Clippy in bounded containers with Git 2.56.0 and no network.
+  It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
   The test run uses `cargo nextest run --no-fail-fast`, so every test runs even after a failure and one flaky test
   never hides the rest; the exit status is still non-zero, and nextest prints its summary and the list of failed tests
@@ -1873,6 +1920,39 @@ A test that starts such a run records its arguments with `recording_git.rs` and 
 `git reset` without `-q` lists the tracked paths whose files differ from the index, so the service's journal now names
 the paths of other uncommitted work for every landing.
 
+### Container base images
+
+Every container image of the verification tasks starts from the newest CachyOS image the host CPU can run,
+on its `latest` tag (`doc/decision/container-base-distro.md` at the repository top level).
+The tag is never pinned to a version or a digest, so an upstream CachyOS update that breaks a task is a bug to fix at once.
+Two derived base images carry what the network-free image builds need:
+
+- `native-test-base.Containerfile` builds `localhost/git-policy-native-test-base`:
+  CachyOS, the distribution's Rust (Cargo and Clippy) and build tools, and the tools the tests start: Git (at
+  `/usr/bin/git`, where the tests expect the real Git), Node, pnpm, `strace` and cargo-nextest.
+  The gate image and the mutation images build on it.
+- `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`: CachyOS with the distribution's Git
+  and Node and `ssh-keygen`.
+
+Every tool in these two images is the distribution's current pacman package, with no version pin, no source build and no
+downloaded archive (owner decisions of 2026-11-04: "We don't need to pin git because my current system is already using
+git latest.", "We don't need to pin Node too.", and "Pacman for everything it has").
+That is an exception to the repository rule that containers install locked tools from `toolchain.lock.json` rows, for
+these test images only.
+Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in the CachyOS image).
+`mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got; the wrapper's
+`MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
+
+Each run of `native:test:container`, `test:git-image`, `test:e2e:concurrent:image` and
+`test:e2e:concurrent:native:image` first pulls the `latest` tag with `podman pull --policy=newer`
+(one small request when nothing changed; a registry that cannot be reached is reported and the copy the host holds is used).
+The derived base is tagged `<first digits of the pulled image ID>-<first digits of the Containerfile hash>`,
+so a new CachyOS image or an edited Containerfile builds a new base (with network, once) and every run after that finds it.
+The gate image then builds from the base's ID with no network, exactly as before, and its layer cache is keyed on that ID.
+`bin/native-test-base.ts` holds the pull, the tag and the build.
+The resolver that picks `cachyos-v4`, `cachyos-v3` or `cachyos` is `package/test-harness/core-matrix`;
+a host that is not x86-64 stops with an error that names the image, because these images have no Alpine variant.
+
 ### Container limits
 
 Every container the verification tasks start is bounded.
@@ -1904,11 +1984,10 @@ whole CPUs of the limit, never below one.
 mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
 mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/invocation/startup_gate.rs
 mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
-mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
+mise run //package/git-policy/cli:test:git-image -- --memory 4g
 ```
 
-- `native:test:container` accepts all three options, and so do `native:mutation:scoped` and `test:git-image`
-  (the Git checkout path comes first there).
+- `native:test:container` accepts all three options, and so do `native:mutation:scoped` and `test:git-image`.
 - `native:mutation` runs the gate and then the mutation step, and mise passes the options to the mutation step only,
   so the gate runs at the defaults.
   Run `native:test:container` with its own options first when both need changing.
@@ -2173,7 +2252,7 @@ How the two passes are seeded, composed and resumed is in
 
 ### Source layout
 
-The crate is one library and two executables,
+The crate is one library and one executable (`cli-git-native`, which is also the commit service in its service mode),
 and its sources live under `src/native/`.
 Each folder there is one subsystem,
 so a contributor opens a folder for a concern instead of searching a flat list of
@@ -2191,7 +2270,7 @@ each with its sidecar test file.
   so `crate::command_options` and
   `git_policy_cli::command_options` still resolve.
   The fuzz crate,
-  the two executables and the integration tests name modules that way and needed no change.
+  the executable and the integration tests name modules that way and needed no change.
 - A glob re-export loses to an item written in `lib.rs`,
   so no folder may share its name with a module.
 - `use super::` in a module that a folder declares directly names the folder,
@@ -2240,7 +2319,8 @@ each with its sidecar test file.
   and the durable transaction records with their recovery.
 - `landing/` and `service/`:
   what the resident commit service does to land a commit,
-  and the service program around
+  and the service mode's
+  code around
   it:
   protocol,
   server,
@@ -2293,7 +2373,7 @@ each with its sidecar test file.
 - At the top:
   `lib.rs`,
   `main.rs` (`cli-git-native`,
-  installed as `git`) and `service_main.rs` (`cli-git-service`).
+  installed as `git`; with the words `cli-git service run` first it is the commit service, `service/service_main.rs`).
 
 #### Where new files go
 
@@ -2345,7 +2425,7 @@ because the targets are named in `Cargo.toml`.
     the redundant segment stays in every path until the follow-up.
 - Move to `src/` now (`src/lib.rs`,
   `src/main.rs`,
-  `src/service_main.rs` and the folders).
+  and the folders).
   - Pros:
     the conventional Cargo layout and shorter paths,
     in one step with the folder move.
@@ -2381,13 +2461,15 @@ The license texts are in `LICENSES/`.
 
 A scoped commit (`git commit -m <message> -- <paths>`, with the message, identity, sign-off, trailer, empty-commit,
 reused-message, fixup and `-a` options listed in `doc/planning/cli-git-resident-service.md`) is landed by a resident commit
-service instead of by the wrapper itself. The service is a separate program, `cli-git-service`, that the operating system
-starts on demand; the wrapper never starts it. Commits queue in arrival order, a batch of whatever is queued lands with one
+service instead of by the wrapper itself. The service is a mode of the same executable, `cli-git-native cli-git service run`
+(options `--journal`, `--git`, `--instance` and, for a development run, `--path` or `--abstract`), that the operating system
+starts on demand; the wrapper never starts it, and typed by hand with no socket from the manager and no address it refuses
+and starts nothing. The release archive holds that one executable, as cargo-binstall requires of every `[[bin]]`. Commits queue in arrival order, a batch of whatever is queued lands with one
 durable write, and a commit that waits says how many commits go first. There is nothing to install and no setting.
 
 - The first commit that needs the service sets up its socket activation itself, and every later one checks it is still
   right: it compares the two installed units with what this release would write and, only when they differ (an upgrade or
-  a downgrade moved the service program), rewrites them, reloads the manager, clears failed state and starts the socket.
+  a downgrade moved the executable the units name), rewrites them, reloads the manager, clears failed state and starts the socket.
   When they match it opens no connection to the bus. Setting up writes two unit files into
   `$XDG_RUNTIME_DIR/systemd/user` (nothing is left in the home directory; the next first use after a login does it again)
   and asks the user's service manager, through the session bus, to start the socket. The manager starts the service when
@@ -2649,7 +2731,8 @@ each prefixed `cli-git-service:` on standard error and identified as `cli-git-se
   `objects_ms`,
   `journal_ms`,
   `ref_ms`
-  (moving the branch) and `sync_ms` (the index);
+  (moving the branch) and `index_update_ms` (removing the conclusion state, then building and installing the new index);
+  records written before 2026-11-04 carry the same duration as `sync_ms`, which was never a disk sync;
   `lock_hold_ms` is how long the index lock was held, from its placement to its release (the branch move and the index
   build), and is no phase of that sum;
   `attempts` is more than one when the branch moved under the batch.

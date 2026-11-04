@@ -203,3 +203,34 @@ fn a_delta_chain_is_decoded_about_once_for_all_its_versions() {
     assert!(decoded <= 2 * versions as u64 + 8, "{decoded} entry decodes for {versions} versions of one chain");
     remove(root.as_path());
 }
+
+/// An object that a pack holds is found in the pack without a look at the loose path first: a commit reads about two thousand
+/// objects of its base tree, and each loose look is a system call that fails for a packed object (Git searches packs first, then
+/// the loose files). Positive control: an object that is only loose is still read, after the packs were searched.
+#[test]
+fn a_packed_object_is_read_without_looking_for_a_loose_file() {
+    let root = fixture("repo-read-odb-pack-first");
+    let repo = history(root.as_path(), "repo", "sha1");
+    let packed_names: Vec<(String, Vec<u8>)> = git_objects(repo.as_path()).into_iter().map(|(name, _, bytes)| { return (name, bytes); }).collect();
+    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+    git(repo.as_path(), &["prune-packed"]);
+    let format = format_of(repo.as_path());
+    let database = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("plain database");
+    let before: u64 = loose_looks();
+    for (name, bytes) in &packed_names {
+        let raw = database.read(&from_hex(name.as_bytes(), format).expect("name")).expect("read");
+        assert_eq!(&raw.bytes, bytes, "{name}");
+    }
+    let looks: u64 = loose_looks() - before;
+    assert_eq!(looks, 0, "every object of {} was in a pack, so no loose path was looked at", packed_names.len());
+    // An object written loose after the repack is found once the packs were searched.
+    std::fs::write(repo.join("late.txt"), "late\n").expect("late");
+    let late = git_output(repo.as_path(), &["hash-object", "-w", "late.txt"]);
+    let late_name: String = String::from_utf8(late.stdout).expect("UTF-8").trim().to_string();
+    let loose = ObjectDatabase::open(repo.join(".git").as_path(), None, format).expect("database with a loose object");
+    let before_late: u64 = loose_looks();
+    let raw = loose.read(&from_hex(late_name.as_bytes(), format).expect("name")).expect("the loose object is read");
+    assert_eq!(raw.bytes, b"late\n");
+    assert!(loose_looks() > before_late, "the loose file was looked at after the packs");
+    remove(root.as_path());
+}

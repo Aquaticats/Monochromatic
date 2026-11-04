@@ -11,7 +11,7 @@
 //!  left behind in the home directory and the next first use provisions again. Every step is idempotent (a file is written,
 //!  by temporary file and rename, only when its content differs), so several commits racing to provision agree without any
 //!  lock. Every commit that goes to the service compares the two installed templates with what this wrapper would write
-//!  (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the service program the template
+//!  (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the executable the template
 //!  names, is repaired by the first commit that follows it: templates rewritten, manager reloaded, failed state cleared,
 //!  the worktree's socket started. The single service of the earlier releases (`cli-git.socket` and `cli-git.service`, one
 //!  socket for every worktree) is asked to retire and stopped, and its units and socket file are removed, by the first
@@ -50,9 +50,6 @@ pub const LEGACY_SOCKET_UNIT_NAME: &str = "cli-git.socket";
 /// File name of the service unit of the single service every worktree shared until one service per worktree.
 pub const LEGACY_SERVICE_UNIT_NAME: &str = "cli-git.service";
 
-/// Name of the service program, next to the wrapper.
-pub const SERVICE_PROGRAM: &str = "cli-git-service";
-
 /// The words that mark a unit file as written by this wrapper: the marker its units carry now, and the descriptions the
 ///  units of earlier releases carried.
 pub const OWN_MARKERS: [&str; 3] =
@@ -70,7 +67,8 @@ pub struct ProvisionHost {
     pub user_unit_dir: Option<PathBuf>,
     /// The session bus socket.
     pub bus: PathBuf,
-    /// The service program.
+    /// The program the service unit starts: the wrapper's own executable, which runs the service when the words after it ask
+    ///  for that (`service_main.rs`).
     pub service_binary: PathBuf,
     /// The real Git the service runs.
     pub git: PathBuf,
@@ -260,14 +258,14 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
         // The time spent asking the earlier service to retire is not taken from the stop calls.
         manager.within(EXCHANGE_WAIT);
         // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
-        for name in &units {
-            match manager.stop(name) {
-                Ok(()) => {}
-                // A unit the manager never loaded has nothing to stop.
-                Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
-                Err(error) => return Err(refusal(error)),
-            }
-        }
+        let (sockets, services): (Vec<&str>, Vec<&str>) = units.iter().partition(|name| { return **name == LEGACY_SOCKET_UNIT_NAME; });
+        stop_units(manager, sockets.as_slice())?;
+        // The manager's stop ends the whole unit, the Git children of a landing in progress with it, and a Git step that cannot run
+        //  twice may be one of them. The service is asked to retire, which it handles between batches, and is given the wait to
+        //  leave by itself; the stop goes to a service that has left, and a service that is still there when the wait ends fails
+        //  the commit with the sentence that names the stop for the person to choose (sol-1 round 2).
+        wait_until_stopped(host, manager, services.as_slice())?;
+        stop_units(manager, services.as_slice())?;
         wait_until_stopped(host, manager, units.as_slice())?;
     }
     for file in &owned_files {
@@ -275,6 +273,18 @@ fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Manager) -> Re
     }
     let _socket_removed = std::fs::remove_file(&socket_file);
     return Ok(!owned_files.is_empty());
+}
+
+/// Asks the manager to stop each unit; a unit it never loaded has nothing to stop.
+fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFailure> {
+    for name in units {
+        match manager.stop(name) {
+            Ok(()) => {}
+            Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+            Err(error) => return Err(refusal(error)),
+        }
+    }
+    return Ok(());
 }
 
 /// Whether the unit file at `path` carries a marker of this wrapper's units.
@@ -324,8 +334,8 @@ fn remove_settled(path: &Path) -> Result<(), ClientFailure> {
 ///  Waits until the manager reports each unit inactive, failed or not held, and fails when that takes longer than the host
 ///  allows.
 /// Why:
-///   A stop call returns when the job is queued. The service finishes the batch it holds, and its Git children, before it
-///  exits; an instance started meanwhile would recover and claim work the earlier service is still doing, so the commit
+///   A stop call returns when the job is queued, and a service that was asked to retire finishes the batch it holds, and its Git
+///  children, before it exits (the wait comes before the stop of the service, which would cut that batch); an instance started meanwhile would recover and claim work the earlier service is still doing, so the commit
 ///  fails instead, naming what is still stopping. Its files stay, so the next commit finds the same state and tries again.
 ///
 /// In TS you'd write (pseudocode):
@@ -336,7 +346,7 @@ fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[
     let deadline: std::time::Instant = std::time::Instant::now() + host.retirement_wait;
     let still_stopping = |unit: &str| -> ClientFailure {
         return ClientFailure::CouldNotStart(format!(
-            "the earlier commit service ({unit}) is still stopping after {:.1} seconds; run the commit again in a moment, or stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
+            "the earlier commit service ({unit}) is still running after {:.1} seconds, and it may be in the middle of a landing that stopping it would cut; run the commit again in a moment, or, when no commit is running, stop it with `systemctl --user stop {LEGACY_SERVICE_UNIT_NAME} {LEGACY_SOCKET_UNIT_NAME}`",
             host.retirement_wait.as_secs_f64()
         ));
     };

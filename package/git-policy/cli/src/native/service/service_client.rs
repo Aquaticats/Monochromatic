@@ -73,6 +73,9 @@ pub struct ClientConfig {
     pub answer_ceiling: Duration,
     /// The longest the client waits for the service to answer the withdrawal.
     pub withdraw_ceiling: Duration,
+    /// How much longer a client whose own request is inside the service's branch write waits, after its answer ceiling, for that
+    ///  write to end before it reports that the result is not known (`wait_ceilings.rs`, `SHORT_EXTRA_WAIT`).
+    pub extra_wait: Duration,
     /// The longest a start is waited for when the service manager can be asked.
     pub start_ceiling: Duration,
 }
@@ -434,6 +437,11 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     //  service sends, so a wait longer than the sweep's age never has its directory swept.
     let waiting_since: Instant = Instant::now();
     let mut last_blocker: Option<String> = None;
+    // Whether the service said this request is inside its stuck branch write, and when the extra wait for that write ends.
+    let mut inside_write: bool = false;
+    // The wait for the answer ends here, and the extra wait for a write the request is inside ends the extra wait after it: both
+    // are measured from the start of the wait, not from the moment a loop first notices them.
+    let answer_deadline: Instant = waiting_since + config.answer_ceiling;
     let mut last_renewed: Option<Instant> = None;
     let mut renew_scratch = |settings: &ClientConfig| {
         if let Some(fresh) = settings.keep_fresh.as_ref()
@@ -464,11 +472,24 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config);
             }
+            // A notice that arrives with the ceiling counts, so it is read before the ceiling is judged.
+            if matches!(heard, Heard::Message(ServiceMessage::InsideWrite { .. })) {
+                inside_write = true;
+            }
             // The wait ends at the ceiling whatever the service sends: the request is withdrawn, and the answer to that is
             //  the command's end (landed after all, or the error).
+            //  A request the service says is inside its branch write is not withdrawn: its commit may be on the branch already, so the
+            //  client waits the short extra wait for that write (owner, 2026-11-04, "Short extra wait"), listening for the landing,
+            //  and then reports that the result is not known; the write is left running.
             if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
-                trace.answer_wait += written_at.elapsed();
-                return withdraw(config, request.id.as_str(), last_blocker.take());
+                if !inside_write {
+                    trace.answer_wait += written_at.elapsed();
+                    return withdraw(config, request.id.as_str(), last_blocker.take(), answer_deadline);
+                }
+                if Instant::now() >= answer_deadline + config.extra_wait {
+                    trace.answer_wait += written_at.elapsed();
+                    return Err(ClientFailure::WithdrawalUnconfirmed { blocker: last_blocker.take() });
+                }
             }
             match heard {
                 Heard::Message(ServiceMessage::Position { number, of }) => {
@@ -485,7 +506,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     break Some(Err(ClientFailure::IndexInUse(holder.take().unwrap_or_else(|| { return String::from("Another program"); }))));
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
-                Heard::Message(ServiceMessage::Waiting { text }) => {
+                Heard::Message(ServiceMessage::Waiting { text } | ServiceMessage::InsideWrite { text }) => {
                     last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
                     trace.holder_kind = Some(holder_kind_of(text.as_str()));
@@ -533,29 +554,39 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
 /// ```ts
 /// const answer = await askToWithdraw(config, id); // 'landed' | 'withdrawn' | undefined
 /// ```
-fn withdraw(config: &ClientConfig, id: &str, blocker: Option<String>) -> Result<Submitted, ClientFailure> {
+fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answer_deadline: Instant) -> Result<Submitted, ClientFailure> {
     let minutes: u64 = config.answer_ceiling.as_secs() / 60;
+    // What the service says it is stuck in on this connection replaces what it said on the first one: it is the newer.
+    let mut blocker: Option<String> = heard_blocker;
     let mut announced: bool = true;
     let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true) else {
-        return Err(ClientFailure::WithdrawalUnconfirmed);
+        return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
     };
     let mut asking: String = encode_client(&ClientMessage::Withdraw { id: id.to_string() });
     asking.push('\n');
     if reader.get_mut().write_all(asking.as_bytes()).is_err() {
-        return Err(ClientFailure::WithdrawalUnconfirmed);
+        return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
     }
-    let deadline: Instant = Instant::now() + config.withdraw_ceiling;
+    let mut deadline: Instant = Instant::now() + config.withdraw_ceiling;
     while Instant::now() < deadline {
         // No read waits past the withdrawal's ceiling, whatever the silence bound says.
         let _timeout = reader.get_ref().set_read_timeout(Some(deadline.saturating_duration_since(Instant::now()).max(Duration::from_millis(1)).min(config.heartbeat_silence)));
         match listen(&mut reader) {
             Heard::Message(ServiceMessage::Landed { commit, .. }) => return Ok(Submitted::Landed { commit, already: true }),
             Heard::Message(ServiceMessage::Withdrawn { .. }) => return Err(ClientFailure::StillWithService { minutes, blocker }),
+            Heard::Message(ServiceMessage::Waiting { text }) => blocker = Some(text.trim().to_string()),
+            // The service says the request is inside its stuck write: the withdrawal cannot be answered before the write returns,
+            // and the commit may be on the branch, so the wait ends at the same moment it would have ended had the notice come before
+            // the ceiling (owner, 2026-11-04, "Short extra wait").
+            Heard::Message(ServiceMessage::InsideWrite { text }) => {
+                blocker = Some(text.trim().to_string());
+                deadline = deadline.min(answer_deadline + config.extra_wait);
+            }
             Heard::Message(_) => {}
-            Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed),
+            Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed { blocker }),
         }
     }
-    return Err(ClientFailure::WithdrawalUnconfirmed);
+    return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
 }
 
 /// What:

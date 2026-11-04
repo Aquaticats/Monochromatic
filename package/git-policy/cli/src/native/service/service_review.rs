@@ -15,7 +15,7 @@
 //! ```
 
 use crate::standards_review_input::has_shadow_log;
-use crate::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained};
+use crate::standards_review_run::{Containment, Contained, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in};
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
 use crate::standards_review_text::commit_subject;
 use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
@@ -135,19 +135,82 @@ fn wall_clock_millis() -> u64 {
 /// await reviewItem(context, item, options)
 /// ```
 pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions) -> Verdict {
-    if !has_shadow_log(Path::new(item.repository.as_str())) {
-        return Verdict::Done;
-    }
+    return review_item_within(context, item, options, crate::wait_ceilings::REVIEW_CEILING);
+}
+
+/// `review_item` where the whole review is waited for at most `ceiling`; a control shortens it.
+pub fn review_item_within(context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
+    return review_item_in(&crate::standards_review_run::RUNNER, context, item, options, ceiling);
+}
+
+/// What:
+///  `review_item_within` on a runner of the caller's own.
+/// Why:
+///   The look for the repository's shadow log is inside the contained job: it reads the worktree, which can stall like any other
+///  read, and nothing that can block runs on the service's work thread outside the ceiling (sol-2 round 2). Controls give each its
+///  own runner, so they do not see one another's reviews.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runner.contain(() => hasShadowLog(repository) ? reviewLanded(...) : undefined, ceiling)
+/// ```
+pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
     // The service serves many repositories, so its own context names none; the Git command that takes input needs the
     // item's Git directory for its input file, as the landing sets it for each request.
     let owned_context: GitContext = GitContext { common_dir: Some(PathBuf::from(item.git_dir.as_str())), ..context.clone() };
     let owned: WorkItem = item.clone();
-    let outcome: Option<ReviewOutcome> = run_contained(move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); });
+    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in(
+        runner,
+        move || {
+            if !has_shadow_log(Path::new(owned.repository.as_str())) {
+                return None;
+            }
+            return Some(run_review(&owned_context, &owned, &options, &wall_clock_millis));
+        },
+        ceiling,
+    );
     return match outcome {
-        None => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
-        Some(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message)) => Verdict::Failed(message),
-        Some(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged) => Verdict::Done,
+        Contained::Panicked => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
+        Contained::CeilingReached(reached) => Verdict::Failed(ceiling_reason(item.oid.as_str(), reached)),
+        Contained::Busy => Verdict::Failed(busy_reason(item.oid.as_str())),
+        Contained::Finished(None) => Verdict::Done,
+        Contained::Finished(Some(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message))) => Verdict::Failed(message),
+        Contained::Finished(Some(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged)) => Verdict::Done,
     };
+}
+
+/// What:
+///  The reason of a review that was not started because an earlier one, stopped at its ceiling, is still running.
+/// Why:
+///   The earlier review may hold the review log, and a second one would only queue behind it (sol-2, B); this one is refused with
+///  the command that does it when the earlier one has ended, and the service starts no further thread meanwhile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the standards review of ${oid} was not started because an earlier review is still running; run SHADOW_REVIEW_SHA=${oid} mise run shadow-review`
+/// ```
+pub fn busy_reason(oid: &str) -> String {
+    return format!(
+        "the standards review of {oid} was not started because an earlier review, stopped at its ceiling, is still running and may hold the \
+         review log; review it again, once that review has ended, with `SHADOW_REVIEW_SHA={oid} mise run shadow-review`"
+    );
+}
+
+/// What:
+///  The reason of a review that ran as long as the service lets one run.
+/// Why:
+///   It names what was running (the standards review of the commit), the ceiling, and the command that does it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the standards review of ${oid} ran for ${seconds} seconds, ...; run SHADOW_REVIEW_SHA=${oid} mise run shadow-review`
+/// ```
+pub fn ceiling_reason(oid: &str, ceiling: Duration) -> String {
+    return format!(
+        "the standards review of {oid} ran for {} seconds, the longest the service lets one review run, and the service stopped waiting for it; \
+         review it again with `SHADOW_REVIEW_SHA={oid} mise run shadow-review`",
+        ceiling.as_secs()
+    );
 }
 
 /// Review controls stay out of the release executable.

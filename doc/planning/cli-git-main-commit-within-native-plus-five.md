@@ -188,9 +188,10 @@ shipped in 0.5.27, and are fixed here for the same reason):
   is honoured as it is for Git's own lock file.
 - An interrupted write is tried again; the status and diff controls a truncated rewrite had deleted are back; the racy-entry
   fallback has an end-to-end control through `build_index`.
-- Not changed: `remove_stale` reads a lock's marker and then removes the lock, which is not atomic. Two services reclaiming the
-  same physical index at once could remove a lock a third program took in between; the service lifecycle (one per worktree
-  instance) excludes it, a shared alternate index is not covered, and no control exercises competing reclaimers.
+- Was not changed here: `remove_stale` reads a lock's marker and then removes the lock, which is not atomic. Two services
+  reclaiming the same physical index at once could remove a lock a third program took in between. Closed afterwards: the
+  reclaim holds an exclusive `flock` on the stale lock file and unlinks the name only while it still refers to that file, at
+  all three reclaim sites, with controls for two competing reclaimers (`doc/planning/cli-git-one-reclaimer-per-index.md`).
 
 What the fourth cross-vendor review changed:
 
@@ -256,9 +257,10 @@ What the fifth cross-vendor review changed (the owner's rule "never discard user
   file system without one is never swept.
 - A stale index lock is taken aside by one rename and looked at again before it is removed, and put back by a hard link that
   fails rather than replace a lock placed meanwhile. A second instance serving one physical index no longer removes a lock a
-  third program placed after the marker was read. Left: a lock taken aside that proves live is put back by a hard link, and a
+  third program placed after the marker was read. Left then: a lock taken aside that proves live is put back by a hard link, and a
   second lock placed at the name in the microseconds between the rename and the hard link keeps the name; the taken-aside lock
-  then stays at its aside name and the log says where. The owner's option of one reclaimer per physical index would close it.
+  then stays at its aside name and the log says where. Closed afterwards by one reclaimer per physical index: nothing is taken
+  aside any more, the reclaim holds a `flock` on the stale file and unlinks the name after checking it still refers to that file.
 
 Not changed: the long alternate-index name still overflows the lock's own staging name (`service_index_staging.rs`) before the
 name Git supports, so the control for it searches for a name the service accepts.

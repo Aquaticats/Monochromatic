@@ -41,7 +41,7 @@ fn reader(names: &[String]) -> Result<LandedCommit, String> {
 /// Options writing to `directory/log.md` at `endpoint`.
 fn options(directory: &Path, endpoint: &str, key: Option<&str>) -> ReviewOptions {
     // The log is not made here: the run creates it on its first delivery.
-    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: SHORT, trusted_pem: None };
+    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: SHORT, call_ceiling: Duration::from_secs(3600), trusted_pem: None };
 }
 
 /// A full review: the request the mock sees is the built body, and the entry holds the verdict, date and seconds.
@@ -159,17 +159,35 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
-/// The contained runner returns a job's value however long the job takes, and survives a panic.
+/// The contained runner returns a job's value however long the job takes up to the ceiling, and survives a panic.
 #[test]
 fn the_runner_waits_for_a_slow_job_and_contains_a_panic() {
-    assert_eq!(run_contained(|| return 7_u8), Some(7));
+    let roomy: Duration = Duration::from_secs(3600);
+    assert_eq!(run_contained(|| return 7_u8, roomy), Contained::Finished(7));
     let pause: Duration = Duration::from_millis(1500);
-    let slow: Option<u8> = run_contained(move || {
+    let slow: Contained<u8> = run_contained(move || {
         std::thread::sleep(pause);
         return 2_u8;
-    });
-    assert_eq!(slow, Some(2), "a slow job is waited for");
-    assert_eq!(run_contained(|| -> u8 { panic!("job failure") }), None);
+    }, roomy);
+    assert_eq!(slow, Contained::Finished(2), "a slow job is waited for");
+    assert_eq!(run_contained(|| -> u8 { panic!("job failure") }, roomy), Contained::Panicked);
+}
+
+/// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a job that is still running when the ceiling passes is not waited for
+/// any longer, though it is working; the runner answers while the job still runs.
+#[test]
+fn the_runner_stops_waiting_for_a_job_at_its_ceiling() {
+    let ceiling: Duration = Duration::from_millis(600);
+    let (release, blocked) = mpsc::channel::<()>();
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome: Contained<u8> = run_contained(move || {
+        let _ = blocked.recv();
+        return 1_u8;
+    }, ceiling);
+    let waited: Duration = began.elapsed();
+    drop(release);
+    assert_eq!(outcome, Contained::CeilingReached(ceiling));
+    assert!(waited >= ceiling && waited < ceiling * 20, "{waited:?}");
 }
 
 /// A commit the log already names is not asked about again, and a log that does not exist yet is created by the first entry.
@@ -188,4 +206,102 @@ fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     let text: String = std::fs::read_to_string(opts.log_path.as_path()).expect("the first entry created the log");
     assert_eq!(text.matches(&"0123456789abcdefff"[..SHORT_SHA_LENGTH]).count(), 1, "the repeated item added nothing");
     remove(directory.as_path());
+}
+
+/// A job the runner stopped waiting for is outstanding until it ends, and no second job starts behind it (sol-2, B): the second is
+/// refused without a thread, and the runner takes work again once the first has ended.
+#[test]
+fn no_second_job_starts_while_a_job_the_runner_stopped_waiting_for_is_still_running() {
+    static OWN: Containment = Containment::new();
+    let (release, blocked) = mpsc::channel::<()>();
+    let first: Contained<u8> = run_contained_in(&OWN, move || {
+        let _ = blocked.recv();
+        return 1_u8;
+    }, Duration::from_millis(300));
+    assert_eq!(first, Contained::CeilingReached(Duration::from_millis(300)));
+    assert_eq!(OWN.outstanding(), 1);
+    let started: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&started);
+    let second: Contained<u8> = run_contained_in(&OWN, move || {
+        flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        return 2_u8;
+    }, Duration::from_secs(60));
+    assert_eq!(second, Contained::Busy);
+    assert!(!started.load(std::sync::atomic::Ordering::SeqCst), "the refused job never ran");
+    drop(release);
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while OWN.outstanding() > 0 {
+        assert!(waiting_since.elapsed() < Duration::from_secs(20), "the first job never ended");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(run_contained_in(&OWN, || return 3_u8, Duration::from_secs(60)), Contained::Finished(3));
+}
+
+/// A job that ends just as the runner gives up is not left counted as outstanding: whichever side is first, the count returns to
+/// zero and the runner takes work.
+#[test]
+fn a_job_that_ends_as_the_runner_gives_up_leaves_nothing_outstanding() {
+    static OWN: Containment = Containment::new();
+    for round in 0..200_u64 {
+        let ceiling: Duration = Duration::from_micros(round * 20);
+        let outcome: Contained<u8> = run_contained_in(&OWN, || return 1_u8, ceiling);
+        assert!(matches!(outcome, Contained::Finished(1) | Contained::CeilingReached(_)), "{outcome:?}");
+        let waiting_since: std::time::Instant = std::time::Instant::now();
+        while OWN.outstanding() > 0 {
+            assert!(waiting_since.elapsed() < Duration::from_secs(20), "round {round}: a count was left behind");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+}
+
+/// A review that panics after the runner stopped waiting for it is no longer outstanding (sol-2 round 2, P1): the accounting is
+/// released by a guard that runs on unwinding, so later reviews are not refused for ever. The control times out, lets the worker
+/// panic, sees zero outstanding, and starts a new review.
+#[test]
+fn a_review_that_panics_after_its_timeout_leaves_nothing_outstanding() {
+    static OWN: Containment = Containment::new();
+    let (release, blocked) = mpsc::channel::<()>();
+    let first: Contained<u8> = run_contained_in(&OWN, move || {
+        let _ = blocked.recv();
+        panic!("the review panics after the runner stopped waiting");
+    }, Duration::from_millis(300));
+    assert_eq!(first, Contained::CeilingReached(Duration::from_millis(300)));
+    assert_eq!(OWN.outstanding(), 1);
+    release.send(()).expect("let the worker go on to its panic");
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while OWN.outstanding() > 0 {
+        assert!(waiting_since.elapsed() < Duration::from_secs(20), "the panicked review stayed outstanding");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(run_contained_in(&OWN, || return 5_u8, Duration::from_secs(60)), Contained::Finished(5), "a new review starts");
+}
+
+/// Two callers that arrive together are never both admitted (sol-2 round 2, P2): each job counts how many jobs run at once while it
+/// does, so the control sees a second admission whichever way the threads are scheduled, and the count never passes one.
+#[test]
+fn two_callers_that_arrive_together_are_never_admitted_at_once() {
+    static OWN: Containment = Containment::new();
+    static ACTIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    static MOST: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    for round in 0..100 {
+        let barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let callers: Vec<std::thread::JoinHandle<Contained<u8>>> = (0..2)
+            .map(|_| {
+                let shared = std::sync::Arc::clone(&barrier);
+                return std::thread::spawn(move || {
+                    shared.wait();
+                    return run_contained_in(&OWN, || {
+                        let now: usize = ACTIVE.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                        MOST.fetch_max(now, std::sync::atomic::Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(15));
+                        ACTIVE.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                        return 1_u8;
+                    }, Duration::from_secs(60));
+                });
+            })
+            .collect();
+        let outcomes: Vec<Contained<u8>> = callers.into_iter().map(|caller| { return caller.join().expect("caller"); }).collect();
+        assert!(outcomes.iter().all(|outcome| { return matches!(outcome, Contained::Finished(1) | Contained::Busy); }), "round {round}: {outcomes:?}");
+        assert_eq!(MOST.load(std::sync::atomic::Ordering::SeqCst), 1, "round {round}: two jobs ran at once");
+    }
 }

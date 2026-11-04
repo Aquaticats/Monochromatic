@@ -152,9 +152,10 @@ Cargo builds from the lockfile,
    so each crate's lockfile already holds the newest releases,
    then tighten,
    then `mise run sync:files` to carry the new floors into the crates,
-   then `mise run rust:install` (the counterpart of `pnpm install`) to make the lockfiles of the crates that locked a lower
-   release satisfy the raised floors (`cargo --locked` refuses them until then; the lockfile writer is `rust-catalog-update`,
-   never this tool).
+   then any cargo command that resolves dependencies (`cargo check`, or `cargo-shadow install` for every crate at once;
+   the counterpart of `pnpm install`) to make the lockfiles of the crates that locked a lower
+   release satisfy the raised floors (`cargo --locked` refuses them until then; the lockfile writer is the cargo shadow,
+   `package/cargo-shadow/cli`, never this tool).
    In CI the install is frozen and fails naming the stale roots instead of updating them, as `pnpm install --frozen-lockfile` does.
 
 Statuses match the npm side:

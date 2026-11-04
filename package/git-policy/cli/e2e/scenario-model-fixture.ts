@@ -203,9 +203,9 @@ export type ScenarioResult = Readonly<{
 const NOTE_LENGTH = 400;
 
 /**
- Upper bound for one scenario's workload.
+ Upper bound for one scenario's workload, in milliseconds.
  */
-const SCENARIO_TIMEOUT_MS = 180_000;
+export const SCENARIO_TIMEOUT_MS = 180_000;
 
 /**
  Decides a scenario's verdict.
@@ -278,7 +278,7 @@ export function judge({
 
  @param definition - catalog entry
 
- @param gitVersion - Git version under `/opt/git`
+ @param gitVersion - release of the installed Git
 
  @param seed - run seed
 
@@ -290,7 +290,7 @@ export function judge({
 
  @example
  ```ts
- await runScenario({ definition, gitVersion: '2.55.0', seed: 42, workRoot: '/work', trace });
+ await runScenario({ definition, gitVersion: '2.56.0', seed: 42, workRoot: '/work', trace });
  ```
  */
 export async function runScenario({
@@ -383,7 +383,6 @@ export async function runScenario({
      */
     const repository = await createScenarioRepository({
       root,
-      gitVersion,
       options,
       service,
     },);

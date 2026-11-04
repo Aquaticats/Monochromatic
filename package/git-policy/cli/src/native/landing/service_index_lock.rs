@@ -42,9 +42,8 @@ pub use crate::service_index_watch::{events_end_watch, events_name};
 pub use crate::service_index_placement::{Platform, SYSTEM, placement_failure_text};
 pub use crate::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use crate::service_index_watch::Watch;
-use crate::service_index_marker::is_reclaimable;
 use crate::service_index_placement::{log_placement_failure, place_marked, reclaim};
-pub use crate::service_index_reclaim::remove_stale;
+pub use crate::service_index_reclaim::{Reclaimed, foreign_words, remove_stale, stale_lock_words, unjudged_words};
 use crate::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
@@ -119,9 +118,12 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
     };
     refresh_age(&held);
     let placed: std::io::Result<()> = match place_marked(platform, &staged, &lock) {
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && is_reclaimable(&lock) => {
-            if reclaim(platform, &lock) { place_marked(platform, &staged, &lock) } else { Err(error) }
-        }
+        // A stale lock removed (or replaced by then) is worth one more placement; a lock another reclaimer is removing, a live
+        //  one, and one that cannot be removed leave the batch open for the next round.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match reclaim(platform, &lock) {
+            Reclaimed::Removed | Reclaimed::Changed => place_marked(platform, &staged, &lock),
+            Reclaimed::Busy | Reclaimed::Kept | Reclaimed::Stuck | Reclaimed::Unguarded(_) | Reclaimed::Foreign { .. } | Reclaimed::Unjudged { .. } => Err(error),
+        },
         other => other,
     };
     let _removed = std::fs::remove_file(&staged);
@@ -299,6 +301,16 @@ fn acquire_placing(
 #[cfg(test)]
 #[path = "service_index_reclaim_tests.rs"]
 mod reclaim_tests;
+
+/// Controls for the claim chain stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_claim_tests.rs"]
+mod claim_tests;
+
+/// Controls for the machine ID in a marker stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_machine_tests.rs"]
+mod machine_tests;
 
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]

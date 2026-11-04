@@ -1,0 +1,286 @@
+//! What:
+//! Finds the real `cargo` on PATH while skipping the shadow itself.
+//! Why:
+//! The shadow is first on PATH under the name `cargo`,
+//! so a plain PATH search would find the shadow again and run
+//! itself forever.
+//! Every candidate that resolves to this executable is skipped,
+//! not only the first,
+//! because a
+//! repository directory and a global directory can both hold a link to it.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // real-binary.ts
+//! export function findInPath(name: string, pathVariable: string, skip: string): string | undefined { ... }
+//! ```
+
+/// Imports the file-system module (resolves symlinks,
+/// reads permissions).
+use std::fs;
+
+/// What:
+/// `use std::os::unix::fs::PermissionsExt;` imports a trait (a named bundle of methods that types opt into,
+/// like a
+/// TS interface) that makes `.mode()` available on file permissions.
+/// Why:
+/// The execute bits live in the Unix mode number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // No equivalent: in TS `stats.mode` is always available.
+/// ```
+use std::os::unix::fs::PermissionsExt;
+
+/// Imports the borrowed and owned path types.
+use std::path::{Path, PathBuf};
+
+/// What:
+/// `const EXECUTE_BITS: u32 = 0o111;` is an unsigned 32-bit integer (siblings:
+/// `i32`,
+/// `u64`).
+/// The `0o` prefix writes
+/// it in base 8:
+/// the owner,
+/// group and other execute bits.
+/// Why:
+/// A file is runnable when any of those bits is set;
+/// `u32` because `.mode()` returns that type.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const EXECUTE_BITS = 0o111;
+/// ```
+const EXECUTE_BITS: u32 = 0o111;
+
+/// What:
+/// `fn is_executable_file(path: &Path) -> bool` is a private function over a borrowed path.
+/// Why:
+/// The search must ignore directories,
+/// missing files and files without an execute bit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isExecutableFile(path: string): boolean { return statSync(path, { throwIfNoEntry: false })?.isFile() === true && (statSync(path).mode & 0o111) !== 0; }
+/// ```
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    // `fs::metadata(path)` returns a `Result`; `if let Ok(metadata)` runs the block only on success.
+    if let Ok(metadata) = fs::metadata(path) {
+        return (metadata.permissions().mode() & EXECUTE_BITS) != 0;
+    }
+    return false;
+}
+
+/// What:
+/// `pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf>` takes three borrowed
+/// inputs and returns `Some(path)` when found,
+/// `None` when not.
+/// `Option` is Rust's "value or nothing" (a TS
+/// `T | undefined`).
+/// `&[PathBuf]` is a borrowed view of a list of owned paths (siblings:
+/// `Vec<PathBuf>`,
+/// the owned list).
+/// Why:
+/// `skip` holds resolved paths the loop must never return:
+/// the shadow's own executable,
+/// and every candidate an earlier
+/// shadow instance already picked (`guard.rs`),
+/// because a launcher or other link that leads back to the shadow resolves to
+/// a path that is not the shadow's own.
+/// `PathBuf` (owned) and not `&Path` (borrowed) because the result outlives the
+/// borrowed inputs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function findInPath(name: string, pathVariable: string, skip: string[]): string | undefined
+/// ```
+pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf> {
+    return find_in_path_with_image(name, path_variable, skip, running_image_identity());
+}
+
+/// What:
+/// `pub fn find_in_path_with_image(name, path_variable, skip, image) -> Option<PathBuf>` is `find_in_path` with the identity of the
+/// running executable image given.
+/// Why:
+/// The identity of the image that is running comes from the open image, not from a pathname: an installer may replace the installed
+/// path while the shadow runs, after which the path names another file (or reads with a ` (deleted)` suffix) and a hard link of the
+/// image still on PATH would not be recognized. A test gives the identity it took before such a replacement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function findInPathWithImage(name: string, pathVariable: string, skip: string[], image: [bigint, bigint] | undefined): string | undefined
+/// ```
+pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf], image: Option<(u64, u64)>) -> Option<PathBuf> {
+    // The skipped executables by file identity: a hard link to the shadow resolves to another pathname than the shadow's own and is
+    // still the same file, so the pathname alone cannot tell it (certification, third pass); the running image is one of them.
+    let mut skipped: Vec<(u64, u64)> = skip.iter().filter_map(|path| { return identity_of(path); }).collect();
+    skipped.extend(image);
+    for directory in path_variable.split(':') {
+        // An empty PATH entry means the current directory in a shell; the shadow ignores it on purpose.
+        if directory.is_empty() {
+            continue;
+        }
+        let candidate: PathBuf = Path::new(directory).join(name);
+        if !is_executable_file(&candidate) {
+            continue;
+        }
+
+        // `fs::canonicalize(&candidate)` resolves every symlink to the final path, so every link to the shadow
+        // resolves to the one executable and is recognized under whatever name it was found. The `&&` joins two
+        // conditions inside one `if let`.
+        if identity_of(&candidate).is_some_and(|found| { return skipped.contains(&found); }) {
+            continue;
+        }
+        if let Ok(resolved) = fs::canonicalize(&candidate)
+            && (skip.contains(&resolved) || leads_back_to(&resolved, skip, &skipped))
+        {
+            continue;
+        }
+
+        // `Some(candidate)` wraps the found path in the present case of `Option`: the first real cargo in PATH order wins.
+        return Some(candidate);
+    }
+    return None;
+}
+
+/// The suffix of the record that the toolchain writes beside a launcher (`mpm-shadow`, `package/mpm-shadow/cli/README.md`, section "The launcher").
+pub const LAUNCH_RECORD_SUFFIX: &str = ".launch";
+
+/// How many launchers in a row are followed before the chain is taken as one that never reaches a program: a record chain longer than
+/// this is a loop, and a loop leads back.
+const MAX_LAUNCHER_HOPS: usize = 8;
+
+/// What:
+/// `pub fn refuse_if_ourselves(program: &Path) -> Result<(), String>` fails when the file a chosen program names is now the running image
+/// (or a recorded launcher that leads to it).
+/// Why:
+/// The choice of the real cargo and its start are two steps, and a path can be made to name the shadow between them (an ordinary
+/// installation swapping a link). The check is repeated right before each start, so the window shrinks to the instants between this
+/// check and the start itself; the shadow no longer starts itself for a path that already named it when the start was made
+/// (fifth certification pass). A file descriptor opened at the check and executed would close that window; it breaks scripts and
+/// proxies that open their own path, so it is not done without an owner decision.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function refuseIfOurselves(program: string): void  // throws the reason
+/// ```
+pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
+    let Some(image) = running_image_identity() else {
+        return Ok(());
+    };
+    let named_us: bool = identity_of(program) == Some(image) || fs::canonicalize(program).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[image]); });
+    if named_us {
+        return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+    }
+    return Ok(());
+}
+
+/// What:
+/// `pub fn running_image_identity() -> Option<(u64, u64)>` is the device and inode of the executable image this process runs.
+/// Why:
+/// `/proc/self/exe` opened as a file names the open image even when its installed path was replaced or removed; `None` where it
+/// cannot be opened, in which case only the pathname-based skips apply.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runningImageIdentity(): [bigint, bigint] | undefined
+/// ```
+pub fn running_image_identity() -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    return fs::File::open("/proc/self/exe").and_then(|image| { return image.metadata(); }).ok().map(|found| { return (found.dev(), found.ino()); });
+}
+
+/// What:
+/// `fn identity_of(path: &Path) -> Option<(u64, u64)>` is the device and inode of the file a path names, through links.
+/// Why:
+/// Two names of one executable (hard links) have different resolved pathnames and one identity; `None` for a path that cannot be
+/// examined, which then matches nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function identityOf(path: string): [bigint, bigint] | undefined { const s = statSync(path, { bigint: true, throwIfNoEntry: false }); return s && [s.dev, s.ino]; }
+/// ```
+fn identity_of(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    return fs::metadata(path).ok().map(|found| { return (found.dev(), found.ino()); });
+}
+
+/// What:
+/// `fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool` says whether a PATH candidate is a launcher whose record names a
+/// binary that is one of the skipped paths, directly or through further launchers.
+/// Why:
+/// The toolchain puts a launcher between the link on PATH and the shadow: the launcher is a file of its own, so its resolved path is
+/// not the shadow's, yet starting it starts the shadow again. The record beside the launcher (`<launcher>.launch`, a JSON object
+/// with the `real` binary) names the program it starts, and reading it starts nothing, so the candidate is skipped before it is run
+/// and no second instance of the shadow exists. An unreadable or unparsable record is not a launcher.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leadsBackTo(resolved: string, skip: string[]): boolean
+/// ```
+fn leads_back_to(resolved: &Path, skip: &[PathBuf], skipped: &[(u64, u64)]) -> bool {
+    let mut current: PathBuf = resolved.to_path_buf();
+    for _hop in 0..MAX_LAUNCHER_HOPS {
+        let mut record_name: std::ffi::OsString = current.as_os_str().to_os_string();
+        record_name.push(LAUNCH_RECORD_SUFFIX);
+        let Ok(text) = fs::read_to_string(PathBuf::from(record_name)) else {
+            return false;
+        };
+        let Some(real) = serde_json::from_str::<serde_json::Value>(&text).ok().and_then(|value| { return value.get("real")?.as_str().map(PathBuf::from); }) else {
+            return false;
+        };
+        let Ok(target) = fs::canonicalize(&real) else {
+            return false;
+        };
+        if skip.contains(&target) || identity_of(&target).is_some_and(|found| { return skipped.contains(&found); }) {
+            return true;
+        }
+        current = target;
+    }
+    return true;
+}
+
+/// What:
+/// `pub fn own_real_path() -> PathBuf` is the shadow's own resolved executable path,
+/// or an empty path when the system cannot
+/// say.
+/// Why:
+/// The PATH search skips every entry that resolves to it;
+/// an empty path matches nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function ownRealPath(): string { return fs.realpathSync(process.execPath); }
+/// ```
+pub fn own_real_path() -> PathBuf {
+    if let Ok(executable) = std::env::current_exe() {
+        if let Ok(resolved) = fs::canonicalize(&executable) {
+            return resolved;
+        }
+        return executable;
+    }
+    return PathBuf::new();
+}
+
+/// What:
+/// `pub fn find_real_cargo() -> Option<PathBuf>` is the first `cargo` on PATH that is not this binary.
+/// Why:
+/// The install step and the catalog commands run cargo themselves,
+/// and they must never run the shadow again.
+/// The result keeps
+/// the PATH entry's own name (not its resolved path):
+/// `~/.cargo/bin/cargo` is a rustup proxy that picks the toolchain from
+/// the name it was started under,
+/// so only the skip test uses resolved paths.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function findRealCargo(): string | undefined { return findInPath('cargo', process.env.PATH ?? '', [ownRealPath()]); }
+/// ```
+pub fn find_real_cargo() -> Option<PathBuf> {
+    let path_variable: String = std::env::var("PATH").unwrap_or_default();
+    return find_in_path(crate::constants::SHADOWED_NAME, &path_variable, &[own_real_path()]);
+}

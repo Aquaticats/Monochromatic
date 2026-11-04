@@ -14,8 +14,14 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'self-exclusion by identity and content',
     file: 'src/native/invocation/real_git_candidate.rs',
-    from: 'if same_file(candidate, own_executable) || identical_content(candidate, own_executable) {',
-    to: 'if false {',
+    // The guard also tests for a launcher record; keeping that test leaves only the identity and content checks removed.
+    from: [
+      '    if same_file(candidate, own_executable)',
+      '        || is_wrapper_launcher(candidate, Some(own_executable))',
+      '        || identical_content(candidate, own_executable)',
+      '    {',
+    ].join('\n'),
+    to: '    if is_wrapper_launcher(candidate, Some(own_executable)) {',
     failing: 'resolution::wrapper_never_selects_itself_or_a_copy_of_itself',
   },
   {
@@ -49,9 +55,9 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'git version minimum',
     file: 'src/native/invocation/git_version.rs',
-    from: 'if version < MINIMUM_GIT_VERSION {',
-    to: 'if false {',
-    failing: 'invocation::git_version::tests::an_older_release_is_refused',
+    from: 'if release >= MINIMUM_GIT_VERSION {',
+    to: 'if true {',
+    failing: 'invocation::git_version::tests::an_older_release_draws_a_warning_that_names_both_releases',
   },
   {
     name: 'PID file proof skips the holder scan',

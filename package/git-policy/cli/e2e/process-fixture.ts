@@ -285,7 +285,7 @@ export function startProcess(spec: CommandSpec,): RunningProcess {
 
  @example
  ```ts
- await runProcess({ command: '/opt/git/2.55.0/bin/git', args: ['--version'], cwd: '/', env });
+ await runProcess({ command: '/usr/bin/git', args: ['--version'], cwd: '/', env });
  ```
  */
 export async function runProcess(spec: CommandSpec,): Promise<ProcessOutcome> {

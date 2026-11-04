@@ -66,7 +66,7 @@ fn scene(name: &str) -> Scene {
     }
     std::fs::write(destination.join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'\n").expect("lockfile");
     let record: PathBuf = root.join("record");
-    let environment: RepairEnvironment = RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), workers: 2 };
+    let environment: RepairEnvironment = RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), ceiling: Duration::from_secs(600), workers: 2 };
     return Scene { root, source, destination, bin, record, environment };
 }
 

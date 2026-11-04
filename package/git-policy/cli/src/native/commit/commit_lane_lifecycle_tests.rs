@@ -289,7 +289,7 @@ fn the_seal_refuses_when_the_lane_changed_under_its_capture() {
 #[test]
 fn the_transient_unit_runs_the_internal_flusher_entry_and_waits_for_the_start() {
     let lane: PathBuf = PathBuf::from("/lane with space/x");
-    let program: PathBuf = PathBuf::from("/opt/cli-git/cli-git-service");
+    let program: PathBuf = PathBuf::from("/opt/cli-git/cli-git-native");
     let name: String = unit_name(&lane, 0x1234);
     let arguments: Vec<String> = transient_unit_arguments(&name, &program, &lane).iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
     assert_eq!(arguments[0], "--user");
@@ -299,7 +299,7 @@ fn the_transient_unit_runs_the_internal_flusher_entry_and_waits_for_the_start() 
     assert!(!arguments.iter().any(|argument| { return argument == "--no-block"; }));
     assert!(arguments.contains(&format!("--unit={}", name)));
     let at: usize = arguments.iter().position(|argument| { return argument == "--"; }).expect("the command follows --");
-    assert_eq!(arguments[at + 1..], ["/opt/cli-git/cli-git-service", "--flush-lane", "/lane with space/x"]);
+    assert_eq!(arguments[at + 1..], ["/opt/cli-git/cli-git-native", "cli-git", "service", "run", "--flush-lane", "/lane with space/x"]);
     assert_ne!(unit_name(&lane, 1), unit_name(&lane, 2), "every launch has its own unit name, so a refusal never means a flusher already runs");
     assert!(name.starts_with("cli-git-flusher-") && name.chars().all(|c| { return c.is_ascii_alphanumeric() || c == '-'; }), "{}", name);
 }
@@ -320,7 +320,7 @@ fn the_real_user_manager_runs_the_flusher_entry_of_the_service_program() {
     let lane: PathBuf = scratch("life-real-manager");
     fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("dangling")).expect("a receipt that cannot be forced");
-    let mut route: TransientUnitRoute = TransientUnitRoute::new(PathBuf::from("systemd-run"), PathBuf::from(env!("CARGO_BIN_EXE_cli-git-service")));
+    let mut route: TransientUnitRoute = TransientUnitRoute::new(PathBuf::from("systemd-run"), PathBuf::from(env!("CARGO_BIN_EXE_cli-git-native")));
     let unit: String = route.start(&lane).expect("the manager started the unit");
     assert!(unit.starts_with("cli-git-flusher-"));
     let deadline: Instant = Instant::now() + FLUSHER_WAIT;

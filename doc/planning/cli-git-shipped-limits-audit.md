@@ -428,6 +428,17 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
   its record for the whole wait.
 - Limit of the data: the logs hold commands of the host's own PID namespace, so no hold of a foreign namespace was
   observed directly.
+- Follow-up carried out 2026-11-04T09:35:19-05:00 (branch `fix/git-policy-cli-branch-write-and-tool-ceilings`):
+  the dependency above had landed (the 1800 s wait is gone; a merge waits for a foreign `index.lock` at most `LOCK_CEILING`,
+  10 minutes, and `wait_limit.rs` no longer exists), and the follow-up "derive the patience from the wait" (option B of
+  "Foreign-owner patience and the live lock wait") was recorded and never run.
+  `FOREIGN_OWNER_PATIENCE` is now `2 * LOCK_CEILING.as_secs()`, 1200 seconds, in `src/native/process/pid_namespace.rs`,
+  with the basis beside it: the longest a merge waits with its record written, twice over, which is 1.6 times the longest commit
+  measured (750.6 s of 1,838 commits to 2026-11-04T14:08:47Z) and 2.2 times the longest add (539.7 s of 79).
+  Tests: `the_patience_is_twice_the_lock_ceiling` (red against 3600 s) and `the_patience_outlasts_the_longest_measured_command`.
+  The block of an ownerless directory by a foreign-namespace record is at most 20 minutes, not an hour.
+  Still open: a foreign hold longer than 20 minutes (a merge whose own work, after its wait, runs long) would be judged dead;
+  no log of a foreign namespace exists to measure it, and the margin is the coordinator's, open to the owner's veto.
 
 ### Notice intervals and graces
 
@@ -1273,6 +1284,17 @@ The owner decision "Offline is retried, but auth and server hook declines stop u
   timing log is 117.7 s (see "Quiet gaps in the existing logs"). The add timing record carries each tool's longest
   quiet gap
   under `quiet`.
+- Amended 2026-11-04T09:35:19-05:00 by the owner's answer "Silence plus a ceiling (Recommended)":
+  a tool is also ended with its whole process group at `REPAIR_TOOL_CEILING`, 18 minutes
+  (`src/native/service/wait_ceilings.rs`), whatever it shows, with a finding that names the tool, what it was doing, the seconds and
+  the command to run.
+  The same answer adds `LINT_CEILING` (4 minutes), `REVIEW_CALL_CEILING` (1 minute) and `REVIEW_CEILING` (2 minutes) to the Markdown
+  linter, the standards-review call and the whole review.
+  The measurements, the margin rule (the smallest whole number of minutes at least five times the longest run) and the limits of the
+  sample are in `doc/planning/cli-git-no-unbounded-waits.md`, "Branch write and tool ceilings, 2026-11-04T09:35:19-05:00".
+  The quiet windows are unchanged; the longest quiet gaps measured (12 add records: `cargo clean` 30.3 s, `mpm-shadow install`
+  7.6 s, `cargo metadata` and `pnpm install` 0.5 s; 116 commit records: the Markdown linter 404 ms) are recorded there as the margin
+  of each window, not as new windows.
 
 ### Configuration file size
 
@@ -2628,6 +2650,13 @@ Visible result: a long install is never reported as "ran past its time limit"; a
 Ranking: A > B > C, because A never cuts work that is making progress, and B cuts at a number that a heavier
 repository
 will exceed; B > C because C lets a hung tool hold the add with no end ("a hung tool must not hold an add forever").
+
+Amended by the owner 2026-11-04T09:35:19-05:00, "Silence plus a ceiling (Recommended)" ("Keep ending on silence, and add a generous
+overall ceiling per tool, measured from real runs, after which it's ended with an error naming the tool. Con: an extremely slow but
+working run on a huge repository can hit the ceiling."): the four tools below also have a ceiling on their whole run now
+(`REPAIR_TOOL_CEILING`, `LINT_CEILING`, `REVIEW_CALL_CEILING`, `REVIEW_CEILING`; see
+`doc/planning/cli-git-no-unbounded-waits.md`, "Branch write and tool ceilings, 2026-11-04T09:35:19-05:00"), so the text of the
+outcome below that says a tool "is never ended for being slow" is superseded.
 
 Outcome under the delegation (the coordinator picked option A, the owner may veto it): implemented on
 `feat/git-policy-cli-steps-end-only-on-no-progress`, for the package repair tool, the Markdown linter, the gateway

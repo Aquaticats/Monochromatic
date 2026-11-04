@@ -71,10 +71,12 @@ Write only the real task or a bare sentinel;
  re-derive actions + stop conditions from user instructions + state.
 
 QWD:
- Saying work is queued,
+ Before saying work is queued,
  deferred,
- or waiting for a free slot means writing it to the handover in the same turn;
- an unwritten queue item is lost at compaction.
+ or waiting for a free slot,
+ try it now;
+ only a failed try defers it,
+ and deferring means writing it to the handover in the same turn.
 
 DCK:
  After corrections,
@@ -739,6 +741,11 @@ SLW:
  make it cheaper,
  or move it off the waiting path.
 
+SUF:
+ A test that passes alone but fails in its suite is a contention or ordering defect until measured otherwise;
+ report the measured cause,
+ never host load.
+
 NHP:
  Normal here,
  never excuses:
@@ -816,9 +823,11 @@ CM6:
  nothing type-checks automatically.
 
 CM7:
- Install tools only from `toolchain.lock.json` (`mise run toolchain:install`;
- in containers and CI use its row's archive and sha256);
- never `cargo install` or compile a locked tool.
+ Install tools only via `mise run toolchain:install`
+ (containers, CI: the lock row's archive and sha256);
+ never compile a locked tool this repo publishes;
+ mpm-shadow can still compile a third-party one
+ when no archive fits.
 
 ## Before editing code
 
@@ -952,6 +961,24 @@ MXL:
  helpers),
  re-exporting from `index.ts`;
  never strip docs/`//region` or reformat to fit.
+
+### File and folder layout
+
+MKY:
+ Name every file and folder so someone who knows only `git commit` and `git push` understands it alone;
+ long names are fine;
+ jargon nothing can replace is explained in that file's top doc.
+
+LYD:
+ Show who depends on whom in the tree:
+ sibling folders carry layer numbers,
+ and code uses only lower-numbered siblings of its own folder or of any folder above it,
+ never an equal number.
+
+LYF:
+ Files inside one folder never use each other in a loop;
+ the folder's top doc lists them in dependency order,
+ and the package's lint fails any file or folder that breaks its layer.
 
 ### Concurrency
 

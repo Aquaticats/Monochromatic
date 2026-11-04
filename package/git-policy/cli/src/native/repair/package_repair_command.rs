@@ -19,6 +19,7 @@ use crate::bounded_push::Patience;
 /// The clock that reads the signs of work of a process tree.
 use crate::push_progress::Clock;
 /// The longest quiet gap of each tool, kept for the timing records.
+use crate::output_capture::Capture;
 use crate::quiet_ledger;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -45,13 +46,31 @@ pub struct ToolCommand {
 }
 
 /// What:
+///  How long a started program may stay silent and how long it may run in all.
+/// Why:
+///   Two bounds travel together: the quiet window ends a program that shows nothing, and the ceiling ends one that keeps showing
+///  something (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToolLimits = { window: number; ceiling: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ToolLimits {
+    /// How long the program may show no sign of work.
+    pub window: Duration,
+    /// The longest the program runs, whatever it shows.
+    pub ceiling: Duration,
+}
+
+/// What:
 ///  How a started program ended.
 /// Why:
 ///   The repair words each case differently, so they stay apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ToolEnd = { kind: 'succeeded' } | { kind: 'failed'; reason: string } | { kind: 'timed-out' };
+/// type ToolEnd = { kind: 'succeeded' } | { kind: 'failed'; reason: string } | { kind: 'timed-out' } | { kind: 'ceiling'; afterMs: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ToolEnd {
@@ -61,6 +80,8 @@ pub enum ToolEnd {
     Failed(String),
     /// The program showed no sign of work for its window, and was stopped.
     TimedOut,
+    /// The program ran as long as the ceiling allows, whatever it showed, and was stopped with its whole process group.
+    CeilingReached(Duration),
 }
 
 /// What:
@@ -139,24 +160,6 @@ fn tail_of(bytes: &[u8]) -> String {
 }
 
 /// What:
-///  Read a pipe to its end on a thread of its own and hand back everything it carried.
-/// Why:
-///   A program that fills a pipe nobody reads stops; reading both of its pipes at once keeps it running.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const collected = collect(child.stdout);
-/// ```
-fn collect<R: std::io::Read + Send + 'static>(mut pipe: R) -> std::thread::JoinHandle<Vec<u8>> {
-    return std::thread::spawn(move || {
-        let mut bytes: Vec<u8> = Vec::new();
-        // A read that fails ends the collection; what was read before it is still the program's output.
-        let _ended = pipe.read_to_end(&mut bytes);
-        return bytes;
-    });
-}
-
-/// What:
 ///  How a finished program's status is worded.
 /// Why:
 ///   A signal has no code, and the person should see which of the two ended the program.
@@ -175,22 +178,37 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 }
 
 /// What:
-///  Run a program to its end, or until it has shown no sign of work for `window`.
+///  Run a program to its end, until it has shown no sign of work for the window, or until it has run as long as the ceiling.
 /// Why:
 ///   The add must not wait for a tool that does nothing, and must keep the tail of its output for the log. A tool that works is
-///  waited for however long it takes. The program leads a process group of its own, so the stop reaches the children it
-///  started too. Where the system counts nothing (no `/proc/<pid>/io`) the tool is never ended, because no wall-clock bound is
-///  the rule. The longest quiet gap of the run is kept in the ledger under the program's name and first argument.
+///  waited for until the ceiling (owner, 2026-11-04, "Silence plus a ceiling (Recommended)"; `wait_ceilings.rs`,
+///  `REPAIR_TOOL_CEILING`), where it is ended like a silent one. The program leads a process group of its own, so the stop reaches the children it
+///  started too. Where the system counts nothing (no `/proc/<pid>/io`) the quiet window never ends the tool, and only the
+///  ceiling does. The longest quiet gap of the run is kept in the ledger under the program's name and first argument. The output
+///  goes to anonymous files, so the ceiling covers the draining of it too: nothing waits for a stream to close, a helper that holds
+///  an inherited stream after the tool has exited holds nothing up, and the stop (the group, while the leader is not yet reaped,
+///  so the group number is still the leader's) never has to wait for a helper that left the group. A helper still running when the
+///  leader has exited successfully is left alone, because a tool may start a helper on purpose; at the ceiling or the window the
+///  whole group is stopped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function runTool(program: string, command: ToolCommand, quietWindowMs: number): Promise<ToolRun>;
+/// async function runTool(program: string, command: ToolCommand, limits: { windowMs: number; ceilingMs: number }): Promise<ToolRun>;
 /// ```
-pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> ToolRun {
+pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
-    starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+    // The output goes to anonymous files and not to pipes: a helper that keeps an inherited stream open after the tool has exited, or
+    // that left the process group while holding it, then holds nothing up, because no thread waits for a stream to close.
+    let captured: Capture = match Capture::new().and_then(|files| { return files.stdio().map(|streams| { return (files, streams); }); }) {
+        Ok((files, (out, err))) => {
+            starting.stdout(out).stderr(err);
+            files
+        }
+        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
+    };
+    starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).process_group(0);
     for (name, value) in &command.set {
         starting.env(name, value);
     }
@@ -198,12 +216,16 @@ pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> Tool
         Ok(running) => running,
         Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
     };
-    let out_reader: Option<std::thread::JoinHandle<Vec<u8>>> = child.stdout.take().map(collect);
-    let error_reader: Option<std::thread::JoinHandle<Vec<u8>>> = child.stderr.take().map(collect);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: window }).without_wall_fallback();
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
+    let mut at_ceiling: bool = false;
     let status: Option<std::process::ExitStatus> = loop {
         match child.try_wait() {
             Ok(Some(done)) => break Some(done),
+            // The ceiling ends the program whatever it shows (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
+            Ok(None) if started.elapsed() >= limits.ceiling => {
+                at_ceiling = true;
+                break None;
+            }
             Ok(None) if clock.check().is_some() => break None,
             Ok(None) => std::thread::sleep(POLL_INTERVAL),
             Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
@@ -211,19 +233,20 @@ pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> Tool
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
     if clock.measures() {
-        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none());
+        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling);
     }
     let Some(finished) = status else {
         stop_group(&child);
-        // The group is gone, so the pipes close and the readers end; the reaped child leaves no zombie.
-        let _reaped = child.wait();
-        for reader in [out_reader, error_reader].into_iter().flatten() {
-            let _output = reader.join();
-        }
-        return ToolRun { end: ToolEnd::TimedOut, millis: started.elapsed().as_millis(), stdout: Vec::new() };
+        // The leader is reaped so it leaves no zombie, within a budget: a process in uninterruptible I/O ends only when the I/O does,
+        // and a wait with no bound would keep the add for as long as it lasts. Nothing waits for the output, which is in files.
+        let _reaped_in_time: bool = reap_within(child, crate::bounded_push::STOP_GRACE);
+        let end: ToolEnd = if at_ceiling { ToolEnd::CeilingReached(limits.ceiling) } else { ToolEnd::TimedOut };
+        return ToolRun { end, millis: started.elapsed().as_millis(), stdout: Vec::new() };
     };
-    let stdout: Vec<u8> = out_reader.map(|reader| { return reader.join().unwrap_or_default(); }).unwrap_or_default();
-    let errors: Vec<u8> = error_reader.map(|reader| { return reader.join().unwrap_or_default(); }).unwrap_or_default();
+    let shown: crate::output_capture::Captured = captured.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
+    // Nothing reads the files again, and a helper that still holds them would keep what they hold in memory.
+    captured.discard();
+    let (stdout, errors): (Vec<u8>, Vec<u8>) = (shown.stdout, shown.stderr);
     let millis: u128 = started.elapsed().as_millis();
     if finished.success() {
         return ToolRun { end: ToolEnd::Succeeded, millis, stdout };
@@ -231,6 +254,32 @@ pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> Tool
     let combined: Vec<u8> = [stdout.as_slice(), errors.as_slice()].concat();
     let text: String = tail_of(combined.as_slice());
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}", describe_status(finished))), millis, stdout: Vec::new() };
+}
+
+/// What:
+///  Reap `child` within `budget`; when it has not ended by then, hand it to a thread that reaps it whenever it does.
+/// Why:
+///   The stop is a signal, and a process whose kernel call cannot be interrupted ends only when the call does. The add returns
+///  without it, and the thread keeps the leader from becoming a zombie for good. True when the leader ended within the budget.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ended = await reapWithin(child, budgetMs); // false: a background task reaps it later
+/// ```
+fn reap_within(mut child: Child, budget: Duration) -> bool {
+    let began: Instant = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) if began.elapsed() < budget => std::thread::sleep(POLL_INTERVAL),
+            Ok(None) | Err(_) => break,
+        }
+    }
+    // A thread that cannot be started leaves the leader to the system's init when this process ends; the add goes on either way.
+    let _handed = std::thread::Builder::new().name(String::from("cli-git-leader-reaper")).spawn(move || {
+        let _reaped = child.wait();
+    });
+    return false;
 }
 
 /// What:

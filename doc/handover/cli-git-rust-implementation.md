@@ -16,15 +16,22 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-03T07:59:21-05:00).
+Installed versions and the release in flight were written 2026-11-04T14:08:00-05:00 against main `651fc7b9a5`;
+the branch and agent lists below them are older and carry their own times.
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.27 (`toolchain.lock.json`,
+- Git wrapper `monochromatic-git-policy-cli` 0.5.32 (`toolchain.lock.json`,
   row `cargo:monochromatic-git-policy-cli`,
-  lock commit `4779907f6e`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.27,
+  lock commit `e6bb6fbb62`;
+  `git --version` prints "monochromatic-git-policy-cli 0.5.32,
   shadowing git at /usr/bin/git" over Git 2.56.0).
+  Installed by `upgrade-wrapper.ts 0.5.32`:
+  the 0.5.31 service retired on the client's request,
+  0.5.32 started (protocol 7),
+  and the sample commit on main landed in 1680 ms in all,
+  1215 ms of it provisioning the new service (landing 31 ms,
+  lock hold 28 ms).
   Its commit service unit runs with systemd's defaults
   (`systemctl --user show` at 2026-11-03T10:47-05:00:
   `MemoryMax=infinity`,
@@ -38,8 +45,16 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
   `monochromatic-search-shadow` 0.2.1,
   `monochromatic-file-enforcer-cli` 0.1.1,
   `monochromatic-lint` 0.5.0 (all from the same lock file).
-- `monochromatic-dependency-catalog` 0.1.0 is the published version;
-  0.2.0 (with `trustLockfile`) exists only on the cargo-shadow branch.
+- `monochromatic-dependency-catalog` 0.2.0 (with `trustLockfile`) was published 2026-11-04T18:58:16Z,
+  after the cargo-shadow merge reached main;
+  0.1.0 is the earlier version.
+- `monochromatic-cargo-shadow` 0.1.0 was published 2026-11-04 with the owner's `cargo login` token
+  (`mise run //package/cargo-shadow/cli:publish`);
+  Trusted Publishing config 30988 (`Aquaticats/Monochromatic`,
+  `cargo-publish.yml`,
+  no environment,
+  `repository_owner_id` 343218767) was created through the API.
+  It is not yet in `toolchain.lock.json`.
 - The global toolchain lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`) was moved to wrapper 0.5.25
   on
   2026-11-03;
@@ -47,7 +62,449 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-None.
+Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
+
+- `monochromatic-file-enforcer-cli` 0.1.2 is published (bump `fadde01fff`,
+  crates.io 2026-11-04T20:41:44Z),
+  locked and installed (`7929d95d65`);
+  `file-enforcer --version` prints 0.1.2.
+  0.1.1 had been built with dependency-catalog 0.1.0 and rejected `rust-catalog.toml` once `912e82a0c7` set `trustLockfile`
+  ("is not a catalog table or a supported setting"),
+  so `mise run sync:files` failed on main;
+  `bce22f7456` had moved the cli source to `=0.2.0` without a version bump.
+  CLAUDE.md is regenerated and carries SUF.
+- The installed wrapper 0.5.34 is not the release archive's binary:
+  the archive `monochromatic-git-policy-cli-0.5.34-x86_64-unknown-linux-gnu.tar.gz` holds only `cli-git-native`
+  (13,728,056 bytes) and `README.md`,
+  while the install directory `~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/0.5.34/bin/`
+  holds `cli-git-native` (13,710,088 bytes) and `cli-git-service`.
+  Cause:
+  the crate declares two `[[bin]]` targets since `e9eaf63d14` (2026-11-01),
+  the release job builds and packages only `cli-git-native` (`cargo-publish.yml:2506`),
+  cargo-binstall needs every `[[bin]]` in the archive,
+  and mpm-shadow runs `cargo binstall` without `--disable-strategies compile`
+  (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs:61-84`),
+  so it compiled the crate from source.
+  The same archive fails CI's `catalog-specifiers` job (`catalog-specifiers.yml:58` passes `--disable-strategies compile`:
+  "bin cli-git-service is not found");
+  that job's last success was 2026-11-01T14:34:19Z (`72541fe39c`).
+- Owner,
+  2026-11-04:
+  "Bazel doesn't need to distribute as 2 bins."
+  The service becomes a mode of `cli-git-native`;
+  agent `a26d7ef8229ffbeb2` on branch `fix/git-policy-cli-one-executable`
+  (worktree `~/temp/agent/cli-git-one-executable`);
+  then gate,
+  merge,
+  release 0.5.35,
+  and check that `catalog-specifiers` goes green.
+- Owner,
+  2026-11-04:
+  "mpm-shadow should still be able to compile tools that are not controlled by this repo."
+  Queued (the five agent slots were full at 15:49):
+  mpm-shadow disables cargo-binstall's compile strategy for crates this repository publishes
+  (its existing `monochromatic-` prefix test,
+  `cargo_installs.rs:70`,
+  or the crate-release registry)
+  and keeps the fallback for third-party crates;
+  red test first;
+  a failing repository crate names the crate,
+  version,
+  binstall's reason and the remedies;
+  audit every `cargo-binstall` row with a dry run;
+  release only after wrapper 0.5.35 is locked,
+  because a fresh install of 0.5.34 would then fail.
+  Owner's clarification:
+  "It should still BE ABLE TO compile tools this repo doesn't control when needed."
+  CM7 rewritten as the owner chose ("Rewrite CM7 (Recommended)",
+  `5f03ec99b3`).
+  Agent `a97a9a4124bdb9776` started 2026-11-04T15:52-05:00 on branch
+  `fix/mpm-shadow-cli-never-compiles-a-repository-crate`
+  (worktree `~/temp/agent/mpm-shadow-no-compile`).
+- Models agent (`a9c775c9196f1d836`) finished the step-2b fixes and plan step 3 behind `--lane`
+  (models tip `45bee5ba00`,
+  design tip `1fc759ba80`;
+  `native:test:model` 605 passed,
+  4 leaky;
+  map 66 covered,
+  20 narrower,
+  9 historical,
+  13 not yet).
+  Cross-vendor reviews running:
+  `~/temp/agent/reviews/commit-models-step3-sol-a1.txt` (code against whole files),
+  `-a2.txt` (component tests),
+  `-b.txt` (models,
+  map,
+  handover).
+  Its `--lane` options in `service_main.rs` will conflict with the one-executable change;
+  that agent was told to keep the service options a pass-through.
+  The `-a2.txt` review (component tests) returned "Sufficient after named additions, not sufficient as is"
+  with one product risk (blocking doorbell sends can wait without a bound);
+  sent to the models agent at once,
+  which resumed even with five other agents running
+  (resuming a finished agent was not refused by the five-agent limit).
+  `-a1.txt` ("not correct as is": a disposal revalidation hole and the doorbell blocking clients) and `-b.txt`
+  ("correct after named fixes") were sent the moment each landed.
+  The fix round is done (models tip `f98a499e8d`;
+  `native:test:model` 625 passed,
+  none leaky;
+  both clippy tasks clean;
+  `source_guard` 39 of 39):
+  revalidation reads the newest record's whole retained set;
+  the doorbell is a socket file `service.ring` in the lane directory with non-blocking sends and one owner by `service.lock`;
+  a double close in `launch_detached_preparing` (a core dump per returned helper in debug builds) fixed;
+  every false-green window of `-a2.txt` checked with its guard removed;
+  one surviving mutation ("a second service may own the lane") stated as redundant with the live-socket refusal.
+  Not done (stated in its handover):
+  the flusher lock spans an until-empty sweep loop.
+  Cross-vendor reviews:
+  `~/temp/agent/reviews/commit-models-step3b-sol-a.txt` (diffs of code,
+  tests,
+  models,
+  handover) "correct after named fixes—not approved as-is" ("The primary disposal fix is convincing.")
+  and `-sol-b.txt` (whole current files) "correct after named fixes—not correct as-is";
+  both sent to the models agent,
+  which is fixing them.
+- cargo-shadow 0.1.1 as `cargo` blocked every wrapper gate:
+  `bin/native-scanner-snapshot.ts` runs `cargo vendor --manifest-path` on a staged copy outside the work tree,
+  and the shadow counted all 281 locked versions of an unchanged lockfile as new and refused 4 on trust level
+  (log `~/temp/agent/gate/gpc-gate-branch-write-round4-retry-20261104T155841-0500.log`).
+  The `cargo` link is off (`8917a3f221`;
+  the install left the old symlinks,
+  removed by hand in the main checkout and in the branch-write worktree;
+  that stale-link defect went to the mpm-shadow agent).
+  The cargo-shadow agent has the vendor defect as top priority;
+  the link returns after its fixed release passes the launcher trace again.
+- Branch-write round 4 (`aa0fee0c2cf70bb31`,
+  tip `07076dc23b`,
+  host suite 4874/4874) re-gated without the link:
+  unit `gpc-gate-branch-write-round4-no-cargo-link-20261104T160436-0500`;
+  review `~/temp/agent/reviews/branch-write-r4-sol.txt` returned "correct after named fixes" (B,
+  the side-ref reflog proof,
+  still lacks a valid safety proof).
+  That gate failed 4873/4874:
+  `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  with `thread 'cli-git-durable' ... panicked at library/std/src/thread/scoped.rs:206:46: failed to spawn thread: ... Resource temporarily unavailable`
+  and the same panic on `main`;
+  the test passed on the round 3 and startup-wake gates.
+  Not a round 4 change (its diff adds no scoped spawn):
+  `landing/service_durable.rs` `sync_batch` (line 60) and `force` (line 132) call `scope.spawn`,
+  which panics when a thread cannot start;
+  shipped since `eaad11a3a6` (0.5.28 and later).
+  The fix and an audit of every production `std::thread::scope` site go out in the next release.
+  Sent to the branch-write agent first,
+  before the review fixes,
+  on its round 5 branch (`fix/git-policy-cli-side-ref-proof-round5`,
+  worktree `~/temp/agent/branch-write-round5`);
+  round 4 and round 5 merge together once that gate passes.
+  Owner decision on the earlier single service,
+  2026-11-04 (question tool):
+  "A: fail, retry (Recommended)",
+  which round 4 built;
+  record it in `doc/planning/cli-git-no-unbounded-waits.md` and `SPEC.md` when the branch merges.
+- Service startup wake (`aca6e78c5ffbd5680` done;
+  branch `fix/git-policy-cli-service-recovers-claims-without-a-wake`,
+  gate 4847/4847 on the Rust tip `f2dc8833f8`,
+  e2e kill scenarios green on seeds 1 to 3):
+  main merged in cleanly,
+  gate `gpc-gate-service-startup-wake-with-main-20261104T160613-0500` running,
+  review `~/temp/agent/reviews/service-startup-wake-sol.txt` returned "correct after named fixes"
+  (fixes on `fix/git-policy-cli-claim-watch-identity-and-errors`);
+  the gate passed 4866/4866 and the branch is merged to main.
+  Main now holds it together with the leaked one-executable commit,
+  first gated together by the one-executable branch's gate.
+- QWD tightened as the owner chose ("Tighten QWD (Recommended)",
+  `3abcbf585e`).
+- Leak to main:
+  the one-executable and mpm-shadow branches were created with `git worktree add -b <branch> <path> origin/main`,
+  which set `origin/main` as their upstream,
+  and the wrapper's auto-push sends commits to the upstream when the names differ,
+  so `9b360150c0` (service as a mode of `cli-git-native`,
+  not gated),
+  the mpm-shadow never-compile commits (`ae2f2210bc`,
+  `0154f65dea`,
+  package tests 546/546) and its link retirement (`5b7213a46a`,
+  `c71ad82ba1`) reached origin/main.
+  Both upstreams were removed at 2026-11-04T16:20-05:00.
+  Owner (question tool):
+  "A: keep, gate first (Recommended)":
+  the one-executable branch is gated before merge and before 0.5.35.
+  Future briefs start branches from a commit hash or local `main`,
+  or pass `--no-track`.
+- Owner on cargo-binstall's quick-install (question tool,
+  after a clarification):
+  "A: one flag, our crates (Recommended)":
+  crates this repository publishes get `--disable-strategies compile,quick-install`,
+  third-party crates keep the defaults;
+  owner's note:
+  "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
+  Sent to the mpm-shadow agent.
+  Its audit:
+  only wrapper 0.5.34 among repository rows fails with compile disabled (archive lacks `cli-git-service`);
+  release mpm-shadow after 0.5.35 is locked.
+- cargo-shadow round 19 merged to main (`bc671de431`;
+  gate 648/648;
+  staged copies in ignored directories go to cargo untouched;
+  running-image identity from `/proc/self/exe`;
+  K1 unreadable inventory reported as unknown);
+  next:
+  release 0.1.2,
+  relock,
+  launcher trace,
+  put the `cargo` link back,
+  then the fifth certification pass (bundles `~/temp/agent/reviews/cargo-shadow-cert5-*.txt`,
+  15 groups).
+  0.1.2 published (crates.io 2026-11-04T21:23:13Z,
+  publish run 41915321457 built from `b96ca268de`),
+  locked and installed without the `cargo` link (`3a59c6cc1c`).
+  The launcher trace (`~/temp/agent/cgs-installed-launcher-trace.ts`) passed at 2026-11-04T16:40-05:00:
+  `cargo --version` and `cargo metadata` exited 0,
+  the link and the shadow each ran once per command,
+  and the real cargo ran only through `.cache/toolchain-bin/cargo`
+  (three times for `metadata`: the shadow's own lockfile checks plus the command).
+  The `cargo` link is back (`c5e3d0d268`);
+  in the repo environment `cargo --version` prints `cargo-shadow 0.1.2, shadowing cargo at .../.cache/toolchain-bin/cargo`.
+  Not yet seen: a wrapper gate's `cargo vendor` step through the link (the next gate an agent launches shows it).
+- Fifth cargo-shadow certification pass:
+  all 15 groups "not certified" (`~/temp/agent/reviews/cargo-shadow-cert5-sol-<n>.txt`).
+  Groups 1,
+  2,
+  4,
+  7,
+  9 and 14 ran without the manifest (packet plus manifest over 250 KB),
+  and several say the bodies the manifest assigns were not in the packet;
+  the rest are findings.
+  Group 15 (launcher):
+  the replacement test injects a fixture identity (false green);
+  the chosen candidate stays a pathname,
+  so a path swapped to the shadow between the check and the exec starts the shadow again;
+  the no-record launcher test allows one to six launcher runs.
+  All sent to the cargo-shadow agent (`ae0fbdf78c31bd757`) with the packet-splitting suggestion.
+  Owner decisions,
+  2026-11-04 (question tool):
+  re-entry through an unrecorded launcher,
+  option A with the note "A, but make the help message descriptive enough that even a monkey can understand and execute it."
+  (the second cargo-shadow exits 2 before any work,
+  like the Git wrapper's arrival stop in `package/git-policy/cli/SPEC.md`,
+  and the bounded fallback goes away);
+  the nine delegated picks of 2026-11-03 (`doc/planning/cargo-shadow-update.md`,
+  "Delegated picks of 2026-11-03"):
+  "Keep all nine (Recommended)",
+  so they are owner decisions now.
+  Both sent to the agent,
+  which records them in the planning doc.
+- cargo-shadow round 20 (tip `7d66717bb6`,
+  gate 652/652,
+  clippy clean) merged to main (`fd6a3cd183`):
+  the second start stops at once with exit 2 (`src/arrival.rs`),
+  and a test runs both printed fixes as printed;
+  the chosen real cargo is checked again before each start.
+  0.1.3 published (crates.io 2026-11-04T21:59:45Z,
+  publish run 41921008620 built from `a9901d3503`),
+  locked and installed as `cargo` (`9c51ac07f2`) after the launcher trace passed again
+  (`~/temp/agent/cgs-trace-013.log`).
+  Sixth certification pass (14 groups,
+  every packet with its manifest,
+  `~/temp/agent/reviews/cargo-shadow-cert6-sol-<n>.txt`):
+  groups 2 and 4 "certified after named fixes",
+  the other 12 "not certified";
+  all sent to the agent.
+  Round 21 (agent `ae0fbdf78c31bd757`):
+  the check-to-start window is closed for a compiled real cargo by starting the checked file through its descriptor
+  (`execveat` with `AT_EMPTY_PATH`;
+  the real cargo here is rustup's ELF proxy);
+  scripts keep the pathname and the re-check,
+  because `man 3 fexecve` and `man 2 execveat` say a script started through a close-on-exec descriptor fails with
+  `ENOENT`,
+  and a hit there ends at the arrival stop.
+  Coordinator's reading,
+  not an owner question:
+  the owner's rule "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively."
+  determines it.
+  Then the open list of the fifth pass and every sixth-pass group's named fixes,
+  groups 2 and 4 first.
+- Worktree adds into `~/temp/agent` take over 15 minutes and fill the disk queue:
+  `~/temp/agent` is `/var/mnt/encrypted/temp/agent`,
+  another filesystem than the main checkout,
+  so the wrapper's add falls to rung 3 (Git's checkout,
+  then the ignored-state copy of `node_modules`,
+  `target/`,
+  `dist/`,
+  local configuration and `.cache/`,
+  README "worktree add" section) as a byte copy.
+  Measured 2026-11-04T16:30-05:00 with `/proc/<pid>/io`:
+  the branch-write round 5 and claim-watch adds had each read about 52 GB and written about 49.5 GB,
+  three ran at once,
+  two waited in `blk_mq_get_tag`,
+  and `/proc/pressure/io` full avg300 was 22%.
+  The same add under `.claude/worktrees/` was a snapshot in seconds (trace worktree `cgs-trace-892d1fa0`).
+  The trace script and new briefs now put worktrees under `.claude/worktrees/`.
+  Measured with `du` (`~/temp/agent/worktree-copy-sizes.txt`, 1 KiB blocks):
+  `package/ide/app/target` 40,582,652,
+  `package/nested-wayland-session/cli/target` 14,144,844,
+  `package/git-policy/cli.fuzz/target` 3,991,544,
+  `node_modules` 3,256,040,
+  `.cache` 52,148.
+  Owner decisions,
+  2026-11-04 (question tool,
+  after asking what "wrapper fix" meant):
+  on the copy,
+  "No lefting out build outputs. The real fix is to make sure every build dir is always lean. That's not the wrapper's responsibility, but I'm assigning this to you to.";
+  on an AGENTS.md rule for worktree placement,
+  "No exposing underlying machinary to always-loaded context.";
+  then,
+  "(debuginfo level, incremental off for dependencies - no messing with these."
+  and
+  "other profile settings (split-debuginfo, strip, codegen-units) should be off-limits too".
+  So the wrapper's copy stays,
+  no AGENTS.md rule is added,
+  and no build profile setting changes (debuginfo level,
+  incremental,
+  split-debuginfo,
+  strip,
+  codegen-units).
+  Agent `a0cd49729007486f4` measures what each build directory holds,
+  researches mechanisms that keep them lean without changing what a build produces,
+  and writes `doc/planning/lean-build-dirs.md` with ranked options and a cross-vendor review;
+  it deletes nothing;
+  the owner picks before anything is built.
+- Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
+  (https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105):
+  "The current layout is still completely unacceptable and far from enough to consider this issue complete."
+  The five agent slots were full,
+  so a child session (`spawn-claude`,
+  spawn id `7ee83419-2ce0-4ac8-a4f7-36f0731b095c`,
+  brief `~/temp/agent/issue-6261/brief.md`) writes the target layout proposal
+  (`doc/planning/cli-git-source-layout.md`, a file-by-file mapping, the crate-root map, the placement guide,
+  the `native` layer decision) and a cross-vendor review,
+  reports in `~/temp/agent/issue-6261/report.md`,
+  and waits:
+  the owner sees the target tree before any file moves,
+  then a re-runnable move tool applies it on the latest main.
+
+Git wrapper 0.5.33 is installed:
+branch-write round 2 (`6fc72e8abe`,
+gate r7 4839/4839 with main,
+`native:clippy` on main clean),
+release run 41896129005,
+publish run 41896943949 built from `6a922adfee`,
+crates.io 2026-11-04T19:28:15Z;
+`upgrade-wrapper.ts 0.5.33`:
+the 0.5.32 service retired on the client's request,
+0.5.33 started (protocol 7),
+and the sample commit on main landed in 1980 ms in all,
+1271 ms of it provisioning the new service (landing 34 ms,
+lock hold 31 ms).
+
+cargo-shadow 0.1.1:
+round 17 merged to main (`a439de1578`;
+branch tip `a3c703025d`,
+release gate 618/618,
+clippy clean;
+launcher fix:
+a PATH candidate whose `<launcher>.launch` record leads back to the shadow is skipped,
+chains up to 8 hops;
+the live check behind a copy of the real launcher ran the shadow once per command);
+dispatched as run 41900374975,
+`release:wait` following;
+then relock (`toolchain:update -- cargo:monochromatic-cargo-shadow` after restoring the plan row from `efe10d9745`),
+install,
+and the launcher check before the `cargo` link stays.
+The branch's auto-push was refused once with GH009 (`doc/troubleshooting/github-lfs-integrity-rejection.md`);
+a later push reached origin (`git ls-remote` shows `a3c703025d`).
+
+Agents and reviews at 2026-11-04T15:05:00-05:00:
+- Branch-write round 3 (`aa0fee0c2cf70bb31`):
+  owner pick B for foreign-owner patience plus every round-2 review finding.
+- Models (`a9c775c9196f1d836`):
+  step-1 review findings fixed and step 2 built as callables (`43fbb6041f`;
+  `native:test:model` 543 passed;
+  nothing in `git commit` calls it;
+  the shipped service only gains `--flush-lane`);
+  the decision-22 route is `systemd-run --user`,
+  recorded as within the decision ("Systemd unit + fallback (Recommended)";
+  `systemd-run` creates "a transient .service or .scope unit");
+  now closing the step-2 leftovers (`WAIT_DRAIN` measured,
+  forcing I/O errors,
+  disposal crash injection,
+  establishment record,
+  spool and attempt durability).
+  Step-2 reviews running:
+  `commit-models-step2-sol-a.txt` (code and component tests),
+  `commit-models-step2-sol-b.txt` (models and map).
+- cargo-shadow third certification pass,
+  seven groups in parallel (`run-cert3-reviews.ts`,
+  outputs `cargo-shadow-cert3-sol-1.txt` to `-7.txt`);
+  the agent (`ae0fbdf78c31bd757`) is idle until they return.
+- e2e `sigkill-service-during-work` (`aca6e78c5ffbd5680`,
+  branch `fix/git-policy-cli-e2e-sigkill-service-during-work`):
+  diagnose whether the product or the scenario is wrong,
+  fix,
+  gate.
+
+cargo-shadow 0.1.0 is done:
+both proving runs passed (dry run 41893310452;
+run 41893318423 authenticated through Trusted Publishing,
+skipped the upload and created the immutable release `monochromatic-cargo-shadow-v0.1.0`),
+and the consumer checks passed
+(runbook section "monochromatic-cargo-shadow 0.1.0").
+Owner action open:
+revoke the `cargo login` token,
+then `cargo logout`.
+
+Update 2026-11-04T15:35:00-05:00:
+cargo-shadow 0.1.1 is live as `cargo` for every session of this checkout
+(lock `cac4766b11`,
+link `.cache/cargo-shadow-bin/cargo` to the toolchain launcher).
+Traced in the repository's own mise environment from a throwaway worktree:
+`cargo --version` ran the link,
+the shadow and the real cargo once each;
+`cargo metadata` ran the shadow once and the real cargo three times;
+the worktree stayed clean.
+cargo-shadow round 18 merged to main (`22a3c5b812`;
+hard-link identity skip,
+`.done` completion barrier counted as mandatory,
+`u128` kept-size sum);
+its release gate on main failed:
+`a_killed_wrapper_with_an_escaped_writer_stops_the_recovery` (fixture `ready` did not appear in 30 s)
+and `a_descendant_is_stopped_with_its_parent_at_the_bound` (`pid never held a process id`),
+both passing alone in 0.1 s and 0.5 s;
+not attributed to load (owner:
+"I don't see any load, and once again, load is not an excuse.");
+the cargo-shadow agent is diagnosing the block;
+0.1.2 waits for a green gate on main.
+Fourth certification pass (eleven groups) running.
+Branch-write round 3 merged (`e75a2549c9`) and released as 0.5.34 (run 41905476029);
+its review returned four P1s (pruning withdrawal confirmations,
+existing reflogs,
+foreign refusal after mutations,
+an unbounded receive on the review timeout path),
+sent as round 4.
+
+Before that:
+cargo-shadow as `cargo` for every session was not live.
+It was locked (`efe10d9745`) and installed,
+then reverted (`65f5733aec`) and its link `.cache/cargo-shadow-bin/cargo` removed the same minute:
+the install links `cargo` to the toolchain launcher (`.cache/toolchain-launchers/cargo-shadow`),
+and through it the shadow runs itself once before the real cargo
+(strace:
+launcher,
+shadow,
+launcher again,
+shadow again,
+rustup proxy,
+real cargo;
+`cargo metadata` ran the shadow 4 times for 3 real cargo runs),
+against "We should never invoke ourselves recursively.".
+Started from its binary it ran once per command.
+Sent to the cargo-shadow agent (`ae0fbdf78c31bd757`) as the first 0.1.1 fix,
+the way pnpm-shadow 0.1.1 learned to skip its launcher;
+then 0.1.1,
+relock,
+and the launcher check (`/var/home/user/temp/agent/cgs-recursion-check.ts <launcher> <throwaway worktree> <toolchain-bin>`)
+before linking again.
+
+Older:
 0.5.28 was published to crates.io at 2026-11-04T03:09:07Z (publish run 41764751088,
 built from `7b41c215ec`) and installed by `upgrade-wrapper.ts 0.5.28`
 (`git --version`:
@@ -117,179 +574,234 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
-Update after the last list:
-the integration branch (`fix/git-policy-cli-commits-fast-under-disk-pressure` tip `c7ce91581e`,
-gate 4703 of 4703) was fast-forwarded into the 0.5.28 base,
-then the batch-number fix (`fix/git-policy-cli-service-batch-numbers-unique` tip `9c3d279e1a`,
-gate 4666 of 4666) merged as `d9e8907ae8`;
-the base gate `gpc-gate-base-0-5-28-final-20261103T214518-0500` is running,
-and 0.5.28 is released from that tip when it passes.
-Measured on that integration tip,
-median of 19 warm paired rounds:
-signed commits wrapped 207 ms against native 118 ms (1.75 times),
-unsigned 171 against 115 ms (1.45 times);
-0 wrapper syncs waited on a publishing landing (7 queued to a background thread),
-3 forced on a withdrawal;
-Git's own defaults (`core.fsync` read from Git 2.56.0 source) are followed.
-The batch-number bug was real for services sharing a journal (development runs and the test harness;
-production gives each instance its own journal):
-two landings could share a number and one landing's records overwrite the other's;
-fixed with an `O_EXCL` claim file per number.
-Models round 9 done (`feat/git-policy-cli-commit-protocol-models` tip `3e86918e4c`,
-252 of 252):
-W1 and the register rebuilt for revision 13 (red under 12),
-controls 1 to 6,
-9 to 17 and F7/F9 re-opened,
-historical models labelled by a guard test,
-state log distinguishes absent,
-damaged and unreadable,
-legacy pair and binding removed (spool kept).
-cargo-shadow fifth review:
-all four parts "not correct";
-round 6 running with the owner's kept-files answer.
-Thirteenth design review:
-"Approve continued model work only";
-revision 14 written (`fc28bb5219`);
-fourteenth review (`commits-never-fail-sol-14.txt`):
-owner questions "accurate after the edits below,
-not accurate as written",
-6a to be rewritten (it omitted fail-closed recovery),
-and planned shutdown added a hook-cancellation exception the owner never approved (R14-9);
-revision 15 written (`4a6ad9d34a`,
-decision 14 recorded,
-6a and 6b dropped,
-planned shutdown is a drain that ends no protected program),
-with questions 5,
-7a,
-7b and 7c in `commits-never-fail-questions-4a6ad9d34a.md`;
-the fifteenth review (`commits-never-fail-sol-15.txt`) checks them before they are asked.
-Models round 10 done in part (`feat/git-policy-cli-commit-protocol-models` tip `ffc98d1eae`,
-293 of 293):
-all twenty-two revision 14 controls carried by named tests in an `ACCEPTANCE` manifest (red under 13,
-green under 14);
-the open owner questions modelled as parameters;
-`StateWriter` single writer,
-validated checkpoint replacement root,
-`sync_prefix` watermark.
-Not done:
-dependency discharge in a component,
-T1's phased observations,
-the keeper write end inside the W1 model,
-components 4.2,
-4.4,
-4.6,
-4.7.
-Its reviews are running (`commit-components-sol-7.txt`,
-`commit-models-sol-5a.txt`,
-`commit-models-sol-5b.txt`);
-the next models round takes them with revision 15 and its review (the 6a `StopPolicy` parameter is obsolete under decision 14).
-
-At 2026-11-03T20:14:48-05:00 (the owner's cap is five delegate agents at once),
-five running:
-- Integration and the owner's power-cut answer on today's landing,
-  branch `fix/git-policy-cli-commits-fast-under-disk-pressure` (from `ce711b0379`),
-  worktree `.claude/worktrees/fix-commits-fast-under-disk-pressure`:
-  merges the base tip `f89fa63f10` and index round 5 (`b47467ebd1`),
-  then takes the wrapper's own syncs off the waiting path of a publishing landing
-  ("Force at leaving, else background",
-  in "Owner decisions in force"),
-  then measures and gates.
-  Its first round,
-  measured on a main-shaped fixture (20,740 files) under the load there was:
-  the 0.5.28 base was worse than 0.5.27
-  (warm paired delta 273 against 139 ms unsigned,
-  298 against 172 ms signed;
-  12 fsyncs per landing against about 4,
-  native none);
-  its tip is 2.0 times native warm (116 against about 113 ms),
-  but still waited for 11 fsyncs per landing,
-  the cause of the 8 to 36 s commits
-  (the production journal attributes 78% of slow-landing time to `sync_ms`,
-  up to 119,715 ms).
-  Fixed in that round:
-  pack lookups and pack opens read once instead of per search step
-  (46.9 MB and 79,951 `pread64` per commit against native's 1.5 MB and 8),
-  `diff-tree` reads only differing subtrees,
-  commit listing once per process,
-  the child watch looks at its child before listing the host's processes,
-  the gate stopped walking whole trees (69 to 10 ms),
-  one redundant sync removed;
-  gate 4622 of 4622.
-  No measured pair reached 5 s,
-  so no raise of the 5 s standard was asked;
-  `doc/planning/cli-git-commit-latency-under-disk-pressure.md` says no finite bound holds while a sync stays on the waiting path.
-- Design revision 13,
-  `fix/git-policy-cli-commits-never-fail` (from `18ca87c579`):
-  records the owner's four revision-12 answers and answers the twelfth review
-  (`commits-never-fail-sol-12.txt`:
-  "Approve continued model work only";
-  first need:
-  a complete submitted-attempt and normal-exit state machine).
-- Models round 7,
-  `feat/git-policy-cli-commit-protocol-models` (from `8dbe45a649`):
-  the components rebuilt on rule V (one checksummed request file,
-  a double-buffered state pair,
-  zero wrapper syncs on the waiting path),
-  the open components findings (standalone `repair_tail` contract,
-  amendment parents as a recoverable closure,
-  a working native fallback for refused gitlinks),
-  and the model findings that do not depend on revision 13.
-  Round 6 (178 of 178 model tests):
-  the explorer's false-green bounded wait fixed red-first;
-  the W1/P2 model now shows revision 11's COMMITTING exit as red against the owner's rule;
-  publication split into send,
-  apply and acknowledge;
-  the disposable Git runner bounded;
-  components refuse a symlinked root,
-  resend without a temporary,
-  append reading only the tail,
-  replay without the quadratic scan,
-  and a replay from a closure rebuilt after pruning.
-- cargo-shadow round 5 done:
-  tip `8e42ae47c9`,
-  428 of 428 tests,
-  clippy clean,
-  103 `avoidable-closure` warnings.
-  One workspace lock (`.cache/cargo-shadow/lock`,
-  non-waiting `flock`,
-  close-on-exec) replaces the per-journal lock (agent's pick,
-  veto open);
-  cargo children run in a recorded process group and `bounded_run` stops the whole group;
-  the reader asks the answering Git for its system configuration;
-  kept copies capped at `MAX_KEPT_FILES` 1,000 (unmeasured;
-  past it a new transaction is refused with a listing,
-  nothing deleted):
-  an owner question.
-  Bounds now cite measurements from this repository (cargo calls 0.05 to 0.91 s against 30 min;
-  Git 0.006 to 0.018 s against 60 s),
-  the rest labelled unmeasured.
-  A pnpm 12.16.1 oracle confirmed pnpm also refuses an unchanged update that leaves a too-young version locked.
-  The agent used Python and shell scratch scripts (`bench_bounds.py`,
-  `t.sh`),
-  against AGENTS.md's TypeScript-only script rule;
-  to be said in its next brief.
-  Fifth review running in four parts (`cargo-shadow-sol-5a/5b/5b2/5c.txt`).
-- (Earlier entry) cargo-shadow round 5,
-  `feat/cargo-shadow-cli` (from `e4451f1a75`),
-  answering the fourth review (all four parts "not correct":
-  4a Git-equivalent object acceptance;
-  4b two durable-preservation gaps,
-  kept paths lost on errors,
-  kept copies unbounded;
-  4b2 journal scanning is not transaction exclusion,
-  the lock's lifetime does not cover surviving cargo writers,
-  no final durability barrier;
-  4c cleanup can erase a refusal,
-  the bounded runner does not prove writers stopped,
-  a placeholder race)
-  and measuring its bounds (LQM).
-- Batch numbers,
-  `fix/git-policy-cli-service-batch-numbers-unique` (from `f89fa63f10`):
-  a gate run once saw two of sixteen services answer with the same batch number in `service_sequencer::a_pathspec_commit_after_a_conflicted_cherry_pick...`;
-  product bug or test count,
-  to be found out.
+At 2026-11-04T03:27:12-05:00 (the owner's cap is five delegate agents at once),
+two delegate agents and four cross-vendor reviews running:
+- Design revision 16,
+  `fix/git-policy-cli-commits-never-fail` (from revision 15,
+  `4a6ad9d34a`):
+  records the owner's revision-15 answers (in "Owner decisions in force") as decisions 15 to 18
+  and answers the fifteenth review (`commits-never-fail-sol-15.txt`,
+  R15-1 to R15-8;
+  protocol "approve continued model work only",
+  questions "accurate after named edits").
+  Two of its findings bear on owner rules:
+  R15-1,
+  accurate attribution of the post-success exception is not yet shown to be the owner's approval;
+  R15-6,
+  start-only materialization adds an unbounded foreground phase the owner never approved.
+  Done:
+  tip `f8d83c760f` (2026-11-04T03:30:19-05:00);
+  R15-2 to R15-5 closed,
+  R15-6 closed by mechanism (only a terminating,
+  size-limited,
+  child-free class runs inline),
+  R15-7 a unit configuration obligation (stop timeout infinity,
+  drain on upgrade),
+  R15-1 narrowed to owner question 8 (a lost success receipt and a replay after a power loss;
+  recommended B,
+  force the receipt before success only when no service runs)
+  in `commits-never-fail-questions-f8d83c760f.md`;
+  not asked until review 16 checks it.
+  The design is 254 KB (history moved to `commits-never-fail-history-f8d83c760f.md`).
+- Models round 11,
+  `feat/git-policy-cli-commit-protocol-models` (from `ffc98d1eae`,
+  293 of 293):
+  merges main (the subsystem folders of #6261),
+  puts the `commit_*` component files in `commit/` and the `model_*` files in a new `model/` folder,
+  fixes components review 7 ("Not correct"),
+  models review 5a ("sound after named fixes") and 5b ("Not sound":
+  the discharge green is tautological and its checkpoint rule is unsafe),
+  applies decisions 14 to 18,
+  and adds the fifteenth review's model controls.
+  Done in part:
+  tip `57c0fb3c9b`,
+  319 of 319,
+  both clippy tasks clean;
+  main merged (`eaacff58bc`;
+  components in `native/commit/`,
+  models in `native/model/`,
+  the `native_models` test root at `model/mod.rs`);
+  decision 14 as `Rules::Fifteen` in the barrier and register models (barrier stage exempt from the wait bound,
+  `BARRIER_ENTRIES` FOREGROUND,
+  COMMITTING,
+  DEPART,
+  STOP);
+  decisions 16 to 18 in the watch model (its one reachable violation is the accepted 7a concession);
+  discharge rebuilt as a crash-state machine (`UnsafeCheckpoint` red,
+  `Fifteen` green;
+  R2 the only live dependency modelled);
+  components review 7 items 2.1,
+  2.2,
+  3.1,
+  3.2,
+  3.4,
+  4.1,
+  4.3,
+  4.4,
+  4.6,
+  4.7 and a `Departure` order.
+  Not done:
+  models 5a #2A,
+  #3,
+  #4,
+  #5,
+  #6,
+  #8;
+  the 5b pipe,
+  T1 and merge items;
+  components 2.4,
+  3.3,
+  4.2,
+  unknown-version preservation,
+  the wall-clock replay test;
+  fifteenth-review controls 1,
+  3 to 6,
+  8 to 12 and 16.
+  The component tests were written with their fixes and not run against the old code.
+  Reviews:
+  `commit-components-sol-8.txt` "Not correct" (checkpoint dependencies are paths,
+  not validated replacement-root authority,
+  and their ancestry is not made durable;
+  a candidate is recovery-authoritative before its dependencies are forced;
+  departure is a caller-assembled flush list;
+  quarantine is an unowned destructive mutation;
+  selection races reclamation;
+  "Non-reclaiming component and model work can continue");
+  `commit-models-sol-6a.txt` "sound after named fixes" (the register has an unchecked route around its barrier stages;
+  final forcing cannot repair a failed disposition creation;
+  planned shutdown can still end a protected hook);
+  `commit-models-sol-6b.txt` "Not sound" (a checkpoint can erase a still-live R1 and the invariant accepts it).
+  Design revision 17 done:
+  tip `34a3c22f2f` (2026-11-04T04:14:48-05:00),
+  design 244 KB;
+  R16a-1 to R16a-6 and R16a-8 to R16a-10 closed in the rule,
+  R16a-7 narrowed (receipts queued for a flusher;
+  with no service a detached one-shot flusher through the manager,
+  else a detached child;
+  if neither starts the command exits success saying the receipt is not yet forced);
+  components 2.1 to 2.5 and 3.x and the models' checkpoint finding closed in the rule,
+  open in the component;
+  question 8 rewritten (recommends A,
+  accept the residual window;
+  option B dropped) in `commits-never-fail-questions-34a3c22f2f.md`.
+  Review 16b failed at 2026-11-04T04:28:19-05:00 after 57 minutes ("OpenAI Responses stream ended before a terminal response event",
+  input 258 KB);
+  not rerun,
+  since 17b reads the whole revision 17 design that replaces revision 16.
+  If 17b (250 KB) fails the same way,
+  split the design into two halves for review.
+  Review 17a (`commits-never-fail-sol-17a.txt`):
+  R16a closure "not closed";
+  question 8 "accurate after named edits" (R17a-10,
+  ten points);
+  P1s R17a-1 (receipt forcing at L4 brings back a foreground wait),
+  R17a-2 (a running service or a started child is not yet durable responsibility),
+  R17a-3 (detached flushers need descriptor,
+  ownership and resource-lifetime rules),
+  R17a-4 (equal content in some predecessor is not enough support),
+  R17a-5 (optional verification cannot become unprotected by declaration).
+  Review 17b (the whole design) running.
+  Revisions 12 to 17 each drew new P1s;
+  the next round narrows its scope before it starts.
+  Review 17c (`commits-never-fail-sol-17c.txt`,
+  the convergence question):
+  R17a-1,
+  R17a-2 and R17a-4 are rule gaps;
+  R17a-3 and R17a-5 mixed (rule parts:
+  the detached flusher's survival and handoff contract;
+  abandoned-worker late-effect fencing and the blanket slow-I/O exemption);
+  "Yes:
+  a finite,
+  conditional acceptance contract is possible",
+  given as properties and controls by transition group,
+  with "A new counterexample may reopen one of these properties;
+  it should not silently introduce a new acceptance criterion.";
+  the three literal rule conflicts (a foreign lock that never frees,
+  a departure sync that never returns,
+  a power cut before the only copy is durable) are already ranked by decisions 4,
+  5 and 14 and the outside-cause list,
+  so no new owner question.
+  Revision 18 done:
+  tip `21b8042205` (2026-11-04T04:55:40-05:00),
+  design 246 KB (the first ten reviews moved to the new tracked `doc/planning/cli-git-commits-never-fail-review-history-archive.md`);
+  the five rule gaps fixed (L4 queues receipts without forcing;
+  seal protocol with `lane/sealed`,
+  a doorbell and a final sweep;
+  a one-shot flusher from an internal entry point under `lane/flusher.lock`;
+  support as the fold of live `install` entries in tail order;
+  the command creates the side ref,
+  the helper only reads and flushes);
+  "Acceptance target" and "Rule conflicts and the decisions that rank them" sections added;
+  question 8 rewritten (`commits-never-fail-questions-21b8042205.md`,
+  recommends A,
+  ranking A > C > B labelled a policy preference).
+  R17a-6 to R17a-9 untouched on purpose.
+  Scoped review running (`commits-never-fail-sol-18a.txt`:
+  the five gaps,
+  the copied target,
+  the flusher against the recursion rule and the lock rule,
+  question 8).
+  Models round 13 started (the models agent resumed),
+  building to the acceptance target with a coverage map.
+  Review 18a (`commits-never-fail-sol-18a.txt`):
+  "Rule gaps:
+  closed after named fixes" (the first design verdict since revision 12 with no new P1;
+  R17a-1 and R17a-4 closed,
+  R17a-3 closed subject to R17a-2,
+  R17a-2 needs recurring enumeration independent of the doorbell,
+  R17a-5 needs level 2 disabled on that path or bounded whole);
+  the copied acceptance target "substantively preserved";
+  "Internal helper launch:
+  no inherent recursion conflict";
+  "`lane/flusher.lock`:
+  no demonstrated violation";
+  question 8 "accurate after named edits".
+  Coordinator's pick (veto open):
+  disable level 2 on that path.
+  Revision 19 started (the two named fixes and the question 8 edits only).
+  Models round 12 started (the models agent resumed):
+  the P1s of components 8,
+  models 6a and 6b,
+  built on revision 17's rules;
+  P2 and P3 queued for round 13.
+- cargo-shadow sixth review,
+  four parts (`cargo-shadow-sol-6a.txt`,
+  `-6b.txt`,
+  `-6b2.txt`,
+  `-6c.txt`),
+  of round 6 (tip `d206fd5321`,
+  472 of 472);
+  round 6 is described in "Cargo shadow and the Rust catalog tools".
 
 Done since the last list:
+- Issue #6261 (subsystem folders):
+  merged into main as `fec77945dd` (parents `5435980375` and `ac5414810a`);
+  the issue closed at 2026-11-04T08:22:56Z through `186e264e06`,
+  and main matches origin.
+  29 subsystem folders;
+  `lib.rs` re-exports each folder (`pub mod <folder>; pub use <folder>::*;`),
+  so old paths keep working.
+  Removing the `native` layer is deferred (option A,
+  coordinator's pick under the delegation,
+  veto open).
+- Issue #6260 (nested-aware source scans):
+  shipped in 0.5.28 and closed at 2026-11-04T02:57:10Z.
+- 0.5.28:
+  see "Release in flight";
+  its measurements are in `doc/planning/cli-git-commit-latency-under-disk-pressure.md`.
+  It carries the batch-number fix (`fix/git-policy-cli-service-batch-numbers-unique` tip `9c3d279e1a`,
+  merged as `d9e8907ae8`):
+  services sharing a journal (development runs and the test harness;
+  production gives each instance its own journal) could give two landings one number,
+  and one landing's records then overwrote the other's;
+  each number is now claimed with an `O_EXCL` claim file.
+- Design revision 15 (`4a6ad9d34a`) and its review:
+  the owner answered questions 5,
+  7a,
+  7b and 7c (all recommended).
+- cargo-shadow fifth review:
+  all four parts "not correct";
+  round 6 answered it.
 - Every wait has a bound:
   fast-forwarded into the 0.5.28 base (tip `f89fa63f10`).
   Step ceilings with measurements:
@@ -398,20 +910,466 @@ Done since the last list:
   components items 3.5 to 3.7 and removal of unused legacy modules.
 - #6260 merged into the base.
 
+Started before 2026-11-04T03:34:02-05:00 (the commit `372828457c` that records them) from main `05c16d73d2`,
+each in its own worktree:
+- Latency round 3,
+  `perf/git-policy-cli-less-foreground-work`:
+  the sections "Git's pack sync in `fast-import`",
+  "Less work in the client and the landing",
+  "The service unit and the host's swap" and "The queue and the next commit"
+  of `doc/planning/cli-git-commit-latency-under-disk-pressure.md`,
+  and the `sync_ms` rename.
+  The plan's option B (loose objects in process) conflicts with `doc/decision/cli-git-concurrent-commits.md` lines 512 to 514
+  ("Landing migrates the shadow's new objects into the real store as a pack kept with a `.keep` file
+  until the compare-and-swap succeeds");
+  the agent builds only an option that keeps that guarantee,
+  else it writes an owner question.
+- Index reclamation,
+  `fix/git-policy-cli-one-reclaimer-per-physical-index` (tip `dd37f0c462` at its first report):
+  the race shown red (`landing::service_index_lock::reclaim_tests::a_live_lock_taken_aside_by_a_late_reclaimer_is_never_open_to_a_third_program`,
+  "a third program placed its lock while the live holder's lock was off its name");
+  pick A reversed on its evidence:
+  three call sites reclaim (`remove_stale` and `try_acquire` in `settle`,
+  `wait_and_place` in the live landing),
+  A covers only the restart,
+  and extending it to the live landing makes a dead service's lock on an alternate index fail the commit at `LOCK_CEILING`.
+  Coordinator's pick under the delegation (veto open):
+  B,
+  a non-blocking exclusive `flock` held only for the reclaim sequence
+  (on the stale lock's own inode,
+  or a sidecar,
+  whichever the agent shows has fewer moving parts);
+  options in `doc/planning/cli-git-one-reclaimer-per-index.md`.
+  Built as B1 (the `flock` on the stale lock's own inode;
+  ranking B1 > B2 > A > C):
+  tip `9db8794047`,
+  gate 4714 of 4714 (7 skipped);
+  `reclaim_if` opens,
+  reads the marker,
+  takes `LOCK_EX|LOCK_NB`,
+  checks device and inode against the name and unlinks;
+  no `.aside-*` files any more.
+  Left open:
+  a person's `rm index.lock` between the inode check and the unlink;
+  file systems without `flock` (reclaim unguarded,
+  logged);
+  reclaimers on different hosts;
+  `.aside-*` files 0.5.28 already left are not swept (queued);
+  `native:clippy:windows` not run (paused by the owner).
+  Cross-vendor review (`one-reclaimer-sol-1.txt`):
+  "correct after named fixes" (P1 a failed `flock` permits unlinking a live lock,
+  through the no-`flock` fallback;
+  P2 the `Busy` test does not show a wait;
+  P3 the regression control does not probe the old aside window;
+  "Can the lock be avoided?
+  Not with an equivalent sequence of ordinary pathname operations under the current protocol.").
+  Fix round sent to the agent,
+  with the coordinator's pick (veto open):
+  where `flock` is unavailable,
+  never remove the lock;
+  the landing waits as for a held lock (bounded by `LOCK_CEILING`) and its notice names the stale lock,
+  the dead holder and how to remove it;
+  plus the sweep of 0.5.28's `.aside-*` files.
+  Merge into main after its gate.
+  Fix round done (`de34a39194`,
+  gate 4719 of 4719);
+  its re-review (`one-reclaimer-sol-2.txt`) "correct after named fixes":
+  the original three closed,
+  two new P1s in the `.aside-*` sweep (an incomplete process view authorizes deleting a live aside;
+  prefix matching does not show the file is disposable).
+  Coordinator's pick (veto open):
+  remove the sweep,
+  document the leftovers and a manual removal ("Allow the rare leftover");
+  plus the notice's evidence and deterministic `Busy` controls.
+  Sent to the agent.
+  The older index review's P2 and P3 findings (`private_index_path` aliasing,
+  `head_names` revalidation,
+  `Interrupted` writes) are already fixed on main,
+  each with named tests.
+- Test containers to CachyOS,
+  `build/git-policy-cli-cachyos-test-containers`:
+  `e2e/concurrent-commits.Containerfile` (Debian `node:24.11.0-slim`)
+  and the `native:test:container` base,
+  per `doc/decision/container-base-distro.md`.
+- Design review 16 in two parts (`commits-never-fail-sol-16a.txt`:
+  R15 closure,
+  decisions 15 to 18 and question 8 from the diff;
+  `-16b.txt`:
+  the whole design),
+  before question 8 is asked.
+
+- Mutation campaign over what 0.5.28 changed (no recorded campaign covers it;
+  161 product files and 14,935 changed lines between the `monochromatic-git-policy-cli-v0.5.27` and `-v0.5.28` tags,
+  list in `~/temp/agent/mutation-scope-0528.txt`):
+  gate of main (`690e0eb89d`,
+  worktree `.claude/worktrees/mutation-main-0528`) running as `gpc-gate-mutation-main-0528-20261104T042223-0500`;
+  then `native:mutation:parallel` with `GIT_POLICY_NATIVE_IMAGE_TAG` set to that unit's name,
+  first landing,
+  index,
+  lock,
+  push and invocation files,
+  then the merge passes.
+
+State at 2026-11-04T08:25:42-05:00 (after the Claude Code restart the owner asked for at about 07:30-05:00):
+- Models round 14 done:
+  `feat/git-policy-cli-commit-protocol-models` tip `6c4446d2de`;
+  items 1 to 6 of `commit-models-sol-8.txt` section 4 done;
+  full `native:test:model` 411 passed (`~/temp/agent/r14/full-model2.log`),
+  both clippy variants clean;
+  coverage map 70 covered,
+  11 narrower,
+  9 historical,
+  17 not yet (107 rows);
+  the author's findings for the reviewer:
+  only the double-forked helper launch is built (no manager-started unit route,
+  fork refusal not injected),
+  the helper runs Rust after a bare `fork` (safe only single-threaded),
+  Git experiments on one version and two backends,
+  the reference-interpreter row's Covered is the author's call.
+  Cross-vendor reviews returned:
+  `commit-models-sol-9a.txt` "does not meet the target items it claims" (component authority,
+  departure prefixes,
+  `state_covers` succession,
+  launch success on a failed second fork,
+  the single-threaded fork precondition,
+  helpers bounded only at the lock,
+  a receipt joining after the error snapshot,
+  an unforced directory entry counted as forced)
+  and `commit-models-sol-9b.txt` "no, as submitted" (the receipt error handoff still atomic;
+  two false-green decision 19 schedules:
+  a notice left Scheduled after positive authority survives,
+  and reclamation on an earlier attempt's delivery;
+  map rows to mark narrower);
+  both say no acceptance criterion is added.
+  Round 15 running on both (same branch and worktree);
+  it cuts `commit-models-10-part-*.diff` when done.
+- cargo-shadow round 9 done:
+  `feat/cargo-shadow-cli` tip `16249ffe94`;
+  debug suite and release gate 561 passed,
+  3 skipped (ignored helper entries other tests start),
+  clippy clean after one rename;
+  two stale contract names fixed;
+  README and "Round 9" written;
+  all 16 rows "shown".
+  Cross-vendor reviews returned:
+  `cargo-shadow-sol-9a.txt` "does not meet the list for this part" (D1:
+  an unsettled scope upgraded by a later `exists()` check,
+  in two schedules;
+  D2:
+  a malformed boot identity read as a reboot;
+  D3:
+  discovery cleanup past its shared deadline;
+  the boot rule needs an authoritative kernel boot identity or a stated premise)
+  and `cargo-shadow-sol-9b.txt` "Meets it after named fixes" (seven false-green test assertions,
+  the missing same-namespace bind-mount schedule);
+  no row added.
+  Round 10 running on both (same branch and worktree);
+  it cuts `cargo-shadow-10*.diff` when done.
+- Latency round 3 merged to main (`b0d9708b17`;
+  gate `gpc-gate-less-foreground-r3-fixes-20261104T073150-0500` passed 4751/4751;
+  `native:clippy` on main clean);
+  0.5.29 published (crates.io 2026-11-04T13:32:49Z,
+  run 41837674379) and installed (`d4979bab1b`);
+  the sample commit took 2665 ms,
+  1254 ms of it provisioning the upgraded service,
+  as earlier upgrades did (1016 to 1491 ms);
+  the landing took 36 ms.
+- Agents running:
+  index-lock reclaim without `flock` (`fix/git-policy-cli-index-lock-reclaim-without-flock`,
+  worktree `.claude/worktrees/index-lock-without-flock`);
+  models round 15;
+  cargo-shadow round 10;
+  test images from pacman (`feat/git-policy-cli-test-images-from-pacman`,
+  worktree `.claude/worktrees/test-images-from-pacman`).
+  Not done from that round:
+  a built root-commit control.
+- Planted controls and the `service_durable.rs` survivors merged to main (`3248a86254`;
+  branch tip `c279110576`,
+  gate 4720/4720,
+  `gpc-gate-planted-control-and-durable-survivors-20261104T070548-0500`);
+  two stale controls fixed (self-exclusion by identity and content;
+  the deleted `worktree_copy_lock.rs` control replaced by a live-owner journal control in `worktree_copy_recovery.rs`);
+  two tests kill the `index_is_hardened` survivors,
+  but the function has no production caller,
+  so deleting it may beat testing it;
+  resume point in `package/git-policy/cli/doc/planted-control-and-durable-survivors-resume.md` on that branch.
+- Mutation campaigns paused (2026-11-04 at about 07:40-05:00),
+  after the owner asked "We're not close to doing mutation runs though, right? Don't we still have a lot of things to fix before doing them?":
+  the commit design is still at step 1 (models only;
+  "Nothing past the red controls and the conflicted-file changes is built",
+  `doc/planning/cli-git-commits-never-fail.md`,
+  "Verification plan and build order"),
+  and its live protocol replaces the commit path,
+  whose directories hold most of the 0.5.28 scope (measured with `~/temp/agent/mutation-scope-overlap.ts` and a per-directory sum of `~/temp/agent/mutation-scope-0528.txt`:
+  of 14,758 changed lines in 160 files,
+  `index` 2,515,
+  `landing` 2,261,
+  `service` 1,098,
+  `lock` 828;
+  `merge` 2,571 also changes with the word-level pass;
+  the latency branch rewrites 7 more scope files holding 621 lines);
+  which of those files the live protocol rewrites is the coordinator's reading,
+  not measured.
+  The planted-control run started for the resume point (unit `mutctl-planted-0528b`) was stopped after its first control and its container removed.
+  Resume the campaign after the commit protocol is built and the lint-debt pass (task 88) lands:
+  first `native:mutation:planted` on that tree to show the two edited controls noticed,
+  then a fresh scope.
+  The planted-control branch still merges on its own (it fixes a crash on main:
+  `node bin/native-planted-controls.unit.test.ts` stops with ENOENT on the deleted `worktree_copy_lock.rs`).
+  Open:
+  `index_is_hardened` has no production caller,
+  so delete it rather than keep the two new tests (to decide when the branch merges).
+- No agent process or unit is left in any of the four worktrees (checked 2026-11-04 at about 07:35-05:00).
+- Decision record corrected (`05dc3800a8`,
+  owner's "Correct it now."):
+  `doc/decision/cli-git-concurrent-commits.md` now says landing writes objects with one `fast-import` (small batches loose,
+  large ones a pack,
+  measured with Git 2.56.0),
+  protected by the scratch ref `refs/worktree/cli-git-service/<seq>` until the compare-and-swap.
+
+Veto batch to ask the owner after the restart (the owner said "I'm fully back now, ask me."),
+through the question tool in groups of four,
+each with context,
+the pick,
+the alternative and a ranking:
+- cargo-shadow:
+  delegated transient scope as the default containment;
+  the weaker path promises what pnpm promises and its recovery waits for an acknowledgement;
+  assumptions a (no deliberate same-uid escape),
+  b (pre-existing directories are durable),
+  c amended (same mount and inode at recovery,
+  else refuse),
+  d (storage progress for blocking calls),
+  e (one machine at a time,
+  no checkpoint and restore);
+  a verified-absent scope is proof of no members;
+  same machine id plus a different boot id clears liveness;
+  "Force at leaving,
+  else background" read as the exit barrier only;
+  the `user.delegate` route dropped.
+- Commit design:
+  level 2 disabled on the execution path where its eligibility cannot be shown.
+- Answered after the restart,
+  see "Answers after the restart (2026-11-04)" under "Owner decisions in force":
+  the decision record's prune limit,
+  reference-lock removal (shipped lock removal question 5),
+  saved conflict copies that can be the only copy (shipped-limits pick 10's question),
+  and the mutation pause.
+- Index reclamation:
+  the `flock` on the stale lock's own inode;
+  without `flock` the lock is never removed;
+  `.aside-*` leftovers documented,
+  not swept.
+- Latency:
+  pack-sync option C;
+  `sync_ms` renamed `index_update_ms`.
+- CachyOS containers:
+  `latest` resolved once per run and cached by the pulled id;
+  registry unreachable means a run on the local copy with a warning;
+  Git 2.56.0 from source;
+  Rust from pacman;
+  Node from the tarball;
+  strace pinned.
+- #6261:
+  the `native` layer removal deferred (option A).
+- Older picks still marked veto open in "Picks made under the owner's delegation" and in the planning records (shipped limits,
+  waits,
+  fallback to the real Git,
+  word-level merge pass,
+  cargo-shadow's nine questions):
+  list them for the owner in the same way.
+
+At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
+- Merged into main:
+  index reclamation as `5d23a0f800` (branch tip `5ae971d1ec`,
+  gate 4718 of 4718;
+  the `.aside-*` sweep removed and its leftovers documented with a manual removal,
+  coordinator's pick,
+  veto open)
+  and the CachyOS test containers as `a72b474e1d` (branch tip `976efc2fca`,
+  gate 4707 of 4707 with passing names identical to main's control;
+  e2e unchanged including the pre-existing `sigkill-service-during-work` failure,
+  not investigated).
+  Container agent's picks (veto open):
+  resolve `latest` once per run and key a derived base on the pulled image id plus the Containerfile hash;
+  Git 2.56.0 from source in the gate base;
+  with the registry unreachable the run continues on the local CachyOS copy with a loud warning (the one pick near "Must be latest");
+  Rust from pacman;
+  Node 24.11.0 from the tarball;
+  strace 6.13 by checksum.
+  Other packages' images still on Debian:
+  `cli.fuzz/bin/fuzz-images.ts`,
+  `forbidden-strings/cli/bin/snapshot-constants.ts`,
+  `linter/monochromatic-lint/test.Containerfile`.
+- Latency round 3 done (`perf/git-policy-cli-less-foreground-work` tip `e24d0cd017`,
+  gate 4727 of 4727):
+  warm wrapped commit 108 to 78 ms unsigned and 143 to 109 ms signed (native 53 and 57);
+  pack sync option C (the one `fast-import` child gets `core.fsync` minus `pack` and `pack-metadata` unless loose objects are synced),
+  pack-first object reads,
+  cache-tree comparison,
+  built-commit checks from the object store,
+  `sync_ms` renamed `index_update_ms`;
+  swap (0 kB over 25 minutes) and the queue link (not shown) need no change.
+  Decision-record drift for the owner:
+  `doc/decision/cli-git-concurrent-commits.md` lines 118 to 121 and 512 to 514 describe a kept pack per landing,
+  but the code keeps the scratch ref `refs/worktree/cli-git-service/<seq>` as the protection and unpacks small batches;
+  the record needs an owner-accepted correction.
+  Cross-vendor review running (`less-foreground-sol-1.txt`);
+  merge and release 0.5.29 after it.
+- cargo-shadow round 8 done (tip `089585a116`,
+  540 passed,
+  3 skipped):
+  all sixteen list rows have tests,
+  nine fully shown,
+  seven partly;
+  the delegated-scope route built (`systemd-run` with an escaped command line,
+  since `systemd-run` rewrites `$`;
+  the slice started before discovery);
+  the `user.delegate` route dropped (needs `clone3` with `CLONE_INTO_CGROUP`);
+  amended c's boot-scoped mount id makes every killed run's journal wait for acknowledgment after a reboot,
+  so the coordinator proposes recording the boot id and treating a different boot as proof the run's processes are gone
+  (in the review prompt).
+  Review:
+  8a "Does not meet the list as submitted" with "No additional acceptance row is needed" (F1 an absent scope accepted while its launcher can still create it;
+  F2 manager discovery not fully bounded;
+  F3 internal locks wait instead of returning busy;
+  F4 an incomplete acknowledgement can count as valid;
+  K1 an unreadable beside-lockfile directory suppresses the warning);
+  8b "Meets it after named fixes" with "No additional acceptance rows or deeper adversarial model are required" (seven false-green or mis-scoped tests).
+  On the boot id:
+  "A genuine reboot of the originating kernel proves that its old local processes are gone",
+  but a different boot id alone does not (a second host sharing the workspace).
+  Coordinator's pick (veto open):
+  record boot id and machine id;
+  same machine id and a different boot id discharge process liveness only,
+  every other recovery check kept;
+  otherwise refusal and acknowledgement;
+  assumption added that a workspace is used from one machine at a time.
+  Round 9 started with both parts.
+  Earlier review prompt note:
+  the boot-id idea was in the round-8 prompt.
+- Models round 13 done (tip `bf786b2004`,
+  368 model tests):
+  the round-12 findings closed red first;
+  revision 18's support fold and receipt protocol modelled;
+  coverage map 62 of 96 target items covered,
+  9 only by historical controls,
+  25 not yet.
+  Review against the acceptance target (`commit-models-sol-8.txt`):
+  "no,
+  as submitted",
+  with "None of these requests adds an acceptance criterion";
+  a six-item path (component authority boundaries;
+  departure promises;
+  overstated controls;
+  a corrected coverage map;
+  current evidence for historical and not-yet rows;
+  decision 19's fresh attempt with a stored notice);
+  the author's two design findings are implementation obligations.
+  Round 14 started on that path.
+- Design:
+  decision 19 recorded (`6d053403db`),
+  no open owner question;
+  review 17b timed out at its 3600 s bound (superseded by 18a and 19a).
+- Mutation campaign:
+  `landing/service_durable.rs` pass 1 scored 19 mutants (11 caught,
+  6 unviable,
+  2 missed:
+  `index_is_hardened` replaced with `true` and with `false`);
+  pass 2 did not run because the planted control "self-exclusion by identity and content" matches 0 times in `invocation/real_git_candidate.rs`.
+  An agent fixes the stale control and kills both survivors (`fix/git-policy-cli-planted-control-and-durable-survivors`);
+  campaign tags need one `podman tag` of the gate image per unit (`m0528-durable0` was added by hand).
+
+Flagged for the owner (measured,
+not forecasts):
+cargo-shadow has had seven review rounds with no part passing,
+and the commit protocol design six revisions (12 to 17) each drawing new P1s,
+with the protocol verdict "approve continued model work only" since revision 12.
+Cause found:
+no written contract says what is promised and what is assumed,
+so each review moves the adversary one level deeper (threads,
+mount views,
+a same-uid process that leaves its group).
+Remedy taken:
+cargo-shadow writes `doc/planning/cargo-shadow-guarantees.md` (guarantees,
+assumptions,
+behavior where an assumption fails) before more code,
+and the reviewer turns it into a finite acceptance list;
+the design reviewer is asked (`commits-never-fail-sol-17c.txt`) which of R17a-1 to R17a-5 are rule gaps,
+for the finite property set that would move its verdict,
+and which owner rules cannot all hold together for some schedule.
+The cargo-shadow assumptions are coordinator's picks (veto open):
+no deliberate same-uid escape (such a process can write `Cargo.lock` after the run anyway);
+directories that existed before the transaction are durable;
+the journal resolves to the same mount and inode at recovery,
+else recovery refuses;
+the weaker path promises what pnpm promises and its recovery waits for a person's acknowledgment.
+cargo-shadow contract (`doc/planning/cargo-shadow-guarantees.md` on `feat/cargo-shadow-cli`,
+`29af137137`):
+cross-vendor review `cargo-shadow-sol-contract-1.txt` "fit after the named edits",
+with a finite acceptance list (sixteen rows) and "No remaining round-7 safety finding inherently requires going another adversarial level deeper.";
+the delegated-scope probe works (`systemd-run --user --scope --property=Delegate=yes`;
+strace showed no cgroup file opened by cargo-shadow;
+`user.delegate` appears only on `user@1000.service`).
+Coordinator's picks for the two choices it left open (veto open):
+a verified-absent scope is proof of no members (systemd removes a scope only when empty or after stopping its members),
+scope names carry a random token and are never reused while a journal can name them;
+every wait cargo-shadow controls has a deadline,
+and blocking kernel and file-system calls rest on a stated storage-progress assumption mirroring "Assume the final disk save would never be cut short.".
+Round 8 started:
+the contract edits,
+then every row of the acceptance list with a coverage map.
+cargo-shadow P1 re-review (round 7):
+7a "not closed" (F1 to F6:
+the spawn lock does not stop capturing another thread's child;
+discovery outside the spawn lock;
+failure to leave the group returns an ordinary I/O error;
+a completed process-group record cannot authorize recovery;
+the boundary is writable by the payload;
+recovery checks the cgroup namespace,
+not the mount view);
+7b "not closed" (a mount boundary is not a durable anchor;
+`begin` turns an entry-level `NotFound` into "no earlier journals");
+7c "not closed" (weaker-path recovery without quiescence;
+the documented same-uid escape).
+
 Queue,
 in order:
-- After the integration:
-  gate the base,
-  release 0.5.28,
-  install,
-  time commits against native Git on main.
-- Then #6261 (directory regroup;
-  the #6260 agent listed the paths it must update),
-  lint task 88,
-  the gate container base check (Debian trixie against the CachyOS rule),
-  the reclamation pick A,
-  and the reviews of cargo-shadow round 5,
-  models round 7 and revision 13.
+- Design revision 17 (started by 2026-11-04T04:05:21-05:00,
+  commit `1e301bfdc1`),
+  from review 16a (`commits-never-fail-sol-16a.txt`:
+  R15 closure "not closed";
+  P1s R16a-1 level 2 still lacks the promised durable representation (the ref store need not share the object store's file system),
+  R16a-2 the no-manager materialization path brings back the forbidden wait,
+  R16a-3 an indefinite foreground upgrade or restart,
+  R16a-4 `not-submitted` must be final for the whole attempt,
+  R16a-5 same-path re-keying underspecified;
+  question 8 "accurate after named edits",
+  R16a-10)
+  and review 16b when it is in.
+  Question 8 is asked only after revision 17 settles what it depends on.
+- Models round 13 after revision 18 lands,
+  building to its "Acceptance target" section,
+  with the round-12 reviews:
+  `commit-components-sol-9.txt` "not closed" (the replacement authority is still caller-asserted;
+  later appends escape its dependency check;
+  completion can delete a dependency it just validated and forced;
+  full-file identities lack a lifetime contract for mutable dependencies;
+  departure validates argument presence,
+  not the disposition's promise)
+  and `commit-models-sol-7.txt` "P1 set:
+  not closed" (one P1:
+  ordinary successful completion still bypasses the register's final-save obligation;
+  P2s on the shutdown green's monitor and `FifteenDropsLive` also removing R2's guard).
+  Models round 12 tip `99bdd7f48b`,
+  333 of 333.
+  Its reviews then judge against the acceptance target,
+  not a new open search.
+- Lint task 88 once the open branches of this package merge.
+- Native-layer removal (#6261 option A,
+  veto open).
+- Ask the owner for the measured span values (decision 17) before that part ships.
+- Final re-review.
 
 Older entries,
 from the 2026-11-03T10:00-05:00 list,
@@ -2008,6 +2966,112 @@ see "Merge auto-resolution" under owner decisions in force.
 
 ### Cargo shadow and the Rust catalog tools
 
+Current state at 2026-11-04T03:27:12-05:00:
+round 6,
+tip `d206fd5321` (2026-11-03T22:26:12-05:00),
+472 of 472 tests.
+Round 6 answered the fifth review (all four parts "not correct").
+Sixth cross-vendor review (`~/temp/agent/reviews/cargo-shadow-sol-6a.txt`,
+`-6b.txt`,
+`-6b2.txt`,
+`-6c.txt`):
+all four parts "not correct" again.
+Its P1 findings:
+6a R1 (a zombie leader can have live threads;
+the `/proc` parent map is not a coherent snapshot),
+R2 (crash recovery cannot establish that escaped writers stopped),
+R3 (the process-tree ownership heuristic can kill unrelated work);
+6b 1 (the stopping directory of the directory-entry sync is presumed,
+not shown,
+durable);
+6b2 1 (workspace-wide survivor discovery fails open),
+2 (missing group and readiness records still authorize conflicting work),
+5 ("outputs durable" treated as "only cleanup failed");
+6c R1 (an operational install error bypasses the finish classification),
+R2 (group-only recovery unsafe for escaped descendants).
+Round 5's process group and round 6's subreaper plus `/proc` scan both failed the same proof,
+that every writer cargo started has stopped.
+Coordinator's reversal of the agent's round-6 pick,
+on the reviews' counterexamples:
+containment moves to a delegated control group (membership survives `setsid` and double forks;
+`cgroup.kill` and `cgroup.events` `populated 0` make stop and quiescence atomic;
+a survivor after a crash is a membership query of a recorded group).
+Coordinator's picks under the delegation (veto open,
+for the next batched owner question):
+where no delegated control group can be had (some CI runners and containers),
+cargo-shadow runs with a stated weaker guarantee and a one-line notice naming the missing capability,
+never claiming quiescence it has not shown;
+"Force at leaving,
+else background" has no background carrier in a command that exits,
+so cargo-shadow forces what must be durable at its exit barrier and syncs nothing else;
+each limit's comment cites the delegation record ("Picks made under the owner's delegation") and the owner's quote,
+or a measurement.
+Round 7's bar is the P1 set only,
+each closed with the reviewer's counterexample as a red-then-green test;
+the P2 and P3 findings and the missing-test lists of the four files wait for the round after,
+then a re-review of the P1 set alone.
+Round 7 done:
+tip `94226a1385`,
+508 passed and 1 skipped (the ignored escaped-writer fixture helper);
+probes,
+red tests and the fix in `e543782a4a`,
+`939dcb31d1` (11 red),
+`a47e630e12`,
+`ba620f9e1a`.
+Probe findings:
+a child of the process's own group works where that group is user-owned (not in a root-owned login session scope);
+`cgroup.kill` alone left a thread group whose leader thread exited `populated 1` for 2 to 5 s,
+so the stop adds SIGKILL through a re-checked pidfd until `populated 0`;
+a `setsid` plus double-fork escapee stays a member,
+a same-uid member writing its id into the parent's `cgroup.procs` leaves;
+children inherit membership with no `pre_exec` hook.
+A run took 6.8 ms median with a group against 6.4 ms in the weaker path (a pidfd wait replaced a 10 ms sleep poll).
+systemd.io/CGROUP_DELEGATION (read 2026-11-04):
+"Never create your own cgroups below arbitrary cgroups systemd manages,
+i.e cgroups you haven't set `Delegate=` in.",
+and systemd marks delegated groups with the `user.delegate` extended attribute;
+the built default is therefore unsupported.
+Coordinator's pick under the delegation (veto open),
+for round 8:
+a transient user scope with `Delegate=yes` by default (7.0 ms median to start,
+15 runs),
+a child of the own group only where that group carries `user.delegate`,
+else the weaker path.
+P1 re-review running in three parts (`cargo-shadow-sol-7a.txt`,
+`-7b.txt`,
+`-7c.txt`);
+round 8 (the queued P2 and P3,
+in `doc/planning/cargo-shadow-update.md` "Queued for round 8",
+plus the scope pick and a cgroup namespace for same-uid escapes) follows it.
+Picks open to veto,
+the agent's under the coordinator's delegation:
+one workspace lock (`.cache/cargo-shadow/lock`,
+non-waiting `flock`,
+close-on-exec) instead of a lock per journal;
+a child subreaper plus a `/proc` scan,
+not a control group (`cgroup.kill` was available here),
+to stop every descendant;
+one bounded run per process;
+runner constants labelled as the implementer's picks (the scan cost 7.9 to 14.6 ms with 894 processes);
+HTTP limits unmeasured.
+Kept copies follow the owner's warning (see "cargo-shadow kept files" in "Owner decisions in force").
+A pnpm 12.16.1 oracle confirmed that pnpm also refuses an unchanged update that leaves a too-young version locked.
+Not built:
+the background half of "Force at leaving,
+else background".
+Not done:
+a hard-link fault matrix,
+a power-loss model,
+concurrent directory publication,
+the three-writer undo,
+the "refused version already in the initial lockfile" counterexample,
+network tests for trickling,
+stalled and oversized bodies,
+add and remove dispatch tests,
+and a pnpm oracle for an unrelated refused package during a targeted update.
+The rest of this section is the history of the first rounds;
+its "Remaining" list is what follows once the reviews pass.
+
 Branch `feat/cargo-shadow-cli` `504a82aa3f`:
 182 tests at the last report,
 clippy clean,
@@ -2827,6 +3891,933 @@ the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
 
+### Answers after the restart (2026-11-04)
+
+Through the question tool,
+answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
+- Mutation runs:
+  "Pause all (Recommended)":
+  no mutation runs until the commit protocol is built and the lint cleanup (task 88) lands,
+  then one fresh campaign on the new code,
+  starting with `native:mutation:planted`.
+- The decision record's scratch-ref sentence:
+  "Add the limit now (Recommended)":
+  written into `doc/decision/cli-git-concurrent-commits.md` (immediate-expiry prune,
+  `gc --prune=now` and `repack -a -d` started while a commit lands are not supported);
+  no code change.
+- Reference-lock removal (the ninth design review's R9-S):
+  "Keep narrowed removal (Recommended)":
+  0.5.28's removal on a proof about the holder,
+  with the second identity check just before the move,
+  stays until the new commit protocol (whose X1 never removes a reference lock) replaces it;
+  the rare two-holders race is accepted for that time.
+- Saved conflict copies that can be the only copy:
+  "Keep pruning by age and size",
+  against the coordinator's recommendation (keep all and warn past a size);
+  the owner was told a copy older than 30 days or past 1 GiB is deleted even if it is the only copy.
+  "Prune by both age and size." therefore stands over "never discard user data" for saved copies;
+  the numbers stay as cited and are set from measurement once saves exist (option O3).
+- cargo-shadow's six picks (delegated scope with the acknowledged weaker path,
+  verified-absent scope as proof,
+  same-machine reboot clears liveness,
+  assumptions a to e,
+  forcing at exit only,
+  the `user.delegate` route dropped):
+  "Keep all (Recommended)".
+- Commit design level 2 on the path where its eligibility cannot be shown:
+  "Keep level 2 off (Recommended)".
+- Index reclamation:
+  the owner answered in the question's free text,
+  "Must work perfectly even when flock isn't available. Do better."
+  So the shipped behavior on a file system with no `flock` (never remove,
+  wait to the lock limit,
+  stop naming the file) is rejected:
+  reclaiming a stale `index.lock` must work there as it does with `flock`.
+  The other two picks (the `flock` on the stale lock's own inode with the device and inode check;
+  `.aside-*` leftovers documented,
+  not swept) were not addressed and stand.
+  Work started on `fix/git-policy-cli-index-lock-reclaim-without-flock`.
+  The owner then clarified:
+  "I'm not banning flock. I'm just saying our wrapper must work perfectly even when flock isn't there."
+  So the `flock` on the stale lock's own inode stays where it works,
+  and the fallback must not depend on `flock` anywhere (a `flock` in `/run/lock` is at most an intermediate tier).
+- Commit-speed picks (no `fast-import` pack flush unless `core.fsync` names loose objects;
+  `sync_ms` renamed `index_update_ms`):
+  "Keep both (Recommended)".
+- CachyOS test containers:
+  "Make as many pkgs as possible come from podman.",
+  then,
+  asked which was meant:
+  "Sorry, typo. Yes I meant from pacman. And I believe pacman can give a specific Git version. If not possible, bring me the evidence and re-ask."
+  So Git,
+  Node and strace move to pacman inside the CachyOS image wherever pacman can supply what the tests need,
+  Git at the pinned version through pacman if pacman can install it;
+  if it cannot,
+  bring the evidence and ask again.
+  Work on `feat/git-policy-cli-test-images-from-pacman`.
+  The owner then added:
+  "I just realized something. We don't need to pin git because my current system is already using git latest."
+  So the test image takes pacman's current `git`,
+  with no version pin.
+  Then:
+  "We don't need to pin Node too. And what else?"
+  Asked through the question tool about the tools `toolchain.lock.json` locks (Node,
+  cargo-nextest,
+  Rust,
+  pnpm) against CM7's "in containers and CI use its row's archive and sha256",
+  the owner chose "Pacman for everything it has"
+  (the option named the CM7 exception);
+  so these test images take every tool pacman carries from pacman,
+  and pnpm from the lock row only if pacman lacks it.
+  Open:
+  propose to the owner the AGENTS.md wording of that exception (CM7),
+  not yet asked.
+  Asked about the end-to-end image's Git 2.55.0 (the oldest Git the wrapper accepts),
+  the owner answered:
+  "Raise minimum, drop the test, merely print a warning on older git and not refuse."
+  So the 2.55.0 build and its scenarios go,
+  the minimum rises to the tests' Git,
+  and an older Git gets a warning and the command runs.
+  Both sent to the agent on `feat/git-policy-cli-test-images-from-pacman`.
+  CM7's wording:
+  the owner chose "Leave CM7 unchanged" with the note "Record this carve-out for whatever the git wrapper needs.";
+  so `AGENTS.md` stays as it is,
+  and the package docs of `package/git-policy/cli` record the carve-out (its test images take tools from pacman).
+  The other container picks (resolve `latest` once per run,
+  run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
+- After the check of the older delegated picks (report of 2026-11-04,
+  live picks listed under "Older picks still live"):
+  - Branch writes:
+    "Never cut a branch write (Recommended)":
+    the shipped 60 s ceiling on `git update-ref` goes;
+    steps that can run twice keep their ceilings;
+    the command still returns at its own bound with the "Short extra wait" text.
+  - Non-Git tools during `git worktree add` (package repair,
+    Markdown linter,
+    standards review):
+    "Silence plus a ceiling (Recommended)":
+    keep ending on silence and add a measured overall ceiling per tool that ends it with an error naming the tool.
+  - The commit design's R-never (the lane never removes an `index.lock` its own dead process left):
+    "Reclaim it (Recommended)":
+    the new protocol reclaims a proven-stale lock of its own dead incarnation through the shipped mechanism once that passes review;
+    revision 19 is to be amended (coordinator),
+    and the models agent was told.
+  The first two are built on `fix/git-policy-cli-branch-write-and-tool-ceilings`,
+  with the never-run follow-up of shipped-limits pick 7 (re-derive the one-hour namespace-record block from the 10-minute lock ceiling).
+  Built (tip `607e568e7d`,
+  gate r3 4780/4780,
+  clippy clean,
+  not merged,
+  no cross-vendor review yet):
+  `update-ref` and the other in-place writers have no step ceiling;
+  queued commits are told what the service is stuck in and withdrawn at their own ceiling;
+  `FOREIGN_OWNER_PATIENCE` is 1200 s (twice `LOCK_CEILING`);
+  repair tool 18 min (whole process group),
+  Markdown linter 4 min,
+  review call 1 min,
+  whole review 2 min,
+  each five times the longest measured run (warm stores only).
+  Follow-up sent to the agent (`aa0fee0c2cf70bb31`),
+  decided by the owner's own wording:
+  the commit inside the stuck write returns at its own bound plus the short extra wait ("a few more seconds,
+  a constant to be measured"),
+  not at the 10-minute `WITHDRAW_CEILING`;
+  a step keeps its ceiling exactly when it can run twice,
+  decided per step by cutting it on a throwaway repository and comparing with an uncut run;
+  every step without a ceiling still lets the person's command return at its own bound with a not-known error,
+  the step left running;
+  the service never restarts itself out of a stuck write;
+  cold-store `pnpm install` and Cargo stage measured before the ceilings are fixed.
+  Owner answers (question tool,
+  2026-11-04):
+  tool ceilings "5x (Recommended)" (five times the longest measured run,
+  rounded up to whole minutes,
+  recomputed with the cold-store case if longer);
+  short extra wait "7 s (Recommended)" (twice the longest measured branch write,
+  3,438 ms of 2,093);
+  both sent to the agent.
+  Follow-up done (tip `bafebbd512`,
+  main `64031356d8` merged in;
+  gate r5 4801/4801;
+  clippy clean):
+  `SHORT_EXTRA_WAIT` 7 s with a backward-readable `InsideWrite` notice (one extra field on the `waiting` line);
+  the cut experiment (Git 2.56.0,
+  kill at every mutating system call,
+  rerun,
+  compare) decided which steps keep a ceiling,
+  and the first build's list was wider than the criterion;
+  a person's command stops waiting at the step's class bound (120 s quick,
+  10 min bulk) plus 7 s with a not-known error and leaves the step running;
+  only the landing thread waits without a bound;
+  cold `pnpm install` 20.9 s and `cargo fetch` 7.6 s were shorter than the warm maxima,
+  so the ceilings stand.
+  Cross-vendor reviews running:
+  `branch-write-sol-1.txt` (step bounds,
+  135 KB) and `branch-write-sol-2.txt` (tool ceilings and docs,
+  127 KB).
+  Owner answer (question tool,
+  2026-11-04) on a person's command inside a step that cannot run twice:
+  "Class ceiling + 7 s (Recommended)" (as built:
+  2 min 7 s for quick steps,
+  10 min 7 s for bulk steps,
+  then a not-known error with the step left running);
+  to be cited in `doc/planning/cli-git-no-unbounded-waits.md` with the review fixes.
+- Index lock claims always plus machine id:
+  built on `fix/git-policy-cli-index-lock-claims-always` (tip `69650ced17`,
+  gate 4780/4780,
+  clippy clean,
+  red first);
+  `Reclaimed::Foreign` leaves another machine's lock or claim and names it.
+  Two cross-vendor attempts by the agent timed out empty (exit 124);
+  the third (`claims-always-sol-3.txt`) returned "Merge after named fixes":
+  legacy foreign markers must fail closed,
+  a previous-release `flock` reclaimer and a claim reclaimer can still race on one lock,
+  a permanently unjudgeable claim reads as a transient `Busy`,
+  and a lost placement answer can strand this process's own claim;
+  sent to the agent with the test fixes.
+  Branch-write reviews (`branch-write-sol-1.txt`,
+  `branch-write-sol-2.txt`):
+  both "merge after named fixes";
+  P1s:
+  a commit can be answered withdrawn after it landed,
+  failed markers count as a withdrawal,
+  an early withdrawal is one-shot,
+  a step "left running" dies of SIGPIPE when the command exits,
+  and the classifier fails open on forms the experiment never ran;
+  also the 7 s path misses a write that starts within 60 s of the answer ceiling,
+  repair output collection is unbounded,
+  a timed-out review keeps the review log,
+  and the 20-minute foreign-owner patience can authorize reclaiming a still-live owner now that writes may run past any ceiling
+  (the agent designs options;
+  owner question to follow).
+  All sent to the agent.
+  Shipping under the owner's rule that reviews are async (2026-11-04):
+  branch-write `bafebbd512` merged to main (`9cc1060ecb`),
+  clippy clean,
+  release 0.5.31 dispatched (run 41886727366),
+  published to crates.io 2026-11-04T18:30:46Z (built from `e55cb35b07`)
+  and installed:
+  the 0.5.30 service retired on the client's request,
+  0.5.31 started (protocol 7),
+  and the sample commit on main landed in 31 ms (lock hold 28 ms);
+  its review findings follow as fixes.
+  Known in 0.5.31 and being fixed:
+  a withdrawal can be answered after the commit landed,
+  a step left running can die of SIGPIPE when the command exits,
+  and the 20-minute foreign-owner patience is shorter than main's one hour
+  (`branch-write-sol-2.txt` section 1 C;
+  options then an owner question).
+  Index lock `69650ced17` merged onto main in the integration worktree
+  `.claude/worktrees/index-lock-claims-on-main` (branch `fix/git-policy-cli-index-lock-claims-on-main`);
+  combined gate `gpc-gate-index-lock-claims-on-main-20261104T132517-0500` running;
+  on pass,
+  merge to main and release 0.5.32.
+  Combined gate passed (4812/4812) and merged;
+  the agent's review fixes (`7280815a34`,
+  gate 4824/4824 on main) merged too.
+  Owner answer (question tool,
+  2026-11-04) on the open pick:
+  "Own format only (Recommended)"
+  (each release reclaims only locks of its own marker format;
+  an older-format stale lock is left and named with its `rm`).
+  Release 0.5.32 dispatched (run 41890150737).
+  cargo-shadow:
+  owner answered "Yes,
+  add the wiring (Recommended)" for the three release-wiring edits the permission check had refused the agent
+  (`releasable-crates.json`,
+  the crate list in `crate-release.yml`,
+  `release` and `release:wait` tasks),
+  and "Done." for the first-publish token (`cargo login` in the owner's own terminal,
+  per `doc/runbook/publish-crate-first-time.md`);
+  the branch (`39b67c8748`,
+  main merged,
+  610 passed) merges after 0.5.32 is built;
+  its one `doc/decision/rust-dependency-catalog.md` hunk (`c3602e69f1`,
+  the update now living in the cargo shadow):
+  owner "Approve the edit (Recommended)" (question tool,
+  2026-11-04).
+  cargo-shadow 0.1.0:
+  the agent merges main into `feat/cargo-shadow-cli` (799 commits behind),
+  wires it into `crate-release` as `7036dca934` did for mpm-shadow,
+  then the coordinator merges and dispatches.
+  Then the cross-vendor review of the whole branch,
+  merge,
+  and release 0.5.31.
+  Done 2026-11-04:
+  0.5.32 installed;
+  cargo-shadow merged to main (`624e4ea5d2`,
+  without waiting for 0.5.32,
+  owner:
+  "you don't have to wait for that.");
+  release wiring committed (`651fc7b9a5`;
+  the crate-release cli test now reads the expected crate list from the registry);
+  0.1.0 published and Trusted Publishing config 30988 created
+  (state in "Release in flight").
+  Branch-write round 2 (agent `aa0fee0c2cf70bb31`, finished):
+  all twelve follow-up items done except item 10,
+  which is analysis only
+  (foreign-owner patience options B > C > D > A in `doc/planning/cli-git-no-unbounded-waits.md`,
+  section "Foreign-owner patience: what its expiry authorizes";
+  owner question after the round-2 review checks the analysis);
+  gate r6 passed 4827/4827 on `d2f74ce55a`.
+  Main (with the index-lock change) merged into the branch as `bbf3317aff`;
+  gate `gpc-gate-branch-write-and-tool-ceilings-r7-20261104T140212-0500` running;
+  on pass,
+  merge to main and release 0.5.33.
+  Cross-vendor round-2 reviews running:
+  `branch-write-r2-sol-1.txt` (landing record,
+  protocol,
+  client,
+  step classifier,
+  output capture)
+  and `branch-write-r2-sol-2.txt` (tool ceilings,
+  review log,
+  the foreign-owner analysis).
+  Known gap the agent left:
+  `RERUNNABLE` names `symbolic-ref` and `init` in every form,
+  and the cut experiment never ran them.
+  Round-2 reviews returned 2026-11-04,
+  both "correct after named fixes".
+  sol-1:
+  a provisional `withdrawn` decision can be acknowledged by a second withdrawer,
+  so the commit lands while the command says it was withdrawn;
+  digit-only side refs do not rule out a reflog or a symbolic ref;
+  `fast-import` is allowed by name;
+  reading captured output has no bound;
+  `.tmp` decision files leak on a failed write.
+  sol-2:
+  a review that panics after its timeout leaves service reviews refused until restart;
+  admission is not atomic;
+  the timeout path still waits on `child.wait()`;
+  `has_shadow_log` runs outside containment.
+  Round 2 still merges after gate r7 (it narrows the 0.5.31 and 0.5.32 races;
+  owner rule "Treat reviews as async.");
+  every finding went to the agent as round 3.
+  Owner answers (question tool,
+  2026-11-04,
+  verbatim choices):
+  - Foreign-owner patience:
+    "Refuse and name it (Recommended)"
+    (option B:
+    an expired record from another PID namespace stops the command,
+    changes nothing,
+    and names the record,
+    its owner's PID and namespace,
+    its age and the exact `rm`;
+    the `rm` condition also covers Git processes the wrapper left running,
+    the reviewer's addition;
+    applies to merge intent recovery,
+    claim takeover and worktree-copy journals).
+    Sent to agent `aa0fee0c2cf70bb31` with round 3.
+  - Commit notices (commit protocol plan question 4):
+    "Line plus what was kept"
+    (option B,
+    not the ranked-first one-line option:
+    every outcome prints its first line,
+    then the indented `kept:` lines and their siblings from the drafts;
+    command names stay placeholders).
+    Sent to the models agent `a9c775c9196f1d836` as decision 24.
+  Models agent:
+  step 1 (the real state document as `LaneDocument`,
+  `commit_lane_state.rs`) built;
+  `native:test:model` 499 passed,
+  both clippy tasks clean,
+  `source_guard` 39 of 39;
+  decisions 21 to 23 recorded (`e2df97729c`);
+  next:
+  the reclamation-during-capture and disposal models,
+  then a review bundle for the coordinator.
+  - Every other live pick in `doc/planning/cli-git-delegated-picks-status.md`,
+    asked in seven grouped questions,
+    each answered "Keep all (Recommended)":
+    waits and bounds (150 s connected-push quiet window,
+    10-minute foreign `index.lock` ceiling,
+    a quiet Git step redone once,
+    the 20-minute,
+    60 s,
+    10-minute and 150 s numbers,
+    to be replaced by measured values);
+    the commit design's stuck-Git and hook picks (A-kill,
+    B-hand,
+    C-kind,
+    H-version,
+    H-episode);
+    its edge-case picks (rev 6 Q1,
+    Q3,
+    Q4,
+    G-order,
+    N-silent);
+    cargo-shadow's first-round picks with its own-call limits and the 1,000-file warning;
+    reference-lock removal Q1 to Q3;
+    the merge and pull picks;
+    and the smaller shipped limits (picks 1,
+    2 remnants,
+    3,
+    5 remnants,
+    8,
+    11,
+    12,
+    13,
+    14,
+    15).
+    No delegated pick is left open.
+- cargo-shadow round 10 (tip `5be23af4b7`;
+  debug and release 571 passed,
+  5 skipped helpers;
+  map 14 rows shown,
+  2 partly) flagged two choices:
+  - A killed run whose start was not fully recorded:
+    "Record the launcher (Recommended)":
+    the launcher's process id,
+    start time and namespace are recorded,
+    recovery proves it gone before reading the scope,
+    and the acknowledgement stays only for what that cannot prove;
+    built as round 11 (tip `2c20baf0e6`;
+    578 passed,
+    6 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 14 shown,
+    2 partly).
+    Cross-vendor reviews returned:
+    `cargo-shadow-sol-11a.txt` "Does not meet the list for this part" (the launcher check's `kill` and `/proc/<pid>/stat` can address different processes when the mounted procfs serves another PID namespace;
+    the boot-id authority check follows symlinks and races with the read;
+    a `try_wait` error counted as a reap;
+    the `view` header not validated)
+    and `cargo-shadow-sol-11b.txt` "Meets it after named fixes" (D3 tolerance,
+    K2 barrier order,
+    real-launcher identity not compared,
+    missing gone-launcher-with-member case,
+    reboot control,
+    byte-prefix cuts,
+    discovery handshake);
+    no row added.
+    Round 12 done (tip `a8c7fbf8c2`;
+    584 passed,
+    8 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 14 shown,
+    2 partly;
+    the writer-side sync fault and a real interrupted publication now tested).
+    Reviews returned:
+    `cargo-shadow-sol-12a.txt` "Does not meet the list for this part" (the pidfd fdinfo check is not bound to the later stat read: a `/proc` replaced or overmounted between them makes a live launcher read as gone;
+    a changed positive number after a failed stat read as gone;
+    boot-id,
+    reap and view-header fixes accepted)
+    and `cargo-shadow-sol-12b.txt` "Meets it after named fixes" (scope comparison circular,
+    procfs fixture not discriminating,
+    publication control without completion);
+    no row added.
+    Round 13 running (suggested fix:
+    one pinned procfs directory descriptor and `openat2` with `RESOLVE_NO_XDEV`).
+    Owner,
+    asked whether deliberate tampering with `/proc` and mounts by a program running as the user is in scope (rounds 10 to 12 each found a deeper such schedule):
+    "Out of scope, keep cheap guards (Recommended)";
+    assumption a is extended to exclude it,
+    cheap guards stay,
+    and the reviews judge against that premise.
+    Round 13 done (tip `f463a87151`;
+    588 passed,
+    10 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 16 shown,
+    0 partly:
+    real kills after each step of `begin` for V3/V4 and a real shim run with a user-command sentinel for A2/R4;
+    pinned procfs reads with `openat2`;
+    only fdinfo `-1` reads as gone).
+    Review `cargo-shadow-sol-13.txt`:
+    "Does not meet the list":
+    12a findings closed or excluded,
+    12b repairs closed;
+    a new counterexample needing no tampering:
+    `/proc/<pid>/stat` field 22 is offset by the reader's time namespace,
+    so a recovery in another time namespace reads a live launcher as gone;
+    the shim test does not prove the delegated route and the intended fault;
+    no row added.
+    Round 14 done (tip `2530e617f4`,
+    2026-11-04T10:02:46-05:00;
+    590 run,
+    590 passed,
+    11 skipped;
+    clippy clean):
+    the launcher line carries the writer's time namespace inode and recovery answers Unknown on a mismatch,
+    an unreadable side or an older line without one
+    (measured: `unshare --time --boottime 7200` moves the same process's field 22 by 720000 ticks);
+    the shim test now asserts the delegated scope,
+    the consumed `ContainmentStopStuck` fault and the not-quiescent refusal.
+    Change review `cargo-shadow-sol-14.txt`:
+    "Does not meet the list for the changes; not ready for the certification pass":
+    the distinct-time-namespace schedule and the shim evidence are closed;
+    namespace inode numbers are recycled,
+    and a writer's current time namespace can differ from its children's,
+    so a recorded number can name a later namespace and a live launcher reads as gone;
+    the shifted-start prerequisite accepts a read error,
+    and the recovery assertion does not name its refusal.
+    Round 15 sent to the agent (`ae0fbdf78c31bd757`):
+    a namespace-independent launcher identity (suggested:
+    the pidfs inode of the launcher's pidfd,
+    to be verified from the kernel source),
+    else Unknown on any start mismatch whose basis is unproven;
+    both test assertions tightened.
+    Round 15 done (tip `946615ef52`,
+    2026-11-04T10:23:39-05:00;
+    592 run,
+    592 passed,
+    12 skipped;
+    clippy clean):
+    the review's recycled-number schedule was built unprivileged and went red first;
+    fix:
+    Gone only when no process has the id in the recorded pid namespace,
+    any other start time is Unknown (a reused pid now needs `cargo-shadow acknowledge`),
+    and the time-namespace number left the record;
+    pidfs inode rejected after reading `fs/pidfs.c` (an `ida`,
+    reused,
+    from 6.9 to 6.13);
+    both assertions tightened.
+    Change review `cargo-shadow-sol-15.txt`:
+    "Meets the list for the changes; ready for the separate certification pass";
+    no defect,
+    two wording qualifications (namespace recycling after the last reference;
+    "blocks" applies to a launcher classified Alive).
+    Sent to the agent:
+    those wording fixes and the certification bundles (row groups under 250 KB each,
+    whole named test files plus the support they call,
+    manifest `cargo-shadow-cert-manifest.md`).
+    Wording fixed (tip `d5a8753488`);
+    bundles ready (three groups of about 232 KB:
+    group 1 rows A1,
+    V1,
+    V2 amended c,
+    V6;
+    group 2 A1/V3,
+    A1/A2,
+    A2/R4,
+    V3/V4;
+    group 3 A3/A4,
+    R1,
+    R2,
+    R3/R5,
+    K1,
+    K2,
+    V5,
+    weaker path).
+    Certification reviews of groups 1 and 2 running (`cargo-shadow-cert-sol-1.txt`,
+    `cargo-shadow-cert-sol-2.txt`);
+    group 3 queued for the next free review slot (prompt `cargo-shadow-cert-prompt-3.txt` written);
+    group 2 `cargo-shadow-cert-sol-2.txt`:
+    "not certified" (scope lifecycle shown;
+    spawn isolation,
+    post-start failures and recording partly shown:
+    the overlap misses the real spawn boundary,
+    no post-spawn startup-completion failure,
+    fault arming not told apart from consumption,
+    no write-sync-launch ordering,
+    no proof of the containment kind attempted);
+    no production defect;
+    sent to the agent as evidence fixes;
+    group 1 `cargo-shadow-cert-sol-1.txt`:
+    "not certified" (V1 shown;
+    A1,
+    V2 amended c and V6 partly:
+    direct-child reaping not observed,
+    zombie fixture not run through the timeout,
+    malformed and survivor tests accept another blocking cause,
+    view tests only classify,
+    no stalled scope-startup or shutdown deadline,
+    lock tests do not time the answer,
+    the pipe-holder `alive` oracle fails open,
+    one timeout test checks only text);
+    sent to the agent as well;
+    group 3 `cargo-shadow-cert-sol-3.txt`:
+    "Not certified" (all eight rows partly shown:
+    completion failures with an operational error,
+    kept files not read back,
+    one inode not inventoried,
+    rollback refusal cause unasserted,
+    combined kept size,
+    the barrier after the kept link,
+    active recovery's own finish,
+    weaker-path capability classes,
+    lock and two-journal schedules;
+    and the shared `journal_dirs` helper reads an unreadable directory as empty);
+    no production defect;
+    all three groups' fixes sent;
+    done (tip `d5ab71ea62`,
+    609 run,
+    609 passed,
+    13 skipped;
+    clippy clean;
+    16 of 31 items with a planted-regression red run;
+    gaps:
+    no real uninterruptible-member shutdown,
+    no plant for five tests);
+    bundles rebuilt in four groups (`cargo-shadow-cert-1-a1-v2amendedc-weakerpath.txt` 239 KB,
+    `-2-a1v3-r1-r2-v3v4-v5` 235 KB,
+    `-3-a1a2-v6` 230 KB,
+    `-4-a2r4-a3a4-r3r5-k1-k2-v1` 235 KB);
+    prompts `cargo-shadow-cert2-prompt-1..4.txt` written (group 1 without the manifest to stay under 250 KB);
+    second certification pass running (outputs `cargo-shadow-cert2-sol-1..4.txt`);
+    group 4 returned "not certified":
+    A2/R4 and V1 shown,
+    A3/A4,
+    R3/R5,
+    K1 and K2 partly (five evidence fixes,
+    no production defect);
+    group 1:
+    A1,
+    V2 amended c and weaker path all partly (process and thread oracles that can still pass falsely,
+    fixtures and unsettled-scope bodies missing from the bundle,
+    lost-record evidence stopping at classification,
+    a notice formatted but not observed,
+    writer-side acknowledgement durability untested);
+    group 2:
+    R1 shown;
+    A1/V3,
+    R2 (circular EROFS inventory,
+    conflict and undo preservation failures unexercised),
+    V3/V4 and V5 partly;
+    group 3:
+    A1/A2 shown;
+    V6 partly (pipe draining has no bounded-return assertion;
+    helper bodies missing from the bundle);
+    4 of 16 rows shown across the pass,
+    no production defect;
+    all four groups' fixes sent to the agent,
+    with a cutter that fails when a named test's helpers are not in its group,
+    and as many smaller groups as needed;
+    after they pass,
+    the owner's approval for the first crates.io publish.
+    Queued after a change review with no defect:
+    a certification pass that attaches the test bodies the map names,
+    split by row group under 250 KB per review,
+    because the sources total 2.36 MB and every change review so far called the unchanged rows unavailable.
+- Test images from pacman merged to main (`85984b790e`;
+  branch tip `4bafaa418d`;
+  gate 4754/4754 with passing names identical to a main control except the tests the owner's older-Git decision changed;
+  e2e identical to main,
+  same seed,
+  the known `sigkill-service-during-work` failure unchanged;
+  `native:clippy` on main clean):
+  Git 2.56.0,
+  Node 26.12.1,
+  pnpm 12.17.0,
+  strace 7.3,
+  cargo-nextest 0.9.150 and Rust 1.99.1 all from pacman with signatures checked;
+  the wrapper warns on a Git older than `MINIMUM_GIT_VERSION` 2.56.0 and continues.
+  Follow-ups:
+  `bin/native-nextest-snapshot.ts` stays because the fuzz sidecars import it;
+  the minimum is raised by hand when `test:git-image` reports a newer Git (no automated check yet).
+  Ships in the next release with the branch-write and tool-ceiling fixes.
+- 0.5.30 published (crates.io 2026-11-04T14:27:24Z,
+  run 41846701765) and installed (`5c2fb3a5b2`):
+  it ships the claim chain;
+  the sample commit took 1690 ms,
+  1197 ms of it provisioning the upgraded service;
+  the landing took 29 ms.
+- Models round 15 review part 10b:
+  "no, as submitted":
+  the fresh-attempt model binds delivery to the current attempt counter,
+  so an older stored notice printed after a new attempt starts authorizes reclaiming that attempt;
+  bind notice,
+  printing and removal to the producing attempt;
+  the reclaim row should point to the claim-chain evidence;
+  no criterion added.
+  Part 10a:
+  "does not meet the claimed items as submitted" (2A closure still caller-declared;
+  2B adoption of an existing read-only inode;
+  2E ancestry is not a covering relation;
+  3A the launcher's lock copy blocks the handover;
+  3B helpers unbounded after release;
+  3C descriptors 0 to 2;
+  3D ready byte with an unreaped first child);
+  no criterion added.
+  Round 16 done (tip `93dbc86b80`;
+  451 model tests passed;
+  map unchanged at 64,
+  17,
+  9,
+  17);
+  every 10a and 10b finding fixed except 3B,
+  recorded as a coordinator pick (veto open):
+  helpers stopped from outside after their lock release are not bounded,
+  because no release-then-recheck protocol found bounds them without missing a receipt or adding a wait;
+  the launch row is Narrower.
+  Disclosed:
+  a round 15 test had been cut by a later round 15 edit and is restored;
+  the map check only tests names in its test column.
+  Review `commit-models-sol-11.txt`:
+  "no, as submitted":
+  2B,
+  3C and 10b closed;
+  2A closure still lets a dependency outside the scanned places (an order file without its needs line) reclaim a predecessor;
+  2E head equality credits every record in the chain,
+  so one checkpoint can drop an acknowledged promise whose hash lands in the lineage;
+  3A a handover timeout still runs the helper,
+  and the intermediate child still holds a lock copy when GO is sent;
+  the forced cleanup ignores `kill` and `waitpid` results;
+  descriptor normalization leaks on an `EMFILE` path;
+  3B as a Narrower row does not meet the target's resource bound,
+  and the reviewer names a bounded protocol with no wait and no second lock:
+  keep the admission token until process exit and hand a contender's receipt to the persisted syncer retry path.
+  Coordinator pick,
+  decided by the fixed acceptance target:
+  build that protocol,
+  so the 3B narrowing is withdrawn.
+  Round 17 done (tip `8425cf376f`;
+  462 model tests passed;
+  both clippy variants clean;
+  map unchanged at 64,
+  17,
+  9,
+  17):
+  the handover wait and the intermediate child fixed (reap,
+  close the launcher copy,
+  then the byte,
+  then an acknowledgment);
+  checked kill and reap;
+  every descriptor owned on every path (EMFILE tests);
+  only a checked `LaneDocument` checkpoint reclaims,
+  and lineage names only reclaimed records.
+  Coordinator direction,
+  from the review's two options and the bounded log:
+  extend `LaneDocument` with whatever the real lane state needs once that state is built;
+  only states not yet represented stay non-reclaiming.
+  3B not built:
+  the model checker finds two schedules where the reviewer's token-to-exit protocol misses a receipt
+  (a planned shutdown with no owner left to retry,
+  and a client that cannot start one during the shutdown);
+  the launch-bound row stays Narrower.
+  Cross-vendor review running:
+  `commit-models-sol-12.txt` (prompt `commit-models-prompt-12.txt`),
+  asked whether those misses are real under the target and whether any bounded protocol avoids them.
+  Review `commit-models-sol-12.txt`:
+  "no, as submitted";
+  2A,
+  2E,
+  the successful-launch windows,
+  the unchecked calls and the descriptor leaks closed;
+  the two 3B misses are genuine but disprove only reliance on the service's retry,
+  and the reviewer names a singleton service-independent retry owner per lane holding the token for its lifetime;
+  new defects:
+  launcher death before handover leaves joined receipts unowned,
+  a failed grandchild can still hold the lock after the failure was recorded,
+  and `LaneDocument` dependencies are not validated on append admission or recovery.
+  Round 18 sent to the models agent:
+  fix those three,
+  and model the bound's candidates (the reviewer's singleton owner,
+  a sealed-lane inline force by the client,
+  any other,
+  the built one as comparison) with misses,
+  helper count,
+  waits,
+  locks,
+  recursion and foreground cost each,
+  building none;
+  the owner question on the bound goes out with that table.
+  Round 18 done (tip `e07d9e2fbe`;
+  471 model tests passed;
+  clippy clean;
+  map unchanged):
+  A,
+  B and C fixed red first (only the launcher carries the lock during a launch,
+  the helper takes it after the handover;
+  the launcher's drop is the last release before receipts are recorded;
+  checked documents validated at admission,
+  checkpoint start and recovery).
+  Bound comparison (`model_helper_bound_r20.rs`):
+  built release-recheck-exit no miss,
+  helpers grow with clients;
+  singleton owner no miss,
+  two processes,
+  but a lasting owner needs the unbuilt unit route (logout ends the fallback scope);
+  inline only while sealed misses;
+  inline whenever the token is held,
+  token to exit:
+  no miss,
+  one helper,
+  the client syncs its own receipt only when a flusher is at work (median 11.4 ms,
+  max 77.1 ms,
+  20 samples at load 14);
+  baton no miss but needs the unit route;
+  the agent ranks inline-whenever-held first.
+  Review `commit-models-sol-13.txt`:
+  "no, as submitted";
+  C closed;
+  A and B reopen through deeper timings (a handover timeout then launcher death;
+  the intermediate child's inherited lock copy before its first close with failed cleanup);
+  protocol 4 misses a receipt when the client dies before its own force,
+  its one-helper bound breaks while launched helpers are delayed before taking the lock,
+  and no time bound is shown for its foreground sync;
+  the comparison omits client death,
+  worker death,
+  launch interleaving and mixed versions,
+  and its crash exemption is too broad;
+  new plain bug:
+  a helper that fails to take the lock is acknowledged as a launched executor.
+  Third "no" in a row where each closed finding is replaced by a deeper interleaving of the same family
+  (launch,
+  handover,
+  death,
+  cleanup);
+  the coordinator stopped sending fix-everything rounds (second opinion concurred).
+  The helper-count bound is the reviewer's acceptance target ("launch is non-recursive and resource-bounded"),
+  not an owner rule;
+  the supported scope was fixed by the coordinator,
+  veto open.
+  Sent to the models agent now:
+  the plain bug and the map and comparison corrections only.
+  Owner answer (question tool,
+  2026-11-04):
+  "Keep built,
+  state limit (Recommended)"
+  (keep release,
+  recheck and exit;
+  the helper count is bounded only by the commits that arrive during those milliseconds,
+  overriding the reviewer's limit;
+  the plain launch bugs still get fixed).
+  Plain bug fixed (tip `2ba400d898`,
+  472 model tests passed:
+  a helper that cannot take the lock is a failed launch with every receipt recorded,
+  and it records them itself too;
+  `record_errors` writes each line in one write after interleaved lines were seen);
+  map and comparison claims narrowed,
+  the round 18 ranking withdrawn.
+  Round 19 done (tip `e514bb736d`,
+  473 model tests passed):
+  the launcher holds no lock for the launch,
+  it probes the lock and forks only when it was free,
+  and the helper takes the lock itself;
+  the handover byte and its timeouts are gone.
+  Review `commit-models-sol-14.txt`:
+  "no, as submitted":
+  the probe itself is a false owner
+  (a client holding its probe makes another client return `LockHeld`,
+  then dies before launching,
+  and nobody forces the second receipt);
+  claims about who holds the lock and for how long overstated.
+  Round 20 sent:
+  only a process that lists and forces after acquiring may hold the flusher lock
+  (drop the probe or test without acquiring),
+  the reviewer's four regressions red first,
+  claims corrected;
+  parts to `commit-models-15-part-<n>-<topic>.diff`.
+  Round 20 done (tip `924f8edd76`,
+  476 model tests passed):
+  the probe is dropped,
+  every client forks a helper (launch to acknowledgment median 0.66 ms,
+  20 samples),
+  and only processes that list after acquiring hold the lock.
+  Review `commit-models-sol-15.txt`:
+  "Yes after named fixes,
+  for the models/components' claimed coverage—not approval of the live protocol";
+  fixes:
+  the late-receipt argument (release and recheck,
+  not acquisition order),
+  the three probe controls do not establish their interleavings,
+  reap and timing wording,
+  and a cutover obligation for old probe-capable clients.
+  Round 21 done (tip `be89e6a319`,
+  479 model tests passed,
+  map 64,
+  17,
+  9,
+  18 not yet,
+  108 rows):
+  the release-and-recheck argument with a new control,
+  three production acquisition sites listed,
+  negative controls rebuilt on a test-only legacy probe seam,
+  reap and timing wording corrected,
+  and one Not-yet cutover row for old probe-capable clients.
+  Review `commit-models-sol-16.txt`:
+  "Yes—for the models/components' claimed,
+  explicitly limited coverage.
+  Not approval of the live protocol."
+  The model rounds have converged
+  (limits kept:
+  `assert_never_recorded` observes 1.5 s;
+  `the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock` does not force a failed recheck acquisition).
+  Next phase sent to the models agent:
+  the declared disposable Git experiments for the supported scope,
+  and an ordered plan for the remaining live-approval gates (cutover fence,
+  lifecycle and forcing at real call sites,
+  recovery and preservation,
+  installation and latency) in the design file,
+  owner decisions marked as questions.
+  Done:
+  Git experiments (tip `40c8ff7baa`,
+  490 model tests;
+  files and reftable,
+  packed refs,
+  symbolic refs,
+  side ref,
+  linked worktrees,
+  kill at each boundary;
+  under reftable one `tables.list.lock` blocks every ref) and the seven-step plan (`a1308f6d8c`,
+  section "Ordered plan to the live protocol (round 22)").
+  Owner answers (question tool,
+  2026-11-04):
+  state document "Checked format (Recommended)";
+  launch route "Systemd unit + fallback (Recommended)" (lifts the "manager-started route,
+  until built" exclusion);
+  cutover fence "New lock name (Recommended)".
+  The notice-text question waits for drafted example texts;
+  step 1 (the real state document) is the next build.
+  - Trusting the boot id:
+    "Check and state premise (Recommended)":
+    procfs magic and no mount on top of `boot_id`,
+    plus the stated premise that the serving kernel ran the old run.
+- Index reclamation without `flock`:
+  merged to main `38de589e7a` (branch tip `ceafded580`,
+  gate 4769/4769,
+  its own cross-vendor review `claim-chain-sol-1.txt` folded in);
+  the claim chain of placed files where `flock` is refused.
+  Owner,
+  asked about the mixed-mount race it left (a `flock` reclaimer and a claim reclaimer on one file):
+  "Claim files always (Recommended)";
+  so every reclaimer takes the claim chain and the `flock` path for this is retired.
+  Follow-up running on `fix/git-policy-cli-index-lock-claims-always`:
+  that change,
+  plus the machine id in markers and claims (a different machine is unknown,
+  never gone;
+  same machine with a different boot is gone),
+  the coordinator's application of the rule the owner kept for cargo-shadow.
+- Models round 15 done (tip `d650198dcf`;
+  440 model tests passed;
+  map 64 covered,
+  17 narrower,
+  9 historical,
+  17 not yet);
+  coordinator picks under the owner's rules sent back before its review (veto open):
+  saved content made immutable by its creator (O_TMPFILE or a private name,
+  read-only before it is named) instead of depending on read leases;
+  the running syncer retries recorded receipt errors;
+  linked worktrees,
+  packed refs,
+  the side-ref transaction and create,
+  delete and symbolic-ref updates are obligations to demonstrate,
+  not exclusions (exclusions:
+  level 2,
+  a threaded launcher,
+  the memory or process cap,
+  the transient-unit route until built).
+  Applied at tip `249589f623` (442 model tests passed;
+  map unchanged at 64,
+  17,
+  9,
+  17);
+  the scope paragraph and the two picks are in the design (`f8f129af86` on `fix/git-policy-cli-commits-never-fail`,
+  section "Acceptance target").
+  Cross-vendor reviews running:
+  `commit-models-sol-10a.txt` (components,
+  launch and flusher) and `commit-models-sol-10b.txt` (models and map),
+  prompts `commit-models-prompt-10a.txt` and `-10b.txt`.
+- #6261 native-layer move:
+  "Defer until branches merge (Recommended)".
+- Fallback to the installed real Git (four picks):
+  "Keep all (Recommended)".
+
 ### Nothing waits forever
 
 The owner,
@@ -2903,6 +4894,22 @@ section "Owner questions for revision 12"):
   a power cut while it still waits loses that attempt,
   as with native Git).
   The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
+
+### Commit protocol question 8 answer
+
+Asked at 2026-11-04T05:07-05:00 through the question tool,
+after the review of revision 19 (`commits-never-fail-sol-19a.txt`) found it "accurate after one small precision edit",
+which was applied (`b98b3cad18`).
+The owner picked "Retry it,
+leave a notice (Recommended)":
+when recovery after a power loss finds no decisive positive authority for a request that had returned success,
+it makes a fresh attempt and the next wrapper command in that worktree prints an outcome-specific stored notice
+(published with the new commit's id and the command to drop it,
+or why it stopped).
+The rare case where a commit removed on purpose comes back,
+not promised to happen only once,
+is accepted.
+Recorded as decision 19 in the design.
 
 ### Commit protocol revision 15 answers
 
@@ -3309,7 +5316,19 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   a dry-run publish and a real-credential commit have passed."
   It was given for that session;
   releases since have gone through `crate-release` under it.
-  Any other first crates.io publication needs the owner's explicit approval (the cargo-shadow 0.1.0 publish is one).
+  This session (2026-11-04) the owner said:
+  "I'm authorizing you to bump and publish any updates this session."
+  It covers every crate,
+  a crate's first publication included;
+  the owner,
+  2026-11-04,
+  on an earlier coordinator line that required approval for a first publication:
+  "Didn't I always give you approval to publish?"
+  and "By "first" I meant "first in this session of any crate"",
+  and "didn't I also say reviews and mutation testings don't block publishing?".
+  Earlier (session transcript): "Mutation runs don't block publish and release."
+  So reviews and mutation campaigns never block a merge or a publish;
+  their findings become follow-up fixes and later releases.
 - Release order for the wrapper:
   gate passes (`gate-exit-status=0` and the nextest summary),
   merge to main,
@@ -3353,8 +5372,18 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   There is always more work."
   and
   "Avoid wasting compute on stuff that would be shortly superseded."
-- Cross-vendor reviews run through `pi` (see `CLAUDE.md`);
-  keep at most three running.
+- Cross-vendor reviews run through `pi` (see `CLAUDE.md`),
+  each in its own scope (1 CPU,
+  2 GiB),
+  as many at once as there is work:
+  the owner asked "make sure we're running everything that can be run in parallel in parallel".
+  An earlier "keep at most three running" was the coordinator's own unmeasured guess at the cause of the timeouts
+  (added 2026-11-02,
+  `f0780fff47`),
+  never an owner rule;
+  removed 2026-11-04 after the owner asked who set it.
+  Whether concurrency affects the timeouts is unmeasured;
+  record each run's concurrency and outcome before limiting again.
   Several have timed out at 3600 s with no output and an empty session folder
   (`~/.pi/agent/sessions/--var-mnt-encrypted-temp-agent-review-*--/`):
   the run stalled inside `pi` before sending.

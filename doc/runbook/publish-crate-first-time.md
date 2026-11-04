@@ -31,15 +31,19 @@ on 2026-09-25 for `monochromatic-jsonc-edit` 0.1.0:
    and a freshly minted token is a secret that policy keeps out of the agent conversation.
 
 Division of labor after this runbook:
-you create the token,
-sign cargo in,
-and configure Trusted Publishing in the crates.io dashboard.
-Everything else,
+you create one token with the scopes `publish-new`,
+`publish-update` and `trusted-publishing`,
+and sign cargo in with it (`cargo login` in your own terminal).
+That is the whole owner part.
+Everything else is agent work:
 the real `cargo publish`,
 registry verification,
 a disposable consumer build against the published crate,
-and the workflow dispatch that proves the OIDC route,
-is agent work.
+creating the Trusted Publishing configuration through the crates.io API with the same token
+(`Agent: create the Trusted Publishing configuration`),
+and the workflow dispatch that proves the OIDC route.
+The dashboard route (steps 12 to 16 of `Steps`) is only a fallback when the token lacks the `trusted-publishing` scope.
+This flow is how `monochromatic-search-shadow` and `monochromatic-mpm-shadow` were published on 2026-10-29.
 
 ## Crate and version covered
 
@@ -113,12 +117,17 @@ TODO
    Expected outcome:
    the form shows the chosen expiry.
    A bootstrap token never needs to live longer than the publish.
-5. Select the **publish-new** scope and the **publish-update** scope.
+5. Select the **publish-new**,
+   **publish-update** and **trusted-publishing** scopes.
    Expected outcome:
-   both scopes are checked,
+   those three scopes are checked,
    and no other scope is.
    `publish-new` creates the crate;
-   `publish-update` is needed if the first attempt fails partway and you retry.
+   `publish-update` is needed if the first attempt fails partway and you retry;
+   `trusted-publishing` lets the agent create the crate's Trusted Publishing configuration through the API,
+   so you never open the crate's settings page.
+   Under **Crates**,
+   restrict the token to the crate names being published when the form offers it.
 6. Click **Generate Token**.
    Expected outcome:
    the new token appears in the list and its secret value is shown once,
@@ -150,7 +159,13 @@ TODO
     If you prefer to publish yourself,
     run `cargo publish --no-verify` in `package/jsonc-edit/core-rust`;
     expected outcome is `Uploading monochromatic-jsonc-edit v0.1.0` with no error line.
-12. Open <https://crates.io/crates/monochromatic-jsonc-edit/settings>.
+    The agent then creates the Trusted Publishing configuration itself
+    (`Agent: create the Trusted Publishing configuration`, after `Steps`),
+    so steps 12 to 16 are skipped when the token carries the `trusted-publishing` scope;
+    go on with step 17 once the agent reports the configuration.
+12. Fallback only,
+    when the token lacks the `trusted-publishing` scope:
+    open <https://crates.io/crates/monochromatic-jsonc-edit/settings>.
     Expected outcome:
     the crate's settings page,
     which only exists once step 11 succeeded.
@@ -189,6 +204,46 @@ TODO
     Expected outcome:
     the token disappears from the list.
     From now on the workflow authenticates with a 30-minute OIDC token instead.
+
+### Agent: create the Trusted Publishing configuration
+
+Status:
+TODO for each new crate;
+done this way for `monochromatic-search-shadow` (config 29473),
+`monochromatic-mpm-shadow` (config 29493)
+and `monochromatic-cargo-shadow` (config 30988,
+with `/var/home/user/temp/agent/trustpub-create.ts <crate>`,
+which reads the token in-process and prints only statuses and publisher fields).
+
+After the publish,
+with the owner's token from `cargo login` still in `~/.cargo/credentials.toml`:
+
+1. Read the token from the credential file inside the script that makes the request,
+   never on a command line,
+   in an environment variable another process can read,
+   or in any output;
+   print only HTTP statuses and the returned ids.
+2. `POST https://crates.io/api/v1/trusted_publishing/github_configs`
+   with the token in the `Authorization` header,
+   a `User-Agent` naming the tool,
+   and the body
+   `{"github_config": {"crate": "<name>", "repository_owner": "Aquaticats", "repository_name": "Monochromatic",
+   "workflow_filename": "cargo-publish.yml", "environment": null}}`.
+   Expected outcome:
+   HTTP 200 with a `github_config` whose `repository_owner_id` is `343218767`.
+   crates.io's handler requires the token's `trusted-publishing` endpoint scope and that the token's owner owns the crate,
+   has a verified email and a linked GitHub account
+   (`src/controllers/trustpub/github_configs/create.rs`,
+   `.with_endpoint_scope(EndpointScope::TrustedPublishing)`,
+   at [rust-lang/crates.io `e0edaf98`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/src/controllers/trustpub/github_configs/create.rs#L51-L57),
+   read 2026-11-04);
+   the body fields are `NewGitHubConfig` in
+   [`crates/crates_io_api_types/src/trustpub.rs`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/crates/crates_io_api_types/src/trustpub.rs#L27-L39).
+   A crate holds at most five GitHub configurations.
+3. List it back with `GET https://crates.io/api/v1/trusted_publishing/github_configs?crate=<name>`;
+   `DELETE .../github_configs/<id>` removes a wrong one.
+4. Prove the route with the two dispatches in `What to check` item 5,
+   then tell the owner the token can be revoked (step 17).
 
 ### What to check
 
@@ -468,6 +523,68 @@ as measured:
   exists. The equivalent is `cargo binstall --no-confirm --root <dir> --version <version> monochromatic-mpm-shadow`,
   which `mpm-shadow install` runs for every cargo-binstall tool (`package/mpm-shadow/cli/README.md`,
   "Cargo tool installs"); a fresh machine takes the archive row of the `mpm-shadow` tool in `toolchain.lock.json`.
+
+## monochromatic-cargo-shadow 0.1.0
+
+Status:
+0.1.0 published and released on 2026-11-04;
+Trusted Publishing configured and exercised by CI.
+Owner action remaining:
+none.
+The owner revoked the `cargo login` token made for this publish on 2026-11-04 (question tool:
+"Revoked it (Recommended)"),
+and `cargo logout` then removed the dead credential from `~/.cargo/credentials.toml`
+(no `token` line left).
+
+Crate `monochromatic-cargo-shadow`,
+version `0.1.0`,
+path `package/cargo-shadow/cli`,
+license `LGPL-3.0-or-later`.
+Workflow jobs:
+`cgs-detect`,
+`cgs-publish-crate`,
+`cgs-release-state`,
+`cgs-build-binary`,
+`cgs-create-release`.
+
+What happened,
+as measured:
+
+- Release wiring for later versions (`releasable-crates.json`,
+  the crate choice in `crate-release.yml`,
+  `release` and `release:wait` in the package's `mise.toml`) landed on main as `651fc7b9a5` before the publish.
+- `mise run //package/cargo-shadow/cli:publish:dry-run` packaged and verified,
+  then `mise run //package/cargo-shadow/cli:publish` uploaded `0.1.0` with the owner's token.
+  Its dependency `monochromatic-dependency-catalog` 0.2.0 was already on crates.io,
+  published by `cargo-publish.yml` when the cargo-shadow merge reached main.
+  crates.io lists `0.1.0` with `LGPL-3.0-or-later`,
+  `crate_size` 556333 and a description.
+- Trusted Publishing was created through the API:
+  `POST https://crates.io/api/v1/trusted_publishing/github_configs` with owner `Aquaticats`,
+  repository `Monochromatic`,
+  workflow `cargo-publish.yml` and no environment returned config `30988` with `repository_owner_id` 343218767,
+  and `GET` with `?crate=monochromatic-cargo-shadow` lists it.
+- A dispatched dry run (run `41893310452`) passed `cgs-detect`,
+  `cgs-release-state`,
+  `cgs-publish-crate` and both `cgs-build-binary` targets,
+  and skipped `cgs-create-release`.
+- The dispatch with dry-run off (run `41893318423`) authenticated through Trusted Publishing
+  (`rust-lang/crates-io-auth-action`),
+  skipped the upload that exists,
+  built both archives,
+  and created the immutable release `monochromatic-cargo-shadow-v0.1.0` with
+  the x86_64 and aarch64 archives and `monochromatic-cargo-shadow-0.1.0-sha256sums.txt`.
+- Consumer checks in a disposable directory (`/var/home/user/temp/agent/cgs-consumer-check.ts`):
+  `sha256sum --check` on the x86_64 archive passed;
+  `gh attestation verify --format json` returned SLSA provenance v1 for the archive
+  (sha256 `b4be3d8a28b62b9f0a4e8a52742a89504408845ae358fe14035c8c15a7b4ba4e`),
+  signed by `.github/workflows/cargo-publish.yml@refs/heads/main`
+  (the plain form exits 0 and prints nothing);
+  `cargo binstall --no-confirm --root <dir> --version 0.1.0 monochromatic-cargo-shadow` with a fresh `CARGO_HOME`
+  and `.cache/toolchain-bin` on PATH installed a binary whose SHA-256 equals the archive's
+  (`eedc1c513266f2d83b7f69a7a7e646306c70a5ac0fb30355db5d94eaa3faa009`),
+  so binstall used the release and did not compile,
+  and `cargo-shadow --version` printed `cargo-shadow 0.1.0`.
 
 ## The five file-enforcer crates 0.1.0
 

@@ -68,6 +68,14 @@ fn is_compact_hex_id(text: &str) -> bool {
     return text.len() == BOOT_ID_LENGTH && text.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
 }
 
+/// Whether `text` is a machine ID: 32 lowercase hexadecimal digits that are not all zero. An uppercase text, an all-zero one and
+///  a fresh image's `uninitialized` are no evidence of a machine, and reading one as an ID would make hosts look like one machine.
+pub(crate) fn is_machine_id(text: &str) -> bool {
+    return text.len() == BOOT_ID_LENGTH
+        && text.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); })
+        && text.bytes().any(|byte| { return byte != b'0'; });
+}
+
 /// The boot ID of this host's current boot, without dashes, or nothing when it cannot be read.
 pub(crate) fn current_boot_id() -> &'static str {
     static BOOT_ID: OnceLock<String> = OnceLock::new();
@@ -93,7 +101,7 @@ fn machine_id_from(paths: &[&Path]) -> String {
         let Ok(text) = std::fs::read_to_string(path) else {
             continue;
         };
-        if is_compact_hex_id(text.trim()) {
+        if is_machine_id(text.trim()) {
             return text.trim().to_owned();
         }
     }
@@ -101,7 +109,11 @@ fn machine_id_from(paths: &[&Path]) -> String {
 }
 
 /// The machine ID of this host, read once, or nothing when it cannot be read.
-fn current_machine_id() -> &'static str {
+pub(crate) fn current_machine_id() -> &'static str {
+    #[cfg(test)]
+    if let Some(injected) = test_machine::injected() {
+        return injected;
+    }
     static MACHINE_ID: OnceLock<String> = OnceLock::new();
     return MACHINE_ID
         .get_or_init(|| {
@@ -109,6 +121,26 @@ fn current_machine_id() -> &'static str {
             return machine_id_from(paths.as_slice());
         })
         .as_str();
+}
+
+/// A machine ID a control gives this thread in place of the host's, so that a control does not depend on the host having one.
+#[cfg(test)]
+pub(crate) mod test_machine {
+    use std::cell::Cell;
+
+    thread_local! {
+        static INJECTED: Cell<Option<&'static str>> = const { Cell::new(None) };
+    }
+
+    /// What this thread's machine ID is: the injected text (empty for a host with none), or nothing injected.
+    pub(crate) fn injected() -> Option<&'static str> {
+        return INJECTED.with(Cell::get);
+    }
+
+    /// Gives this thread the machine ID `id` (empty for a host with none) until the thread ends.
+    pub(crate) fn inject(id: &'static str) {
+        INJECTED.with(|cell| { cell.set(Some(id)); });
+    }
 }
 
 /// Methods over a reading.
@@ -234,6 +266,7 @@ impl ClaimTime {
         let wall_seconds: u64 = parts[2].parse().ok()?;
         let machine_id: &str = parts.get(PARTS_WITH_MACHINE - 1).copied().unwrap_or("");
         let boot_id_fits: bool = boot_id.is_empty() || is_compact_hex_id(boot_id);
+        // A stored stamp is read as it was written: an uppercase or all-zero machine ID that an earlier release accepted still decodes.
         let machine_id_fits: bool = parts.len() == PARTS_WITHOUT_MACHINE || is_compact_hex_id(machine_id);
         if !boot_id_fits || !machine_id_fits {
             return None;

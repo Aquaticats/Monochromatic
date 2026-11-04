@@ -301,3 +301,22 @@ fn a_withdrawal_round_trips_and_a_hostile_identity_is_refused() {
         assert!(decode_client(line.as_str()).is_err(), "{line}");
     }
 }
+
+/// A `waiting` line that says the client's request is inside the stuck branch write is the `waiting` message with one extra field,
+/// so a client of this release reads it as `InsideWrite` and a client that does not know the field reads the same line as the
+/// `waiting` notice it is (type and text unchanged); and a `waiting` line without the field, which is all an older service sends, is a
+/// plain `Waiting`. The protocol version stays, because neither side needs the other to know the field.
+#[test]
+fn an_inside_write_notice_is_a_waiting_line_with_one_extra_field() {
+    let inside: ServiceMessage = ServiceMessage::InsideWrite { text: String::from("cli-git: the commit service has been inside a write") };
+    let line: String = encode_service(&inside);
+    assert_eq!(decode_service(line.as_str()), Ok(inside));
+    let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
+    assert_eq!(value.get("type").and_then(serde_json::Value::as_str), Some("waiting"));
+    assert_eq!(value.get("text").and_then(serde_json::Value::as_str), Some("cli-git: the commit service has been inside a write"));
+    assert_eq!(value.get("inside_write").and_then(serde_json::Value::as_bool), Some(true));
+    // What an older service sends, and what the same line reads as when the field is false.
+    for older in [r#"{"type":"waiting","text":"t"}"#, r#"{"type":"waiting","text":"t","inside_write":false}"#] {
+        assert_eq!(decode_service(older), Ok(ServiceMessage::Waiting { text: String::from("t") }), "{older}");
+    }
+}

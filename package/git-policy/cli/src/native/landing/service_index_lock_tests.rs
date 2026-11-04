@@ -37,7 +37,7 @@ fn dead_pid() -> i64 {
 
 /// The marker text of a service holder `pid` born as `birth`.
 fn marker_of_holder(seq: u64, pid: i64, birth: &str) -> String {
-    return format!("{LOCK_MARKER}{seq} {pid} {birth}\n");
+    return format!("{LOCK_MARKER}{}{seq} {pid} {birth}\n", crate::service_index_marker::MARKER_VERSION);
 }
 
 /// The names in the index's directory other than the index and its lock.
@@ -286,7 +286,7 @@ fn a_holder_proven_alive_is_waited_for_with_no_bound() {
 #[test]
 fn a_dead_service_instances_lock_does_not_block_the_next_landing() {
     let (root, index) = index_in("index-lock-dead-instance");
-    std::fs::write(lock_path_of(&index), "cli-git-service 99\n").expect("an earlier release's lock");
+    std::fs::write(lock_path_of(&index), marker_of_holder(99, dead_pid(), "gone")).expect("a dead instance's lock");
     // No watch can be set,
     // so nothing can be waited for:
     // the lock has to be taken without a wait or the attempt fails at once,
@@ -356,7 +356,7 @@ fn a_live_service_holders_lock_is_never_taken_over() {
 #[test]
 fn a_stale_lock_is_removed_only_when_it_is_the_services_own() {
     let (root, index) = index_in("index-lock-stale");
-    std::fs::write(lock_path_of(&index), "cli-git-service 5\n").expect("ours");
+    std::fs::write(lock_path_of(&index), marker_of_holder(5, dead_pid(), "gone")).expect("ours");
     remove_stale(&index, 6);
     assert!(lock_path_of(&index).exists(), "another batch's marker is left");
     remove_stale(&index, 5);
@@ -374,8 +374,9 @@ fn a_stale_lock_is_removed_only_when_it_is_the_services_own() {
 ///  service marker.
 #[test]
 fn markers_read_back_and_others_are_not_the_services() {
-    assert_eq!(parse_marker("cli-git-service 12 345 linux:boot:678\n"), Some(Marked { seq: 12, holder: Some((345, String::from("linux:boot:678"))) }));
-    assert_eq!(parse_marker("cli-git-service 12\n"), Some(Marked { seq: 12, holder: None }));
+    assert_eq!(parse_marker("cli-git-service 12 345 linux:boot:678\n"), Some(Marked { seq: 12, holder: Some((345, String::from("linux:boot:678"))), current: false }));
+    assert_eq!(parse_marker("cli-git-service v2 12 345 linux:boot:678\n"), Some(Marked { seq: 12, holder: Some((345, String::from("linux:boot:678"))), current: true }));
+    assert_eq!(parse_marker("cli-git-service 12\n"), Some(Marked { seq: 12, holder: None, current: false }));
     assert_eq!(parse_marker("cli-git-service 12 345 a birth with spaces\n").and_then(|marked| { return marked.holder; }), Some((345, String::from("a birth with spaces"))));
     for other in ["", "DIRC", "cli-git-service \n", "cli-git-service x\n", "cli-git-service 12 345\n", "cli-git-service 12 pid birth\n", "Cli-git-service 12\n"] {
         assert_eq!(parse_marker(other), None, "{other:?}");
@@ -612,7 +613,7 @@ fn an_unreadable_proc_is_no_evidence_that_a_writer_died() {
     std::fs::write(&path, "").expect("an empty file");
     let suffix: String = format!("-4242.{scope}-1-token");
     let nothing_runs = |_: i64| -> Result<Option<String>, ProcessIdentityError> { return Ok(None) };
-    let agreeing = ReaderView { boot: "0123456789abcdef0123456789abcdef", scope: Some(scope), procfs_agrees: true };
+    let agreeing = ReaderView { boot: "0123456789abcdef0123456789abcdef", scope: Some(scope), machine: None, procfs_agrees: true };
     let disagreeing = ReaderView { procfs_agrees: false, ..agreeing };
     assert!(staging_is_dead_in(&path, suffix.as_bytes(), &agreeing, &nothing_runs));
     assert!(!staging_is_dead_in(&path, suffix.as_bytes(), &disagreeing, &nothing_runs), "a /proc that disagrees proves nothing");
@@ -1063,7 +1064,10 @@ fn an_identity_needs_a_boot_and_a_namespace() {
 fn the_identity_in_a_marker_names_the_boot_and_the_namespace() {
     let identity: String = own_identity().expect("identity");
     let parts: Vec<&str> = identity.split('#').collect();
-    assert_eq!(parts.len(), 3, "{identity}");
+    // The machine ID of the host comes fourth when the host has a valid one.
+    let machine: &str = crate::claim_time::current_machine_id();
+    assert_eq!(parts.len(), if machine.is_empty() { 3 } else { 4 }, "{identity}");
+    assert_eq!(parts.get(3).copied().unwrap_or(""), machine, "{identity}");
     assert_eq!(parts[1].len(), 32, "{identity}");
     assert!(!parts[2].is_empty() && parts[2].bytes().all(|byte| { return byte.is_ascii_digit(); }), "{identity}");
     assert_eq!(process_birth_identity(i64::from(std::process::id())).expect("identity").as_deref(), Some(parts[0]));
@@ -1081,7 +1085,8 @@ fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
     let pid: i64 = i64::from(std::process::id());
     let own: String = own_identity().expect("identity");
     let parts: Vec<&str> = own.split('#').collect();
-    let other_boot: (i64, String) = (pid, format!("{}#{}#{}", parts[0], "0".repeat(32), parts[2]));
+    // The marker of a process of this machine in another boot: the machine ID is the host's, if it has one.
+    let other_boot: (i64, String) = (pid, format!("{}#{}#{}{}", parts[0], "0".repeat(32), parts[2], parts.get(3).map_or_else(String::new, |machine| { return format!("#{machine}"); })));
     assert!(holder_is_gone(Some(&other_boot)));
     assert!(!holder_is_running(Some(&other_boot)));
     let this_boot: (i64, String) = (pid, own.clone());
@@ -1092,7 +1097,7 @@ fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
     assert!(holder_is_running(Some(&legacy)));
     let without_namespace: (i64, String) = (pid, format!("{}#{}", parts[0], parts[1]));
     assert!(holder_is_running(Some(&without_namespace)), "a marker of the release before namespaces names none");
-    assert!(holder_is_gone(None) && !holder_is_running(None));
+    assert!(!holder_is_gone(None) && !holder_is_running(None), "a marker that names no process proves neither");
 }
 
 /// What a reader makes of a holder depends on whether it can compare like with like:
@@ -1107,7 +1112,7 @@ fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
 fn a_reader_that_cannot_compare_like_with_like_says_unknown_not_gone() {
     let boot: &str = "0123456789abcdef0123456789abcdef";
     let holder: (i64, String) = (100, format!("linux:777#{boot}#4026532000"));
-    let view = |at_boot: &'static str, scope: Option<&'static str>, procfs_agrees: bool| -> ReaderView<'static> { return ReaderView { boot: at_boot, scope, procfs_agrees }; };
+    let view = |at_boot: &'static str, scope: Option<&'static str>, procfs_agrees: bool| -> ReaderView<'static> { return ReaderView { boot: at_boot, scope, machine: None, procfs_agrees }; };
     let boot_now: &'static str = "0123456789abcdef0123456789abcdef";
     let asked: Cell<usize> = Cell::new(0);
     let missing = |_: i64| -> Result<Option<String>, ProcessIdentityError> {
@@ -1132,7 +1137,7 @@ fn a_reader_that_cannot_compare_like_with_like_says_unknown_not_gone() {
     assert_eq!(holder_state_in(Some(&holder), &view("", Some("4026532000"), true), &missing), HolderState::Unknown, "no boot ID to compare");
     let other_boot = view("fedcba9876543210fedcba9876543210", Some("4026531836"), false);
     assert_eq!(holder_state_in(Some(&holder), &other_boot, &same), HolderState::Gone, "another boot ends every process, whatever the numbering");
-    assert_eq!(holder_state_in(None, &host, &same), HolderState::Gone, "a marker without a holder is a dead instance's");
+    assert_eq!(holder_state_in(None, &host, &same), HolderState::Unknown, "a marker without a holder says nothing about any process");
     let legacy: (i64, String) = (100, String::from("linux:777"));
     assert_eq!(holder_state_in(Some(&legacy), &host, &same), HolderState::Running, "a marker without boot and namespace is judged by the process");
 }
@@ -1278,7 +1283,7 @@ fn a_lock_that_came_back_from_an_earlier_boot_is_reclaimed_by_the_next_acquisiti
     let own: String = own_identity().expect("identity");
     let parts: Vec<&str> = own.split('#').collect();
     let pid: u32 = std::process::id();
-    std::fs::write(lock_path_of(&index), format!("{LOCK_MARKER}103 {pid} {}#{}#{}\n", parts[0], "0".repeat(32), parts[2])).expect("the lock that came back");
+    std::fs::write(lock_path_of(&index), format!("{LOCK_MARKER}{}103 {pid} {}#{}#{}{}\n", crate::service_index_marker::MARKER_VERSION, parts[0], "0".repeat(32), parts[2], parts.get(3).map_or_else(String::new, |machine| { return format!("#{machine}"); }))).expect("the lock that came back");
     let began: Instant = Instant::now();
     let lock = acquire(&index, 104, &|_| {}).expect("taken at once");
     assert!(began.elapsed() < Duration::from_secs(5), "{:?}", began.elapsed());

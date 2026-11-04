@@ -189,7 +189,7 @@ pub fn service_commit<F: RepositoryFacts>(
         start_wait: START_WAIT,
         heartbeat_silence: HEARTBEAT_SILENCE,
         start_watch: provisioning.as_ref().map(manager_watch_for),
-        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, start_ceiling: crate::wait_ceilings::START_CEILING,
+        keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
     };
     let scratch_name: String = format!("cli-git-service-{id}");
     // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which

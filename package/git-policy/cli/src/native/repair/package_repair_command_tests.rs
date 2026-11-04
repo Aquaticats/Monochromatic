@@ -8,6 +8,14 @@ use crate::test_support::{fixture, remove};
 /// A limit long enough that no control reaches it unless the control is about the limit.
 const GENEROUS: Duration = Duration::from_secs(60);
 
+/// A ceiling no control reaches unless the control is about the ceiling.
+const ROOMY: Duration = Duration::from_secs(3600);
+
+/// The limits of a control that is about the quiet window only.
+fn limits(window: Duration) -> ToolLimits {
+    return ToolLimits { window, ceiling: ROOMY };
+}
+
 /// A limit short enough to wait out.
 const BRIEF: Duration = Duration::from_millis(300);
 
@@ -55,7 +63,7 @@ fn runs_in_the_directory_with_the_variables_and_reports_success() {
         format!("#!/bin/sh\npwd -P > '{}'\nprintf '%s' \"$REPAIR_PROBE\" >> '{}'\n", record.display(), record.display()).as_bytes(),
     );
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: vec![(OsString::from("REPAIR_PROBE"), OsString::from("kept"))] };
-    let run: ToolRun = run_tool(program.as_path(), &command, GENEROUS);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(GENEROUS));
     assert_eq!(run.end, ToolEnd::Succeeded);
     let recorded: String = std::fs::read_to_string(&record).expect("record");
     assert!(recorded.starts_with(root.to_str().expect("utf8 root")), "ran in {recorded}");
@@ -70,7 +78,7 @@ fn reports_a_failure_with_its_status_and_output() {
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), format!("#!/bin/sh\necho 'reason printed on stderr' >&2\nexit {FAILING_STATUS}\n").as_bytes());
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, GENEROUS);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(GENEROUS));
     let ToolEnd::Failed(text) = run.end else { panic!("expected a failure, got {:?}", run.end) };
     assert!(text.contains(FAILING_STATUS.to_string().as_str()), "status missing in {text}");
     assert!(text.contains("reason printed on stderr"), "output missing in {text}");
@@ -84,7 +92,7 @@ fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), format!("#!/bin/sh\nexec sleep {SLOW_SECONDS}\n").as_bytes());
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, BRIEF);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(BRIEF));
     assert_eq!(run.end, ToolEnd::TimedOut);
     assert!(run.millis < u128::from(SLOW_SECONDS) * 1000, "the run waited {} ms for a program stopped at its limit", run.millis);
     remove(&root);
@@ -95,7 +103,7 @@ fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
 fn reports_a_program_that_cannot_start() {
     let root: PathBuf = fixture("runs-unstartable");
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(root.join("absent").as_path(), &command, GENEROUS);
+    let run: ToolRun = run_tool(root.join("absent").as_path(), &command, limits(GENEROUS));
     assert!(matches!(run.end, ToolEnd::Failed(_)), "got {:?}", run.end);
     remove(&root);
 }
@@ -122,8 +130,173 @@ fn a_program_that_keeps_working_is_never_stopped_however_long_it_runs() {
         format!("#!/bin/sh\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n").as_bytes(),
     );
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, WORKING_WINDOW);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(WORKING_WINDOW));
     assert_eq!(run.end, ToolEnd::Succeeded);
     assert!(run.millis > WORKING_WINDOW.as_millis() * 2, "the fixture ran only {} ms", run.millis);
     remove(&root);
+}
+
+/// The ceiling of the control below: well past the quiet window, well short of the fixture's length.
+const SHORT_CEILING: Duration = Duration::from_secs(2);
+
+/// Whether the process of this number exists and is not a zombie waiting to be reaped.
+fn is_running(pid: i32) -> bool {
+    // SAFETY: signal 0 only asks whether the process exists.
+    if unsafe { libc::kill(pid, 0) } != 0 {
+        return false;
+    }
+    return std::fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| { return !stat.rsplit(')').next().unwrap_or("").trim_start().starts_with('Z'); });
+}
+
+/// Waits a moment for a process to be gone: the stop reaches it with a signal, and its end is seen a moment later.
+fn is_gone_soon(pid: i32) -> bool {
+    let waiting_since: Instant = Instant::now();
+    while is_running(pid) {
+        if waiting_since.elapsed() > Duration::from_secs(10) {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    return true;
+}
+
+/// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a tool that keeps printing is ended at the ceiling, with its whole
+/// process group. The fixture starts two helpers, one that prints and one that has its output redirected away, and the control
+/// records each by the number the shell gives the background job (`$!`), which names the helper and not the shell that started it
+/// (sol-2: `$$` in a subshell is the parent's number), then checks that both are gone.
+#[test]
+fn a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_group() {
+    let root: PathBuf = fixture("runs-ceiling");
+    let program: PathBuf = root.join("tool");
+    let printing_record: PathBuf = root.join("printing-helper-pid");
+    let silent_record: PathBuf = root.join("silent-helper-pid");
+    let rounds: u32 = 100;
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\n(n=0; while [ $n -lt {rounds} ]; do echo helper; sleep 0.2; n=$((n + 1)); done) &\necho $! > '{printing}'\n(sleep 60) >/dev/null 2>&1 &\necho $! > '{silent}'\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n",
+            printing = printing_record.display(),
+            silent = silent_record.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: WORKING_WINDOW, ceiling: SHORT_CEILING });
+    assert_eq!(run.end, ToolEnd::CeilingReached(SHORT_CEILING), "ran {} ms", run.millis);
+    assert!(run.millis >= SHORT_CEILING.as_millis() && run.millis < u128::from(SLOW_SECONDS) * 1000 / 2, "the run lasted {} ms against a ceiling of {SHORT_CEILING:?}", run.millis);
+    for record in [&printing_record, &silent_record] {
+        let pid: i32 = std::fs::read_to_string(record).expect("the helper's number").trim().parse().expect("a process number");
+        assert!(is_gone_soon(pid), "the helper {pid} of the tool outlived the stop of its group");
+    }
+    remove(&root);
+}
+
+/// The leader exits and a helper it started keeps the tool's output open (sol-2, A): the run ends with the leader's status, and does
+/// not wait for the helper to close what it inherited. The control has a deadline of its own around the run.
+#[test]
+fn a_helper_that_keeps_the_output_open_after_the_leader_exits_does_not_hold_the_run() {
+    let root: PathBuf = fixture("runs-helper-holds-output");
+    let program: PathBuf = root.join("tool");
+    let record: PathBuf = root.join("helper-pid");
+    executable(program.as_path(), format!("#!/bin/sh\nsleep 40 &\necho $! > '{}'\necho leader-output\n", record.display()).as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let started_in: PathBuf = program.clone();
+    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS })); });
+    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the run ended without waiting for the helper to close the output");
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    assert!(String::from_utf8_lossy(run.stdout.as_slice()).contains("leader-output"));
+    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    // The helper is left alone on purpose (sol-2 round 2): a run that ended it would also pass the deadline above, so the control
+    //  asks the helper itself before it cleans up.
+    assert!(is_running(pid), "the helper of a tool that succeeded is left running");
+    // SAFETY: the control ends the helper it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    remove(&root);
+}
+
+/// The leader exits and a helper it started keeps writing to the tool's output (sol-1 and sol-2 round 2): the run ends with the
+/// leader's status and a finite snapshot, and the helper is left running. The control has a deadline of its own around the run.
+#[test]
+fn a_helper_that_keeps_writing_after_the_leader_exits_does_not_hold_the_run() {
+    let root: PathBuf = fixture("runs-helper-keeps-writing");
+    let program: PathBuf = root.join("tool");
+    let record: PathBuf = root.join("helper-pid");
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\n(while :; do echo helper-output; sleep 0.01; done) &\necho $! > '{}'\necho leader-output\nsleep 0.3\n", record.display()).as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let started_in: PathBuf = program.clone();
+    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS })); });
+    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the run ended without chasing the helper's output");
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    assert!(String::from_utf8_lossy(run.stdout.as_slice()).contains("leader-output"));
+    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    assert!(is_running(pid), "the helper that keeps writing is left running");
+    // SAFETY: the control ends the helper it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    remove(&root);
+}
+
+/// The ceiling ends the run even when a helper left the tool's process group while it holds the output (sol-2, A): the stop of the
+/// group does not reach it, and the run must not wait for it either.
+#[test]
+fn a_helper_outside_the_process_group_that_holds_the_output_does_not_hold_the_ceiling() {
+    let root: PathBuf = fixture("runs-helper-outside-group");
+    let program: PathBuf = root.join("tool");
+    let record: PathBuf = root.join("helper-pid");
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nsetsid sleep 40 &\necho $! > '{}'\nn=0\nwhile [ $n -lt 100 ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n", record.display()).as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let started_in: PathBuf = program.clone();
+    std::thread::spawn(move || { let _sent = sender.send(run_tool(started_in.as_path(), &command, ToolLimits { window: WORKING_WINDOW, ceiling: SHORT_CEILING })); });
+    let run: ToolRun = receiver.recv_timeout(Duration::from_secs(15)).expect("the ceiling ended the run without waiting for the helper");
+    assert_eq!(run.end, ToolEnd::CeilingReached(SHORT_CEILING));
+    let pid: i32 = std::fs::read_to_string(&record).expect("the helper's number").trim().parse().expect("a process number");
+    // SAFETY: the control ends the helper it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    remove(&root);
+}
+
+/// A tool that finishes before the ceiling is not touched by it.
+#[test]
+fn a_program_that_finishes_before_its_ceiling_succeeds() {
+    let root: PathBuf = fixture("runs-under-ceiling");
+    let program: PathBuf = root.join("tool");
+    executable(program.as_path(), b"#!/bin/sh\necho done\n");
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
+    assert_eq!(run.end, ToolEnd::Succeeded);
+    remove(&root);
+}
+
+/// A leader that does not die when the group is stopped (a process in uninterruptible I/O ends only when the I/O does) is not waited
+/// for without a bound (sol-2 round 2): the reaping gives up after its budget, reports that it did, and hands the child to a thread
+/// that reaps it whenever it does end.
+#[test]
+fn a_leader_that_does_not_end_is_handed_to_a_reaper_after_the_budget() {
+    let mut command: Command = Command::new("sleep");
+    command.arg("30");
+    let child: Child = command.spawn().expect("the leader");
+    let pid: i32 = i32::try_from(child.id()).expect("a process number");
+    let began: Instant = Instant::now();
+    assert!(!reap_within(child, Duration::from_millis(300)), "the leader had not ended");
+    assert!(began.elapsed() < Duration::from_secs(10), "the reaping gave up after its budget");
+    assert!(is_running(pid), "the leader is still there: nothing waited for it");
+    // SAFETY: the control ends the process it started.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    assert!(is_gone_soon(pid), "the thread the leader was handed to reaped it when it ended");
+}
+
+/// A leader that ends is reaped within the budget.
+#[test]
+fn a_leader_that_ends_is_reaped_within_the_budget() {
+    let mut command: Command = Command::new("true");
+    let child: Child = command.spawn().expect("the leader");
+    assert!(reap_within(child, Duration::from_secs(10)));
 }

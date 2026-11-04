@@ -95,7 +95,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
+        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
     };
 }
 
@@ -418,7 +418,7 @@ fn a_withdrawal_the_service_does_not_answer_ends_at_its_own_ceiling() {
     let _fake = serve_a_wait_and_a_withdrawal(service, None);
     let config: ClientConfig = ClientConfig { answer_ceiling: SHORT_CEILING, withdraw_ceiling: SHORT_CEILING, heartbeat_silence: PATIENCE, ..config(name.as_str()) };
     let (answered, _notices) = client_within_patience(config).expect("the client ended at its ceilings");
-    assert_eq!(answered, Err(ClientFailure::WithdrawalUnconfirmed));
+    assert_eq!(answered, Err(ClientFailure::WithdrawalUnconfirmed { blocker: None }));
 }
 
 /// A start the manager reports as under way (`activating`) is waited for only until the start ceiling, then ends with the plain
@@ -432,4 +432,48 @@ fn a_start_that_never_finishes_ends_at_the_start_ceiling() {
     let config: ClientConfig = ClientConfig { start_ceiling: SHORT_CEILING, ..watched(name.as_str()) };
     let (answered, _notices) = client_within_patience(config).expect("the client ended at the start ceiling");
     assert_eq!(answered, Err(ClientFailure::DidNotStart));
+}
+
+/// A fake service for the late-notice control: the first connection is greeted and beats; the second, the withdrawal's, is greeted,
+/// reads the line that asks for the withdrawal, tells the client its request is inside the write, and beats without ever answering.
+fn serve_a_withdrawal_that_says_the_request_is_inside_the_write(service: UnixListener) -> std::thread::JoinHandle<()> {
+    return std::thread::spawn(move || {
+        let (first, _) = service.accept().expect("the first connection");
+        greet(&first);
+        read_request(&first);
+        let beating = std::thread::spawn(move || {
+            while (&first).write_all(&line(&ServiceMessage::Heartbeat)).is_ok() {
+                std::thread::sleep(FAKE_BEAT);
+            }
+        });
+        let (second, _) = service.accept().expect("the withdrawal's connection");
+        greet(&second);
+        let mut asked: String = String::new();
+        BufReader::new(&second).read_line(&mut asked).expect("the withdrawal");
+        (&second).write_all(&line(&ServiceMessage::InsideWrite { text: String::from("cli-git: this commit is inside a write of the commit service") })).expect("the notice");
+        // The connection stays open and beats until the client leaves.
+        while (&second).write_all(&line(&ServiceMessage::Heartbeat)).is_ok() {
+            std::thread::sleep(FAKE_BEAT);
+        }
+        drop(beating);
+    });
+}
+
+/// The notice that the request is inside the write reaches the client only on the connection it opened to ask for its withdrawal,
+/// because the write began within a minute of the answer ceiling (sol-1: the seven-second path was missed): the client does what a
+/// client that heard it earlier does, and ends at its answer ceiling plus the extra wait, not at the withdrawal's ceiling.
+#[test]
+fn a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answer_ceiling_plus_the_extra_wait() {
+    let name: String = address("late-inside-notice");
+    let service: UnixListener = listen(name.as_str());
+    let _fake = serve_a_withdrawal_that_says_the_request_is_inside_the_write(service);
+    let ceiling: Duration = Duration::from_secs(1);
+    let extra_wait: Duration = Duration::from_secs(1);
+    let config: ClientConfig = ClientConfig { answer_ceiling: ceiling, extra_wait, withdraw_ceiling: Duration::from_secs(120), heartbeat_silence: PATIENCE, ..config(name.as_str()) };
+    let began: Instant = Instant::now();
+    let (answered, _notices) = client_within_patience(config).expect("the client ended at its answer ceiling plus the extra wait");
+    let waited: Duration = began.elapsed();
+    let Err(ClientFailure::WithdrawalUnconfirmed { blocker }) = answered else { panic!("{answered:?}") };
+    assert!(blocker.is_some_and(|text| { return text.contains("inside a write"); }));
+    assert!(waited >= ceiling + extra_wait && waited < ceiling + extra_wait + Duration::from_secs(6), "{waited:?}");
 }

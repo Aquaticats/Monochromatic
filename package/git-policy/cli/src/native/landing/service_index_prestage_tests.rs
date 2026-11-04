@@ -451,7 +451,7 @@ fn a_file_left_under_a_reused_process_number_is_removed_by_its_marker() {
     let alive: u32 = std::process::id();
     let named = |tag: &str| -> PathBuf { return PathBuf::from(format!("{}{}-{alive}-{tag}", lock_path.display(), crate::service_index_staging::STAGED_INFIX)); };
     let reused: PathBuf = named("1-reused");
-    std::fs::write(&reused, format!("{}1 {alive} linux:1#{}#1\n", crate::service_index_lock::LOCK_MARKER, "0".repeat(32))).expect("a killed service's file");
+    std::fs::write(&reused, format!("{}{}1 {alive} linux:1#{}#1{}\n", crate::service_index_lock::LOCK_MARKER, crate::service_index_marker::MARKER_VERSION, "0".repeat(32), Some(crate::claim_time::current_machine_id()).filter(|id| { return !id.is_empty(); }).map_or_else(String::new, |id| { return format!("#{id}"); }))).expect("a killed service's file");
     let empty: PathBuf = named("2-empty");
     std::fs::write(&empty, "").expect("a writer between creating and writing");
     let half: PathBuf = named("3-half");

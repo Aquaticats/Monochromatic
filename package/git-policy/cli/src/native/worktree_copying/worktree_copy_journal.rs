@@ -820,7 +820,7 @@ pub fn adopt_journal(pending: &PendingJournal, owner: &CopyOwner) -> Result<Opti
 /// ```ts
 /// journalOwnerIsDead(pending);
 /// ```
-pub fn journal_owner_is_dead(pending: &PendingJournal) -> bool {
+pub fn journal_owner_is_dead(pending: &PendingJournal) -> Result<bool, WorktreeCopyError> {
     return token_owner_is_dead(pending.owner_token().as_deref(), pending.path.as_path());
 }
 

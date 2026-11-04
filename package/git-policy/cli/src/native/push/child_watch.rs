@@ -33,6 +33,8 @@
 use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
 /// The longest one step runs.
 use crate::wait_ceilings::OBJECT_STEP_CEILING;
+/// The captured output of a step that is never ended, in files that outlive the command.
+use crate::output_capture::Capture;
 /// Starts that ride out a short shortage of processes.
 use crate::start_retry::RetryStart;
 /// The notice cadence, its ticker and the child-wait line.
@@ -565,7 +567,36 @@ pub fn output_watched_stopping(
     terms: WatchTerms,
     stoppable: bool,
 ) -> std::io::Result<Output> {
-    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, OBJECT_STEP_CEILING);
+    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, StepBound::EndAt(OBJECT_STEP_CEILING));
+}
+
+/// What:
+///  How long a watched step is waited for, and what happens at the end.
+/// Why:
+///   A step that can be run twice is ended at a ceiling (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"). A
+///  write in place that cannot be run twice is never ended (owner, 2026-11-04: "Never cut a branch write (Recommended)"): the
+///  command that started it returns at its own bound plus a short extra wait with an error that says the result is not known,
+///  and the step is left running (owner, commit protocol revision 12, "Short extra wait (Recommended)"); only the commit service's
+///  landing thread, whose clients are told through the protocol, waits for it without a bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StepBound = { kind: 'end-at'; ms } | { kind: 'leave-running'; afterMs; extraMs } | { kind: 'unbounded' };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StepBound {
+    /// The step is ended, with its whole process tree, when it has run this long, whatever it shows.
+    EndAt(Duration),
+    /// The command stops waiting `after` plus `extra` after the step began and returns an error saying the result is not known;
+    ///  the step is left running and reaped when it ends.
+    LeaveRunning {
+        /// The command's own bound.
+        after: Duration,
+        /// The short extra wait for the write the step started.
+        extra: Duration,
+    },
+    /// The step is waited for as long as it lives.
+    Unbounded,
 }
 
 /// The error of a step ended at its ceiling, which tells it apart from a step ended for being quiet: a step that may be run again
@@ -584,16 +615,73 @@ impl std::fmt::Display for CeilingReached {
 
 impl std::error::Error for CeilingReached {}
 
+/// The output of a step that ended: its status and what it wrote to the captured files.
+fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Output {
+    let Some(files) = captured else {
+        return Output { status, stdout: Vec::new(), stderr: Vec::new() };
+    };
+    let shown: crate::output_capture::Captured = files.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
+    let mut stderr: Vec<u8> = shown.stderr;
+    for note in &shown.notes {
+        stderr.extend_from_slice(format!("\ncli-git: {note}\n").as_bytes());
+    }
+    return Output { status, stdout: shown.stdout, stderr };
+}
+
+/// What:
+///  The sentence for a step left running: what it was, how long it was waited for, and what to check.
+/// Why:
+///   The owner's rule for a write the command started and cannot confirm (commit protocol revision 12, "Short extra wait"): exit
+///  non-zero saying the result is not known and what to look at. The step is a write in place, so the repository is what to check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} was still running ${after + extra} seconds after it began, and was left running ...`
+/// ```
+pub fn not_known_text(waiting_for: &str, after: Duration, extra: Duration) -> String {
+    return format!(
+        "{waiting_for} was still running {} seconds after it began (its bound of {} seconds and {} more for the write it started), so it \
+         was left running and not ended: it is not known whether it finished. Check what it changes with `git status` and `git log -1`, \
+         look at the process with `ps` and at the disk it writes to, and run the command again if it did not finish.",
+        after.saturating_add(extra).as_secs(),
+        after.as_secs(),
+        extra.as_secs()
+    );
+}
+
+/// The error of a step left running: the command stopped waiting for it, so it is not known whether it finished.
+#[derive(Debug)]
+pub struct NotKnown(
+    /// The sentence that names the step, how long it was waited for, and what to check.
+    pub String,
+);
+
+impl std::fmt::Display for NotKnown {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.0.as_str());
+    }
+}
+
+impl std::error::Error for NotKnown {}
+
+/// Whether `error` is the error of a step left running because the command stopped waiting for it.
+pub fn is_not_known(error: &std::io::Error) -> bool {
+    return error.get_ref().is_some_and(|inner| { return inner.is::<NotKnown>(); });
+}
+
 /// Whether `error` is the error of a step ended at its ceiling.
 pub fn is_ceiling(error: &std::io::Error) -> bool {
     return error.get_ref().is_some_and(|inner| { return inner.is::<CeilingReached>(); });
 }
 
 /// What:
-///  `output_watched_stopping` where the step is ended at `ceiling` whatever it shows.
+///  `output_watched_stopping` where the step is ended at `ceiling` whatever it shows, or never ended for its length when there is
+///  none.
 /// Why:
 ///   The owner's rule is that nothing waits for ever; the ceiling is what ends a step that keeps working and one that may not be
-///  ended for being quiet.
+///  ended for being quiet. A step with no ceiling is a write in place that is not safe to run twice (owner, 2026-11-04: "Never cut
+///  a branch write (Recommended)"; `transaction_git.rs`, `step_bound`): ending it in the middle of its write could cost the
+///  person's data, so only the person ends it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -605,23 +693,76 @@ pub fn output_watched_within(
     ledger_step: &str,
     terms: WatchTerms,
     stoppable: bool,
-    ceiling: Duration,
+    bound: StepBound,
 ) -> std::io::Result<Output> {
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let ceiling: Option<Duration> = match bound {
+        StepBound::EndAt(limit) => Some(limit),
+        StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
+    };
+    // A step that is never ended writes into files that outlive this command, not into pipes this command holds: when the command
+    // stops waiting and exits, the step must find its output open, or it dies of SIGPIPE at its next write, which is a cut.
+    let captured: Option<Capture> = if matches!(bound, StepBound::EndAt(_)) { None } else { Some(Capture::new()?) };
+    match captured.as_ref() {
+        Some(files) => {
+            let (out, err) = files.stdio()?;
+            command.stdout(out).stderr(err);
+        }
+        None => {
+            command.stdout(Stdio::piped()).stderr(Stdio::piped());
+        }
+    }
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
     let child: Child = command.spawn_retrying()?;
-    let watch: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step).within(ceiling);
+    let started: ChildWatch = ChildWatch::start_with_locks(waiting_for, child.id(), terms, locks).kept_as(ledger_step);
+    // A step with no ceiling is waited for as long as it lives: the watch starts without one.
+    let watch: ChildWatch = match ceiling {
+        Some(limit) => started.within(limit),
+        None => started,
+    };
     if !stoppable {
         watch.never_stop();
     }
     watch.begin();
-    let output: std::io::Result<Output> = child.wait_with_output();
+    let output: std::io::Result<Output> = match bound {
+        StepBound::LeaveRunning { after, extra } => {
+            // The child moves to a thread that waits for it and collects its output, so the command can stop waiting and the child
+            // goes on; the thread reaps it when it ends.
+            let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
+            let waiter = std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
+                let mut leaving: Child = child;
+                // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
+                let _abandoned = sender.send(leaving.wait());
+            });
+            if let Err(error) = waiter {
+                watch.end();
+                return Err(std::io::Error::other(format!("{waiting_for} was started but no thread could be started to wait for it: {error}")));
+            }
+            match receiver.recv_timeout(after.saturating_add(extra)) {
+                Ok(finished) => finished.map(|status| { return output_of(status, captured.as_ref()); }),
+                Err(_timeout_or_gone) => {
+                    watch.end();
+                    // Nobody will read what the step writes from here on, and it is held in memory until the step ends.
+                    if let Some(files) = captured.as_ref() {
+                        files.discard();
+                    }
+                    return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, NotKnown(not_known_text(waiting_for, after, extra))));
+                }
+            }
+        }
+        StepBound::EndAt(_) => child.wait_with_output(),
+        StepBound::Unbounded => {
+            let mut waited_for: Child = child;
+            waited_for.wait().map(|status| { return output_of(status, captured.as_ref()); })
+        }
+    };
     watch.end();
-    if watch.ceiling_hit() {
+    if let Some(limit) = ceiling
+        && watch.ceiling_hit()
+    {
         return Err(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
-            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", ceiling.as_secs())),
+            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", limit.as_secs())),
         ));
     }
     if watch.expired() {

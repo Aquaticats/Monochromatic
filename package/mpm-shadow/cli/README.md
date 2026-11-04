@@ -621,7 +621,8 @@ llama-cpu-cli \
   first resolves the plan entries the lock lacks or holds for an older request
   (see "Installing a plan that is ahead of the lock"),
   then installs every locked tool that is not at its locked version,
-  makes the postinstall links,
+  makes the postinstall links and removes the ones an earlier run made that the lock no longer declares
+  (see "Postinstall links the lock no longer declares"),
   rebuilds the exposure directory,
   writes the tool environment for mise (see "Tool environment"),
   runs the postinstall commands
@@ -901,8 +902,12 @@ Each `cargo-binstall` tool installs into a cargo root of its own,
 `<toolchain root>/cargo/<crate>/<version>`:
 
 ```text
-# shape of the command install starts (the paths are examples)
+# shape of the command install starts for a third-party crate (the paths are examples)
 cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --version 10.4.2 fd-find
+
+# the same for a crate this repository publishes: the compile and quick-install strategies are switched off
+cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shadow/0.2.5 --version 0.2.5 \
+  --disable-strategies compile,quick-install monochromatic-mpm-shadow
 ```
 
 - Binaries land in `<root>/bin` and cargo's own record in `<root>/.crates.toml`.
@@ -914,6 +919,31 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
   when the build-from-source fallback runs with it.
   `--root` is passed on to the fallback's `cargo install --root`,
   so one flag isolates both ways of installing.
+  The fallback exists for third-party crates only (see the next item).
+- A crate this repository publishes never compiles:
+  `--disable-strategies compile,quick-install` makes a missing or unusable release archive fail the install instead of building the
+  crate from source (cargo-binstall 1.26.2 otherwise builds it silently;
+  measured 2026-11-04: the installed `cli-git-native` of `monochromatic-git-policy-cli` 0.5.34 was 13,710,088 bytes
+  against the archive's 13,728,056, beside a `cli-git-service` the archive lacks).
+  When cargo-binstall stops with `Fallback to cargo-install is disabled`,
+  the failure names the tool,
+  the crate,
+  the version,
+  cargo-binstall's own `WARN resolve:` and `ERROR resolve:` lines,
+  and the ways forward (publish a release whose archive holds every declared program,
+  lock a version whose archive fits,
+  or, for a timeout or rate limit, give the install a GitHub token or a longer
+  `BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT`).
+  Any other binstall failure keeps the generic message.
+  A third-party crate keeps cargo-binstall's strategies,
+  so one with no prebuilt archive is still compiled when needed.
+  The same flag switches off the quick-install strategy (the third-party cargo-quickinstall host of prebuilt binaries)
+  for these crates, so their binaries come only from the crate's own release archive.
+  cargo-binstall still finds that archive itself from the crate's published binstall metadata;
+  mpm-shadow passes no URL.
+  Owner decision 2026-11-04 (question tool), "A: one flag, our crates (Recommended)":
+  "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
+  A third-party crate keeps both strategies (measured 2026-11-04: `fastmod` and `apple-codesign` resolve only through quick-install).
 - Tracking stays on (no `--no-track`):
   the root's `.crates.toml` is the record `list` and `install` read,
   and cargo-binstall's own lock then covers two trees installing one version at once.
@@ -924,6 +954,9 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
   each tree's `.cache/toolchain-bin` links the version its own lock names.
 - A tool whose crate name starts with `monochromatic-` (the prefix the registry prune already uses for this
   repository's own crates) is repository-published.
+  Letter case and `_` versus `-` are ignored, as crates.io ignores them, so `Monochromatic_X` is the same crate;
+  a name that merely contains `monochromatic` elsewhere is not.
+  The same rule decides the newest-only layout and the never-compile rule, so the two cannot disagree.
   So is an `archive` tool whose request names `github:Aquaticats/Monochromatic`
   (in any letter case,
   because GitHub owner and repository names are case-insensitive)
@@ -1155,6 +1188,25 @@ and a third-party tool's file in `$CARGO_HOME/bin` and its entry in `$CARGO_HOME
 This repository's own tools are different:
 their legacy copies in `$CARGO_HOME/bin` are old copies,
 which the same `install` retires (see "Old copies of this repository's tools").
+
+### Postinstall links the lock no longer declares
+
+A postinstall link (such as `cargo` for `cargo-shadow` in `.cache/cargo-shadow-bin`) that is dropped from the plan,
+renamed, or moved to another directory used to stay where it was,
+and a directory early on `PATH` kept running a tool the plan had stopped linking.
+`install` now keeps a record of the links it makes, `.postinstall-links.json` in the scope's launcher directory,
+and removes a recorded link the lock no longer declares.
+
+- A recorded link is removed only while it is still the symlink the record names.
+  A regular file, a directory, or a symlink to somewhere else at that path belongs to a person:
+  it stays untouched, `install` prints a warning that names the path and what is there,
+  and the path leaves the record so the warning appears once.
+- A link made before the record existed is not in it, so it is never removed; delete such a link by hand once.
+- A partial `install` (named tools, or the `update` that installs a few) keeps the recorded links of the other tools.
+- An unreadable record retires nothing and says so.
+- Each removal is one line of the install report (`retired the postinstall link ...`).
+- Where the link is a hard link instead of a symlink (a platform without symlinks), it counts as a person's file
+  and is left with a warning.
 
 ### Old copies of this repository's tools
 

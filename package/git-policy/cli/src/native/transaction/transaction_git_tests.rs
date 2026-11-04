@@ -3,6 +3,7 @@
 use super::*;
 use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository, while_test_lives};
 use crate::child_class::ChildClass;
+use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 use crate::wait_progress::Cadence;
 
 /// Requests carry their arguments and nothing else by default.
@@ -596,6 +597,94 @@ fn only_harmless_commands_may_be_rerun() {
     assert!(!may(&["-c", "a=b"], false));
 }
 
+/// The owner's criterion (2026-11-04): a step keeps its ceiling exactly when it can run twice. Each form below was cut at every
+/// mutating system call, with SIGKILL and with SIGTERM, then run a second time, and its end state compared with an uncut run's
+/// (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). A form that came out identical every time ends at the
+/// ceiling of its class; the others are never ended: the commit service's landing thread waits for them, and any other command
+/// stops waiting at its bound plus the short extra wait and leaves them running.
+#[test]
+fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state() {
+    let bound = |arguments: &[&str], private_index: bool| -> StepBound {
+        let mut request: GitRequest = GitRequest::new(Path::new("/repo"), arguments);
+        if private_index {
+            request.index = Some(PathBuf::from("/private.index"));
+        }
+        return step_bound(&request);
+    };
+    let ends = |arguments: &[&str]| { return matches!(bound(arguments, false), StepBound::EndAt(_)); };
+    // Identical after a second run at every cut.
+    for same in [
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/1"],
+        &["stash", "list", "--format=%H"],
+        &["clean", "--force", "-d"],
+        &["read-tree", "--reset", "-u", "abc"],
+        &["update-index", "--refresh"],
+        &["update-index", "-z", "--index-info"],
+        &["update-index", "--add", "--cacheinfo", "100644,abc,x"],
+        &["add", "--update", "--", ":/"],
+        &["add", "--all"],
+        &["config", "--local", "a.b", "c"],
+        &["checkout-index", "--all", "--force"],
+        &["restore", "--staged", "--worktree", "--source=HEAD", "--", "a.txt"],
+        &["reset", "--quiet", "abc", "--", "a.txt"],
+    ] {
+        assert!(ends(same), "{same:?} ran twice to the same state and keeps its ceiling");
+    }
+    // Different after a second run at some cut, or not in the experiment.
+    for differs in [
+        &["update-ref", "--stdin"][..],
+        // The import is a writer of a reference whatever its stream says here: the experiment found a marks lock it left that the
+        //  second run could not pass.
+        &["-c", "core.logAllRefUpdates=false", "fast-import", "--done", "--export-marks=marks-1"],
+        &["fast-import", "--done"],
+        &["update-ref", "refs/heads/main", "new", "old"],
+        &["update-ref", "refs/heads/main", "new"],
+        &["update-ref", "-d", "refs/heads/old"],
+        &["update-ref", "refs/cli-git/kept/1", "new", "old"],
+        &["stash", "store", "-m", "message", "abc"],
+        &["stash", "push"],
+        &["merge", "--ff-only", "--no-edit", "abc"],
+        &["reset", "--hard", "--no-recurse-submodules", "abc"],
+        &["reset", "--soft", "abc"],
+        &["read-tree", "-u", "-m", "a", "b"],
+        &["checkout", "--quiet", "other"],
+        &["switch", "--quiet", "other"],
+    ] {
+        assert!(!ends(differs), "{differs:?} came out different after a second run and has no ceiling");
+    }
+    // The same index changes on a private index, the readers and the object writers are not in question.
+    assert_eq!(bound(&["add", "--all"], true), StepBound::EndAt(OBJECT_STEP_CEILING));
+    assert_eq!(bound(&["rev-parse", "HEAD"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
+    assert_eq!(bound(&["merge-base", "a", "b"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
+    assert_eq!(bound(&["log", "-1"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
+    assert_eq!(bound(&["commit-tree", "abc", "-m", "x"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
+}
+
+/// A step that cannot be run twice is left running by the command that started it, which stops waiting at the bound of the step's
+/// class plus the short extra wait; on the commit service's landing thread, whose clients are told through the protocol, it is
+/// waited for without a bound. The control shortens the bound of the class for the thread that runs it, and never the extra wait
+/// of production.
+#[test]
+fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_the_landing_thread() {
+    let merge: GitRequest = GitRequest::new(Path::new("/repo"), &["merge", "--ff-only", "abc"]);
+    assert_eq!(step_bound(&merge), StepBound::LeaveRunning { after: OBJECT_STEP_CEILING, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+    let reference: GitRequest = GitRequest::new(Path::new("/repo"), &["update-ref", "--stdin"]);
+    assert_eq!(step_bound(&reference), StepBound::LeaveRunning { after: PLUMBING_STEP_CEILING, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+    let shortened: Duration = Duration::from_secs(3);
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(shortened)); });
+    let ends: StepBound = step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"]));
+    let leaves: StepBound = step_bound(&merge);
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert_eq!(ends, StepBound::EndAt(shortened));
+    assert_eq!(leaves, StepBound::LeaveRunning { after: shortened, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+    // The landing thread is the one that has a record of what it is inside.
+    let board = crate::service_busy::LandingBoard::new(fixture("transaction-git-landing-thread").join("journal"), Duration::from_secs(60));
+    crate::service_busy::use_on_this_thread(board);
+    assert_eq!(step_bound(&reference), StepBound::Unbounded);
+    assert_eq!(step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])), StepBound::EndAt(PLUMBING_STEP_CEILING));
+}
+
 /// A Git that cannot be started at all is the caller's failure with its own kind, not a refusal to retry and not a
 ///  failure of another kind: the error of a rerunnable command comes back as the operating system gave it.
 #[test]
@@ -658,4 +747,152 @@ fn a_watched_step_starts_with_every_hook_switched_off() {
     for event in crate::hooks_off::switched_off_events() {
         assert!(arguments.contains(&format!("hook.{event}.enabled=false")), "{event} in {arguments:?}");
     }
+}
+
+/// A person's merge whose fast-forward does not return: `run_git` hands back the error that says the result is not known, naming the
+/// step and what to check, at the bound of the class plus the extra wait (shortened for the control), and the step is left running
+/// until it ends by itself.
+#[test]
+fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() {
+    let root: PathBuf = fixture("transaction-git-merge-not-known");
+    let program: PathBuf = root.join("slow-merge-git");
+    let started: PathBuf = root.join("started");
+    let finished: PathBuf = root.join("finished");
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\n: > '{started}'\nwhile [ ! -e '{release}' ] && {alive}; do sleep 0.05; done\n: > '{finished}'\n",
+            started = started.display(),
+            release = root.join("release").display(),
+            finished = finished.display(),
+            alive = while_test_lives(root.as_path())
+        )
+        .as_bytes(),
+    );
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(root.clone()) };
+    let request: GitRequest = GitRequest::new(root.as_path(), &["merge", "--ff-only", "--no-edit", "abc"]);
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(500))); });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(500))); });
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure = run_git(&context, &request).expect_err("the command stopped waiting");
+    let waited: Duration = began.elapsed();
+    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert!(crate::child_watch::is_not_known(&failure), "{failure}");
+    assert!(failure.to_string().contains("git merge --ff-only --no-edit abc") && failure.to_string().contains("git status") && failure.to_string().contains("left running"), "{failure}");
+    assert!(waited >= Duration::from_secs(1) && waited < Duration::from_secs(30), "{waited:?}");
+    assert!(started.exists() && !finished.exists(), "the step was not ended");
+    std::fs::write(root.join("release"), b"").expect("release");
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while !finished.exists() {
+        assert!(waiting_since.elapsed() < Duration::from_secs(30), "the step never finished");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    remove(root.as_path());
+}
+
+/// Forms the cut experiment did not run get no ceiling (sol-1: the classifier failed open). Each is a form of a step the experiment
+/// did run, or a step it did not, that a rule by the name of the step would have ended at a ceiling.
+#[test]
+fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
+    let ends = |arguments: &[&str]| -> bool { return matches!(step_bound(&GitRequest::new(Path::new("/repo"), arguments)), StepBound::EndAt(_)); };
+    for unrun in [
+        // `config --add` appends a second time when the first run had installed its update.
+        &["config", "--add", "a.b", "c"][..],
+        &["config", "--unset", "a.b"],
+        &["config", "--replace-all", "a.b", "c"],
+        // `stash -m list` is a push of a stash with the message "list".
+        &["stash", "-m", "list"],
+        &["stash", "list", "--stat"],
+        &["stash", "push", "-m", "x"],
+        // A reflog introduced on a side ref is the doubling that made a branch write different.
+        &["update-ref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "-m", "message", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        // The numbered ref is a plain ref only with `--no-deref`, and has no reflog only with the setting on the command line (the
+        //  repository's own `core.logAllRefUpdates=always` would append a second entry in the second run).
+        &["update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        // The last setting of the key wins in Git, a key is not case-sensitive, and `--config-env` sets one too.
+        &["-c", "core.logAllRefUpdates=false", "-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "-c", "core.logallrefupdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "--config-env=core.logAllRefUpdates=LOGGING", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        // A ref under the prefix is not any ref under it: the wrapper makes numbered ones, and `..` is not a number.
+        &["update-ref", "refs/cli-git/../heads/main", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "refs/cli-git/kept/1/../../heads/x", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "refs/cli-git/kept/1", "refs/heads/main"],
+        // Other forms of steps that have a proven form.
+        &["clean", "--force", "-d", "-x"],
+        &["clean", "--force", "-d", "--", "dir"],
+        &["read-tree", "--reset", "-u", "a", "b"],
+        &["add", "--intent-to-add", "--", "a.txt"],
+        &["add", "--update", "--all"],
+        &["checkout-index", "--all"],
+        &["restore", "--staged", "a.txt"],
+        &["reset", "--mixed", "abc"],
+        &["update-index", "--chmod=+x", "a.txt"],
+        // Steps nobody listed.
+        &["gc", "--prune=now"],
+        &["maintenance", "run"],
+        &["repack", "-a", "-d"],
+        &["worktree", "add", "x"],
+        &["tag", "-f", "t", "abc"],
+        &["branch", "-f", "b", "abc"],
+        &[],
+    ] {
+        assert!(!ends(unrun), "{unrun:?} was not run in the experiment and has no ceiling");
+    }
+    // The forms that were run are exact: the same words with the proven options, and nothing else, keep the ceiling.
+    for proven in [
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/12", "0123456789abcdef0123456789abcdef01234567"][..],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "-d", "refs/worktree/cli-git-service/1793"],
+        &["stash", "list", "--format=%H"],
+        &["clean", "--force", "-d"],
+        &["read-tree", "--reset", "-u", "abc"],
+        &["config", "--local", "a.b", "c"],
+        &["reset", "--quiet", "abc", "--", "a.txt"],
+        &["restore", "--staged", "--worktree", "--source=HEAD", "--", "a.txt"],
+        &["add", "--all"],
+        &["add", "--update", "--", ":/"],
+    ] {
+        assert!(ends(proven), "{proven:?} is a form the experiment ran and keeps its ceiling");
+    }
+}
+
+/// Which forms of `symbolic-ref` and `init` may be run again (sol-1 and sol-2 round 2): the forms the wrapper runs, and no other. A
+/// read changes nothing. A write of a symbolic ref is run twice only in a shadow repository the wrapper made for one transaction
+/// (the experiment: identical after a second run at every cut). `init` is only the shadow's creation, which is private and thrown
+/// away when it fails (the experiment: different after a second run, so a step ended there discards that transaction's shadow).
+#[test]
+fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
+    let may = |arguments: &[&str], shadow: bool| -> bool {
+        let mut request: GitRequest = GitRequest::new(Path::new("/repo"), arguments);
+        request.without_prefix = shadow;
+        return may_be_rerun(&request);
+    };
+    // Reads.
+    assert!(may(&["symbolic-ref", "--quiet", "HEAD"], false));
+    assert!(may(&["symbolic-ref", "--quiet", "--short", "HEAD"], false));
+    // The wrapper's writes in a shadow repository.
+    assert!(may(&["--git-dir=/shadow", "-c", "core.hooksPath=/x", "symbolic-ref", "HEAD", "refs/heads/main"], true));
+    // A write in the repository of the person is a branch write.
+    assert!(!may(&["symbolic-ref", "HEAD", "refs/heads/other"], false));
+    // A delete, a message (it writes a reflog entry) and any other option are not forms the wrapper runs.
+    assert!(!may(&["symbolic-ref", "--delete", "HEAD"], true));
+    assert!(!may(&["symbolic-ref", "-m", "why", "HEAD", "refs/heads/main"], true));
+    assert!(!may(&["symbolic-ref", "--delete", "--quiet", "HEAD"], false));
+    // The shadow's creation.
+    assert!(may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(may(&["init", "--bare", "--template=", "--object-format=sha256", "--ref-format=reftable", "/shadow"], true));
+    // Any other words, or an extra one, are not the form the wrapper runs.
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
+    assert!(!may(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
+    // Any other `init` can relocate or re-initialize the repository of the person.
+    assert!(!may(&["init", "--bare", "--template=", "/shadow"], false));
+    assert!(!may(&["init", "--quiet", "--initial-branch=main"], true));
+    assert!(!may(&["init", "--separate-git-dir=/elsewhere", "--bare"], false));
 }

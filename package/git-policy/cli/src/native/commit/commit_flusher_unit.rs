@@ -159,6 +159,8 @@ pub fn transient_unit_arguments(unit: &str, service_program: &Path, lane: &Path)
     // the receipt stays in the directory for the next sweep, and the flusher records its own failures.
     let mut arguments: Vec<OsString> = vec!["--user".into(), "--collect".into(), "--quiet".into(), "--property=Type=exec".into(), format!("--unit={}", unit).into(), "--".into()];
     arguments.push(service_program.as_os_str().to_os_string());
+    // The service is a mode of the one executable, chosen by its leading words.
+    arguments.extend(crate::service_main::SERVICE_WORDS.iter().map(OsString::from));
     arguments.push(FLUSH_LANE_FLAG.into());
     arguments.push(lane.as_os_str().to_os_string());
     return arguments;

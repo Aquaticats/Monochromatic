@@ -333,7 +333,7 @@ pub fn hand_over_if_ahead(watch: &TipWatch, command: &str, stderr: &mut dyn Writ
             start_wait: START_WAIT,
             heartbeat_silence: HEARTBEAT_SILENCE,
             start_watch: provision.as_ref().map(manager_watch_for),
-            keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, start_ceiling: crate::wait_ceilings::START_CEILING,
+            keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
         },
         repository: watch.layout.worktree_root.clone(),
         git_dir: watch.layout.git_dir.clone(),

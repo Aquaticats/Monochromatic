@@ -25,7 +25,6 @@ use std::process::Output;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 pub(super) const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A repository with one committed file, edited, and a short runtime directory.
@@ -39,8 +38,6 @@ pub(super) fn prepared(name: &str) -> (Fixture, PathBuf, PathBuf) {
     std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
     let runtime: PathBuf = super::service_commit::runtime_for(name);
     std::fs::create_dir_all(&runtime).expect("runtime directory");
-    // The service program beside the wrapper, as an installed pair sits.
-    std::os::unix::fs::symlink(SERVICE, fixture.root.join("wrapper/cli-git-service")).expect("service program link");
     return (fixture, repo, runtime);
 }
 
@@ -243,7 +240,7 @@ fn the_first_commit_provisions_and_the_second_does_not() {
         assert!(!text.contains("@SERVICE_BINARY@") && !text.contains("@GIT@"), "no placeholder is left");
     }
     assert!(socket_unit.contains("ListenStream=%t/cli-git/%i.sock"), "one socket per worktree instance");
-    assert!(service_unit.contains(&fixture.root.join("wrapper/cli-git-service").display().to_string()), "{service_unit}");
+    assert!(service_unit.contains(&fixture.root.join("wrapper/cli-git-native").display().to_string()), "{service_unit}");
     std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
     let second: Output = commit(&fixture, &repo, runtime.as_path(), true);
     assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
@@ -262,7 +259,7 @@ const REMOVED_PROGRAM: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bi
 fn point_unit_at_removed_program(runtime: &Path, fixture: &Fixture) {
     let unit: PathBuf = runtime.join("systemd/user").join(SERVICE_UNIT_NAME);
     let text: String = std::fs::read_to_string(&unit).expect("service unit");
-    let program: String = fixture.root.join("wrapper/cli-git-service").display().to_string();
+    let program: String = fixture.root.join("wrapper/cli-git-native").display().to_string();
     assert!(text.contains(program.as_str()), "{text}");
     std::fs::write(&unit, text.replace(program.as_str(), REMOVED_PROGRAM)).expect("older unit");
 }
@@ -284,7 +281,7 @@ fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
     assert_eq!(finished_batches(&fixture), 2, "both commits landed through the service");
     let unit: String = std::fs::read_to_string(runtime.join("systemd/user").join(SERVICE_UNIT_NAME)).expect("service unit");
     assert!(!unit.contains(REMOVED_PROGRAM), "the unit names the program that exists: {unit}");
-    assert!(unit.contains(&fixture.root.join("wrapper/cli-git-service").display().to_string()), "{unit}");
+    assert!(unit.contains(&fixture.root.join("wrapper/cli-git-native").display().to_string()), "{unit}");
     assert_eq!(
         bus.join().expect("bus"),
         vec![
@@ -504,7 +501,7 @@ fn an_idle_service_exits_with_success() {
     let socket: PathBuf = runtime.join("cli-git/idle.sock");
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let idle: Duration = Duration::from_secs(2);
-    let mut child = std::process::Command::new(SERVICE)
+    let mut child = super::support::service_command()
         .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
         .args(["--idle-seconds", idle.as_secs().to_string().as_str()])
         .env_clear()
@@ -537,7 +534,7 @@ fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Ch
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     // Owned: its idle exit is hours away, so a control that fails before the wrapper retires it would leave it running.
     let child: std::process::Child = super::support::spawn_owned(
-        std::process::Command::new(SERVICE)
+        super::support::service_command()
             .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
             .args(["--release", "0.5.5"])
             .env_clear()
@@ -559,7 +556,8 @@ fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Ch
 }
 
 /// A per-user service of the earlier release is running with its two units installed. The first commit of this release asks it
-///  to retire, has the manager stop its socket and its service and reload, removes its units and its socket file, starts the
+///  to retire, has the manager stop its socket, waits for the service to leave by itself (the manager is asked about it, and the
+///  stop of the service goes after it left, so a landing in progress is not cut), and reload, removes its units and its socket file, starts the
 ///  worktree's own instance, and the commit lands there. The old service exits by itself with success.
 #[test]
 fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the_commit() {
@@ -587,7 +585,7 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
     assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "its units are gone");
     assert!(!runtime.join(LEGACY_SOCKET_RELATIVE).exists(), "its socket file is gone");
     assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the worktree has its own socket");
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit"]]);
+    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "GetUnit", "Get", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit"]]);
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }

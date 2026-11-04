@@ -13,6 +13,103 @@ This note records what was measured on the 0.5.28 base (`e7e304ffd6`), which def
 with a red control first, and what is left to the owner.
 Branch: `fix/git-policy-cli-commits-fast-under-disk-pressure`.
 
+## Result of the third round (less work on the wait)
+
+Branch `perf/git-policy-cli-less-foreground-work`, from `main` at `05c16d73d2`, 2026-11-04.
+The round removes or cheapens work the person waits for during `git commit`; every change has a control that was seen to
+fail first (the red commit is named), and every figure below was measured on this host under the load it had (load
+average
+about 9 during the runs), never after waiting for a quiet one.
+
+Method: the paired harness `bin/native-perf.ts` as in "How it was measured", on a fresh main-shaped fixture (a clone
+of this
+repository's `main` made with the Git LFS filters switched off so the harness's own Git sees a clean index: 21,065
+tracked
+files, a 2,837,531 byte index, this checkout's hooks), twenty rounds per run with the first (cold) round of each run
+left
+out, runs of the base build and of the branch builds alternating, and a base-against-base spread read from the base runs
+among themselves. The base is the release build of `main` at `05c16d73d2`. Native Git on this fixture takes 53 ms
+(unsigned)
+and 57 ms (signed), warm.
+
+- Spread of the same binary on unchanged input: the base's per-run medians of the paired delta were 104 to 113 ms
+  (unsigned, eight runs) and 138 to 155 ms (signed, eight runs). The first branch build, which differs from the base
+  only by
+  the sync change below, measured 99 to 119 ms and 138 to 150 ms in its four runs: inside that spread, so the sync
+  change has
+  no warm effect on an idle disk, and no figure under about 10 ms is claimed from these runs.
+- Paired delta, warm, pooled over the runs of each arm (median of wrapped minus native of the same round):
+  - base: unsigned 108 ms over 152 pairs, signed 143 ms over 152 pairs (last four runs alone: 110 and 146 ms).
+  - sync change only (`96a151a936`): unsigned 106 ms, signed 145 ms over 76 pairs.
+  - plus object reader order and cache-tree comparison (`c31b5daa60`): unsigned 86 ms, signed 120 ms over 76 pairs.
+  - plus built-commit checks from the object store (`5baabfe665`, the tip): unsigned 78 ms, signed 109 ms over 76 pairs.
+  - So the wrapped commit takes 2.5 times the native time unsigned and 2.9 times signed on the tip, against 3.0 and
+    3.5 on
+    the base.
+- Cold (the pack, index and packed-refs pages of the fixture dropped before every sample, both sides; two runs of each):
+  base 144 ms unsigned and 146 ms signed over 38 pairs; tip 117 and 121 ms. Native takes 195 and 200 ms cold.
+- Per-step costs (client timing records and the service's `answered` lines, warm medians, base then tip):
+  - `prepare`: 105 then 79 ms unsigned, 100 then 77 ms signed.
+  - `build`: 2 then 2 ms unsigned, 42 then 41 ms signed (the scratch repository's `commit`, not changed here).
+  - `submit`: 32 then 26 ms unsigned, 35 then 23 ms signed.
+  - `gate`: 11 then 10 ms unsigned, 11 then 11 ms signed.
+  - Service `landing_ms`: 32 to 34 then 25 ms; `objects_ms`: 10 then 0 to 3 ms; `index_update_ms` (named `sync_ms`
+    before
+    this round): 17 to 20 then 18 to 19 ms, unchanged.
+- Largest pair of any run of the tip: 940 ms (unsigned) and 773 ms (signed); of the base: 1,859 ms and 1,076 ms. No pair
+  reached the 5 s bound.
+
+What was changed, in the order it was done:
+
+- Git's pack sync in `fast-import` (`96a151a936`, red `2d5052c2f2`): see "Git's pack sync in `fast-import`". Counted
+  in the
+  service's `strace` (execve, fsync, rename) over six unsigned landings each: the base's `fast-import` made 6 syncs, the
+  tip's none; the wrapper's own queued syncs were 43 in both. The control lands in a repository and reads Git's trace2
+  `fsync`
+  counters of every child: 1 flush before the change, 0 after; a kept pack (`fastimport.unpackLimit=0`) 2 before, 0
+  after;
+  with `core.fsync` naming `loose-object`, `added` or `all`, or `core.fsyncObjectFiles=true`, the flushes stay.
+  `config_fsync.rs` reads `core.fsync` as Git 2.56.0 does and `config_fsync_tests.rs` checks that reading against the
+  flushes real Git makes for 22 values (loose object, reference and pack, one probe each), and
+  `hardens_index` now asks the same reading.
+- The answered line's `sync_ms` is `index_update_ms` (`819299f202`). It times removing the conclusion state and
+  building and
+  installing the new index, not a disk sync. Readers found by search: only this crate's controls and the documents
+  (`README.md`, `SPEC.md`), and the notes in `doc/` that quote old records; nothing else parses the journal or the
+  timing logs
+  (`bin/native-perf*.ts` store the lines unparsed). Records already in the journal keep `sync_ms`;
+  `index_update_ms_of` reads
+  either name, and `a_record_from_before_the_rename_still_gives_its_index_update` pins it.
+- The object reader searches packs before loose files (`d8b7f47ba9`, red `66819bb167`). A commit read about two thousand
+  objects of its base tree and looked for a loose file of each first (1,985 failed `statx` calls in one traced commit);
+  the control counts loose looks for 43 packed objects: 43 before, 0 after, and a loose-only object is still found.
+- The cached diffs leave the directories the cache-tree proves equal unread (`c31b5daa60`): see "Less work in the
+  client and
+  the landing". Controls: the answers equal Git in every state of the cache-tree (valid everywhere, invalid along one
+  path,
+  root invalid with valid subtrees, directories added and removed, a mode change, a tree written for the staged state,
+  index
+  versions 3 and 4, SHA-1 and SHA-256, no cache-tree, a tree the cache-tree does not name); a path that became a
+  directory, an
+  intent-to-add entry, an unmerged path and a sparse index stay with Git or equal it; a node whose count does not
+  match the
+  index declines. The read-count control (40 directories, one staged file) decodes fewer entries than there are
+  directories,
+  and with the comparison switched off it fails.
+- A commit Git built is checked from the object store (`90c649249b`): see "Less work in the client and the landing".
+
+The pack sync, the object order and the cache-tree comparison are reads and flushes that a stalled disk lengthens; the
+landing's `objects_ms` and the client's `prepare` are the steps that held them. Nothing in this round makes the 5 s
+bound
+provable under a stall that cannot be produced here; see "Evidence for raising the 5 s standard".
+
+What is left on the client's wait, measured on the tip (unsigned, from the `execve` trace of one commit): the Git `add`
+(24 ms), `ls-tree -r` of the base commit for the policies' baseline listing (20 ms; `candidate/candidate_store.rs`, a
+policy-engine question), `rev-parse` of the index path (8 ms), `cat-file --batch` (6 ms) and `diff-index` (6 ms), and
+in the
+service the in-process build of the new index (about 15 ms of the 18 ms `index_update_ms`, a rewrite of the whole 2.8 MB
+file).
+
 ## Result of the second round
 
 The branch now holds the 0.5.28 base tip `f89fa63f10` (every wait has a bound), the index recovery round 5 branch
@@ -371,17 +468,103 @@ is shown, the next step is a cap on queued landings (the service holds a landing
 it), which
 is the owner's to weigh against the 5 s rule.
 
+Measured 2026-11-04: the tip, with no pause between samples against a pause of 1.5 s (`--pause 1500`), runs alternating
+in time (three of each, twenty rounds each, the first round of each left out; 57 pairs per arm and scenario). Unsigned:
+76 ms without the pause and 78 ms with it; signed: 106 and 107 ms. The service's per-phase medians are the same with and
+without the pause (`queued_ms` 0, `lock_wait_ms` 0, `journal_ms` 0). The tails flip: pairs more than 40 ms above the
+arm's own
+median were 2 and 2 unsigned (without the pause, with it) and 0 and 7 signed (five of those above 200 ms, the largest
+773
+ms). An earlier pair of runs that was not alternated in time had shown the opposite (0 of 38 pairs with the pause, 9
+of 76
+unsigned and 6 of 76 signed without it); alternating in time removed it. A commit
+that starts while the previous landing's syncs run is therefore not shown to wait behind them. No owner question is
+asked and
+the queue cap is not built.
+
 ### Git's pack sync in `fast-import`
 
-For a commit the service builds itself, `git fast-import` syncs the pack it writes.
-A commit Git built (signed commits) takes another route and has no such sync.
-Option A: keep it.
-Option B: write the objects as loose files in process, as native Git does, with no sync (native default), which also
-removes a Git start and the `unpack-objects` child.
-Pro of B: one sync and two processes fewer.
-Con: the objects are not synced before the branch moves, as in native Git, and it is new code that writes into the
-object store.
-Ranking: B > A.
+What the code does now, read at `service_land.rs` (`land_batch_body`) and traced on Git 2.56.0 in disposable
+repositories (2026-11-04):
+
+- The service runs `git fast-import --done --export-marks=<file>` inside the real repository, so the objects are written
+  to the real object store, and the stream names `refs/worktree/cli-git-service/<seq>` as the branch it builds.
+  Nothing in the landing code makes a `.keep` file; a search of `src/` finds none.
+- `fast-import` writes a temporary pack, then (`builtin/fast-import.c`, `end_packfile`) either loosens it or keeps it.
+  Up to `fastimport.unpackLimit` objects (default 100; `transfer.unpackLimit` is the fallback) it pipes the pack to
+  `git unpack-objects` and deletes the pack.
+  A landing of one changed file writes three objects (the commit and the trees on the changed path; the blobs were
+  written by the client), so the common landing takes this branch.
+  Trace of a three-object stream: `fsync(pack)`, one `unpack-objects` start, loose objects left, no pack file, no
+  `.keep`.
+- The sync that the plan calls "Git's pack sync" is therefore the sync of a temporary file that is deleted a moment
+  later
+  (`pack-write.c`, `fixup_pack_header_footer`, `FSYNC_COMPONENT_PACK`).
+  It protects nothing, and the objects that remain are written by `unpack-objects` under the `loose-object` component,
+  which Git's default `core.fsync` does not sync.
+- Above the limit it keeps the pack: trace of a 150-file stream: two syncs (the pack and the index), a `.keep` file made
+  by `fast-import` itself and unlinked when it exits, one pack left.
+  So the `.keep` of the decision record lives only as long as the `fast-import` process.
+- What protects the new objects between the import and the compare-and-swap is the scratch reference that the same
+  `fast-import` run creates, not a `.keep` file.
+  Checked on a disposable repository with a linked worktree: after `fast-import` built
+  `refs/worktree/cli-git-service/1` in the main worktree, `git prune --expire=now` and `git gc --prune=now` run from the
+  linked worktree kept the commit and all its objects.
+- Record drift to report: `doc/decision/cli-git-concurrent-commits.md` lines 512 to 514 (a pack "kept with a `.keep`
+  file until the compare-and-swap succeeds") and lines 118 to 121 ("every landing adds one pack to the real object
+  store") describe a design this code does not have; small landings leave loose objects and no pack, and the guarantee
+  is the scratch reference.
+  The decision record is not edited here.
+- The person's configuration in the main checkout sets none of `core.fsync`, `core.fsyncObjectFiles`,
+  `core.fsyncMethod`, `fastimport.unpackLimit`, `transfer.unpackLimit`, so Git's defaults apply.
+
+Options:
+
+- Option A, keep the sync.
+  Pro: nothing to change.
+  Con: one flush of a file that is thrown away, 6 to 8 ms idle, unbounded behind a stalled disk, on the person's wait
+  of every unsigned commit, where native Git writes loose objects with no flush at all by default.
+  Visible result: unchanged, one `fsync` in the trace of a landing.
+- Option B, write the loose objects in process, no sync.
+  Pro: no `fast-import` start and no `unpack-objects` start (two Git children of the three or four per landing), no
+  sync.
+  Con: new code that writes into the object store (tree edits against the base tree, deflate, the repository's hash
+  algorithm, the rename into place), and the scratch reference must then be made some other way (a Git start, which
+  gives back one of the two starts, or an in-process reference write, which is the "scratch refs in process" item and
+  does not cover reftable repositories).
+  Without a scratch reference the new objects are unreachable until the branch moves, which is native Git's own window
+  but is weaker than what the landing has today.
+  Visible result: a landing with no import child.
+- Option C, keep `fast-import` and its scratch reference, and give that one child the `core.fsync` that native Git would
+  apply to the loose objects it would have written.
+  When the repository's effective set (or `core.fsyncObjectFiles=true`) names `loose-object`, the child is left as it
+  is;
+  otherwise it gets the person's set without `pack` and `pack-metadata`.
+  Pro: removes the flush; keeps the protection; the person's own durability choice still decides.
+  Con: keeps the two Git starts; one more configuration lookup (already in the landing's snapshot).
+  Visible result: default configuration, zero `fsync` calls in the trace of `fast-import`, the same loose objects;
+  `core.fsync=loose-object` or `added`, one sync as before.
+- Option D, raise or lower `fastimport.unpackLimit`.
+  Not an option: it moves the sync between the temporary pack and a kept pack, and does not remove it.
+- Ranking: C > B > A. C over B: C removes the flush, which is the part of the work that a stalled disk makes unbounded,
+  keeps the recorded protection (the scratch reference) with no new code that writes objects, and is small enough to
+  prove with a control that goes red; B removes two more starts but needs the in-process reference write to keep the
+  protection, so it is the follow-up that builds on the "scratch refs in process" item.
+  B over A: B removes the same flush and two starts, and costs only the new writer.
+- Pick: C, implemented in this round (agent's pick, veto open): `96a151a936`, red control `2d5052c2f2`.
+  B is not built here: it needs the in-process reference write first.
+- Result: the service's `strace` over six unsigned landings counts 6 syncs by `fast-import` on the base and none on the
+  branch; the control reads Git's trace2 `fsync` counters of the landing's children (1 before, 0 after; 2 before and 0
+  after for a kept pack); a repository that names `loose-object`, `added` or `all`, or sets
+  `core.fsyncObjectFiles=true`, keeps its flushes. On an idle disk the warm paired delta did not move beyond the
+  spread of
+  the same binary (see "Result of the third round"); the claim is the flush that a stalled disk can no longer hold on
+  the
+  person's wait, not a warm millisecond.
+- Record drift for the coordinator (not edited here, DRR): `doc/decision/cli-git-concurrent-commits.md` lines 118 to 121
+  and 512 to 514 describe a pack kept with a `.keep` file and one pack added by every landing. The landing code makes no
+  `.keep` file; `fast-import` makes and removes its own, and a small batch leaves loose objects and no pack. The
+  guarantee that holds is the scratch reference. The header of `maintenance_run.rs` was the same drift and is corrected.
 
 ### The service unit and the host's swap
 
@@ -394,6 +577,21 @@ Con: it covers the Git children too, and was never measured to matter here; swap
 GB.
 A softer `MemoryLow=` protects against reclaim without forbidding swap and is not measured either.
 Ranking: not before a measurement shows service pages being swapped during a slow commit.
+
+Measured 2026-11-04 (nothing set): a sampler read `VmSwap` and the major-fault counter of every `cli-git-service`
+process of the
+host every 100 ms for 25 minutes (13,730 samples of each of 7 to 8 services, started 03:53:39 -0500). `VmSwap` was 0
+kB in
+every sample of every service (the idle pass before it also read 0 for all seven); the resident size peaked at 12.8 to
+29.8 MB per service; the major faults of the window were 0 for every service. The host held 6.7 GB in its compressed
+swap
+(zram) meanwhile, so swap was in use by other processes and not by these. The journal holds 21 landings in the window,
+slowest 133 ms, so no slow commit was among them: this shows the services are not swapped out in ordinary use, and it
+cannot show what happens during a stall that cannot be produced here. The 16.6 s commit's 186 major faults remain the
+only
+record of a swapped-in service, from a sampler in an earlier round. A directive would cover the Git children too and
+has no
+evidence to rest on, so none is set.
 
 ### Less work in the client and the landing
 
@@ -415,6 +613,40 @@ Ranking: not before a measurement shows service pages being swapped during a slo
   exactly.
 - Ranking: cache-tree > in-process `rev-list` checks > scratch refs > `git var`, by the reads and starts each
   removes.
+
+Status after the third round (2026-11-04):
+
+- Cache-tree comparison: done (`c31b5daa60`), for `diff-index --cached` and its `--quiet` form
+  (`repo_read_tree_cached.rs`, `repo_read_index.rs` keeps the `TREE` extension). A directory the cache-tree marks valid
+  whose name equals the tree's is not read, on both sides; a count that does not match the index, a cache-tree that is
+  absent, an unmerged entry, an intent-to-add entry and anything the reader already declined (sparse and split
+  indexes) read
+  the whole tree or leave the question to Git. Measured with the object reader order (`d8b7f47ba9`): the client's
+  `prepare` went from 103 and 99 ms (unsigned, signed) to 83 and 76 ms.
+- In-process checks of a commit Git built: done (`90c649249b`, `service_built_checks.rs`). The parents come from the
+  commit object; a commit whose only parent is the branch tip is shown connected by walking its tree against the tip's
+  tree
+  (every differing blob must exist, every differing tree is read the same way). Only a proof is taken: a graft file, a
+  shallow
+  history, replacement objects, a merge, an amend, a root commit, an unreadable object or an object that looks missing
+  runs
+  the `rev-list` the landing always ran, so a refusal is Git's. Controls: no `rev-list` start for an ordinary commit
+  (also
+  with the objects only in a pack), two starts where grafts exist, a missing blob, tree and tree below a tree are
+  refused as
+  before, an object removed between the read of the commit and the check (the point `before-connectivity`) is refused, a
+  merge goes to Git. The replaced commit's parents for an amend were listed by Git for every commit Git built even
+  though
+  only an amend uses them; they are read from the object store, and only for an amend. SHA-256 repositories use the same
+  readers but no control of this item runs on one.
+- Scratch repository refs in process: not done. The scratch repository's `update-ref`, `symbolic-ref` and `for-each-ref`
+  are made under `src/native/commit/`, which another branch (`feat/git-policy-cli-commit-protocol-models`) is editing;
+  a second
+  edit there would conflict, and reftable repositories would stay on Git in any case.
+- `git var` in process: not done. The two starts measure about 1.5 ms each in the `execve` trace; the rules to reproduce
+  (missing name or address, the `GIT_*` variables, `user.useConfigOnly`, the date forms) are the largest risk of the
+  four
+  for the smallest gain.
 
 ## Evidence for raising the 5 s standard
 
@@ -601,8 +833,14 @@ median delta, the build 269 and 264 ms, with native at 274 to 295 ms in all four
 
 ## Not done, and why
 
-- The plain landing's `rev-list --parents` and connectivity check, the scratch repository's refs, `git var`, the
-  cache-tree comparison: options above.
+- The scratch repository's refs and `git var` in process: see "Less work in the client and the landing", "Status after
+  the
+  third round".
+- Option B of the pack sync (loose objects written in process): it needs the in-process reference write first.
+- The queue cap: not shown, see "The queue and the next commit".
+- The remaining client steps (`add` 24 ms, `ls-tree -r` 20 ms for the policies' baseline, `rev-parse` 8 ms,
+  `cat-file --batch`
+  6 ms, `diff-index` 6 ms) and the service's index build (about 15 ms): measured, not changed.
 - The first-landing outlier (item 7): not isolated.
 - The reproduction of an actual stall: banned as synthetic load; the production record is the only evidence of it.
 
@@ -639,5 +877,47 @@ The three gate runs before it failed on the two intermittent controls above and,
 work
 (`chunks_exact` with a constant size, fixed).
 
-The gate of the second round, on the tip that holds both merges and the owner's rule for syncs: 4703 tests run, 4703 passed,
+The gate of the second round, on the tip that holds both merges and the owner's rule for syncs: 4703 tests run, 4703
+passed,
 7 skipped, exit status 0 (unit `gpc-gate-commits-fast-under-disk-pressure-20261103T205122-0500`).
+
+The gate of the third round, on the branch `perf/git-policy-cli-less-foreground-work` at `5baabfe665` (the commits after it
+change documents and a module header only): 4727 tests run, 4727 passed, 7 skipped, Clippy clean, exit status 0
+(unit `gpc-gate-less-foreground-work-20261104T050534-0500`). On the host before it, the new and touched controls ran as
+457 landing controls, 171 `repo_read` controls, 33 cache-tree and query controls, 127 snapshot, landing-sync and durable
+controls, and 17 timing controls.
+
+## Resume point (2026-11-04, review of the third round by the cross-vendor reviewer)
+
+State: `main` (5328f45ccc) is merged into the branch without conflicts. Review file:
+`/var/home/user/temp/agent/reviews/less-foreground-sol-1.txt`. No gate has run on the fixed tip; no gate unit is running.
+
+Fixed, each with its control (red first where the old code could show red):
+
+- Quadratic proof of a wide directory: `the_proof_of_a_wide_directory_is_linear_in_its_width` (red: 4,504,501 name steps for 3,000
+  files, green: at most eight per entry).
+- A matching cache-tree hiding a missing root tree: `a_root_tree_that_is_gone_is_not_hidden_by_a_matching_cache_tree` (red: the
+  readers answered an empty diff), both diff paths, SHA-1 and SHA-256.
+- A kept pack not flushed where native Git would flush the same objects loose: `a_kept_pack_gets_the_flush_native_gives_the_same_objects`
+  (red: 0 flushes), plus `the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_components` against real Git and
+  the cases in `the_import_gets_a_value_without_packs_only_where_loose_objects_are_not_flushed`.
+- Effective history context: `every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list` (red: a
+  `GIT_SHALLOW_FILE` answered from the store), with `GIT_GRAFT_FILE`, `GIT_REPLACE_REF_BASE`, `GIT_NO_REPLACE_OBJECTS`, the object
+  directory variables, `--no-replace-objects` and `core.useReplaceRefs`; also pinned: a shallow file, a replacement object.
+- Supported maintenance concurrency: written in `SPEC.md` ("Maintenance that may run while a commit is made"). The statement in
+  this document that "the guarantee that holds is the scratch reference" is too strong: the reference is a reachability root for a
+  collector that reads references after it exists, and `prune --expire=now`, `gc --prune=now` and `repack -a -d` are not
+  supported while a commit is made. The decision record's claim stays for the owner (not edited here).
+- Pinned controls added: SHA-256 for the built-commit checks (loose, packed, missing tree), the built commit removed at
+  `before-connectivity`, a built amend, split and sparse indexes in both formats on both diff paths, per-thread loose-look counter.
+
+Measured after the fixes (new fixture of 21,070 files, three alternating runs per arm, warm, pooled paired delta against native 52
+and 56 ms): base 111 ms unsigned and 146 signed; previous tip 87 and 112; fixed tip 85 and 123. The fixed tip is within the spread
+of the previous one (per-run medians 83 to 126 and 122 to 132 against 78 to 95 and 109 to 126), so the walk change moved nothing
+on this fixture, where no directory on the changed path is wide.
+
+Next: run the gate on the tip (`node /var/home/user/temp/agent/gate/launch-gate.ts <worktree> <label>`, then
+`wait-unit-gate.ts`); the one failure seen on the host, `service_index_lock::tests::a_foreign_lock_is_described_with_the_process_that_has_it_open`,
+passed alone and in a rerun (a timing-dependent control of the merged index reclamation work). Not done: a built root (unborn
+branch) commit control; the planning document's earlier "Result of the third round" figures predate these fixes except where
+stated here.

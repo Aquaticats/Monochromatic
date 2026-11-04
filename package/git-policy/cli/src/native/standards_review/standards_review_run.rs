@@ -59,6 +59,8 @@ pub struct ReviewOptions {
     pub endpoint: String,
     /// How long the gateway call may stay silent before it is ended.
     pub quiet_window: Duration,
+    /// The longest the gateway call runs in all, whatever it shows (`wait_ceilings.rs`, `REVIEW_CALL_CEILING`).
+    pub call_ceiling: Duration,
     /// A PEM authority replacing the embedded roots (tests only).
     pub trusted_pem: Option<Vec<u8>>,
 }
@@ -76,7 +78,7 @@ pub struct ReviewOptions {
 pub fn options_from_environment(common_dir: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
     let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return shared_log_path(common_dir), PathBuf::from);
     let api_key: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| return variable(KEY_VARIABLES[1]));
-    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, trusted_pem: None };
+    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING, trusted_pem: None };
 }
 
 /// What:
@@ -132,7 +134,7 @@ fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
     if key.is_empty() {
         return failed(String::from(NO_KEY_MESSAGE));
     }
-    let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, trusted_pem: options.trusted_pem.as_deref() };
+    let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, ceiling: options.call_ceiling, trusted_pem: options.trusted_pem.as_deref() };
     let reply: Result<Reply, String> = post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
     return match reply.and_then(|answer| return read_answer(answer.status, answer.body.as_str())) {
         Ok(judged) => judged,
@@ -198,24 +200,164 @@ pub fn review_landed(
 }
 
 /// What:
-///  Run `job` on a helper thread and wait for it; `None` means the job panicked.
+///  How a contained job ended.
 /// Why:
-///   The review shares the service's work thread, so a panic in any step must cost one failed item and never the thread. No
-///  time limit applies: each step of the job ends on no progress by itself.
+///   The caller words a panic and a ceiling differently: one is a defect, the other is a review that ran as long as the service lets
+///  one run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await job().catch(() => undefined)
+/// type Contained<T> = { kind: 'finished'; value: T } | { kind: 'panicked' } | { kind: 'ceiling'; afterMs: number };
 /// ```
-pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Contained<T> {
+    /// The job returned its value.
+    Finished(T),
+    /// The job panicked or its thread could not start.
+    Panicked,
+    /// The job was still running when the ceiling passed; the caller stopped waiting and the job's thread is left to end with the
+    ///  process, or when the step it is stuck in returns. Until then it counts as outstanding (`outstanding_reviews`).
+    CeilingReached(Duration),
+    /// The job was not started: an earlier one that the caller stopped waiting for is still running and may hold what this one
+    ///  needs (the review log), so no second thread is added behind it.
+    Busy,
+}
+
+/// What:
+///  The one job a runner has at a time, as the runner knows it: nothing, one the caller waits for, or one the caller stopped waiting
+///  for and that still runs.
+/// Why:
+///   Admission, the caller's give-up and the worker's end are each one atomic change of this state, so two callers cannot both be
+///  admitted (sol-2 round 2, P2), and a worker that panics releases it by a guard that runs on unwinding (sol-2 round 2, P1). The
+///  production runner is `RUNNER`; a control makes its own, so the controls do not see one another's jobs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Containment { state: 'idle' | 'running' | 'abandoned' }
+/// ```
+pub struct Containment {
+    /// The generation of the job in the high bits and `IDLE`, `RUNNING` or `ABANDONED` in the low two. A change names the generation
+    ///  it expects, so a caller that gave up on job 7 can never change the state of job 8.
+    state: std::sync::atomic::AtomicU64,
+}
+
+/// No job.
+const IDLE: u64 = 0;
+/// A job the caller waits for.
+const RUNNING: u64 = 1;
+/// A job the caller stopped waiting for, still running.
+const ABANDONED: u64 = 2;
+/// The bits of the state that hold the status.
+const STATUS: u64 = 3;
+
+/// The runner of the service's reviews.
+pub static RUNNER: Containment = Containment::new();
+
+impl Containment {
+    /// A runner with no job.
+    pub const fn new() -> Self {
+        return Self { state: std::sync::atomic::AtomicU64::new(IDLE) };
+    }
+
+    /// How many jobs the caller stopped waiting for are still running: zero or one.
+    pub fn outstanding(&self) -> usize {
+        return usize::from(self.state.load(std::sync::atomic::Ordering::SeqCst) & STATUS == ABANDONED);
+    }
+
+    /// Admit a job when there is none: the new generation, or nothing.
+    fn admit(&self) -> Option<u64> {
+        use std::sync::atomic::Ordering;
+        let seen: u64 = self.state.load(Ordering::SeqCst);
+        if seen & STATUS != IDLE {
+            return None;
+        }
+        let generation: u64 = (seen >> 2) + 1;
+        return self.state.compare_exchange(seen, (generation << 2) | RUNNING, Ordering::SeqCst, Ordering::SeqCst).ok().map(|_| { return generation; });
+    }
+
+    /// Move job `generation` from `from` to `to`; false when the state is not that job's in that status any more.
+    fn change(&self, generation: u64, from: u64, to: u64) -> bool {
+        use std::sync::atomic::Ordering;
+        return self.state.compare_exchange((generation << 2) | from, (generation << 2) | to, Ordering::SeqCst, Ordering::SeqCst).is_ok();
+    }
+}
+
+impl Default for Containment {
+    fn default() -> Self {
+        return Self::new();
+    }
+}
+
+/// Releases a runner's job when it goes out of scope, whether the job returned or panicked.
+struct Release<'a> {
+    /// The runner the job belongs to.
+    runner: &'a Containment,
+    /// The job.
+    generation: u64,
+}
+
+impl Drop for Release<'_> {
+    fn drop(&mut self) {
+        // Whatever status the job has (waited for or abandoned), it ends idle; a state that is another job's is left alone.
+        let _released: bool = self.runner.change(self.generation, RUNNING, IDLE) || self.runner.change(self.generation, ABANDONED, IDLE);
+    }
+}
+
+/// How many reviews the service stopped waiting for that are still running.
+pub fn outstanding_reviews() -> usize {
+    return RUNNER.outstanding();
+}
+
+/// What:
+///  Run `job` on a helper thread and wait for it, at most `ceiling`.
+/// Why:
+///   The review shares the service's work thread, so a panic in any step must cost one failed item and never the thread. Each step
+///  of the job ends by itself on no progress or at its own ceiling; the ceiling here covers the whole job, including the one step
+///  with no judge of its own, the local write of the log entry (owner, 2026-11-04, "Silence plus a ceiling (Recommended)";
+///  `wait_ceilings.rs`, `REVIEW_CEILING`). A thread cannot be stopped from outside, so the caller stops waiting and the thread ends
+///  with the process, or when the step it is stuck in returns; meanwhile no other job starts (`Contained::Busy`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([job().catch(() => PANICKED), after(ceilingMs).then(() => CEILING)])
+/// ```
+pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+    return run_contained_in(&RUNNER, job, ceiling);
+}
+
+/// `run_contained` on a runner of the caller's own.
+pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+    // One atomic step admits the job: a review the caller stopped waiting for may still hold the log, and a second one would queue
+    // behind it and be abandoned in its turn (sol-2, B); two callers at once cannot both pass.
+    let Some(generation) = runner.admit() else {
+        return Contained::Busy;
+    };
     let (sender, receiver) = mpsc::channel::<T>();
     let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
-        let _ = sender.send(job());
+        // Released when the job ends, before its value is sent, so a caller that has the value finds the runner free; and on
+        // unwinding, so a job that panics after the caller gave up does not keep the runner closed.
+        let release: Release<'static> = Release { runner, generation };
+        let value: T = job();
+        drop(release);
+        let _ = sender.send(value);
     });
     if worker.is_err() {
-        return None;
+        let _released: bool = runner.change(generation, RUNNING, IDLE);
+        return Contained::Panicked;
     }
-    return receiver.recv().ok();
+    return match receiver.recv_timeout(ceiling) {
+        Ok(value) => Contained::Finished(value),
+        // The thread ended without a value: it panicked, and its guard released the runner.
+        Err(mpsc::RecvTimeoutError::Disconnected) => Contained::Panicked,
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            if runner.change(generation, RUNNING, ABANDONED) {
+                Contained::CeilingReached(ceiling)
+            } else {
+                // The job ended between the timeout and now: its value is in the channel, or it panicked.
+                receiver.recv().map_or(Contained::Panicked, Contained::Finished)
+            }
+        }
+    }
 }
 
 /// Controls stay out of the release executable.

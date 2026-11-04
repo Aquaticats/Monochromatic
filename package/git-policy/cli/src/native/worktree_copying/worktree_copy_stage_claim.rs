@@ -449,7 +449,7 @@ fn remove_dead_temporaries(root: &Path) -> Result<(), WorktreeCopyError> {
             continue;
         }
         // The name is `<item>.<writer>.<unique>.tmp`; a name of another shape has no writer and counts as a dead one's.
-        if token_owner_is_dead(temporary_writer_token(name.as_str()), entry.path().as_path()) {
+        if token_owner_is_dead(temporary_writer_token(name.as_str()), entry.path().as_path())? {
             remove_file_if_present(entry.path().as_path())?;
         }
     }
@@ -501,7 +501,7 @@ pub fn reap_abandoned_stages(common_dir: &Path) -> Result<Vec<String>, WorktreeC
                 continue;
             };
             // A live owner's claim is its running add or copy; a claim whose owner cannot be judged is kept, too.
-            if !token_owner_is_dead(owner.as_deref(), claim.as_path()) {
+            if !token_owner_is_dead(owner.as_deref(), claim.as_path())? {
                 continue;
             }
             let present: bool = match std::fs::symlink_metadata(container.as_path()) {

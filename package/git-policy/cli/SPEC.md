@@ -770,7 +770,8 @@ file and published with one exclusive `link` under the next generation number, s
 generation; the newest generation is the claim and records the owner's process id, process birth identity and PID namespace.
 A newer generation replaces an older one only when the older records a released claim or an owner that no longer runs with
 that birth (a reused PID does not count as alive); an owner in another PID namespace counts as alive until its file is older
-than `FOREIGN_OWNER_PATIENCE`. The newest generation is never removed (a released one is rewritten by a rename), older ones are
+than `FOREIGN_OWNER_PATIENCE`, and a command that finds it older stops with an error and takes nothing over (the owner's "Refuse and
+name it (Recommended)", "Foreign-owner expiry" below). The newest generation is never removed (a released one is rewritten by a rename), older ones are
 removed by the command that took the newer, and a generation published by a command whose listing went stale is withdrawn
 when a newer one exists. A command that finds a live owner skips the worktree, names the process and the file, waits for
 nothing and writes nothing. A killed command leaves a claim file that needs no cleanup.
@@ -1032,7 +1033,8 @@ A journal is `<id>.<owner>.json`, where `<owner>` is the owner's process id, bir
 text; a stage claim holds the container path on its first line and `owner=<owner>` on its second; every temporary file is
 `<item>.<owner>.<unique>.tmp`.
 An owner is alive when a process with its id and its birth identity exists; one in a PID namespace the reader cannot see is
-alive until its item is older than an hour; one the platform cannot report on is not proven dead, so its item is kept.
+alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`, 20 minutes), and past it the command that finds the item stops with an
+error that names the item and changes nothing (the owner's "Refuse and name it (Recommended)", "Foreign-owner expiry" below); one the platform cannot report on is not proven dead, so its item is kept.
 An item that names no owner (a name an earlier release wrote, or a stranger's file) has none to wait for and counts as dead.
 A command that finds a pending journal or stage claim whose owner is alive leaves it whole and goes on: it never waits for
 the owner, because the owner is an add or a copy in progress.
@@ -1150,9 +1152,10 @@ The repairs, which run side by side:
   The owner decided this on 2026-11-03: "The repair should start whatever pnpm is first on path."
 
 Each tool ends in a finding.
-A tool that shows no sign of work for the quiet window (600 seconds, unmeasured) is stopped with its whole process
-group;
-a tool that works is never stopped for being slow.
+A tool that shows no sign of work for the quiet window (600 seconds; the longest quiet gap measured is 30.3 s, see "The quiet
+windows are labelled unmeasured") is stopped with its whole process group, and so is a tool that has run `REPAIR_TOOL_CEILING`
+(18 minutes) whatever it shows (owner, 2026-11-04, "Silence plus a ceiling (Recommended)"); the line names the tool, what it was
+doing, the seconds it ran and the command to run by hand.
 A repair never fails the add: the exit status stays Git's.
 When all repairs worked, one line on standard error names the worktree, each tool's detail and its time, unless `--quiet` was given.
 A repair that did not finish, including a missing tool, prints one line per failure, also under `--quiet`, that names the reason
@@ -1357,13 +1360,12 @@ The signs are the ones the push reads (`src/native/push/push_progress.rs`): byte
 started,
 processor time, a task able to run or waiting for the disk, and, for a run that holds a connection to a remote, the open
 connection itself.
-A step that is slow and works is waited for however long it takes;
-the owner's later rule ("nothing should ever wait forever or indefinitely") puts a ceiling on this too,
-which is for the coordinator to pick (`doc/planning/cli-git-no-unbounded-waits.md`, option set A).
+A step that is slow and works is waited for until its ceiling (the owner's later rule, "nothing should ever wait forever or
+indefinitely", and `doc/planning/cli-git-no-unbounded-waits.md`, "Branch write and tool ceilings, 2026-11-04"); a write in place
+that is not safe to run twice has no ceiling.
 The windows are in whole seconds and are not measured (see "The quiet windows are labelled unmeasured").
-Linux only: where `/proc/<pid>/io` cannot be read nothing is measured and a run is never ended, because no wall-clock
-bound
-is the rule.
+Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no quiet window can end a run, and only the ceilings do
+(the ceiling of a step that can be run twice, of a repair tool, of the Markdown check, of the review call and of the whole review).
 
 - A Git step of a commit (`src/native/push/child_watch.rs`, `src/native/transaction/transaction_git.rs`) is judged by the push meter on
   the
@@ -1379,11 +1381,33 @@ is the rule.
   Only a step that is safe to run twice is ended: the reads, the writers of content-addressed objects and the changes
   of a
   private index (`may_be_rerun`).
-  A reference update, a commit Git builds and every other writer are announced at the usual interval and waited for as
-  long as
-  they live, because ending a writer in the middle of its write is the one choice that could cost data; whether
-  `update-ref`
-  (a compare-and-swap) may join the steps that are ended is an open question for the owner.
+  A step keeps a ceiling only when `may_be_ended` in `src/native/transaction/transaction_git.rs` says so. The owner decided it for
+  the branch write on 2026-11-04 ("Never cut a branch write (Recommended)"), and the coordinator's follow-up made the owner's
+  criterion the rule for every step: a step keeps its ceiling exactly when it can run twice, decided by cutting it at every
+  mutating system call with `SIGKILL` and `SIGTERM`, running it again, and comparing the end state with an uncut run's
+  (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The rule is a whitelist of the exact forms the experiment
+  ran, parsed by their options and words, so a form it did not run has no ceiling: `update-ref` set or delete of one numbered side
+  ref (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`) only with `--no-deref` and with
+  `-c core.logAllRefUpdates=false` on the same argv as the last setting of that key (Git takes the last; `--config-env` of the key is refused too), which the wrapper passes at each of its call sites in
+  `src/native/landing/service_land.rs` (the repository's own `core.logAllRefUpdates=always` and a side ref that is a symbolic ref
+  were both run), `stash list
+  --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index` with only `--refresh`, only `--index-info` (and
+  `-z`), or `--add --cacheinfo <triple>`, `add` with `--update` or `--all`, `checkout-index --all --force`, `restore` with
+  `--staged`, `--worktree`, `--source=` and paths after `--`, `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key>
+  <value>`; and the steps `RERUNNABLE` names, and the readers and writers of unreferenced objects (`rev-list`, `merge-base`, `log`,
+  `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`, `fmt-merge-msg`, `show-ref`, `name-rev`,
+  `commit-tree`, `mktree`; `fast-import` is not among them: its input can update and checkpoint branches, and the experiment ran the
+  wrapper's own stream and found a marks lock a cut left that the second run could not pass). `RERUNNABLE` no longer names
+  `symbolic-ref` or `init`: `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the
+  wrapper made, as a write of one name to one target with no option (identical in the experiment), and `init` only as the shadow's
+  creation (the one argv `shadow_create.rs` runs, on a shadow request), which the experiment found different after a second run (reftable names are random) and
+  which is private and thrown away with its transaction when it fails. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
+  `checkout`, `switch`, `config --add`, `gc` and the rest, is never ended. On the commit service's landing thread such a step is
+  announced at the usual interval and waited for as long as it lives. Any other command stops waiting at the bound of the step's
+  class plus `SHORT_EXTRA_WAIT` (7 seconds; the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
+  names the step and its command line and says it was left running, so the result is not known, with `git status`, `git log -1`
+  and `ps` to check. The step writes its output into anonymous files, not pipes (`src/native/process/output_capture.rs`), so it
+  does not die of `SIGPIPE` when the command exits, and the system's init or subreaper reaps it.
 - The person's hook is never ended.
   No hook of the person runs below a step the wrapper starts, because every Git the wrapper starts carries
   `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`), so the watch
@@ -1402,20 +1426,29 @@ is the rule.
   exists.
 - A package-manager tool of the worktree repair (`src/native/repair/package_repair_command.rs`) is judged on its process
   group's
-  leader with a window of 600 seconds, and ends with its whole process group.
-  An install that downloads for a long time is never reported as having run past a limit.
+  leader with a window of 600 seconds, and ends with its whole process group; it also ends, with its whole process group, when it
+  has run `REPAIR_TOOL_CEILING` (18 minutes), whatever it shows.
+  An install on a huge repository that works for longer than that is ended and reported with the command to run by hand.
+  The tool's output goes to anonymous files, so the ceiling covers the draining of it: no thread waits for a stream to close, a
+  helper that keeps an inherited stream open after the leader has exited, or that left the process group while holding it, holds
+  nothing up, and a helper still running when the leader has exited is left alone.
 - The Markdown linter (`src/native/markdown/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
   of that
   thread (`src/native/process/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
-  `/proc/self/task/<tid>/`, with a window of 60 seconds. A linter thread that shows none is abandoned as before.
-- The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has no total deadline. Resolving,
+  `/proc/self/task/<tid>/`, with a window of 60 seconds. A linter thread that shows none is abandoned as before, and so is one
+  that has been checked one file for `LINT_CEILING` (4 minutes), with a reason that names the tool, the file and the ceiling.
+- The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has one ceiling over the whole
+  call, `REVIEW_CALL_CEILING` (1 minute). Resolving,
   connecting and
-  each read and write of the connection may be silent for the window, 10 seconds in the service (`CALL_QUIET_WINDOW`)
+  each read and write of the connection may also be silent for the window, 10 seconds in the service (`CALL_QUIET_WINDOW`)
   and 30
-  seconds for the script's own default (`SCRIPT_QUIET_WINDOW`); the transport ends the call itself.
-  The 20 second budget around the whole review is gone: its Git reads end on no progress, its call on the idle
-  timeouts, and
-  the local write of the log entry has no judge.
+  seconds for the script's own default (`SCRIPT_QUIET_WINDOW`); the transport ends the call itself, and its global timeout ends
+  it at the ceiling with a sentence that names the call and the command that reviews the commit again.
+  The whole review of a commit is waited for `REVIEW_CEILING` (2 minutes) by the service (`run_contained`); a review it stopped
+  waiting for is counted as outstanding until its thread ends and no other review starts meanwhile (the refused item fails with the
+  command that reviews it again), because it may still hold the review log; its Git reads end on
+  no progress or at their class's ceiling, its call as above, and the local write of the log entry, which has no judge of its
+  own, is covered by the review's ceiling: the service stops waiting and the thread ends with the process.
 - Not changed: the refused-start retry (5 seconds, a process-count cap is on the owner's outside list and a retry is
   the allowed
   last resort), the wait for the signal guard (library tests only), and the notice graces (they time a message, not an
@@ -1436,11 +1469,9 @@ each request ends with `quiet_ms=<longest among the steps that ended by themselv
 The landings of one service share the ledger, so the first answer after a batch's steps holds their figures and the
 others of
 that batch hold none; a figure is a gap of some step of the service since the previous answer, not of one request.
-The gateway call has no total deadline by construction: the transport's other timeouts (`global`, `per_call`,
-`send_body`,
-`recv_response`, `recv_body`) default to none in the locked `ureq` 3.5.0 (`Timeouts::default`, `src/config.rs`; only
-the one
-second wait for a `100 Continue`, which the call never sends), and the call sets only the four idle ones.
+The gateway call's total deadline is `ureq`'s `global` timeout, set to `REVIEW_CALL_CEILING`; the transport's other timeouts
+(`per_call`, `send_body`, `recv_response`, `recv_body`) default to none in the locked `ureq` 3.5.0 (`Timeouts::default`,
+`src/config.rs`; only the one second wait for a `100 Continue`, which the call never sends).
 
 ##### The quiet windows are labelled unmeasured
 
@@ -1499,12 +1530,26 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   labelled as the other quiet windows (twice the longest whole push in the
   journal, 72.4 s): a push whose connection is open and that shows no sign of work for this long is ended as a stall.
 - `PHASE_PATIENCE` 5 minutes: the test marker compiled into the executable ends its pause at the limit of any test.
-- `PLUMBING_STEP_CEILING` 120 seconds, `OBJECT_STEP_CEILING` 10 minutes and `REFERENCE_STEP_CEILING` 60 seconds:
+- `PLUMBING_STEP_CEILING` 120 seconds and `OBJECT_STEP_CEILING` 10 minutes:
   the longest one Git
   step runs, whatever it shows and whether or not it may be ended for being quiet (the longest read step of the
   service's
-  landings, 9.7 s; the longest client preparation, 250 s; the longest reference update, 3.4 s).
-  All are below `ANSWER_CEILING`.
+  landings, 9.7 s; the longest client preparation, 250 s).
+  Both are below `ANSWER_CEILING`. `REFERENCE_STEP_CEILING` (60 seconds) is gone: the owner's answer of 2026-11-04, "Never cut a
+  branch write (Recommended)", means no ceiling for the branch write or for any other step that cannot be run twice
+  (`may_be_ended`). `NEVER_ENDED_STEP_SLOW_AFTER` (60 seconds, 17 times the longest of 2,093 reference updates, 3.4 s) is
+  not a bound: it is when the service starts telling the clients queued behind such a write what it is stuck in.
+- `REPAIR_TOOL_CEILING` 18 minutes, `LINT_CEILING` 4 minutes, `REVIEW_CALL_CEILING` 1 minute and `REVIEW_CEILING` 2 minutes: the
+  longest one repair tool, one Markdown check, the standards-review call and the whole review of a commit run, whatever they show
+  (owner, 2026-11-04, "Silence plus a ceiling (Recommended)"). Each is the smallest whole number of minutes that is at least five
+  times the longest measured run; the figures, the method and the sample's limits are beside each constant and in
+  `doc/planning/cli-git-no-unbounded-waits.md`, "Branch write and tool ceilings, 2026-11-04".
+- `SHORT_EXTRA_WAIT` 7 seconds: how much longer a command waits for a write it started, after its own bound, before it says the
+  result is not known (twice the longest branch write measured, 3.4 s).
+- `FOREIGN_OWNER_PATIENCE` 20 minutes: twice `LOCK_CEILING`, derived in code (`src/native/process/pid_namespace.rs`), 1.6 times the
+  longest commit measured (751 s) and 2.2 times the longest worktree add (540 s). It was an hour, twice the 30 minute live lock
+  wait of a file that no longer exists. It is the age after which a record of an owner in another PID namespace is refused, not
+  reclaimed: see "Foreign-owner expiry".
 
 What happens at the bound, on the commit path:
 
@@ -1530,15 +1575,40 @@ What happens at the bound, on the commit path:
   so it will not land later by itself."
   A service that does not answer within `WITHDRAW_CEILING` leaves the outcome unknown, and the message says so and gives
   `git log -1` and `git status`.
-- A Git step of the landing that reaches its ceiling is ended.
-  A reference update ended at its ceiling is followed by a read of the
-  branch: if it is at the request's commit the outcome is `Landed` (the update renamed the reference before it was
-  ended);
-  otherwise the batch is withdrawn as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`,
+- A Git step of the landing that reaches its ceiling is ended, unless it is a step that cannot be run twice, which
+  has none. The batch is withdrawn as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`,
   lock given up,
-  failure `step-too-slow` with the step named). Any other step ended at its ceiling ends the landing the same way,
-  and an open
+  failure `step-too-slow` with the step named), and an open
   intent finishes a batch only when its branch has moved, so nothing lands later. Hooks are never ended by the wrapper.
+- The branch write (`git update-ref --stdin`) is never ended (owner, 2026-11-04, "Never cut a branch write (Recommended)"). While
+  the one landing thread is inside such a write for longer than `NEVER_ENDED_STEP_SLOW_AFTER`, each waiting connection is sent a
+  `waiting` message naming it (the command, the repository, the branch and commit it moves, and the scratch ref that holds the
+  commit until the update ends; a whole new minute count each minute). The landing thread's record
+  (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
+  not begun to land. Admission and cancellation are one decision per request: the file `<id>.decision` in the journal's `busy`
+  directory, made with `link(2)` of a whole file, which exactly one side can create (`landing` by the landing thread before it
+  lands the request, `withdrawn` by a connection thread before it answers). A `withdrawn` decision is provisional until its maker has
+  checked the journal once more and created the file `<id>.cancelled`; only a decision with that file is acknowledged to a client or
+  kept, and a maker that finds the request landed, open or unknown removes its decision, which nobody has acknowledged, so no
+  observer reports a cancellation that is later undone. A `withdrawn` decision with its `.cancelled` file stays as a tombstone, so every
+  copy of the request that reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches, and
+  cleared when the service starts like the service's own memory of withdrawals); a `landing` decision is removed when its group is
+  done, after the batch is in the journal, and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
+  request the journal names. A request that a batch still open names is left to the landing thread. Whatever cannot be established
+  (a file that cannot be made or read, a journal that cannot be read whole) is never evidence of a cancellation: the withdrawal goes
+  to the landing thread, and a request that cannot be admitted is answered with a failure and not landed. So a commit queued behind
+  the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`, with the write named in the error and the log and
+  restart commands as the way out. A request that is the landing thread's is not withdrawn that way, because its commit may be made
+  by the write: the service sends its client, when the write starts and on the connection it opens to withdraw too, the same
+  `waiting` line with one more field, `"inside_write": true` (a client that does not know the field reads a plain `waiting`
+  notice, a service that does not send it leaves a client that does on the older path, and the protocol version stays 7), and that
+  client, at its original `ANSWER_CEILING` deadline plus `SHORT_EXTRA_WAIT` (7 seconds: the owner's "7 s (Recommended)", twice the
+  longest of 2,093 reference updates, 3,438 ms), does not ask to be withdrawn but listens for the landing and then ends with the
+  "not known whether the commit was made" failure, which names the write and the scratch ref and says `git log -1` and `git status`;
+  the write is left running and the commit lands when it returns. A client that is never told takes the older path and waits
+  `WITHDRAW_CEILING`. The record holds no lock (the owner: "Use as few locks as possible."), and the directory is emptied when the
+  service starts. Protocol messages are unchanged.
+  A client that waits behind a hung write keeps the service busy only as long as the write lasts; nothing in the wrapper ends it.
 - A merge waits for a foreign `index.lock` until `LOCK_CEILING`; at the bound it names the holder and ends the wait,
   and Git's own
   refusal ends the merge non-zero with nothing changed.
@@ -1582,6 +1652,52 @@ Kept from the delegated picks, now inside these bounds:
   no wait outlasts `SCRATCH_STALE_AFTER`
   either.
 - `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) cover only a lock that was gone by the time it was looked at.
+
+#### Foreign-owner expiry
+
+The owner, 2026-11-04, "Refuse and name it (Recommended)" (option B of "Foreign-owner patience: what its expiry authorizes"): when
+`FOREIGN_OWNER_PATIENCE` expires on a record from another PID namespace, the command stops and changes nothing. An age is not proof
+that an owner is dead: a merge or a copy that cannot run twice may legitimately outlive any number. The error names the record file,
+the owner's process number and namespace, the record's age, that the owner may be a live command in another container, and the exact
+`rm -- '<path>'` to run when no cli-git command is running on the repository in any container and no Git process that cli-git left
+running (a step it stopped waiting for) is either. It covers the merge intent recovery (`merge_isolation_recovery.rs`), the takeover
+of a conversion claim (`single_owner_claim.rs`), and the journals and stage claims of a worktree add (`worktree_copy_owner.rs`,
+`worktree_copy_journal.rs`, `worktree_copy_recovery.rs`, `worktree_copy_stage_claim.rs`), and the legacy transaction owner records
+(`transaction_owner.rs`). A commit is outside it: commits never wait for these records and never fail on them. Tests, each red first:
+`an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes`,
+`a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes`,
+`an_owner_of_another_namespace_with_an_old_item_is_refused_and_named`, and
+`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`.
+
+#### Output of a step, the review runner, and releases that meet
+
+- The output of a step the wrapper started (`src/native/process/output_capture.rs`) is read once, when the step has ended or the
+  command has stopped waiting for it, as a snapshot of the last `STEP_OUTPUT_LIMIT` (8 MiB) bytes of each stream as the files were
+  sized when the read began. What was left out is said in the text the person sees ("N bytes at the start ... are left out"), and
+  a read that fails is said too and is never taken for the end of the output. A descendant that keeps appending after its leader
+  has exited therefore holds nothing up. The files are emptied (`ftruncate`) once nobody will read them, which frees what was
+  written until then; a step left running that keeps writing is held in memory by the kernel (it is anonymous memory of the step's
+  own output file) until the step ends or closes its output, which nothing in the wrapper bounds, and a very verbose step left
+  running can use memory in proportion to what it writes after the command has gone. A step the wrapper stops at its ceiling is
+  stopped with its whole process group, and the leader is reaped within `STOP_GRACE`: a leader that does not end then (an
+  uninterruptible wait for the disk) is handed to a reaper thread, and the command goes on.
+- The review of the commit service (`standards_review_run.rs`) admits one job at a time in one atomic step: a state of a
+  generation and a status, changed by compare-and-swap, so two callers that arrive together are never admitted both, and the
+  release of the state runs from a guard when the job's thread unwinds, so a review that panics after its timeout leaves nothing
+  outstanding. The look at the review's log runs inside the contained job.
+- Releases that meet. The protocol version stays 7 and no message changes: `waiting` with `"inside_write": true`, `withdraw` and
+  `withdrawn` are the messages of 0.5.31 and 0.5.33. A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
+  it was released with: a classifier by the name of the step, a decision race between landing and withdrawal that this release
+  closes, a step left running that dies of `SIGPIPE` when its command exits, and no snapshot bound on output. A client of those
+  releases sends its withdrawal on a connection that the service of this release answers, but it does not take the shortened
+  deadline a late `inside_write` notice gives, and this release's client against a service of those releases may get no timely
+  notice and then keeps to the longer withdrawal path (`WITHDRAW_CEILING`). Installing a new executable does not repair a service
+  that is running: the first connection of the new release sends it a `retire`, which it handles between batches, and waits for it
+  to leave for `START_WAIT`; a service in the middle of a write is never stopped by the wrapper, and the command that waited ends
+  with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again. The single service of the releases before one service per
+  worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it, because the manager's
+  stop ends the whole unit and with it a Git step that cannot run twice; one that is still there fails the commit with the stop
+  named for the person to run when no commit is running. Test: `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
 
 
 #### Commands that add commits
@@ -2362,8 +2478,8 @@ holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed
   directory to the `PATH` of the program that ran the command, or remove an entry that should not be used. The wrapper
   does not search outside `PATH` except for the promotion of a conventional location that `PATH` already exposes and
   this record.
-- `cli-git-service` is never started by the wrapper and refuses a `--git` that is a launcher of the wrapper (a unit
-  written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
+- The service mode (`cli-git-native cli-git service run`) is never started by the wrapper and refuses a `--git` that is the
+  wrapper itself, a link or copy of it, or a launcher of it (a unit written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
   provisions the unit writes it again. Its Git starts go through the marked builders.
 - Not covered: a user script named `git` that starts the wrapper as a child, with no launch record and no marker
   string. The parent of the arriving wrapper is the script, not the starter; the message of a wrapper that cannot find
@@ -2403,7 +2519,7 @@ section "Falling back to the Git the commit service was set up with".
   The service takes the resolved path in the `--git` of its unit as before; a fallback path is therefore written into
   the unit it came from, unchanged.
 - Limits: the unit is in the runtime directory, so it exists only after a commit has provisioned the service in this
-  login and is gone after the account's last logout; before that, the stop stays. A `cli-git-service` started with no
+  login and is gone after the account's last logout; before that, the stop stays. A service started with no
   `--git` still defaults to `/usr/bin/git`; that is a development path, since the wrapper always writes `--git`.
 
 ### Git LFS upload before a push
@@ -3057,6 +3173,10 @@ Kept, each with its reason in the code and here:
 - The mutex on the pending bytes of the journal's stream (`journald_native.rs`):
   a stream may take a line in parts and two lines must never run together, so the unfinished rest of a line and the write that
   finishes it are one critical section of one non-blocking write; the waiter waits for one system call, never for the journal.
+- The reclaim of a stale `index.lock`:
+  one reclaimer at a time, by the claim chain of placed files and process-identity judgements on every file system
+  (`service_index_claim.rs`, reason in `take_claim`); the earlier `flock` on the stale lock's own file is retired.
+  The claim chain has no lock primitive for the scan above to find, so it is listed here and nowhere else (see "One reclaimer per stale lock").
 - The claim and its lease on work items (`work_item.rs`, `service_claim_renewal.rs`):
   rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
 
@@ -3100,9 +3220,11 @@ A lock is reclaimed only when its marker names a process that is gone or was bor
 
 The reclaim steps (read the marker,
 unlink the lock,
-place a new one) are not one atomic step,
-and no lock of the service's own makes them one.
-They are safe because at most one process that writes this marker takes a given `index.lock` at any moment.
+place a new one) are not one atomic step.
+The removal of a stale lock is kept to one reclaimer per stale file by the claim chain beside the lock
+(`service_index_reclaim.rs`, `service_index_claim.rs`; below, "One reclaimer per stale lock");
+placing the new lock is by exclusive creation.
+The rest is safe because at most one process that writes this marker takes a given `index.lock` at any moment.
 Three things enforce that:
 
 1.  Inside one service,
@@ -3112,7 +3234,7 @@ Three things enforce that:
     `recover_selected`),
     are called only from the serve loop and,
     before it starts,
-    from `service_main.rs`.
+    from `service/service_main.rs`.
     Connection threads only queue jobs,
     and the work thread (push and upkeep) never touches an index.
     The calls are sequential on that one thread.
@@ -3134,7 +3256,7 @@ Three things enforce that:
 
 The commit route of the wrapper that took a marked lock of its own (transactions) was deleted with task 4d part 2,
 and no other code writes the marker.
-The tests that start `cli-git-service` directly start one service for each Git directory
+The tests that start the service mode directly start one service for each Git directory
 (`binary_support.rs`,
 `serve`,
 keeps one child for each;
@@ -3159,7 +3281,104 @@ not fixed:
   The cure is the documented one:
   stop `cli-git@*` before committing with the older release.
 - A user who points two worktrees at one index with `GIT_INDEX_FILE` makes two instances take one lock.
-  That is not a path the service ships.
+  That is not a path the service ships; their reclaims of a stale lock of it are kept apart by the claim chain below, and
+  their placements by exclusive creation.
+
+#### One reclaimer per stale lock
+
+Every path that removes a stale `index.lock` of the service (`remove_stale` and `try_acquire` in the recovery of open
+batches, and the wait of a landing) goes through `reclaim_if`, which opens the lock, reads the marker from that open file, takes its
+place in the claim chain beside the lock (below), checks that the name still refers to that file (device and inode), and only then
+unlinks the name.
+Nothing is moved aside, so a live lock is never off its name.
+The chain is used on every file system and the `flock` on the stale lock's file is not taken any more (owner, 2026-11-04: "Claim files
+always"): a reclaimer on the `flock` path and one on the claim path of one file system would not see each other, and a lock manager
+can answer one call and refuse the next. A placement of a claim that is interrupted or finds no memory (`EINTR`, `ENOMEM`, `EWOULDBLOCK`)
+is a back-off; any other refusal of the placement is Unguarded.
+There are eight answers, and each has its own consequence:
+
+- Removed: the stale file was removed, or was already gone; the placement is tried again.
+- Changed: the name refers to another file than the one judged (the stale lock was reclaimed and a live one placed); nothing is
+  removed, and the placement is tried again.
+- Busy: another reclaimer holds a claim on the stale file (or a placement was interrupted); a landing waits as for any held lock and looks
+  again after the poll pause, because the end of a hold leaves no event in the directory, and the ceiling ends the wait; a
+  restart leaves the batch open.
+- Unguarded: no claim file can be placed beside the lock (the file system refuses the placement, or this process cannot name
+  itself in a claim). Nothing is removed, because an unlink without exclusion could remove a live lock. A landing waits as for any
+  held lock to its ceiling and withdraws the commit to its side ref; its notice is written from the marker of the file that was judged
+  (never a second read of the name, which a live landing may hold by then), names the lock, the batch and the dead process, and says to
+  remove the lock by hand once no git command and no commit of the service is running and the file's first line still reads as
+  quoted. A restart leaves the batch open.
+- Foreign: the file (the lock, or a claim in the way) is not proven gone on this machine: its marker names a machine ID that is not
+  this reader's (or this reader has none), or names none and a boot other than this one while this reader has a machine ID, or names no
+  process at all, or the lock is in the format of an earlier release (see "The marker format and earlier releases" below). It stays. A landing
+  waits as for any held lock to its ceiling and withdraws the commit; its notice, which is also written to the log on every path
+  (the restart's too), names the file, the batch and the process, says why it is not removed, and gives `rm -- '<path>'` (the path quoted
+  for a shell) for a person who knows that service is not running. A restart leaves the batch open.
+- Unjudged: a claim in the way cannot be judged: its maker is in another PID namespace or this reader's `/proc` does not agree, or the
+  claim cannot be read. It is neither passed over nor removed, and it is not passing contention (Busy is a claimer proven to run): the
+  notice names the claim and gives the `rm -- '<path>'`; a landing waits as for any held lock to its ceiling, and a restart leaves the
+  batch open.
+- Kept: the file is not a stale lock of the service (a live holder's, Git's, or unreadable); it is left where it is.
+- Stuck: the file is stale and cannot be removed; the log says why, and the landing fails as before.
+
+#### The claim chain
+
+Used by every reclaim, on every file system, and it needs no `flock` anywhere.
+A claim is a file named `cli-reclaim-<digest>-<slot>` in the lock's directory, where the digest is the first sixteen bytes of the SHA-256 of
+the lock's file name and a key made from the marker of the stale lock (its batch, process and birth identity), so that every reclaimer
+reaching the file by any mount derives one name, whatever the device number of that mount, and the name has a fixed length however long the
+lock's own name is. The process that marker names is gone and places no further lock with that marker, so a claim left under a key is
+inert. A marker that names no process is never judged stale (below), so no claim is ever made for one.
+A claim is mode 0644 whatever the umask, so that a reclaimer of another account can read it (one that cannot read a claim takes its
+maker to run). It holds the service marker of its maker with a random token in the batch field, is written to a staging file and placed
+whole by a rename that does not replace (else a hard link), and is judged as a lock holder is (`holder_state_in`): a maker that is gone
+is passed over; a maker that is proven to run makes the reclaimer back off (`Busy`); a maker on another machine makes it leave the claim and
+answer Foreign; one that cannot be judged, or a claim that cannot be read, makes it answer Unjudged. A placement that answers with an error
+although it took effect (a network file system can lose the answer) is recognised by the claim's text and is the reclaimer's own; when
+the claim cannot be read back at that moment, the thread remembers the claim it may have made and its next attempt removes it if it is
+there with exactly that text (per thread, so another thread's attempt in the same process is never taken for it).
+The reclaimer places its claim at the first slot not taken by a running claimer, then reads every slot below its own again: all
+must still exist and name a gone maker, or it removes its own claim and backs off. It then runs the same name check and unlink as
+and removes the claims from zero to its own once the name no longer refers to the stale file; when the unlink
+fails it removes only its own.
+A claim of a dead maker is never removed while the stale file stands at its name, so a slot read as gone stays gone and in
+place, and no reclaimer can be placed below it; two holders would need one slot to be read as gone by the other, which its own
+claim or the exclusive placement prevents. The rule needs no birth time of the file, because a claim left by an earlier file with
+the same key is a gone claim at a low slot and is passed over. A file at a claim's name that holds no whole marker is passed
+over too, since a placed claim is whole.
+Limits: a claimer killed after the unlink and before its cleanup leaves inert `<lock>.cli-reclaim-*` files, which the next reclaim of
+a file with that key removes and which a person may remove with `rm -- "$(git rev-parse --absolute-git-dir)"/cli-reclaim-*`
+once no commit of the service runs (an alternate index: the directory of that index; `rm -- "$(git rev-parse --absolute-git-dir)"/cli-reclaim-*`); a claim cannot be placed on a full disk,
+where the landing's own lock cannot be either; and two machines with the same machine ID (cloned images) are judged as one machine.
+
+#### The marker format and earlier releases
+
+A marker of this release reads `cli-git-service v2 <batch> <process> <identity>`. An earlier release's reader takes the word after the
+prefix for a batch number, finds `v2`, and reads no marker in the file: it leaves the lock as a lock it does not know, so no earlier
+release's reclaimer (which holds a `flock` on the file) ever acts on a lock of this release. In the other direction this release does not
+remove a stale lock in the earlier format (no `v2`), because that release's reclaimers and this one's claims cannot see each other and both
+could unlink the file: such a lock is left, named, with the `rm` (answer Foreign), and the first line the notice quotes is the file's own.
+A marker that names no process is never read as gone (it could be a live service on another machine), and neither is one that names no
+machine ID and another boot when this reader has a machine ID: it cannot be told from a service on another machine. After an upgrade, a
+stale lock an older release's killed service left is therefore removed by hand once; every lock this release writes is reclaimed on its own.
+After a downgrade, the locks of this release are left to the person by the older release (stop `cli-git@*` first, as for any downgrade).
+
+The exclusion is the one that `doc/planning/cli-git-one-reclaimer-per-index.md` argues for: the unit is the one file being
+reclaimed, the hold lasts a few system calls, and a dead claimer's claim is passed over, so no leftover can block a reclaim.
+It holds no lock primitive the inventory scan looks for (`source_guard/service_lock_inventory_tests.rs`), and its reason stands beside
+`take_claim`.
+Two reclaimers, and a reclaimer against a landing, are kept apart; Git takes no part and never reclaims.
+What stays open: a person's `rm index.lock` between the check of the name and the unlink, when Git then places its own lock in
+the two system calls between, because no system call unlinks a name only if it still names a given file; a file system that
+takes no claim file (the stale lock is then left for the person, and the log says so); and a service on another machine whose marker
+carries no machine ID (an earlier release's), which is read as before: another boot ID reads as gone.
+Release 0.5.28's reclaim could leave a file at a taken-aside name (`<lock>.aside-<process>-<time>`) beside the lock, when a third
+program took the name while it was off it. This release makes none, and nothing removes the ones already there: a scan of the
+visible processes does not prove that no process holds one, and the file may hold a native Git's pending index. Once no git
+command and no commit of this service is running, list them with `ls -l -- "$(git rev-parse --absolute-git-dir)"/index.lock.aside-*`
+(an alternate index: the directory of that index), keep any whose first line is not `cli-git-service `, and remove the rest with
+`rm` (`doc/planning/cli-git-one-reclaimer-per-index.md`, "Aside files an earlier release left").
 
 #### A violation fails loudly
 
@@ -3264,8 +3483,11 @@ The identity a new marker carries is the process's start tick,
 then `#`,
 then the boot ID (`/proc/sys/kernel/random/boot_id`),
 then `#`,
-then the PID namespace (the number in `/proc/self/ns/pid`).
-A marker an earlier release wrote has no boot ID or no namespace and is judged by the parts it has.
+then the PID namespace (the number in `/proc/self/ns/pid`),
+then `#` and the machine ID when the host has one (the text of `/etc/machine-id`, or of `/var/lib/dbus/machine-id` when the first holds none,
+32 lowercase hexadecimal digits that are not all zero; the same reading as for claims of work, `claim_time.rs`).
+A reader of an earlier release sees a namespace it does not know in such a marker and answers unknown, which keeps the lock.
+A marker an earlier release wrote has no boot ID, no namespace or no machine ID and is judged by the parts it has.
 On Linux a process that cannot read its boot ID or its PID namespace takes no lock,
 and says so in the log,
 because a marker without them cannot be told from a reboot's collision or from a number of another namespace.
@@ -3278,16 +3500,22 @@ because the name of a process may hold any byte.
 A reader answers one of three things about the holder a marker names:
 
 - Gone:
-  the boot is not the current one (every process died with that boot,
-  whatever the reader's numbering),
+  the boot is not the current one, on the same machine (every process died with that boot,
+  whatever the reader's numbering; a marker that names a machine ID is read so only when the reader's machine ID is the same),
   or no process runs under that number,
-  or the process under it was born at another tick,
-  or the marker names no holder (an earlier release's).
+  or the process under it was born at another tick
+  (a marker that names no holder is not gone: it is unknown; and a marker that names no machine ID is read by its boot only by a reader
+  that has none either).
 - Running:
   the same boot,
   the same namespace,
   and the process there is the one born then.
 - Unknown:
+  the marker names no process (an earlier release's),
+  it names no machine ID and a boot other than this one while the reader has a machine ID,
+  the marker names a machine ID that is not the reader's, is not valid, or the reader has none (a boot ID that differs there says
+  nothing about the service, which may run on its machine; the lock or claim stays, a landing waits to its ceiling and the notice
+  gives the `rm`),
   the marker's PID namespace is not the reader's,
   the reader's `/proc` does not agree with its own PID,
   the reader has no boot ID to compare with a marker that names one,
@@ -3448,9 +3676,10 @@ The result goes to a temporary file made exclusively beside the copy, given Git'
 calculation from the mode the file really has), flushed to the disk, and renamed over the copy; an interrupted write is
 tried again, and a run removes only the file it made.
 An entry another session staged in the same second as the copy is racily clean to Git, so the update leaves that landing to Git.
-One lifecycle requirement stays: at most one service reclaims the stale lock of a physical index at a time
-(`remove_stale` reads the marker and then removes the lock, which is not one step), which the one service per worktree
-instance gives; a shared alternate index used by several worktrees is not covered by it.
+At most one service removes the stale lock of a physical index at a time, whatever the number of worktrees that share it
+(a shared alternate index included): the reclaim takes its place in the claim chain beside the stale lock and checks that the name
+still refers to it before it unlinks (`reclaim_if`; "One reclaimer per stale lock"). A reclaimer that finds a running claimer ahead
+backs off, and a person's `rm index.lock` in the two system calls between the check and the unlink stays open.
 Whatever the update does not reproduce (the list is in the planning section) is left to `git reset --no-refresh` on the same
 private file, so Git's `core.fsync` governs only that fallback; the in-process write always flushes the file, as Git's default does.
 The rename that installs the copy has the durability native Git's has, by default and when the user opts in.
@@ -3468,7 +3697,7 @@ the wait requires the Git directory's ancestry to stay in place while it lasts.
 A commit on a machine where no socket answers and no user service manager can be asked to start one
 (no runtime directory,
 no session bus,
-no service program beside the wrapper)
+no executable of the wrapper's own to name in a unit)
 changes nothing and ends with exit `1` and a plain message for the platform:
 Linux without user services names `loginctl enable-linger` and the requirement of a systemd user manager,
 and Windows,
@@ -3525,6 +3754,42 @@ It uses:
   the service then answers that the content is unavailable,
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
+
+#### Maintenance that may run while a commit is made
+
+The objects of a commit that has not landed are protected by Git's grace period,
+and from the import on also by a reference.
+What this protects against, and what it does not (the supported concurrency, written 2026-11-04):
+
+- Supported while a commit is prepared and landed: any maintenance that keeps
+  Git's default grace period for unreferenced
+  objects, which are `git gc`, `git gc --auto`, `git maintenance run` (including the
+  `maintenance run --auto` the landing starts
+  after a landing) and `git prune` with the default `gc.pruneExpire`. They
+  remove no unreferenced object younger than the
+  grace period (two weeks by default). `git gc` repacks with `-A`, so unreachable
+  objects of a pack that the import kept become
+  loose objects first and are then subject to the same grace period.
+- Not supported while a commit is prepared or landed: maintenance that drops unreferenced objects at once. That is
+  `git prune --expire=now`, `git gc --prune=now`, any setting of
+  `gc.pruneExpire=now`, and `git repack -a -d` (which discards the
+  unreachable objects of the packs it replaces). Git's own manual says the same of
+  `git gc` run while another process writes
+  ("when git gc runs concurrently with another process, there is a risk of it
+  deleting an object that the other process is using
+  but hasn't created a reference to"; the installed 2.56.0 manual, section NOTES of git-gc).
+- What the wrapper does about the unsupported case is detect it where it can and
+  say so, not prevent it. Before the landing
+  imports anything or moves the branch, the objects the request names are looked up
+  (a blob, a tree, the commit Git built, and
+  for a commit Git built the objects it adds to the branch); a missing one answers that the content is unavailable, the
+  wrapper prepares the commit once more, and a second loss ends the commit with a
+  plain message. An object removed after that
+  look and before the branch moves is not prevented. The reference
+  `refs/worktree/cli-git-service/<batch>` that the import creates
+  is a reachability root for any collector that reads references after it exists;
+  a collector that took its snapshot of the
+  references before it was created and sweeps afterwards is not stopped by it.
 
 When real Git builds the commit,
 it runs in the scratch repository after policy evaluation settles,
@@ -4172,7 +4437,7 @@ or of `/var/lib/dbus/machine-id` when the first holds none,
 read once per process.
 A file that is missing,
 empty,
-or not 32 hexadecimal digits (a fresh image holds `uninitialized`) counts as no machine ID.
+or not 32 lowercase hexadecimal digits that are not all zero (a fresh image holds `uninitialized`) counts as no machine ID.
 The boot ID alone cannot say the holder is dead,
 because boot IDs are random per kernel boot and two hosts that drain one work directory on a shared filesystem
 have unrelated ones:
@@ -4414,7 +4679,7 @@ and when the lock was found held `lock_looks`,
 `objects_ms`,
 `journal_ms`,
 `ref_ms`,
-`sync_ms`,
+`index_update_ms` (named `sync_ms` in records written before 2026-11-04),
 `answer_ms`,
 `total_ms`),
 a `pushed` line for every push the service ran
@@ -4437,14 +4702,26 @@ so it cannot end the line or hide a field.
 
 ### Compatibility and degradation
 
-The executable requires real Git 2.55.0 or newer for commits.
-It asks Git for its version once per invocation before that work,
-and on an older Git it runs nothing and emits an `engine-failure` event with code `content-unavailable` and exit `2`,
-whose message names the real Git it found,
-the version Git reported and the remedy (upgrade Git,
+The executable is tested with real Git 2.56.0, the release the gate image's distribution package carried on 2026-11-04,
+and `MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs` names it.
+It asks Git for its version once per invocation before commits, hooks and locks,
+and on an older Git it prints one warning to standard error
+that names the real Git it found,
+the version Git reported,
+the version the wrapper was tested with,
+and that the command continues,
+then runs the command as usual
+(owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+Only a version that cannot be read,
+or a Git that cannot start,
+stops the command with an `engine-failure` event with code `content-unavailable` and exit `2`,
+whose message names the real Git and the remedy (point the wrapper at a working Git,
  then run the command again).
 Read-only commands are never checked.
-Features that Git introduced after 2.55.0 are not assumed.
+The constant moves with the test image's Git: when the gate image's `git` package moves to a newer release,
+the constant is raised to it with the first gate run on that release.
+Code written while the minimum was 2.55.0 assumed no feature introduced after 2.55.0,
+and no test now runs on an older Git, so behavior on one is untested.
 
 The retired TypeScript wrapper had no version gate and degraded one feature at a time on Git 2.39.5 and 2.40.0:
 a probe of `git merge-tree --write-tree --merge-base` (fail fast with `concurrent-commit/head-moved` without it),

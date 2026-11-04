@@ -223,18 +223,16 @@ fn stale_or_foreign_entries_are_not_trusted() {
     remove(root.as_path());
 }
 
-/// A cached text that parses as an unsupported release is refused with the same message as a live answer.
+/// A cached text that parses as a release before the minimum is accepted like a live answer: it is a release, not a refusal.
 #[test]
 #[cfg(unix)]
-fn a_cached_old_release_is_refused_like_a_live_one() {
+fn a_cached_old_release_is_accepted_like_a_live_one() {
     let root: PathBuf = fixture("version-cache-old");
     let git_copy: PathBuf = copy_git(root.as_path(), "git");
     let cache: PathBuf = cache_in(root.as_path());
     let context: GitContext = context_for(git_copy.as_path());
     plant(cache.as_path(), git_copy.as_path(), "git version 2.54.0\n");
-    let refusal: String = ask_git_version_cached(&context, Some(cache.as_path())).expect_err("2.54.0 is refused");
-    assert!(refusal.contains("version 2.54.0"), "{refusal}");
-    assert!(refusal.contains("2.55.0 or newer"), "{refusal}");
+    assert_eq!(ask_git_version_cached(&context, Some(cache.as_path())), Ok((2, 54, 0)));
     remove(root.as_path());
 }
 
@@ -250,9 +248,9 @@ fn without_a_cache_or_an_identity_nothing_is_recorded() {
     let script_root: PathBuf = root.join("script");
     std::fs::create_dir(&script_root).expect("fixture");
     let script: PathBuf = script_root.join("git");
-    executable(script.as_path(), b"#!/bin/sh\necho 'git version 2.55.0'\n");
+    executable(script.as_path(), b"#!/bin/sh\necho 'git version 2.56.0'\n");
     let cache: PathBuf = cache_in(root.as_path());
-    assert_eq!(ask_git_version_cached(&context_for(script.as_path()), Some(cache.as_path())), Ok((2, 55, 0)));
+    assert_eq!(ask_git_version_cached(&context_for(script.as_path()), Some(cache.as_path())), Ok((2, 56, 0)));
     assert!(!cache.exists());
     remove(root.as_path());
 }

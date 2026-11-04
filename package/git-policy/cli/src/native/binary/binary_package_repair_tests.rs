@@ -14,7 +14,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, executable, fixture, git, remove, repository, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
 use super::worktree_snapshot::{commit_all, on_btrfs_or_acknowledged, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -165,11 +165,21 @@ fn a_failing_pnpm_never_fails_the_add() {
 }
 
 /// A missing pnpm is the same: the add succeeds and the line says what to run.
+///  The run's PATH holds the wrapper's directory and a directory with only real Git, never the system directories, because
+///  an image whose package manager installed a real pnpm into `/usr/bin` would otherwise not lack one.
 #[test]
 fn a_missing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-missing");
     let repo: PathBuf = repository_with_node_modules(&fixture);
-    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
+    link_real_git(&fixture);
+    let path: String = format!("{}:{}", bin(&fixture).display(), fixture.root.join("real").display());
+    let created: Observed = observe(
+        bounded(&fixture, bin(&fixture).join("git").as_path(), OsStr::new(path.as_str()))
+            .current_dir(&repo)
+            .args(["worktree", "add", "-b", "one", "../one"]),
+        b"",
+    );
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     let printed: String = stderr_of(&created);
     assert!(printed.contains("pnpm was not found") && printed.contains("--frozen-lockfile"), "{printed}");
     remove(&fixture);

@@ -15,7 +15,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
 pub(super) fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
@@ -106,7 +105,7 @@ fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[Pa
     let mut sockets: Vec<PathBuf> = Vec::new();
     for git_dir in git_dirs {
         let socket: PathBuf = socket_for(runtime, git_dir.as_path());
-        let child: Child = Command::new(SERVICE)
+        let child: Child = super::support::service_command()
             .args(["--journal", journal.to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
             .args(["--instance", instance_of(git_dir.as_path()).as_str()])
             .args(release.map(|text| { return ["--release", text]; }).into_iter().flatten())
