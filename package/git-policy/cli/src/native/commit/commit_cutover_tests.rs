@@ -233,9 +233,9 @@ fn a_ring_makes_the_real_service_serve_the_lane_and_a_ring_with_no_service_says_
     unforceable(&lane, "rung");
     assert!(ring_running_service(&lane).expect("ring"));
     wait_recorded(&lane, "rung");
-    let deadline: Instant = Instant::now() + WAIT;
+    let pass_deadline: Instant = Instant::now() + WAIT;
     while service.count_lines("lane pass complete") <= before {
-        assert!(Instant::now() < deadline, "the ring started no pass");
+        assert!(Instant::now() < pass_deadline, "the ring started no pass");
         std::thread::sleep(Duration::from_millis(10));
     }
 }
@@ -327,9 +327,9 @@ fn the_real_service_refuses_a_zero_interval_and_a_lane_others_can_write() {
     assert_eq!(zero.count_lines("ready"), 0);
     fs::set_permissions(&lane, fs::Permissions::from_mode(0o777)).expect("a lane everyone can write");
     let mut open = start_service("open", Some(&lane), Some("50"));
-    let deadline: Instant = Instant::now() + WAIT;
+    let open_deadline: Instant = Instant::now() + WAIT;
     while open.alive() {
-        assert!(Instant::now() < deadline, "the service ran on a lane others can write");
+        assert!(Instant::now() < open_deadline, "the service ran on a lane others can write");
         std::thread::sleep(Duration::from_millis(10));
     }
     assert_eq!(open.child.try_wait().expect("status").and_then(|status| { return status.code(); }), Some(2));

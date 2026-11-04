@@ -141,3 +141,14 @@ fn a_replacement_root_without_its_ledger_proof_does_not_make_the_removal_safe() 
     assert!(message.contains("neither the old root nor a durable replacement root"));
     assert!(trace.iter().any(|label| { return label == REMOVES; }), "{:?}", trace);
 }
+
+/// Review of step 3 (models): a power loss ends the volatile things the serialization rests on: a seal's capture, the writer ownership and
+/// the unlink's read of the root. After a loss a disposal can append its line again, and a seal can start.
+#[test]
+fn a_power_loss_ends_the_capture_the_writer_ownership_and_the_read() {
+    let after_loss: State = replay(initial(Rules::Ordered), steps, &[AUTHORIZES, SEAL_STARTS, LOSS]);
+    assert!(!after_loss.seal_in_flight && !after_loss.seal_saw_item && !after_loss.disposal_in_flight && !after_loss.checked);
+    assert!(steps(&after_loss).iter().any(|(label, _)| { return label == SEAL_STARTS; }), "a new seal could not start after the loss ended the first");
+    let disposing: State = replay(initial(Rules::Ordered), steps, &[AUTHORIZES, APPENDS, LOSS]);
+    assert!(!disposing.disposal_in_flight);
+}

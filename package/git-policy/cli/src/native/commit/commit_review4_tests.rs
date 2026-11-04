@@ -264,13 +264,13 @@ fn the_error_record_is_refused_as_a_fifo_a_link_and_a_hard_link_at_the_open_and_
     fs::remove_file(lane.join(RECEIPT_ERRORS)).expect("remove the link");
     fs::write(lane.join(RECEIPT_ERRORS), b"r1\told\n").expect("the record again");
     let fifo_lane: PathBuf = lane.clone();
-    let pass = syncer_pass_with(&lane, &mut || {
+    let fifo_pass = syncer_pass_with(&lane, &mut || {
         fs::remove_file(fifo_lane.join(RECEIPT_ERRORS)).expect("remove the record");
         let path: std::ffi::CString = std::ffi::CString::new(fifo_lane.join(RECEIPT_ERRORS).as_os_str().as_encoded_bytes()).expect("a path");
         // SAFETY: as above.
         assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
     });
-    assert!(matches!(pass, Err(FlushError::Io(error)) if error.kind() == io::ErrorKind::InvalidInput), "a FIFO in the record's place was not refused by its kind");
+    assert!(matches!(fifo_pass, Err(FlushError::Io(error)) if error.kind() == io::ErrorKind::InvalidInput), "a FIFO in the record's place was not refused by its kind");
 }
 
 /// Review of step 3 (tests, 5): two real disposals crashed after their lines; a third saved content is a sentinel with no line; the batch
@@ -357,7 +357,7 @@ fn a_helper_that_returns_from_its_entry_ends_with_its_code_and_does_not_abort() 
     let status: Option<i32> = in_single_threaded_process(|| {
         // SAFETY: `prctl` with `PR_SET_CHILD_SUBREAPER` takes integers and changes only this process's attribute.
         unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) };
-        if git_policy_cli::commit_helper_launch::launch_detached(|| 7).is_err() {
+        if git_policy_cli::commit_helper_launch::launch_detached(|| { return 7; }).is_err() {
             return 90;
         }
         let deadline: Instant = Instant::now() + Duration::from_secs(5);

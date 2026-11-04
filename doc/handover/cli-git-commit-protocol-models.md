@@ -1802,8 +1802,8 @@ Built on the models branch, nothing reachable from `git commit`:
   seam (`hold_legacy_lock`) and by the legacy-probe seam. The two window controls of review 14 that lost a receipt to an old probe are now
   fenced (an old probe cannot make a new helper lose, and cannot take a recheck's handover); the old clients' own loss (probe against probe)
   stays as a negative control outside this protocol. Old and new flushers overlap harmlessly.
-- The service side, behind `--lane <dir>` (and `--lane-interval-millis`) of `cli-git-service`: the doorbell (an abstract datagram socket named
-  by the lane), the startup sweep, and a loop that runs the syncer's pass on a ring and at least once per `SYNC_INTERVAL` (the service
+- The service side, behind `--lane <dir>` (and `--lane-interval-millis`) of `cli-git-service`: the doorbell (first an abstract datagram socket named
+  by the lane; replaced in round 28 by a socket file in the lane directory), the startup sweep, and a loop that runs the syncer's pass on a ring and (round 28: at most one interval after the start of the previous pass, not "at least once per") every `SYNC_INTERVAL` (the service
   start ceiling, one minute; a pick, veto open). The periodic pass is the failure owner of a unit that died after its execution. The switch
   is the flag: the shipped unit files do not pass it, so the shipped service touches no lane; a test starts the real binary without it and
   shows that. Tests on the real binary: startup sweep, periodic pass (readiness read from the startup sweep, not from a ring), ring, the
@@ -1864,3 +1864,53 @@ Plan step 3 so far is in round 26. The full `commit_flusher.rs` is in the bundle
 Gates: `native:test:model` 605 passed, 0 failed (4 leaky, the same stalled children); both clippy tasks clean; `source_guard` 39 of 39.
 Guard removals: `/var/home/user/temp/agent/r25/mutations-review3.log` (ten, all red; the retirement-takes-the-writer-first guard was shown
 red by hand).
+
+## Round 28: the three reviews of step 3 (2026-11-04)
+
+The reviews: the component tests (`commit-models-step3-sol-a2.txt`), the code against whole files (`-sol-a1.txt`) and the models, map and
+handover (`-sol-b.txt`), all in `/var/home/user/temp/agent/reviews/`. Data safety first, then the doorbell, then the rest.
+
+Data safety:
+- The disposal revalidation hole (a1, 1): the unlink compared the stale token with the document's references only. A newer record whose
+  document omits the item and whose retained set holds it (the public append admits an over-approximating set) was made ineligible by the
+  unlink. The revalidation now reads the newest record's whole retained set, and recovery treats such a record as still retaining the item.
+  Red first (`a_newer_record_that_retains_the_item_only_in_its_closure_refuses_the_stale_unlink`).
+- The leaky tests were not all harness. Evidence (PIDs of the stragglers, their parent, their wait channel, and `coredumpctl`): the four
+  stragglers were (a) children stalled on purpose by launch seams (`pause`, alarm after twenty seconds) that kept the runner's pipes, (b) a
+  helper sleeping four hundred milliseconds that kept them too, and (c) a process in `do_coredump`: a **product defect**. The helper's report
+  end was closed by number (`libc::close`) and then dropped as an `OwnedFd`, a double close that aborts a debug build (`SIGABRT`, a core dump
+  per helper that returned, `coredumpctl` listed several) and in any build closes whatever descriptor reused the number. Fixed by one owner
+  (`drop(report_write)`); the seam children now point their standard streams at `/dev/null` and their alarm is seven seconds, longer than the
+  launcher's bounds. The full suite has no leaky test any more (624 passed, none leaky). Control: `a_helper_that_returns_from_its_entry_ends_with_its_code_and_does_not_abort`
+  (a subreaper reads the helper's status); red when the double close is put back.
+The doorbell:
+- A blocking datagram send could wait for ever on a full queue. The send is non-blocking and a full queue is read as "rings are waiting"
+  (`a_ring_to_a_receiver_that_does_not_read_never_blocks`, red when the send is made blocking again: the child hangs).
+- The doorbell was a name in the namespace shared by every account. It is now `service.ring` in the lane directory, reached through the
+  directory's descriptor (a socket path is limited to about a hundred bytes), bound over a stale socket only, refused over a live one or a
+  foreign file, and one service owns a lane by an exclusive lock on `service.lock`. A lane must belong to the account and be writable by no one
+  else (`validate_lane`), and the error record must have one name (a hard link is refused).
+- A successful send is an enqueue, not an acknowledgment, and the recovery claims need a surviving or restarted service: a service that has
+  died serves nothing until the next client's ring finds nobody and launches a flusher, or the next start sweeps. The claim "a receipt waits
+  no longer than a pass interval" holds for a live service only. The interval is the spacing of the starts of passes while they are shorter
+  than it; a longer pass is followed at once by the next. A zero interval, a doorbell that cannot be bound and a lane that is not valid stop
+  the service before it is ready (exit 2), and interrupted disposals are retried on every pass.
+The rest of a1: the establishment record is read before the scan and the first record's identity travels in `Selected`, so a healthy concurrent
+seal is not "damaged"; a killed command that is not reaped in its window waits in a pending list until the fork that may follow is done
+(a reaper thread before it would have failed the single-thread requirement of the fallback); state and lane files are read as regular files
+without blocking (a FIFO named like a log no longer blocks recovery), and the error record is read to its extent with a limit. Not done, stated:
+the flusher lock spans an until-empty sweep loop, so sustained arrivals can hold it (it does useful forcing meanwhile); the ring in
+`client_after_accept` is a callback for the older tests and the real ring is tested on the real binary.
+Component tests (a2), each with its guard removed and shown red (`/var/home/user/temp/agent/r25/mutations-round4.log`, `mutations-cutover.log`):
+forcing failures of the selected root and of its closure with no unlink and the selected segment forced by its name; deterministic overlap of a
+seal and a retirement (the hook proves the window was reached) and of an unlink with another writer; FIFO, link and hard link at the error
+record at the open and at the clearing; the lock wait against `RECORD_LOCK_WAIT` with a stated allowance; a batch recovery with real
+crashes, a sentinel and incomplete replacements; the disk parsers refusing a duplicate path and a refused append leaving the root;
+departure hooks asserted fired; reaping with a zombie check; the real-binary tests wait for the service's own lines (a pass is reported
+whether or not it found an error); restart between a ring and its pass; two services on one lane; concurrent legacy and new recording and
+concurrent old and new flushers over arriving receipts. One mutation survives and is stated: the service lock is redundant with the stale
+socket check against a second service (the doorbell refuses a live one) and guards the race of two starts.
+Models: the disposal model resets the volatile capture, writer ownership and read on a power loss; `RecheckOnly` and `SealRescansRetired` are
+labelled alternative weakenings; the lock-lifetime abstraction is stated.
+
+Gates: `native:test:model` 625 passed, 0 failed, none leaky; both clippy tasks clean; `source_guard` (below).

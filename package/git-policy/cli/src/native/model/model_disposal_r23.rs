@@ -8,7 +8,9 @@
 //!  missing item; the component's recovery does not: it validates every retained saved-content entry of a root, and a root that still
 //!  names an item whose file is gone is ineligible whatever the ledger says, so recovery would report the log damaged (review of step 1,
 //!  finding 6). The procedure that fits the validation architecture is the one modelled: a durable eligible replacement root, with its
-//!  discharge proof, before the unlink.
+//!  discharge proof, before the unlink. Abstraction, stated: the model clears `disposal_in_flight` when the replacement root becomes visible,
+//!  whereas the code holds the writer to the end of the root's completion; that allows extra interleavings before the root's force, which is
+//!  conservative for the serialization argument and not an exact model of the lock's lifetime. The capture model and this one are not composed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,12 +42,13 @@ pub enum Rules {
     /// Control, a combined weakening (it changes both when the root without the item may be made and when the content may be removed): the
     /// root without the item is checkpointed and made durable although the line is not, and the content is removed on that root alone.
     RemovesOnRootWithoutLineProof,
-    /// Control (review of step 2): a seal captures everything the lane holds, so it names the retired item again; the unlink then deletes
-    /// content a root names, and no earlier root is left.
+    /// An alternative weakening, not a single-guard mutation: a seal captures everything the lane holds (the skip rule is off) and the unlink
+    /// has no revalidation, so the seal names the retired item again; the unlink then deletes content a root names, and no earlier root is
+    /// left.
     SealRescansRetired,
-    /// Control: the seal still rescans, but the unlink first reads the current root and refuses when it names the item. A check-then-act race
-    /// remains (the seal publishes between the read and the unlink), so this is red too: the exclusion has to be the rule that a seal never
-    /// captures an item whose `disposed` line exists.
+    /// An alternative weakening, not a single-guard mutation: the seal rescans (the skip rule is off) and the unlink only reads the current
+    /// root before it unlinks, with no hold between the read and the unlink. The race (the seal publishes between the two) makes it red; the
+    /// exclusion that closes it is the rule that a seal never captures an item whose `disposed` line exists, together with the writer.
     RecheckOnly,
     /// Control: retirement of the request removes its saved content, with no authorization from the person.
     RetirementRemoves,
@@ -113,6 +116,11 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.world = power_loss(after.world);
         after.losses += 1;
         after.requested = after.world.visible & LINE != 0;
+        // Everything that lived in a process is gone: a seal's capture, the writer a seal or a disposal held, the read of the recheck.
+        after.seal_in_flight = false;
+        after.seal_saw_item = false;
+        after.disposal_in_flight = false;
+        after.checked = false;
         push_step(&mut found, "environment: power is lost", after);
     }
     if !state.authorized {
