@@ -178,6 +178,97 @@ pub fn refuse_if_ourselves(program: &Path) -> Result<(), String> {
     return Ok(());
 }
 
+/// A program chosen as the real cargo, opened once: every check ran on the open file, and a compiled program is started through it.
+pub struct Vetted {
+    /// The open file (close-on-exec). It keeps the inode that was checked alive until the start.
+    file: fs::File,
+    /// The path the program was chosen under, kept as the program's own name (`argv[0]`), so a proxy such as rustup's still picks the
+    /// tool by the name it was started under.
+    spelled: PathBuf,
+    /// Whether the file is a compiled (ELF) program, which can be started through the open file.
+    compiled: bool,
+}
+
+// A test swaps what the chosen path names between the check and the start, right where a swap would hurt.
+#[cfg(test)]
+thread_local! {
+    static AFTER_CHECK: std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+/// `pub fn after_check_for_test(hook: Option<Rc<dyn Fn()>>)` sets the hook that runs between the check and the start of a chosen program.
+/// Why:
+/// The race of the fifth certification pass (group 15, b) is a path made to name the shadow after it was checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function afterCheckForTest(hook?: () => void): void
+/// ```
+#[cfg(test)]
+pub fn after_check_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
+    AFTER_CHECK.with(|slot| { *slot.borrow_mut() = hook; });
+}
+
+/// What:
+/// `pub fn vet(program: &Path) -> Result<Vetted, String>` opens the chosen program and checks the open file: it must not be the running
+/// image, nor a recorded launcher that leads to it.
+/// Why:
+/// The check and the start used to be two uses of a pathname, and a path can be made to name the shadow in between: the shadow would
+/// start itself (owner rule: "We should never invoke ourselves recursively."). A compiled program is now started through the file that
+/// was checked, so the swap cannot reach it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function vet(program: string): Vetted  // throws the reason
+/// ```
+pub fn vet(program: &Path) -> Result<Vetted, String> {
+    use std::io::Read;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::MetadataExt;
+    let file: fs::File = fs::File::open(program).map_err(|error| { return format!("{} cannot be opened ({error})", program.display()); })?;
+    let metadata: fs::Metadata = file.metadata().map_err(|error| { return format!("{} cannot be examined ({error})", program.display()); })?;
+    let image: Option<(u64, u64)> = running_image_identity();
+    let named_us: bool = image == Some((metadata.dev(), metadata.ino()))
+        || image.is_some_and(|found| { return fs::canonicalize(format!("/proc/self/fd/{}", file.as_raw_fd())).is_ok_and(|resolved| { return leads_back_to(&resolved, &[], &[found]); }); });
+    if named_us {
+        return Err(format!("{} names this program itself at the moment of the start, so it was not started", program.display()));
+    }
+    let mut magic: [u8; 4] = [0; 4];
+    let compiled: bool = (&file).read_exact(&mut magic).is_ok() && magic == *b"\x7fELF" && Path::new("/proc/self/fd").is_dir();
+    return Ok(Vetted { file, spelled: program.to_path_buf(), compiled });
+}
+
+/// The methods of the type above.
+impl Vetted {
+    /// What:
+    /// `pub fn command(&self) -> Result<Command, String>` is the command that starts the vetted program.
+    /// Why:
+    /// A compiled program is started through the open file (`/proc/self/fd/<n>` names the inode that was checked, wherever the path
+    /// points now), with its own name as `argv[0]`. A script cannot be: an interpreter opens the path it is given after the descriptor
+    /// is closed, so a script keeps its pathname, checked again right here; the instants between this check and the start remain for
+    /// scripts, and a hit ends at the arrival stop of the second cargo-shadow (exit 2, nothing runs twice).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// command(): Command  // throws the reason
+    /// ```
+    pub fn command(&self) -> Result<std::process::Command, String> {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::process::CommandExt;
+        #[cfg(test)]
+        if let Some(hook) = AFTER_CHECK.with(|slot| { return slot.borrow().clone(); }) {
+            hook();
+        }
+        if self.compiled {
+            let mut command: std::process::Command = std::process::Command::new(format!("/proc/self/fd/{}", self.file.as_raw_fd()));
+            command.arg0(&self.spelled);
+            return Ok(command);
+        }
+        refuse_if_ourselves(&self.spelled)?;
+        return Ok(std::process::Command::new(&self.spelled));
+    }
+}
+
 /// What:
 /// `pub fn running_image_identity() -> Option<(u64, u64)>` is the device and inode of the executable image this process runs.
 /// Why:
