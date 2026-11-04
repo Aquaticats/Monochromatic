@@ -157,11 +157,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   one surviving mutation ("a second service may own the lane") stated as redundant with the live-socket refusal.
   Not done (stated in its handover):
   the flusher lock spans an until-empty sweep loop.
-  Cross-vendor reviews running:
+  Cross-vendor reviews:
   `~/temp/agent/reviews/commit-models-step3b-sol-a.txt` (diffs of code,
   tests,
   models,
-  handover) and `-sol-b.txt` (whole current files).
+  handover) "correct after named fixes—not approved as-is" ("The primary disposal fix is convincing.")
+  and `-sol-b.txt` (whole current files) "correct after named fixes—not correct as-is";
+  both sent to the models agent,
+  which is fixing them.
 - cargo-shadow 0.1.1 as `cargo` blocked every wrapper gate:
   `bin/native-scanner-snapshot.ts` runs `cargo vendor --manifest-path` on a staged copy outside the work tree,
   and the shadow counted all 281 locked versions of an unchanged lockfile as new and refused 4 on trust level
@@ -306,11 +309,29 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   and `/proc/pressure/io` full avg300 was 22%.
   The same add under `.claude/worktrees/` was a snapshot in seconds (trace worktree `cgs-trace-892d1fa0`).
   The trace script and new briefs now put worktrees under `.claude/worktrees/`.
-  Owner asked,
-  on the proposed AGENTS.md rule ("Wrapper fix only",
-  with the note "What do you mean   \"wrapper fix\" here?"):
-  the answer and the fix options go back to the owner;
-  the copy-set sizes are being measured (`~/temp/agent/worktree-copy-sizes.txt`).
+  Measured with `du` (`~/temp/agent/worktree-copy-sizes.txt`, 1 KiB blocks):
+  `package/ide/app/target` 40,582,652,
+  `package/nested-wayland-session/cli/target` 14,144,844,
+  `package/git-policy/cli.fuzz/target` 3,991,544,
+  `node_modules` 3,256,040,
+  `.cache` 52,148.
+  Owner decisions,
+  2026-11-04 (question tool,
+  after asking what "wrapper fix" meant):
+  on the copy,
+  "No lefting out build outputs. The real fix is to make sure every build dir is always lean. That's not the wrapper's responsibility, but I'm assigning this to you to.";
+  on an AGENTS.md rule for worktree placement,
+  "No exposing underlying machinary to always-loaded context.";
+  then,
+  "(debuginfo level, incremental off for dependencies - no messing with these."
+  So the wrapper's copy stays,
+  no AGENTS.md rule is added,
+  and debuginfo and incremental settings stay as they are.
+  Agent `a0cd49729007486f4` measures what each build directory holds,
+  researches mechanisms that keep them lean without changing what a build produces,
+  and writes `doc/planning/lean-build-dirs.md` with ranked options and a cross-vendor review;
+  it deletes nothing;
+  the owner picks before anything is built.
 - Issue 6261 reopened by the owner at 2026-11-04T21:30:23Z
   (https://github.com/Aquaticats/Monochromatic/issues/6261#issuecomment-6642606105):
   "The current layout is still completely unacceptable and far from enough to consider this issue complete."
