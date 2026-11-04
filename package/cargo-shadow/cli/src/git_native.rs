@@ -169,7 +169,7 @@ fn head_base(layout: &GitLayout) -> Result<NativeBase, String> {
     // ```ts
     // String(value)  // JS strings are always owned values
     // ```
-    return Ok(NativeBase { spelling: "HEAD".to_string(), commit });
+    return Ok(NativeBase { spelling: "HEAD".to_string(), commit, git_starts: 0 });
 }
 
 /// What:
@@ -225,7 +225,7 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
     {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: confirmed(&layout, object)? });
+        return Ok(NativeBase { spelling: "@{upstream}".to_string(), commit: confirmed(&layout, object)?, git_starts: 0 });
     }
     for candidate in ["origin/main", "origin/master"] {
         // `Some`: the present or the absent value of an `Option`.
@@ -235,7 +235,7 @@ pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) ->
         if let Some(object) = lookup_short(&layout, candidate)? {
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            return Ok(NativeBase { spelling: candidate.to_string(), commit: confirmed(&layout, object)? });
+            return Ok(NativeBase { spelling: candidate.to_string(), commit: confirmed(&layout, object)?, git_starts: 0 });
         }
     }
     // Borrow `&layout`: lends the value without copying or giving it away.

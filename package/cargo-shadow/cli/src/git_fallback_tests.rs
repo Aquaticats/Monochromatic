@@ -467,33 +467,6 @@ fn a_bare_remote_key_on_another_branch_is_left_to_git() {
     assert_agrees(&fixture, "bare remote on another branch");
 }
 
-/// Review finding (3a 7):
-/// a system configuration in a place a differently built Git reads is Git's to apply.
-#[test]
-fn a_system_configuration_in_another_known_place_is_left_to_git() {
-    let fixture = fixture("topic");
-    // Borrow `&fixture`: lends the value without copying or giving it away.
-    base_branch_at_first(&fixture);
-    // Borrow `&fixture`: lends the value without copying or giving it away.
-    write_config(&fixture, "");
-    // Typed binding: `other: PathBuf`.
-    let other: PathBuf = fixture.root.path().join("other-etc-gitconfig");
-    // Borrow `&other`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    fs::write(&other, TOPIC_TRACKS_BASE).expect("the other system configuration");
-    // `let mut`: a binding that may change.
-    // Typed binding: `environment: NativeEnvironment`.
-    let mut environment: NativeEnvironment = environment(fixture.root.path());
-    // Macro `vec!`: builds or prints text (or a list) from a template.
-    environment.other_system_configs = vec![other];
-
-    // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    let answered = crate::git_native::native_base(&fixture.work, false, &environment);
-
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(answered.is_err(), "{answered:?}");
-}
-
 /// Review finding (3a 8):
 /// a repository that another user owns is Git's to accept or refuse.
 #[test]
@@ -744,4 +717,65 @@ fn a_timeout_in_the_sequential_fallback_is_reported_not_skipped() {
 
     let message: String = base.commit.expect_err("the upstream query did not finish, so no lower candidate may be chosen");
     assert!(message.contains("did not finish"), "{message}");
+}
+
+/// A Git stand-in that answers `git var GIT_CONFIG_SYSTEM` with the given path (counting the questions in `asked`) and runs the real
+/// Git for everything else.
+fn git_that_reports_its_system_config(directory: &Path, reported: &Path, asked: &Path) -> PathBuf {
+    let body = format!("if [ \"$1\" = var ]; then echo x >> {asked}; echo {reported}; exit 0; fi\nexec {SYSTEM_GIT} \"$@\"", asked = asked.display(), reported = reported.display());
+    return script(directory, "reporting-git", &body);
+}
+
+/// Review finding (4a 4): the system configuration is the file the Git that answers reports, not an assumed `/etc/gitconfig`.
+#[test]
+fn the_system_configuration_is_the_file_the_answering_git_reports() {
+    let fixture = fixture("topic");
+    base_branch_at_first(&fixture);
+    write_config(&fixture, "");
+    let directory = scratch();
+    let reported: PathBuf = fixture.root.path().join("elsewhere-gitconfig");
+    fs::write(&reported, TOPIC_TRACKS_BASE).expect("the reported system configuration");
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.system_config = None;
+    environment.git.program = git_that_reports_its_system_config(directory.path(), &reported, &directory.path().join("asked"));
+
+    let answered = crate::git_native::native_base(&fixture.work, false, &environment).expect("answered from the reported file");
+
+    assert_eq!((answered.spelling.as_str(), answered.commit), ("@{upstream}", Ok(fixture.first.clone())));
+}
+
+/// The answer is cached by the identity of the Git program, so the question is asked once, not on every call.
+#[test]
+fn the_reported_system_configuration_is_asked_once_per_git_program() {
+    let fixture = fixture("topic");
+    write_config(&fixture, "");
+    let directory = scratch();
+    let asked: PathBuf = directory.path().join("asked");
+    let reported: PathBuf = fixture.root.path().join("elsewhere-gitconfig");
+    fs::write(&reported, "").expect("the reported system configuration");
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.system_config = None;
+    environment.git.program = git_that_reports_its_system_config(directory.path(), &reported, &asked);
+
+    let first = crate::git_native::native_base(&fixture.work, false, &environment).expect("first");
+    let second = crate::git_native::native_base(&fixture.work, false, &environment).expect("second");
+
+    assert_eq!(fs::read_to_string(&asked).expect("the question log").lines().count(), 1);
+    assert_eq!(first.git_starts, 1, "the question is a Git start and is counted");
+    assert_eq!(second.git_starts, 0, "the cached answer costs no start");
+}
+
+/// A Git that cannot say where its system configuration is leaves the answer to the fallback.
+#[test]
+fn a_git_that_cannot_report_its_system_configuration_is_not_assumed() {
+    let fixture = fixture("topic");
+    write_config(&fixture, "");
+    let directory = scratch();
+    let mut environment: NativeEnvironment = controlled(&fixture);
+    environment.system_config = None;
+    environment.git.program = script(directory.path(), "old-git", "exit 1");
+
+    let answered = crate::git_native::native_base(&fixture.work, false, &environment);
+
+    assert!(answered.is_err(), "{answered:?}");
 }

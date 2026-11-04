@@ -133,7 +133,7 @@ pub(crate) fn git(fixture_root: &Path, directory: &Path, arguments: &[&str]) -> 
 /// the disposable home and no system configuration.
 pub(crate) fn environment(root: &Path) -> NativeEnvironment {
     // `Some`: the present or the absent value of an `Option`.
-    return NativeEnvironment { home: Some(root.join("home")), xdg_config_home: None, system_config: root.join("no-system-config"), blocking_variable: None, git: GitProgram::default(), other_system_configs: Vec::new(), user_id: current_user_id() };
+    return NativeEnvironment { home: Some(root.join("home")), xdg_config_home: None, system_config: Some(root.join("no-system-config")), blocking_variable: None, git: GitProgram::default(), user_id: current_user_id() };
 }
 
 /// Builds the repository on the branch `branch`.

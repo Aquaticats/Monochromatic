@@ -164,15 +164,7 @@ pub(crate) fn check_repository_settings(config: &ParsedConfig) -> Result<(), Str
 /// export function readConfig(layout: GitLayout, env: NativeEnvironment): ParsedConfig  // throws: ask Git
 /// ```
 pub fn read_config(layout: &GitLayout, environment: &NativeEnvironment) -> Result<ParsedConfig, String> {
-    // Review finding (3a 7): a system configuration in a place another Git build reads is a file this reader does not follow.
-    for other in &environment.other_system_configs {
-        if other.exists() {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // Macro `format!`: builds or prints text (or a list) from a template.
-            return Err(format!("{} exists; a Git built for another prefix reads its system configuration there, so only Git can say what it holds", other.display()));
-        }
-    }
-    let mut files: Vec<PathBuf> = vec![environment.system_config.clone()];
+    let mut files: Vec<PathBuf> = vec![environment.system_config.clone().unwrap_or_else(|| { return PathBuf::from("/etc/gitconfig"); })];
     if let Some(xdg) = &environment.xdg_config_home {
         files.push(xdg.join("git/config"));
     } else if let Some(home) = &environment.home {

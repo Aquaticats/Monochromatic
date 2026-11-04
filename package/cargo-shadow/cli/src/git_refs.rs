@@ -94,16 +94,11 @@ pub struct NativeEnvironment {
     /// which distribution builds of Git read;
     /// a Git built for another prefix reads elsewhere and is not seen
     /// (the limit is stated in the README of this package).
-    pub system_config: PathBuf,
+    pub system_config: Option<PathBuf>,
     /// The name of the first blocking variable that is set.
     pub blocking_variable: Option<String>,
     /// The Git program that answers when this reader declines.
     pub git: GitProgram,
-    /// Other places a Git build reads its system configuration from;
-    /// when one exists,
-    /// the file this reader would not see could change the answer,
-    /// so the answer is Git's.
-    pub other_system_configs: Vec<PathBuf>,
     /// The user id Git compares the repository's owner with (its dubious-ownership check).
     pub user_id: u32,
 }
@@ -238,8 +233,7 @@ impl NativeEnvironment {
         // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
         // Adapter `.map(`: transforms or selects items with a closure.
         // Typed binding: `other_system_configs: Vec<PathBuf>`.
-        let other_system_configs: Vec<PathBuf> = ["/usr/local/etc/gitconfig", "/opt/homebrew/etc/gitconfig", "/usr/etc/gitconfig", "/etc/git/config"].iter().map(PathBuf::from).collect();
-        return NativeEnvironment { home, xdg_config_home, system_config: PathBuf::from("/etc/gitconfig"), blocking_variable, git: GitProgram::default(), other_system_configs, user_id: current_user_id() };
+        return NativeEnvironment { home, xdg_config_home, system_config: None, blocking_variable, git: GitProgram::default(), user_id: current_user_id() };
     }
 }
 
@@ -282,6 +276,8 @@ pub struct NativeBase {
     /// The commit,
     /// or the message to show when the base names no commit.
     pub commit: Result<String, String>,
+    /// How many Git starts the reader itself needed (the one question about the system configuration, once per Git program).
+    pub git_starts: u32,
 }
 
 /// What:
