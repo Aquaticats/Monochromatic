@@ -577,13 +577,13 @@ No row is certified by this map: the cross-vendor review of round 10 has not run
 (`cargo-shadow-sol-9b.txt`) said that "16 rows shown" was not established by the attachments it saw.
 Counts: 16 rows, 14 shown, 2 partly (A2/R4: the call-site test has no shim and no user-command sentinel behind it; V3/V4: the
 preparation windows are built by hand, not cut at the real boundaries), 0 not yet.
-Suite counts at the round 10 tip: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran 575 tests: 570 passed, 0 failed, 5 skipped; `lint:clippy` with warnings denied
-is clean.
+Suite counts at the round 10 tip `TIPHASH` (the docs commit after it changes no code): the debug run
+(`mise run //package/cargo-shadow/cli:test:debug`) and the release gate (`mise run //package/cargo-shadow/cli:test`) each ran 571
+tests: 571 passed, 0 failed, 5 skipped; `lint:clippy` with warnings denied is clean.
 The 5 skipped are the `#[ignore]` helper entries that five other tests start as child processes (their names are in the `ignore`
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs` and `src/round_ten_tests.rs`); they are not run
 on their own.
-Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r10-debug2.log`, `r10-gate2.log`, `r10-clippy3.log`.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r10-debug3.log`, `r10-gate3.log`, `r10-clippy4.log`.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 to 10 the new guards were removed from the committed tests and the tests failed, then the guard was put back:
@@ -697,8 +697,9 @@ written with the code.
   so only the cgroup parent view differs; the refusal must be about that view and not about the journal), and the boot identity:
   `a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal`,
   `another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_refusal`,
-  `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member` (it exercises a missing snapshot, an incomplete listing
-  and a scope with a member, not every other check),
+  `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member` (a missing snapshot, an incomplete listing and a scope with
+  a member) and `a_reboot_still_publishes_the_completion_marker_of_the_recovery_or_keeps_the_journal` (round 10, 9b section 2: the
+  failed completion rename keeps the journal after a reboot discharge, and the control settles it),
   and round 10: `a_malformed_recorded_identity_is_not_a_reboot`, `a_malformed_current_identity_is_not_a_reboot`,
   `the_current_identity_is_read_strictly_from_its_files`, `a_boot_id_put_over_the_kernels_file_is_not_an_identity`,
   `a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace` (9b 2.4: with the cgroup namespace
@@ -775,8 +776,10 @@ written with the code.
 - An inactive slice has no control group, so the discovery starts the slice first
   (`probe_1_an_inactive_slice_is_started_before_its_control_group_is_asked_for`).
 - The journal view uses the unique mount id of Linux 6.8 and later when the kernel gives it.
-- Host requirements of the tests: a reachable user manager with `systemd-run`, a cgroup v2 mount, `unshare` with permission to make a
-  user and mount namespace (one test), and a C compiler named `cc` (the tests with the thread-leader fixture);
+- Host requirements of the tests: a reachable user manager with `systemd-run`, a cgroup v2 mount, `unshare` and `mount` with
+  permission to make a user and mount namespace (three tests: the mount view, the boot id authority and the bind substitution), a
+  host whose `/proc/sys/kernel/random/boot_id` is the kernel's own (the identity tests read it and fail loudly where a runtime
+  replaced it), and a C compiler named `cc` (the tests with the thread-leader fixture);
   `CARGO_SHADOW_ALLOW_NO_CGROUP=1` turns the missing-manager case into a printed skip, the others fail loudly.
 - Route 2 of the earlier pick (a child of the own group where it carries `user.delegate`) is dropped:
   it needs `clone3` with `CLONE_INTO_CGROUP`, which neither `std` nor `rustix` 1.1.6 offers.

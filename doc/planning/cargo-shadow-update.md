@@ -936,7 +936,7 @@ green at `5d3466e2b1`.
 
 ### Part 9b
 
-Fixed in the tests (commits `045187ed59`, `5912ec62b3`, `390bb75103`, `74d035ca0e`, and the last test commit before the docs):
+Fixed in the tests (commits `045187ed59`, `5912ec62b3`, `390bb75103`, `74d035ca0e`, `f796663c42`, and the V2 arm named below):
 
 - 3.1: the replacement inode is captured at the exchange (`replace_capturing`) and must keep its name at the live path after each
   fault.
@@ -958,14 +958,19 @@ Fixed in the tests (commits `045187ed59`, `5912ec62b3`, `390bb75103`, `74d035ca0
 - One test needed a longer bound: with a journal around it, the escaped-writer test at the bound spent its one second in the
   record's sync and the manager's start when the whole suite ran at once (release gate, first run), so its bound is eight seconds.
 
+V2, "every other check" (9b section 2): `a_reboot_still_publishes_the_completion_marker_of_the_recovery_or_keeps_the_journal` fails
+the completion rename after a reboot discharge and requires the journal kept, the failure reported and a control that settles it.
+
 Not done from 9b section 2, kept in the coverage map as "partly": the shim and a user-command sentinel behind the A2/R4 call-site
 test; cuts of a wrapper at the real boundaries of `begin` (V3/V4).
+Not done either: the writer's side of the acknowledgement has no independent fault for the file sync inside `atomic_write` (only
+the publication and the directory sync are faulted); the reader's file and directory syncs are separate.
 
 ### Result
 
-The coverage map of the contract carries the counts: 575 tests, 570 passed, 0 failed, 5 skipped (the `#[ignore]` helper entries), for
+The coverage map of the contract carries the counts: 571 tests, 571 passed, 0 failed, 5 skipped (the `#[ignore]` helper entries), for
 the debug run and the release gate; `lint:clippy` with warnings denied is clean.
-Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r10-debug2.log`, `r10-gate2.log`, `r10-clippy3.log`; the first gate
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r10-debug3.log`, `r10-gate3.log`, `r10-clippy4.log`; the first gate
 run (`r10-gate1.log`) failed once on the bound named above and is kept as evidence.
 Nothing was published and nothing was merged into main; the first publication needs the owner's explicit approval.
 
