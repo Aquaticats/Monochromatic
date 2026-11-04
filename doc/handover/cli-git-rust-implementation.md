@@ -76,16 +76,46 @@ and the sample commit on main landed in 1980 ms in all,
 1271 ms of it provisioning the new service (landing 34 ms,
 lock hold 31 ms).
 
-Agents running at 2026-11-04T14:27:00-05:00:
+cargo-shadow 0.1.1:
+round 17 merged to main (`a439de1578`;
+branch tip `a3c703025d`,
+release gate 618/618,
+clippy clean;
+launcher fix:
+a PATH candidate whose `<launcher>.launch` record leads back to the shadow is skipped,
+chains up to 8 hops;
+the live check behind a copy of the real launcher ran the shadow once per command);
+dispatched as run 41900374975,
+`release:wait` following;
+then relock (`toolchain:update -- cargo:monochromatic-cargo-shadow` after restoring the plan row from `efe10d9745`),
+install,
+and the launcher check before the `cargo` link stays.
+The branch's auto-push was refused once with GH009 (`doc/troubleshooting/github-lfs-integrity-rejection.md`);
+a later push reached origin (`git ls-remote` shows `a3c703025d`).
+
+Agents and reviews at 2026-11-04T15:05:00-05:00:
 - Branch-write round 3 (`aa0fee0c2cf70bb31`):
   owner pick B for foreign-owner patience plus every round-2 review finding.
-- Models step 2 (`a9c775c9196f1d836`):
-  callers write the checked state document;
-  the step-1 cross-vendor review (`commit-models-step1-sol.txt`) is running.
-- cargo-shadow (`ae0fbdf78c31bd757`):
-  the launcher self-run fix first,
-  then the certification items;
-  then 0.1.1 and the relock.
+- Models (`a9c775c9196f1d836`):
+  step-1 review findings fixed and step 2 built as callables (`43fbb6041f`;
+  `native:test:model` 543 passed;
+  nothing in `git commit` calls it;
+  the shipped service only gains `--flush-lane`);
+  the decision-22 route is `systemd-run --user`,
+  recorded as within the decision ("Systemd unit + fallback (Recommended)";
+  `systemd-run` creates "a transient .service or .scope unit");
+  now closing the step-2 leftovers (`WAIT_DRAIN` measured,
+  forcing I/O errors,
+  disposal crash injection,
+  establishment record,
+  spool and attempt durability).
+  Step-2 reviews running:
+  `commit-models-step2-sol-a.txt` (code and component tests),
+  `commit-models-step2-sol-b.txt` (models and map).
+- cargo-shadow third certification pass,
+  seven groups in parallel (`run-cert3-reviews.ts`,
+  outputs `cargo-shadow-cert3-sol-1.txt` to `-7.txt`);
+  the agent (`ae0fbdf78c31bd757`) is idle until they return.
 - e2e `sigkill-service-during-work` (`aca6e78c5ffbd5680`,
   branch `fix/git-policy-cli-e2e-sigkill-service-during-work`):
   diagnose whether the product or the scenario is wrong,
