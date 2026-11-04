@@ -12,12 +12,8 @@
 #![cfg(feature = "test-seams")]
 
 use crate::model_fixture::{owned_append, owned_repair, scratch};
-use git_policy_cli::commit_identity::{
-    Bound, bind, binding_path, create_dir_all_durable, init_root, set_fault_point, start_events, take_events,
-};
-use git_policy_cli::commit_integrity::sha256_hex;
+use git_policy_cli::commit_identity::{create_dir_all_durable, init_root, set_fault_point, start_events, take_events};
 use git_policy_cli::commit_ledger::LedgerEntry;
-use git_policy_cli::commit_request::{Change, Operation, Published, Request, RequestError, decode, publish};
 use std::path::{Path, PathBuf};
 
 /// A 32-character identity made of one repeated digit.
@@ -28,25 +24,6 @@ fn identity(digit: char) -> String {
 /// A ledger entry for identity digit `digit`.
 fn entry(digit: char) -> LedgerEntry {
     return LedgerEntry { id: identity(digit), outcome: "published".to_string(), commit: "a".repeat(40), time: "2026-11-03T12:00:00-05:00".to_string() };
-}
-
-/// A valid request for identity digit `digit` with one added file.
-fn request(digit: char, message: &str) -> Request {
-    return Request {
-        id: identity(digit),
-        branch: b"main".to_vec(),
-        base: "b".repeat(40),
-        message: message.as_bytes().to_vec(),
-        operation: Operation::Commit,
-        nonce: vec![1; 16],
-        changes: vec![Change {
-            path: b"f.txt".to_vec(),
-            mode: "100644".to_string(),
-            sha256: sha256_hex(b"x"),
-            old_mode: "000000".to_string(),
-            old_sha256: "-".to_string(),
-        }],
-    };
 }
 
 /// The directories synced in `events`, in order.
@@ -68,38 +45,10 @@ fn durable_directory_creation_syncs_the_chain_through_the_anchor_every_time() {
     assert_eq!(directories(&take_events()), first, "a chain that merely exists is synced again");
 }
 
-/// An ancestor that only exists is synced by the next successful bind, through the anchor, which is the last directory synced.
+/// An append to a ledger that already exists syncs the directory chain through the anchor, last.
 #[test]
-fn a_bind_syncs_an_ancestor_that_only_exists() {
-    let root: PathBuf = scratch("seam-ancestor");
-    std::fs::create_dir_all(root.join("ids")).expect("an ancestor made by a creator that died before syncing the root");
-    start_events();
-    assert_eq!(bind(&root, &identity('d'), &sha256_hex(b"x")).expect("bind"), Bound::Created);
-    let synced: Vec<PathBuf> = directories(&take_events());
-    assert!(synced.contains(&root.join("ids")), "{:?}", synced);
-    assert_eq!(synced.last(), Some(&root));
-}
-
-/// A resend that finds the name syncs the chain itself, in order, through the anchor.
-#[test]
-fn a_resend_that_finds_the_name_syncs_the_directory_chain_itself() {
+fn an_append_to_an_existing_ledger_syncs_the_chain_through_the_anchor() {
     let root: PathBuf = scratch("seam-resend");
-    let id: String = identity('1');
-    let hash: String = sha256_hex(b"x");
-    assert_eq!(bind(&root, &id, &hash).expect("bind"), Bound::Created);
-    let fan_out: PathBuf = binding_path(&root, &id).expect("path").parent().expect("parent").to_path_buf();
-    start_events();
-    assert_eq!(bind(&root, &id, &hash).expect("resend"), Bound::SameContent);
-    let synced: Vec<PathBuf> = directories(&take_events());
-    assert_eq!(synced.first(), Some(&fan_out));
-    assert_eq!(synced.last(), Some(&root));
-    let inbox: PathBuf = root.join("inbox");
-    let one: Request = request('2', "m");
-    publish(&root, &inbox, &one).expect("publish");
-    start_events();
-    assert_eq!(publish(&root, &inbox, &one).expect("resend"), Published::AlreadyPresent);
-    let synced_record: Vec<PathBuf> = directories(&take_events());
-    assert_eq!(synced_record[synced_record.len() - 2..], [inbox.clone(), root.clone()]);
     let ledger: PathBuf = root.join("ledger");
     owned_append(&root, &ledger, &entry('3')).expect("append");
     start_events();
@@ -195,47 +144,6 @@ fn the_root_is_initialized_through_a_known_durable_parent_and_paths_are_containe
     assert!(!parent.join("escape").exists());
 }
 
-/// A bind paused before the link loses to a writer that finished first, and a publisher paused likewise finds the other record.
-#[test]
-fn writers_paused_before_the_link_find_the_other_writers_result() {
-    static BIND_ARRIVED: std::sync::Barrier = std::sync::Barrier::new(2);
-    static BIND_RELEASE: std::sync::Barrier = std::sync::Barrier::new(2);
-    static PUBLISH_ARRIVED: std::sync::Barrier = std::sync::Barrier::new(2);
-    static PUBLISH_RELEASE: std::sync::Barrier = std::sync::Barrier::new(2);
-    fn pause(point: &str) {
-        if point == "bind:before-link" {
-            BIND_ARRIVED.wait();
-            BIND_RELEASE.wait();
-        }
-        if point == "publish:before-link" {
-            PUBLISH_ARRIVED.wait();
-            PUBLISH_RELEASE.wait();
-        }
-    }
-    let root: PathBuf = scratch("seam-pause");
-    let id: String = identity('7');
-    let (a_root, a_id) = (root.clone(), id.clone());
-    let paused = std::thread::spawn(move || {
-        set_fault_point(Some(pause));
-        return bind(&a_root, &a_id, &sha256_hex(b"first")).expect("bind");
-    });
-    BIND_ARRIVED.wait();
-    assert_eq!(bind(&root, &id, &sha256_hex(b"second")).expect("bind"), Bound::Created);
-    BIND_RELEASE.wait();
-    assert_eq!(paused.join().expect("join"), Bound::DifferentContent(sha256_hex(b"second")));
-    let inbox: PathBuf = root.join("inbox");
-    let (b_root, b_inbox) = (root.clone(), inbox.clone());
-    let publisher = std::thread::spawn(move || {
-        set_fault_point(Some(pause));
-        return publish(&b_root, &b_inbox, &request('c', "first"));
-    });
-    PUBLISH_ARRIVED.wait();
-    assert_eq!(publish(&root, &inbox, &request('c', "second")).expect("publish"), Published::Created);
-    PUBLISH_RELEASE.wait();
-    assert!(matches!(publisher.join().expect("join"), Err(RequestError::Conflict)));
-    assert_eq!(decode(&std::fs::read(inbox.join(identity('c'))).expect("read")).expect("decode"), request('c', "second"));
-}
-
 /// Review 4 P1: a root that is a symlink is refused; its target's ancestry is not what the known-durable parent makes durable.
 #[test]
 fn a_symlinked_root_is_refused() {
@@ -243,29 +151,6 @@ fn a_symlinked_root_is_refused() {
     let elsewhere: PathBuf = scratch("seam-symlink-target");
     std::os::unix::fs::symlink(&elsewhere, parent.join("state")).expect("symlink");
     assert!(init_root(&parent, &parent.join("state")).is_err());
-}
-
-/// Review 4 P2: a resend that finds the final binding already in place creates no temporary file (a full disk must not fail it).
-#[test]
-fn a_resend_creates_no_temporary_file() {
-    static TEMPORARY_WANTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    fn note(point: &str) {
-        if point == "bind:before-temporary" {
-            TEMPORARY_WANTED.store(true, std::sync::atomic::Ordering::SeqCst);
-        }
-    }
-    let root: PathBuf = scratch("seam-no-temporary");
-    let id: String = identity('5');
-    let hash: String = sha256_hex(b"x");
-    set_fault_point(Some(note));
-    assert_eq!(bind(&root, &id, &hash).expect("bind"), Bound::Created);
-    // Positive control: the first bind does want a temporary file, so the fault point is live.
-    assert!(TEMPORARY_WANTED.load(std::sync::atomic::Ordering::SeqCst), "the fault point never fired");
-    TEMPORARY_WANTED.store(false, std::sync::atomic::Ordering::SeqCst);
-    assert_eq!(bind(&root, &id, &hash).expect("resend"), Bound::SameContent);
-    assert_eq!(bind(&root, &id, &sha256_hex(b"y")).expect("other"), Bound::DifferentContent(hash));
-    set_fault_point(None);
-    assert!(!TEMPORARY_WANTED.load(std::sync::atomic::Ordering::SeqCst));
 }
 
 /// Review 4 P2: an append to a clean ledger reads only its tail, not the whole ledger.

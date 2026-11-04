@@ -12,10 +12,10 @@
 //! ```
 
 use crate::model_fixture::{owned_append, owned_repair, scratch};
-use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable};
+use git_policy_cli::commit_identity::create_dir_all_durable;
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
 use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, LedgerOwner, MAX_LINE_BYTES, TAIL_WINDOW, TIME_MAX, encode_line, lane_ledger_path, lookup, parse_line};
-use git_policy_cli::commit_request::{Change, Eligibility, Operation, Published, Request, RequestError, content_hash, decode, eligibility, encode, publish};
+use git_policy_cli::commit_request::{Change, Eligibility, Operation, Request, RequestError, content_hash, decode, eligibility, encode};
 use git_policy_cli::commit_spool::{SpoolError, read_closure, verify_against_request, verify_spool, write_spool};
 use std::path::{Path, PathBuf};
 
@@ -134,60 +134,6 @@ fn ledger_damaged_middle_is_reported_and_kept() {
     assert_eq!(std::fs::read(&ledger).expect("read"), bytes);
 }
 
-/// The binding is created whole, answers a resend, refuses another content, and never changes.
-#[test]
-fn identity_binding_creates_once_and_never_changes() {
-    let root: PathBuf = scratch("identity-once");
-    let id: String = identity('4');
-    let one: String = sha256_hex(b"one");
-    let two: String = sha256_hex(b"two");
-    assert_eq!(bind(&root, &id, &one).expect("bind"), Bound::Created);
-    assert_eq!(bind(&root, &id, &one).expect("bind"), Bound::SameContent);
-    assert_eq!(bind(&root, &id, &two).expect("bind"), Bound::DifferentContent(one.clone()));
-    let path: PathBuf = binding_path(&root, &id).expect("path");
-    assert_eq!(std::fs::read_to_string(&path).expect("read"), format!("{}\n", one));
-    assert!(matches!(bind(&root, "../etc", &one), Err(IdentityError::InvalidIdentity)));
-    assert!(matches!(bind(&root, &id, "short"), Err(IdentityError::InvalidHash)));
-    let leftovers: Vec<_> = std::fs::read_dir(path.parent().expect("parent")).expect("dir").collect();
-    assert_eq!(leftovers.len(), 1, "no temporary file stays");
-}
-
-/// An empty or partial binding (as an `O_EXCL` creator that died would leave) is reported and left alone.
-#[test]
-fn identity_binding_refuses_a_partial_file() {
-    let root: PathBuf = scratch("identity-partial");
-    let id: String = identity('5');
-    let path: PathBuf = binding_path(&root, &id).expect("path");
-    std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
-    for partial in [&b""[..], &b"abc"[..], &b"zz"[..]] {
-        std::fs::write(&path, partial).expect("partial");
-        assert!(matches!(bind(&root, &id, &sha256_hex(b"x")), Err(IdentityError::UnreadableBinding(_))));
-        assert_eq!(std::fs::read(&path).expect("read"), partial.to_vec());
-    }
-}
-
-/// Many threads race to bind one identity to different contents: exactly one creates it and every other is refused,
-/// on the real file system's link primitive.
-#[test]
-fn identity_binding_has_one_winner_under_a_real_race() {
-    let root: PathBuf = scratch("identity-race");
-    let id: String = identity('6');
-    let mut workers = Vec::new();
-    let start: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(8));
-    for number in 0..8 {
-        let worker_root: PathBuf = root.clone();
-        let worker_id: String = id.clone();
-        let gate: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&start);
-        workers.push(std::thread::spawn(move || {
-            gate.wait();
-            return bind(&worker_root, &worker_id, &sha256_hex(format!("content {}", number).as_bytes())).expect("bind");
-        }));
-    }
-    let results: Vec<Bound> = workers.into_iter().map(|worker| { return worker.join().expect("join"); }).collect();
-    assert_eq!(results.iter().filter(|result| { return **result == Bound::Created; }).count(), 1);
-    assert_eq!(results.iter().filter(|result| { return matches!(result, Bound::DifferentContent(_)); }).count(), 7);
-}
-
 /// A request encodes, decodes to itself and has a stable content hash that equals its end line.
 #[test]
 fn request_round_trips_with_a_stable_hash() {
@@ -261,39 +207,6 @@ fn request_of_an_unknown_version_is_left_alone() {
     std::fs::write(&file, text.as_bytes()).expect("write");
     assert!(matches!(decode(&std::fs::read(&file).expect("read")), Err(RequestError::Damaged("version"))));
     assert_eq!(std::fs::read(&file).expect("read"), text.as_bytes());
-}
-
-/// Publication links the record in without replacing: the same bytes are a resend, other content is a conflict and the
-/// acknowledged record is unchanged.
-#[test]
-fn request_publication_never_replaces_an_acknowledged_record() {
-    let inbox: PathBuf = scratch("request-publish").join("inbox");
-    let first: Request = request('c', "first");
-    let second: Request = request('c', "second");
-    assert_eq!(publish(inbox.parent().expect("parent"), &inbox, &first).expect("publish"), Published::Created);
-    assert_eq!(publish(inbox.parent().expect("parent"), &inbox, &first).expect("publish"), Published::AlreadyPresent);
-    assert!(matches!(publish(inbox.parent().expect("parent"), &inbox, &second), Err(RequestError::Conflict)));
-    let kept: Vec<u8> = std::fs::read(inbox.join(identity('c'))).expect("read");
-    assert_eq!(decode(&kept).expect("decode"), first);
-    assert_eq!(std::fs::read_dir(&inbox).expect("dir").count(), 1, "no temporary file stays");
-}
-
-/// The review's F7 schedule on the real file system: two threads publish different content under one identity; one
-/// wins, the other is refused, and the inbox holds exactly the winner.
-#[test]
-fn request_publication_has_one_winner_under_a_real_race() {
-    let inbox: PathBuf = scratch("request-race").join("inbox");
-    let mut workers = Vec::new();
-    let start: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(6));
-    for number in 0..6 {
-        let worker_inbox: PathBuf = inbox.clone();
-        let gate: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&start);
-        workers.push(std::thread::spawn(move || { gate.wait(); return publish(worker_inbox.parent().expect("parent"), &worker_inbox, &request('d', &format!("message {}", number))); }));
-    }
-    let results: Vec<Result<Published, RequestError>> = workers.into_iter().map(|worker| { return worker.join().expect("join"); }).collect();
-    assert_eq!(results.iter().filter(|result| { return matches!(result, Ok(Published::Created)); }).count(), 1);
-    assert_eq!(results.iter().filter(|result| { return matches!(result, Err(RequestError::Conflict)); }).count(), 5);
-    assert_eq!(std::fs::read_dir(&inbox).expect("dir").count(), 1);
 }
 
 /// The spool writes complete files and a manifest last, verifies against the manifest and the request, and detects

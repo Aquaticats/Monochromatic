@@ -14,11 +14,10 @@
 #![cfg(feature = "test-seams")]
 
 use crate::model_fixture::scratch;
-use git_policy_cli::commit_identity::{bind, set_fault_point, start_events, take_events};
+use git_policy_cli::commit_identity::{set_fault_point, start_events, take_events};
 use git_policy_cli::commit_inbox::{Accepted, accept, decode_inbox_file, depart, depart_closure, encode_inbox_file, init_lane_directories, with_identity};
 use git_policy_cli::commit_integrity::sha256_hex;
-use git_policy_cli::commit_request::{Change, Operation, Request, publish};
-use git_policy_cli::commit_spool::write_spool;
+use git_policy_cli::commit_request::{Change, Operation, Request};
 use git_policy_cli::commit_state_log;
 use std::path::PathBuf;
 
@@ -52,20 +51,6 @@ fn one_path_request() -> (Request, Vec<Vec<u8>>, Vec<Vec<u8>>) {
 /// The number of syncs (file syncs and directory syncs) in `events`.
 fn syncs(events: &[String]) -> usize {
     return events.iter().filter(|event| { return event.starts_with("file-sync:") || event.starts_with("dir:"); }).count();
-}
-
-/// The baseline the fourth review counted: the revision 11 path (binding, spool, record) syncs many times before acceptance.
-#[test]
-fn the_revision_eleven_acceptance_path_makes_many_syncs() {
-    let root: PathBuf = scratch("v-baseline");
-    let (request, new_files, old_files) = one_path_request();
-    start_events();
-    assert!(bind(&root, &request.id, &sha256_hex(b"hash")).is_ok());
-    write_spool(&root, &request.id, &new_files, &old_files).expect("spool");
-    publish(&root, &root.join("inbox"), &request).expect("publish");
-    let count: usize = syncs(&take_events());
-    println!("revision 11 acceptance path: {} syncs", count);
-    assert!(count >= 15, "{}", count);
 }
 
 /// Rule V: accepting a request and writing the state makes no sync at all: the files are visible (they survive the death of any
@@ -262,4 +247,35 @@ fn a_failed_cleanup_after_a_successful_link_is_not_an_error() {
     assert!(matches!(outcome, Ok(Accepted::CreatedTemporaryLeft(_))), "{:?}", outcome);
     assert!(lane.join("inbox").join(&request.id).exists(), "the request is in place");
     assert_eq!(accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("resend"), Accepted::AlreadyPresent);
+}
+
+/// F7 reopened against the inbox file: two clients send the same bytes, the first is stopped after it wrote its temporary file and before
+/// it links, the second finishes; the first then finds `EEXIST` and answers `AlreadyPresent` (a resend), and exactly one file and no
+/// temporary name remain. Whoever answers `AlreadyPresent` has not forced anything, which is why a departure forces the file whoever linked it.
+#[test]
+fn two_clients_sending_the_same_bytes_end_with_one_file_and_a_resend() {
+    static ARRIVED: std::sync::Barrier = std::sync::Barrier::new(2);
+    static RELEASE: std::sync::Barrier = std::sync::Barrier::new(2);
+    fn pause(point: &str) {
+        if point == "accept:before-link" {
+            ARRIVED.wait();
+            RELEASE.wait();
+        }
+    }
+    let root: PathBuf = scratch("v-two-clients");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let inbox: PathBuf = lane.join("inbox");
+    let (request, new_files, old_files) = one_path_request();
+    let (paused_inbox, paused_request, paused_new, paused_old) = (inbox.clone(), request.clone(), new_files.clone(), old_files.clone());
+    let paused = std::thread::spawn(move || {
+        set_fault_point(Some(pause));
+        return accept(&paused_inbox, INSTANCE, &paused_request, &paused_new, &paused_old);
+    });
+    ARRIVED.wait();
+    // The second client is a different thread without the pause: it links first.
+    assert_eq!(accept(&inbox, INSTANCE, &request, &new_files, &old_files).expect("second client"), Accepted::Created);
+    RELEASE.wait();
+    assert_eq!(paused.join().expect("join").expect("first client"), Accepted::AlreadyPresent);
+    assert_eq!(std::fs::read_dir(&inbox).expect("inbox").flatten().filter(|entry| { return entry.file_name() != "tmp"; }).count(), 1);
+    assert_eq!(std::fs::read_dir(inbox.join("tmp")).expect("tmp").count(), 0);
 }

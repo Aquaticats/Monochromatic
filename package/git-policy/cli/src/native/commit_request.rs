@@ -1,6 +1,6 @@
 //! What:
 //!  The immutable commit request record: a strict line-oriented text with hexadecimal fields, an end line carrying the
-//!  SHA-256 of everything before it, validation, and a no-replace publication into `inbox/`.
+//!  SHA-256 of everything before it, and validation. Publication is the inbox's `accept` (`commit_inbox.rs`).
 //! Why:
 //!  A request is accepted when this record is durable (`doc/planning/cli-git-commits-never-fail.md`, "Durable
 //!  acceptance"). Every free-form field (branch, message, path) is hex-encoded, so no character in it can break the
@@ -11,11 +11,8 @@
 //! // type Request = { version: 1; id: string; branch: string; base: string; message: string; changes: Change[] };
 //! ```
 
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::io;
 
-use super::commit_identity::{create_dir_all_durable, fault_point, sync_chain, sync_file, temporary_name};
 use super::commit_integrity::{hex, is_identity, is_object_name, sha256_hex, unhex};
 
 /// The record format version this module reads and writes. These components are unreleased and no request of version 1 or 2 was ever
@@ -434,60 +431,4 @@ pub fn decode(bytes: &[u8]) -> Result<Request, RequestError> {
         return Err(RequestError::Damaged("end hash"));
     }
     return Ok(request);
-}
-
-/// What:
-///  The result of publishing: this call created `inbox/<id>`, or an identical record was already there.
-/// Why:
-///  A resend of the same request is not an error.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Published = 'created' | 'already-present';
-/// ```
-#[derive(Debug, Eq, PartialEq)]
-pub enum Published {
-    /// This call linked the record into place.
-    Created,
-    /// A record with the same bytes was already there.
-    AlreadyPresent,
-}
-
-/// What:
-///  Publishes `request` as `inbox/<id>`: a synced temporary file linked into place without replacing, the inbox
-///  directory synced. If the name exists, the existing record must have identical bytes, else `Conflict`.
-/// Why:
-///  A rename over `inbox/<id>` would replace an acknowledged request; a link cannot.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function publish(inbox: string, request: Request): Published;
-/// ```
-pub fn publish(anchor: &Path, inbox: &Path, request: &Request) -> Result<Published, RequestError> {
-    let bytes: Vec<u8> = encode(request)?;
-    create_dir_all_durable(anchor, inbox)?;
-    let target: PathBuf = inbox.join(&request.id);
-    let temporary: PathBuf = temporary_name(inbox)?;
-    let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
-    file.write_all(&bytes)?;
-    sync_file(&file, &temporary)?;
-    fault_point("publish:before-link");
-    let linked: io::Result<()> = fs::hard_link(&temporary, &target);
-    fs::remove_file(&temporary)?;
-    match linked {
-        Ok(()) => {
-            sync_chain(inbox, anchor)?;
-            return Ok(Published::Created);
-        }
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            // A resend finds the name linked by a writer that may have died before syncing the directory.
-            sync_chain(inbox, anchor)?;
-            let existing: Vec<u8> = fs::read(&target)?;
-            if existing == bytes {
-                return Ok(Published::AlreadyPresent);
-            }
-            return Err(RequestError::Conflict);
-        }
-        Err(error) => return Err(RequestError::Io(error)),
-    }
 }

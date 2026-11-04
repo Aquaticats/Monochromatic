@@ -230,6 +230,7 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
     let temporary: PathBuf = temporary_name(&inbox.join("tmp"))?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(&bytes)?;
+    fault_point("accept:before-link");
     let linked: io::Result<()> = fs::hard_link(&temporary, &target);
     fault_point("accept:after-link");
     // A failed cleanup after a successful link must not look like a request that was never accepted: the caller would run native Git
