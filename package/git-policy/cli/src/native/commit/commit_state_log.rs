@@ -135,6 +135,61 @@ fn document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool {
     return document_needs(document).is_some_and(|needs| { return needs.iter().all(|need| { return items.iter().any(|entry| { return entry.path == *need; }); }); });
 }
 
+/// What:
+///  Checks that `closure` holds everything the lane holds that a reclaiming checkpoint could orphan: every request envelope in `inbox/`,
+///  every saved content in `saved/` and the lane ledger up to its length now, each unless a ledger line inside the closure discharges it.
+/// Why:
+///  A reclaiming checkpoint removes its predecessor, the only record that still retains these. What the lane holds is the state the
+///  component can see without trusting a document or a caller's list, so the obligations are derived from it. Over-approximation is the
+///  safe side: a checkpoint that retains more than its document needs is correct. The ledger extent is the length at this moment, so a
+///  prefix captured before later lines were appended is refused and the caller captures again. Dependencies that are not in these places
+///  (an order file, say) are declared by the document's `needs` lines and checked as before; the component cannot derive them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkLaneObligations(lane: string, closure: ClosureEntry[]): void; // inbox/*, saved/*, ledger length; or discharged
+/// ```
+fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<()> {
+    let refuse = |what: &str| -> io::Error { return io::Error::new(io::ErrorKind::InvalidInput, format!("the closure does not hold {} that the lane holds", what)); };
+    for (directory, kind) in [(INBOX, EntryKind::InboxEnvelope), (SAVED, EntryKind::Opaque)] {
+        let entries = match fs::read_dir(lane.join(directory)) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        for listed in entries {
+            let name = listed?.file_name();
+            let Some(text) = name.to_str() else { continue };
+            let obligation: bool = match kind {
+                EntryKind::InboxEnvelope => super::commit_integrity::is_identity(text),
+                _ => text.len() == 64 && super::commit_integrity::unhex(text).is_some(),
+            };
+            if !obligation {
+                continue;
+            }
+            let path: PathBuf = Path::new(directory).join(text);
+            let held: bool = closure.iter().any(|entry| { return entry.path == path; });
+            let key: String = if kind == EntryKind::Opaque { text.chars().take(32).collect() } else { text.to_string() };
+            let outcome: Option<&str> = if kind == EntryKind::Opaque { Some("disposed") } else { None };
+            if !held && !ledger_prefix_has(lane, closure, &key, outcome) {
+                return Err(refuse(if kind == EntryKind::Opaque { "saved content" } else { "a request" }));
+            }
+        }
+    }
+    let ledger: PathBuf = lane.join(LANE_LEDGER);
+    match fs::metadata(&ledger) {
+        Ok(metadata) => {
+            let held: bool = closure.iter().any(|entry| { return entry.path == Path::new(LANE_LEDGER) && entry.length == metadata.len(); });
+            if !held {
+                return Err(refuse("the ledger up to its length now (capture it again)"));
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    return Ok(());
+}
+
 /// The directory of the lane that holds immutable saved content, one file per content, named by the SHA-256 of its bytes.
 const SAVED: &str = "saved";
 
@@ -906,6 +961,7 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
     if !document_is_covered(document, closure) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the document names a dependency that the closure does not cover"));
     }
+    check_lane_obligations(&lane, closure)?;
     for entry in closure {
         validate_entry(&lane, entry)?;
         if fs::canonicalize(lane.join(&entry.path))?.starts_with(&canonical_state) {

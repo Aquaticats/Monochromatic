@@ -708,17 +708,18 @@ fn r15_a_disposal_line_in_an_unrelated_prefix_file_does_not_discharge_saved_cont
 /// retirement record instead of stopping at the checkpoint whose item S is gone and reporting damage.
 #[test]
 fn r15_recovery_reaches_a_retirement_record_after_the_disposal_removed_the_content() {
-    let (lane, state, _envelope) = lane_with_envelope("r15-retirement-recovery");
+    let (lane, state, envelope) = lane_with_envelope("r15-retirement-recovery");
     append(&state, 1, b"first").expect("append");
     let saved: PathBuf = saved_content(&lane, b"objects of b");
     let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    writer.checkpoint(2, b"retains s", std::slice::from_ref(&content)).expect("checkpoint");
+    writer.checkpoint(2, b"retains a and s", &[request.clone(), content]).expect("checkpoint");
     let name: String = discharge_name(&saved);
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, ledger_line_of(&name, "disposed")).expect("the disposal line");
     let proof: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger");
-    writer.append_retiring(3, b"s is disposed", std::slice::from_ref(&proof), std::slice::from_ref(&name)).expect("retire s");
+    writer.append_retiring(3, b"s is disposed", &[request.clone(), proof.clone()], std::slice::from_ref(&name)).expect("retire s");
     git_policy_cli::commit_state_log::force_items(&lane, std::slice::from_ref(&proof)).expect("force the proof");
     sync_prefix(&state).expect("force the state");
     let mut mode = std::fs::metadata(&saved).expect("metadata").permissions();
@@ -790,7 +791,7 @@ fn r15_recovery_does_not_select_a_document_whose_needs_its_set_does_not_cover() 
 /// the API and a raw file is refused at capture.
 #[test]
 fn r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_made_one_cannot_be_reopened_for_writing() {
-    let (lane, state, _envelope) = lane_with_envelope("r15-creator-enforced");
+    let (lane, state, envelope) = lane_with_envelope("r15-creator-enforced");
     append(&state, 1, b"first").expect("append");
     std::fs::create_dir_all(lane.join("saved")).expect("saved directory");
     let raw: PathBuf = lane.join("saved").join(git_policy_cli::commit_integrity::sha256_hex(b"raw bytes"));
@@ -799,10 +800,12 @@ fn r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_
     let kept = std::fs::OpenOptions::new().write(true).open(&raw).expect("the raw creator's writable descriptor");
     assert!(ClosureEntry::capture(&lane, &raw, EntryKind::Opaque).is_err(), "and with a writable descriptor open too");
     drop(kept);
+    std::fs::remove_file(&raw).expect("the stray file is removed: unknown content in saved/ would hold up a reclaiming checkpoint");
     let made: PathBuf = saved_content(&lane, b"objects of b");
     assert!(std::fs::OpenOptions::new().write(true).open(&made).is_err(), "the component's saved content was opened for writing");
     let content: ClosureEntry = ClosureEntry::capture(&lane, &made, EntryKind::Opaque).expect("capture what the component made");
-    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"retains s", std::slice::from_ref(&content)).expect("checkpoint");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"retains s", &[request, content]).expect("checkpoint");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2);
 }
 
@@ -810,12 +813,13 @@ fn r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_
 /// (NFS, CIFS, 9p, FUSE without lock support) still creates, captures, checkpoints and completes.
 #[test]
 fn r15_a_file_system_that_refuses_read_leases_still_creates_and_checkpoints_saved_content() {
-    let (lane, state, _envelope) = lane_with_envelope("r15-no-leases");
+    let (lane, state, envelope) = lane_with_envelope("r15-no-leases");
     append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
     inject_lease_errno(Some(libc::ENOTSUP));
     let made = create_saved_content(&lane, b"objects of b");
     let checkpoint = made.as_ref().map_err(|error| { return std::io::Error::new(error.kind(), error.to_string()); }).and_then(|entry| {
-        return StateWriter::acquire(&state)?.checkpoint(2, b"retains s", std::slice::from_ref(entry)).map(|_| ());
+        return StateWriter::acquire(&state)?.checkpoint(2, b"retains s", &[request.clone(), entry.clone()]).map(|_| ());
     });
     inject_lease_errno(None);
     made.expect("creation without leases");

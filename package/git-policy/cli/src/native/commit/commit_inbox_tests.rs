@@ -738,7 +738,9 @@ fn grow_the_ledger_and_the_state(point: &str) {
     let mut file = std::fs::OpenOptions::new().append(true).open(&ledger).expect("the ledger writer's append");
     std::io::Write::write_all(&mut file, &ledger_line(&"2".repeat(32))).expect("an unforced ledger line");
     let longer: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the longer prefix");
-    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").append_with(3, b"retains the longer prefix", std::slice::from_ref(&longer)).expect("append");
+    let envelope: PathBuf = std::fs::read_dir(lane.join("inbox")).expect("inbox").flatten().find(|entry| { return entry.file_name().len() == 32 && entry.path().is_file(); }).expect("one request").path();
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture the request");
+    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").append_with(3, b"retains the longer prefix", &[request, longer]).expect("append");
     git_policy_cli::commit_identity::record_event("test:ledger-line-appended");
 }
 
@@ -757,7 +759,8 @@ fn r15_a_departure_forces_the_longer_ledger_prefix_of_a_state_that_grew_while_it
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, ledger_line(&"1".repeat(32))).expect("the first ledger line");
     let shorter: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger prefix");
-    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").checkpoint(2, b"retains the ledger prefix", std::slice::from_ref(&shorter)).expect("checkpoint");
+    let first_request: ClosureEntry = ClosureEntry::capture(&lane, &lane.join("inbox").join(&request.id), EntryKind::InboxEnvelope).expect("capture the request");
+    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").checkpoint(2, b"retains the ledger prefix", &[first_request, shorter]).expect("checkpoint");
     GROWING_LANE.with(|cell| { *cell.borrow_mut() = Some(lane.clone()); });
     set_fault_point(Some(grow_the_ledger_and_the_state));
     start_events();
