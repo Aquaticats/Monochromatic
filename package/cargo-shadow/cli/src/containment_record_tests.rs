@@ -191,6 +191,32 @@ fn each_missing_capability_class_prints_the_notice_on_the_real_standard_error() 
     }
 }
 
+/// Acceptance row "Weaker path" (certification, third pass): an acknowledgement that cannot be read is not an acknowledgement.
+/// The marker is a directory, so opening it succeeds and reading it fails on every system and for every user; the real recovery and the
+/// real admission both stay blocked, the journal stays and nothing is restored; a real acknowledgement in its place (the control)
+/// lets the recovery go on.
+#[test]
+fn an_unreadable_acknowledgement_does_not_count_for_the_recovery_or_the_admission() {
+    let root = repository();
+    let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
+    fs::create_dir(journal.join("acknowledged")).expect("a marker that cannot be read as a file");
+
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    let admitted = begin(root.path(), &[snapshot("original")], false);
+
+    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "a recovery went ahead on an acknowledgement it could not read: {messages:?}");
+    assert!(journal.exists(), "the journal was removed on an unreadable acknowledgement: {messages:?}");
+    assert!(admitted.is_err(), "a transaction was admitted beside a journal whose acknowledgement cannot be read");
+    assert!(survivor_note(&journal).is_some());
+    assert_eq!(journal_dirs(root.path()), vec![journal.clone()]);
+
+    // Control: a real acknowledgement in its place lets the same recovery go on.
+    fs::remove_dir(journal.join("acknowledged")).expect("take the unreadable marker away");
+    acknowledge(&journal).expect("acknowledges");
+    let after: Vec<String> = recover(root.path(), &refusing);
+    assert!(journal_dirs(root.path()).is_empty(), "the control: the acknowledged journal was not recovered: {after:?}");
+}
+
 /// The weaker path stops the process group at the bound,
 /// as round 5 did.
 #[test]
