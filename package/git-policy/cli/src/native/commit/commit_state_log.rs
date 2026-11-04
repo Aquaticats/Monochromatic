@@ -132,7 +132,22 @@ fn document_needs(document: &[u8]) -> Option<Vec<PathBuf>> {
 
 /// Whether the retained `items` cover every dependency `document` names.
 fn document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool {
-    return document_needs(document).is_some_and(|needs| { return needs.iter().all(|need| { return items.iter().any(|entry| { return entry.path == *need; }); }); });
+    let needs_covered: bool = document_needs(document).is_some_and(|needs| { return needs.iter().all(|need| { return items.iter().any(|entry| { return entry.path == *need; }); }); });
+    return needs_covered && checked_document_is_covered(document, items);
+}
+
+/// Whether `items` hold every reference of a document in the checked representation: each request, each saved content, and a ledger prefix
+/// at least as long as the extent it relies on. A document that starts as a checked document and does not parse is not covered (a malformed
+/// reference is never no reference); any other document has no checked reference to check.
+fn checked_document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool {
+    if !document.starts_with(LANE_DOCUMENT_MAGIC.as_bytes()) {
+        return true;
+    }
+    let Some(parsed) = LaneDocument::parse(document) else { return false };
+    let held = |directory: &str, name: &str| -> bool { return items.iter().any(|entry| { return entry.path == Path::new(directory).join(name); }); };
+    return parsed.requests.iter().all(|id| { return held(INBOX, id); })
+        && parsed.saved.iter().all(|name| { return held(SAVED, name); })
+        && parsed.ledger_length.is_none_or(|length| { return items.iter().any(|entry| { return entry.path == Path::new(LANE_LEDGER) && entry.length >= length; }); });
 }
 
 /// What:

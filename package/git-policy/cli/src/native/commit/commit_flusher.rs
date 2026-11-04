@@ -327,7 +327,19 @@ pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
         return Ok(Launched::LockHeld);
     };
     let owned: PathBuf = lane.to_path_buf();
-    return match launch_detached_holding(lock, move |held| { return flusher_entry_holding(&owned, held); }) {
+    let lane_for_helper: PathBuf = lane.to_path_buf();
+    return match launch_detached_holding(
+        lock,
+        move || { return FlusherLock::try_acquire(&lane_for_helper); },
+        move |acquired| {
+            // The helper takes the lock itself after the handover; when someone else holds it, that holder sweeps this client's receipt.
+            return match acquired {
+                Ok(Some(held)) => flusher_entry_holding(&owned, held),
+                Ok(None) => 0,
+                Err(_) => FLUSHER_FAILED_EXIT,
+            };
+        },
+    ) {
         Ok(()) => Ok(Launched::Started),
         Err(launch) => {
             // The launch dropped the lock; a client that arrives now finds it free and starts its own flusher.

@@ -448,25 +448,28 @@ fn reap_or_kill(child: libc::pid_t, deadline: Instant) -> Result<Option<libc::c_
 /// function launchDetached(entry: () => number): void; // throws LaunchError
 /// ```
 pub fn launch_detached<F: FnOnce() -> i32>(entry: F) -> Result<(), LaunchError> {
-    return launch_detached_holding((), move |()| { return entry(); });
+    return launch_detached_holding((), || {}, move |()| { return entry(); });
 }
 
 /// What:
-///  As `launch_detached`, and `holding` (a lock, say) goes to the helper, by a handover in this order: the helper reports ready; the
-///  launcher reaps the intermediate child (killing it if it does not leave) so that no other copy exists; the launcher closes its own
-///  copy; only then it sends the handover byte; the helper acknowledges it and runs `entry`. A helper that does not get the byte (a wait
-///  that expires, an end of input) runs nothing and the launch fails with `HandoverNotAcknowledged`. A failed launch drops `holding`
-///  before it returns.
+///  As `launch_detached`, and the launcher holds `holding` (a lock, say) until the helper is ready: the intermediate child and the helper
+///  close its descriptors at once and never carry it; the launcher reaps the intermediate child (killing it if it does not leave), closes
+///  its own copy, and only then sends the handover byte. The helper then runs `prepare` (taking the lock itself, say), acknowledges, and
+///  runs `entry` with what `prepare` returned. A helper that gets no byte (a wait that expires, an end of input because the launcher died)
+///  still runs `prepare` and `entry`, without acknowledging: if the launcher is gone the helper is the executor, and if the launcher
+///  is only slow it still holds the lock and `prepare` finds it taken. A launcher that does not get the acknowledgment fails with
+///  `HandoverNotAcknowledged`, and its caller accounts for every receipt.
 /// Why:
-///  An `flock` belongs to the open file description, which a fork shares: a copy that outlives the helper's release makes a client that
-///  found the lock held start nothing. With the handover, the helper is the only holder when it starts to work, and a launch that did not
-///  transfer ownership is a failure its caller accounts for (every receipt recorded), never an execution without the handover.
+///  An `flock` belongs to the open file description, which a fork shares: any process but the launcher that carries a copy can keep the
+///  lock after the one that works has released it, and a client that found it held starts nothing. Here no process but the launcher
+///  carries a copy while the lock is held for the launch, so a failure or a death at any step leaves either the launcher's own cleanup or
+///  the helper's `prepare` as the one that decides who holds the lock next (review 12 section 3).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function launchDetachedHolding<H>(holding: H, entry: (holding: H) => number): void; // throws LaunchError
+/// function launchDetachedHolding<H, T>(holding: H, prepare: () => T, entry: (prepared: T) => number): void; // throws LaunchError
 /// ```
-pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entry: F) -> Result<(), LaunchError> {
+pub fn launch_detached_holding<H: Holding, T, P: FnOnce() -> T, F: FnOnce(T) -> i32>(holding: H, prepare: P, entry: F) -> Result<(), LaunchError> {
     require_single_thread()?;
     let kept: Vec<libc::c_int> = holding.descriptors();
     if let Some(low) = kept.iter().copied().find(|number| { return *number <= 2; }) {
@@ -485,6 +488,9 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
         unsafe {
             libc::close(report_read.as_raw_fd());
             libc::close(go_write.as_raw_fd());
+            for number in &kept {
+                libc::close(*number);
+            }
             if libc::setsid() < 0 {
                 libc::_exit(1);
             }
@@ -502,9 +508,7 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
                 libc::_exit(0);
             }
         }
-        let mut with_handover: Vec<libc::c_int> = kept.clone();
-        with_handover.push(go_read.as_raw_fd());
-        if !helper_setup(report_write.as_raw_fd(), &with_handover) {
+        if !helper_setup(report_write.as_raw_fd(), &[go_read.as_raw_fd()]) {
             if injected(2) {
                 // A helper that failed its setup lingers before it exits (the schedule of review 12 section 3B).
                 std::thread::sleep(Duration::from_millis(400));
@@ -513,20 +517,19 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
             unsafe { libc::_exit(3) };
         }
         let wait: Duration = if injected(5) { Duration::from_millis(100) } else { LAUNCH_CONFIRM_LIMIT };
-        if !await_handover(go_read.as_raw_fd(), Instant::now() + wait) {
-            // SAFETY: closing the report end tells the launcher that no handover happened; `_exit` never returns.
-            unsafe {
-                libc::close(report_write.as_raw_fd());
-                libc::_exit(4);
+        let granted: bool = await_handover(go_read.as_raw_fd(), Instant::now() + wait);
+        let code: i32 = catch_unwind(AssertUnwindSafe(move || {
+            let prepared: T = prepare();
+            if granted {
+                let acknowledged: u8 = ACKNOWLEDGED;
+                // SAFETY: `acknowledged` is one live byte; the report end is this process's own.
+                unsafe { libc::write(report_write.as_raw_fd(), (&raw const acknowledged).cast::<libc::c_void>(), 1) };
             }
-        }
-        let acknowledged: u8 = ACKNOWLEDGED;
-        // SAFETY: `acknowledged` is one live byte; the report end is this process's own and closes after the write.
-        unsafe {
-            libc::write(report_write.as_raw_fd(), (&raw const acknowledged).cast::<libc::c_void>(), 1);
-            libc::close(report_write.as_raw_fd());
-        }
-        let code: i32 = catch_unwind(AssertUnwindSafe(move || { return entry(holding); })).unwrap_or(PANICKED_EXIT);
+            // SAFETY: the report end is this process's own and is closed here, after the acknowledgment.
+            unsafe { libc::close(report_write.as_raw_fd()) };
+            return entry(prepared);
+        }))
+        .unwrap_or(PANICKED_EXIT);
         // SAFETY: the helper ends here without unwinding into the launcher's stack.
         unsafe { libc::_exit(code) };
     }
