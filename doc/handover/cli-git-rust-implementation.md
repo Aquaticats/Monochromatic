@@ -211,6 +211,43 @@ Done since the last list:
   content-only witness) are not taken:
   both discard ABA staging.
 - Design revision 12 (`18ca87c579`) and the owner's four answers.
+- Models round 7,
+  `feat/git-policy-cli-commit-protocol-models` tip `7b87e79d3d`,
+  188 of 188 model tests,
+  both clippy tasks clean:
+  components on rule V (`commit_inbox.rs`:
+  one checksummed request file linked from `inbox/tmp/`,
+  identity the hash of content and lane instance;
+  `commit_state.rs`:
+  `state.a`/`state.b` written in place without a sync);
+  red test first counted the revision 11 path at exactly 22 syncs,
+  the new waiting path makes 0,
+  a departure syncs request file,
+  inbox directory and newest state file in that order before returning.
+  `LedgerOwner` is a non-blocking exclusive lock on `<ledger>.owner`
+  (the standalone `repair_tail` and `append` are still public);
+  amendments and gitlink changes are refused before acceptance and go to real Git (a test shows real Git commits them).
+  The explorer gained `explore_eventually` (cycles with no exit).
+  Not done:
+  the order and ledger lines at the departure barrier (not built yet);
+  F2,
+  F1 reflog,
+  F5,
+  E1,
+  persistence intermediate states,
+  M1 compare-and-unlink;
+  deferred to revision 13:
+  the register's cumulative deadlines,
+  the merge edit-loss invariant.
+  The revision 11 binding,
+  spool and record modules are unused by the new path;
+  coordinator's pick (veto open):
+  remove what revision 13 still leaves unused,
+  after it lands.
+  Reviews running:
+  `commit-components-sol-5.txt`,
+  `commit-models-sol-3a.txt`,
+  `commit-models-sol-3b.txt`.
 - #6260 merged into the base.
 
 Queue,
