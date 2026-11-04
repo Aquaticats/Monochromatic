@@ -15,7 +15,7 @@
 //! // launchFlusher(lane): lock first, fork only the holder; flushLane(lane, force): while (sweep()) {}; unlock; if (pending()) { relock or hand over }
 //! ```
 
-use super::commit_helper_launch::{LaunchError, launch_detached_keeping};
+use super::commit_helper_launch::{Holding, LaunchError, launch_detached_holding, move_above_streams};
 use super::commit_identity::fault_point;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
@@ -96,7 +96,14 @@ impl FlusherLock {
         {
             return Err(FlushError::Invalid("the flusher lock path is not a regular file"));
         }
-        let file: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(&path)?;
+        let opened: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(&path)?;
+        // The lock is handed to a helper that redirects descriptors 0 to 2; a process with one of them closed would otherwise hold it there.
+        let file: File = {
+            use std::os::fd::{FromRawFd, IntoRawFd};
+            let moved: libc::c_int = move_above_streams(opened.into_raw_fd())?;
+            // SAFETY: `moved` is the descriptor that `opened` owned (or a copy of it), now owned by nothing else.
+            unsafe { File::from_raw_fd(moved) }
+        };
         return match file.try_lock() {
             Ok(()) => Ok(Some(FlusherLock { file })),
             Err(std::fs::TryLockError::WouldBlock) => Ok(None),
@@ -104,10 +111,12 @@ impl FlusherLock {
         };
     }
 
-    /// The lock's descriptor, for a launch that hands it to the helper.
-    pub fn descriptor(&self) -> std::os::fd::RawFd {
+}
+
+impl Holding for FlusherLock {
+    fn descriptors(&self) -> Vec<libc::c_int> {
         use std::os::fd::AsRawFd;
-        return self.file.as_raw_fd();
+        return vec![self.file.as_raw_fd()];
     }
 }
 
@@ -298,15 +307,20 @@ pub enum Launched {
 pub enum FlusherLaunchError {
     /// The lock could not be taken (not a refusal by another holder).
     Lock(FlushError),
-    /// The helper could not be started.
+    /// The helper could not be started; every receipt of the lane was recorded as not forced.
     Launch(LaunchError),
+    /// The helper could not be started and the receipts could not be recorded either.
+    LaunchUnrecorded { launch: LaunchError, recording: io::Error },
 }
 
 /// What:
 ///  Starts the one-shot flusher for `lane` as a detached helper that holds none of this process's descriptors but the lane's flusher lock,
-///  which this call took first and which the helper keeps; when another flusher holds the lock nothing is forked.
+///  which this call took first and handed over (the launcher's copy is closed before the helper works); when another flusher holds the
+///  lock nothing is forked. When the helper cannot be started, the lock is dropped and every receipt in the lane, those of clients that
+///  found the lock held meanwhile included, is recorded as not forced.
 /// Why:
-///  Review 9a section 3C: forking before trying the lock gave one live helper per client. A client forks only when it holds the lock.
+///  Review 9a section 3C: forking before trying the lock gave one live helper per client. Review 10a section 3A: the launcher's copy of the
+///  lock must not outlive the helper's release, and clients that joined a launch that failed must not be left with no executor and no record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -317,8 +331,17 @@ pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
         return Ok(Launched::LockHeld);
     };
     let owned: PathBuf = lane.to_path_buf();
-    let descriptor = lock.descriptor();
-    // The closure owns the lock; the launcher's copy closes when the launch returns, the helper's copy keeps the lock.
-    launch_detached_keeping(&[descriptor], move || { return flusher_entry_holding(&owned, lock); }).map_err(FlusherLaunchError::Launch)?;
-    return Ok(Launched::Started);
+    return match launch_detached_holding(lock, move |held| { return flusher_entry_holding(&owned, held); }) {
+        Ok(()) => Ok(Launched::Started),
+        Err(launch) => {
+            // The launch dropped the lock; a client that arrives now finds it free and starts its own flusher.
+            let failure: io::Error = io::Error::other(launch.to_string());
+            let mut recorded: BTreeSet<OsString> = BTreeSet::new();
+            let outcome: io::Result<()> = unforced(lane, &BTreeSet::new()).and_then(|names| { return record_errors(lane, &names, &failure, &mut recorded); });
+            Err(match outcome {
+                Ok(()) => FlusherLaunchError::Launch(launch),
+                Err(recording) => FlusherLaunchError::LaunchUnrecorded { launch, recording },
+            })
+        }
+    };
 }

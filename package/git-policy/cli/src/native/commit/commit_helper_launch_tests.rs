@@ -74,6 +74,7 @@ pub fn launch_code<T>(result: Result<T, LaunchError>) -> i32 {
         Err(LaunchError::LostBeforeReady) => 15,
         Err(LaunchError::Threaded(_)) => 16,
         Err(LaunchError::ThreadsUnknown(_)) => 17,
+        Err(LaunchError::LowDescriptor(_)) => 18,
     };
 }
 
@@ -83,6 +84,7 @@ pub fn flusher_launch_code(result: Result<git_policy_cli::commit_flusher::Launch
         Ok(_) => 0,
         Err(git_policy_cli::commit_flusher::FlusherLaunchError::Launch(error)) => launch_code::<()>(Err(error)),
         Err(git_policy_cli::commit_flusher::FlusherLaunchError::Lock(_)) => 20,
+        Err(git_policy_cli::commit_flusher::FlusherLaunchError::LaunchUnrecorded { launch, .. }) => launch_code::<()>(Err(launch)),
     };
 }
 
