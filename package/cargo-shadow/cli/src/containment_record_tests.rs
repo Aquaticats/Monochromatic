@@ -94,6 +94,8 @@ fn missing_capability_classes(plain: &Path) -> Vec<(&'static str, RouteSettings,
         ),
         ("no cgroup v2 mount", RouteSettings { cgroup_root: plain.to_path_buf(), ..RouteSettings::default() }, "cgroup v2"),
         ("a unit the manager does not have", RouteSettings { slice: "cargo-shadow-no-such.service".to_string(), ..RouteSettings::default() }, "user manager cannot"),
+        // The manager names the root group, which has no `cgroup.kill`: discovery tells it apart from the others.
+        ("a manager group without cgroup.kill", RouteSettings { systemctl: "sh".to_string(), question: Some(vec!["-c".to_string(), "echo /".to_string()]), ..RouteSettings::default() }, "cgroup.kill"),
     ];
 }
 
@@ -137,6 +139,55 @@ fn each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_be
         assert!(transaction.process_group_only(), "{class}: the transaction was not told the guarantee is weaker");
         assert!(!transaction.writers_may_remain(), "{class}");
         drop(transaction);
+    }
+}
+
+/// The environment variable that tells the notice helper process which capability class to run under (an index into
+/// `missing_capability_classes`).
+const FIXTURE_CLASS: &str = "CARGO_SHADOW_NOTICE_FIXTURE_CLASS";
+
+/// The environment variable that gives the notice helper process a directory that is not a cgroup mount.
+const FIXTURE_PLAIN: &str = "CARGO_SHADOW_NOTICE_FIXTURE_PLAIN";
+
+/// The helper process of the notice test: it runs one bounded command under the settings of one capability class and exits.
+/// A fresh process per class, because the notice is given once per process.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of each_missing_capability_class_prints_the_notice_on_the_real_standard_error"]
+fn weaker_notice_fixture() {
+    let (Ok(class), Ok(plain)) = (std::env::var(FIXTURE_CLASS), std::env::var(FIXTURE_PLAIN)) else {
+        return;
+    };
+    let index: usize = class.parse().expect("a class index");
+    let (_name, settings, _words) = missing_capability_classes(Path::new(&plain)).swap_remove(index);
+    use_route_settings_for_test(Some(settings));
+    output_within(Command::new("sh").args(["-c", "echo ok"]), None, &bound()).expect("the command runs on the weaker path");
+}
+
+/// Acceptance row "Weaker path" (certification, third pass): the notice reaches the real standard error of the run, once, as one line
+/// with the reason of the class, for every missing-capability class including the manager group without `cgroup.kill`.
+/// Each class runs in a fresh process whose standard error is captured; the trace of the other test shows which notice a run selects,
+/// this shows that it is printed (a test that removed the printing and kept the trace would pass that one).
+#[test]
+fn each_missing_capability_class_prints_the_notice_on_the_real_standard_error() {
+    let plain = scratch();
+    let classes = missing_capability_classes(plain.path());
+    for (index, (class, settings, words)) in classes.into_iter().enumerate() {
+        let unavailable = detect_route(&settings).expect_err(class);
+        let expected: String = weaker_notice(&unavailable);
+        let output = Command::new(std::env::current_exe().expect("this test executable"))
+            .args(["--ignored", "--exact", "containment_record_tests::weaker_notice_fixture", "--nocapture"])
+            .env(FIXTURE_CLASS, index.to_string())
+            .env(FIXTURE_PLAIN, plain.path())
+            .output()
+            .expect("the notice helper");
+
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(output.status.success(), "{class}: the helper failed: {stderr}");
+        let printed: Vec<&str> = stderr.lines().filter(|line| { return line.starts_with("cargo-shadow: no delegated control group"); }).collect();
+        assert_eq!(printed.len(), 1, "{class}: the notice was not printed exactly once on standard error: {stderr}");
+        assert_eq!(printed[0], expected, "{class}: the printed notice is not the one for this class");
+        assert!(printed[0].contains(words) && printed[0].contains("quiescence is not shown") && printed[0].contains("cargo-shadow acknowledge"), "{class}: {}", printed[0]);
     }
 }
 
