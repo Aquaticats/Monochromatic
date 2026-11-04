@@ -278,6 +278,37 @@
         }
       }
     },
+    // The postinstall links `cargo-shadow` as `cargo` under `.cache/cargo-shadow-bin`, which precedes
+    // `.cache/toolchain-bin` (the real cargo) on PATH (.config/mise/conf.d/20-env.toml). Started as `cargo`, the shadow
+    // answers `cargo update` as `pnpm update` and runs an install step before every cargo command that resolves
+    // dependencies (doc/decision/rust-dependency-catalog.md, "Update and tightening"). 0.1.0 was locked and reverted
+    // the same minute (2026-11-04): reached through the toolchain launcher `.cache/toolchain-launchers/cargo-shadow`,
+    // it took the launcher for the real cargo and ran itself once ("We should never invoke ourselves recursively.").
+    // 0.1.1 skips a PATH candidate whose `.launch` record leads back to the shadow; before this row was added again,
+    // 0.1.1 behind a copy of the real launcher was traced with `strace --follow-forks --trace=execve` in a throwaway
+    // worktree: `cargo --version` and `cargo metadata` exited 0, the link and the shadow each ran once per command, and
+    // the real cargo ran through `.cache/toolchain-bin/cargo` (the rustup proxy); the worktree stayed clean. Linux only:
+    // the release publishes x86_64 and aarch64 Linux archives.
+    "cargo:monochromatic-cargo-shadow": {
+      "request": "cargo:monochromatic-cargo-shadow@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "cargo-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "cargo-shadow",
+            "linkName": "cargo",
+            "linkDir": ".cache/cargo-shadow-bin"
+          }
+        }
+      }
+    },
     // The postinstall links `pnpm-shadow` as `pnpm` under `.cache/pnpm-shadow-bin`, which precedes
     // `.cache/toolchain-bin` (the real pnpm) on PATH (.config/mise/conf.d/20-env.toml). Owner 2026-11-01, relayed by
     // the catalog-specifier session: "Yes, ask the toolchain session to link it". 0.1.0 took its own
