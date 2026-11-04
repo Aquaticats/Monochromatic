@@ -603,8 +603,25 @@ At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
   amended c's boot-scoped mount id makes every killed run's journal wait for acknowledgment after a reboot,
   so the coordinator proposes recording the boot id and treating a different boot as proof the run's processes are gone
   (in the review prompt).
-  Review in two parts running (`cargo-shadow-sol-8a.txt`,
-  `-8b.txt`).
+  Review:
+  8a "Does not meet the list as submitted" with "No additional acceptance row is needed" (F1 an absent scope accepted while its launcher can still create it;
+  F2 manager discovery not fully bounded;
+  F3 internal locks wait instead of returning busy;
+  F4 an incomplete acknowledgement can count as valid;
+  K1 an unreadable beside-lockfile directory suppresses the warning);
+  8b "Meets it after named fixes" with "No additional acceptance rows or deeper adversarial model are required" (seven false-green or mis-scoped tests).
+  On the boot id:
+  "A genuine reboot of the originating kernel proves that its old local processes are gone",
+  but a different boot id alone does not (a second host sharing the workspace).
+  Coordinator's pick (veto open):
+  record boot id and machine id;
+  same machine id and a different boot id discharge process liveness only,
+  every other recovery check kept;
+  otherwise refusal and acknowledgement;
+  assumption added that a workspace is used from one machine at a time.
+  Round 9 started with both parts.
+  Earlier review prompt note:
+  the boot-id idea was in the round-8 prompt.
 - Models round 13 done (tip `bf786b2004`,
   368 model tests):
   the round-12 findings closed red first;
