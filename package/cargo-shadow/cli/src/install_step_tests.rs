@@ -822,7 +822,7 @@ fn a_refusal_survives_a_journal_that_cannot_be_finished() {
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let runner = cargo_that_writes_a_refused_release();
-    crate::failpoints::arm(crate::failpoints::Point::Finish);
+    crate::failpoints::arm(crate::failpoints::Point::FinishDurability);
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&StepRequest`: lends the value without copying or giving it away.
@@ -837,6 +837,55 @@ fn a_refusal_survives_a_journal_that_cannot_be_finished() {
 /// the rollback failure of the policy-refusal case,
 /// provoked without permissions so that
 /// it also runs for a root user.
+/// Round 6 (5c N1):
+/// when the policy accepted the run but the outputs could not be forced to disk,
+/// the command must not run on a lockfile that is not durable.
+#[test]
+fn an_accepted_run_whose_outputs_cannot_be_forced_to_disk_stops_the_command() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner: FakeCargo = cargo(SATISFIED);
+    crate::failpoints::arm(crate::failpoints::Point::FinishDurability);
+
+    let outcome = step(&start, false, &runner, &registry());
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("disk"), "{message}"),
+        other => panic!("a failed durability barrier read as {other:?}"),
+    }
+}
+
+/// Round 6 (5c N1):
+/// a journal that cannot be removed after its completion marker was made durable is only a warning.
+#[test]
+fn an_accepted_run_whose_journal_cannot_be_removed_afterwards_still_passes() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner: FakeCargo = cargo(SATISFIED);
+    crate::failpoints::arm(crate::failpoints::Point::FinishCleanup);
+
+    let outcome = step(&start, false, &runner, &registry());
+
+    assert_eq!(outcome, StepOutcome::Updated { crate_dir: CRATE_DIR.to_string(), added: Vec::new() });
+}
+
+/// Round 6 (5c N1):
+/// a refusal survives a failed durability barrier and the message says the barrier failed too.
+#[test]
+fn a_refusal_with_a_failed_durability_barrier_keeps_the_refusal_and_names_the_barrier() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = cargo_that_writes_a_refused_release();
+    crate::failpoints::arm(crate::failpoints::Point::FinishDurability);
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1") && message.contains("disk"), "{message}"),
+        other => panic!("the refusal was replaced: {other:?}"),
+    }
+}
+
 #[test]
 fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions() {
     let root = repository(STALE);

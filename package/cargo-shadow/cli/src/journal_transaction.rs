@@ -615,9 +615,9 @@ impl Transaction {
     /// ```
     pub fn finish_with(self, durable: &dyn Fn(&Path) -> io::Result<()>) -> io::Result<()> {
         #[cfg(test)]
-        if crate::failpoints::fires(crate::failpoints::Point::Finish) {
+        if crate::failpoints::fires(crate::failpoints::Point::FinishDurability) {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
-            return Err(io::Error::other("injected finish failure"));
+            return Err(io::Error::other("injected durability failure"));
         }
         // Borrow `&self.crate_dirs`: lends the value without copying or giving it away.
         for crate_dir in &self.crate_dirs {
@@ -629,6 +629,10 @@ impl Transaction {
         for manifest in self.manifests.borrow().iter() {
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             durable(manifest)?;
+        }
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
+            return Err(io::Error::other("injected cleanup failure"));
         }
         return mark_done_and_remove(&self.directory);
     }

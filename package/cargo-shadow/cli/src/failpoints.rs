@@ -30,6 +30,8 @@ thread_local! {
     static RESTORE: Cell<bool> = const { Cell::new(false) };
     /// Whether the next journal finalization on this thread fails.
     static FINISH: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next journal cleanup after a durable completion on this thread fails.
+    static FINISH_CLEANUP: Cell<bool> = const { Cell::new(false) };
 }
 
 /// The steps that can be made to fail.
@@ -37,8 +39,10 @@ thread_local! {
 pub enum Point {
     /// The restore of lockfiles after a failed or refused step.
     Restore,
-    /// The completion of a transaction's journal.
-    Finish,
+    /// The forcing of a transaction's outputs to disk before its completion marker.
+    FinishDurability,
+    /// The removal of a transaction's journal after the completion marker was made durable.
+    FinishCleanup,
 }
 
 /// What:
@@ -68,7 +72,8 @@ pub fn arm(point: Point) {
         // ```
         Point::Restore => RESTORE.with(|slot| { slot.set(true); }),
         // Closure `|slot|`: an anonymous function, like a TS arrow function.
-        Point::Finish => FINISH.with(|slot| { slot.set(true); }),
+        Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
+        Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
     }
 }
 
@@ -86,6 +91,7 @@ pub fn fires(point: Point) -> bool {
     // `match`: picks the arm whose pattern fits the value.
     return match point {
         Point::Restore => RESTORE.with(Cell::take),
-        Point::Finish => FINISH.with(Cell::take),
+        Point::FinishDurability => FINISH.with(Cell::take),
+        Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
     };
 }
