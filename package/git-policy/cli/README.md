@@ -1357,18 +1357,20 @@ and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
 A process that works is waited for until its ceiling; a quiet window ends a wait for quiet, a ceiling ends a wait for length, and
 the one step that is never ended is a write in place that is not safe to run twice.
-Every Git step the wrapper starts that can safely run twice, or only adds objects nothing refers to, is ended at a ceiling of
-its class (reads 120 seconds, bulk steps 10 minutes) whatever it shows. The steps that write your repository in place and are not
-safe to run twice have no ceiling: the branch write (`git update-ref`) above all, and the same kind of step on the real index, the
-worktree or the configuration (`reset`, `read-tree`, `update-index` and `add` without a private index, `checkout-index`, `clean`,
-`stash`, `merge`, `checkout`, `switch`, `restore`, `config` writes). The owner's answer of 2026-11-04: "Never cut a branch write
-(Recommended)", which read "Steps that can safely run twice keep their ceilings; the branch write is never ended. Your command
-still returns at its bound with "result not yet known" and the `git log -1` and side-ref hint. Con: a truly hung write keeps the
-service busy, and later commits fail at their own 20-minute ceiling with an error naming it." So a commit that waits behind a
-write that does not return is told what the service is stuck in after a minute (`NEVER_ENDED_STEP_SLOW_AFTER`), and is withdrawn at
-its own `ANSWER_CEILING` with an error that names the write and the way out (`journalctl`, and a restart of the service when no
-program uses the repository). The commit inside the stuck write waits `WITHDRAW_CEILING` more and then reports that it is not
-known whether it was made, with `git log -1`, `git status` and the write named. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+A Git step the wrapper starts keeps a ceiling of its class (reads 120 seconds, bulk steps 10 minutes) exactly when it can run twice:
+the owner's criterion, decided by cutting each step at every mutating system call, running it again and comparing the end state
+(`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The branch write (`git update-ref`), `git merge`,
+`git reset --hard`, `git checkout`, `git switch`, `git stash store` and `git read-tree -m` came out different and are never ended
+(the owner, 2026-11-04: "Never cut a branch write (Recommended)", whose option read "Steps that can safely run twice keep their
+ceilings; the branch write is never ended. Your command still returns at its bound with "result not yet known" and the `git log -1`
+and side-ref hint. Con: a truly hung write keeps the service busy, and later commits fail at their own 20-minute ceiling with an
+error naming it."). A command that started such a step stops waiting at its bound plus 7 seconds (`SHORT_EXTRA_WAIT`, the owner's
+"7 s (Recommended)") and exits non-zero saying the result is not known, naming the step and what to check; the step is left running.
+The commit service's landing thread waits for it, and a commit that waits behind it is told what the service is stuck in after a
+minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
+(`journalctl`, and a restart of the service when no program uses the repository). The commit inside the stuck write waits 7 seconds
+past its `ANSWER_CEILING` and then reports that it is not known whether it was made, with `git log -1`, `git status` and the write
+named; the commit lands when the write returns. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
 the commit service's answer until `ANSWER_CEILING` (20 minutes),
 a start until `START_CEILING` (60 seconds), the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
 (10 minutes), and a push whose connection is open and silent until `CONNECTED_PUSH_QUIET_WINDOW` (150 seconds, then the
@@ -1404,8 +1406,8 @@ fractional or non-numeric value is ignored.
   Setting the variable gives every class the same window.
   A step that is safe to run twice and shows no sign of work for the window is ended and run once more;
    if it is quiet again, the command reports which step, its class, the window and how to go on.
-  A step that may not be run twice and writes in place (a reference update above all) is announced and waited for as long as it
-  lives; it has no ceiling either.
+  A step that cannot be run twice (a branch write above all) is announced and has no ceiling: the commit service waits for it, and
+  any other command stops waiting for it at its bound plus 7 seconds and says the result is not known.
   No hook of yours runs below a step the wrapper starts, and the stop never reaches a process beside the step.
 - The tools and checks that are not Git end on the same rule, with windows that are not measured:
    a package-manager tool of the worktree repair after 600 seconds with no sign of work (with its whole process group),

@@ -391,19 +391,10 @@ Also carried out, from the follow-up of pick 7 of the audit that was recorded an
 ### What changed for the branch write
 
 `REFERENCE_STEP_CEILING` (60 seconds) is deleted.
-`src/native/transaction/transaction_git.rs` `step_ceiling` returns no ceiling for a write in place that is not safe to run twice.
-That is `!may_be_rerun(request)` and a subcommand named in `WRITES_IN_PLACE`:
-`update-ref` (every form the landing uses, the move, the kept side ref and the deletion of the scratch branch),
-`reset`, `read-tree`, `update-index` and `add` on the real index (the same commands on a private index may be run twice
-and keep their ceiling), `checkout-index`, `clean`, `stash`, `merge`, `checkout`, `switch`, `restore` and the writes of `config`.
-Identified from `may_be_rerun` and `RERUNNABLE` (the code's own list of steps safe to run twice),
-from the Git subcommands the crate starts through `run_git` (a search of the callers' literal first arguments),
-and from the 2026-11-03 pick above, which named "a reference update, a commit Git builds" as the steps never ended for being quiet.
-Left out on purpose, so they keep the ceiling of their class:
-the readers `RERUNNABLE` does not name (`rev-list`, `merge-base`, `log`, `ls-tree`, `status`, `var`, `diff-files`, `check-attr`,
-`check-ignore`, `stripspace`, `fmt-merge-msg`), which change nothing,
-and the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`),
-whose second run writes the same content-addressed bytes and whose partial result no reference names.
+`src/native/transaction/transaction_git.rs` `step_bound` gives a step no ceiling exactly when `cannot_run_twice` says so;
+which forms those are was decided by experiment (next section), not by reading.
+The first build of this branch (`a8b7473fc7`) had instead a list of subcommands, `WRITES_IN_PLACE`, chosen by reading;
+the coordinator's follow-up of 2026-11-04 replaced it with the experiment.
 The landing's branch move no longer reads the branch after an ended update:
 that arm of `service_land.rs` is gone with the ceiling that produced it.
 
@@ -512,36 +503,126 @@ The scripts are `/var/home/user/temp/agent/ceiling-measure/measure.ts`, `measure
 
 ### Left to the owner
 
-- The "Short extra wait" is not a separate constant in the shipped client.
-  What the shipped client does at its bound is withdraw, then wait `WITHDRAW_CEILING` (10 minutes) for the landing in progress,
-  then say that the result is not known.
-  A few seconds would need the service to tell the client that its own request is inside the branch write,
-  which is a new message and a protocol version.
-  Options: A, keep the 10 minutes, which waits out a slow but healthy landing (the longest landing in the journal is 119.8 s);
-  B, add the message and a measured constant (the longest branch write is 3.4 s, so 60 seconds would be 17 times it) for a request
-  that is inside the write only, keeping `WITHDRAW_CEILING` for every other case.
-  Ranking: B > A, because B is what the owner chose and A makes the person wait ten minutes for an answer that is already known;
-  B costs a protocol change, which A does not.
+- Decided by the owner after this section was first written, and built (next sections): the "Short extra wait" for the commit
+  inside a stuck write, and the width of the steps without a ceiling.
 - Whether a service stuck in a write should ever end itself so the manager restarts it, and recovery settles the batch.
-  A, never (built); B, after a long time, with recovery deciding by the branch.
-  Ranking: A > B, because ending the process ends the write in the middle, which is what the owner declined, and the error already
-  names the restart command for the person to run when no program uses the repository.
+  Decided (the coordinator, quoting the owner's earlier answers "Never cut a branch write (Recommended)" and "never discard user
+  data"): never; a restart would end the write in the middle.
+  The error names the restart command for the person to run when no program uses the repository.
 - The readers `RERUNNABLE` does not name are not run again after a quiet window although they are safe to run twice.
   Not changed here.
-- How wide the steps without a ceiling are.
-  The owner named the branch write.
-  The rest of `WRITES_IN_PLACE` is a reading of "steps that can safely run twice keep their ceilings": `reset`, `read-tree`,
-  `update-index` and `add` on the real index, `checkout-index`, `clean`, `stash`, `merge`, `checkout`, `switch`, `restore` and
-  `config` writes also lost the ceiling they had.
-  Several are idempotent and run in the client, so a person's `git worktree add` or merge now has a step with no bound at all where it
-  had one before (`worktree_clean.rs`, `autostash_carry.rs`, `merge_isolation.rs`).
-  Options: A, as built, the whole list;
-  B, the branch write and the real-index writers only (`update-ref`, `reset`, `read-tree`, `update-index`, `add` without a private
-  index), the steps the owner's data rule is most about;
-  C, `update-ref` alone, the one the owner named.
-  Ranking: B > A > C.
-  B over A because a hung `clean`, `stash` or `merge` in the client leaves a command waiting for ever on a step the owner did not
-  name, against the rule "nothing should ever wait forever or indefinitely", while the real index and the branch are where ending
-  a write half way costs the person's staged work;
-  A over C because ending `update-index` or `reset` on the real index half way is the same risk as ending `update-ref`
-  and C would give them back the 10-minute cut the owner declined for the branch.
+
+### The cut experiment, 2026-11-04T10:30:00-05:00
+
+The owner's criterion, as the coordinator put it: a step keeps its ceiling exactly when it can run twice.
+Decided on a throwaway repository, per form of each step the wrapper starts that changes the repository in place.
+Method (`/var/home/user/temp/agent/ceiling-measure/cut-experiment.ts`, Git 2.56.0, run in a capped scope):
+
+- Build a repository from a fixed template with fixed author and committer dates, so object names repeat.
+- Run the step uncut on a copy and take its end state: every file of the Git directory except the object store and the raw index
+  (refs, packed refs, reflogs, `HEAD`, `ORIG_HEAD`, configuration, stash reflog), the index listing, the worktree files with their
+  content hashes and modes, the stash list.
+- Count the mutating system calls of the step under `strace -f` (`rename`, `unlink`, `link`, `symlink`, `mkdir`, `rmdir`, `write`,
+  `fsync`, `ftruncate`, `chmod`, `utimensat` and their variants).
+  `strace` numbers each call apart, so a cut point is a call name and its k-th occurrence.
+- For every cut point, on a fresh copy, end the step there with `SIGKILL` and again with `SIGTERM` (`strace --inject`),
+  remove the lock files a killed Git leaves (what the wrapper's stale-lock sweep does once the process is gone),
+  run the step a second time, and compare the end state with the uncut run's.
+- A form that came out identical at every cut, and whose second run always exited zero, can run twice.
+
+Results (cuts are the cut points times two signals):
+
+- Identical, so they keep a ceiling: `update-ref REF VALUE` and `update-ref -d REF` on a ref with no reflog (12 and 14 cuts),
+  `stash list` (a read, 2), `clean --force -d` (16), `read-tree --reset -u` (34), `update-index --refresh` (6), `--index-info` (6)
+  and `--add --cacheinfo` (6), `add --update` (30) and `add --all` (32) on the real index, `config` local write (10),
+  `checkout-index --all --force` (24), `restore --staged --worktree` (10), `reset COMMIT -- PATH` (6).
+- Different at some cut, so they have no ceiling:
+  `update-ref --stdin` of two refs (32 cuts, 14 different: the scratch ref is left and the second run fails),
+  `update-ref REF NEW OLD` (12, 4 different, 5 second runs failed), `update-ref --stdin` of one update (18, 4, 7),
+  `update-ref REF NEW` of a branch (12, 7 different: a branch has a reflog and the second run writes another entry),
+  `stash store` (8, 2 different: the stash reflog), `merge --ff-only` (54, 40 different, 11 second runs failed),
+  `reset --hard` (80, 35 different: `ORIG_HEAD` and the reflogs), `read-tree -u -m OLD NEW` (14, 11, 11),
+  `checkout BRANCH` (46, 40, 11) and `switch BRANCH` (46, 40, 11).
+- Not run, so counted with the different ones because data is lost by guessing wrong and a wait is not:
+  every other form, such as `reset --soft`, `update-ref` of a ref outside `refs/cli-git/`, `stash push`.
+- Limits: one small repository, Git 2.56.0, local filesystem; a step cut part way through a large worktree could differ in ways a
+  small one does not; `fsync` was off in the template (`core.fsync=none`), so a power cut is not modelled, only an ended process.
+  Reflog and `ORIG_HEAD` differences are counted as differences even where the visible state is the same.
+  The experiment ran `checkout` and `switch` although the wrapper never starts them for itself (they are the person's own commands,
+  forwarded, never watched), so they matter only as evidence about the class.
+
+`step_bound` in `src/native/transaction/transaction_git.rs` encodes the table;
+`a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state` pins it
+(red at the commit before it, against the wide list).
+The experiment shows the first build's list was wider than the criterion:
+`clean`, `read-tree --reset`, `update-index`, `add`, `checkout-index`, `restore`, `config` and `stash list` keep their ceilings,
+and `stash list` (a read) had lost its by being counted as a `stash`.
+
+### What a command does with a step that has no ceiling
+
+- The commit service's landing thread waits for it as long as it lives (the con the owner accepted), and tells the clients.
+- Any other command (the person's `git merge`, the stash carry, the cleanup) stops waiting at the bound of the step's class
+  (120 seconds for a quick step, 10 minutes for a bulk one, the same measured numbers the ceilings have) plus `SHORT_EXTRA_WAIT`,
+  and returns the error of `child_watch::NotKnown`:
+  the step and its command line, the seconds, that it was left running and not ended, and what to check
+  (`git status`, `git log -1`, `ps`, the disk).
+  The step is left running and a thread reaps it when it ends.
+  This is `StepBound::LeaveRunning` in `src/native/push/child_watch.rs`.
+  The coordinator wrote that a command returns "at its own bound"; a person's `git merge` has no bound of its own,
+  so the class ceiling of the step is the bound used here, and the choice is open to the owner's veto.
+- The auto-push work thread runs its reconcile merge through the push machinery's own runner (`auto_push_reconcile.rs`,
+  `run_query`), judged by the push's stall window and not through `run_git`; it is not a person's command and is unchanged.
+
+### The short extra wait
+
+Both owner answers are quoted beside `SHORT_EXTRA_WAIT` in `wait_ceilings.rs`:
+commit protocol revision 12, "Short extra wait (Recommended)" ("the command waits a few more seconds, a constant to be measured,
+for the write it started; if the disk is still stalled it exits non-zero saying the result is not known, naming `git log -1` and the
+side ref"), and 2026-11-04, "7 s (Recommended)": twice the longest measured branch write (3,438 ms of 2,093 reference updates),
+so the commit inside a stalled branch write exits not-known 7 seconds after its own bound.
+The value is 7 seconds.
+
+How the client learns that its request is inside the write, and why an older client or service is unharmed:
+
+- The service sends the `waiting` line it already sends, with one extra field, `"inside_write": true`
+  (`ServiceMessage::InsideWrite` in the code).
+  Decoders read fields by name, so a client that does not know the field reads the line as the plain `waiting` notice it is
+  (it prints the text and keeps it as the blocker its error names) and goes on as before;
+  a service that does not send it leaves a client that knows it on the older path.
+  The protocol version stays 7, so no client or service is retired for this.
+  Releases never meet on commit traffic anyway: the client compares the release in the service's greeting and retires a service of
+  another release before it sends a request.
+  Test: `an_inside_write_notice_is_a_waiting_line_with_one_extra_field`.
+- Once a client has heard it, at its `ANSWER_CEILING` it does not ask to be withdrawn (the commit may be on the branch already);
+  it listens for the landing for `SHORT_EXTRA_WAIT` more, and then ends with the not-known failure
+  (`ClientFailure::WithdrawalUnconfirmed`, the blocker naming the write and the scratch ref, and `git log -1` and `git status`).
+  The write is left running and the commit lands when it returns.
+  Test: `the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_known_and_lands_when_the_write_returns`
+  (red before: it waited the 45 seconds of the control's withdrawal ceiling; green: it returns in about the control's ceiling plus the
+  extra wait).
+- The service tells a client only after the write has run `NEVER_ENDED_STEP_SLOW_AFTER` (60 seconds);
+  a client whose own bound falls inside that minute takes the older path (withdraw, wait `WITHDRAW_CEILING`).
+
+### The factor of five, and the cold stores
+
+The owner, 2026-11-04, "5x (Recommended)": keep five times the longest measured run, rounded up to whole minutes,
+recomputed with the cold-store case if it is longer.
+Cold-store timing (`cold-measure.ts`, a copy of this repository's sources without `.git`, a capped systemd unit with four CPUs of quota,
+eight GiB of memory and an IO weight of 10; the output is kept in `/var/home/user/temp/agent/ceiling-measure/cold-measure.kept.out`):
+
+- `pnpm install --frozen-lockfile` with an empty store directory and the network: 20.9 s.
+  (The repair itself runs `pnpm install --offline --frozen-lockfile`, so a cold store makes it fail fast and not run long;
+  the online figure is the longest a first install of this repository can take.)
+- `cargo metadata --locked --offline --no-deps` in all 34 Cargo workspaces with no target directories: 1.7 s in all, 1.3 s the longest.
+- `cargo fetch --locked` with an empty `CARGO_HOME` in `package/git-policy/cli`: 7.6 s.
+- All three are shorter than the warm-store maxima (53.1 s and 211.2 s), so the longest run is unchanged and the ceilings stay
+  18 minutes, 4 minutes, 1 minute and 2 minutes.
+- Limits: the page cache cannot be dropped without privileges, so "cold" is a cold store and a cold registry, not a cold disk;
+  the clone of real build directories, which dominates the Cargo stage, needs real target directories and is in the 69 add records
+  (`cargoCloneTree`, up to 46 s per workspace); the host load average was 3.7 to 5.9 of 28.
+
+### Item 3, as the coordinator and owner decided
+
+A service stuck in a write never restarts itself.
+The owner's answers behind it: "Never cut a branch write (Recommended)" and "never discard user data" (a restart ends the write in the
+middle, which the first answer declines).

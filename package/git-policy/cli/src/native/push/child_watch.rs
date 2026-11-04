@@ -665,7 +665,7 @@ pub fn is_ceiling(error: &std::io::Error) -> bool {
 /// Why:
 ///   The owner's rule is that nothing waits for ever; the ceiling is what ends a step that keeps working and one that may not be
 ///  ended for being quiet. A step with no ceiling is a write in place that is not safe to run twice (owner, 2026-11-04: "Never cut
-///  a branch write (Recommended)"; `transaction_git.rs`, `step_ceiling`): ending it in the middle of its write could cost the
+///  a branch write (Recommended)"; `transaction_git.rs`, `step_bound`): ending it in the middle of its write could cost the
 ///  person's data, so only the person ends it.
 ///
 /// In TS you'd write (pseudocode):
