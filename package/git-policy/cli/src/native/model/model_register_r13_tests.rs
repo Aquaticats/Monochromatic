@@ -281,3 +281,39 @@ fn p1_a_failed_mark_creation_never_returns_normally() {
     let report: Report = check(Rules::Fifteen, single(FOREGROUND));
     assert!(report.violation.is_none() && report.exhausted);
 }
+
+/// Every route from the start to a normal `Done`, with the labels it took (a depth-first walk of the finite, acyclic path graph).
+fn done_routes(rules: Rules, path: &'static [usize]) -> Vec<(Vec<String>, State)> {
+    let mut found: Vec<(Vec<String>, State)> = Vec::new();
+    let mut pending: Vec<(Vec<String>, State)> = vec![(Vec::new(), initial(rules, path))];
+    while let Some((labels, state)) = pending.pop() {
+        if state.phase == Phase::Done {
+            found.push((labels, state));
+            continue;
+        }
+        for (label, after) in steps(&state) {
+            let mut next: Vec<String> = labels.clone();
+            next.push(label);
+            pending.push((next, after));
+        }
+    }
+    return found;
+}
+
+/// Models review 7, 1 (P1, red against the previous model): ordinary successful completion of FOREGROUND and COMMITTING reached a normal
+/// return with no final save and no record of what completed. Every normal return of those entries must be one of two typed completions:
+/// the request was published (nothing is owed: the receipt forbids a later attempt and L4 queues it without forcing) or a terminal outcome
+/// arrived (the absorbing outcome's ledger line is owed first and forced by the departure barrier). An unsaved normal return is allowed only
+/// through the first, and the second is not a route that reaches `Done` without the save.
+#[test]
+fn p7_ordinary_completion_of_foreground_and_committing_is_published_or_saved() {
+    let published = "environment: the other party publishes the request and the wait ends";
+    for index in [FOREGROUND, COMMITTING] {
+        let routes = done_routes(Rules::Fifteen, single(index));
+        assert!(!routes.is_empty());
+        for (labels, state) in routes {
+            let unsaved_normal: bool = !state.saved && !state.outside_fault && !state.authority_lost;
+            assert!(!unsaved_normal || labels.iter().any(|label| { return label == published; }), "{}: an unsaved normal return through {:?}", ENTRIES[index].name, labels);
+        }
+    }
+}
