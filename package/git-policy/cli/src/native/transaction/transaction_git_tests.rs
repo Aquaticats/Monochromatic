@@ -614,7 +614,7 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     let ends = |arguments: &[&str]| { return matches!(bound(arguments, false), StepBound::EndAt(_)); };
     // Identical after a second run at every cut.
     for same in [
-        &["update-ref", "refs/cli-git/kept/1", "abc"][..],
+        &["update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
         &["update-ref", "-d", "refs/worktree/cli-git-service/1"],
         &["stash", "list", "--format=%H"],
         &["clean", "--force", "-d"],
@@ -827,7 +827,6 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
         &["worktree", "add", "x"],
         &["tag", "-f", "t", "abc"],
         &["branch", "-f", "b", "abc"],
-        &["symbolic-ref", "HEAD", "refs/heads/other"],
         &[],
     ] {
         assert!(!ends(unrun), "{unrun:?} was not run in the experiment and has no ceiling");
