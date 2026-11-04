@@ -246,6 +246,9 @@ fn a_fifo_receipt_does_not_block_the_flusher() {
     assert!(fs::read_to_string(lane.join(RECEIPT_ERRORS)).unwrap_or_default().contains("fifo"));
 }
 
+/// The pause of the drain test, in seconds: long enough to show a missing clamp within the test's own limit, short enough to end it.
+const PAUSE_PAST_THE_BOUND: u64 = 5;
+
 /// P2: the drain wait and the timed command return at their bounds: a pause of an hour does not hold a bound of milliseconds, and the
 /// upper limit is a small multiple of the bound.
 #[test]
@@ -253,7 +256,7 @@ fn a_pause_longer_than_the_bound_does_not_extend_the_wait() {
     use git_policy_cli::commit_drain::{DrainAnswer, wait_for_drain};
     let bound: Duration = Duration::from_millis(30);
     let started: Instant = Instant::now();
-    let answer: DrainAnswer = wait_for_drain(bound, Duration::from_secs(3600), &mut || { return false; });
+    let answer: DrainAnswer = wait_for_drain(bound, Duration::from_secs(PAUSE_PAST_THE_BOUND), &mut || { return false; });
     assert_eq!(answer, DrainAnswer::InProgress);
     assert!(started.elapsed() < bound * 20, "the caller slept past its bound: {:?}", started.elapsed());
 }
