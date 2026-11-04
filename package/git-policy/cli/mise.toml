@@ -1,5 +1,5 @@
 [tasks."native:test:container"]
-description = "Run native wrapper tests and Clippy in bounded Git 2.56.0 containers; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
+description = "Run native wrapper tests and Clippy in bounded containers with pacman's current Git; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
 run = "node bin/test-native-container.ts"
 
 [tasks."native:mutation"]
@@ -65,15 +65,15 @@ description = "Type-check and lint the native wrapper library for x86_64-pc-wind
 run = "cargo clippy --locked --offline --lib --target x86_64-pc-windows-gnu -- -D warnings"
 
 [tasks."native:test:host"]
-description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git 2.56.0"
+description = "Run native unit tests matching `-- <filter>...` on the host while iterating; tests that start Git need the gate's Git (pacman's current `git`)"
 run = "cargo nextest run --locked --offline --lib"
 
 [tasks."native:test:binary:host"]
-description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git 2.56.0 stays the authority"
+description = "Run the native binary-level tests matching `-- <filter>...` on the host against the host's Git; the gate's Git stays the authority"
 run = "cargo nextest run --locked --offline --test native_binary"
 
 [tasks."test:git-image"]
-description = "Build the gate's base image: the newest CachyOS image on its `latest` tag (pulled now; needs a network when it or native-test-base.Containerfile is new to this host), the Rust toolchain and the audited Git 2.56.0 built from source; `-- [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs; the make job count follows the whole CPUs). native:test:container builds it first when needed"
+description = "Build the gate's base image: the newest CachyOS image on its `latest` tag (pulled now; needs a network when it or native-test-base.Containerfile is new to this host), the Rust toolchain and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest), all current pacman packages; prints the release of each; `-- [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs). native:test:container builds it first when needed"
 run = "node bin/build-git-test-image.ts"
 
 [tasks."lint:clippy"]
@@ -154,8 +154,8 @@ if (code !== 0) throw new Error(`commit-shape trace generator exited with ${Stri
 '''
 
 [tasks."test:e2e:concurrent:image"]
-description = "Build the base image of the concurrent-commit e2e suite: the newest CachyOS image on its `latest` tag (pulled now), Git 2.55.0 from source, Node 24.11.0 and ssh-keygen (needs a network when that image or the Containerfile is new to this host); `-- --memory <size> --cpus <count>` override the 2g and 2 CPU defaults of the build"
-# The image tag names the CachyOS image and the Containerfile it came from, so a new CachyOS image builds a new base. The build fetches Git and Node sources (checksum-pinned); the suite itself runs with --network=none.
+description = "Build the base image of the concurrent-commit e2e suite: the newest CachyOS image on its `latest` tag (pulled now), pacman's current Git and Node, and ssh-keygen (needs a network when that image or the Containerfile is new to this host); `-- --memory <size> --cpus <count>` override the 2g and 2 CPU defaults of the build"
+# The image tag names the CachyOS image and the Containerfile it came from, so a new CachyOS image builds a new base. The build installs pacman packages (signature-checked); the suite itself runs with --network=none.
 run = "node bin/e2e-native-container.ts base"
 
 [tasks."test:e2e:concurrent:native:image"]
@@ -164,12 +164,12 @@ description = "Build the native end-to-end image: the release native executable 
 run = "node bin/e2e-native-container.ts image"
 
 [tasks."test:e2e:concurrent:native"]
-description = "Replay concurrent-commit workloads through the native executable on Git 2.55.0 in a bounded, network-isolated container; the scenarios and invariants are the retired incumbent suite's, unchanged; `--memory <size>` and `--cpus <count>` override the 2g and 2 CPU defaults of the run only (the image build it depends on always uses the defaults)"
+description = "Replay concurrent-commit workloads through the native executable on the image's current Git in a bounded, network-isolated container; the scenarios and invariants are the retired incumbent suite's, unchanged; `--memory <size>` and `--cpus <count>` override the 2g and 2 CPU defaults of the run only (the image build it depends on always uses the defaults)"
 depends = ["test:e2e:concurrent:native:image"]
 usage = '''
 flag "--seed <seed>" help="Replay this decimal seed (printed by every run)"
 flag "--scenario <names>" help="Comma-separated scenario names to run"
-flag "--git <versions>" help="Comma-separated Git versions to run (2.55.0)"
+flag "--git <versions>" help="Comma-separated Git releases to run; only the image's installed Git exists, so give its release or nothing"
 flag "--memory <size>" help="Container memory, such as 512m or 2g (default 2g)"
 flag "--cpus <count>" help="Container CPUs, from 0.01, fractions allowed (default 2)"
 '''
