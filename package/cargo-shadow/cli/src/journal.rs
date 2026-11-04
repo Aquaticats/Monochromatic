@@ -176,7 +176,7 @@ pub(crate) const GROUPS_FILE: &str = "groups";
 /// so this cap only
 /// stops growth;
 /// what must be decided is how many kept files are tolerable and who clears them.
-pub const MAX_KEPT_FILES: usize = 1_000;
+pub const KEPT_FILES_WARNING_COUNT: usize = 1_000;
 
 /// The file whose exclusive lock a transaction,
 /// or a recovery,

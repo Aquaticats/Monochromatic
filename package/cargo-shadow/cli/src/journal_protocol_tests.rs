@@ -918,39 +918,41 @@ fn restoring_manifests_returns_the_warnings_of_those_restored_before_a_failure()
     assert!(warnings.iter().any(|warning| { return warning.contains("is kept as"); }), "{warnings:?}");
 }
 
-/// Review finding (4b 4):
-/// when the kept directory holds more files than the cap,
-/// a new transaction is refused and the files are
-/// listed;
-/// nothing is deleted.
+/// Round 6 (owner answer "Warn past a count, never refuse"):
+/// a kept folder past the count does not stop a new transaction;
+/// the transaction carries a notice with the count,
+/// the total size and the folder,
+/// and nothing is deleted.
 #[test]
-fn a_kept_directory_over_its_cap_refuses_a_new_transaction_and_lists_the_files() {
+fn a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_refuses() {
     let root = repository("lock");
     let kept = root.path().join(crate::journal::QUARANTINE_DIR);
-    // Borrow `&kept`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     fs::create_dir_all(&kept).expect("kept directory");
-    for number in 0..=crate::journal::MAX_KEPT_FILES {
-        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        // Macro `format!`: builds or prints text (or a list) from a template.
+    for number in 0..=crate::journal::KEPT_FILES_WARNING_COUNT {
         fs::write(kept.join(format!("Cargo.lock.displaced.{number}")), "kept").expect("a kept file");
     }
 
-    // Borrow `&[`: lends the value without copying or giving it away.
-    let result = begin(root.path(), &[snapshot("original")], false);
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("a large kept folder never refuses");
 
-    // Closure `|error|`: an anonymous function, like a TS arrow function.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    // Typed binding: `message: String`.
-    let message: String = result.err().map(|error| { return error.to_string(); }).unwrap_or_default();
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(message.contains("Cargo.lock.displaced.0") && message.contains("kept files"), "{message}");
-    // Borrow `&kept`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_dir(&kept).expect("list").count(), crate::journal::MAX_KEPT_FILES + 1, "a kept file was deleted");
+    let notice: String = transaction.kept_notice().unwrap_or_default().to_string();
+    let count: usize = crate::journal::KEPT_FILES_WARNING_COUNT + 1;
+    assert!(notice.contains(&format!("{count} files")), "count missing: {notice}");
+    assert!(notice.contains(&format!("{} bytes", count * 4)), "total size missing: {notice}");
+    assert!(notice.contains(&kept.display().to_string()), "folder missing: {notice}");
+    assert_eq!(fs::read_dir(&kept).expect("list").count(), count, "a kept file was deleted");
+}
+
+/// Round 6: a kept folder at or under the count adds no notice.
+#[test]
+fn a_kept_directory_at_the_count_adds_no_notice() {
+    let root = repository("lock");
+    let kept = root.path().join(crate::journal::QUARANTINE_DIR);
+    fs::create_dir_all(&kept).expect("kept directory");
+    fs::write(kept.join("Cargo.lock.displaced.0"), "kept").expect("a kept file");
+
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+
+    assert!(transaction.kept_notice().is_none(), "{:?}", transaction.kept_notice());
 }
 
 /// Review finding (4b 3):

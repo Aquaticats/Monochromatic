@@ -76,8 +76,8 @@ use crate::bounded_run::set_group_log;
 /// Imports `crate::constants::LOCKFILE_NAME` for this file.
 use crate::constants::LOCKFILE_NAME;
 // Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, ...`.
-/// Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, MAX_KEPT_FILES, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced}` for this file.
-use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, MAX_KEPT_FILES, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced};
+/// Imports `crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced}` for this file.
+use crate::journal::{DONE_SUFFIX, GROUPS_FILE, INDEX_FILE, JOURNAL_DIR, MANIFEST_INDEX_FILE, KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR, OWNER_FILE, READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, make_durable, sync_directory, write_synced};
 // Imports `crate::manifest_edit::ManifestEdit`.
 /// Imports `crate::manifest_edit::ManifestEdit` for this file.
 use crate::manifest_edit::ManifestEdit;
@@ -266,6 +266,8 @@ pub struct Transaction {
     manifests: std::cell::RefCell<Vec<PathBuf>>,
     /// Whether the manifests were journaled already.
     manifests_added: std::cell::Cell<bool>,
+    /// The notice that the kept folder is large, when it is.
+    kept_notice: Option<String>,
 }
 
 /// The methods of the type above.
@@ -505,11 +507,25 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         manifests: std::cell::RefCell::new(Vec::new()),
         // Constructor `Cell::new(`: an empty owned collection or a boxed value.
         manifests_added: std::cell::Cell::new(false),
+        kept_notice: None,
     });
 }
 
 /// The methods of the type above.
 impl Transaction {
+    /// What:
+    /// `pub fn kept_notice(&self) -> Option<&str>` is the warning to print when the kept folder holds many files.
+    /// Why:
+    /// The owner decided to warn past a count and never to refuse.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// keptNotice(): string | undefined
+    /// ```
+    pub fn kept_notice(&self) -> Option<&str> {
+        return self.kept_notice.as_deref();
+    }
+
     /// What:
     /// `pub fn add_manifests(&self, edits) -> io::Result<()>` journals the manifests a `--breaking` run may rewrite and writes the
     /// ready record;
@@ -651,7 +667,7 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
 
 /// What:
 /// `fn refuse_over_cap(root: &Path) -> io::Result<()>` refuses a new transaction when the kept directory holds more than
-/// `MAX_KEPT_FILES` files,
+/// `KEPT_FILES_WARNING_COUNT` files,
 /// and lists them (path,
 /// size,
 /// age).
@@ -703,7 +719,7 @@ fn refuse_over_cap(root: &Path) -> io::Result<()> {
         let age: u64 = metadata.modified().ok().and_then(|modified| { return modified.elapsed().ok(); }).map(|elapsed| { return elapsed.as_secs() / 86_400; }).unwrap_or(0);
         entries.push((entry.path(), metadata.len(), age));
     }
-    if entries.len() <= MAX_KEPT_FILES {
+    if entries.len() <= KEPT_FILES_WARNING_COUNT {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(());
     }
@@ -718,7 +734,7 @@ fn refuse_over_cap(root: &Path) -> io::Result<()> {
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // Macro `format!`: builds or prints text (or a list) from a template.
     return Err(io::Error::other(format!(
-        "{} holds {} kept files (more than {MAX_KEPT_FILES}): files this tool moved aside instead of deleting them because they may be someone's work. Look at them, move or archive what you no longer need, then run the command again. The first {}:\n{}",
+        "{} holds {} kept files (more than {KEPT_FILES_WARNING_COUNT}): files this tool moved aside instead of deleting them because they may be someone's work. Look at them, move or archive what you no longer need, then run the command again. The first {}:\n{}",
         directory.display(),
         entries.len(),
         shown.len(),
