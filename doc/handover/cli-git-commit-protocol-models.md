@@ -82,7 +82,7 @@ Revision 18 models, built to the acceptance target:
 
 Each row names the test that shows the property or control, says that the test shows a narrower control and what it leaves unshown, or says
 what it needs. A build test (`model/model_target_tests.rs`) checks that every named test exists. Counts: 64 covered by a current test, 17
-covered only by a narrower control (the row says what remains), 9 shown only by a labelled historical control, 17 not yet. Models review 8
+covered only by a narrower control (the row says what remains), 9 shown only by a labelled historical control, 18 not yet. Models review 8
 (`commit-models-sol-8.txt`, section 2) is the source of the narrower rows; the map checks inventory, not semantic coverage, and the
 classification is the author's until a review accepts it.
 
@@ -116,12 +116,24 @@ classification is the author's until a review accepts it.
   (a_launched_helper_inherits_no_descriptor_of_its_launcher) and the lock test; the flusher helper takes the
   lock itself after its setup and the client takes no lock and looks at none (a probe held the lock without
   listing anything, and a client or helper that saw it held took that for an executor, review 14; looking
-  without taking is impossible with flock), so the lock is held only by a process that lists after it took it,
-  and a launcher that dies, is slow or cannot reap its intermediate child leaves no copy and no false holder
-  (a_client_that_sees_a_probe_hold_the_lock_still_has_an_executor_when_the_probe_owner_dies,
-  a_helper_that_loses_the_lock_to_a_probe_and_a_client_that_sees_it_do_not_leave_receipts_to_the_probe_owner,
-  a_recheck_that_loses_the_lock_to_a_probe_does_not_leave_the_receipt_to_the_probe_owner as regressions, the
-  first two red against the probe (a_slow_launcher_that_then_dies_leaves_every_receipt_with_an_executor,
+  without taking is impossible with flock), so every holder of the lock is a flusher (production acquisition
+  sites, each followed by a locked sweep: the recheck's reacquisition, flush_lane_with, the helper's prepare;
+  test fixtures that hold it without sweeping are not production holders). The argument for a helper that finds
+  it held: its client's receipt was visible before the failed acquisition, so the holder's next locked sweep
+  lists it, or, if that sweep is past, the holder's release and recheck lists it, takes the lock again or finds
+  another flusher, and accounts for a forcing failure
+  (a_receipt_exposed_after_the_last_empty_sweep_is_covered_by_the_holders_release_and_recheck: the holder
+  acquired before the receipt existed). A launcher that dies, is slow or cannot reap its intermediate child
+  leaves no copy and no false holder. The removed probe is reproduced by a test seam for negative controls that
+  show the receipts lost, every coordination step asserted
+  (the_removed_probe_loses_a_receipt_when_its_owner_dies_before_launching,
+  the_removed_probe_loses_the_receipts_of_a_helper_that_lost_to_it_and_of_a_client_that_saw_it,
+  the_removed_probe_makes_a_recheck_hand_a_receipt_over_to_a_holder_that_never_lists), and the fixed
+  counterparts assert the receipts recorded
+  (the_fixed_launch_gives_a_client_an_executor_whatever_another_client_does,
+  the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock); the earlier round 20 controls did not
+  establish their interleavings and are superseded; the other controls (
+  (a_slow_launcher_that_then_dies_leaves_every_receipt_with_an_executor,
   a_client_that_arrives_after_a_launch_that_could_not_reap_its_intermediate_child_has_an_executor,
   a_launcher_that_dies_right_after_the_helper_is_ready_leaves_no_receipt_without_an_executor,
   a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor); the helper reports the
@@ -139,22 +151,24 @@ classification is the author's until a review accepts it.
   few milliseconds; the owner's reason: no save lost in any modeled case, no added commit time, no new lock or
   process. The limit, stated plainly: the number of live helpers is arrival-dependent and has no time bound (the
   owner's phrase 'those few milliseconds' is not a duration the code gives, and scheduling can stretch the
-  windows): every client that needs the flusher path forks a helper whatever the lock's state (measured, one
-  launch from fork to the helper's acknowledgment: median 0.66 ms, maximum 14.2 ms over 20 launches), the first
-  to take the lock works, a helper that finds it taken ends but a delayed one lives until it runs, and the
-  helpers in the release, recheck and exit step hold nothing and live until they finish; what is bounded is the
-  number that hold the lock (one). Each launch also has an intermediate child, which exits at once after its
-  second fork and is reaped, or killed and reaped, by the launcher within the report bound, apart from the
-  detached worker, which lives until its flush ends; an unreaped intermediate child is a separate and temporary
-  process that holds nothing. Protocols 2 to 5 of the comparison (the singleton retry owner, inline forcing
-  while sealed, inline forcing whenever the token is held, the baton) are not built; the comparison
-  (model_helper_bound_r20_tests.rs, handover rounds 18 and 19) stays as recorded evidence with its claims
-  corrected (its crash exemption excuses every visible receipt until replacement, its maxima are lower bounds
-  where a search stopped at a miss, its foreground count is a number and not a time, and it omits client death
-  during inline forcing, worker death and partial forcing, launcher timeout and death, mixed-version helpers,
-  enqueue rejection, non-atomic transfers and blocking time). The non-recursive part stands: the launch is a
-  function in a new session and not a second start of the program. The token kept to exit with the running
-  syncer as the only retry misses a receipt
+  windows): every client that needs the flusher path forks a helper whatever the lock's state (measured,
+  descriptive and not a bound: from the launch_flusher call to the helper's acknowledgment, median 0.66 ms,
+  maximum 14.2 ms over 20 launches in one run), the first to take the lock works, a helper that finds it taken
+  ends but a delayed one lives until it runs, and the helpers in the release, recheck and exit step hold nothing
+  and live until they finish; what is bounded is the number that hold the lock (one). Each launch also has an
+  intermediate child, which exits at once after its second fork and that the launcher waits for at most the
+  report bound, then kills and waits for at most the kill-reap bound; a child that is not reaped then fails the
+  launch (IntermediateNotReaped), with no promise that it is reaped or of how long a residual child lives, and
+  it holds nothing; this is a different process from the detached worker, which lives until its flush ends.
+  LIVE-CUTOVER OBLIGATION: see the not-yet row of the cutover group. Protocols 2 to 5 of the comparison (the
+  singleton retry owner, inline forcing while sealed, inline forcing whenever the token is held, the baton) are
+  not built; the comparison (model_helper_bound_r20_tests.rs, handover rounds 18 and 19) stays as recorded
+  evidence with its claims corrected (its crash exemption excuses every visible receipt until replacement, its
+  maxima are lower bounds where a search stopped at a miss, its foreground count is a number and not a time, and
+  it omits client death during inline forcing, worker death and partial forcing, launcher timeout and death,
+  mixed-version helpers, enqueue rejection, non-atomic transfers and blocking time). The non-recursive part
+  stands: the launch is a function in a new session and not a second start of the program. The token kept to
+  exit with the running syncer as the only retry misses a receipt
   (a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it,
   a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown). Also
   open: the transient unit route is not built; a refused fork is injected by a real process limit and a memory
@@ -408,6 +422,12 @@ classification is the author's until a review accepts it.
   approval evidence).
 - Not yet, property: saved content survives until authorized disposal. Needs: a disposal model: the disposed
   ledger line durable before the saved content is deleted.
+- Not yet, obligation: live cutover excludes old probe-capable holders or provides recovery responsibility
+  (review 15). Needs: a cutover rule: an old client that probes the flusher lock and holds it without sweeping,
+  overlapping the new implementation, recreates the schedule where a new client's helper loses to the probe and
+  the probe owner dies before it forks; cutover must exclude old holders (a version fence on the lane) or give
+  the receipts a recovery responsibility, and a test with an old-behaviour holder (the legacy probe seam is the
+  stand-in).
 - Narrower, control: push exclusion and frozen updates against actual Git:
   `a_negative_refspec_keeps_the_internal_namespace_off_the_remote_and_a_named_object_is_pushed_as_given` in
   `model_git_experiments_tests.rs`. Not shown: the marker the lane acknowledges and the stacked push path; the
@@ -1304,3 +1324,80 @@ leaky tests, the stalled children that their alarms end); `native:clippy` and `n
 (`/var/home/user/temp/agent/r20/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has 64
 covered, 17 narrower, 9 historical and 17 not yet.
+
+## Round 21 state
+
+Round 21 answers `commit-models-sol-15.txt` ("yes after named fixes" for the models and components' claimed
+coverage; not approval of
+the live protocol). Comments, tests and notes changed; the product behaviour did not.
+
+### Corrections to the notes of rounds 19 and 20
+
+- The ownership argument. "The holder took it after the client's receipt existed" was false: F can acquire and
+  sweep empty, C then
+  exposes R, C's helper loses to F, and F releases and rechecks. The real argument: a receipt visible before a
+  failed acquisition is
+  covered by the holder's next locked sweep or, when that sweep is past, by the holder's release and recheck, which
+  lists it, takes the
+  lock again or finds another flusher, and accounts for a forcing failure. The notes of rounds 19 and 20 above that
+  say "took it
+  after" or "lists after it took it" are superseded by this. The control is
+  `a_receipt_exposed_after_the_last_empty_sweep_is_covered_by_the_holders_release_and_recheck` (F holds the lock at
+  its last empty
+  sweep through the new fault point `flusher:after-last-empty-sweep`; R does not exist yet; C's launch is
+  acknowledged and its helper
+  loses the lock, marked; F's recheck forces R; every step is asserted).
+- The acquisition-site inventory, production: the reacquisition of the recheck in `flush_held` (it loops to a sweep),
+  `flush_lane_with` (it calls `flush_held`), and the helper's `prepare` in `launch_flusher` (its entry calls
+  `flush_held`). No other
+  code takes the flusher lock. Not production holders: the lock a test takes without sweeping (for example in
+  `clients_that_find_the_flusher_lock_held_fork_helpers_that_end_without_working`), and the `legacy` probe seam,
+  which reproduces the
+  removed probe for negative controls and exists only in the test-seams build.
+- The round 20 probe controls did not establish their interleavings: the probe-owner callback reacted to an event
+  the fixed code never
+  emits, waits returned booleans nobody read, and child results were dropped, so a passing run could be an ordinary
+  successful sweep.
+  They are replaced. The negative controls run the removed probe through the `legacy` seam and assert every
+  coordination step (D
+  holds its probe, the helper loses to it, E's launch ends, D dies) and then that the receipts are never recorded
+  (`the_removed_probe_loses_a_receipt_when_its_owner_dies_before_launching`,
+  `the_removed_probe_loses_the_receipts_of_a_helper_that_lost_to_it_and_of_a_client_that_saw_it`,
+  `the_removed_probe_makes_a_recheck_hand_a_receipt_over_to_a_holder_that_never_lists`); the fixed-implementation
+  counterparts assert
+  that the receipts are recorded and that no probe exists
+  (`the_fixed_launch_gives_a_client_an_executor_whatever_another_client_does`,
+  `the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock`).
+- "All three red" against "the first two red": the round 20 red log (`/var/home/user/temp/agent/r20/probe-red.log`)
+  shows all three
+  failing before the fix, but those failures are not evidence of the named interleavings for the reasons above.
+  What stands now is the
+  reproducible negative controls above, which lose the receipts under the legacy seam in every one of the three
+  scenarios.
+- Reap wording. The launcher waits for the intermediate child at most the report bound, then kills it and waits at
+  most the kill-reap
+  bound; a child not reaped then fails the launch (`IntermediateNotReaped`). There is no promise that it is reaped
+  or of how long a
+  residual child lives. The earlier "reaped, or killed and reaped, within the report bound" is withdrawn.
+- Timing sample. Its endpoints are the `launch_flusher` call and the helper's acknowledgment (the map's "fork to
+  acknowledgment" is
+  corrected). It is descriptive, one run of 20 launches, not a bound and not a whole-command measurement.
+
+### Live-cutover obligation (not a same-version defect)
+
+An old probe-capable client that overlaps the new implementation recreates the original schedule: old D holds its
+probe, new E
+exposes R, E's helper loses to D and ends, D dies before it forks. Cutover must exclude such holders (a version
+fence on the lane)
+or give the receipts a recovery responsibility. Recorded as a not-yet row of the cutover group of the map (one row
+added; it is an
+obligation of the existing lifecycle and helper integration gate and not a new criterion; the counts below include it).
+
+### Gates at the tip
+
+The full `native:test:model` run is 479 passed, 0 failed (`/var/home/user/temp/agent/r20/full-model.log`; nextest
+reports four
+leaky tests, the stalled children that their alarms end); `native:clippy` and `native:clippy:seams` are clean
+(`/var/home/user/temp/agent/r20/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
+map has 64 covered,
+17 narrower, 9 historical and 18 not yet.

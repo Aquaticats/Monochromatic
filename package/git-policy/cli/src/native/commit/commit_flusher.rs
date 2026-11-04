@@ -23,6 +23,17 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+/// Whether `launch_flusher` behaves as round 19 did (a probe before the fork), for a negative control only.
+#[cfg(feature = "test-seams")]
+static LEGACY_PROBE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Makes `launch_flusher` probe the lock before it forks, as the removed implementation did (`false` clears it). Test seam: the controls
+/// that must show the removed behaviour losing a receipt use it; no production build has it.
+#[cfg(feature = "test-seams")]
+pub fn inject_legacy_probe(on: bool) {
+    LEGACY_PROBE.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// The number of acquisitions that succeed before a test makes one fail; `u32::MAX` is off.
 #[cfg(feature = "test-seams")]
 static FAIL_AFTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(u32::MAX);
@@ -255,6 +266,7 @@ pub fn flush_held(lane: &Path, first_lock: FlusherLock, force: &mut dyn FnMut(&P
                 Err(error) => return Err(end_on_forcing_error(lane, &forced, lock, error, after_release)),
             }
         }
+        fault_point("flusher:after-last-empty-sweep");
         drop(lock);
         after_release();
         if unforced(lane, &forced)?.is_empty() {
@@ -318,8 +330,8 @@ pub fn flusher_entry_holding(lane: &Path, lock: FlusherLock) -> i32 {
 /// What a launch of the flusher did.
 #[derive(Debug, Eq, PartialEq)]
 pub enum Launched {
-    /// A helper was forked and took the lane's lock, or found a flusher holding it: the holder lists after it took the lock, so it
-    /// sweeps this client's receipt.
+    /// A helper was forked and took the lane's lock, or found a flusher holding it: this client's receipt, visible before that failed
+    /// acquisition, is covered by the holder's next locked sweep or by its release and recheck (see `launch_flusher`).
     Started,
 }
 
@@ -341,16 +353,37 @@ pub enum FlusherLaunchError {
 /// Why:
 ///  Only a process that will list and force after it acquires the lock ever holds it. A client that probed the lock held it without
 ///  listing anything, and a client or helper that saw it held took that for an executor (review 14); looking at the lock without taking
-///  it is impossible with `flock`. A helper that finds the lock held ends: the holder is always a flusher that took it after this
-///  client's receipt existed and lists after taking it (and again after releasing it), so it sweeps the receipt. The cost is a fork per
-///  client that needs the flusher path, and a helper that ends at once when another one works; the number of helpers is bounded only by
-///  the arrivals (the owner's decision of 2026-11-04), and the number that hold the lock is one.
+///  it is impossible with `flock`. A helper that finds the lock held ends. Why that is sound, stated as it is: the receipt was visible
+///  before the helper's failed acquisition, and every holder is a flusher (the inventory below), so either the holder has not yet done
+///  its last locked sweep, which then lists the receipt, or it has, and then it has still to release the lock and recheck, which lists
+///  it, takes the lock again or finds another flusher holding it, and accounts for a forcing failure. (The holder need not have acquired
+///  after the receipt existed: it may have swept empty first.) The cost is a fork per client that needs the flusher path, and a helper
+///  that ends when another one works, as soon as it runs; the number of helpers is arrival-dependent with no time bound (the owner's
+///  decision of 2026-11-04), and the number that hold the lock is one.
+///
+///  Acquisition sites of `FlusherLock` in production code, all three followed by a locked sweep: the reacquisition of the recheck in
+///  `flush_held` (it loops to a sweep), `flush_lane_with` (it calls `flush_held`), and the helper's `prepare` in this function (its
+///  entry calls `flush_held`). The tests also hold the lock without sweeping, as fixtures (for example the lock a test takes to show that
+///  clients fork helpers that end), and with the `legacy` probe seam below, which reproduces the removed probe for a negative control;
+///  neither is a production holder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function launchFlusher(lane: string): 'started'; // throws FlusherLaunchError
 /// ```
 pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
+    #[cfg(feature = "test-seams")]
+    if LEGACY_PROBE.load(std::sync::atomic::Ordering::SeqCst) {
+        // The removed behaviour, for a negative control: a probe that holds the lock without listing, and a client that returns when it
+        // finds the lock held.
+        match FlusherLock::try_acquire(lane).map_err(FlusherLaunchError::Lock)? {
+            Some(probe) => {
+                fault_point("flusher:probe-held");
+                drop(probe);
+            }
+            None => return Ok(Launched::Started),
+        }
+    }
     let owned: PathBuf = lane.to_path_buf();
     let lane_for_helper: PathBuf = lane.to_path_buf();
     return match launch_detached_preparing(
@@ -363,7 +396,8 @@ pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
             return acquired;
         },
         move |acquired| {
-            // When someone else holds the lock by now, that holder took it after this client's receipt existed and sweeps it.
+            // When someone else holds the lock, this client's receipt, visible before this failed acquisition, is covered by that flusher's
+            // next locked sweep or by its release and recheck.
             return match acquired {
                 Ok(Some(held)) => flusher_entry_holding(&owned, held),
                 Ok(None) => 0,
