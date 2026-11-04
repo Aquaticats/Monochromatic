@@ -559,7 +559,8 @@ fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Ch
 }
 
 /// A per-user service of the earlier release is running with its two units installed. The first commit of this release asks it
-///  to retire, has the manager stop its socket and its service and reload, removes its units and its socket file, starts the
+///  to retire, has the manager stop its socket, waits for the service to leave by itself (the manager is asked about it, and the
+///  stop of the service goes after it left, so a landing in progress is not cut), and reload, removes its units and its socket file, starts the
 ///  worktree's own instance, and the commit lands there. The old service exits by itself with success.
 #[test]
 fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the_commit() {
@@ -587,7 +588,7 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
     assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "its units are gone");
     assert!(!runtime.join(LEGACY_SOCKET_RELATIVE).exists(), "its socket file is gone");
     assert!(socket_for(runtime.as_path(), repo.join(".git").as_path()).exists(), "the worktree has its own socket");
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit"]]);
+    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "GetUnit", "Get", "StopUnit", "GetUnit", "Get", "GetUnit", "Get", "Reload", "StartUnit"]]);
     keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }
