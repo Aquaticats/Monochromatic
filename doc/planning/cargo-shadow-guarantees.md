@@ -475,3 +475,140 @@ These are acceptance tests, not a claim that finite testing mathematically prove
   The advertised CLI command works, uses the workspace lock, durably acknowledges exactly one journal, survives interrupted
   publication conservatively, and cannot bypass unrelated validation failures.
   Acknowledging one of two journals leaves the other blocking.
+
+## Coverage map
+
+Written 2026-11-04T05:40:00-05:00 against the tip that carries it.
+A row is "shown" when its schedules each have a test that fails when the guarantee is removed or that asserts the observable result;
+"partly" when a named part has no test yet, with what that part needs.
+No row is without any test.
+Counts: 16 rows, 9 shown, 7 partly, 0 not yet.
+The suite at this tip: 539 tests passed, 3 skipped (the three ignored helper processes of the crash tests:
+`wrapper_with_an_escaped_writer_fixture`, `recovery_in_another_mount_namespace_fixture`, `wrapper_held_inside_its_start_fixture`).
+Red first was done where the old code could show red:
+the round 7 red commit `939dcb31d1` holds the counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code;
+for the two bugs of round 8 and the new argument-grammar test the guard was removed on the committed tests and the tests failed
+(`a_journal_listing_that_fails_in_any_way_stops_the_recovery`, `a_journal_listing_that_fails_in_any_way_stops_a_new_transaction`,
+`arguments_that_systemd_run_reads_as_a_grammar_reach_the_program_unchanged`), then the guard was put back.
+The rows about the scope route, the acknowledgement and the two mount views are new behavior with no old code to fail;
+their tests were written with the code.
+
+- **A1: partly.**
+  Zombie leader with a live thread: `a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns` (the fixture
+  says by itself when its leader is a zombie; the run's result is checked by the process having no live thread).
+  Pipe-closing `setsid` writer, normal exit and timeout: `a_writer_in_another_session_is_stopped_before_a_normal_exit_returns`,
+  `a_writer_in_another_session_is_stopped_at_the_bound`; double fork: `probe_3_a_setsid_and_double_fork_descendant_stays_a_member`,
+  `orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped`.
+  Not yet: acceptance after a direct child that cannot be reaped within its bound
+  (needs a failpoint in `reap` that makes the child look unreapable).
+- **A1, V3 (spawn isolation): shown.**
+  `two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary` (a hook holds the first run inside its
+  start; an unrelated spawn and a second run happen; the wrapper's group never changes; separate scopes; the unrelated child survives),
+  `probe_5_the_spawner_never_changes_group_and_an_unrelated_child_stays_out`.
+  The scope route is the only supported route; the weaker path moves no group.
+- **A1, A2 (scope lifecycle): shown.**
+  `probe_2_a_scope_stays_observable_while_a_descendant_outlives_the_program`,
+  `probe_2_a_scope_that_is_collected_at_once_is_accepted_as_empty_by_verified_absence`,
+  `a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone`.
+- **A2, R4 (7a F3): partly.**
+  `a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent` (three faults; `NotQuiescent`, writers may remain,
+  journal retained, a writer left in the scope that the test then stops),
+  `a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal` (the install half: no rollback, no acceptance,
+  the command not run).
+  Not yet: one test that joins the two (a fake cargo that goes through `output_within` with an injected fault, so the whole path from
+  the runner to the shim's refusal is exercised); the install half uses `mark_scope_lost_for_test` for the runner's verdict.
+- **A3, A4: shown.**
+  Approved: `an_accepted_run_whose_outputs_cannot_be_forced_to_disk_stops_the_command`;
+  refused: `a_refusal_survives_a_journal_that_cannot_be_finished`, `a_refusal_survives_a_failed_completion_marker_and_names_it`;
+  operational: `an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_keeps_both_diagnostics`;
+  the actual rename and parent sync: `an_accepted_run_whose_completion_rename_fails_stops_the_command`,
+  `an_accepted_run_whose_completion_directory_sync_fails_stops_the_command`,
+  `a_failing_completion_rename_is_mandatory_and_leaves_the_journal_active`,
+  `a_failing_completion_directory_sync_is_mandatory_and_a_later_recovery_only_removes_the_journal`;
+  ordering: `finish_makes_the_outputs_durable_before_the_done_marker`, and removal does not run after a failed marker sync (the
+  last test above finds the `.done` journal still there);
+  cleanup after durable completion: `the_cleanup_failure_happens_after_the_completion_marker_was_published`,
+  `a_removal_failure_after_the_marker_is_cleanup_only`.
+- **R1: shown by tests of earlier rounds, not rewritten.**
+  `a_lock_another_process_wrote_meanwhile_is_left_alone_with_a_warning` (before the rollback),
+  `recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_judged`,
+  `a_replacement_that_another_writer_holds_open_is_kept_when_the_exchange_is_undone`,
+  `a_replacement_edited_in_place_after_the_exchange_is_kept_not_deleted` (the replacement and conflict boundary).
+- **R2: partly.**
+  `a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a_name` (`EMLINK`, `ENOSPC`, `EXDEV`, `EACCES`),
+  `when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_name_and_the_message_says_where` (every link, the data
+  barrier, the directory barrier), `a_displaced_file_that_could_not_be_linked_is_reported_with_the_snapshot_live`,
+  `a_filesystem_without_exchange_fails_the_restore_and_overwrites_nothing`.
+  Not yet: a failing rename of the temporary and a read-only transition between stages (need a seam on the rename and on the
+  stage order), and the replacement inode's name inventory (the tests inventory the displaced inode only).
+- **R3, R5: shown.**
+  `a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions`,
+  `a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_falling_back`,
+  `a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others`.
+- **K1: shown.**
+  `the_kept_files_warning_point_is_exact_and_repeated_runs_agree` (below, at, above; two runs each; nothing deleted or refused),
+  `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning`,
+  `a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_refuses`;
+  colliding names: `a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives`.
+- **K2: partly.**
+  `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction`,
+  `a_directory_left_unsynced_by_a_failed_attempt_is_not_taken_as_durable`,
+  `a_failing_directory_barrier_is_not_reported_as_preserved`, `a_higher_ancestor_the_user_cannot_open_is_never_touched`,
+  `a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path`.
+  Not yet: failing each barrier of the creation chain one at a time (the tests fail the kept directory's barrier and the registry
+  case); needs a seam on `create_directories_with`'s syncs in a test of the whole preservation.
+- **V1 (7b P1-2): shown.**
+  `a_journal_listing_that_fails_in_any_way_stops_the_recovery`, `a_journal_listing_that_fails_in_any_way_stops_a_new_transaction`
+  (open, iteration, inspection and entry-level `NotFound`, injected inside the listing on the second entry with a journal already in
+  the partial listing), `an_absent_journal_directory_is_no_journals` (the separate positive case).
+- **V2, amended c: shown.**
+  Survivors: `a_survivor_of_one_journal_stops_the_recovery_of_another`, `a_new_transaction_does_not_start_beside_a_survivor`,
+  `a_killed_wrapper_with_an_escaped_writer_stops_the_recovery`; records: `a_group_record_that_cannot_be_read_defers_the_recovery`,
+  `a_malformed_group_record_defers_the_recovery`, `a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor`;
+  views: `a_journal_seen_through_another_view_is_refused_and_kept`,
+  `a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone`,
+  `probe_4_a_scope_is_found_by_its_record_and_a_different_view_is_unknown`, and the same-cgroup-namespace schedule end to end,
+  `a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal` (a new user and mount namespace through `unshare`).
+- **V3, V4: shown.**
+  `the_scope_record_is_durable_before_the_program_starts` (a hook at the boundary reads the record and the program's marker),
+  `a_record_that_cannot_be_published_starts_no_program_and_does_not_wait` (a pipe where the record was, both containments),
+  `a_child_whose_group_cannot_be_recorded_is_not_started`,
+  `a_wrapper_killed_inside_its_start_is_recovered_conservatively` (killed at the boundary after the record, both containments),
+  `a_recovery_removes_an_empty_journal_directory`, `a_nonempty_journal_without_its_record_is_not_treated_as_empty`.
+- **V5: partly.**
+  `a_second_recovery_pass_changes_nothing_and_keeps_the_refused_copy`, `a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too`,
+  `a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives`, `a_journal_marked_done_is_removed_by_the_next_recovery`,
+  the unready and ready tests of `journal_recover_tests.rs`.
+  Not yet: a recovery of two roots with manifests in one journal where one root is refused and the other accepted (needs a judge that
+  decides per root, which the tests' judge does not).
+- **V6: partly.**
+  `a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline`, `a_child_that_outlives_its_bound_is_stopped_and_named`,
+  `a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete`,
+  `a_timeout_returns_promptly_even_when_the_child_ignores_its_input`, `recovery_defers_while_a_live_transaction_holds_the_workspace`,
+  `acknowledging_while_a_transaction_holds_the_workspace_is_refused`, and the stuck-member case of A2.
+  Not yet: the reaping bound of a direct child that cannot be reaped (the same failpoint as A1).
+- **Weaker path: shown.**
+  `each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_before_the_start` (no `systemd-run`, an unreachable
+  manager, no cgroup v2 mount, an unknown slice; the kernel before 5.14 by `probe_1_a_group_directory_without_cgroup_kill_is_an_older_kernel`),
+  `a_weaker_path_journal_is_refused_by_recovery_and_admission_until_it_is_acknowledged` (`pgroup starting` alone and a completed record
+  whose group is gone), `acknowledging_one_of_two_journals_settles_it_and_leaves_the_other_blocking`,
+  `acknowledging_while_a_transaction_holds_the_workspace_is_refused`, `a_partial_acknowledgement_does_not_count`,
+  `an_acknowledgement_does_not_override_a_live_group_or_unrelated_validation`, `the_acknowledge_subcommand_acknowledges_the_journal_the_refusal_named`,
+  `the_weaker_path_still_stops_the_process_group_at_the_bound`.
+
+### Findings the round 8 work made, outside the list
+
+- `systemd-run` reads the command it is given like a unit's command line: `$$` became `$` and `${HOME}` was replaced by the value of
+  the variable (probed 2026-11-04).
+  Every argument and the program are now encoded at the point of hand-over, and
+  `arguments_that_systemd_run_reads_as_a_grammar_reach_the_program_unchanged` runs fifteen awkward arguments, also through a cleared
+  environment.
+- A cleared environment (`env_clear`, used for Git) cannot be read back from a `Command`, so there is a second entry point,
+  `output_within_clean_environment`, and the program is started through `env --ignore-environment`.
+- A program that does not exist is found before the launcher starts, so it stays an I/O error (`systemd-run` reports it as an exit
+  status).
+- The cost of a trivial run in the test build, which asks the manager every time (the production build asks once per process):
+  23.6 ms median (18.4 minimum, 33.5 maximum, 30 runs) against 6.3 ms in the weaker path; the production figure is lower by the cost
+  of the question, which was not measured separately.
+- Route 2 of the earlier pick (a child of the own group where it carries `user.delegate`) is dropped:
+  it needs `clone3` with `CLONE_INTO_CGROUP`, which neither `std` nor `rustix` 1.1.6 offers.
