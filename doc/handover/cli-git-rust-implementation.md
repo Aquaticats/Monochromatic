@@ -3637,7 +3637,16 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   printing and removal to the producing attempt;
   the reclaim row should point to the claim-chain evidence;
   no criterion added.
-  Round 16 starts when part 10a returns.
+  Part 10a:
+  "does not meet the claimed items as submitted" (2A closure still caller-declared;
+  2B adoption of an existing read-only inode;
+  2E ancestry is not a covering relation;
+  3A the launcher's lock copy blocks the handover;
+  3B helpers unbounded after release;
+  3C descriptors 0 to 2;
+  3D ready byte with an unreaped first child);
+  no criterion added.
+  Round 16 running on both parts.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
