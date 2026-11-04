@@ -3890,6 +3890,38 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   recursion and foreground cost each,
   building none;
   the owner question on the bound goes out with that table.
+  Round 18 done (tip `e07d9e2fbe`;
+  471 model tests passed;
+  clippy clean;
+  map unchanged):
+  A,
+  B and C fixed red first (only the launcher carries the lock during a launch,
+  the helper takes it after the handover;
+  the launcher's drop is the last release before receipts are recorded;
+  checked documents validated at admission,
+  checkpoint start and recovery).
+  Bound comparison (`model_helper_bound_r20.rs`):
+  built release-recheck-exit no miss,
+  helpers grow with clients;
+  singleton owner no miss,
+  two processes,
+  but a lasting owner needs the unbuilt unit route (logout ends the fallback scope);
+  inline only while sealed misses;
+  inline whenever the token is held,
+  token to exit:
+  no miss,
+  one helper,
+  the client syncs its own receipt only when a flusher is at work (median 11.4 ms,
+  max 77.1 ms,
+  20 samples at load 14);
+  baton no miss but needs the unit route;
+  the agent ranks inline-whenever-held first.
+  Review queued for the next free slot,
+  ahead of cargo-shadow certification group 3:
+  prompt `commit-models-prompt-13.txt`,
+  inputs `commit-models-13-part-1..4`,
+  output `commit-models-sol-13.txt`;
+  the owner question follows it.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
