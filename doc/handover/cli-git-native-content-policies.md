@@ -72,19 +72,19 @@ Two sources the candidate layer did not provide,
 both staged on a private copy of the real index:
 
 - What `git add` would stage
-  (`src/native/candidate_prediction.rs`, `CandidateRequest::Add`).
+  (`src/native/candidate/candidate_prediction.rs`, `CandidateRequest::Add`).
   The real index path comes from `git rev-parse --path-format=absolute --git-path index`,
   so `GIT_INDEX_FILE`,
   a linked worktree's own index and `--git-dir` are honored.
   The index is copied with its access and modification times
-  (`src/native/candidate_private_index.rs`),
+  (`src/native/candidate/candidate_private_index.rs`),
   as `index-file-timestamps.ts` does for issue #544,
   into a fresh `0700` directory named `cli-git-add-policy-<pid>-<nanoseconds>-<count>` beside it,
   which is removed when the prepared candidates are dropped.
   `git ls-files --stage -z --full-name -- :/` lists the copy before and after
   `git <prefix> add <region>` runs on it,
   and the candidates are the paths whose complete record lists differ
-  (`src/native/candidate_stage.rs`, `staged_delta`),
+  (`src/native/candidate/candidate_stage.rs`, `staged_delta`),
   in the incumbent's order:
   paths the index held first,
   in index order,

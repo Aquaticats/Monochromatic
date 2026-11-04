@@ -21,12 +21,12 @@
 //! ```
 
 /// Import the candidate being judged and its change kinds.
-use super::candidate_record::CandidateChange;
-use super::candidate_version::Candidate;
+use crate::candidate_record::CandidateChange;
+use crate::candidate_version::Candidate;
 /// Import the configured rules files.
-use super::config_schema::RulesFileEntry;
+use crate::config_schema::RulesFileEntry;
 /// Import the rules selection the adapter loads.
-use super::scanner_adapter::RulesSource;
+use crate::scanner_adapter::RulesSource;
 /// Import the scanner's rules-list entry and the one parser of the variable's list grammar.
 use forbidden_strings::{RulesEntry, RulesListError, parse_rules_list};
 /// `OsStr` is borrowed operating-system text of raw OS bytes (sibling `str` must be UTF-8).

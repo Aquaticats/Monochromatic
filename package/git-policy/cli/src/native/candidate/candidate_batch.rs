@@ -23,9 +23,9 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Import the validated object name and its parser.
-use super::candidate_object::{ObjectId, parse_object_id};
+use crate::candidate_object::{ObjectId, parse_object_id};
 /// What:
 ///  `BufRead` is the trait (interface) of buffered byte sources:
 ///  it adds

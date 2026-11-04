@@ -78,7 +78,7 @@ The mapping from `cli-git.config.ts` to `cli-git.config.jsonc`, setting by setti
   `rulesFile` is new in the native format (`src/native/config/config_policies.rs:153`, `src/native/config/config_schema.rs:130`):
   the scanner reads the file it names relative to the top level,
   else the `FORBIDDEN_STRINGS_RULES` variable, else `forbidden-strings.local.txt`
-  (`src/native/scanner_selection.rs:115`;
+  (`src/native/candidate/scanner_selection.rs:115`;
   user decision at `doc/handover/cli-git-rust-implementation.md:1293` [moved on 2026-11-03 to
   `doc/planning/cli-git-rust-open-decisions.md`]).
   The value is the path the root `mise.toml` gives `FORBIDDEN_STRINGS_RULES` (line 1319),

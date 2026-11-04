@@ -30,13 +30,13 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Import the candidate modes,
 ///  the validated object name and their parsers.
-use super::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
+use crate::candidate_object::{CandidateMode, ObjectId, mode_from_git, parse_object_id};
 /// Import the candidate record a version is built from,
 ///  and its change kinds.
-use super::candidate_record::{CandidateChange, CandidateRecord};
+use crate::candidate_record::{CandidateChange, CandidateRecord};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table and `HashSet<T>` a set of keys
 ///       (siblings:

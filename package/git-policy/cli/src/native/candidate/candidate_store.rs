@@ -19,22 +19,22 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Import the candidate modes,
 ///  the validated object name and its parser.
-use super::candidate_object::{CandidateMode, ObjectId, parse_object_id};
+use crate::candidate_object::{CandidateMode, ObjectId, parse_object_id};
 /// Import the long-lived object reader.
-use super::candidate_reader::{ObjectReader, start_object_reader};
+use crate::candidate_reader::{ObjectReader, start_object_reader};
 /// Import the listing parser and its records.
-use super::candidate_record::{CandidateRecord, parse_raw_records};
+use crate::candidate_record::{CandidateRecord, parse_raw_records};
 /// Import the stage-record parser of `git ls-files --stage`.
-use super::candidate_stage::{StageRecord, parse_stage_records};
+use crate::candidate_stage::{StageRecord, parse_stage_records};
 /// Import the tree-record parser of `git ls-tree -r`.
-use super::candidate_tree::{TreeRecord, parse_tree_records};
+use crate::candidate_tree::{TreeRecord, parse_tree_records};
 /// Import the version types and builder.
-use super::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
+use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
 /// Import the captured-query runner and its line helper.
-use super::git_metadata::{MetadataOutput, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, run_metadata_git, strip_git_line};
 /// `HashSet<T>` is an unordered collection of distinct values with constant-time membership tests.
 use std::collections::HashSet;
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
@@ -108,7 +108,7 @@ pub struct CandidateStore {
 ///  command, so the result is the same and only the number of starts changes. Classed once in
 ///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
-const COMMIT_CHUNK_SIZE: usize = super::candidate_prediction::PATHSPEC_CHUNK_SIZE;
+const COMMIT_CHUNK_SIZE: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE;
 
 /// What:
 ///  Build the failure of a listing command that could not be started or exited unsuccessfully.
@@ -762,7 +762,7 @@ fn added_raw_from_ls_tree(output: &[u8]) -> Result<Vec<u8>, CandidateError> {
     {
         let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else {
             return Err(CandidateError::new(
-                super::candidate_error::CandidateFailure::ListingMalformed,
+                crate::candidate_error::CandidateFailure::ListingMalformed,
                 "cli-git could not list the pushed tree: an entry lacks its path separator.",
             ));
         };
@@ -772,7 +772,7 @@ fn added_raw_from_ls_tree(output: &[u8]) -> Result<Vec<u8>, CandidateError> {
         let fields: Vec<&str> = metadata.split(' ').collect();
         if fields.len() != 3 {
             return Err(CandidateError::new(
-                super::candidate_error::CandidateFailure::ListingMalformed,
+                crate::candidate_error::CandidateFailure::ListingMalformed,
                 "cli-git could not list the pushed tree: an entry lacks its mode, type or object name.",
             ));
         }

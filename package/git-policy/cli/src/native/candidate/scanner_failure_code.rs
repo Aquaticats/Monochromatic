@@ -17,14 +17,14 @@
 //! ```
 
 /// Import the candidate layer's closed list of causes.
-use super::candidate_error::CandidateFailure;
+use crate::candidate_error::CandidateFailure;
 /// Import the engine's failure codes;
 ///  this module only chooses among them.
-use super::diagnostics::EngineFailureCode;
+use crate::diagnostics::EngineFailureCode;
 /// Import the adapter's closed list of causes.
-use super::scanner_adapter::ScannerFailure;
+use crate::scanner_adapter::ScannerFailure;
 /// Import the failure of a whole scan pass.
-use super::scanner_run::ScanRunError;
+use crate::scanner_run::ScanRunError;
 /// The scanner library's per-match result,
 ///  which also carries its fail-closed notices.
 use forbidden_strings::ScanFinding;

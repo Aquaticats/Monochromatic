@@ -14,7 +14,7 @@
 //! ```
 
 /// Running real Git.
-use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// `HashMap` maps object IDs to bytes.
 use std::collections::HashMap;
 /// `Path` is a borrowed filesystem path.
@@ -54,7 +54,7 @@ pub fn parse_batch_header(header: &str) -> Result<(String, usize), String> {
         None
     };
     if let Some(found) = parsed
-        && found <= super::json_record::MAX_SAFE_INTEGER
+        && found <= crate::json_record::MAX_SAFE_INTEGER
         && let Ok(size) = usize::try_from(found)
     {
         return Ok((String::from(oid), size));

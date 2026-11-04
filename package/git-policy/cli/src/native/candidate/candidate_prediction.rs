@@ -26,27 +26,27 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use super::candidate_attribute::{AttributeSource, CandidateAttributes};
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_attribute::{AttributeSource, CandidateAttributes};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// The landed commit object name a landed-delta request reads.
-use super::candidate_object::ObjectId;
+use crate::candidate_object::ObjectId;
 /// Import the private index copy every prediction stages into.
-use super::candidate_private_index::PrivateIndex;
+use crate::candidate_private_index::PrivateIndex;
 /// Import the candidate record a version is built from.
-use super::candidate_record::CandidateRecord;
+use crate::candidate_record::CandidateRecord;
 /// Import the stage-record comparison and the two ways of turning entries into candidates.
-use super::candidate_stage::{
+use crate::candidate_stage::{
     ChangedPath, StageRecord, delta_candidates, scope_candidates, staged_delta,
 };
 /// Import the per-invocation owner of versions and bytes.
-use super::candidate_store::CandidateStore;
+use crate::candidate_store::CandidateStore;
 /// Import the immutable version type.
-use super::candidate_version::{CandidateSource, CandidateVersion};
+use crate::candidate_version::{CandidateSource, CandidateVersion};
 /// Import the captured-query runner and its byte helpers.
-use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
 /// The in-process repository layout, tried before the `rev-parse --git-path` query.
-use super::git_system_config::with_real_git;
-use super::repo_read_layout::{git_path, read_layout};
+use crate::git_system_config::with_real_git;
+use crate::repo_read_layout::{git_path, read_layout};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).

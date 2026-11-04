@@ -111,7 +111,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'object content past its declared size is accepted',
-    file: 'package/git-policy/cli/src/native/candidate_batch.rs',
+    file: 'package/git-policy/cli/src/native/candidate/candidate_batch.rs',
     edits: [{
       from: String.raw`if terminator[0] != b'\n' {`,
       to: 'if false {'
@@ -119,7 +119,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'an object reply for another object is accepted',
-    file: 'package/git-policy/cli/src/native/candidate_batch.rs',
+    file: 'package/git-policy/cli/src/native/candidate/candidate_batch.rs',
     edits: [{
       from: 'if requested.is_some() && requested.as_ref() != Some(&object) {',
       to: 'if false {',
@@ -127,7 +127,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'a path whose index records changed is left out of the staged delta',
-    file: 'package/git-policy/cli/src/native/candidate_stage.rs',
+    file: 'package/git-policy/cli/src/native/candidate/candidate_stage.rs',
     edits: [{
       from: 'if later != Some(*records) {',
       to: 'if later.is_none() {'

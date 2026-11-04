@@ -18,11 +18,11 @@
 //! ```
 
 /// Import the layer's failure type and its causes.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Import the validated object name a tree source is named by.
-use super::candidate_object::ObjectId;
+use crate::candidate_object::ObjectId;
 /// Import the captured-query runner and the byte helpers.
-use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table and `HashSet<T>` a collection of distinct values.
 /// Why:
@@ -44,7 +44,7 @@ use std::path::PathBuf;
 ///  command, so the result is the same and only the number of starts changes. Classed once in
 ///  `doc/planning/cli-git-shipped-limits-audit.md`, "Exempt limits"; the coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
-pub const ATTRIBUTE_CHUNK_SIZE: usize = super::candidate_prediction::PATHSPEC_CHUNK_SIZE;
+pub const ATTRIBUTE_CHUNK_SIZE: usize = crate::candidate_prediction::PATHSPEC_CHUNK_SIZE;
 
 /// What:
 ///  Where the attributes of the candidates are read from.

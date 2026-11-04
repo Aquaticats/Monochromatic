@@ -18,15 +18,15 @@
 
 /// Import the candidate layer's failure,
 ///  store and version.
-use super::candidate_error::CandidateError;
-use super::candidate_store::CandidateStore;
-use super::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_error::CandidateError;
+use crate::candidate_store::CandidateStore;
+use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the candidates whose content a parent already holds.
-use super::candidate_known_content::KnownContent;
+use crate::candidate_known_content::KnownContent;
 /// Import the loaded scanner and its failure.
-use super::scanner_adapter::{CandidateScanner, ScannerError};
+use crate::scanner_adapter::{CandidateScanner, ScannerError};
 /// Import the eligibility decision.
-use super::scanner_selection::is_scannable;
+use crate::scanner_selection::is_scannable;
 /// The scanner library's per-candidate result,
 ///  returned unchanged.
 use forbidden_strings::CandidateScan;

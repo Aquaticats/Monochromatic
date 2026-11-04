@@ -23,20 +23,20 @@
 //! ```
 
 /// Import the layer's failure type.
-use super::candidate_error::CandidateError;
+use crate::candidate_error::CandidateError;
 /// Import the candidate modes and the validated object name.
-use super::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{CandidateMode, ObjectId};
 /// Import what a lifecycle asks for.
-use super::candidate_prediction::CandidateRequest;
+use crate::candidate_prediction::CandidateRequest;
 /// Import the store that lists commits and trees.
-use super::candidate_store::CandidateStore;
+use crate::candidate_store::CandidateStore;
 /// Import the candidate and the immutable version type.
-use super::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the change a converged fix installs,
 ///  which marks a candidate whose bytes are no longer its object's.
-use super::direct_fix_install::InstallChange;
+use crate::direct_fix_install::InstallChange;
 /// Import which candidates a scan reads at all.
-use super::scanner_selection::is_scannable;
+use crate::scanner_selection::is_scannable;
 /// What:
 ///  `BTreeMap<K, V>` is a map kept sorted by key (sibling `HashMap` is unordered);
 ///  `HashSet<T>` is an

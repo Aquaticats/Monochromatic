@@ -31,9 +31,9 @@
 //! ```
 
 /// Import the candidate whose pathname and identity each scan carries.
-use super::candidate_version::Candidate;
+use crate::candidate_version::Candidate;
 /// Import the byte-preserving conversion from Git path bytes to a native path.
-use super::git_metadata::path_from_git_bytes;
+use crate::git_metadata::path_from_git_bytes;
 /// What:
 ///  The scanner library's public types:
 ///  its fixed-token cache diagnostic,

@@ -23,7 +23,7 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::{Path, PathBuf};
 /// What:

@@ -17,9 +17,9 @@
 //! ```
 
 /// Import the validated object name and the candidate modes.
-use super::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{CandidateMode, ObjectId};
 /// Import the parsed listing records and their change kinds.
-use super::candidate_record::{CandidateChange, CandidateRecord};
+use crate::candidate_record::{CandidateChange, CandidateRecord};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table (siblings:
 ///  `BTreeMap`,

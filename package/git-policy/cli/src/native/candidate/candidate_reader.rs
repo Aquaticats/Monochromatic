@@ -14,17 +14,17 @@
 //! ```
 
 /// Import the pure reply reader and the values it produces.
-use super::candidate_batch::{BatchReply, ObjectKind, read_batch_reply};
+use crate::candidate_batch::{BatchReply, ObjectKind, read_batch_reply};
 /// Import the layer's failure type and its closed list of causes.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+use crate::start_retry::RetryStart;
 /// Import the validated object name.
-use super::candidate_object::ObjectId;
+use crate::candidate_object::ObjectId;
 /// Import the shared child-command builder.
-use super::forwarding::git_command;
+use crate::forwarding::git_command;
 /// The watch that announces a request that takes long and stops the process at the bound.
-use super::child_watch::{ChildWatch, WatchTerms, reader_subject, watched_timeout_text};
+use crate::child_watch::{ChildWatch, WatchTerms, reader_subject, watched_timeout_text};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table (siblings:
 ///  `BTreeMap`,

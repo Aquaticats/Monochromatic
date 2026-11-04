@@ -941,7 +941,7 @@ The three timeouts were rerun alone, as the rule for timeouts requires:
   the runner was edited in the working tree for this one run to pass `--timeout 300` and `--re projected_scope`
   (the committed runner still passes `--timeout 90` and no `--re`), and it was restored with `git checkout` afterwards.
   The run ran through `node ~/temp/agent/gate-slot.ts` with the runner command
-  `mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/candidate_prediction.rs'`.
+  `mise run //package/git-policy/cli:native:mutation:scoped -- --file 'src/native/candidate/candidate_prediction.rs'`.
   Result: 2 mutants, 1 caught (`replace projected_scope -> ... with Ok(vec![])`, listed in `mutants.out/caught.txt`),
   1 unviable,
   0 timeouts, 0 missed; the baseline took 47 seconds to test.

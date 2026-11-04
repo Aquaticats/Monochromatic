@@ -462,7 +462,7 @@ this branch does not implement it.
 Today the path is resolved in one function and nowhere else:
 
 ```rust
-// package/git-policy/cli/src/native/scanner_selection.rs
+// package/git-policy/cli/src/native/candidate/scanner_selection.rs
 pub fn rules_source(configured: Option<&OsStr>, repository_root: &Path) -> RulesSource;
 ```
 
@@ -616,10 +616,10 @@ This branch does not edit the enum.
 
 #### The mapping
 
-`src/native/scanner_failure_code.rs` (commit `21f93b471`) holds the mapping as four pure functions:
+`src/native/candidate/scanner_failure_code.rs` (commit `21f93b471`) holds the mapping as four pure functions:
 
 ```rust
-// package/git-policy/cli/src/native/scanner_failure_code.rs
+// package/git-policy/cli/src/native/candidate/scanner_failure_code.rs
 pub fn candidate_failure_code(failure: CandidateFailure) -> EngineFailureCode;
 pub fn scanner_failure_code(failure: ScannerFailure) -> EngineFailureCode;
 pub fn scan_run_failure_code(error: &ScanRunError) -> EngineFailureCode;
@@ -720,7 +720,7 @@ and a `CacheWarning` is a warning after which the scan still runs.
 
 #### Controls by variant
 
-`src/native/scanner_failure_code_tests.rs` holds five unit tests in `scanner_failure_code::tests`.
+`src/native/candidate/scanner_failure_code_tests.rs` holds five unit tests in `scanner_failure_code::tests`.
 Every variant of every mapped type is asserted by name:
 
 - `every_candidate_failure_has_its_code`:
@@ -1225,7 +1225,7 @@ One campaign:
 ```sh
 # doc/handover/cli-git-native-candidates.md
 GIT_POLICY_NATIVE_IMAGE_TAG=candidates-merge mise run //package/git-policy/cli:native:mutation:scoped -- \
-  --file src/native/scanner_failure_code.rs --file src/native/lib.rs
+  --file src/native/candidate/scanner_failure_code.rs --file src/native/lib.rs
 ```
 
 It ran against the merged-tree gate image `8ff0051a5b9a132ffa5ef1b01347039511d7ad3098a79831116d30ff0f1919e4`,
@@ -1442,7 +1442,7 @@ No file under `package/` was edited while they ran.
 All under `git_policy_cli::`.
 
 ```rust
-// package/git-policy/cli/src/native/candidate_store.rs
+// package/git-policy/cli/src/native/candidate/candidate_store.rs
 impl CandidateStore {
     pub fn new(real_git: &Path, global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> CandidateStore;
     pub fn version(&mut self, source: &CandidateSource) -> Result<Rc<CandidateVersion>, CandidateError>;
@@ -1450,7 +1450,7 @@ impl CandidateStore {
     pub fn invalidate(&mut self);
 }
 
-// package/git-policy/cli/src/native/candidate_version.rs
+// package/git-policy/cli/src/native/candidate/candidate_version.rs
 pub enum CandidateSource { StagedAgainstHead, StagedAgainstCommit(ObjectId), Committed(ObjectId) }
 pub struct CandidateIdentity { pub generation: u64, pub index: usize }
 pub struct Candidate {
@@ -1465,7 +1465,7 @@ impl CandidateVersion {
     pub fn candidate_at_path(&self, path: &[u8]) -> Option<&Candidate>;
 }
 
-// package/git-policy/cli/src/native/scanner_adapter.rs
+// package/git-policy/cli/src/native/candidate/scanner_adapter.rs
 pub struct RulesSource { pub path: PathBuf, pub explicit: bool }
 impl CandidateScanner {
     pub fn load(rules: &RulesSource, builtin_rules: bool) -> Result<CandidateScanner, ScannerError>;
@@ -1473,12 +1473,12 @@ impl CandidateScanner {
     pub fn scan(&self, candidate: &Candidate, bytes: &[u8]) -> Result<forbidden_strings::CandidateScan, ScannerError>;
 }
 
-// package/git-policy/cli/src/native/scanner_selection.rs
+// package/git-policy/cli/src/native/candidate/scanner_selection.rs
 pub fn rules_source(configured: Option<&OsStr>, repository_root: &Path) -> RulesSource;
 pub fn rules_candidate_path(rules_path: &Path, repository_root: &Path) -> Option<Vec<u8>>;
 pub fn is_scannable(candidate: &Candidate, rules_path: Option<&[u8]>) -> bool;
 
-// package/git-policy/cli/src/native/scanner_run.rs
+// package/git-policy/cli/src/native/candidate/scanner_run.rs
 pub fn scan_version(
     scanner: &CandidateScanner,
     store: &mut CandidateStore,
@@ -1486,7 +1486,7 @@ pub fn scan_version(
     rules_path: Option<&[u8]>,
 ) -> Result<Vec<forbidden_strings::CandidateScan>, ScanRunError>;
 
-// package/git-policy/cli/src/native/scanner_failure_code.rs
+// package/git-policy/cli/src/native/candidate/scanner_failure_code.rs
 pub fn candidate_failure_code(failure: CandidateFailure) -> EngineFailureCode;
 pub fn scanner_failure_code(failure: ScannerFailure) -> EngineFailureCode;
 pub fn scan_run_failure_code(error: &ScanRunError) -> EngineFailureCode;
@@ -1618,7 +1618,7 @@ No `.ts` file and nothing under `package/cli/forbidden-strings` was edited.
   `CandidateFailure::StaleCandidate`
   and the scanner's `ScanFinding::PathnameLineBreak` finding.
   The reasons are under "Which code each failure carries";
-  a veto changes one arm of `src/native/scanner_failure_code.rs` and its control.
+  a veto changes one arm of `src/native/candidate/scanner_failure_code.rs` and its control.
 - Gitlink bytes are the submodule commit's name and deleted bytes are empty,
   as in the TypeScript wrapper,
   instead of a separate "no content" variant.
@@ -1698,7 +1698,7 @@ No `.ts` file and nothing under `package/cli/forbidden-strings` was edited.
 - Call these layers from the policy engine:
   build the `forbidden-strings` policy over `scan_version`,
   map `ScanFinding` values and cache warnings to JSONL events,
-  report failures with the codes the functions in `src/native/scanner_failure_code.rs` give,
+  report failures with the codes the functions in `src/native/candidate/scanner_failure_code.rs` give,
   and read the `rulesFile` option and the variable at the one place under "Where the rules path is resolved",
   `scanner_selection::rules_source`.
 - Install a payload-free panic hook in `main.rs` before the first scan.
