@@ -15,9 +15,8 @@ use crate::json_record::quote;
 use crate::private_storage::sync_directory;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use crate::worktree_copy_install_entry::InstalledPath;
-use crate::worktree_copy_journal::{
-    Role, assert_private_path, encode_installed_entry, installed_entry, string_array,
-};
+use crate::worktree_copy_journal::{Role, assert_private_path};
+use crate::worktree_copy_journal_encoding_and_validation::{encode_installed_entry, installed_entry, string_array};
 use crate::worktree_copy_selection::assert_safe_repository_path;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;

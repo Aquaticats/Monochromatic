@@ -22,9 +22,11 @@ use crate::worktree_add_binding::{Binding, Recorded, decode_record, planned_reco
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use crate::worktree_copy_journal::{
-    Role, TEMPORARY_SUFFIX, assert_private_path, ensure_journal_root, journal_root,
-    read_pending_journals, remove_file_if_present, remove_stage, temporary_writer_token, write_atomic, write_atomic_unsynced,
+    Role, assert_private_path, ensure_journal_root, journal_root, read_pending_journals, temporary_writer_token, write_atomic,
+    write_atomic_unsynced,
 };
+use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
+use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
 use crate::worktree_copy_stage::new_stage_container;
 use std::collections::BTreeSet;

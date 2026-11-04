@@ -17,9 +17,9 @@ use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_install::{InstallRecorder, install_snapshot};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_install_log::{InstallLog, open_install_log};
-use crate::worktree_copy_journal::{
-    Journal, PendingJournal, Phase, create_journal, remove_pending_journal, write_journal,
-};
+use crate::worktree_copy_journal::{create_journal, write_journal};
+use crate::worktree_copy_journal_encoding_and_validation::{Journal, PendingJournal, Phase};
+use crate::worktree_copy_journal_removal::remove_pending_journal;
 use crate::worktree_copy_manifest::{WorktreeCopyEntry, collect_entry_manifest};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{StagedSnapshot, stage_ignored_snapshot};

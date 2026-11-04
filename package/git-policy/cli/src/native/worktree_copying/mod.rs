@@ -43,9 +43,17 @@ pub mod worktree_copy_install;
 #[cfg(unix)]
 pub mod worktree_copy_rollback;
 
-/// The durable journal of one copy: exact encoding, strict validation, private storage and removal.
+/// The durable journal of one copy: private storage, atomic writes and reading.
 #[cfg(unix)]
 pub mod worktree_copy_journal;
+
+/// The exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
+#[cfg(unix)]
+pub mod worktree_copy_journal_encoding_and_validation;
+
+/// The removal of a finished or abandoned copy transaction's stage and journal.
+#[cfg(unix)]
+pub mod worktree_copy_journal_removal;
 
 /// The durable claim on a stage container's name, and the removal of stages an interrupted copy left behind.
 #[cfg(unix)]

@@ -17,10 +17,9 @@ use crate::worktree_copy_owner::current_copy_owner;
 use crate::worktree_copy_stage::StagedSnapshot;
 use crate::worktree_copy_stage_claim::{judge_stage_owners, reap_judged_stages, stage_claims_exist};
 use crate::worktree_copy_transaction::{Outcome, complete_journal, snapshot_from_journal};
-use crate::worktree_copy_journal::{
-    PendingJournal, Phase, Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals,
-    remove_pending_journal,
-};
+use crate::worktree_copy_journal::{Role, adopt_journal, assert_private_path, journal_owner_is_dead, read_pending_journals};
+use crate::worktree_copy_journal_encoding_and_validation::{PendingJournal, Phase};
+use crate::worktree_copy_journal_removal::remove_pending_journal;
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};

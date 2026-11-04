@@ -4,9 +4,9 @@ use super::*;
 use crate::test_support::{dead_copy_owner, fixture, git, git_context, remove, repository};
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal::{
-    Journal, adopt_journal, create_journal, create_journal_for, ensure_journal_root, journal_root, read_pending_journals,
-    write_journal,
+    adopt_journal, create_journal, create_journal_for, ensure_journal_root, journal_root, read_pending_journals, write_journal,
 };
+use crate::worktree_copy_journal_encoding_and_validation::Journal;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
 use crate::worktree_copy_stage_claim::{claim_stage, claim_stage_for, stage_claims_exist};
