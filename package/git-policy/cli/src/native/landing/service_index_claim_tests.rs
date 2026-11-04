@@ -4,7 +4,7 @@
 use super::*;
 use crate::service_fault::hooks;
 use crate::service_index_claim::{CLAIM_INFIX, claim_key, claim_path};
-use crate::service_index_marker::{LOCK_MARKER, marker_of_file, own_identity};
+use crate::service_index_marker::{LOCK_MARKER, Marked, marker_of_file, own_identity};
 use crate::service_index_placement::rename_noreplace;
 use crate::test_support::{fixture, remove};
 
@@ -412,5 +412,25 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     assert!(holders.borrow().is_empty(), "a claimed stale lock is no dead holder to give up on: {:?}", holders.borrow());
     drop(taken);
     other.join().expect("the other reclaimer ends");
+    remove(root.as_path());
+}
+
+/// The longest file name Linux gives a directory entry.
+const NAME_LIMIT: usize = 255;
+
+/// Allowed: the claim file of a real identity (start tick, boot, namespace and machine) beside a lock with a long name stays within
+///  the limit of a file name, so a claim can be placed beside the lock of an alternate index with a long name.
+#[test]
+fn a_claim_name_for_a_real_identity_fits_beside_a_long_lock_name() {
+    let identity: String = own_identity().expect("an identity");
+    let marked = Marked { seq: u64::MAX, holder: Some((i64::from(i32::MAX), identity)) };
+    let root: PathBuf = fixture("claim-long-name");
+    let file_name: String = "i".repeat(40) + ".lock";
+    let lock: PathBuf = root.join(file_name);
+    std::fs::write(&lock, "x").expect("a file");
+    let key: String = claim_key(&std::fs::File::open(&lock).expect("open"), &marked).expect("a key");
+    let claim: PathBuf = claim_path(&lock, key.as_str(), usize::MAX);
+    let length: usize = claim.file_name().expect("a name").len();
+    assert!(length <= NAME_LIMIT, "the claim name is {length} bytes: {claim:?}");
     remove(root.as_path());
 }

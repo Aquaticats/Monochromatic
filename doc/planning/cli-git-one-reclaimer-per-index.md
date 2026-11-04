@@ -203,7 +203,7 @@ needs no `flock` at all.
 Used only when the `flock` on the stale file answers that the file system gives none (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`,
 `EBADF`). `EWOULDBLOCK`, `EINTR` and `ENOMEM` are back-offs, and any other error is `Unguarded` (see the cross-vendor review below).
 All claims are files beside the lock, named `<lock>.cli-reclaim-<key>-<slot>`, with a key made from the stale lock's marker (batch,
-process, birth identity in hexadecimal) and a slot number counted from zero. The first design keyed on the device and inode of the
+process, birth identity with the bytes a file name cannot hold escaped, which keeps the name within the limit of a file name beside a long lock name) and a slot number counted from zero. The first design keyed on the device and inode of the
 stale file; the review found that two mounts of one remote tree can give one file different device numbers, so two reclaimers would
 place at different names. The marker is the file's own content, the process it names is gone and places no further lock with that
 marker, and so no later lock carries the key.

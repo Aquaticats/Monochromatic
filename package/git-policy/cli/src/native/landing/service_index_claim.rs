@@ -104,18 +104,20 @@ pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
 ///   Every reclaimer of one stale lock must derive the same name, whichever way it reached the file: the device number of one
 ///  remote tree can differ between two mounts of it, but the marker is the file's own content. The process the marker names is
 ///  gone, and a gone process places no further lock with that marker, so no later lock carries the key and a claim left under
-///  it is inert. The birth identity is written in hexadecimal so that two different identities never share a name. A marker
+///  it is inert. The birth identity is written as it is, with the bytes a file name cannot hold escaped, so that two different identities never share a name. A marker
 ///  that names no process (an earlier release's) falls back to the device and inode of the open file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${seq.toString(16)}-${pid.toString(16)}-${hex(birth)}`
+/// `${seq.toString(16)}-${pid.toString(16)}-${escape(birth)}`
 /// ```
 pub fn claim_key(stale: &std::fs::File, marked: &Marked) -> std::io::Result<String> {
     return match marked.holder.as_ref() {
         Some((pid, birth)) => {
-            let hex: String = birth.bytes().map(|byte| { return format!("{byte:02x}"); }).collect();
-            Ok(format!("{:x}-{pid:x}-{hex}", marked.seq))
+            // Only the bytes a file name cannot hold (`/`, NUL) and the escape itself are written as `%` and two hexadecimal digits, so two
+            //  different identities never share a name and the name stays short.
+            let escaped: String = birth.bytes().map(|byte| { return if matches!(byte, b'/' | 0 | b'%') { format!("%{byte:02x}") } else { String::from(char::from(byte)) }; }).collect();
+            Ok(format!("{:x}-{pid:x}-{escaped}", marked.seq))
         }
         None => {
             let identity = stale.metadata()?;
