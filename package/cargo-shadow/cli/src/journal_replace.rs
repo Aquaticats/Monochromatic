@@ -754,15 +754,24 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> Result
                     // ```ts
                     // list.map(f).filter(g)
                     // ```
-                    // Every directory entry on the way from the kept file to the root of the file system is made durable, by the
-                    // resolved path. The directory that holds the replaced file is not a durable anchor just because the file
-                    // is there: its own entry in its parent may not be durable (round 7, 6b 1). A resolved path is absolute, so
-                    // the walk ends at the root by construction, and it fails instead of finishing short when the path cannot be
-                    // resolved.
-                    let resolved: PathBuf = fs::canonicalize(&directory).map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
-                    for synced in resolved.ancestors() {
-                        (ops.sync_dir)(synced).map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
-                    }
+                    // Every directory entry on the way from the kept file up to the root of its file system is made durable, by the
+                    // resolved path: the mount root is the durable anchor, because an entry above it belongs to another file
+                    // system and an fsync there commits nothing of ours. The directory that holds the replaced file is not an
+                    // anchor just because the file is there: its own entry in its parent may not be durable (round 7, 6b 1).
+                    // The walk fails instead of finishing short when the path or a parent cannot be examined.
+                    let durable_up_to_the_mount_root = || -> io::Result<()> {
+                        let resolved: PathBuf = fs::canonicalize(&directory)?;
+                        let device: u64 = fs::metadata(&resolved)?.dev();
+                        for synced in resolved.ancestors() {
+                            (ops.sync_dir)(synced)?;
+                            match synced.parent() {
+                                Some(parent) if fs::metadata(parent)?.dev() == device => {}
+                                _ => break,
+                            }
+                        }
+                        return Ok(());
+                    };
+                    durable_up_to_the_mount_root().map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
                     return Ok(candidate);
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,

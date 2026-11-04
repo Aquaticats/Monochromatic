@@ -621,6 +621,9 @@ impl Transaction {
     /// The owner's rule is "Force at leaving":
     /// the lockfiles and manifests the run leaves are on disk before the snapshots that
     /// could undo them go.
+    /// "Else background" has no background carrier in a command that exits,
+    /// so this barrier forces what must be durable and nothing else is synced
+    /// (the coordinator's pick of round 7 under the owner's delegation, veto open).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

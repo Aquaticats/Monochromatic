@@ -70,8 +70,8 @@ fn a_host_without_a_control_group_runs_the_command_in_a_process_group_and_record
     let journal = journal_dirs(root.path()).into_iter().next().expect("a journal");
     let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
     let lines: Vec<&str> = record.lines().collect();
-    assert_eq!(lines.len(), 1, "{record:?}");
-    assert!(matches!(parse_record(lines[0]), Ok(Record::ProcessGroup(_))), "{record:?}");
+    assert_eq!(lines.len(), 2, "{record:?}");
+    assert!(matches!(parse_record(lines[1]), Ok(Record::ProcessGroup(_))), "{record:?}");
     drop(transaction);
 }
 
@@ -134,4 +134,55 @@ fn a_recovery_removes_the_empty_control_group_a_killed_run_recorded() {
     let messages: Vec<String> = recover(root.path(), &refusing);
 
     assert!(!made.group.directory().exists(), "the empty group was left behind: {messages:?}");
+}
+
+/// Advisor finding on the weaker path (the shape of 6b2 2):
+/// a wrapper killed after announcing a child and before recording its process group
+/// leaves a journal that a recovery must read as a possible survivor.
+#[test]
+fn a_started_child_whose_process_group_was_never_recorded_is_a_possible_survivor() {
+    let root = repository("original");
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal = journal_dirs(root.path()).into_iter().next().expect("a journal");
+    fs::write(journal.join("groups"), "pgroup starting\n").expect("the announcement");
+    drop(transaction);
+
+    let note = crate::journal_recover::survivor_note(&journal);
+
+    assert!(note.is_some(), "a recovery would restore files a child may still be writing");
+}
+
+/// The announcement is followed by the process group in a run that finished the record,
+/// and the pair is no survivor once the group is gone.
+#[test]
+fn an_announced_child_whose_group_is_recorded_and_gone_is_no_survivor() {
+    let root = repository("original");
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal = journal_dirs(root.path()).into_iter().next().expect("a journal");
+    let gone: i32 = i32::MAX;
+    fs::write(journal.join("groups"), format!("pgroup starting\npgroup {gone}\n")).expect("the pair");
+    drop(transaction);
+
+    let note = crate::journal_recover::survivor_note(&journal);
+
+    assert_eq!(note, None);
+}
+
+/// A run in the weaker path writes the announcement first and the group second.
+#[test]
+fn the_weaker_path_announces_before_it_records_the_group() {
+    let plain = scratch();
+    use_group_parent_for_test(Some(plain.path().to_path_buf()));
+    let root = repository("original");
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+
+    let result = output_within(&mut Command::new("true"), None, &bound());
+    use_group_parent_for_test(None);
+
+    result.expect("runs");
+    let journal = journal_dirs(root.path()).into_iter().next().expect("a journal");
+    let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
+    let kinds: Vec<Record> = record.lines().map(|line| { return parse_record(line).expect("a record"); }).collect();
+    assert!(matches!(kinds.as_slice(), [Record::ProcessGroupStarting, Record::ProcessGroup(_)]), "{record:?}");
+    drop(transaction);
 }

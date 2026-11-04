@@ -201,6 +201,8 @@ pub(crate) fn survivor_note(directory: &Path) -> Option<String> {
             ));
         }
     };
+    // A "starting" line of the weaker path that no process group line follows: a child may run that no record names.
+    let mut announced_without_group: bool = false;
     for line in text.lines() {
         match parse_record(line) {
             Err(reason) => {
@@ -225,7 +227,9 @@ pub(crate) fn survivor_note(directory: &Path) -> Option<String> {
                     ));
                 }
             },
+            Ok(Record::ProcessGroupStarting) => announced_without_group = true,
             Ok(Record::ProcessGroup(leader)) => {
+                announced_without_group = false;
                 // The weaker path: only the recorded process group can be asked; a descendant that left it cannot be found.
                 let alive: bool = match Pid::from_raw(leader).map(test_kill_process_group) {
                     Some(Ok(())) => true,
@@ -240,6 +244,12 @@ pub(crate) fn survivor_note(directory: &Path) -> Option<String> {
                 }
             }
         }
+    }
+    if announced_without_group {
+        return Some(format!(
+            "{}: the killed run announced a child (the weaker path, no control group) and never recorded its process group, so that child may still be writing; {remedy}",
+            directory.display()
+        ));
     }
     return None;
 }

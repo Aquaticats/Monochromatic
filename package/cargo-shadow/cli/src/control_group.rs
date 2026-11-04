@@ -137,6 +137,10 @@ pub(crate) enum Record {
         /// The leader's process id, which is the group's number.
         i32,
     ),
+    /// The weaker path is about to start a child whose process group is not known yet;
+    /// the line that follows it names the group.
+    /// A killed wrapper that leaves this line alone may have a running child that no record names.
+    ProcessGroupStarting,
 }
 
 /// What a recovery learns about a recorded group.
@@ -530,6 +534,7 @@ impl fmt::Display for Record {
         return match self {
             Record::Group { id, namespace, path } => write!(formatter, "cgroup {id} {namespace} {}", path.display()),
             Record::ProcessGroup(leader) => write!(formatter, "pgroup {leader}"),
+            Record::ProcessGroupStarting => write!(formatter, "pgroup starting"),
         };
     }
 }
@@ -544,6 +549,9 @@ impl fmt::Display for Record {
 /// export function parseRecord(line: string): Record  // throws the reason
 /// ```
 pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
+    if line == "pgroup starting" {
+        return Ok(Record::ProcessGroupStarting);
+    }
     if let Some(rest) = line.strip_prefix("pgroup ") {
         let leader: i32 = rest.trim().parse::<i32>().map_err(|error| { return format!("{line:?} is not a process group ({error})"); })?;
         if leader <= 0 {

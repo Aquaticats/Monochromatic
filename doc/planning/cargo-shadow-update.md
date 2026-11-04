@@ -579,6 +579,16 @@ Two ways, and when each applies:
 Result: the writable child of the own group is built; where `mkdir` or the later checks fail (not cgroup2, not writable,
 no `cgroup.kill`), cargo-shadow takes the weaker path with a one-line notice (below).
 
+**systemd's own rule makes the built way unsupported where the own group is not delegated.**
+<https://systemd.io/CGROUP_DELEGATION/> (fetched 2026-11-04) says: "Never create your own cgroups below arbitrary cgroups systemd
+manages, i.e cgroups you haven't set `Delegate=` in", and "each cgroup only has a single writer, i.e. a single process managing it".
+The group a shell, a terminal or a harness scope runs in is such a cgroup unless its unit has `Delegate=`, so the child group
+this tool makes there works on this host (every probe above) but is not what systemd supports; what systemd does with an
+unknown child group of a non-delegated unit (a trim when the unit stops, a change of controllers) was not probed.
+The supported way is the second one: a transient scope with `Delegate=yes`, 7.0 ms median to start, which is where the
+coordinator may want the default to move; it is not built in round 7 because it needs the scope's path before the command starts
+(`--unit=<name>` gives a predictable one) and a gate between the scope and the command, and it needs the user manager.
+
 ### Probe 2: does `cgroup.events` report `populated 0` once every member is gone?
 
 - After `cgroup.kill` on a group with an ordinary member, `populated 0` was reported within 5 ms and `cgroup.procs` was empty.
@@ -684,9 +694,14 @@ tests is `939dcb31d1`: eleven failed, and the churn test, which needs a lucky sc
   survivors (`survivor_note`).
 - 6a R3 (an ownership heuristic): `a_grandchild_adopted_during_the_run_that_the_run_did_not_start_survives` and
   `a_subprocess_another_thread_starts_during_the_run_survives`; the group is the run's own, nothing else is signalled.
-- 6b 1 (the directory-entry sync): `every_ancestor_of_the_kept_directory_is_synced_up_to_the_filesystem_root` and
-  `a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path`; the walk is over the resolved absolute path to `/`,
+- 6b 1 (the directory-entry sync): `every_ancestor_of_the_kept_directory_is_synced_up_to_the_mount_root` and
+  `a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path`; the walk is over the resolved absolute path up to the mount root,
   so it cannot end short, and a path that cannot be resolved fails the preservation.
+  The walk stops at the mount root of the kept directory's file system (the first parent on another device), because an entry above
+  it belongs to another file system (on this host the scratch root is on its own file system, `/` is a read-only composefs overlay
+  on another device, and both `/home/user` and `/var/home/user` are mode 750 and owned by the user); an ancestor the user cannot
+  open for reading, such as a shared directory of mode 711, fails the preservation as "kept but not made durable" and is a
+  limit of this design.
   Not tested: a relative kept directory (resolving it needs the process's working directory, which a test cannot change safely
   while others run) and a power-loss model.
 - 6b2 1 (survivor discovery that fails open): `a_journal_listing_that_fails_stops_the_recovery` and
@@ -738,4 +753,7 @@ What the new design does not do, so a later review does not read it as done:
   which a recovery finds as a survivor, or nothing. Not tested (the window is about a millisecond).
 - Login sessions (root-owned group) take the weaker path; a transient user scope is the second way to a group and is queued.
 - Journal retention of `groups` lines grows by one line per run; the lines are removed with the journal.
-- The weaker path records the process group after the child starts (the child can run for a moment before the record is durable).
+- The weaker path writes "pgroup starting" before the child starts and the process group after (an advisor finding of round 7: the
+  first form recorded only after the start and left a window in which a killed wrapper's child had no record); a journal with the
+  first line alone is a possible survivor (`a_started_child_whose_process_group_was_never_recorded_is_a_possible_survivor`).
+- The tests that need the thread-leader fixture compile a small C file with `cc`.

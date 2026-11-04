@@ -661,8 +661,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   deliberately moves itself out. A cgroup namespace closer is not built and is the owner's decision.
   Where no group can be had (the own group is owned by someone else, as a login session's is, or there is no cgroup v2, or the
   kernel is older than 5.14), the run goes on in a process group of its own, prints one line naming the missing capability, and
-  claims no quiescence for what leaves the process group; the journal records the process group, and a recovery only asks that
-  group (the weaker path, the coordinator's pick of round 7, open to the owner's veto).
+  claims no quiescence for what leaves the process group; the journal records "pgroup starting" before the child starts and its
+  process group after, a recovery that finds the first line alone treats the run as one that may have a child, and a recovery only
+  asks the recorded group (the weaker path, the coordinator's pick of round 7, open to the owner's veto).
   A trivial run (`true`, debug build, 39 runs after one warm-up) took 6.8 ms at the median with a control group and 6.4 ms in the
   weaker path, because the wait for the child ends at its exit through a pidfd instead of a 10 ms sleep.
   Every run keeps a journal under `.cache/cargo-shadow/journal/<unique name>/`,
@@ -698,11 +699,13 @@ and an HTTP 429 is retried after its `Retry-After`.
   Data is synced before it is relied on:
   the displaced file (a failed data barrier is an error,
   never a settled outcome),
-  every directory from the resolved kept directory up to the root of the file system,
+  every directory from the resolved kept directory up to the root of its file system (the mount root),
   every time a file is linked into it
   (round 7: the directory that holds the replaced file is not a durable anchor just because the file is there, since its own
   entry in its parent may not be durable; the path is resolved first, so a symbolic link and a relative path name the directories
-  that really hold the entries).
+  that really hold the entries; an entry above the mount root belongs to another file system, and the walk stops there; an
+  ancestor on the way that the user cannot open for reading, such as a shared directory of mode 711, makes the preservation fail
+  as "kept but not made durable" instead of finishing short).
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
   The kept directory is never capped and never emptied by the tool.
   Owner answer of round 6,

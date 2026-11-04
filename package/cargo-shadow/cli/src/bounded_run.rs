@@ -743,6 +743,13 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
                 state.process_group_only.set(true);
             }
             command.process_group(0);
+            // The child's group is its process id, known only after the spawn: a "starting" line is durable before it, so a
+            // wrapper killed in between is seen by a recovery as one that may have a child running (round 7, advisor).
+            if let Some(state) = scope {
+                append_record(&state.log, &Record::ProcessGroupStarting).map_err(|error| {
+                    return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose process group cannot be announced is not started)")));
+                })?;
+            }
             let mut child: Child = command.spawn().map_err(RunError::Io)?;
             let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
             if let Some(state) = scope

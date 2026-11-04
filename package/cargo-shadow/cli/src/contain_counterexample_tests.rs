@@ -107,7 +107,7 @@ pub(crate) fn compile_leader(directory: &Path) -> PathBuf {
     let source: PathBuf = directory.join("leader.c");
     let program: PathBuf = directory.join("leader");
     fs::write(&source, LEADER_SOURCE).expect("write the C source");
-    let status = Command::new("cc").arg("-pthread").arg("-o").arg(&program).arg(&source).status().expect("a C compiler (cc) is needed by this test");
+    let status = Command::new("cc").arg("-pthread").arg("-o").arg(&program).arg(&source).status().expect("a C compiler named cc must be on PATH: the tests that need a process whose first thread ends while another lives compile a small C fixture");
     assert!(status.success(), "the C fixture did not compile");
     return program;
 }

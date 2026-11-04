@@ -895,10 +895,10 @@ fn a_failed_data_sync_of_the_displaced_file_is_an_error_naming_where_it_stays() 
 /// also when it existed.
 /// Round 6 (5b 1), replaced in round 7 (6b 1):
 /// a directory that holds the replaced file is not shown durable by that fact (its own entry in its parent may not be),
-/// so the entries of the kept directory are made durable all the way to the root of the file system,
-/// by the resolved path.
+/// so the entries of the kept directory are made durable up to the root of their file system (the mount root),
+/// by the resolved path, and not beyond it.
 #[test]
-fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_filesystem_root() {
+fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_mount_root() {
     let root = repository("expected");
     let path = root.path().join(CRATE_DIR).join("Cargo.lock");
     let kept_dir = root.path().join("a").join("b").join("c").join("d");
@@ -910,10 +910,16 @@ fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_filesystem_root() {
 
     let calls = synced.borrow();
     let resolved: PathBuf = fs::canonicalize(&kept_dir).expect("the kept directory resolves");
+    let device: u64 = fs::metadata(&resolved).expect("examines").dev();
+    let mut reached_mount_root: bool = false;
     for ancestor in resolved.ancestors() {
-        assert!(calls.contains(&ancestor.to_path_buf()), "{} was not synced: {calls:?}", ancestor.display());
+        let same_file_system: bool = fs::metadata(ancestor).expect("examines").dev() == device;
+        assert_eq!(calls.contains(&ancestor.to_path_buf()), same_file_system, "{} was synced or left out wrongly: {calls:?}", ancestor.display());
+        if same_file_system {
+            reached_mount_root = ancestor.parent().is_none_or(|parent| { return fs::metadata(parent).map(|found| { return found.dev() != device; }).unwrap_or(true); });
+        }
     }
-    assert!(calls.contains(&PathBuf::from("/")), "the root of the file system was never reached: {calls:?}");
+    assert!(reached_mount_root, "the walk ended short of the mount root: {calls:?}");
 }
 
 /// Round 7 (6b 1):
