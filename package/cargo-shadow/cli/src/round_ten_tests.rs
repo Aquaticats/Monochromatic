@@ -11,12 +11,13 @@
 //! ```
 
 use std::fs;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command, Stdio};
 use std::rc::Rc;
 
 use crate::cgroup_test_support::{delegated_route, start_in_scope};
-use crate::control_group::{ControlGroup, Route, View, view_of};
+use crate::control_group::{ControlGroup, Identity, Route, current_identity, read_current_identity, use_identity_for_test, view_of};
 use crate::crates::LockSnapshot;
 use crate::journal::recover;
 use crate::journal_recover::survivor_note;
@@ -123,6 +124,94 @@ fn a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run
     assert!(blocked.contains("did not record its end"), "{blocked}");
 }
 
-/// The view of a path is not used here; this keeps the import of `View` honest for the tests added next.
-#[allow(dead_code)]
-fn unused_view(_view: View) {}
+/// A process in a process group of its own, which is alive until the test kills it.
+fn live_group() -> Child {
+    return Command::new("sleep").arg("600").process_group(0).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a live group");
+}
+
+/// This machine's identity with its boot id changed in one hexadecimal digit, as a real reboot would change it.
+fn after_a_reboot() -> Identity {
+    let now: Identity = current_identity().expect("this machine has an identity");
+    let mut boot: Vec<u8> = now.boot.into_bytes();
+    boot[0] = if boot[0] == b'0' { b'1' } else { b'0' };
+    return Identity { boot: String::from_utf8(boot).expect("ascii"), machine: now.machine };
+}
+
+/// Rewrites the identity lines of the journal's view record and keeps its first line.
+fn set_identity_lines(journal: &Path, lines: &str) {
+    let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
+    let first: &str = recorded.lines().next().expect("a view line");
+    fs::write(journal.join("view"), format!("{first}\n{lines}")).expect("rewrite the view");
+}
+
+/// Acceptance rows V2 and the weaker path (9a D2, recorded side):
+/// a recorded boot or machine field that is not in the format of an id is not a different boot,
+/// a repeated field or an unknown line makes the record unusable, and each of them keeps a live process group blocking.
+/// The control is a well-formed record of another boot, which does clear it (so the probe can move).
+#[test]
+fn a_malformed_recorded_identity_is_not_a_reboot() {
+    let root = repository();
+    let mut group = live_group();
+    let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
+    let now: Identity = current_identity().expect("an identity");
+    let other: Identity = after_a_reboot();
+    let boot_line = |boot: &str| -> String { return format!("boot {boot}\nmachine {}\n", now.machine); };
+    let cases: Vec<(&str, String)> = vec![
+        ("a boot field that is not an id", boot_line("not-a-boot-id")),
+        ("an upper-case boot id", boot_line(&other.boot.to_uppercase())),
+        ("a boot id with a trailing space", boot_line(&format!("{} ", other.boot))),
+        ("an all-zero boot id", boot_line("00000000-0000-0000-0000-000000000000")),
+        ("a machine field that is not an id", format!("boot {}\nmachine not-a-machine-id\n", other.boot)),
+        ("a repeated boot field", format!("boot {}\nboot {}\nmachine {}\n", other.boot, now.boot, now.machine)),
+        ("a repeated machine field", format!("boot {}\nmachine {}\nmachine {}\n", other.boot, now.machine, now.machine)),
+        ("an unknown line", format!("boot {}\nmachine {}\nthree {}\n", other.boot, now.machine, now.machine)),
+    ];
+    for (label, lines) in &cases {
+        set_identity_lines(&journal, lines);
+        let note: Option<String> = survivor_note(&journal);
+        assert!(note.is_some_and(|text| { return text.contains("still running"); }), "{label}: a malformed identity cleared a live process group");
+    }
+    // The record says another boot than the one running now: the machine is the same, so a reboot ended the group.
+    set_identity_lines(&journal, &boot_line(&other.boot));
+    let cleared: Option<String> = survivor_note(&journal);
+    let _ = group.kill();
+    let _ = group.wait();
+    assert_eq!(cleared, None, "the control: a well-formed record of another boot did not clear the group, so the probe cannot move");
+}
+
+/// Acceptance rows V2 and the weaker path (9a D2, current side):
+/// a current identity that is not well formed disables the shortcut instead of showing a reboot.
+#[test]
+fn a_malformed_current_identity_is_not_a_reboot() {
+    let root = repository();
+    let mut group = live_group();
+    let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
+    let now: Identity = current_identity().expect("an identity");
+    let cases: Vec<(&str, Identity)> = vec![
+        ("a current boot field that is not an id", Identity { boot: "not-a-boot-id".to_string(), machine: now.machine.clone() }),
+        ("a current machine field that is not an id", Identity { boot: after_a_reboot().boot, machine: "not-a-machine-id".to_string() }),
+    ];
+    for (label, identity) in cases {
+        use_identity_for_test(Some(Ok(identity)));
+        let note: Option<String> = survivor_note(&journal);
+        use_identity_for_test(None);
+        assert!(note.is_some_and(|text| { return text.contains("still running"); }), "{label}: cleared a live process group");
+    }
+    let _ = group.kill();
+    let _ = group.wait();
+}
+
+/// The files the current identity is read from must have the format of an id (9a D2): each malformed file is an error.
+#[test]
+fn the_current_identity_is_read_strictly_from_its_files() {
+    let directory = scratch();
+    let machine: PathBuf = directory.path().join("machine-id");
+    let real_boot: &Path = Path::new(crate::control_group::BOOT_ID_PATH);
+    for (label, text) in [("empty", ""), ("too short", "abcdef\n"), ("upper case", "ABCDEF0123456789ABCDEF0123456789\n"), ("a UUID with hyphens", "0123456789abcdef-0123456789abcdef\n"), ("all zero", "00000000000000000000000000000000\n")] {
+        fs::write(&machine, text).expect("write");
+        assert!(read_current_identity(real_boot, &machine).is_err(), "{label}: accepted as a machine id");
+    }
+    fs::write(&machine, "0123456789abcdef0123456789abcdef\n").expect("write");
+    let read: Identity = read_current_identity(real_boot, &machine).expect("a well-formed machine id and this host's boot id");
+    assert_eq!(read.machine, "0123456789abcdef0123456789abcdef");
+}

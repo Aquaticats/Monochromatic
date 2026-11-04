@@ -282,9 +282,64 @@ pub(crate) fn use_identity_for_test(identity: Option<Result<Identity, String>>) 
 }
 
 /// What:
+/// `fn is_hex_id(text: &str, groups: &[usize]) -> bool` says whether `text` is lowercase hexadecimal in groups of exactly the given
+/// lengths, separated by single hyphens, and not all zero.
+/// Why:
+/// The kernel writes the boot id as a lowercase `8-4-4-4-12` UUID, and the machine id is 32 lowercase hexadecimal digits
+/// (the same formats systemd reads: `ID128_FORMAT_UUID` and plain);
+/// anything else is not an identity, and a text that is not one cannot show that a boot or a machine differs (round 10, 9a D2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isHexId(text: string, groups: number[]): boolean
+/// ```
+fn is_hex_id(text: &str, groups: &[usize]) -> bool {
+    let parts: Vec<&str> = text.split('-').collect();
+    if parts.len() != groups.len() {
+        return false;
+    }
+    let shaped: bool = parts.iter().zip(groups.iter()).all(|(part, length)| { return part.len() == *length && part.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); }); });
+    return shaped && text.bytes().any(|byte| { return byte != b'0' && byte != b'-'; });
+}
+
+/// The group lengths of the boot id (`8-4-4-4-12`).
+const BOOT_ID_GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
+
+/// The group length of the machine id (one run of 32 digits).
+const MACHINE_ID_GROUPS: [usize; 1] = [32];
+
+/// The kernel file that holds the boot id.
+pub(crate) const BOOT_ID_PATH: &str = "/proc/sys/kernel/random/boot_id";
+
+/// The file system type number of procfs (`PROC_SUPER_MAGIC`), from `statfs(2)`.
+const PROC_MAGIC: u64 = 0x9fa0;
+
+/// The machine id file.
+const MACHINE_ID_PATH: &str = "/etc/machine-id";
+
+/// The methods of the type above.
+impl Identity {
+    /// What:
+    /// `pub(crate) fn is_well_formed(&self) -> bool` says whether both ids have the format of a boot id and a machine id.
+    /// Why:
+    /// A malformed id differs from every real one and would read as a reboot or as another machine (9a D2);
+    /// the check applies to the recorded and to the current identity alike.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// isWellFormed(): boolean
+    /// ```
+    pub(crate) fn is_well_formed(&self) -> bool {
+        return is_hex_id(&self.boot, &BOOT_ID_GROUPS) && is_hex_id(&self.machine, &MACHINE_ID_GROUPS);
+    }
+}
+
+/// What:
 /// `pub(crate) fn read_identity_text(text: &str) -> Option<Identity>` reads the `boot` and `machine` lines of a journal's view record.
 /// Why:
-/// A missing or malformed identity is uncertainty, never a match.
+/// A missing, repeated, unknown or malformed identity is uncertainty, never a match and never a different boot (round 10, 9a D2):
+/// the record is the first line `view <mount>:<inode>`, then exactly one `boot <id>` and one `machine <id>`, each line exactly in
+/// that form with a well-formed id.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -307,10 +362,63 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
 }
 
 /// What:
+/// `pub(crate) fn boot_id_authority(path: &Path) -> Result<(), String>` checks that the file is the kernel's own boot id file and
+/// not a file put over it.
+/// Why:
+/// A bind mount can replace `/proc/sys/kernel/random/boot_id` without a reboot (measured in a disposable user and mount namespace on
+/// 2026-11-04T09:20-05:00), and `systemd-nspawn` does it on purpose to give each container its own id
+/// (`src/nspawn/nspawn.c`, `setup_boot_id`).
+/// The kernel serves the file from procfs; a file of another file system, or a file that is itself the root of a mount
+/// (`STATX_ATTR_MOUNT_ROOT`), is a replacement.
+/// A kernel that does not say whether the file is a mount root is an error, not a pass (round 10, 9a section 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function bootIdAuthority(path: string): void  // throws the reason
+/// ```
+pub(crate) fn boot_id_authority(path: &Path) -> Result<(), String> {
+    let found = rustix::fs::statfs(path).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
+    if u64::try_from(found.f_type).unwrap_or(0) != PROC_MAGIC {
+        return Err(format!("{} is not served by procfs, so it may be a file put over the kernel's", path.display()));
+    }
+    let attributes = statx(CWD, path, AtFlags::empty(), StatxFlags::TYPE).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
+    if !attributes.stx_attributes_mask.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
+        return Err("the kernel does not say whether the boot id file is the root of a mount".to_string());
+    }
+    if attributes.stx_attributes.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
+        return Err(format!("{} is the root of a mount of its own, so it was put over the kernel's file", path.display()));
+    }
+    return Ok(());
+}
+
+/// What:
+/// `pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Result<Identity, String>` reads and validates the
+/// boot id and the machine id from the given files.
+/// Why:
+/// The boot file must pass the authority check and both ids must have their format; the paths are parameters so a test can show
+/// each refusal on a file it controls.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function readCurrentIdentity(bootPath: string, machinePath: string): Identity  // throws the reason
+/// ```
+pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Result<Identity, String> {
+    boot_id_authority(boot_path)?;
+    let single_line = |text: String| -> String { return text.strip_suffix('\n').unwrap_or(&text).to_string(); };
+    let boot: String = single_line(fs::read_to_string(boot_path).map_err(|error| { return format!("the boot id cannot be read ({error})"); })?);
+    let machine: String = single_line(fs::read_to_string(machine_path).map_err(|error| { return format!("the machine id cannot be read ({error})"); })?);
+    let identity: Identity = Identity { boot, machine };
+    if !identity.is_well_formed() {
+        return Err("the boot id or the machine id is empty or not in the format of an id".to_string());
+    }
+    return Ok(identity);
+}
+
+/// What:
 /// `pub(crate) fn current_identity() -> Result<Identity, String>` reads the boot id and the machine id of this system.
 /// Why:
 /// Both are recorded with a journal, so a recovery can tell a reboot of the same machine from another machine.
-/// Either unreadable is an error, and the caller keeps the refusal.
+/// Either unreadable, malformed, or not the kernel's own (`boot_id_authority`) is an error, and the caller keeps the refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -321,12 +429,7 @@ pub(crate) fn current_identity() -> Result<Identity, String> {
     if let Some(chosen) = IDENTITY_OVERRIDE.with(|slot| { return slot.borrow().clone(); }) {
         return chosen;
     }
-    let boot: String = fs::read_to_string("/proc/sys/kernel/random/boot_id").map_err(|error| { return format!("the boot id cannot be read ({error})"); })?.trim().to_string();
-    let machine: String = fs::read_to_string("/etc/machine-id").map_err(|error| { return format!("the machine id cannot be read ({error})"); })?.trim().to_string();
-    if boot.is_empty() || machine.is_empty() {
-        return Err("the boot id or the machine id is empty".to_string());
-    }
-    return Ok(Identity { boot, machine });
+    return read_current_identity(Path::new(BOOT_ID_PATH), Path::new(MACHINE_ID_PATH));
 }
 
 /// What:

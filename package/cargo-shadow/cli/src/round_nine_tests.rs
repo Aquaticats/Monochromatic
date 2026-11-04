@@ -314,7 +314,14 @@ fn an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses
 /// The identity this test pretends to have after a reboot of the same machine.
 fn after_a_reboot() -> Identity {
     let now: Identity = current_identity().expect("this machine has an identity");
-    return Identity { boot: format!("{}-after-a-reboot", now.boot), machine: now.machine };
+    return Identity { boot: with_first_digit_changed(&now.boot), machine: now.machine };
+}
+
+/// An id of the same format whose first digit differs (round 10, 9a D2: the identity must stay well formed to count).
+fn with_first_digit_changed(id: &str) -> String {
+    let mut bytes: Vec<u8> = id.as_bytes().to_vec();
+    bytes[0] = if bytes[0] == b'0' { b'1' } else { b'0' };
+    return String::from_utf8(bytes).expect("ascii");
 }
 
 /// Contract assumption c, the boot identity:
@@ -345,7 +352,7 @@ fn another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_r
     let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\npgroup 2147483646\n");
     let now: Identity = current_identity().expect("an identity");
     let cases: Vec<(&str, Option<Result<Identity, String>>)> = vec![
-        ("another machine", Some(Ok(Identity { boot: format!("{}-other", now.boot), machine: format!("{}-other", now.machine) }))),
+        ("another machine", Some(Ok(Identity { boot: with_first_digit_changed(&now.boot), machine: with_first_digit_changed(&now.machine) }))),
         ("an unreadable identity", Some(Err("the boot id cannot be read".to_string()))),
         ("the same boot (suspend and resume)", None),
     ];
