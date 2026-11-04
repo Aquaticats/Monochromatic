@@ -572,7 +572,9 @@ fn recovery_defers_while_a_live_transaction_holds_the_workspace() {
     // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
     // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    // The live transaction is still held when the recovery must answer (certification group 1: a busy lock returns at once).
+    let path: PathBuf = root.path().to_path_buf();
+    let messages = crate::round_sixteen_tests::answers_within("the recovery", std::time::Duration::from_secs(3), move || { return recover(&path, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; }); });
 
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.

@@ -203,10 +203,15 @@ fn acknowledging_while_a_transaction_holds_the_workspace_is_refused() {
     let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
     let _held = crate::journal_transaction::take_workspace(root.path()).expect("tries").expect("takes the lock");
 
-    let refused = acknowledge(&journal);
+    // The holder is still held when the answer must come, and it is released only afterwards (certification group 1).
+    let target: PathBuf = journal.clone();
+    let refused = crate::round_sixteen_tests::answers_within("the acknowledgement", Duration::from_secs(3), move || { return acknowledge(&target); });
 
-    assert!(refused.is_err(), "{refused:?}");
+    assert!(refused.as_ref().is_err_and(|text| { return text.contains("another cargo-shadow run") || text.contains("nothing was acknowledged"); }), "{refused:?}");
     assert!(!journal.join("acknowledged").exists());
+    drop(_held);
+    acknowledge(&journal).expect("the control: with the lock free the same acknowledgement works");
+    assert!(journal.join("acknowledged").exists());
 }
 
 /// Acceptance row "Weaker path":

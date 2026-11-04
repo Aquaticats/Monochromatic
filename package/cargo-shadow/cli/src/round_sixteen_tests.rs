@@ -29,6 +29,15 @@ fn bound(limit: Duration) -> Bound {
     return Bound { limit, what: "the contained command".to_string(), rerun: "contained-command".to_string() };
 }
 
+/// Runs `work` on a thread and requires its answer within `window` while the caller still holds whatever the work contends for.
+/// A contender that waits for the holder would answer only after the caller released it, which this observation never does before the
+/// answer (certification group 1, V6: a busy lock returns at once).
+pub(crate) fn answers_within<T: Send + 'static>(what: &str, window: Duration, work: impl FnOnce() -> T + Send + 'static) -> T {
+    let (sender, receiver) = std::sync::mpsc::channel::<T>();
+    std::thread::spawn(move || { let _ = sender.send(work()); });
+    return receiver.recv_timeout(window).unwrap_or_else(|_| { panic!("{what} did not answer within {window:?} while the lock was held: it waited for the holder"); });
+}
+
 /// The group line of a process, or an empty text for one that cannot be read.
 fn group_of(pid: &str) -> String {
     return fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_default().trim().to_string();
