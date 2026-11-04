@@ -3571,8 +3571,14 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the step left running;
   the service never restarts itself out of a stuck write;
   cold-store `pnpm install` and Cargo stage measured before the ceilings are fixed.
-  Asked of the owner:
-  the multiple for the tool ceilings and the length of the short extra wait.
+  Owner answers (question tool,
+  2026-11-04):
+  tool ceilings "5x (Recommended)" (five times the longest measured run,
+  rounded up to whole minutes,
+  recomputed with the cold-store case if longer);
+  short extra wait "7 s (Recommended)" (twice the longest measured branch write,
+  3,438 ms of 2,093);
+  both sent to the agent.
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
