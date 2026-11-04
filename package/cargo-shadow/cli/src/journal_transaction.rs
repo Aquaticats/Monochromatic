@@ -794,13 +794,28 @@ pub fn remove_done(done: &Path) -> io::Result<()> {
 /// export function markDoneAndRemove(directory: string): void
 /// ```
 pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
-    let done: PathBuf = publish_done(directory)?;
+    return finish_journal(directory).map_err(|error| { return io::Error::other(std::error::Error::source(&error).map_or_else(|| { return error.to_string(); }, ToString::to_string)); });
+}
+
+/// What:
+/// `pub fn finish_journal(directory: &Path) -> Result<(), FinishError>` publishes the completion marker of a journal and removes it,
+/// and tells the phase that failed.
+/// Why:
+/// A recovery that cannot publish the durable marker has not finished the journal and its caller must stop;
+/// the removal of a journal that is already marked done is the cleanup, which only warns (V5, certification second pass).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function finishJournal(directory: string): void  // throws a FinishError with its phase
+/// ```
+pub fn finish_journal(directory: &Path) -> Result<(), FinishError> {
+    let done: PathBuf = publish_done(directory).map_err(FinishError::completion)?;
     // The removal of a journal that is already marked done is the cleanup, which a test can make fail after the marker (V5).
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
-        return Err(io::Error::other("injected cleanup failure"));
+        return Err(FinishError::cleanup(io::Error::other("injected cleanup failure")));
     }
-    return remove_done(&done);
+    return remove_done(&done).map_err(FinishError::cleanup);
 }
 
 /// What:

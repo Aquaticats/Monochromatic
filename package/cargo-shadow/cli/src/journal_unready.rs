@@ -50,7 +50,7 @@ use crate::journal_manifests::read_manifest_index;
 use crate::journal_recover::read_journal;
 
 /// Imports `crate::journal_transaction::mark_done_and_remove` for this file.
-use crate::journal_transaction::mark_done_and_remove;
+use crate::journal_transaction::finish_journal;
 
 /// What:
 /// `fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String>` decides whether a journal without a ready
@@ -129,7 +129,7 @@ fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String>
 /// ```ts
 /// function recoverUnready(root: string, directory: string, messages: string[]): void
 /// ```
-pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>) {
+pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<String>, mandatory: &mut bool) {
     let live_files: Vec<String> = match unready_verdict(root, directory) {
         Ok(found) => found,
         Err(reason) => {
@@ -148,11 +148,15 @@ pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<
         let outcome: io::Result<()> = make_durable(Path::new(live));
         if let Err(error) = outcome {
             messages.push(format!("{}: a journal without a ready record was kept because {live} could not be made durable ({error})", directory.display()));
+            *mandatory = true;
             return;
         }
     }
-    if let Err(error) = mark_done_and_remove(directory) {
+    if let Err(error) = finish_journal(directory) {
         messages.push(format!("{}: a journal that never became ready could not be removed ({error}); it will be tried again", directory.display()));
+        if !error.cleanup_only() {
+            *mandatory = true;
+        }
     }
 }
 

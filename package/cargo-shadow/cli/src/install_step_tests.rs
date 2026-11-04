@@ -1187,3 +1187,35 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
     let log: Vec<String> = calls.lock().expect("the call log").clone();
     assert!(log.last().is_some_and(|last| { return last.starts_with("update") && !last.contains("--locked"); }), "something ran after the run that could not be stopped: {log:?}");
 }
+
+/// Acceptance row V5 (certification, second pass): the caller of a recovery stops when a mandatory phase of finishing the recovered
+/// journal fails and goes on after a cleanup-only failure.
+/// An earlier run's journal is planted, a fault is armed for one phase of its finish, and the continuation sentinel is the cargo
+/// the command would run: the output barrier, the completion rename and the sync of the marker's directory stop the command before
+/// any cargo call, with the failure named; a removal that fails after the marker only warns and the command runs its cargo.
+#[test]
+fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_cleanup_does_not() {
+    use crate::failpoints::{Point, arm, fires};
+    // (fault, the command must stop)
+    for (fault, stops) in [(Point::RecoverDurability, true), (Point::CompletionRename, true), (Point::CompletionSync, true), (Point::FinishCleanup, false)] {
+        let root = repository(STALE);
+        let start = root.path().join(CRATE_DIR);
+        let _journal = crate::journal_support::plant(root.path(), &[crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: STALE.to_string() }], &[]);
+        let runner: FakeCargo = cargo(SATISFIED);
+        arm(fault);
+
+        let outcome = step(&start, false, &runner, &registry());
+
+        assert!(!fires(fault), "{fault:?}: the fault was never reached");
+        if stops {
+            match &outcome {
+                StepOutcome::Refused(message) => assert!(message.contains("recovery of an earlier run could not finish its journal"), "{fault:?}: {message}"),
+                other => panic!("{fault:?}: a recovery that could not finish its journal read as {other:?}"),
+            }
+            assert!(runner.commands.borrow().is_empty(), "{fault:?}: the command went on to cargo after a mandatory failure: {:?}", runner.commands.borrow());
+        } else {
+            assert!(!runner.commands.borrow().is_empty(), "{fault:?}: a cleanup-only failure stopped the command");
+            assert!(!matches!(&outcome, StepOutcome::Refused(message) if message.contains("recovery of an earlier run")), "{fault:?}: {outcome:?}");
+        }
+    }
+}

@@ -49,7 +49,7 @@ use crate::crates::{LockSnapshot, read_locks};
 use crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, KeepAs, MANIFEST_INDEX_FILE, READY_FILE, REFUSED_SUFFIX, ReplaceOutcome, file_name_text, make_durable, no_hook, replace_keeping_with_hook};
 // Imports `crate::journal_transaction::{mark_done_and_...`.
 /// Imports `crate::journal_transaction::{mark_done_and_remove, try_lock}` for this file.
-use crate::journal_transaction::{mark_done_and_remove, take_workspace};
+use crate::journal_transaction::{finish_journal, mark_done_and_remove, take_workspace};
 /// Imports the process-group probe and the error code that says a group is empty.
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
@@ -303,6 +303,30 @@ pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> 
     return recover_with(root, judge, &no_hook);
 }
 
+/// What a recovery says and whether the command that ran it may go on.
+#[derive(Debug)]
+pub struct RecoveryReport {
+    /// What to tell the person, one warning per entry.
+    pub messages: Vec<String>,
+    /// Whether a mandatory phase of finishing a recovered journal failed (the output barrier before the marker, or the durable
+    /// completion marker itself): the journal is not finished, so the command must stop. A failed removal of a journal that is
+    /// already marked done is not one; it only warns.
+    pub mandatory_failure: bool,
+}
+
+/// What:
+/// `pub fn recover_report(root, judge) -> RecoveryReport` is `recover` that also says whether a mandatory phase of finishing failed.
+/// Why:
+/// The callers of a recovery stop on a failed mandatory phase and go on after a cleanup warning (certification, second pass, V5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function recoverReport(root: string, judge: Judge): { messages: string[]; mandatoryFailure: boolean }
+/// ```
+pub fn recover_report(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>) -> RecoveryReport {
+    return recover_report_with(root, judge, &no_hook);
+}
+
 /// What:
 /// `pub fn recover_with(root, judge, between) -> Vec<String>` is `recover` with a hook that runs before each replacement.
 /// Why:
@@ -316,6 +340,35 @@ pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> 
 /// export function recoverWith(root: string, judge: Judge, between: (path: string) => void): string[]
 /// ```
 pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
+    return recover_report_with(root, judge, between).messages;
+}
+
+/// What:
+/// `pub fn recover_report_with(root, judge, between) -> RecoveryReport` is `recover_with` that also reports a mandatory failure.
+/// Why:
+/// It is the one implementation of the recovery.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function recoverReportWith(root: string, judge: Judge, between: (path: string) => void): RecoveryReport
+/// ```
+pub fn recover_report_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> RecoveryReport {
+    let mut mandatory: bool = false;
+    let messages: Vec<String> = recover_messages(root, judge, between, &mut mandatory);
+    return RecoveryReport { messages, mandatory_failure: mandatory };
+}
+
+/// What:
+/// `fn recover_messages(root, judge, between, mandatory) -> Vec<String>` runs the recovery and sets `mandatory` when a mandatory
+/// phase of finishing a journal failed.
+/// Why:
+/// The early returns of the recovery keep their form.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function recoverMessages(root: string, judge: Judge, between: (path: string) => void, mandatory: { value: boolean }): string[]
+/// ```
+fn recover_messages(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path), mandatory: &mut bool) -> Vec<String> {
     let mut messages: Vec<String> = Vec::new();
     let journals: PathBuf = root.join(JOURNAL_DIR);
     // A metadata failure is not "no journals" (round 7, 6b2 1).
@@ -365,7 +418,7 @@ pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
         return messages;
     }
     for directory in open {
-        recover_one(root, &directory, judge, between, &mut messages);
+        recover_one(root, &directory, judge, between, &mut messages, mandatory);
     }
     return messages;
 }
@@ -414,11 +467,11 @@ fn report_leftover_temporaries(root: &Path, crate_dirs: &[String], messages: &mu
 /// ```ts
 /// function recoverOne(root: string, directory: string, judge: Judge, messages: string[]): void
 /// ```
-fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path), messages: &mut Vec<String>) {
+fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path), messages: &mut Vec<String>, mandatory: &mut bool) {
     let ready: Ready = match read_ready(directory) {
         Ok(Some(found)) => found,
         Ok(None) => {
-            recover_unready(root, directory, messages);
+            recover_unready(root, directory, messages, mandatory);
             return;
         }
         Err(error) => {
@@ -473,22 +526,28 @@ fn recover_one(root: &Path, directory: &Path, judge: &dyn Fn(&[LockSnapshot], &[
         #[cfg(test)]
         if crate::failpoints::fires(crate::failpoints::Point::RecoverDurability) {
             messages.push(format!("{}: the restored files could not be synced (injected durability failure); the journal was kept", directory.display()));
+            *mandatory = true;
             return;
         }
         for (crate_dir, _decision) in &decisions {
             if let Err(error) = make_durable(&root.join(crate_dir).join(LOCKFILE_NAME)) {
                 messages.push(format!("{crate_dir}/{LOCKFILE_NAME} could not be synced ({error}); the journal was kept"));
+                *mandatory = true;
                 return;
             }
         }
         for manifest in &manifests {
             if let Err(error) = make_durable(&manifest.path) {
                 messages.push(format!("{} could not be synced ({error}); the journal was kept", manifest.path.display()));
+                *mandatory = true;
                 return;
             }
         }
-        if let Err(error) = mark_done_and_remove(directory) {
+        if let Err(error) = finish_journal(directory) {
             messages.push(format!("{}: a settled journal could not be removed ({error}); it will be tried again", directory.display()));
+            if !error.cleanup_only() {
+                *mandatory = true;
+            }
         }
     }
 }
