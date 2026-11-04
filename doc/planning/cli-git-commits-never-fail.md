@@ -236,7 +236,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 17, first committed 2026-11-04T04:12:54-05:00 in 35d6bd87be)
+### Normative state machine (revision 18, first committed REV18_TIME)
 
 Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea, and revision 13 at
 2026-11-03T20:22:09-05:00 in 4a7bea95a2.
@@ -357,13 +357,17 @@ made D first; revision 15 adds the owner's decision that this final save is neve
   Level 2 is optional and is not part of the uncut final save: it runs in a short-lived helper child within
   `WAIT_VERIFY` (a named constant that must be measured), and if any step has not completed by then, or fails, the
   exit promises level 1 and says the exact commit may have to be rebuilt on retry. The helper holds no lock, no gate
-  and no registry entry, is not a protected program, and is abandoned at `WAIT_VERIFY`, so an abandoned flush or check
-  cannot block the syncer, a later command or the lane; a helper blocked in the kernel is kernel I/O on the owner's
-  outside list. Level 2 requires all of, in this order: (1) eligibility: the objects directory, every alternate and
-  the ref storage root (for the files backend the `refs/` directory and `packed-refs`, for reftable the `reftable/`
-  directory) have the same `st_dev`, so that one `syncfs` covers all of them; otherwise level 1; (2) take the registry
-  observation of T1 (the probe of the next reservation number and the listing), then create the side ref
-  `refs/cli-git/<instance>/withdrawn/<id>`; (3) `syncfs` of that file system, so the closure, the ref and their
+  and no registry entry, runs only read-only checks and flushes (it creates and removes nothing, so an abandoned
+  helper has no late effect that disposal or cleanup could race), and is abandoned at `WAIT_VERIFY`, so an abandoned
+  flush or check cannot block the syncer, a later command or the lane. A helper that has not returned is not
+  diagnosed: only a returned I/O error is the outside failure, and the command has left with level 1 promised. Level 2
+  requires all of, in this order: (1) eligibility: the objects directory, every alternate and the ref storage root
+  (for the files backend the `refs/` directory and `packed-refs`, for reftable the `reftable/` directory) have the
+  same `st_dev`, so that one `syncfs` covers all of them; otherwise level 1; (2) take the registry observation of T1
+  (the probe of the next reservation number and the listing), then the command itself (not the helper) creates the
+  side ref `refs/cli-git/<instance>/withdrawn/<id>` as an internal transaction on the wrapper's own namespace with the
+  person's hooks disabled (an empty hooks path, as for an inline owner), so no protected program can be dispatched and
+  the creation is not abandoned mid-way; (3) `syncfs` of that file system, so the closure, the ref and their
   namespaces are D in one barrier (a verified closure-specific forcing or an archive of the closure is another valid
   design; `syncfs` is one barrier that covers inherited objects and the new ref together, not the only one); (4) read
   the side ref back and check connectivity of `D` from it; (5) take the registry observation again and require it
@@ -382,18 +386,35 @@ made D first; revision 15 adds the owner's decision that this final save is neve
   this in its Pre. Disposal follows the same order: a `disposed` ledger line is made D before the saved content it
   discharges is deleted, so a power loss cannot leave a durable root that claims a saved item whose only copy was
   released. It is background work.
-- Receipt responsibility (R16a-7, R16a-10). The receipt is forced by a flusher that always exists when a receipt
-  exists. With a service running, the receipt is queued first in the syncer's queue, ahead of every other V record and
-  with no dependence on the stop barrier. With no service running, the command that returns success starts a detached
-  one-shot flusher (a transient unit through the manager, else a detached child of the command) that forces the
-  receipt file and then `lane/receipt/` and exits; where neither can be started (a process-count cap or a similar
-  limit set by someone else, which is on the owner's outside list) the command exits success saying the receipt is not
-  yet forced, the receipt stays V, and the next owner's L4 forces it first; no success path waits for a sync of ours.
-  A detached flusher started by an inline owner sits in that incarnation's scope, and the next owner's L2 may reap it
-  mid-sync; L4's forcing of outstanding receipts covers it. A normal service shutdown forces every outstanding receipt
-  before it exits, and the next owner's L4 forces any that remain before it dispatches anything. `SYNC_LAG` is a
-  scheduling target for the queue, not a completion bound: the time to force is the disk's. The residual ambiguity (a
-  power loss before the receipt is D, a deliberate removal that persisted, no reflog evidence) is owner question 8.
+- Receipt responsibility (R16a-7, R16a-10, R17a-1 to R17a-3). The receipt `lane/receipt/<id>` is itself the
+  registration of the obligation to force it: every lane executor (the service's syncer, a next owner's syncer, a
+  one-shot flusher) enumerates `lane/receipt/` and forces what is not yet D, so responsibility never depends on a
+  message having been delivered. Handoff protocol, in this order, which keeps "a flusher exists" true across creation,
+  admission, sealing and fallback: (1) the client creates the receipt (V); (2) it reads `lane/sealed`; (3) if the file
+  is absent it wakes the running service by a doorbell (a wake-up only; correctness rests on enumeration), and is
+  done; (4) if the file exists, or no service holds the lane, it starts a one-shot flusher. A service that shuts down
+  creates `lane/sealed` (`O_CREAT | O_EXCL`) and only then makes its final sweep of `lane/receipt/`, and exits after
+  the sweep; so for every receipt either the client's step (2) sees the seal and starts a flusher, or the service's
+  sweep, which follows the seal, sees the receipt that step (1) created before it. A receipt created after the sweep
+  therefore always meets the seal and gets a flusher. Next owner: at startup its syncer is told to sweep
+  `lane/receipt/` as background work; L4 recognizes outstanding receipts, queues them first and dispatches without
+  waiting for them; no owner forces a receipt in the foreground before dispatch, and an unrelated command (a later
+  `git commit` included) never waits for another command's receipt. Until a receipt is D the recovery evidence is the
+  V receipt, which is the true state within a boot. The one-shot flusher is a launch of the internal flush entry
+  point, never the wrapper's ordinary command line (no recursive invocation). It is started through the manager as a
+  transient unit, which keeps it out of the inline incarnation's scope so that no L2 reap or owner exit ends it; else,
+  where there is no manager and therefore no incarnation scope for L2 to reap, as a double-forked child in its own
+  session that has closed every descriptor but its own (`close_range`), holding no lane lock, client lock, gate or
+  pipe description. At most one flusher runs per lane (it holds `lane/flusher.lock`); a client that finds the lock
+  held has still created its receipt first, and the holder, after its last empty sweep, releases the lock and sweeps
+  once more without it, taking the lock again if it finds work, so no wake-up is lost. It exits after a sweep that
+  finds nothing unforced; an asynchronous forcing error is recorded in `lane/receipt-errors` (V), the flusher exits,
+  and the next owner's syncer retries in the background and reports it at the next wrapper command's notice. If no
+  flusher can be started because of a process-count or memory cap set by someone else (the owner's outside list), the
+  command exits success saying the receipt is not yet forced; missing binaries or broken launch code are defects and
+  not that exception. `SYNC_LAG` is a scheduling target for the queue, not a completion bound: the time to force is
+  the disk's. The residual ambiguity (a power loss before the receipt is D, a deliberate removal that persisted, no
+  decisive evidence) is owner question 8.
 - Preservation barrier (R12-5B). Before the recovery authority of a version that only the person had is replaced (the
   staged-only blob saved by MG3, a displaced inode of the carry-forward protocol, the pre-merge file `N`), the
   preserving file, its directory entry and the log record that names it are D. The carry-forward protocol's own
@@ -798,26 +819,30 @@ Capture and acceptance (client)
   pending base (R14-6, R15-5), C1 records, for every path it skips because a live `install` entry covers it, whoever
   owns the entry, a deferred selection: the path, the owning request and the entry **with its content and mode copied
   into this request's own immutable bytes** (so the descendant stays self-contained and no later release or prune of
-  the owner's spool can remove what it needs). Support (R16a-5): when an owner is removed, a deferred selection stays
-  deferred, re-keyed, only if another request still in the tail before this one has a live `install` entry on the path
-  whose content and mode equal the selection's (the base then already contains it); if that entry differs from the
-  selection, or there is none, the selection is added to the delta against the then base, because a different pending
-  value does not supply what the person had staged. The captured selection stays in this request's immutable bytes
-  however many times an intermediate replay makes it a no-op, and the removals that decide it are outcomes in the
-  ledger, which is never compacted, so checkpoints and ancestor retirement cannot lose what a recomputation needs. The
-  augmented delta is derived state, recomputable from the request's immutable bytes and the recorded removals, so
-  recovery after the add-back replacement and before the rebuild needs only `resume = B1`. The removal rule (one rule,
-  cited by W2, E1 (b), the conflict outcome and `rewritten-away`): whenever a request that P1 put in the logical tail
-  ends without publishing (a plain or late-F withdrawal, `refused` at P2, `conflicted` at replay, `unresolved`,
-  `rewritten-away`), the lane removes it from the tail, re-enters each descendant at B1, and adds that descendant's
-  deferred selections that name the removed request to its delta against the new base, so the staging the capture
-  omitted is included; if the request publishes, the skip stays correct. The cost is two sets of `stat` calls over the
-  in-flight requests and no sync. The tip is not re-read to validate: a tip that moved during capture does not
-  invalidate the capture, because the delta is relative to the logical head and is replayed on the actual tip at
-  adoption. Foreign changes to the index or the worktree after the single reads are later staging, not an
-  inconsistency, and cause no retry. Crash: nothing durable. Starvation, stated: C1 repeats only when the lane's own
-  state changed between its two reads or a mark appeared, and CAPTURE ends that delay with an error and no request; it
-  never waits on a foreign program.
+  the owner's spool can remove what it needs). Support (R16a-5, R17a-4): support is judged on the effective ordered
+  base at this request's position, not on any predecessor. The effective value of a path is the result of folding the
+  live `install` entries before this request in tail order, a later entry overriding an earlier one; a deferred
+  selection stays deferred only while that effective value equals its content and mode, and the request that supplies
+  the effective value (the last live entry on the path before this one) is the one it is keyed to. It is evaluated on
+  the tail as it is after a removal and again whenever the tail changes, including when a predecessor's replay changes
+  its resulting entry before publication. If the effective value differs from the selection, or there is none, the
+  selection is added to the delta against the then base, because a different pending value does not supply what the
+  person had staged; an equal entry that a later differing entry overrides supports nothing. The captured selection
+  stays in this request's immutable bytes however many times an intermediate replay makes it a no-op, and the removals
+  that decide it are outcomes in the ledger, which is never compacted, so checkpoints and ancestor retirement cannot
+  lose what a recomputation needs. The augmented delta is derived state, recomputable from the request's immutable
+  bytes and the recorded removals, so recovery after the add-back replacement and before the rebuild needs only
+  `resume = B1`. The removal rule (one rule, cited by W2, E1 (b), the conflict outcome and `rewritten-away`): whenever
+  a request that P1 put in the logical tail ends without publishing (a plain or late-F withdrawal, `refused` at P2,
+  `conflicted` at replay, `unresolved`, `rewritten-away`), the lane removes it from the tail, re-enters each
+  descendant at B1, and adds that descendant's deferred selections that name the removed request to its delta against
+  the new base, so the staging the capture omitted is included; if the request publishes, the skip stays correct. The
+  cost is two sets of `stat` calls over the in-flight requests and no sync. The tip is not re-read to validate: a tip
+  that moved during capture does not invalidate the capture, because the delta is relative to the logical head and is
+  replayed on the actual tip at adoption. Foreign changes to the index or the worktree after the single reads are
+  later staging, not an inconsistency, and cause no retry. Crash: nothing durable. Starvation, stated: C1 repeats only
+  when the lane's own state changed between its two reads or a mark appeared, and CAPTURE ends that delay with an
+  error and no request; it never waits on a foreign program.
 - C2 expose the request and bind (revision 14; R13-1). Pre: C1. Do, in this order: (1) draw a fresh invocation nonce
   for this invocation, build the whole request in memory (record, manifest, every captured side), compute its checksum
   and its identity (the content hash, nonce included, plus the lane instance; rule V); (2) create and `flock` the
@@ -1499,45 +1524,27 @@ in a thread or process that never runs in the owner's event loop):
   counts a departure barrier's against its D-set, and an instrument on the lane's descriptors confirms that no sync
   call is made on the owner's event loop.
 
-### Revision 17 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
+### Revision 18 changelog (for the step-1 models agent; every changed transition, with the model and the schedule)
 
-Naming. New names: `closed-nosubmit` (the attempt-wide final file), the receipt flusher and its three cases,
-`WAIT_PREPARE`, `WAIT_DRAIN`, `INLINE_ENTRIES`, the installation anchor, admission under `index.lock` before the
-marker, the replacement-root authority of a checkpoint with its non-drop obligation, the damaged established root, the
-owner-only repair of a damaged final, `departure(disposition)`, `StatusUnknown` for a failed initial read, the
-outside-fault exit. Removed: the receipt window "a few seconds" as a bound, the `lost` transition inside recovery,
-option B of question 8 of revision 16, the claim that a client's never writing again makes `not-submitted` final.
-Schedules below go red under revision 16 and green under revision 17 as far as the owner's answers and the mechanisms
-allow; a model marked "new" is added to step 1; the models branch is not edited by this document.
-- Level 2 (R16a-1; models new "ref store on another file system", "repack between the flush and the check"). The
-  eligibility test includes the ref storage root; the registry observation is taken before the side ref is created and
-  again after the check; wrapper-started maintenance forces its replacement representations; the optional helper holds
-  nothing and is abandoned at `WAIT_VERIFY`.
-- Materialization with no manager (R16a-2; model new "next command's fallback hangs"). `WAIT_PREPARE` is an overall
-  deadline for the preparation on a private copy; the real mutation is entered only when its remaining steps are of
-  the class; the class includes `INLINE_ENTRIES` and the current files.
-- Drain request (R16a-3; model new "hook outlasts the upgrade caller"). The caller waits `WAIT_DRAIN` and returns
-  "draining, upgrade not applied".
-- `closed-nosubmit` (R16a-4; model new "owner takes over after a client's final record"). Every decider checks it
-  before writing `commit`.
-- Support rule for deferred selections (R16a-5; model new "another pending owner with a different value"). A selection
-  is re-keyed only to an equal entry and otherwise added to the delta.
-- Damaged established root and runtime `lost` (R16a-6; model new "established root loses a listed file"). Recovery
-  stops and reports; `lost` is a runtime transition.
-- Receipt responsibility and the flusher (R16a-7, R16a-10; models new "service shuts down with receipts outstanding",
-  "no service and no manager"). The opening no longer calls the post-success exception approved.
-- Window anchor, admission, reminder dismissal (R16a-8; models new "resumed installation restarts the window", "lock
-  taken before expiry, marker set after").
-- Wording (R16a-9): the outside-fault qualification of "no new attempt after any normal exit", the materialization
-  budget wording, the accounting of eight syncs, Item 5.
-- Components: replacement-root authority with validated content identity and durable ancestry (2.1, 2.2); candidate
-  activation by recovery's validating selection (2.3); `departure(disposition)` and bound acknowledgments (2.4, 3.4);
-  owner-only, serialized repair that keeps unsupported versions (2.5, 3.3); the maximum-generation conflict rule
-  (3.1); `StatusUnknown` (3.2); selection serialized with reclamation (3.5); error-path attempt of the saved set after
-  a stop failure (3.7).
-- Models 6a and 6b: dispatch versus execution, the three completions, failed disposition creation as an outside-fault
-  exit (6a 1 to 3); planned exit never causes parent-death termination (6a 4); checkpoint non-drop obligation (6b).
-- Question 8 rewritten with R16a-10's corrections; it is asked only after the review of this revision checks it.
+Scope. Only the rule gaps the reviewer's answer 17c names (R17a-1, R17a-2, the rule part of R17a-3, R17a-4, the rule
+parts of R17a-5), the acceptance target, the rule conflicts and the question 8 edits. R17a-6 to R17a-9 are not touched
+in this revision. New names: `lane/sealed`, `lane/flusher.lock`, `lane/receipt-errors`, the effective ordered base.
+Schedules go red under revision 17 and green under revision 18 as far as the mechanisms allow; a model marked "new" is
+added to step 1; the models branch is not edited by this document.
+- Receipt responsibility (R17a-1, R17a-2; models new "delayed client after the final sweep", "enqueue rejected", "L4
+  with receipts outstanding and unrelated dispatch"). L4 queues outstanding receipts and dispatches without waiting;
+  the receipt directory is the registration; the client reads the seal after creating the receipt and a service seals
+  before its final sweep.
+- Flusher contract (R17a-3, rule part; models new "flusher reaped mid-sync", "many outstanding receipts", "flusher
+  forcing error"). Internal entry point, transient unit outside the incarnation's scope, `close_range`, one flusher
+  per lane, one-shot, errors recorded.
+- Effective ordered base (R17a-4; model new "P/Q/A/D"). Schedule: tail P `x=1`, Q `x=2`, A `x=1`, D's selection `x=1`;
+  A removed: red under 17 (D re-keyed to P, loses `x=1`); green (the effective value is Q's, so D adds `x=1` to its
+  delta).
+- Level 2 late effects and slow I/O (R17a-5, rule parts; models new "side ref created by an abandoned helper", "helper
+  that never returns"). The command creates the side ref with hooks disabled; the helper is read-only; a helper that
+  has not returned is not diagnosed.
+- Acceptance target, rule conflicts, question 8 (items 2 to 4).
 
 ### Revision 9 and revision 10 changelogs
 
@@ -1549,44 +1556,10 @@ of revision 11 stays here).
 Moved to `doc/planning/cli-git-commits-never-fail-review-history.md` in revision 12 (the step-1 models for it exist on
 `feat/git-policy-cli-commit-protocol-models`).
 
-### Rationale for the lane transitions L1 to L7 (explains; the state machine governs)
+### Rationale for the lane transitions L1 to L7 (moved)
 
-Why one lock, one gate. The lane of a worktree is whoever holds the exclusive advisory lock on `lane/owner`. The repository's rule is lock-free
-first with an unavoidable lock on the smallest unit and its reason beside it; the reason is that no lock-free claim can tell a new owner that
-the previous owner is gone. The proof is stated as the review asks: acquisition proves that no conflicting lock remains on that lock inode;
-the previous owner's death follows from the enforced invariants, which are that only the owner process holds the description (children
-close it at exec, and a child between fork and exec is waited for by L1), that the lock file is created once and never replaced, that the
-owner never unlocks explicitly, and that the lane never executes a person's program in the owner process itself. The gate exists because the
-restart of a quiet owner and the admission of a person's program must be serialized by something both sides share; a kernel lock is the
-smallest such thing. These two locks were the only locks added in revision 10; revision 12 adds the per-command client
-lock `lane/client/<id>` (a kernel lock that exists to tell a killed client from one that left, and is released by the
-kernel), which meets "Use as few locks as possible" as the smallest set that gives these
-two kernel-atomic facts.
-
-Why an incarnation-specific cgroup. A unit's own cgroup path is reused by the replacement owner, so reaping "the recorded cgroup" can kill the
-replacement. Each incarnation therefore has a cgroup whose name contains its unique id: a transient scope created through the manager's bus
-interface the wrapper already speaks (`systemd_dbus.rs`) for an inline client, and a delegated sub-cgroup of the unit for a service (the
-template unit enables delegation, which is not a resource limit). L2 targets only the group named by the recorded previous id. Containment
-limit, stated: a hook can ask the manager to start another unit, and cgroup membership does not confine that work; that is outside the wrapper's
-control. Where the manager is unavailable an inline owner is allowed only when the operation can start no arbitrary child program at all: no
-configured hook, clean or smudge filter, signer or signing helper, credential or other helper; otherwise the request stays handed over for the
-service.
-
-Why inline ownership is narrow. A client that finds no owner takes the lock and acts as owner only to drain the requests adopted before its own,
-publish and retire its own, and exit; later arrivals stay for the service. It is the person's foreground command, so the person can interrupt
-it, and the request is already durable. Revision 12 (R11-4): an inline owner never runs a protected program, and every
-normal exit of one with an unpublished request is W1 (see "Execution ownership" in the state machine).
-
-Why restart goes through an intent and a pidfd. A restarter that dies holding the gate releases it, so the gate alone fails open during an
-incomplete cancellation; the durable `lane/restart-intent` makes it fail closed (an owner that finds the intent at its next admission admits
-nothing and exits). A pidfd names the process it opened, so a delayed request cannot reach a replacement owner; a recorded pid is interpreted
-in the right namespace only if the pid-namespace identities are equal, so restart is refused across namespaces. "The person's program" means
-the whole execution tree of the invocation, so the owner keeps the shared gate until that tree's cgroup is empty; a daemon a hook leaves
-behind keeps restart unavailable, which is the person's program being protected.
-
-What restart cannot do. The shared holder case (the owner wedged inside our own code between L6 and the end of a ref transaction, with no
-child and no person's program) cannot be restarted automatically, because the restarter cannot take the gate and ending the owner mid-transaction
-could leave a lock. That is a remaining internal wait, stated; owner question B.
+Moved to the history record in revision 18; the normative statement is L1 to L7 and "Execution ownership" (one lock
+per worktree plus the gate, the incarnation cgroup, restart through an intent and a pidfd).
 
 ### Rationale for C1 to C5: acceptance needs no ref write and no sync (explains; the state machine governs)
 
@@ -1776,57 +1749,10 @@ touched). The case that the rename happened and the consumption release was inte
 journaled inode, and L4 completes it. Every path ends in exactly one named outcome (`installed`, `already`, `preserved`, `declined`), each
 tied to what happens to its consumption entry.
 
-### Installing into the current index (rationale for M1 and M2; the state machine governs)
+### Installing into the current index (moved)
 
-Only a delta applied to the index read under the lock; never a whole-file install built earlier. There is one path, M1, for every follow-up:
-the lane tries `index.lock` once after the publication, never before it and never across the swap (a lock taken before the swap could be held
-across a hook that waits for ever), applies the attachment guard, applies the entry rule, and renames the new index over the old. The earlier
-two-path design (an immediate critical section around the swap, and a deferred follow-up) is withdrawn: the immediate path skipped the
-attachment guard, and its only benefit, no index writer between the publication and its materialization, is exactly the by-value concession
-the owner accepted in decision 2. Publication never waits for `index.lock` and never fails for it. The marker is set only while the
-index file is being replaced, which is local and short.
-
-Per-path supersession.
-An outstanding intent is never applied on its own authority. For each path the lane composes the chain of unapplied intents of
-published requests that touch it: the expected pre-state is the oldest intent's pre-entry, the target is the entry of the path in the current branch tip's tree (the
-rule below; the newest intent only says that the path is outstanding), and older intents' entries for that path are dropped. Reviewer's sequence (`R1` publishes `B`, `R2` publishes `C`,
-pre-entry `A`, the person edits the worktree back to `B` without staging): the target for the path is `C`; the worktree holds `B`,
-not `C`; so the entry stays `A`; no reversal is staged. A reachable ancestor is not authority to apply its transition.
-
-The rule for a path: the target is the entry of the path in the **current branch tip's tree**, which is the effective content
-whether the tip came from the wrapper or from a foreign successor; a wrapper intent supplies only the oldest pre-entry. With
-`E_now` read under the lock, the oldest pre-entry `E_pre`, the target `E_target` and the worktree file's content: if `E_now` equals
-`E_target`, nothing; if `E_now` equals `E_pre` in every field of the entry and the worktree file holds exactly the target's content,
-stage the target (as `git commit -- path` would leave the index); otherwise leave `E_now` and report the path.
-Reviewer's foreign successor: the index holds `A`, `R1` published `B`, a native writer advanced the branch to `C` whose version of
-the path is `C`, the worktree still holds `B`: the target is the tip's `C`, the worktree is not `C`, so the entry stays `A`.
-
-Provenance, stated as the owner decided it (decision 2): comparing every field of the entry, cached stat data included, is a conflict
-guard and not proof of who staged it, because one entry can be made again with identical fields. The accepted concession: a deliberate
-restage to exactly the old entry inside a foreign index lock's window is replaced; it cannot be detected; no content is lost.
-
-The attachment guard is the one in "Adoption order": a guard against the usual cases, not a fence, with the residue
-accepted as the old question 4 (picked A).
-
-Extensions, per policy (not preserved wholesale): the cache-tree is dropped; the resolve-undo data and the untracked cache are
-carried unchanged only after a differential control shows Git behaves the same afterwards (otherwise they are dropped or the index
-is ineligible); the offset tables are not written; fsmonitor, split index, sparse index and unknown extensions make the index
-ineligible, and the delta runs through Git on a copy made under the lock (`reset --no-refresh`). Index versions the writer does not
-produce make it ineligible.
-
-Voiding is not releasing, and a superseded version ends (R8-6, revision 9). The schedule: the physical head and the index both hold `x=A`;
-`R1` captures worktree `x=B` and consumes the pre-entry `A`; `R1` publishes `B`; a foreign writer advances the branch to a successor whose
-`x` is `C`; the worktree stays `B` and the index stays `A`. M1 declines (the worktree is not `C`), M2 voids. The person then stages only `y`
-and commits plainly. Under revision 8 M2 released `R1`'s entry, so C1 compared the index `x=A` against the physical head `x=C` and captured
-`x=A`, reverting `x`. Under revision 9 the entry survives as `suppress` with `E = A`, C1 sees the index `x=A` equal to `E` and does not
-capture it, and the commit holds `y` only. The entry ends by M3 only when the head returns to `A` (rule a), a later request consumes `x`
-(rule b), or the person stages `x` to anything but `A`, in which case C1 captures that staging and the entry no longer matches anything.
-Two bookkeeping kinds are kept apart on purpose: voiding ends installation authority, which would otherwise let a lane overwrite an index
-it cannot reconcile, and keeps the suppression of a known historical entry, which is what prevents the stale return.
-The held case: B3 gives an obsolete version a durable terminal outcome (`superseded` in the lane's ledger), moves the consumption entries to
-the active version without releasing them, and ties the release of its spool to the end of its discarded hook execution.
-
-The wrapper's own index commands do not wait for the lane's intents behind a foreign lock.
+Moved to the history record in revision 18; the normative statement is M1 to M3 and MG3 (a delta applied to the index
+read under the lock, the per-path entry rule, the extension policy).
 
 ### Merge order and restoration (revision 12; the state machine governs)
 
@@ -1856,7 +1782,7 @@ with base `B`, ours `C`, theirs `T` (`git merge-tree --write-tree --merge-base=B
 A conflict is an allowed outcome: the replay stops with the conflict recorded and the captured inputs kept. The commit's parents
 are `C` (and `T`'s other parent for a conclusion).
 
-## What is guaranteed to complete, and what may wait (revision 17)
+## What is guaranteed to complete, and what may wait (revision 18)
 
 No wait below is called designed out, and every wait of a command ends at a bound of the register in rule B, except
 the forcing covered by decision 14, the person's own programs (decision 9) and the terminating inline materialization,
@@ -2120,41 +2046,23 @@ and a mechanism that file names as withdrawn stays withdrawn).
 Moved to `doc/planning/cli-git-commits-never-fail-review-history.md` with the revision 9 and 10 changelogs; the
 eleventh review's answers and the revision 11 and 12 changelogs are there too.
 
-## Answers to the sixteenth review (the diff-only part 16a, the component and model reviews)
+## Answers to the seventeenth review (the diff-only part 17a and the reviewer's answer 17c)
 
-Closure words: closed (a transition answers the schedule; a model is owed), narrowed, or open. This revision builds
-nothing. Part 16b of the whole-design review had not arrived when this was written; its findings are folded in when it
-does.
+Scoped by the coordinator to the rule gaps that 17c names. Closure words: closed (the rule is stated), narrowed, open,
+or not in scope this round. This revision builds nothing. Part 17b had not arrived.
 
-- R16a-1 (P1), level 2: closed. Eligibility covers the ref storage root; the registry observation brackets the flush;
-  wrapper-started maintenance forces its replacements; the helper is abandoned.
-- R16a-2 (P1), no-manager materialization: closed. `WAIT_PREPARE`, class-only real mutation, `INLINE_ENTRIES`.
-- R16a-3 (P1), drain: closed. `WAIT_DRAIN` for the caller; the service's drain is unbounded by design. The installed
-  unit and the callers remain verification gates.
-- R16a-4 (P1), `not-submitted`: closed by the attempt-wide `closed-nosubmit` that every decider checks.
-- R16a-5 (P1), re-keying: closed by the support rule (equal content and mode, else add).
-- R16a-6 (P2), `lost`: closed. Recovery stops on a damaged established root; `lost` is a runtime transition.
-- R16a-7 (P2), receipt window: narrowed. The flusher removes the unbounded no-service exposure and a shutdown forces
-  outstanding receipts; the completion time remains the disk's; the approval claim in the opening is removed. Open as
-  question 8.
-- R16a-8 (P2), contradictory watch and reminder text: closed. One rule, one anchor, one dismissal rule.
-- R16a-9 (P2/P3), blanket claims: closed by edits.
-- R16a-10 (P2), question 8: rewritten; it is asked only after the review of revision 17 checks it.
-- Components 2.1 to 2.3 (P1), checkpoint authority: narrowed in the design (replacement-root authority, durable
-  ancestry, activation by validating selection); the component is the open part.
-- Components 2.4 (P1), departure: closed in the rule (`departure(disposition)`, bound acknowledgments); open in the
-  component.
-- Components 2.5, 3.3 (P1, P2), quarantine: closed in the rule (owner-only repair, inspected inode, preserved archive,
-  unsupported versions kept, identity validated); open in the component.
-- Components 3.1, 3.2, 3.4, 3.5, 3.7: closed in the rule (maximum-generation conflict, `StatusUnknown`, anchor on
-  every chain, selection serialized with reclamation, error-path attempt of the saved set). 3.6 (cost of history
-  scans) is a component task: the owner keeps validated state in memory and a lookup structure; open.
-- Models 6a (P1, P2): the register's unchecked route and the failed disposition creation are model defects whose rules
-  are now explicit (three completions; outside-fault exit); planned shutdown cannot cause parent-death termination
-  (rule); the executor-assumption and pipe-composition items remain model work. Models 6b (P1): the checkpoint
-  non-drop obligation is a rule now; the model must encode it.
-- Part 16b: pending.
-- Not a defect: none was rejected.
+- R17a-1 (rule gap), L4 foreground forcing: closed. L4 queues and does not wait.
+- R17a-2 (rule gap), flusher existence across handoff: closed by the seal protocol and the receipt directory as
+  registration. Implementation gates remain.
+- R17a-3 (rule part), flusher survival and reap contract: closed in the rule; descriptor hygiene, one-shot completion,
+  bounded resources and non-recursive launch are listed as implementation obligations in the acceptance target.
+- R17a-4 (rule gap), support from the effective ordered base: closed.
+- R17a-5 (rule parts), abandoned-worker late effects and the blanket slow-I/O exemption: closed (read-only helper, the
+  command creates the side ref hook-free; only a returned error is an I/O error). Protected-dispatch eligibility is a
+  verification gate.
+- R17a-6 to R17a-9: not in scope this round; open.
+- R17a-10 (question 8): the ten edits are applied.
+- 17c section 2 and 3: recorded as "Acceptance target" and "Rule conflicts and the decisions that rank them".
 
 ## Exits that stay nonzero
 
@@ -2246,62 +2154,215 @@ Adopted without a question (the coordinator may veto; each follows from a rule t
 - An invocation nonce is part of every request ("one operation, one identity"), so a repeated identical operation is a
   new request and a resend is the same one.
 
-## Owner questions for revision 17 (open)
+## Owner questions for revision 18 (open)
 
 One question remains. It is also written to a separate file named `commits-never-fail-questions-` followed by the
 abbreviated hash of the commit that holds this text. It is asked only after the review of revision 17 has checked it.
 The questions answered so far are decisions 15 to 18; question 6 was settled by decision 14.
 
-### Question 8: a success receipt that did not reach the disk, and a replay after a power loss
+### Question 8: a success receipt that did not reach the disk, and a recovery policy for the ambiguous case
 
 Plain context. When a commit succeeds, the wrapper writes a tiny receipt that says "this request already published",
 and a background flusher forces it to disk. If the power fails before that, the receipt can be lost. On restart the
 wrapper decides from every piece of evidence that survived: the receipt, the recorded `published` state, the
-`commit: ok` line of the attempt, and what the branch and its reflog show. Replay is considered only when none of them
-survives. If the branch still holds the commit, nothing happens. If the branch lost the commit because its own write
-did not reach the disk, the wrapper makes a fresh attempt to publish the request, which is what restores a commit you
-were told succeeded. The bad case is the same recovery state arising from a removal you made on purpose: you reset the
-branch after the success, the reset reached the disk, but the receipt and the reflog record of the reset did not (the
-same power failure can lose both; reflogs can also be disabled, expired or erased). The wrapper cannot tell your
-removal from a lost write and makes the fresh attempt. Your earlier decision 3, "Land it", covers an indistinguishable
-publication; it was not asked about a command that had already returned success. The fresh attempt is another attempt,
-not a guaranteed copy of the original: it may build a different commit (the base may have moved), it may stop on a
-replay conflict, a hook refusal or a signing failure, and it ends with a notice that names the commit and the command
-to drop it. Example: you run `git commit`, it prints success, you run `git reset --hard HEAD~1` two seconds later, and
-the power fails one second after that; the reset reached the disk, its reflog record and the receipt did not. What the
-design already does about the window. The receipt is queued first for forcing. With a service running the service's
-flusher forces it; with no service the command that returned success starts a detached one-shot flusher for it
-(through the service manager, else as a detached child), and only if neither can be started (a process-count cap or
-similar, which is outside our control) does the receipt stay unforced until the next wrapper command in that worktree
-forces it first. A normal service shutdown forces every outstanding receipt before it exits, and the next start forces
-any that remain before it does anything else. So the unbounded exposure of "no service running" is removed by
-mechanism. What remains is the time the flusher needs, which the disk sets and which has not been measured (a
-scheduling target exists, not a completion bound), and the ambiguity itself.
-- Option A, accept the remaining window; make the fresh attempt with a notice (Recommended). Visible here: after the
-  reboot the next wrapper command in that worktree prints the retained notice that a fresh attempt was made (the
-  notice is stored, so it is delivered even if recovery ran in a service with no terminal), naming the commit and how
-  to drop it. Risk: in the bad case a commit you removed on purpose is published again; it is not promised to happen
-  only once (another crash before the new attempt's own records are on disk can repeat the ambiguity). No foreground
-  receipt barrier is added to any commit; the flusher works in the background, and an inline materialization may still
-  force its own preservation copies. If no flusher can be started, the window lasts until the next wrapper command in
-  that worktree.
+`commit: ok` line of the attempt, and what the branch and its reflog show. A fresh attempt is considered only when no
+decisive positive authority survives (no receipt, no recorded `published`, no `commit: ok`, no other publication or
+removal evidence); a branch that survives at the old tip is part of the ambiguous state and is not itself decisive. If
+the branch still holds the commit, nothing happens. If the branch lost the commit because its own write did not reach
+the disk, the fresh attempt restores a commit you were told succeeded. The bad case is the same recovery state arising
+from a removal you made on purpose: you reset the branch after the success, the reset reached the disk, and no
+decisive positive authority survived (the receipt did not, and the reflog record of the reset did not, which the same
+power failure can cause; reflogs can also be disabled, expired or erased). The wrapper cannot tell your removal from a
+lost write and makes the fresh attempt. Your earlier decision 3, "Land it", covers an indistinguishable publication;
+it was not asked about a command that had already returned success. What a fresh attempt is. It is another attempt,
+not a guaranteed copy of the original. It may build a different commit (the base may have moved), it may stop on a
+replay conflict, a hook refusal or a signing failure, and recovery may still be pending when you next run a command.
+Notices are specific to the outcome: attempt scheduled or running; published, with the identifier of the commit that
+was actually made and the command to drop it; or conflicted, refused or signing failed, with the retained inputs and
+what to do next. The notice is stored and printed by the next wrapper command in that worktree; it is retained until
+it has been delivered and survives another crash, and a notice for a request is not discarded while that request's
+recovery data is still needed (a mechanism obligation, not a choice for you). Nothing waits for an outcome in order to
+print its notice. Example: you run `git commit`, it prints success, you run `git reset --hard HEAD~1` two seconds
+later, and the power fails one second after that. The reset reached the disk; neither the receipt nor the reflog
+record of the reset did, and no `published` record or `commit: ok` line survived. What the design already does about
+the window. The receipt is its own registration: every executor (the service, the next start, a one-shot flusher)
+enumerates the receipt directory, so the obligation to force it is never lost between creation, handoff, shutdown and
+a replacement executor; the client reads a seal marker after creating the receipt, and a service that shuts down seals
+before its final sweep, so a receipt created after that sweep always gets a flusher of its own. The flusher is a
+launch of the internal flush logic (not the ordinary command line), outside the incarnation's scope, one per lane. A
+later command, including a `git commit`, never waits for another command's receipt; it queues what remains for
+background forcing. Only if no flusher can be started because of a process-count or memory cap set by someone else
+does the receipt stay unforced until the next wrapper command in that worktree starts forcing it in the background.
+The window is therefore the time the flusher needs, which the disk sets and which has not been measured (a scheduling
+target exists, not a completion bound), and the ambiguity itself.
+- Option A, accept the remaining window; make the fresh attempt with an outcome-specific stored notice (Recommended).
+  Visible here: after the reboot the next wrapper command in that worktree prints the retained notice for the fresh
+  attempt, as described above. Risk: in the bad case a commit you removed on purpose can be published again; this is
+  not promised to happen only once (another crash before the new attempt's own records are on disk can repeat the
+  ambiguity), and "restores a lost write" holds only when no positive authority survives and only as far as the fresh
+  attempt's permitted outcomes allow. No pre-success barrier is added for the new request's receipt; a later command
+  queues leftover receipts for background forcing and waits for none. A durable receipt has the same consequence in A
+  as in B: once it is D, a lost Git ref or object write is not restored automatically, because recovery then sees
+  "already published" (the Git data follows your `core.fsync` setting). The difference between A and B is when the
+  receipt becomes D, not whether it can suppress reconstruction.
 - Option B, force the receipt to disk before the command returns success, on every commit. This extends your "Force at
   leaving, else background" to a barrier before a success return. Visible here: two forced writes (the receipt file
   and its directory) wait on every successful commit, which can push a commit past native Git plus five seconds when
   the disk is busy; disk pressure is not treated as an exemption, so this would relax your rule "commits vs native git
-  should not take 5s longer." in those cases. Scope: it closes this post-return replay ambiguity once the forcing
-  succeeds. It does not make the branch contents durable (that follows your Git `core.fsync` setting): if the receipt
-  is on disk and the branch write is lost, recovery sees "already published" and does not restore the commit you were
-  told succeeded. It does not remove outside I/O failures, and if forcing fails after the publication the command
-  cannot undo the publication; it reports the success and says the receipt is not durable.
-- Option C, in this indistinguishable case do not publish again; keep the request and ask you. Visible here: after the
-  reboot a line says a commit may or may not have been published, and the wrapper waits for you to confirm or drop it.
-  Risk: a commit whose write was really lost needs your confirmation to come back, which changes decision 3 for
-  after-power-loss cases.
-- Ranking: A > C > B. A beats C because it restores a lost write without a step from you and the bad case needs a
-  power failure inside the flusher's time plus a deliberate removal that persisted without its evidence; C beats B
-  because C adds nothing to the success path, while B puts forced writes on every commit and, once the receipt is
-  forced, also stops the automatic restoration of a lost branch write.
+  should not take 5s longer." in those cases. Scope: after the forcing succeeds the post-return ambiguity is closed
+  for as long as the receipt is retained; the branch contents are still not made durable by it (Git's `core.fsync`),
+  and outside I/O failures remain. If forcing fails after the publication, the command cannot undo the publication: it
+  exits 0 and prints a warning that the commit is published and its receipt is not durable. Exit 0 means "published";
+  the warning is the only signal about durability.
+- Option C, in this indistinguishable case do not publish again; keep the request and ask you. Applicability: recovery
+  cannot know that an ambiguous request once returned success; the same surviving state can come from a client killed
+  before publication or during submission. C therefore applies to every request that is indistinguishable under the
+  predicate "no decisive positive authority survives", and its change to decision 3 is that broad. Visible here: after
+  the reboot the next wrapper command prints that a commit may or may not have been published; the request and its
+  recovery content stay retained; ordinary commands return within their normal bounds (a request pending confirmation
+  does not occupy a blocked command); nothing is replayed until you confirm or drop it, and later automatic replay is
+  not silently resumed. Risk: a commit whose write was really lost needs your confirmation to come back.
+- Ranking (a policy preference; no event rate or completion window has been measured): A > C > B. A beats C because it
+  restores a lost write without a step from you when no positive authority survives, at the stated risks and without
+  any wait on another command's receipt; C beats B because C adds nothing to the success path and keeps every case you
+  could care about asked, while B puts forced writes on every commit and relaxes the five-second rule to close one
+  ambiguity.
+
+## Acceptance target
+
+Source: the reviewer's answer to "which are rule gaps, and what finite set of properties would move your verdict"
+(`commits-never-fail-sol-17c.txt`, sections 1 to 3), kept as the reviewer wrote it, with the table converted to
+headings and lists because the repository forbids Markdown tables. The models and the components build to this list.
+
+**A finite, conditional acceptance contract is possible.** Fix the supported Git, backend and filesystem scope and the
+rule precedence in the next section. Then the following are the gates for moving to "approve the live protocol after
+named fixes". Textual declarations alone do not satisfy them. Every model must separate observation, admission, write,
+force and reclamation, and not assume an atomic "safe handoff".
+
+### L1 to L7, L5, X1, service drain
+
+Required property. Ownership and restart target the correct incarnation; normal lifecycle operations never cancel a
+protected execution tree; helpers retain no unintended ownership or pipe descriptors; launch is non-recursive and
+resource-bounded; drain callers return within their bound.
+
+Showing controls. Retained-descriptor deadlock, restart-versus-hook admission, replacement-incarnation targeting,
+helper parent exit, hook outlasting upgrade caller.
+
+### C0 to C5, S1, C3 repair
+
+Required property. Capture uses a consistent lane state; an exposed identity remains recoverable to immutable inputs
+or a valid terminal outcome; resend cannot create a second operation; unknown status never authorizes native fallback;
+repair preserves inspected content and unsupported formats.
+
+Showing controls. Interrupted exposure, concurrent resend, marker and state races, failed initial read, competing
+repairers and preservation-boundary crashes.
+
+### C1, B1 to B3, Q1
+
+Required property. Deferred selections compose against the effective ordered base, including after removal or replay
+changes; retained bytes remain sufficient for recomputation; held-version completion cannot affect its successor.
+
+Showing controls. The P/Q/A/D counterexample, repeated supporting-owner removals, replay changing support, checkpoint
+and recovery between rebuild steps, held, disjoint, overlapping and superseded requests. Compare with a sequential
+reference interpreter.
+
+### P1 to P4, E1, W1 and W2, recovery classes
+
+Required property. Plain withdrawal prevents subsequent submission; unresolved departure permits only the
+already-submitted attempt, never a fresh one; only positive failure evidence authorizes retry; publication evidence
+has the stated precedence.
+
+Showing controls. Death at each pipe-write and client-lock handoff, `closed-nosubmit` takeover, buffered commit then
+abort, missing diagnostics and rewritten publication. Disposable Git experiments: actual FIFO, hook phases,
+diagnostics and backend behavior for every supported invocation.
+
+### P2c, receipt forcing, L2 and L4, shutdown
+
+Required property. Each receipt has continuing forcing responsibility across admission, sealing, failure and normal
+executor replacement, without an unrelated foreground durability barrier. Actual outside-fault exceptions are reported
+honestly.
+
+Showing controls. Delayed client after final sweep, enqueue rejection, worker launch, error and exit, reap mid-sync,
+replacement startup and many outstanding receipts. Pause receipt forcing indefinitely and verify unrelated dispatch
+remains bounded.
+
+### Rule V departure and optional level 2
+
+Required property. Each disposition derives the correct stop-first saved set, ancestry and covering acknowledgment;
+captured authority remains valid through completion or verified substitution; stop failure still attempts the
+remaining saves. Exact-commit claims require verified durable closure, hook-free execution and fenced late effects.
+
+Showing controls. Omitted stop or namespace, insufficient acknowledgment, reclamation during capture, every forcing
+error, cross-filesystem refs, repack overlap, verification timeout followed by disposal.
+
+### Checkpoint selection and cutover, T0, T1, G1 to G4
+
+Required property. Checkpoints preserve every live request, validate complete closure, reject maximum-generation
+conflicts and activate and reclaim only under the stated durability authority; damaged established roots fail closed.
+Saved content survives until authorized disposal, and maintenance cannot outlive its recovery protection.
+
+Showing controls. Non-drop counterexample, torn and missing dependencies, reordered persistence, candidate activation,
+predecessor deletion, registry admission, check and release races and cross-worktree maintenance. Verify push
+exclusion and frozen updates separately against actual Git.
+
+### M1 to M3, MG1 to MG3, MG6c
+
+Required property. No pre-publication mutation; conditional installation preserves later staging and every displaced
+version; no foreign lock removal; inline bounds cover actual reads and whole-index work; preparation and cleanup
+cannot add an unbounded postlude. Watch admission has a defined linearization and a recoverable original anchor.
+
+Showing controls. Concurrent staging, `HEAD` changes, open-descriptor writes, atomic saves, crash at every carry step,
+oversized and raced reads, expiry between clock check and marker, interrupted installation and reboot.
+
+### Rule B, client results, notices and costs
+
+Required property. Whole-process latency, not merely printing, is accounted for; publication and install status remain
+distinct; notices are outcome-specific and retained through recovery until delivery; plain-success foreground sync
+counts and batching costs are accurate.
+
+Showing controls. Whole-command timing and sync instrumentation, no-manager preparation timeout, recovery conflict,
+refusal and signing failure, notice crash and reclamation tests. Resolve question 8 using corrected options before
+enabling its recovery policy.
+
+### The rule for new counterexamples
+
+A new counterexample may reopen one of these properties; it should not silently introduce a new acceptance criterion.
+Optional level 2 may remain disabled when its eligibility cannot be established.
+
+### Implementation obligations the showing must demonstrate (not new rules)
+
+The reviewer classed these as implementation obligations and verification gates: descriptor hygiene of every helper
+(no retained lock, gate, client-lock or pipe description), one-shot completion of the flusher, bounded resources under
+many outstanding receipts, non-recursive launch (an internal entry point, never the ordinary command line), and
+protected-dispatch eligibility of every internal Git invocation (hook-free internal transactions on the wrapper's own
+namespace) as a verification gate.
+
+## Rule conflicts and the decisions that rank them
+
+Source: `commits-never-fail-sol-17c.txt`, section 3. No new owner question follows from them.
+
+### "Commits should never fail." against a bounded error return
+
+A foreign ref lock that never becomes available is expressly not an outside cause. The command cannot both stay
+successful in the literal sense and obey "Return with an error"; waiting for ever violates the waiting rule. Decisions
+4 and 5 already rank them: return an error, preserve the request, require a retry.
+
+### Uncut durable departure against finite latency
+
+A departing command must force its withdrawal and saved inputs; a sync that takes sixty seconds, or never returns,
+while native Git would already have returned, cannot satisfy unconditional finite waiting, native plus five seconds
+and an uncut final save at once. Decision 14 already prioritizes the final save over the ordinary deadline, and its
+latency exception must be explicit and confined to that save, not extended to L4 or to arbitrary helpers. Eventual
+successful completion is an assumption; a never-returning sync is outside the assumed execution domain and is not
+included in the guarantee, nor called an I/O error merely because it is slow.
+
+### Absolute preservation across power loss or kill
+
+If the only captured copy is V and the power fails before any durable copy exists, or the process is killed before
+completing its save, no software can guarantee survival. The owner's list of causes outside our control supplies the
+exception; it is not permission for normal wrapper lifecycle transitions to lose responsibility. "Keep it for a retry"
+does not require keeping a command blocked. Question 8 stays a separate recovery-policy choice and does not waive
+these execution obligations.
 
 ## Verification plan and build order
 
