@@ -74,3 +74,27 @@ fn a_mix_says_the_success_is_partial() {
     assert!(success_of(mixed.as_str()).contains("part of"), "{mixed}");
     assert!(!success_of(whole.as_str()).contains("part of"), "{whole}");
 }
+
+/// A tool stopped at its ceiling is a finding that names the tool, what it was doing, how long it ran and the command that runs
+/// it again; every tool has such a sentence.
+#[test]
+fn a_tool_stopped_at_its_ceiling_is_named_with_what_it_did_and_the_command_to_run() {
+    let ceiling: std::time::Duration = crate::wait_ceilings::REPAIR_TOOL_CEILING;
+    for (tool, name) in [(Tool::Pnpm, "pnpm"), (Tool::Cargo, "cargo"), (Tool::Toolchain, "mpm-shadow")] {
+        let run: ToolRun = ToolRun { end: ToolEnd::CeilingReached(ceiling), millis: ceiling.as_millis(), stdout: Vec::new() };
+        let finding: Finding = finding_from(tool, &run, "detail", "the command to run");
+        let Outcome::Failed { reason, run_instead } = &finding.outcome else { panic!("{finding:?}") };
+        assert!(reason.contains(name) && reason.contains(ceiling.as_secs().to_string().as_str()) && reason.contains("whole process group"), "{reason}");
+        assert_eq!(run_instead, "the command to run");
+        let line: String = render(destination().as_path(), &[finding], true);
+        assert!(line.contains(name) && line.contains("run the command to run"), "{line}");
+    }
+}
+
+/// The ceiling is past the quiet window, or the window would never end anything.
+#[test]
+fn the_shipped_ceiling_is_past_the_shipped_quiet_window() {
+    let environment: crate::package_repair::RepairEnvironment = crate::package_repair::RepairEnvironment::from_process();
+    assert!(environment.ceiling > environment.quiet_window);
+    assert_eq!(environment.ceiling, crate::wait_ceilings::REPAIR_TOOL_CEILING);
+}

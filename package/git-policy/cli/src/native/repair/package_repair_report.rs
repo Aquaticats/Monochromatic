@@ -90,8 +90,32 @@ pub fn finding_from(tool: Tool, run: &ToolRun, detail: &str, run_instead: &str) 
         ToolEnd::Succeeded => Outcome::Repaired { detail: detail.to_owned(), millis: run.millis },
         ToolEnd::Failed(reason) => Outcome::Failed { reason: reason.clone(), run_instead: run_instead.to_owned() },
         ToolEnd::TimedOut => Outcome::Failed { reason: String::from("it showed no sign of work for the quiet window and was stopped"), run_instead: run_instead.to_owned() },
+        ToolEnd::CeilingReached(ceiling) => Outcome::Failed { reason: ceiling_reason(tool, *ceiling), run_instead: run_instead.to_owned() },
     };
     return Finding { tool, outcome };
+}
+
+/// What:
+///  The reason of a tool that was stopped at the ceiling: the tool, what it was doing, how long it ran, and that its whole process
+///  group was stopped.
+/// Why:
+///   The owner, 2026-11-04, "Silence plus a ceiling (Recommended)": the tool is "ended with an error naming the tool". The command that
+///  finishes the repair is the finding's `run_instead`, which the line prints after this reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ceilingReason(tool: Tool, ceilingMs: number): string;
+/// ```
+pub fn ceiling_reason(tool: Tool, ceiling: std::time::Duration) -> String {
+    let doing: &str = match tool {
+        Tool::Pnpm => "pnpm, relinking node_modules",
+        Tool::Cargo => "cargo, cloning and cleaning build state",
+        Tool::Toolchain => "mpm-shadow, rebuilding the toolchain links",
+    };
+    return format!(
+        "{doing}, ran for {} seconds, the longest the wrapper lets one repair tool run, and was stopped with its whole process group; if the repository is very large, run it by hand",
+        ceiling.as_secs()
+    );
 }
 
 /// What:
