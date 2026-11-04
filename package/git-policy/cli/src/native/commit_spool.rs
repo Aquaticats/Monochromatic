@@ -16,7 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, fault_point, sync_chain, sync_directory, sync_file, temporary_name};
+use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_chain, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::Request;
 
@@ -115,13 +115,31 @@ fn manifest_body(files: &[Vec<u8>]) -> String {
 /// ```
 fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
     let directory: &Path = target.parent().ok_or(SpoolError::InvalidIdentity)?;
+    // A resend finds the complete final file first and writes no duplicate (a full disk must not fail it); the name may have been linked
+    // by a writer that died before syncing the directory, so the directory is synced before the answer.
+    match fs::read(target) {
+        Ok(existing) => {
+            if existing == bytes {
+                sync_directory(directory)?;
+                return Ok(());
+            }
+            return Err(SpoolError::Conflict);
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(SpoolError::Io(error)),
+    }
+    fault_point("spool:before-temporary");
     let temporary: PathBuf = temporary_name(directory)?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(bytes)?;
     sync_file(&file, &temporary)?;
     fault_point("spool:before-link");
     let linked: io::Result<()> = fs::hard_link(&temporary, target);
-    fs::remove_file(&temporary)?;
+    // A failed cleanup after a successful link does not make the file absent; only the stale temporary name remains.
+    let cleanup: io::Result<()> = fs::remove_file(&temporary);
+    if let Err(cleanup_error) = &cleanup {
+        record_event(&format!("spool:cleanup-failed:{:?}", cleanup_error.kind()));
+    }
     match linked {
         Ok(()) => return Ok(()),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {

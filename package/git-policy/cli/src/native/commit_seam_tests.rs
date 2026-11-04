@@ -14,6 +14,7 @@
 use crate::model_fixture::{owned_append, owned_repair, scratch};
 use git_policy_cli::commit_identity::{create_dir_all_durable, init_root, set_fault_point, start_events, take_events};
 use git_policy_cli::commit_ledger::LedgerEntry;
+use git_policy_cli::commit_spool::{SpoolError, write_spool};
 use std::path::{Path, PathBuf};
 
 /// A 32-character identity made of one repeated digit.
@@ -171,4 +172,28 @@ fn an_append_to_a_clean_ledger_reads_only_the_tail() {
     assert!(!reads.is_empty(), "positive control: the repair records what it read");
     let read: usize = reads.iter().sum();
     assert!(read <= 1024, "read {} of {} bytes", read, size);
+}
+
+/// Review 6, 4.5: a resend that finds every final spool file in place wants no temporary file (a full disk must not fail it), and a
+/// conflicting resend is still refused without writing one. The first write wants a temporary file, so the fault point is shown live.
+#[test]
+fn a_spool_resend_creates_no_temporary_file() {
+    static TEMPORARY_WANTED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    fn note(point: &str) {
+        if point == "spool:before-temporary" {
+            TEMPORARY_WANTED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let root: PathBuf = scratch("seam-spool-resend");
+    let id: String = identity('6');
+    let files: Vec<Vec<u8>> = vec![b"new bytes".to_vec()];
+    let olds: Vec<Vec<u8>> = vec![Vec::new()];
+    set_fault_point(Some(note));
+    write_spool(&root, &id, &files, &olds).expect("first write");
+    let first: usize = TEMPORARY_WANTED.load(std::sync::atomic::Ordering::SeqCst);
+    assert!(first > 0, "the fault point never fired");
+    write_spool(&root, &id, &files, &olds).expect("resend");
+    assert!(matches!(write_spool(&root, &id, &[b"other".to_vec()], &olds), Err(SpoolError::Conflict)));
+    set_fault_point(None);
+    assert_eq!(TEMPORARY_WANTED.load(std::sync::atomic::Ordering::SeqCst), first, "a resend wanted a temporary file");
 }

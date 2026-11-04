@@ -17,7 +17,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{record_event, sync_directory, sync_file};
+use super::commit_identity::{fault_point, record_event, sync_directory, sync_file};
 use super::commit_integrity::sha256_hex;
 
 /// The chain hash before the first record of a file.
@@ -97,8 +97,9 @@ fn valid_prefix(bytes: &[u8]) -> Option<(u64, Vec<u8>, String, usize)> {
         let parsed = if ok_shape { (parts[1].parse::<u64>().ok(), parts[3].parse::<usize>().ok()) } else { (None, None) };
         let (Some(generation), Some(length)) = parsed else { break };
         let start: usize = line_end + 1;
-        let end: usize = start + length;
-        let trailer_end: usize = end + 1 + 5 + 64 + 1;
+        // A damaged header can name a length near `usize::MAX`; the sums are checked so it ends the prefix instead of overflowing.
+        let Some(end) = start.checked_add(length) else { break };
+        let Some(trailer_end) = end.checked_add(1 + 5 + 64 + 1) else { break };
         if trailer_end > bytes.len() {
             break;
         }
@@ -114,23 +115,51 @@ fn valid_prefix(bytes: &[u8]) -> Option<(u64, Vec<u8>, String, usize)> {
     return last;
 }
 
-/// The newest valid state: the highest-numbered file whose first record validates, read as its longest valid prefix; a newest file that
-/// does not validate falls back to the previous one (it exists until the new one is durable). No log file is `Ok(None)`; files with
-/// bytes and no valid record anywhere are `Damaged`; a file that cannot be read is `Io`, never a silent fall back to an older state.
-pub fn read(dir: &Path) -> Result<Option<(u64, Vec<u8>)>, StateError> {
+/// The file a recovery uses and what it holds: its number, the generation and payload of its last valid record, the chain hash there and
+/// the length of its valid prefix.
+#[derive(Debug)]
+pub struct Selected {
+    /// The log file number.
+    pub number: u64,
+    /// The generation of the last valid record.
+    pub generation: u64,
+    /// The payload of the last valid record.
+    pub payload: Vec<u8>,
+    /// The chain hash after the last valid record.
+    pub hash: String,
+    /// The length of the valid prefix in bytes.
+    pub length: usize,
+    /// Whether this is the highest-numbered file (otherwise a newer candidate exists that does not validate).
+    pub highest: bool,
+}
+
+/// The file recovery selects: the highest-numbered file whose first record validates, read as its longest valid prefix. No log file is
+/// `Ok(None)`; files with bytes and no valid record anywhere are `Damaged`; a file that cannot be read is `Io`, never a silent fall back.
+pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
     let all: Vec<u64> = numbers(dir)?;
+    let highest: Option<u64> = all.last().copied();
     let mut saw_bytes: bool = false;
+    let mut best: Option<Selected> = None;
     for number in all.into_iter().rev() {
         let bytes: Vec<u8> = fs::read(log_path(dir, number))?;
         saw_bytes = saw_bytes || !bytes.is_empty();
-        if let Some((generation, payload, _, _)) = valid_prefix(&bytes) {
-            return Ok(Some((generation, payload)));
+        if let Some((generation, payload, hash, length)) = valid_prefix(&bytes) {
+            // The newest generation wins, and a tie goes to the higher file; a lower file holding a newer generation than a higher one
+            // means the higher one is a rollback and is not the root.
+            if best.as_ref().is_none_or(|chosen| { return generation > chosen.generation; }) {
+                best = Some(Selected { number, generation, payload, hash, length, highest: Some(number) == highest });
+            }
         }
     }
-    if saw_bytes {
+    if best.is_none() && saw_bytes {
         return Err(StateError::Damaged);
     }
-    return Ok(None);
+    return Ok(best);
+}
+
+/// The newest valid state (see `select`): its generation and payload.
+pub fn read(dir: &Path) -> Result<Option<(u64, Vec<u8>)>, StateError> {
+    return Ok(select(dir)?.map(|selected| { return (selected.generation, selected.payload); }));
 }
 
 /// What:
@@ -144,29 +173,29 @@ pub fn read(dir: &Path) -> Result<Option<(u64, Vec<u8>)>, StateError> {
 /// function append(dir: string, generation: number, payload: Uint8Array): void;
 /// ```
 pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
-    let newest: Option<(u64, Vec<u8>)> = read(dir).map_err(|error| {
+    let selected: Option<Selected> = select(dir).map_err(|error| {
         return match error {
             StateError::Io(inner) => inner,
             StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged; its bytes are kept"),
         };
     })?;
-    if newest.is_some_and(|(newest_generation, _)| { return generation <= newest_generation; }) {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the generation must increase"));
-    }
-    let number: u64 = rotation_number(dir)?.unwrap_or(1);
+    let (number, previous, keep): (u64, String, usize) = match &selected {
+        Some(chosen) => {
+            if generation <= chosen.generation {
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "the generation must increase"));
+            }
+            if !chosen.highest {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "a newer checkpoint candidate does not validate; complete or abandon it first"));
+            }
+            (chosen.number, chosen.hash.clone(), chosen.length)
+        }
+        None => (1, genesis(), 0),
+    };
     let path: PathBuf = log_path(dir, number);
-    let existing: Vec<u8> = match fs::read(&path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => return Err(error),
-    };
-    let (previous, keep): (String, usize) = match valid_prefix(&existing) {
-        Some((_, _, hash, length)) => (hash, length),
-        None => (genesis(), 0),
-    };
     let (record, _) = encode_record(generation, &previous, payload);
     let mut file: File = OpenOptions::new().create(true).write(true).truncate(false).open(&path)?;
-    if keep < existing.len() {
+    if keep as u64 != file.metadata()?.len() {
+        // Bytes after the valid prefix are a torn record; they are cut so the chain stays contiguous.
         file.set_len(keep as u64)?;
     }
     io::Seek::seek(&mut file, io::SeekFrom::Start(keep as u64))?;
@@ -184,11 +213,47 @@ pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
 /// function syncNewestLog(dir: string): void;
 /// ```
 pub fn sync_newest_log(dir: &Path) -> io::Result<()> {
-    let number: u64 = rotation_number(dir)?.ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
-    let path: PathBuf = log_path(dir, number);
+    sync_prefix(dir)?;
+    return Ok(());
+}
+
+/// The prefix of a log that a sync made durable: the file, the byte length and the last generation it holds.
+#[derive(Debug, Eq, PartialEq)]
+pub struct Prefix {
+    /// The log file number.
+    pub number: u64,
+    /// The bytes of the file that were part of the valid prefix when the sync began.
+    pub length: u64,
+    /// The generation of the last record in that prefix.
+    pub generation: u64,
+}
+
+/// What:
+///  Syncs the file that recovery would select (not the highest filename), then its directory, and returns the prefix that was captured
+///  before the sync began: records appended while the sync ran are not claimed.
+/// Why:
+///  A promise names a state, and a flush that reports "everything visible when I returned" would claim bytes it never covered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function syncPrefix(dir: string): { number: number; length: number; generation: number };
+/// ```
+pub fn sync_prefix(dir: &Path) -> io::Result<Prefix> {
+    let selected: Selected = select(dir)
+        .map_err(|error| {
+            return match error {
+                StateError::Io(inner) => inner,
+                StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged"),
+            };
+        })?
+        .ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
+    // The prefix is fixed here; records appended while the sync runs are not claimed by it.
+    fault_point("state:after-capture");
+    let path: PathBuf = log_path(dir, selected.number);
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
-    return sync_directory(dir);
+    sync_directory(dir)?;
+    return Ok(Prefix { number: selected.number, length: selected.length as u64, generation: selected.generation });
 }
 
 /// What:
@@ -201,6 +266,20 @@ pub fn sync_newest_log(dir: &Path) -> io::Result<()> {
 /// function rotate(dir: string, generation: number, document: Uint8Array): number;
 /// ```
 pub fn rotate(dir: &Path, generation: u64, document: &[u8]) -> io::Result<u64> {
+    let selected: Option<Selected> = select(dir).map_err(|error| {
+        return match error {
+            StateError::Io(inner) => inner,
+            StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged"),
+        };
+    })?;
+    if let Some(chosen) = &selected {
+        if generation < chosen.generation {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "a checkpoint must not hold an older generation than the log"));
+        }
+        if !chosen.highest {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "an earlier checkpoint candidate does not validate"));
+        }
+    }
     let next: u64 = rotation_number(dir)?.map_or(1, |number| { return number + 1; });
     let (record, _) = encode_record(generation, &genesis(), document);
     let mut file: File = OpenOptions::new().create_new(true).write(true).open(log_path(dir, next))?;
@@ -220,6 +299,25 @@ pub fn rotate(dir: &Path, generation: u64, document: &[u8]) -> io::Result<u64> {
 pub fn complete_rotation(dir: &Path) -> io::Result<()> {
     let all: Vec<u64> = numbers(dir)?;
     let Some(newest) = all.last().copied() else { return Ok(()) };
+    // The candidate must itself be the recovery root: it validates, and no older file holds a newer generation. Otherwise nothing is
+    // deleted, so the older valid roots stay.
+    let selected: Selected = select(dir)
+        .map_err(|error| {
+            return match error {
+                StateError::Io(inner) => inner,
+                StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged"),
+            };
+        })?
+        .ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
+    if selected.number != newest {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "the checkpoint candidate does not validate; the older files are kept"));
+    }
+    for number in all.iter().filter(|number| { return **number != newest; }) {
+        let older: Vec<u8> = fs::read(log_path(dir, *number))?;
+        if valid_prefix(&older).is_some_and(|(generation, _, _, _)| { return generation > selected.generation; }) {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "an older file holds a newer generation than the candidate; it is kept"));
+        }
+    }
     let path: PathBuf = log_path(dir, newest);
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
@@ -230,4 +328,48 @@ pub fn complete_rotation(dir: &Path) -> io::Result<()> {
         record_event(&format!("remove:{}", old.display()));
     }
     return Ok(());
+}
+
+/// What:
+///  The single writer of a state directory, proved by a non-blocking exclusive lock on `state.writer` that lives as long as the value.
+///  Appends and checkpoints take `&mut self`, so one owner cannot interleave them, and a second owner is refused at once.
+/// Why:
+///  An append that selected a segment, a checkpoint that snapshotted it and a completion that deletes it must not interleave: a
+///  transition appended to the old segment after the snapshot is lost when the old segment goes (the cutover race).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class StateWriter { static acquire(dir: string): StateWriter; append(g: number, p: Uint8Array): void; checkpoint(g: number, d: Uint8Array): number; }
+/// ```
+#[derive(Debug)]
+pub struct StateWriter {
+    /// The locked file; dropping the writer releases the lock.
+    _lock: File,
+    /// The state directory.
+    dir: PathBuf,
+}
+
+impl StateWriter {
+    /// Takes the writer lock without waiting; `WouldBlock` when another writer holds it.
+    pub fn acquire(dir: &Path) -> io::Result<StateWriter> {
+        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).open(dir.join("state.writer"))?;
+        match lock.try_lock() {
+            Ok(()) => return Ok(StateWriter { _lock: lock, dir: dir.to_path_buf() }),
+            Err(std::fs::TryLockError::WouldBlock) => return Err(io::Error::new(io::ErrorKind::WouldBlock, "another writer holds the state")),
+            Err(std::fs::TryLockError::Error(error)) => return Err(error),
+        }
+    }
+
+    /// Appends a record as `append` does, as the only writer.
+    pub fn append(&mut self, generation: u64, payload: &[u8]) -> io::Result<()> {
+        return append(&self.dir, generation, payload);
+    }
+
+    /// Seals the current segment and replaces it by a checkpoint in one owner step: the document is written as the first record of the
+    /// next segment, validated, made durable, and only then are older segments removed. Future appends go to the new segment.
+    pub fn checkpoint(&mut self, generation: u64, document: &[u8]) -> io::Result<u64> {
+        let number: u64 = rotate(&self.dir, generation, document)?;
+        complete_rotation(&self.dir)?;
+        return Ok(number);
+    }
 }

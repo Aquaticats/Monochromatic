@@ -13,7 +13,8 @@
 
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{start_events, take_events};
-use git_policy_cli::commit_state_log::{StateError, append, complete_rotation, read, rotate, rotation_number};
+use git_policy_cli::commit_identity::set_fault_point;
+use git_policy_cli::commit_state_log::{Prefix, StateError, StateWriter, append, complete_rotation, read, rotate, rotation_number, sync_prefix};
 use std::path::PathBuf;
 
 /// The number of syncs in `events`.
@@ -136,4 +137,119 @@ fn a_torn_newest_file_still_falls_back_to_the_previous_one() {
     append(&dir, 1, b"first").expect("append");
     std::fs::write(dir.join("state.log.2"), b"rec 2 ").expect("a torn new file");
     assert_eq!(read(&dir).expect("readable").expect("fallback"), (1, b"first".to_vec()));
+}
+
+/// Review 6, 2.1: a checkpoint candidate that does not validate (a failed rotation left it empty or torn) must not authorize deleting the
+/// older valid root: completion refuses and every older file stays.
+#[test]
+fn completion_refuses_a_torn_candidate_and_keeps_the_older_root() {
+    let dir: PathBuf = scratch("log-torn-candidate");
+    append(&dir, 1, b"first").expect("append");
+    rotate(&dir, 2, b"the checkpoint").expect("rotate");
+    let full: Vec<u8> = std::fs::read(dir.join("state.log.2")).expect("read");
+    for cut in 0..full.len() {
+        std::fs::write(dir.join("state.log.2"), &full[..cut]).expect("a failed rotation left a partial candidate");
+        assert!(complete_rotation(&dir).is_err(), "cut {}", cut);
+        assert!(dir.join("state.log.1").exists(), "cut {}", cut);
+        assert_eq!(read(&dir).expect("readable").expect("older root"), (1, b"first".to_vec()), "cut {}", cut);
+    }
+}
+
+/// Review 6, 2.1: a checkpoint never introduces an older generation than the log holds, and the refusal leaves no file behind.
+#[test]
+fn a_checkpoint_of_an_older_generation_is_refused() {
+    let dir: PathBuf = scratch("log-older-checkpoint");
+    append(&dir, 10, b"ten").expect("append");
+    assert!(rotate(&dir, 9, b"nine").is_err());
+    assert_eq!(rotation_number(&dir).expect("listing"), Some(1));
+    assert_eq!(rotate(&dir, 10, b"ten again, as a checkpoint").expect("the same generation may be preserved"), 2);
+}
+
+/// Review 6, 2.1: an older file holding a newer generation than the candidate is kept (completion refuses): the candidate would be a
+/// rollback of the state.
+#[test]
+fn completion_keeps_an_older_file_that_holds_a_newer_generation() {
+    let dir: PathBuf = scratch("log-newer-older");
+    append(&dir, 10, b"ten").expect("append");
+    append(&dir, 11, b"eleven").expect("append");
+    let other: PathBuf = scratch("log-older-candidate");
+    append(&other, 10, b"ten").expect("append");
+    std::fs::copy(other.join("state.log.1"), dir.join("state.log.2")).expect("a candidate that holds only generation ten");
+    assert_eq!(read(&dir).expect("readable").expect("the newer generation is the root").0, 11, "recovery does not roll back to the candidate");
+    assert!(complete_rotation(&dir).is_err());
+    assert!(dir.join("state.log.1").exists() && dir.join("state.log.2").exists());
+}
+
+/// Review 6, 2.3: the sync acts on the file recovery selects. A torn highest filename is not the state; recovery reads file 1, and file 1
+/// is the one that is forced.
+#[test]
+fn a_sync_forces_the_recovered_file_not_the_highest_filename() {
+    let dir: PathBuf = scratch("log-sync-selected");
+    append(&dir, 1, b"first").expect("append");
+    std::fs::write(dir.join("state.log.2"), b"rec 2 ").expect("a torn candidate");
+    start_events();
+    let prefix: Prefix = sync_prefix(&dir).expect("sync");
+    let events: Vec<String> = take_events();
+    assert_eq!(prefix.number, 1);
+    assert!(events.contains(&format!("file-sync:{}", dir.join("state.log.1").display())), "{:?}", events);
+    assert!(!events.iter().any(|event| { return event.contains("state.log.2"); }), "{:?}", events);
+}
+
+/// Review 6, 2.3: a sync claims only the prefix captured before it ran. A record appended while the sync is in flight is visible, is not
+/// in the returned prefix, and so is not acknowledged as durable.
+#[test]
+fn a_sync_acknowledges_only_the_captured_prefix() {
+    static DIRECTORY: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+    fn append_during_the_sync(point: &str) {
+        if point == "state:after-capture" {
+            let dir: PathBuf = DIRECTORY.lock().expect("lock").clone().expect("directory");
+            append(&dir, 2, b"appended while the sync runs").expect("append");
+        }
+    }
+    let dir: PathBuf = scratch("log-watermark");
+    append(&dir, 1, b"first").expect("append");
+    let captured: u64 = std::fs::metadata(dir.join("state.log.1")).expect("size").len();
+    *DIRECTORY.lock().expect("lock") = Some(dir.clone());
+    set_fault_point(Some(append_during_the_sync));
+    let prefix: Prefix = sync_prefix(&dir).expect("sync");
+    set_fault_point(None);
+    assert_eq!(prefix, Prefix { number: 1, length: captured, generation: 1 });
+    assert!(std::fs::metadata(dir.join("state.log.1")).expect("size").len() > captured, "the later record is visible");
+    assert_eq!(read(&dir).expect("readable").expect("state").0, 2);
+}
+
+/// Review 6, 2.2: one writer owns the state; a second is refused at once. A checkpoint seals the segment and later appends go to the new
+/// one and survive, so no transition appended after the snapshot is lost with the old segment.
+#[test]
+fn one_writer_owns_the_state_and_a_checkpoint_does_not_lose_later_appends() {
+    let dir: PathBuf = scratch("log-writer");
+    let mut writer: StateWriter = StateWriter::acquire(&dir).expect("acquire");
+    assert_eq!(StateWriter::acquire(&dir).expect_err("a second writer").kind(), std::io::ErrorKind::WouldBlock);
+    writer.append(1, b"one").expect("append");
+    writer.append(2, b"two").expect("append");
+    assert_eq!(writer.checkpoint(2, b"the document at two").expect("checkpoint"), 2);
+    writer.append(3, b"three").expect("append after the cutover");
+    assert!(!dir.join("state.log.1").exists());
+    assert_eq!(read(&dir).expect("readable").expect("state"), (3, b"three".to_vec()));
+    drop(writer);
+    StateWriter::acquire(&dir).expect("the lock is released with the writer");
+}
+
+/// Review 6, 2.2: appending beside a candidate that does not validate is refused; the transition would be lost when the candidate is
+/// completed or abandoned.
+#[test]
+fn an_append_beside_an_unfinished_candidate_is_refused() {
+    let dir: PathBuf = scratch("log-unfinished");
+    append(&dir, 1, b"first").expect("append");
+    std::fs::write(dir.join("state.log.2"), b"rec 2 ").expect("a torn candidate");
+    assert!(append(&dir, 2, b"second").is_err());
+}
+
+/// Review 6, P2: a header that names a length near the maximum ends the valid prefix; it neither overflows nor panics.
+#[test]
+fn a_length_field_near_the_maximum_is_damage_not_a_panic() {
+    let dir: PathBuf = scratch("log-overflow");
+    let header: String = format!("rec 1 {} {}\n", "0".repeat(64), usize::MAX);
+    std::fs::write(dir.join("state.log.1"), header.as_bytes()).expect("write");
+    assert!(matches!(read(&dir), Err(StateError::Damaged)));
 }

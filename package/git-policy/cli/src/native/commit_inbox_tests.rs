@@ -279,3 +279,30 @@ fn two_clients_sending_the_same_bytes_end_with_one_file_and_a_resend() {
     assert_eq!(std::fs::read_dir(&inbox).expect("inbox").flatten().filter(|entry| { return entry.file_name() != "tmp"; }).count(), 1);
     assert_eq!(std::fs::read_dir(inbox.join("tmp")).expect("tmp").count(), 0);
 }
+
+/// Review 6, 4.3: a read failure at the target is not absence. A directory in the place of `inbox/<id>` makes the first read fail with an
+/// operational error; `accept` returns it without writing a temporary file, so a caller cannot read it as "not accepted" by mistake.
+#[test]
+fn a_read_failure_at_the_target_is_not_taken_for_absence() {
+    let root: PathBuf = scratch("v-read-failure");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    std::fs::create_dir(lane.join("inbox").join(&request.id)).expect("a directory where the request file would be");
+    let outcome = accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files);
+    assert!(matches!(outcome, Err(git_policy_cli::commit_inbox::InboxError::Io(_))), "{:?}", outcome);
+    assert_eq!(std::fs::read_dir(lane.join("inbox").join("tmp")).expect("tmp").count(), 0);
+}
+
+/// Review 6, 3.3: the barrier accepts bare relative names for the order and the ledger (their parent is the current directory, not the
+/// empty path). Each test runs in its own process under nextest, so changing the directory here touches no other test.
+#[test]
+fn a_departure_accepts_bare_relative_order_and_ledger_names() {
+    let root: PathBuf = scratch("v-relative");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    commit_state_log::append(&lane.join("state"), 1, b"adopted").expect("append");
+    std::fs::write(lane.join("order"), b"adopt line\n").expect("order");
+    std::fs::write(lane.join("ledger"), b"ledger line\n").expect("ledger");
+    std::env::set_current_dir(&lane).expect("enter the lane");
+    depart_closure(&lane.join("inbox"), &[], Some(std::path::Path::new("order")), &lane.join("state"), Some(std::path::Path::new("ledger")))
+        .expect("bare relative names");
+}

@@ -133,12 +133,12 @@ pub fn owned_append(anchor: &Path, ledger: &Path, entry: &git_policy_cli::commit
     if let Some(parent) = ledger.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let owner = git_policy_cli::commit_ledger::LedgerOwner::acquire(ledger)?;
+    let mut owner = git_policy_cli::commit_ledger::LedgerOwner::acquire(ledger)?;
     return owner.append(anchor, ledger, entry);
 }
 
 /// Repairs a ledger's torn tail as its exclusive owner.
 pub fn owned_repair(anchor: &Path, ledger: &Path) -> Result<git_policy_cli::commit_ledger::Repair, git_policy_cli::commit_ledger::LedgerError> {
-    let owner = git_policy_cli::commit_ledger::LedgerOwner::acquire(ledger)?;
+    let mut owner = git_policy_cli::commit_ledger::LedgerOwner::acquire(ledger)?;
     return owner.repair_tail(anchor, ledger);
 }

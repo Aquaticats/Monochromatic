@@ -221,11 +221,17 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
     }
     let bytes: Vec<u8> = encode_inbox_file(request, new_files, old_files)?;
     let target: PathBuf = inbox.join(&request.id);
-    if let Ok(existing) = fs::read(&target) {
-        if existing == bytes {
-            return Ok(Accepted::AlreadyPresent);
+    // Only absence lets acceptance go on: another read failure leaves the request's status unknown, and the caller must not treat it as
+    // "not accepted" (an accepted request may already be in place).
+    match fs::read(&target) {
+        Ok(existing) => {
+            if existing == bytes {
+                return Ok(Accepted::AlreadyPresent);
+            }
+            return Err(InboxError::Conflict);
         }
-        return Err(InboxError::Conflict);
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(InboxError::Io(error)),
     }
     let temporary: PathBuf = temporary_name(&inbox.join("tmp"))?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
@@ -254,6 +260,14 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
         }
         Err(error) => return Err(InboxError::Io(error)),
     }
+}
+
+/// The directory that holds `path`; a bare relative name has the empty parent, which is the current directory.
+fn parent_directory(path: &Path) -> &Path {
+    return match path.parent() {
+        Some(directory) if !directory.as_os_str().is_empty() => directory,
+        _ => Path::new("."),
+    };
 }
 
 /// What:
@@ -291,12 +305,12 @@ pub fn depart_closure(inbox: &Path, ids: &[String], order: Option<&Path>, state_
     sync_directory(inbox)?;
     if let Some(path) = order {
         sync_file(&File::open(path)?, path)?;
-        sync_directory(path.parent().unwrap_or(Path::new(".")))?;
+        sync_directory(parent_directory(path))?;
     }
     sync_newest_log(state_dir)?;
     if let Some(path) = ledger {
         sync_file(&File::open(path)?, path)?;
-        sync_directory(path.parent().unwrap_or(Path::new(".")))?;
+        sync_directory(parent_directory(path))?;
     }
     return Ok(());
 }

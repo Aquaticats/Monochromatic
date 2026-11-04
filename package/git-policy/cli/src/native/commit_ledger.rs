@@ -234,7 +234,7 @@ fn torn_path(ledger: &Path) -> PathBuf {
 /// ```ts
 /// function repairTail(path: string): Repair;
 /// ```
-pub(crate) fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
+fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
     let mut bytes: Vec<u8> = Vec::new();
     match File::open(ledger) {
         Ok(mut file) => {
@@ -345,7 +345,7 @@ pub fn lane_ledger_path(common_dir: &Path, instance: &str) -> Result<PathBuf, Le
 /// ```ts
 /// function append(path: string, entry: LedgerEntry): void;
 /// ```
-pub(crate) fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
+fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
     let line: Vec<u8> = encode_line(entry)?;
     // The parent chain through the anchor is made durable before a repair can destroy anything: the saved tail must not sit under a
     // directory name that a power loss could remove. A bare relative file name has the current directory as its parent.
@@ -460,7 +460,7 @@ impl LedgerOwner {
 
     /// Repairs the torn tail of `ledger` after making its parent chain durable through `anchor` (so the saved bytes cannot sit under a
     /// name a power loss could remove).
-    pub fn repair_tail(&self, anchor: &Path, ledger: &Path) -> Result<Repair, LedgerError> {
+    pub fn repair_tail(&mut self, anchor: &Path, ledger: &Path) -> Result<Repair, LedgerError> {
         self.owns(ledger)?;
         let parent: PathBuf = match ledger.parent() {
             Some(directory) if !directory.as_os_str().is_empty() => directory.to_path_buf(),
@@ -471,7 +471,7 @@ impl LedgerOwner {
     }
 
     /// Appends one line as `append` does, as the ledger's owner.
-    pub fn append(&self, anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
+    pub fn append(&mut self, anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
         self.owns(ledger)?;
         return append(anchor, ledger, entry);
     }

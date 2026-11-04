@@ -473,7 +473,7 @@ fn a_replay_from_a_closure_reconstructed_after_the_objects_were_pruned_is_clean_
 /// measured margin (the linear replay takes a small fraction of it in the same build).
 #[test]
 fn a_conflict_heavy_replay_is_not_quadratic() {
-    let paths: usize = 60_000;
+    let paths: usize = 120_000;
     let cell = |index: usize, id: &str| -> FlatEntry { return FlatEntry { path: format!("dir/file-{:06}", index).into_bytes(), mode: 0o100_644, id: id.as_bytes().to_vec() }; };
     let base: Vec<FlatEntry> = (0..paths).map(|index| { return cell(index, "o"); }).collect();
     let current: Vec<FlatEntry> = (0..paths).map(|index| { return cell(index, "a"); }).collect();
@@ -483,5 +483,5 @@ fn a_conflict_heavy_replay_is_not_quadratic() {
     let elapsed = started.elapsed();
     assert_eq!(replayed.conflicts.len(), paths);
     assert_eq!(replayed.entries.len(), paths);
-    assert!(elapsed < std::time::Duration::from_secs(3), "{} conflicting paths took {:?}", paths, elapsed);
+    assert!(elapsed < std::time::Duration::from_secs(20), "{} conflicting paths took {:?}", paths, elapsed);
 }

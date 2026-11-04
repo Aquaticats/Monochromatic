@@ -431,7 +431,7 @@ fn gitlinks_and_amendments_are_refused_before_acceptance_and_real_git_commits_th
 fn only_the_exclusive_owner_of_a_ledger_may_repair_it() {
     let directory: PathBuf = scratch("ledger-owner");
     let ledger: PathBuf = directory.join("ledger");
-    let owner: LedgerOwner = LedgerOwner::acquire(&ledger).expect("first owner");
+    let mut owner: LedgerOwner = LedgerOwner::acquire(&ledger).expect("first owner");
     assert!(matches!(LedgerOwner::acquire(&ledger), Err(LedgerError::OwnedElsewhere)));
     owner.append(&directory, &ledger, &entry('1', "published")).expect("append");
     let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
@@ -449,7 +449,7 @@ fn an_owner_of_one_ledger_cannot_touch_another() {
     let directory: PathBuf = scratch("ledger-other");
     let mine: PathBuf = directory.join("mine");
     let other: PathBuf = directory.join("other");
-    let owner: LedgerOwner = LedgerOwner::acquire(&mine).expect("owner");
+    let mut owner: LedgerOwner = LedgerOwner::acquire(&mine).expect("owner");
     assert!(owner.append(&directory, &other, &entry('1', "published")).is_err());
     assert!(owner.repair_tail(&directory, &other).is_err());
     assert!(!other.exists());
