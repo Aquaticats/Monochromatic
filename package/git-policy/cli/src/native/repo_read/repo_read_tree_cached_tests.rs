@@ -11,6 +11,11 @@ use std::path::{Path, PathBuf};
 /// A repository of `directories` directories, each `d<n>/sub/f.txt`, in two commits (the second edits `d1/sub/f.txt`), with the
 /// objects packed, so `HEAD~1` is a tree the cache-tree of the committed index does not name.
 fn committed_repository(root: &Path, name: &str, format: &str, directories: usize) -> PathBuf {
+    return repository_with(root, name, format, directories, true);
+}
+
+/// `committed_repository`, packed or left as the loose objects Git wrote.
+fn repository_with(root: &Path, name: &str, format: &str, directories: usize, packed: bool) -> PathBuf {
     let repo = root.join(name);
     std::fs::create_dir(&repo).expect("dir");
     git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", &format!("--object-format={format}")]);
@@ -24,8 +29,10 @@ fn committed_repository(root: &Path, name: &str, format: &str, directories: usiz
     git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
     std::fs::write(repo.join("d1/sub/f.txt"), "changed\n").expect("edit");
     git(repo.as_path(), &["commit", "--quiet", "--all", "--message=second"]);
-    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
-    git(repo.as_path(), &["prune-packed"]);
+    if packed {
+        git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+        git(repo.as_path(), &["prune-packed"]);
+    }
     return repo;
 }
 
@@ -205,5 +212,24 @@ fn a_count_that_does_not_match_the_index_declines_the_walk() {
     assert_eq!(changes_with_cache(&database, head_tree.as_slice(), format, &cache, index.as_slice()).map(|changes| { return changes.len(); }), Some(0), "the cache-tree as written gives no change");
     cache.entry_count += 1;
     assert!(changes_with_cache(&database, head_tree.as_slice(), format, &cache, index.as_slice()).is_none(), "a root count that is off declines");
+    remove(root.as_path());
+}
+
+/// A matching cache-tree must not hide a tree object that is gone: Git reads the tree it compares with and fails when it is
+/// missing, so the readers decline (both diff paths, both object formats) and Git gives the error.
+#[test]
+fn a_root_tree_that_is_gone_is_not_hidden_by_a_matching_cache_tree() {
+    let root = fixture("repo-read-cached-missing-root");
+    for format in ["sha1", "sha256"] {
+        let repo = repository_with(root.as_path(), format, format, 4, false);
+        let tree = text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+        let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
+        // The unchanged index still holds a cache-tree that names this very tree.
+        answered(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", head.as_str()]);
+        std::fs::remove_file(repo.join(".git/objects").join(&tree[..2]).join(&tree[2..])).expect("the tree is loose");
+        declined(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev", head.as_str()]);
+        declined(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--name-only", "-z", "--no-renames", head.as_str()]);
+        declined(root.as_path(), repo.as_path(), &["diff-index", "--cached", "--quiet", head.as_str()]);
+    }
     remove(root.as_path());
 }
