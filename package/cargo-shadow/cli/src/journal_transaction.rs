@@ -489,6 +489,21 @@ impl Transaction {
     /// finish(): void
     /// ```
     pub fn finish(self) -> io::Result<()> {
+        return self.finish_with(&|_path| { return Ok(()); });
+    }
+
+    /// What:
+    /// `pub fn finish_with(self, make_durable) -> io::Result<()>` is `finish` with the barrier that makes the final outputs durable
+    /// given by the caller (tests record it).
+    /// Why:
+    /// The owner's rule for durability is "Force at leaving": what a command promises when it leaves is on disk before the
+    /// snapshots that could undo it are removed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// finishWith(makeDurable: (path: string) => void): void
+    /// ```
+    pub fn finish_with(self, _make_durable: &dyn Fn(&Path) -> io::Result<()>) -> io::Result<()> {
         // Borrow `&self.directory`: lends the value without copying or giving it away.
         return mark_done_and_remove(&self.directory);
     }

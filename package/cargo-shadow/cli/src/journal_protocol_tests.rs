@@ -272,47 +272,6 @@ fn a_file_deleted_after_the_comparison_stays_deleted() {
     assert!(!path.exists(), "the deletion was undone");
 }
 
-/// Review finding (3b 3):
-/// a second transaction of the same process never reuses or truncates the first one's journal.
-#[test]
-fn a_second_begin_leaves_the_first_journal_intact() {
-    let root = repository("lock");
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
-    begin(root.path(), &[snapshot("first original")], false).expect("first begin");
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    begin(root.path(), &[snapshot("second original")], false).expect("second begin");
-
-    // Borrow `&root.path`: lends the value without copying or giving it away.
-    // Typed binding: `journals: Vec<String>`.
-    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: string
-    // ```
-    let journals: Vec<String> = names_in(&root.path().join(JOURNAL_DIR));
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(journals.len(), 2, "{journals:?}");
-    // Closure `|name|`: an anonymous function, like a TS arrow function.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    // Typed binding: `first_kept: bool`.
-    let first_kept: bool = journals.iter().any(|name| { return fs::read_to_string(root.path().join(JOURNAL_DIR).join(name).join("0.lock")).map(|text| { return text == "first original"; }).unwrap_or(false); });
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(first_kept, "the first journal's snapshot was overwritten");
-}
-
 /// Review finding (3b 2 A):
 /// a lockfile whose restoration failed leaves its root's manifest alone;
 /// the pair is never split.
@@ -445,33 +404,6 @@ fn a_journal_whose_owner_still_holds_its_lock_is_not_recovered() {
     assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 1);
 }
 
-/// Review finding (3b 5):
-/// recovering the journal of a dead run must not restore the inputs of a root a live transaction covers.
-#[test]
-fn recovery_leaves_the_roots_a_live_transaction_covers() {
-    let root = repository("unchecked output of the killed run");
-    // Borrow `&[`: lends the value without copying or giving it away.
-    plant(root.path(), &[snapshot("original of the killed run")], &[]);
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let _owner = begin(root.path(), &[snapshot("original of the live run")], false).expect("the live transaction");
-
-    // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // Macro `vec!`: builds or prints text (or a list) from a template.
-    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
-
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 2, "the killed run's journal is kept for a later run");
-    // Closure `|message|`: an anonymous function, like a TS arrow function.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    // Macro `assert!`: builds or prints text (or a list) from a template.
-    assert!(messages.iter().any(|message| { return message.contains("live"); }), "{messages:?}");
-}
-
 /// Review finding (3b 7):
 /// a ready journal whose manifest index is missing is kept,
 /// not read as "no manifests".
@@ -586,4 +518,130 @@ fn a_killed_run_that_changed_nothing_leaves_the_lockfile_alone() {
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "original");
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
+}
+
+/// Review finding (4b2 1): one workspace lock covers every transaction, so a second one cannot start while the first lives;
+/// it fails at once, names the holder and leaves the first journal as it was.
+#[test]
+fn a_second_begin_while_the_first_transaction_lives_fails_and_names_the_holder() {
+    let root = repository("lock");
+    let _first = begin(root.path(), &[snapshot("first original")], false).expect("first begin");
+
+    let second = begin(root.path(), &[snapshot("second original")], false);
+
+    let message: String = second.err().map(|error| { return error.to_string(); }).unwrap_or_default();
+    assert!(message.contains(&std::process::id().to_string()) && message.contains("another cargo-shadow run"), "{message}");
+    let journals = crate::journal_support::journal_dirs(root.path());
+    assert_eq!(journals.len(), 1, "{journals:?}");
+    assert_eq!(fs::read_to_string(journals[0].join("0.lock")).expect("snapshot"), "first original");
+}
+
+/// Review finding (4b2 1): recovery of a dead run's journal defers while a live transaction holds the workspace.
+#[test]
+fn recovery_defers_while_a_live_transaction_holds_the_workspace() {
+    let root = repository("unchecked output of the killed run");
+    plant(root.path(), &[snapshot("original of the killed run")], &[]);
+    let _owner = begin(root.path(), &[snapshot("original of the live run")], false).expect("the live transaction");
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()).len(), 2, "the killed run's journal is kept for a later run");
+    assert!(messages.iter().any(|message| { return message.contains("another cargo-shadow run"); }), "{messages:?}");
+}
+
+/// Review finding (4b2 1): while a recovery replaces files it holds the workspace, so a transaction cannot start in the gap.
+#[test]
+fn a_transaction_cannot_begin_while_a_recovery_replaces_files() {
+    let root = repository("unchecked output of the killed run");
+    plant(root.path(), &[snapshot("original")], &[]);
+    let refused: std::cell::RefCell<Option<bool>> = std::cell::RefCell::new(None);
+    let try_begin = |_path: &Path| { *refused.borrow_mut() = Some(begin(root.path(), &[snapshot("x")], false).is_err()); };
+
+    crate::journal::recover_with(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; }, &try_begin);
+
+    assert_eq!(*refused.borrow(), Some(true), "a transaction started in the middle of a recovery");
+}
+
+/// Review finding (4b2 2): a child of a killed run that is still alive keeps its journal from being recovered, even though the
+/// wrapper's lock is gone.
+#[test]
+fn a_journal_whose_recorded_process_group_is_still_alive_is_left_alone() {
+    use std::os::unix::process::CommandExt;
+    let root = repository("unchecked output of the killed run");
+    let journal = plant(root.path(), &[snapshot("original")], &[]);
+    let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
+    fs::write(journal.join("groups"), format!("{}\n", orphan.id())).expect("record the group");
+
+    let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    let _ = orphan.kill();
+    let _ = orphan.wait();
+
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "unchecked output of the killed run", "{messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("still running"); }), "{messages:?}");
+}
+
+/// Review finding (4b2 3): the outputs are made durable before the completion marker exists.
+#[test]
+fn finish_makes_the_outputs_durable_before_the_done_marker() {
+    let root = repository("final output");
+    let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+    fs::write(&manifest, "final manifest").expect("manifest");
+    let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+    transaction.add_manifests(&[ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "before".to_string(), produced: None }]).expect("manifests");
+    let seen: std::cell::RefCell<Vec<(PathBuf, bool)>> = std::cell::RefCell::new(Vec::new());
+    let journals = root.path().join(JOURNAL_DIR);
+    let record = |path: &Path| {
+        let done_exists: bool = fs::read_dir(&journals).map(|listing| { return listing.flatten().any(|entry| { return entry.file_name().to_string_lossy().ends_with(".done"); }); }).unwrap_or(false);
+        seen.borrow_mut().push((path.to_path_buf(), done_exists));
+        return Ok(());
+    };
+
+    transaction.finish_with(&record).expect("finish");
+
+    let calls = seen.borrow();
+    assert!(calls.iter().any(|(path, _)| { return path.ends_with("Cargo.lock"); }), "{calls:?}");
+    assert!(calls.iter().any(|(path, _)| { return path == &manifest; }), "{calls:?}");
+    assert!(calls.iter().all(|(_, done)| { return !done; }), "an output was synced after the marker: {calls:?}");
+}
+
+/// Review finding (4b2 6): a journal that has an index but no ready record is kept when a lockfile differs from its snapshot,
+/// because that could be a damaged ready journal.
+#[test]
+fn an_indexed_journal_without_a_ready_record_is_kept_when_a_lockfile_differs() {
+    let root = repository("changed by something");
+    let journal = plant(root.path(), &[snapshot("original")], &[]);
+    fs::remove_file(journal.join("ready")).expect("lose the ready record");
+
+    recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+
+    assert!(journal.join("0.lock").exists(), "the only copy of the lockfile was deleted");
+}
+
+/// The same journal is removed when every lockfile equals its snapshot, because the copies then lose nothing.
+#[test]
+fn an_indexed_journal_without_a_ready_record_is_removed_when_every_lockfile_equals_its_snapshot() {
+    let root = repository("original");
+    let journal = plant(root.path(), &[snapshot("original")], &[]);
+    fs::remove_file(journal.join("ready")).expect("lose the ready record");
+
+    recover(root.path(), &|_before, _live| { return vec!["never asked".to_string()]; });
+
+    assert!(crate::journal_support::journal_dirs(root.path()).is_empty());
+}
+
+/// Review finding (4b2 6): a ready transaction's payload is frozen; adding manifests twice is refused and changes nothing.
+#[test]
+fn adding_manifests_twice_is_refused() {
+    let root = repository("lock");
+    let manifest = root.path().join(CRATE_DIR).join("Cargo.toml");
+    let transaction = begin(root.path(), &[snapshot("original")], true).expect("begin");
+    let edit = || { return ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "first".to_string(), produced: None }; };
+    transaction.add_manifests(&[edit()]).expect("first call");
+
+    let again = transaction.add_manifests(&[ManifestEdit { before: "second".to_string(), ..edit() }]);
+
+    assert!(again.is_err());
+    let journal = crate::journal_support::journal_dir(root.path());
+    assert_eq!(fs::read_to_string(journal.join("m0.toml")).expect("snapshot"), "first");
 }
