@@ -205,7 +205,7 @@ fn wrapper_in_its_own_time_namespace_fixture() {
     let script: String = format!("echo $$ > {file}.part; mv {file}.part {file}; exec sleep 600", file = pid_file.display());
     // The launcher is started in a time namespace of its own (the children of `unshare --time` are in it), so it does not keep this
     // helper's time namespace alive.
-    let _helper = Command::new("unshare")
+    let mut helper: Child = Command::new("unshare")
         .args(["--time", "--boottime", "7200", "--fork", "--", "sh", "-c", &script])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -221,6 +221,7 @@ fn wrapper_in_its_own_time_namespace_fixture() {
     fs::write(root.join("identity.part"), identity).expect("write the identity");
     fs::rename(root.join("identity.part"), root.join("identity")).expect("publish the identity");
     std::thread::sleep(std::time::Duration::from_secs(300));
+    let _ = helper.wait();
 }
 
 /// Every process of the user that is in the time namespace with this inode number.
@@ -261,8 +262,6 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     let identity: String = fs::read_to_string(root.path().join("identity")).expect("the identity");
     let numbers: Vec<u64> = identity.split(' ').map(|part| { return part.parse::<u64>().expect("a number"); }).collect();
     let (pid, start, pid_namespace, time_namespace): (i32, u64, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2], numbers[3]);
-    let launcher = Held(Command::new("true").spawn().expect("a placeholder so that the guard type is used"));
-    drop(launcher);
 
     // The writer's time namespace loses its last reference: its processes are killed (the launcher is in another namespace and lives).
     for member in processes_in_time_namespace(time_namespace) {
