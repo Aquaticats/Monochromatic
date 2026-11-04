@@ -114,17 +114,22 @@ classification is the author's until a review accepts it.
   shown: the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started
   transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory
   (a_launched_helper_inherits_no_descriptor_of_its_launcher), the lock test, and the flusher helper that keeps
-  only the lock its launcher handed it (many_clients_start_one_helper_and_it_holds_the_lock); a descriptor a raw
+  only the lock its launcher handed it: the launcher closes its own copy before the helper is told to start
+  (a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor), the lock and the pipes are
+  moved above the standard streams (a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock),
+  and an intermediate child that does not leave is killed and reaped
+  (a_ready_helper_does_not_make_the_launch_succeed_while_the_intermediate_child_is_unreaped); a descriptor a raw
   creator keeps outside this component is not visible to it.
 - Narrower, obligation: launch is non-recursive and resource-bounded:
   `a_launched_entry_is_a_function_in_a_new_session_and_not_a_second_start_of_the_program` in
   `commit_helper_launch_tests.rs`. Not shown: the transient unit route is not built; a refused fork is injected
-  by a real process limit (a_fork_refused_by_the_process_limit_is_reported_as_refused) and a memory cap is not;
-  a process with more than one thread is refused
-  (a_launch_from_a_process_with_another_thread_is_refused_before_the_fork), so that the wrapper's real call
-  sites must be single-threaded at the launch is shown only for the test copies of a process, not for call sites
-  that do not exist yet; one helper per lock holder is shown on one lane
-  (clients_that_find_the_flusher_lock_held_start_no_helper), not a resource bound for arbitrary load.
+  by a real process limit and a memory cap is not; a process with more than one thread is refused, shown on test
+  copies of a process and not at real call sites, which do not exist yet; the bound on helpers is one lock
+  holder (clients_that_find_the_flusher_lock_held_start_no_helper,
+  many_clients_start_one_helper_and_it_holds_the_lock) and NOT a bound on live helpers: a helper that released
+  the lock and is in its recheck or exit step holds nothing, a launch in that step starts another, and processes
+  stopped from outside can pile up (options in the handover, round 16); a launch that fails records every
+  receipt of the lane, joiners included (a_client_that_joined_a_launch_whose_setup_failed_is_recorded).
 
 ### C0 to C5, S1, C3 repair
 
@@ -279,9 +284,11 @@ classification is the author's until a review accepts it.
 - Narrower, property: captured authority valid through completion or verified substitution:
   `r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support` in
   `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer (the reclamation-during-capture
-  control is not yet); succession is by the hashes of the records a checkpoint replaces (shown by
-  r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment), one hop only, so an
-  acknowledgment older than the previous checkpoint is not covered; the older test
+  control is not yet); across segments only a compaction of the head covers an acknowledgment
+  (r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowledgment,
+  r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment): a checkpoint that
+  changes the document records no lineage, so an acknowledgment before it is not covered and the caller forces
+  again; one hop only, so an acknowledgment older than the previous checkpoint is not covered; the older test
   p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows only the state-directory refusal.
 - Not yet, control: reclamation during capture. Needs: a model of capture against a concurrent reclaimer.
 - Not yet, control: every forcing error. Needs: fault injection at each forcing call of the departure, with
@@ -300,11 +307,14 @@ classification is the author's until a review accepts it.
   `model_discharge_r14_tests.rs`.
 - Narrower, control: non-drop for later appends (a record cannot omit what its predecessor retained):
   `r14_a_record_cannot_omit_what_the_previous_record_retained` in `commit_state_log_tests.rs`. Not shown:
-  document-bound authority: a document names its dependencies with needs lines and the writer and recovery
-  refuse a record whose set does not cover them
-  (r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it), but a writer that
-  omits a needs line for something its document semantically depends on is still accepted, because the state log
-  cannot read the meaning of the document; the alternative is a non-reclaiming checkpoint (handover, round 15).
+  complete closure: a reclaiming checkpoint derives its obligations from the lane (every request in inbox/,
+  every saved content, the ledger up to its length now) and refuses a closure that omits one, whatever its
+  document declares
+  (r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_document_declares); a dependency
+  outside those places, such as an order file, is declared by needs lines
+  (r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it) and a writer that omits
+  that line is still accepted; a plain append reclaims nothing and keeps only the non-drop check; the
+  alternative for such documents is a non-reclaiming checkpoint (handover, round 16).
 - Covered, control: retirement discharge forces the ledger prefix that proves it:
   `r14_a_retirement_forces_the_ledger_prefix_that_discharges_it` in `commit_state_log_tests.rs`.
 - Covered, control: a later record retaining new saved content is not selected without it:
@@ -327,14 +337,15 @@ classification is the author's until a review accepts it.
   `model_discharge_r14_tests.rs`.
 - Narrower, control: mutable dependency (an existing ledger writer after capture):
   `r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger` in
-  `commit_state_log_tests.rs`. Not shown: saved content enters the store only through create_saved_content
-  (O_TMPFILE or a private 0700 staging directory, sealed 0444 before its name, linked without replace), and an
-  existing writable file is refused at capture
-  (r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_made_one_cannot_be_reopened_for_writing);
+  `commit_state_log_tests.rs`. Not shown: saved content enters the store only through create_saved_content and
+  an existing file is never adopted: capture of saved content is refused for any existing file and creation
+  installs its own fresh inode over the name
+  (r16_an_existing_read_only_inode_at_the_name_is_replaced_and_never_adopted,
+  r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_made_one_cannot_be_reopened_for_writing);
   a read lease is an extra check where granted and never a refusal
   (r15_a_file_system_that_refuses_read_leases_still_creates_and_checkpoints_saved_content); the premise is that
-  nobody with the lane's account chmods and rewrites sealed content, and a privileged writer or a writable
-  parent directory can still replace it, which the checksum name then detects and does not prevent.
+  nobody with the lane's account chmods and rewrites sealed content; a privileged writer or a writable parent
+  directory can still replace it, which the checksum name detects and does not prevent.
 - Covered, property: maximum-generation conflicts are rejected:
   `two_documents_at_one_generation_are_a_conflict_not_a_root` in `commit_state_log_tests.rs`.
 - Narrower, property: damaged established roots fail closed:
@@ -366,13 +377,17 @@ classification is the author's until a review accepts it.
 - Covered, control: conditional installation keeps displaced versions:
   `overlapping_staged_and_worktree_versions_are_all_kept` in `model_merge_r14_tests.rs`.
 - Narrower, control: no foreign lock removal, no live lock removed, and the lane reclaims a proven-stale lock
-  of its own dead incarnation (owner decision of 2026-11-04):
-  `a_proven_stale_lock_is_reclaimed_by_one_reclaimer_under_the_flock` in `model_m1_reclaim_r19_tests.rs`. Not
-  shown: the exact steps of the shipped mechanism: the claim chain slot protocol and the unlink-after-check
-  steps are modeled as the unreviewed branch fix/git-policy-cli-index-lock-reclaim-without-flock at b071e48f74
-  describes them, and wait for its review; the mixed-mount residue (one reclaimer with a working flock, one
-  without) is reachable and is the stated one; a person removing the lock by hand between the check and the
-  unlink is the labelled premise break; no component calls the mechanism yet.
+  of its own dead incarnation (owner decision of 2026-11-04; claim files on every file system):
+  `a_proven_stale_lock_is_reclaimed_by_one_reclaimer_under_the_claim_chain_and_a_dead_claim_is_passed_over` in
+  `model_m1_reclaim_r19_tests.rs`. Not shown: the claim chain is the current policy and this is its evidence;
+  the flock hold is comparison evidence (a_proven_stale_lock_is_reclaimed_by_one_reclaimer_under_the_flock) and
+  the mixed-mount control (the_mixed_mount_residue_is_reachable_and_is_the_stated_one) shows why mixed exclusion
+  is unsuitable and is not an accepted residue; the model has two one-shot reclaimers and at most one death,
+  scans for a slot and places the claim in one step, clears the claims in one step and has no retry, so the
+  green is not unconditional eventual reclamation (a stale lock may stay after a death) and says little about
+  slot reuse and cleanup interleavings; the slot protocol and its leftover handling are the unreviewed branch
+  fix/git-policy-cli-index-lock-reclaim-without-flock at b071e48f74; a person removing the lock by hand between
+  the check and the unlink is the labelled premise break; no component calls the mechanism yet.
 - Covered, control: interrupted installation and reboot:
   `a_cleanup_begun_before_the_span_ends_finishes_after_it_and_no_new_one_starts` in `model_watch_r13_tests.rs`.
 - Historical only, control: HEAD changes: `revision_seven_first_try_path_stages_on_the_switched_branch` in
@@ -400,21 +415,27 @@ classification is the author's until a review accepts it.
 - Narrower, control: recovery conflict, refusal and signing failure notices: `the_notice_follows_the_outcome`
   in `model_fresh_attempt_r19_tests.rs`. Not shown: the notice texts of the conflict, refusal and
   signing-failure outcomes, which the model keeps as one Failed symbol without outcome detail or commit
-  identity; the model checks that the stored notice follows the outcome of the fresh attempt, and after a crash
-  with surviving positive authority it reconciles a notice that still says scheduled
-  (a_settled_recovery_reconciles_a_notice_that_still_says_scheduled) for the Published and Failed abstraction.
+  identity; the stored notice carries the attempt that produced it, and its print, removal and delivery are
+  bound to that tag (an_old_notice_printed_after_a_new_attempt_was_chosen_does_not_deliver_the_new_attempt, with
+  a monitor that reads the stored tag and not the owner's bookkeeping); after a crash with surviving positive
+  authority the model reconciles a notice that still says scheduled
+  (a_settled_recovery_reconciles_a_notice_that_still_says_scheduled); the first version of this row overstated
+  both, the reviewer's schedule is now a regression.
 - Narrower, control: notice crash and reclamation:
   `recovery_data_is_kept_until_the_outcome_notice_is_delivered` in `model_fresh_attempt_r19_tests.rs`. Not
   shown: crash points of every notice kind; the model covers the fresh-attempt notice only, for one request with
-  at most two power losses; delivery is bound to the attempt and needs the forced removal, with print, remove
-  and force-removal as separate steps
-  (an_earlier_attempts_delivery_does_not_authorize_reclaiming_a_later_attempt is the neighbouring test).
+  at most two power losses; reclamation needs the forced removal of the current attempt's own outcome notice,
+  tracked by the stored tag, with print, remove and force-removal as separate steps
+  (an_earlier_attempts_delivery_does_not_authorize_reclaiming_a_later_attempt,
+  an_old_notice_printed_after_a_new_attempt_was_chosen_does_not_deliver_the_new_attempt); the straight-line test
+  named here shows the plain case only.
 - Narrower, property: decision 19, fresh attempt with a stored notice when no decisive positive authority
   survives: `decision_nineteen_is_green_over_every_schedule` in `model_fresh_attempt_r19_tests.rs`. Not shown:
   one request and at most two power losses; one Failed symbol for conflict, refusal and signing failure, with no
-  outcome detail and no commit identity; the notice file is a visible and a durable content, not the real file;
-  no component implements the recovery; the reviewer found two reachable false-green schedules in the first
-  version (settled with a notice that stays scheduled, delivery of an earlier attempt), now regressions.
+  outcome detail and no commit identity; the notice file is a visible and a durable content with a
+  producing-attempt tag, not the real file; no component implements the recovery; the green is exhaustive within
+  these bounds and was false twice before (a settled notice left scheduled, delivery of an earlier attempt, an
+  old notice retagged at print), each now a regression with its own control.
 - Covered, control: the notice is forced before the attempt starts:
   `the_notice_is_forced_before_the_attempt_starts` in `model_fresh_attempt_r19_tests.rs`.
 - Covered, control: a durable receipt settles the request and the attempt-again control is red:
@@ -500,6 +521,9 @@ Left:
 - The queued P2 and P3 items listed under "Still queued".
 
 ## Round 15 state
+
+Superseded in parts by "Round 16 state" (saved-content adoption, closure derivation, covering, launch handover); the
+round 16 section is the current word where they differ.
 
 Round 15 answers `commit-models-sol-9a.txt` (components and evidence) and `commit-models-sol-9b.txt` (models and map)
 against the unchanged revision 19 acceptance target, and applies the owner decision of 2026-11-04 ("Reclaim it
@@ -672,3 +696,120 @@ Gates at the tip: the full `native:test:model` run is 442 passed, 0 failed
 (`/var/home/user/temp/agent/r15/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has
 64 covered, 17 narrower, 9 historical and 17 not yet.
+
+## Round 16 state
+
+Round 16 answers `commit-models-sol-10a.txt` (components and evidence; "does not meet the claimed items as
+submitted") and
+`commit-models-sol-10b.txt` (models and map; "no, as submitted") against the unchanged acceptance target. Nothing
+here is
+wired into the live wrapper. Where the red is a single-defect control of a model and not a failing replay of the
+submitted
+model, the entry says so.
+
+### A correction to round 15
+
+A round 15 edit (the red commit for the coordinator pick on saved content) cut the test
+`r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment` out of
+`commit/commit_state_log_tests.rs`, while the green commit for 2E had been committed with it. The review inputs of
+round 15
+therefore lacked that test and the handover still named it. It is restored in round 16 (commit
+`test(git-policy-cli): red first, review 10a section 2E ...`), next to the new 2E control. The map check only tests the
+names in its `test` column, which is why it did not notice.
+
+### Review 10a, launch and flusher
+
+- 3A, the launcher's copy of the lock. Red:
+  `a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor`
+  (client X found the lock held by the launcher's copy after the helper had finished; no executor, no record) and
+  `a_client_that_joined_a_launch_whose_setup_failed_is_recorded`. Green: `launch_detached_holding` gives the helper the
+  descriptors and nothing else, the launcher closes its own copy as soon as the helper reported ready and only then
+  sends
+  the handover byte the helper waits for before it works, so the helper cannot release before the launcher's copy
+  is gone;
+  a failed launch drops the lock and records every receipt of the lane (joiners included) in `receipt-errors`.
+- 3B, live helpers through the release, recheck and exit step. Not fixed; a design choice. The lock bounds the
+  helpers that
+  hold it; a helper that released it and is in its recheck or exit step holds nothing, and a launch in that step starts
+  another, so processes stopped from outside can pile up. The false comments are corrected, the row is Narrower and
+  says so.
+  Options:
+  - Accept and state it (done): the step is a listing and at most one relock attempt, it waits for nothing, and the
+    number
+    of live helpers is bounded by the launches in that step; con: not a bound under SIGSTOP of helpers.
+  - A second lock held from start to exit (`flusher.exit`): a launch needs both free. Con: it breaks the argument that
+    makes the recheck sound, because a client that created its receipt after the holder's last listing but before the
+    holder's exit finds the second lock held and starts nothing, and nobody lists again; and it is a second lock against
+    "Use as few locks as possible."
+  - Keep the recheck under the lock and have every client that finds it held wait for a hand-back: con: a wait, against
+    "nothing should ever wait forever".
+  - Ranking: accept and state it > a second lock, because the second lock is unsound; a second lock > waiting clients,
+    because it at least waits for nothing. I found no protocol of release-then-recheck that bounds the
+    stopped-process case.
+- 3C, a launch with descriptor 0 closed. Red: `a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock`.
+  Green: the lock and the pipes are moved above the standard streams when they are made, and the launch refuses a held
+  descriptor that is 0, 1 or 2 (`LaunchError::LowDescriptor`).
+- 3D, a ready byte over an unreaped intermediate child. Red:
+  `a_ready_helper_does_not_make_the_launch_succeed_while_the_intermediate_child_is_unreaped`. Green: a first child
+  that does
+  not leave in time is killed and reaped before the launch returns.
+- Section 4, the real handover. `a_second_executor_pinned_across_the_handover_decision_carries_the_receipt` pins
+  the second
+  executor with a FIFO receipt and replaces the nondeterministic test (not red first: it passed on the old code
+  too, because
+  the old code had no race for it to lose in this form).
+
+### Review 10a, components
+
+- 2A, complete closure. Red:
+  `r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_document_declares`.
+  Green: a reclaiming checkpoint (the only record that removes its predecessor) derives its obligations from the
+  lane: every
+  request in `inbox/`, every saved content, and the ledger up to its length now must be in the closure or
+  discharged by a
+  ledger line inside it. Choice made: derive where the component can see (the lane's own directories), keep needs
+  lines for
+  dependencies it cannot see (an order file), and leave plain appends alone because they reclaim nothing. Options:
+  - Derive from the lane (built): reclamation stays available and the closure cannot omit what exists; con: an
+    over-approximation, and a ledger that grows between capture and begin makes the caller capture again.
+  - Non-reclaiming checkpoints for every document: no derivation; con: the log never shrinks.
+  - Declared needs lines only (round 15): con: a writer can omit one.
+  - Ranking: derive > non-reclaiming, because the log stays bounded and the lane's own files are exact; non-reclaiming >
+    declared lines, because it does not rely on a writer's completeness. Remains: a dependency outside inbox, saved
+    and the
+    ledger is still declared only.
+- 2B, the adoption boundary. Red: `r16_an_existing_read_only_inode_at_the_name_is_replaced_and_never_adopted` (with
+  leases
+  unavailable, the reviewer's condition). Green: capture of saved content is refused for any existing file and
+  entries come
+  only from `create_saved_content`, which installs its own fresh inode over the name (rename), so an inode of unknown
+  provenance is replaced and never adopted; a holder of the replaced inode writes into a file nothing refers to. The
+  stated premise stays for what the component cannot enforce (a deliberate chmod by the lane's account).
+- 2E, a checked covering relation. Red:
+  `r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowledgment`.
+  Green: lineage is recorded only for a compaction of the head (the head's document at the head's generation); a
+  checkpoint that changes the document covers no earlier acknowledgment, and the caller forces again. Remains: one hop.
+
+### Review 10b
+
+- The stored notice carries the attempt that produced it; its print, removal and forced removal are bound to that tag.
+  Red by control: `an_old_notice_printed_after_a_new_attempt_was_chosen_does_not_deliver_the_new_attempt` (the
+  reviewer's
+  schedule; `PrintRetagsToCurrentAttempt` is red, `Nineteen` is green). The monitor is independent of the owner's
+  delivery
+  bookkeeping: `printed_log` is set from the tag stored in the notice file at the print, and the reclamation
+  invariant needs
+  it as well as `delivered`.
+- Map: the three fresh-attempt rows, the launch rows, the closure, adoption and covering rows are corrected. The reclaim
+  row points at the claim-chain test (the owner chose claim files on every file system), the flock test is comparison
+  evidence, mixed mode is a control that shows why mixed exclusion is unsuitable and not an accepted residue, and
+  the row
+  does not claim unconditional eventual reclamation. `without_the_name_check_a_late_reclaimer_removes_the_landings_lock`
+  now reaches the removal.
+
+### Gates at the tip
+
+The full `native:test:model` run is 451 passed, 0 failed (`/var/home/user/temp/agent/r16/full-model.log`);
+`native:clippy` and `native:clippy:seams` are clean (`/var/home/user/temp/agent/r16/clippy.log` and
+`clippy-seams.log`); the `source_guard` tests pass (39 of 39); the map has 64 covered, 17 narrower, 9 historical and
+17 not yet.
