@@ -389,3 +389,8 @@ mod commit_review_fix_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_retention_tests.rs"]
 mod commit_retention_tests;
+
+/// Plan step 3: the cutover fence and the service side of the lifecycle behind the `--lane` switch.
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_cutover_tests.rs"]
+mod commit_cutover_tests;
