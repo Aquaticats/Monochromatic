@@ -29,8 +29,10 @@ pub mod invocation;
 ///  `pub use invocation::*;` also names every module declared in `invocation/mod.rs` directly under the crate root,
 ///  with the visibility each module was declared with.
 /// Why:
-///  The modules moved into folders but keep their paths (`crate::name`, `git_policy_cli::name`),
-///  so no caller, fuzz target or test changes and the move stays mechanical.
+///  The modules moved into folders but keep their paths,
+///  `crate::name` and `git_policy_cli::name`,
+///  so no caller,
+///  fuzz target or test changes and the move stays mechanical.
 /// Gotcha:
 ///  A glob re-export is shadowed by a same-named item written in this file,
 ///  so no folder may share a name with a module.
@@ -49,7 +51,8 @@ pub use config::*;
 
 /// Per-command handling:
 ///  the option grammar of each Git command the wrapper understands,
-///  and the rules that rewrite, refuse or hint at a command.
+///  and the rules that rewrite,
+///  refuse or hint at a command.
 pub mod command;
 
 /// The same re-export for `command`.

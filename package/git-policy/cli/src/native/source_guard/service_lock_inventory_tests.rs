@@ -39,8 +39,10 @@ const REASON_MARKER: &str = "Lock kept:";
 /// The locks that stay, by file: what each protects is in the comment block above it, and in `SPEC.md`.
 const INVENTORY: &[&str] = &["service/journald_native.rs"];
 
-/// Every `.rs` file below `root`, as `/`-separated paths relative to it, found with a work stack so that the sources of
-/// the subsystem folders are covered as well as the files beside `lib.rs`.
+/// Every `.rs` file below `root`,
+///  as `/`-separated paths relative to it,
+///  found with a work stack,
+///  so that the sources of the subsystem folders are covered as well as the files beside `lib.rs`.
 fn rust_files_below(root: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
@@ -65,7 +67,9 @@ fn is_covered(path: &str) -> bool {
     return COVERED_PREFIXES.iter().any(|prefix| { return name.starts_with(prefix); });
 }
 
-/// The covered sources of this package: path relative to `src/native` and text, from every subsystem folder.
+/// The covered sources of this package:
+///  path relative to `src/native` and text,
+///  from every subsystem folder.
 fn covered_sources() -> Vec<(String, String)> {
     let directory: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
     let mut found: Vec<(String, String)> = Vec::new();
@@ -132,8 +136,8 @@ fn every_kept_lock_has_its_reason_beside_it_and_the_inventory_has_no_stale_entry
     }
 }
 
-/// Every covered prefix reaches at least one source, so a move of files into folders cannot leave the scan with fewer
-/// files than it was written for.
+/// Every covered prefix reaches at least one source,
+///  so a move of files into folders cannot leave the scan with fewer files than it was written for.
 #[test]
 fn every_covered_prefix_reaches_a_source_in_some_folder() {
     let sources: Vec<(String, String)> = covered_sources();

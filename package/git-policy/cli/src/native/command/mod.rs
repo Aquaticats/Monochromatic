@@ -1,7 +1,8 @@
 //! What:
 //!  Per-command handling:
 //!  the option grammar of each Git command the wrapper understands,
-//!  and the rules that rewrite, refuse or hint at a command.
+//!  and the rules that rewrite,
+//!  refuse or hint at a command.
 //! Why:
 //!  The wrapper judges commands one by one,
 //!  so everything that is about a single Git command lives together.

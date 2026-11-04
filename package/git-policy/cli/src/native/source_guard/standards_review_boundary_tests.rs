@@ -16,7 +16,8 @@ const CLIENT_FILE: &str = "standards_review/standards_review_client.rs";
 /// The module names that carry the network client, the run that calls it, and the service handler that calls the run.
 const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_review_run", "service_review"];
 
-/// The path prefixes, relative to the source root, of the files of those modules and their tests.
+/// The path prefixes of the files of those modules and their tests,
+///  relative to the source root.
 const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] =
     ["standards_review/standards_review_client", "standards_review/standards_review_run", "service/service_review"];
 
