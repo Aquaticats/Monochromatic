@@ -93,224 +93,140 @@ and removing them is open (see "Housekeeping").
 
 ### Agents and gates running
 
-At 2026-11-03T13:17:31-05:00 (the owner's cap is five delegate agents at once),
+At 2026-11-03T20:14:48-05:00 (the owner's cap is five delegate agents at once),
 five running:
-- Commit latency under disk pressure,
-  branch `fix/git-policy-cli-commits-fast-under-disk-pressure` from the 0.5.28 base `e7e304ffd6`,
-  worktree `.claude/worktrees/fix-commits-fast-under-disk-pressure`.
-  Trigger:
-  main's commits took 8994 ms (prepare 8277),
-  16645 ms (prepare 15070) and 35723 ms (build 25552,
-  submit 8227) on 0.5.27,
-  against about 320 ms usually;
-  `/proc/pressure/io` some avg300 23.80,
-  full 6.40.
-  It pairs wrapped and native commits on a main-shaped fixture under the present load,
-  traces both arms' syscalls,
-  and fixes each piece of work the wrapper adds
-  (owner's rule in "Host pressure is never an excuse").
-  It must say first whether the 0.5.28 base is worse than 0.5.27.
-  A 0.5.28 blocker.
-- Index writer round 5,
-  branch `fix/git-policy-cli-index-recovery-never-overwrites-staging` from `e7e304ffd6`,
-  worktree `.claude/worktrees/fix-index-recovery-round-5`,
-  answering the fifth review (`follow-up-index-sol-5.txt`,
-  "Safe after named fixes",
-  2026-11-03T18:10:11Z):
-  P1s equal-entry and ABA staging,
-  missing starting evidence still replaying every path,
-  and the reset's write footprint (file to directory and back,
-  carried stages);
-  P2s on the HEAD race after the last check,
-  the live branch-change exit dropping alternate-index and cleanup work,
-  final-file durability,
-  no-op ACL broadening and physical-index reclamation.
-  Installed 0.5.27 has the older unconditional replay,
-  so the base is still an improvement;
-  coordinator's pick under the delegation (veto open):
-  0.5.28 does not wait for round 5.
-- Design revision 12,
-  on `fix/git-policy-cli-commits-never-fail` (tip `e6199d4e4f` before it),
-  answering the eleventh review (`commits-never-fail-sol-11.txt`,
-  2026-11-03T18:13:19Z):
-  approve continued model work,
-  pure components without reclamation and disposable backend experiments only,
-  not the live protocol.
-  P1s:
-  a durable `commit` decision is not publication (COMMITTING returns before a possible later landing);
-  a checkout-first merge cannot both withdraw at the bound and leave staging unchanged;
-  G-order's proof is unsound;
-  an inline owner's exit at the bound ends its protected programs;
-  the normative merge steps still wait (P-wait) instead of the owner's P-carry,
-  whose data model is missing.
-  It frames any owner questions in the design.
-- Every wait gets a bound,
-  `fix/git-policy-cli-every-wait-has-a-bound` (a 0.5.28 blocker),
-  told to merge `e7e304ffd6` before reporting.
-- cargo-shadow round 4.
+- Integration and the owner's power-cut answer on today's landing,
+  branch `fix/git-policy-cli-commits-fast-under-disk-pressure` (from `ce711b0379`),
+  worktree `.claude/worktrees/fix-commits-fast-under-disk-pressure`:
+  merges the base tip `f89fa63f10` and index round 5 (`b47467ebd1`),
+  then takes the wrapper's own syncs off the waiting path of a publishing landing
+  ("Force at leaving, else background",
+  in "Owner decisions in force"),
+  then measures and gates.
+  Its first round,
+  measured on a main-shaped fixture (20,740 files) under the load there was:
+  the 0.5.28 base was worse than 0.5.27
+  (warm paired delta 273 against 139 ms unsigned,
+  298 against 172 ms signed;
+  12 fsyncs per landing against about 4,
+  native none);
+  its tip is 2.0 times native warm (116 against about 113 ms),
+  but still waited for 11 fsyncs per landing,
+  the cause of the 8 to 36 s commits
+  (the production journal attributes 78% of slow-landing time to `sync_ms`,
+  up to 119,715 ms).
+  Fixed in that round:
+  pack lookups and pack opens read once instead of per search step
+  (46.9 MB and 79,951 `pread64` per commit against native's 1.5 MB and 8),
+  `diff-tree` reads only differing subtrees,
+  commit listing once per process,
+  the child watch looks at its child before listing the host's processes,
+  the gate stopped walking whole trees (69 to 10 ms),
+  one redundant sync removed;
+  gate 4622 of 4622.
+  No measured pair reached 5 s,
+  so no raise of the 5 s standard was asked;
+  `doc/planning/cli-git-commit-latency-under-disk-pressure.md` says no finite bound holds while a sync stays on the waiting path.
+- Design revision 13,
+  `fix/git-policy-cli-commits-never-fail` (from `18ca87c579`):
+  records the owner's four revision-12 answers and answers the twelfth review
+  (`commits-never-fail-sol-12.txt`:
+  "Approve continued model work only";
+  first need:
+  a complete submitted-attempt and normal-exit state machine).
+- Models round 7,
+  `feat/git-policy-cli-commit-protocol-models` (from `8dbe45a649`):
+  the components rebuilt on rule V (one checksummed request file,
+  a double-buffered state pair,
+  zero wrapper syncs on the waiting path),
+  the open components findings (standalone `repair_tail` contract,
+  amendment parents as a recoverable closure,
+  a working native fallback for refused gitlinks),
+  and the model findings that do not depend on revision 13.
+  Round 6 (178 of 178 model tests):
+  the explorer's false-green bounded wait fixed red-first;
+  the W1/P2 model now shows revision 11's COMMITTING exit as red against the owner's rule;
+  publication split into send,
+  apply and acknowledge;
+  the disposable Git runner bounded;
+  components refuse a symlinked root,
+  resend without a temporary,
+  append reading only the tail,
+  replay without the quadratic scan,
+  and a replay from a closure rebuilt after pruning.
+- cargo-shadow round 5,
+  `feat/cargo-shadow-cli` (from `e4451f1a75`),
+  answering the fourth review (all four parts "not correct":
+  4a Git-equivalent object acceptance;
+  4b two durable-preservation gaps,
+  kept paths lost on errors,
+  kept copies unbounded;
+  4b2 journal scanning is not transaction exclusion,
+  the lock's lifetime does not cover surviving cargo writers,
+  no final durability barrier;
+  4c cleanup can erase a refusal,
+  the bounded runner does not prove writers stopped,
+  a placeholder race)
+  and measuring its bounds (LQM).
+- Batch numbers,
+  `fix/git-policy-cli-service-batch-numbers-unique` (from `f89fa63f10`):
+  a gate run once saw two of sixteen services answer with the same batch number in `service_sequencer::a_pathspec_commit_after_a_conflicted_cherry_pick...`;
+  product bug or test count,
+  to be found out.
 
 Done since the last list:
-- #6260,
-  nested-aware source scans,
-  `fix/git-policy-cli-source-scans-cover-nested-modules` tip `222ba8eacc` (cut from `14c26dbcc9`),
-  worktree `.claude/worktrees/source-scans-nested-modules`:
-  15 controls red first,
-  35 of 35 green,
-  clippy clean;
-  the release scan reads 475 files instead of 482
-  (the 7 dropped are test support the old scan misread as release).
-  Queued:
-  merge into the 0.5.28 base,
-  then #6261,
-  which must update `hook_self_invocation_tests.rs`'s `include_str!` paths,
-  the boundary control's root anchors,
-  the `bin/native-planted-controls-*.ts` and `native-mutation-*.ts` path lists,
-  and prefix exemptions.
-- Step-1 models round 5,
-  `feat/git-policy-cli-commit-protocol-models` tip `c044a1112e`,
-  169 of 169 model tests,
-  `native:clippy` and the new `native:clippy:seams` clean.
-  Done:
-  the third components review's fixes (`0f488a5e97`;
-  test seams behind the Cargo feature `test-seams`;
-  `REQUEST_VERSION` 3);
-  revision 11's rule B and the W1-against-P2 race (`model_w1_p2.rs`),
-  and the register of waits (`model_register.rs`).
-  Not done,
-  queued behind revision 12 (which changes them):
-  revision 11 variants for M1,
-  MG1 to MG6,
-  T1,
-  C0,
-  C3/T0/C5,
-  R4 and E1,
-  B1 and the publication `HEAD` race;
-  the tenth review's fifteen section-4 controls;
-  the F2 and F6 comment pass;
-  components section 8 item 6 (replay from the closure after base-object removal).
-  Review inputs ready:
-  `commit-components-4.diff` with `components-r4-*.rs`,
-  and `commit-models-2a.diff`/`2b.diff`.
-- Fourth components review (`commit-components-sol-4.txt`,
-  2026-11-03T18:32:34Z):
-  "Ready after named fixes".
-  P1:
-  `init_root` can accept a symlinked root whose target ancestry is not durable.
-  P2s:
-  standalone `repair_tail` lacks its ancestry and ownership contract;
-  amendment parent names are not a recoverable closure;
-  gitlink refusal needs a working native fallback;
-  resends write a duplicate temporary before finding the identical final file (fails on a full disk);
-  every ledger append rescans the whole ledger,
-  and replay's prefix check is quadratic in paths.
-  Its sync count:
-  2n + 20 syncs before acceptance for n paths (22 for one path),
-  2n + 27 through retirement,
-  before native Git's own work;
-  sent to the revision 12 agent,
-  since that many waited-for syncs cannot meet the 5 s rule under pressure.
-- First models review,
-  part one (`commit-models-sol-2a.txt`,
-  2026-11-03T18:23Z start):
-  P1,
-  `explore_bounded_by` (`model_explore.rs:494-523`) can report a wait bounded when another process's retry loop is its only successor,
-  so current green reports do not approve revision 11.
-  Part one's verdict:
-  "Sound after named fixes"
-  (also P1:
-  F4's green candidate disables the pathname replacement schedule and makes recovery atomic).
-  Part two (`commit-models-sol-2b.txt`,
-  2026-11-03T18:35:14Z):
-  "Not sound as verification of revision 11's owner contract";
-  P1s:
-  the W1/P2 model's invariant approves the rejected outcome (a success return before a later publication),
-  and P2c and recovery are infallible atomic publications;
-  P2s on the register (every action completes by assignment;
-  R11-9's missing waits),
-  F7,
-  maintenance,
-  M1 compare-and-unlink,
-  a merge edit-loss invariant that cannot fail,
-  F9,
-  terminal races,
-  and the disposable Git runner,
-  which can itself wait indefinitely.
-- Every wait gets a bound:
-  done on `fix/git-policy-cli-every-wait-has-a-bound` tip `9e553376db`
-  (from `14c26dbcc9`,
-  `e7e304ffd6` merged as `0e20b70ecf`),
-  inventory `doc/planning/cli-git-no-unbounded-waits.md` (35 waits).
-  Bounds in `src/native/wait_ceilings.rs`:
-  `ANSWER_CEILING` 20 min (longest answer wait 308 s,
-  longest commit 751 s),
-  `WITHDRAW_CEILING` 10 min,
-  `START_CEILING` 60 s,
-  `SERVICE_HOLD_CEILING` 10 min,
-  `LOCK_CEILING` 10 min (unmeasured),
-  `CONNECTED_PUSH_QUIET_WINDOW` 150 s (unmeasured),
-  `PHASE_PATIENCE` 5 min.
-  At `LOCK_CEILING` the batch is withdrawn before the branch moves and kept on `refs/cli-git/kept/<batch>`;
-  at `ANSWER_CEILING` the client sends a protocol-7 `withdraw`,
-  so the commit either landed or never will.
-  Limit:
-  a withdrawal is handled between landings,
-  so one sent during a long landing step waits for that step.
-  1055 unit and 209 binary tests passed,
-  clippy clean;
-  one control (`a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref`) failed once at its 10 s patience.
-  `1052716538` carries a merge subject on a one-parent commit (a path-limited commit during the merge,
-  as SPEC's "Named paths during a merge" designs);
-  corrective comment:
-  <https://github.com/Aquaticats/Monochromatic/commit/1052716538c78c6c2bb45ebbf8937d6f5ba6c79c#commitcomment-207979251>.
-  Coordinator's picks on its option sets,
-  under the delegation,
-  veto open:
-  A,
-  not the agent's B:
-  every step class gets a service-side ceiling below `ANSWER_CEILING`,
-  `never_stop` steps included,
-  and after ending one the branch is read (moved:
-  landed;
-  not moved:
-  withdrawn as at `LOCK_CEILING`),
-  because under B one step that never returns holds the landing thread for good and every later commit fails at `ANSWER_CEILING`,
-  while ending a reference update cannot half-write it (lock file and rename) and its lock is cleared by the shipped stale-lock removal;
-  B exempt (the person's own command);
-  C 150 s;
-  D withdraw;
-  E exempt.
-  The agent was resumed to build pick A and the push's "queued" line
-  (the owner's push answer says the command says it is queued;
-  not built yet),
-  then to merge the base tip.
-  The 150 s `UNASKABLE_HOLD_AGE` still waits for the owner.
-- Models round 6 started (the step-1 agent resumed on `feat/git-policy-cli-commit-protocol-models` from `c044a1112e`):
-  the explorer's bounded-wait P1 first,
-  then the models reviews' P1s and P2s,
-  then the fourth components review's fixes with avoidable syncs and rescans cut;
-  the models for revision 12 come after that design lands.
-- cargo-shadow round 4 done:
-  `feat/cargo-shadow-cli` tip `e4451f1a75`,
-  396 of 396 tests,
-  clippy clean,
-  67 `avoidable-closure` warnings left (bracket-style callbacks such as `run_recording`).
-  Correctness no longer depends on `ctime` attribution:
-  no inode that was live at a path is unlinked;
-  displaced and exchanged files get a surviving hard-linked name first.
-  Agent's picks,
-  veto open:
-  one non-blocking `flock` per run as liveness (no `/proc`,
-  pid names or claim renames);
-  bounds chosen and not measured (cargo call 30 min,
-  Git call 60 s,
-  `file-enforcer write` 5 min,
-  429 pause at most 2 min,
-  dump download 1 h,
-  name searches 10,000 tries,
-  other retry loops 100),
-  so LQM is not met yet and the values need measurements;
-  the person's own command after the checks has no bound (as Git's option B).
-  Fourth cross-vendor review running in four parts (`cargo-shadow-sol-4a/4b/4b2/4c.txt`).
+- Every wait has a bound:
+  fast-forwarded into the 0.5.28 base (tip `f89fa63f10`).
+  Step ceilings with measurements:
+  `PLUMBING_STEP_CEILING` 120 s (longest read step of 1,651 landings 9,663 ms),
+  `OBJECT_STEP_CEILING` 600 s (longest client preparation 250,280 ms),
+  `REFERENCE_STEP_CEILING` 60 s (longest of 1,651 reference updates 3,438 ms);
+  a reference update ended at its ceiling is followed by a read of the branch:
+  moved means landed,
+  not moved means withdrawn as at `LOCK_CEILING`.
+  The push stall prints that the push is queued (not yet seen through a real service).
+  The coordinator's picks on its option sets are in `doc/planning/cli-git-no-unbounded-waits.md`,
+  "Picks" (veto open).
+- Index writer round 5,
+  `fix/git-policy-cli-index-recovery-never-overwrites-staging` tip `b47467ebd1`,
+  gate 4641 of 4641:
+  a restart replays a batch only if the live index is still the very file the landing saw (inode,
+  size,
+  times,
+  checksum tail);
+  otherwise it resets nothing and logs a notice.
+  Visible change:
+  any rewrite of the index between a failed install and the restart,
+  even a `git status` refresh,
+  leaves the commit's paths un-updated in the index (nothing is lost).
+  Not closed:
+  the `HEAD` race after the last check (the same window native Git has);
+  physical-index reclamation is mitigated,
+  with options A (one reclaimer per physical alternate index:
+  refuse to finish an index outside the instance's own Git directory) > B (document);
+  coordinator's pick A under the delegation,
+  veto open,
+  queued after the integration.
+  The weaker options it offered (per-path replay,
+  content-only witness) are not taken:
+  both discard ABA staging.
+- Design revision 12 (`18ca87c579`) and the owner's four answers.
+- #6260 merged into the base.
+
+Queue,
+in order:
+- After the integration:
+  gate the base,
+  release 0.5.28,
+  install,
+  time commits against native Git on main.
+- Then #6261 (directory regroup;
+  the #6260 agent listed the paths it must update),
+  lint task 88,
+  the gate container base check (Debian trixie against the CachyOS rule),
+  the reclamation pick A,
+  and the reviews of cargo-shadow round 5,
+  models round 7 and revision 13.
 
 Older entries,
 from the 2026-11-03T10:00-05:00 list,
@@ -2760,6 +2676,39 @@ pick 6 (no client wall-clock bound on the service),
 and the design's B-hand,
 P-wait and R-never.
 0.5.28 does not ship until every wait in it has a bound.
+
+### Commit protocol revision 12 answers
+
+The owner,
+through the question tool,
+answered before the commit that records this entry
+(design `doc/planning/cli-git-commits-never-fail.md` revision 12,
+section "Owner questions for revision 12"):
+- A branch write already started when the time runs out:
+  "Short extra wait (Recommended)"
+  (the command waits a few more seconds,
+  a constant to be measured,
+  for the write it started;
+  if the disk is still stalled it exits non-zero saying the result is not known,
+  naming `git log -1` and the side ref).
+- Merge order:
+  "Branch first, files after (Recommended)"
+  (the branch moves first and the files follow;
+  at the bound the folder and staging are untouched;
+  the owner was told a direct `/usr/bin/git commit -a` in the lag window would commit the merge's reverse).
+  This replaces the coordinator's delegated pick M-A.
+- The person's own programs before the commit exists (editor,
+  hooks,
+  signer,
+  forwarded `gc`):
+  "No limit; Ctrl-C ends it (Recommended)".
+- How soon an accepted commit must survive a power cut:
+  "Force at leaving, else background (Recommended)"
+  (no forced write while the person waits;
+  what a command promises when it leaves is forced to disk first;
+  a power cut while it still waits loses that attempt,
+  as with native Git).
+  The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
 
 ### Host pressure is never an excuse
 
