@@ -969,7 +969,7 @@ Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r10-debug2.log`, `r
 run (`r10-gate1.log`) failed once on the bound named above and is kept as evidence.
 Nothing was published and nothing was merged into main; the first publication needs the owner's explicit approval.
 
-## Resume point (round 10, rewritten 2026-11-04T10:30:00-05:00 after the gate)
+## Resume point (round 10, rewritten 2026-11-04T08:57:09-05:00 after the gate)
 
 Done in round 10: the section "Round 10" above lists each finding, its red and green tests and the options.
 The review inputs were cut from `16249ffe94` into `/var/home/user/temp/agent/reviews/cargo-shadow-10*.diff`.

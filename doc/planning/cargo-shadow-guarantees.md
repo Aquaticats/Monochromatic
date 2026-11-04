@@ -1,7 +1,7 @@
 # What cargo-shadow promises and what it assumes
 
 Status:
-amended once more after the round 9 reviews (`cargo-shadow-sol-9a.txt`, `-9b.txt`; round 10, written 2026-11-04T10:00:00-05:00) with
+amended once more after the round 9 reviews (`cargo-shadow-sol-9a.txt`, `-9b.txt`; round 10, written 2026-11-04T08:57:09-05:00) with
 the unsettled scope (guarantee A1: an empty or late-appearing scope is no more a completed lifecycle than an absent one), the strict
 and authoritative boot identity (assumption c and e) and the shared discovery deadline (guarantee V6);
 amended again after the round 8 reviews (`cargo-shadow-sol-8a.txt`, `-8b.txt`) with the boot identity (assumption c and the new
@@ -569,7 +569,7 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written 2026-11-04T10:00:00-05:00 against the tip that carries it (round 10); the round 9 text it replaces was written at
+Written 2026-11-04T08:57:09-05:00 against the tip that carries it (round 10); the round 9 text it replaces was written at
 2026-11-04T07:00:00-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
