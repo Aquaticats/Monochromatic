@@ -54,6 +54,12 @@ pub enum Rules {
     EighteenErrorNoRelist,
     /// Control: the flusher lives in the incarnation scope that the next owner's L2 reaps, and the next owner does not sweep at startup.
     EighteenReapedFlusherNoStartupSweep,
+    /// Review 11's proposal: the admission token is kept until the flusher exits (no release, no recheck), a client that finds it held
+    /// starts nothing and relies on the continuing retry of the running owner's syncer, which also forces receipts that are still V.
+    EighteenTokenToExitWithSyncerRetry,
+    /// The proposal with the retry owner started by the client itself: a client that finds the token held, and no service running, starts
+    /// the next owner (L3) before it returns, so the continuing retry exists.
+    EighteenTokenToExitClientStartsOwner,
     /// Control: the running owner's syncer never retries a recorded error; only a next owner's start does, so a record written while an
     /// owner runs can wait without end (the coordinator pick of round 15 makes the retry the rule).
     EighteenSyncerNeverRetries,
@@ -294,10 +300,20 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
                 }
             }
             Client::Read(false) => {
-                let mut started: State = state.clone();
-                launch(&mut started);
-                started.clients[c] = Client::Done;
-                push_step(&mut found, &format!("client {}: starts a one-shot flusher", c), started);
+                let starts_owner_instead: bool = state.rules == Rules::EighteenTokenToExitClientStartsOwner && state.service == Service::Exited;
+                if !starts_owner_instead {
+                    let mut started: State = state.clone();
+                    launch(&mut started);
+                    started.clients[c] = Client::Done;
+                    push_step(&mut found, &format!("client {}: starts a one-shot flusher", c), started);
+                }
+                if state.rules == Rules::EighteenTokenToExitClientStartsOwner && state.service == Service::Exited {
+                    let mut owner: State = state.clone();
+                    owner.seal = false;
+                    owner.service = Service::Starting;
+                    owner.clients[c] = Client::Done;
+                    push_step(&mut found, &format!("client {}: finds no service and starts the next owner before it returns", c), owner);
+                }
                 let mut refused: State = state.clone();
                 refused.clients[c] = Client::NotYet;
                 push_step(&mut found, &format!("environment: a cap set by someone else refuses client {}'s flusher", c), refused);
@@ -338,6 +354,11 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
 fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
     match state.service {
         Service::Running => {
+            if matches!(state.rules, Rules::EighteenTokenToExitWithSyncerRetry | Rules::EighteenTokenToExitClientStartsOwner) && !state.stalled && visible(&state.receipts) != 0 {
+                let mut after: State = state.clone();
+                force(&mut after.receipts, unforced(&state.receipts));
+                push_step(found, "owner: the running syncer retries the receipts that a client left to the continuing retry", after);
+            }
             if state.rules != Rules::EighteenSyncerNeverRetries && !state.stalled && state.receipts.iter().any(|receipt| { return *receipt == Receipt::Err; }) {
                 let mut after: State = state.clone();
                 force(&mut after.receipts, unforced(&state.receipts));
@@ -479,7 +500,7 @@ fn flusher_steps(state: &State, slot: usize, found: &mut Vec<(String, State)>) {
             push_step(found, &format!("owner: flusher {} lists the lane once more and records the receipts that joined", slot), relisted);
         }
         Flusher::Empty => {
-            let next: Flusher = if state.rules == Rules::EighteenNoRecheck { Flusher::Off } else { Flusher::Released };
+            let next: Flusher = if matches!(state.rules, Rules::EighteenNoRecheck | Rules::EighteenTokenToExitWithSyncerRetry | Rules::EighteenTokenToExitClientStartsOwner) { Flusher::Off } else { Flusher::Released };
             push_step(found, &format!("owner: flusher {} releases the lock after its last empty sweep", slot), with(next));
         }
         Flusher::Released => {

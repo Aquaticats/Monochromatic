@@ -255,17 +255,12 @@ impl LaneDocument {
         let text: &str = std::str::from_utf8(bytes).ok()?.strip_prefix(LANE_DOCUMENT_MAGIC)?;
         let mut document: LaneDocument = LaneDocument::default();
         for line in text.lines() {
-            if let Some(id) = line.strip_prefix("request ") {
-                document.requests.push(id.to_string());
-            } else if let Some(name) = line.strip_prefix("saved ") {
-                document.saved.push(name.to_string());
-            } else if let Some(length) = line.strip_prefix("ledger ") {
-                if document.ledger_length.is_some() {
-                    return None;
-                }
-                document.ledger_length = Some(length.parse().ok()?);
-            } else {
-                return None;
+            let (key, value): (&str, &str) = line.split_once(' ')?;
+            match key {
+                "request" => document.requests.push(value.to_string()),
+                "saved" => document.saved.push(value.to_string()),
+                "ledger" if document.ledger_length.is_none() => document.ledger_length = Some(value.parse().ok()?),
+                _ => return None,
             }
         }
         let canonical: bool = document.requests.windows(2).all(|pair| { return pair[0] < pair[1]; }) && document.saved.windows(2).all(|pair| { return pair[0] < pair[1]; });

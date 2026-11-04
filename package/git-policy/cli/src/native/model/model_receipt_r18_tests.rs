@@ -250,3 +250,29 @@ fn a_running_owner_retries_an_error_recorded_after_its_startup_sweep() {
     assert!(red(Rules::EighteenSyncerNeverRetries).contains("recorded forcing error was not retried"));
     assert!(green(Rules::Eighteen));
 }
+
+/// Review 11 section 2 (the proposal): keep the admission token until the flusher exits, never release and recheck, and leave a client that
+/// finds the token held to the continuing retry of the running owner's syncer. The model finds the schedule where that misses a receipt:
+/// when no owner runs (the service exited after a planned shutdown) the retry path does not exist, the flusher exits with the token and a
+/// receipt created in its last moments, by a client that found the token held, has no executor and no next owner. With the release and the
+/// recheck of the built protocol the same schedule is covered. This is why the proposal was not built.
+#[test]
+fn a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it() {
+    let found = check(Rules::EighteenTokenToExitWithSyncerRetry).violation.expect("the proposal misses a receipt in some schedule");
+    assert!(found.message.contains("no executor is responsible"), "{}", found.message);
+    // The schedule: the service exits after its planned shutdown, a flusher starts, client 1 creates its receipt after the flusher's last
+    // listing and finds the token held, and the flusher exits with it.
+    let position = |label: &str| -> usize { return found.trace.iter().position(|step| { return step == label; }).unwrap_or_else(|| { panic!("{} is not in {:?}", label, found.trace) }); };
+    assert!(position(EXIT) < position(F0_ENUM) && position(F0_ENUM) < position(C1_CREATES) && position(C1_CREATES) < position(C1_STARTS), "{:?}", found.trace);
+    // The same schedule under the built protocol: the holder releases, lists again, and the receipt is covered.
+    assert!(green(Rules::Eighteen));
+}
+
+/// The proposal with the retry owner started by the client: a client that finds no service starts the next owner. The model still finds a
+/// miss, because a client that reads while the service is in its shutdown (sealed, the lane held) cannot start an owner, the token holder
+/// exits, the service then exits, and no owner starts.
+#[test]
+fn a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown() {
+    let found = check(Rules::EighteenTokenToExitClientStartsOwner).violation.expect("the variant misses a receipt in some schedule");
+    assert!(found.message.contains("no executor is responsible"), "{}", found.message);
+}

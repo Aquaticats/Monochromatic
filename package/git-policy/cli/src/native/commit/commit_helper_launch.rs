@@ -347,10 +347,10 @@ fn make_pipe() -> Result<(OwnedFd, OwnedFd), LaunchError> {
         return Err(LaunchError::Refused(io::Error::last_os_error()));
     }
     // SAFETY: both numbers were just returned by `pipe` and nothing else owns them.
-    let (read, write): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
-    let read: OwnedFd = move_above_streams(read).map_err(LaunchError::Refused)?;
-    let write: OwnedFd = move_above_streams(write).map_err(LaunchError::Refused)?;
-    return Ok((read, write));
+    let (low_read, low_write): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
+    let high_read: OwnedFd = move_above_streams(low_read).map_err(LaunchError::Refused)?;
+    let high_write: OwnedFd = move_above_streams(low_write).map_err(LaunchError::Refused)?;
+    return Ok((high_read, high_write));
 }
 
 /// Waits, until `deadline`, for the launcher's handover byte on `go`; true only when the byte arrived. A timeout, an end of input (the
@@ -540,11 +540,11 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
         drop(holding);
         drop(go_write);
         let (byte, timed_out) = outcome?;
-        let status: Option<libc::c_int> = status?;
+        let left_by_itself: Option<libc::c_int> = status?;
         return match (byte, timed_out) {
             (Some(step), _) => Err(LaunchError::SetupFailed(step)),
             (None, true) => Err(LaunchError::NotConfirmed),
-            (None, false) => match status {
+            (None, false) => match left_by_itself {
                 None => Err(LaunchError::NotConfirmed),
                 Some(code) if libc::WIFEXITED(code) && libc::WEXITSTATUS(code) != 0 => Err(LaunchError::FirstChildFailed(libc::WEXITSTATUS(code))),
                 Some(code) if libc::WIFSIGNALED(code) => Err(LaunchError::FirstChildFailed(128 + libc::WTERMSIG(code))),
