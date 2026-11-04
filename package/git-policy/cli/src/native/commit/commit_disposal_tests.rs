@@ -62,7 +62,7 @@ fn a_crash_after_the_replacement_root_and_before_the_unlink_loses_nothing() {
     assert!(lane.join("saved").join(&name).exists(), "the content is still there");
     assert!(saved_in_root(&state).is_empty());
     assert!(select(&state).expect("readable").is_some());
-    unlink_retired(&lane, &retired).expect("the unlink");
+    unlink_retired(retired).expect("the unlink");
     assert!(!lane.join("saved").join(&name).exists());
     assert!(select(&state).expect("readable").is_some());
 }

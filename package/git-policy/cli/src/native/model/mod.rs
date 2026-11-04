@@ -379,3 +379,8 @@ mod commit_disposal_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_io_error_tests.rs"]
 mod commit_io_error_tests;
+
+/// Plan step 2: the findings of the second cross-vendor review.
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_review_fix_tests.rs"]
+mod commit_review_fix_tests;

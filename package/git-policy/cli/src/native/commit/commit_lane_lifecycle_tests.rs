@@ -21,7 +21,7 @@ use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_flusher::{FlushError, FlusherLaunchError, RECEIPT_DIR, RECEIPT_ERRORS};
 use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, transient_unit_arguments, unit_name};
 use git_policy_cli::commit_identity::set_fault_point;
-use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, departure_acknowledge, seal_for_shutdown, startup_sweep, syncer_pass, RETRYING};
+use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, departure_acknowledge, seal_for_shutdown, startup_sweep, syncer_pass};
 use git_policy_cli::commit_state_log::{ClosureEntry, Consumption, ConsumptionKind, EntryKind, LaneDocument, LaneState, Marker, RequestPhase, RequestState, StateWriter, read, state_covers, sync_prefix};
 use std::cell::Cell;
 use std::fs;
@@ -155,12 +155,11 @@ fn the_syncer_retries_recorded_errors_and_clears_the_record_only_when_forced() {
     assert!(matches!(failed, Err(FlushError::Forcing(_))), "{:?}", failed.map(|pass| { return pass.forced; }));
     let kept: String = fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the record");
     assert!(kept.contains("r1") && kept.contains("r9"), "the record still names every receipt it named: {}", kept);
-    assert!(!lane.join(RETRYING).exists(), "the in-flight copy is merged back, not left behind");
     fs::remove_file(&dangling).expect("the cause is gone");
     fs::write(&dangling, b"receipt").expect("a receipt that can be forced");
     let pass = syncer_pass(&lane).expect("the pass");
     assert_eq!(pass.retried, 2, "both recorded lines, the one for the receipt that is gone included");
-    assert!(!lane.join(RECEIPT_ERRORS).exists() && !lane.join(RETRYING).exists(), "the record is cleared once its receipts are forced");
+    assert!(!lane.join(RECEIPT_ERRORS).exists() || fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the record").is_empty(), "the record is cleared once its receipts are forced");
 }
 
 /// A record that arrives while a pass is retrying is not lost: only the lines the pass took are removed.
@@ -170,30 +169,48 @@ fn an_error_recorded_during_a_retry_survives_the_pass() {
     fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
     fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt");
     fs::write(lane.join(RECEIPT_ERRORS), "r1\told\n").expect("a recorded error");
+    // The recorder opened the record before the pass began and writes through that descriptor while the pass forces (review of step 2).
+    let mut late = fs::OpenOptions::new().append(true).open(lane.join(RECEIPT_ERRORS)).expect("the record, opened before the pass");
     let pass = git_policy_cli::commit_lane_lifecycle::syncer_pass_with(&lane, &mut || {
-        let mut late = fs::OpenOptions::new().create(true).append(true).open(lane.join(RECEIPT_ERRORS)).expect("the record");
-        io::Write::write_all(&mut late, b"r2\tlate\n").expect("a late line");
+        io::Write::write_all(&mut late, b"r2\tlate\n").expect("a late line through the old descriptor");
     })
     .expect("the pass");
     assert_eq!(pass.retried, 1);
-    assert_eq!(fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the record"), "r2\tlate\n");
+    assert_eq!(fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the record"), "r1\told\nr2\tlate\n", "the late line survives, and the line the pass retried is retried again (idempotent) instead of being cut under a writer");
 }
 
-/// The replacement owner's startup sweep forces every receipt in the directory whether or not the record names it, takes up the in-flight
-/// copy a dead syncer left, and reads the state log once.
+/// Competing passes: the second pass runs completely inside the first (through its hook) and clears the record; the first pass then finds
+/// the record changed and removes nothing. No pass removes another pass's snapshot, because there is no snapshot file.
 #[test]
-fn the_startup_sweep_forces_every_receipt_and_takes_up_a_dead_syncers_copy() {
+fn competing_syncer_passes_do_not_lose_or_duplicate_records() {
+    let lane: PathBuf = lane_for("life-syncer-compete");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt");
+    fs::write(lane.join(RECEIPT_ERRORS), "r1\told\n").expect("a recorded error");
+    let inner_lane: PathBuf = lane.clone();
+    let outer = git_policy_cli::commit_lane_lifecycle::syncer_pass_with(&lane, &mut || {
+        let inner = syncer_pass(&inner_lane).expect("the inner pass");
+        assert_eq!(inner.retried, 1);
+    })
+    .expect("the outer pass");
+    assert_eq!(outer.retried, 1);
+    assert!(fs::read_to_string(lane.join(RECEIPT_ERRORS)).unwrap_or_default().is_empty());
+}
+
+/// The replacement owner's startup sweep forces every receipt in the directory whether or not the record names it, and reads the state log
+/// once.
+#[test]
+fn the_startup_sweep_forces_every_receipt_whether_or_not_the_record_names_it() {
     let (lane, state, envelope) = lane_with_envelope("life-startup");
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
     let document: Vec<u8> = LaneDocument::from_closure(std::slice::from_ref(&request)).expect("document").encode();
     StateWriter::acquire(&state).expect("writer").append_with(7, &document, std::slice::from_ref(&request)).expect("a record");
     fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
     fs::write(lane.join(RECEIPT_DIR).join("unnamed"), b"receipt").expect("a receipt the record does not name");
-    fs::write(lane.join(RETRYING), "unnamed\tdied mid-retry\n").expect("a dead syncer's copy");
     let recovery = startup_sweep(&lane, &state).expect("the sweep");
     assert_eq!(recovery.generation, Some(7));
     assert!(recovery.forced >= 1);
-    assert!(!lane.join(RETRYING).exists() && !lane.join(RECEIPT_ERRORS).exists());
+    assert!(recovery.state_error.is_none());
 }
 
 /// The shipped state of a lane stays readable: the seal's closure holds everything the lane holds, marks and the order file included.
