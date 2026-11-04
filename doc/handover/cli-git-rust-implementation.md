@@ -3731,9 +3731,19 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     reused,
     from 6.9 to 6.13);
     both assertions tightened.
-    Change review running:
-    `cargo-shadow-sol-15.txt` (prompt `cargo-shadow-prompt-15.txt`,
-    contract snapshot `cargo-shadow-guarantees-946615ef52.md`).
+    Change review `cargo-shadow-sol-15.txt`:
+    "Meets the list for the changes; ready for the separate certification pass";
+    no defect,
+    two wording qualifications (namespace recycling after the last reference;
+    "blocks" applies to a launcher classified Alive).
+    Sent to the agent:
+    those wording fixes and the certification bundles (row groups under 250 KB each,
+    whole named test files plus the support they call,
+    manifest `cargo-shadow-cert-manifest.md`).
+    Then the certification reviews,
+    at most three at once;
+    after they pass,
+    the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
     a certification pass that attaches the test bodies the map names,
     split by row group under 250 KB per review,
