@@ -22,7 +22,7 @@ The commit refusal (`Unported::CommitTransaction`) is not wired by this lane.
 
 Incumbent sources:
 `package/git-policy/cli/src/policy-engine/commit-transaction-conclusion.ts`
-(moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/commit_conclusion.rs`)
+(moved on 2026-10-13 with the TypeScript wrapper: now `package/git-policy/cli/src/native/commit/commit_conclusion.rs`)
 (the order of steps),
 `commit-transaction-workspace.ts` (shadow, directory, then pruning on disposal),
 `commit-transaction-added-paths.ts` (`installAddedWorktreeFiles`),

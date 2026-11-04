@@ -116,7 +116,7 @@ On code head `116615ad41`:
 - Host `native:clippy` through `gate-slot.ts`: finished clean. Log: `clippy.log`.
 - Scoped mutation with `NATIVE_MUTATION_SKIP_PLANTED=1` (the planted phase was skipped on purpose):
   `src/native/invocation/child_environment.rs`: 50 mutants, 49 caught, 1 unviable, 0 missed, 0 timeouts.
-  `src/native/commit_command.rs`: 14 mutants, 10 caught, 4 unviable, 0 missed, 0 timeouts.
+  `src/native/commit/commit_command.rs`: 14 mutants, 10 caught, 4 unviable, 0 missed, 0 timeouts.
   Logs: `mut-child-environment.log`, `mut-commit-command.log`.
 - Lint of `bin/native-planted-controls.mjs` (oxlint with `OXLINT_THREADS=2`): three errors, all present before this
   work (`max-lines` for a 631-line file, two `no-useless-escape` at the `hook_dispatch_plan.rs` control).

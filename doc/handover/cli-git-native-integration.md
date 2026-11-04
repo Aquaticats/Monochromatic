@@ -26,7 +26,7 @@ Respond by merging the branch into `main` and by vetoing any item under `Choices
 ## State
 
 The native executable commits for real.
-`git commit` (anything but a dry run) runs the transaction in `src/native/commit_transaction.rs` and
+`git commit` (anything but a dry run) runs the transaction in `src/native/commit/commit_transaction.rs` and
 `commit_conclusion.rs`; `Unported::CommitTransaction` and its refusal are gone.
 The incumbent's end-to-end suite passes against the native executable on Git 2.55.0: 36 of 38 scenarios pass and 2 skip
 by design (seeds 1 to 9; one run in the last batch failed once on a kill-window leftover, see `Results`).
@@ -172,7 +172,7 @@ New modules (each with its `*_tests.rs` where it has pure logic; the transaction
   fails `the_guard_wait_retries_only_while_another_holder_is_active` at once (its closures panic past their call cap,
    so the
   mutant no longer loops).
-- Mutation of `src/native/commit_convergence.rs` (12 mutants, `bin/mutate-native-container-noplanted.mjs`, report
+- Mutation of `src/native/commit/commit_convergence.rs` (12 mutants, `bin/mutate-native-container-noplanted.mjs`, report
   `target/verification/native-mutation-6BnlGO`): 7 caught, 5 unviable, 0 missed, 0 timeouts. The one survivor of the
   earlier campaign, `CommitPasses::snapshots_equal` replaced by `false`, is killed by
   `commit_convergence::tests::stored_states_compare_equal_exactly_when_the_corrected_bytes_match`, which stores a
@@ -217,7 +217,7 @@ systemd-run --user --unit=int-e2e --collect --property=MemoryMax=10G \
 
 # one mutation scope without the planted-control phase (the container gate must have built the image tag first)
 cd package/git-policy/cli && GIT_POLICY_NATIVE_IMAGE_TAG=integration node "${HOME}/temp/agent/gate-slot.ts" \
-  node bin/mutate-native-container-noplanted.mjs --file src/native/commit_convergence.rs --timeout 900
+  node bin/mutate-native-container-noplanted.mjs --file src/native/commit/commit_convergence.rs --timeout 900
   (Note 2026-10-20: the script `bin/mutate-native-container-noplanted.mjs` was removed; `bin/mutate-native-container.mjs`
   with `NATIVE_MUTATION_SKIP_PLANTED=1` does the same.)
 

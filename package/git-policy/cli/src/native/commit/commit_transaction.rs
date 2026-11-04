@@ -11,26 +11,26 @@
 //! const selection = decideSelection(region, conclusion);
 //! ```
 
-use super::candidate_object::{ObjectId, parse_object_id};
-use super::candidate_prediction::CandidateRequest;
-use super::capture_invocation::InvocationCapture;
-use super::command_commit::CommitRegion;
-use super::commit_facts::PrivateIndexFacts;
-use super::config_schema::CliGitConfig;
-use super::diagnostics::EngineFailureCode;
-use super::path_bytes::os_from_path_bytes;
-use super::markdown_linter::embedded_linter;
-use super::policy_checks::{ShippedChecks, shipped_checks};
-use super::policy_forbidden_strings::default_scanner_settings;
-use super::policy_markdown::markdown_state;
-use super::policy_content::LifecycleContent;
-use super::policy_convergence::Convergence;
-use super::policy_events::PolicyEvent;
-use super::repository_facts::RepositoryFacts;
-use super::transaction_git::{GitContext, GitFailure};
-use super::transaction_journal::{Base, Conclusion, TransactionMode};
-use super::transaction_phase::PhaseMarkerError;
-use super::wrapper_controls::Controls;
+use crate::candidate_object::{ObjectId, parse_object_id};
+use crate::candidate_prediction::CandidateRequest;
+use crate::capture_invocation::InvocationCapture;
+use crate::command_commit::CommitRegion;
+use crate::commit_facts::PrivateIndexFacts;
+use crate::config_schema::CliGitConfig;
+use crate::diagnostics::EngineFailureCode;
+use crate::path_bytes::os_from_path_bytes;
+use crate::markdown_linter::embedded_linter;
+use crate::policy_checks::{ShippedChecks, shipped_checks};
+use crate::policy_forbidden_strings::default_scanner_settings;
+use crate::policy_markdown::markdown_state;
+use crate::policy_content::LifecycleContent;
+use crate::policy_convergence::Convergence;
+use crate::policy_events::PolicyEvent;
+use crate::repository_facts::RepositoryFacts;
+use crate::transaction_git::{GitContext, GitFailure};
+use crate::transaction_journal::{Base, Conclusion, TransactionMode};
+use crate::transaction_phase::PhaseMarkerError;
+use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 

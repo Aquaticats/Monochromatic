@@ -90,7 +90,7 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   },
   {
     name: 'the native commit names a hooks directory that can exist',
-    file: 'src/native/commit_preparation.rs',
+    file: 'src/native/commit/commit_preparation.rs',
     from: '    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));',
     to: '    arguments.push(String::from("core.hooksPath=.git/hooks"));',
     failing: 'commit_preparation::tests::native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off',

@@ -10,12 +10,12 @@
 //! const selected = await selectedWorktreeRecords({ gitPath, cwd, repositoryRoot, indexPath, initialCandidates, newlinePaths });
 //! ```
 
-use super::candidate_object::CandidateMode;
-use super::direct_fix_install::InstallChange;
-use super::path_bytes::os_from_path_bytes;
-use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
-use super::transaction_journal::AddedPath;
-use super::worktree_completion::{WorktreeFileState, inspect_worktree_file};
+use crate::candidate_object::CandidateMode;
+use crate::direct_fix_install::InstallChange;
+use crate::path_bytes::os_from_path_bytes;
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+use crate::transaction_journal::AddedPath;
+use crate::worktree_completion::{WorktreeFileState, inspect_worktree_file};
 use std::path::Path;
 
 /// What:

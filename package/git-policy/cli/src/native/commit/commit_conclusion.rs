@@ -10,7 +10,7 @@
 //! return withChangedFixSummary({ result: pass, trigger: 'pre-forward', passes, changedPaths });
 //! ```
 
-use super::policy_events::PolicyEvent;
+use crate::policy_events::PolicyEvent;
 
 /// What:
 ///  The settled pass's events with the fix summary the corrections earned.
@@ -41,11 +41,11 @@ pub fn events_with_summary(mut events: Vec<PolicyEvent>, passes: u64, changed_pa
     let mut sorted: Vec<Vec<u8>> = changed_paths.to_vec();
     sorted.sort();
     events.push(PolicyEvent::FixSummary {
-        trigger: super::policy_trigger::Trigger::PreForward,
+        trigger: crate::policy_trigger::Trigger::PreForward,
         passes,
         changed_paths: sorted
             .iter()
-            .map(|path| { return super::event_path::EventPath::from_git_bytes(path.as_slice()); })
+            .map(|path| { return crate::event_path::EventPath::from_git_bytes(path.as_slice()); })
             .collect(),
     });
     return events;

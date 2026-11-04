@@ -12,10 +12,10 @@
 //! await git(['update-index', '--add', '--cacheinfo', mode, blob, path], { indexPath });
 //! ```
 
-use super::candidate_object::CandidateMode;
-use super::path_bytes::os_from_path_bytes;
-use super::policy_content::Correction;
-use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::candidate_object::CandidateMode;
+use crate::path_bytes::os_from_path_bytes;
+use crate::policy_content::Correction;
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::path::Path;
 
 /// What:

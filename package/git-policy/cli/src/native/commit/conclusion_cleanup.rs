@@ -20,19 +20,19 @@
 //! ```
 
 /// Debug diagnostics.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// Tree removal and private files.
-use super::private_storage::remove_tree;
+use crate::private_storage::remove_tree;
 /// The fail-closed recovery failure.
-use super::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{RecoveryError, io_failure};
 /// Exact reads and existence probes.
-use super::recovery_files::{path_present, read_optional, remove_file_if_present};
+use crate::recovery_files::{path_present, read_optional, remove_file_if_present};
 /// Shadow commands.
-use super::shadow_git::shadow_request;
+use crate::shadow_git::shadow_request;
 /// Running real Git.
-use super::transaction_git::{GitContext, GitRequest, run_git, run_git_checked};
+use crate::transaction_git::{GitContext, GitRequest, run_git, run_git_checked};
 /// The ref storage backend.
-use super::transaction_journal::RefFormat;
+use crate::transaction_journal::RefFormat;
 /// `BTreeMap` is a sorted map.
 use std::collections::BTreeMap;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -107,12 +107,12 @@ pub fn is_store_held(format: RefFormat, name: &str) -> bool {
 /// async function resolvePseudoref({ gitPath, cwd, name }): Promise<string | typeof ENTRY_ABSENT>;
 /// ```
 pub fn resolve_pseudoref(context: &GitContext, request: GitRequest) -> Option<String> {
-    let output: super::transaction_git::GitOutput = run_git(context, &request).ok()?;
+    let output: crate::transaction_git::GitOutput = run_git(context, &request).ok()?;
     if !output.succeeded() {
         return None;
     }
     let text: &str = std::str::from_utf8(output.stdout.as_slice()).ok()?;
-    return Some(String::from(super::js_text::trim_javascript(text)));
+    return Some(String::from(crate::js_text::trim_javascript(text)));
 }
 
 /// What:
@@ -201,7 +201,7 @@ fn read_store_record(copies: &Path) -> Result<serde_json::Value, RecoveryError> 
         Ok(read) => read,
         Err(error) => return Err(io_failure("reading", path.as_path(), &error)),
     };
-    let Some(text) = super::json_record::decode_fatal(bytes.as_slice()) else {
+    let Some(text) = crate::json_record::decode_fatal(bytes.as_slice()) else {
         return Err(RecoveryError(format!("{} is not UTF-8.", path.display())));
     };
     match serde_json::from_str::<serde_json::Value>(text) {

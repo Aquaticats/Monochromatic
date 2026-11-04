@@ -94,7 +94,7 @@ fn the_scan_sees_the_client_and_flags_a_planted_import() {
     let sources: Vec<(String, String)> = native_sources();
     let client: &(String, String) = sources.iter().find(|(file, _)| return file == CLIENT_FILE).expect("the client file");
     assert!(client.1.contains("ureq"), "the scan must see the library where it is used");
-    let client_path_files: Vec<&str> = vec!["main.rs", "invocation/entry.rs", "invocation/forwarding.rs", "commit_command.rs"];
+    let client_path_files: Vec<&str> = vec!["main.rs", "invocation/entry.rs", "invocation/forwarding.rs", "commit/commit_command.rs"];
     for file in client_path_files {
         assert!(sources.iter().any(|(name, _)| return name == file), "{file} is part of the scanned tree");
     }

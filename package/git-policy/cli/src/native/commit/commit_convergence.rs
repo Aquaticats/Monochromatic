@@ -16,19 +16,19 @@
 //! const convergence = await convergeCommitPolicies({ args, gitPath, cwd, workspace, policyOptions, baseRevision, ... });
 //! ```
 
-use super::diagnostics::EngineFailureCode;
-use super::direct_fix::convergence_pass;
-use super::direct_fix_install::InstallChange;
-use super::policy_checks::ShippedChecks;
-use super::policy_content::Correction;
-use super::policy_convergence::{Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass, converge};
-use super::policy_engine::{StageEnd, StageRequest};
-use super::policy_events::PolicyEvent;
-use super::policy_pass::{PassResult, run_policy_pass};
-use super::path_bytes::path_message_text;
-use super::policy_trigger::Trigger;
-use super::private_index_stage::{PrivateStage, stage_correction};
-use super::repository_facts::RepositoryFacts;
+use crate::diagnostics::EngineFailureCode;
+use crate::direct_fix::convergence_pass;
+use crate::direct_fix_install::InstallChange;
+use crate::policy_checks::ShippedChecks;
+use crate::policy_content::Correction;
+use crate::policy_convergence::{Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass, converge};
+use crate::policy_engine::{StageEnd, StageRequest};
+use crate::policy_events::PolicyEvent;
+use crate::policy_pass::{PassResult, run_policy_pass};
+use crate::path_bytes::path_message_text;
+use crate::policy_trigger::Trigger;
+use crate::private_index_stage::{PrivateStage, stage_correction};
+use crate::repository_facts::RepositoryFacts;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 
@@ -201,7 +201,7 @@ fn patch_conflict_pass(arguments: &[OsString], path: &[u8], message: String) -> 
             message: format!("Policy patch for {shown} does not apply to the private index: {message}"),
             trigger: Some(Trigger::PreForward),
             policy: None,
-            path: Some(super::event_path::EventPath::from_git_bytes(path)),
+            path: Some(crate::event_path::EventPath::from_git_bytes(path)),
         }],
         end: StageEnd::Failed,
     };

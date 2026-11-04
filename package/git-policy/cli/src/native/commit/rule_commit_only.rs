@@ -32,16 +32,16 @@
 /// import { parseCommitRegion } from '../parser/commit.ts';
 /// import { parseGlobalOptions } from '../parse-global-options.ts';
 /// ```
-use super::command_commit::{CommitRegion, FixupKind, parse_commit_region};
-use super::command_options::OptionError;
-use super::command_options_query::without_tokens;
-use super::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-use super::rule_argument_rewrite::insert_tokens;
-use super::rule_commit_index::IndexVsHead;
-use super::rule_commit_only_message::{
+use crate::command_commit::{CommitRegion, FixupKind, parse_commit_region};
+use crate::command_options::OptionError;
+use crate::command_options_query::without_tokens;
+use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+use crate::rule_argument_rewrite::insert_tokens;
+use crate::rule_commit_index::IndexVsHead;
+use crate::rule_commit_only_message::{
     ALL_FLAG_MESSAGE, NO_PATHSPEC_MESSAGE, ignored_index_message,
 };
-use super::rule_commit_sequencer::SequencerState;
+use crate::rule_commit_sequencer::SequencerState;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 

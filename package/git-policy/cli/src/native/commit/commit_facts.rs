@@ -13,16 +13,16 @@
 //! ```
 
 /// Errors of the candidate layer.
-use super::candidate_error::CandidateError;
+use crate::candidate_error::CandidateError;
 /// The prediction entry point and the request kinds.
-use super::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
+use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// Rule facts.
-use super::repository_facts::RepositoryFacts;
-use super::repository_location::RepositoryLocation;
-use super::rule_commit_index::IndexVsHead;
-use super::rule_commit_sequencer::SequencerState;
-use super::rule_worktree_dirty::DirtyScope;
-use super::transaction_git::GitContext;
+use crate::repository_facts::RepositoryFacts;
+use crate::repository_location::RepositoryLocation;
+use crate::rule_commit_index::IndexVsHead;
+use crate::rule_commit_sequencer::SequencerState;
+use crate::rule_worktree_dirty::DirtyScope;
+use crate::transaction_git::GitContext;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 

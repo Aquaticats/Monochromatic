@@ -22,25 +22,25 @@
 
 /// Journal enums shared with the transaction record:
 ///  the base, the symbolic `HEAD`, the conclusion and the ref backend.
-use super::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
+use crate::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 /// Failure text of one Git start that the layout reports as unusable.
-use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
 /// The files-backend `HEAD` reader and where one worktree's ref files live.
-use super::ref_files::{RefFilesLayout, read_symbolic_head};
+use crate::ref_files::{RefFilesLayout, read_symbolic_head};
 /// The in-process repository layout, tried before the `rev-parse` report.
-use super::repo_read_adapter::invocation_report;
-use super::git_system_config::with_real_git;
-use super::repo_read_layout::read_layout_in;
+use crate::repo_read_adapter::invocation_report;
+use crate::git_system_config::with_real_git;
+use crate::repo_read_layout::read_layout_in;
 /// Proof that a sequencer marker names nothing, without a Git process.
-use super::sequencer_marker::markers_maybe_present;
+use crate::sequencer_marker::markers_maybe_present;
 /// The empty tree's name per object format, known without a Git process.
-use super::empty_tree::empty_tree_name;
+use crate::empty_tree::empty_tree_name;
 /// Trim with JavaScript's whitespace rules, as `String.prototype.trim` does.
-use super::js_text::trim_javascript;
+use crate::js_text::trim_javascript;
 /// Invocation start time, ISO-8601 with milliseconds.
-use super::iso_time::now_iso;
+use crate::iso_time::now_iso;
 /// The one configuration read the invocation's consumers share.
-use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
+use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 /// `PathBuf` is an owned filesystem path.
 use std::path::{Path, PathBuf};
 

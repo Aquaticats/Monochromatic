@@ -10,7 +10,7 @@
 //! runTransactionGit({ gitPath, cwd, indexPath, objectDirectory, args })
 //! ```
 
-use super::transaction_git::GitRequest;
+use crate::transaction_git::GitRequest;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 

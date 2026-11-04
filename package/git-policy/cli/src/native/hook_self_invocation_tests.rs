@@ -12,8 +12,8 @@ const MAIN_SOURCE: &str = include_str!("main.rs");
 
 /// Every source of the commit path that decides what Git is started with.
 const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
-    ("commit_conclusion.rs", include_str!("commit_conclusion.rs")),
-    ("commit_preparation.rs", include_str!("commit_preparation.rs")),
+    ("commit/commit_conclusion.rs", include_str!("commit/commit_conclusion.rs")),
+    ("commit/commit_preparation.rs", include_str!("commit/commit_preparation.rs")),
     ("invocation/hooks_off.rs", include_str!("invocation/hooks_off.rs")),
     ("service_commit.rs", include_str!("service_commit.rs")),
     ("service_native.rs", include_str!("service_native.rs")),

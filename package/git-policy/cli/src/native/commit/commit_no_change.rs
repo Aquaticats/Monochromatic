@@ -11,7 +11,7 @@
 //! const message = noChangeMessage(conflicted);
 //! ```
 
-use super::path_bytes::path_message_text;
+use crate::path_bytes::path_message_text;
 
 /// The core of the no-change finding.
 pub const NO_CHANGE_CORE_ID: &str = "commit-normalization";

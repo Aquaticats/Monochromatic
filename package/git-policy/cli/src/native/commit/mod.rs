@@ -1,0 +1,84 @@
+//! What:
+//!  The wrapper's commit path:
+//!  arguments,
+//!  preparation,
+//!  convergence,
+//!  conclusion and timing.
+//! Why:
+//!  A commit is the central transaction of the wrapper.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // commit/index.ts: one `export * from './file'` per module below.
+//! ```
+
+/// Pure core of the index-against-`HEAD` check.
+pub mod rule_commit_index;
+
+/// Pure decision of the commit-only transform.
+pub mod rule_commit_only;
+
+/// User-facing diagnostics of the commit-only transform.
+pub mod rule_commit_only_message;
+
+/// Pure core of the merge,
+///  cherry-pick and revert conclusion check.
+pub mod rule_commit_sequencer;
+
+/// Slice 6: writes one corrected file into the private commit index as a blob and an index entry.
+pub mod private_index_stage;
+
+/// Slice 6: the commit path's bounded policy convergence over the private index.
+pub mod commit_convergence;
+
+/// The commit transaction in the incumbent's order, up to the settled policies.
+pub mod commit_transaction;
+
+/// The conclusion of a settled commit transaction: preparation, landing and post-landing completion.
+pub mod commit_conclusion;
+
+/// The normalization-only transaction for a correction that removed every change.
+pub mod commit_no_change;
+
+/// The finding for a staged deletion that an explicit-path commit cannot record.
+pub mod commit_staged_additions;
+
+pub mod commit_staged_deletions;
+
+/// The `git commit` command: the transaction, the settled events, the post-commit gate and the backup.
+pub mod commit_command;
+
+/// Rule facts from the real repository with candidates read from the private index.
+pub mod commit_facts;
+
+/// The worktree completion records of selected corrections and of hook changes.
+pub mod commit_worktree_records;
+
+/// The record of where one wrapped commit spent its time,
+/// appended beside the discard audit.
+pub mod commit_timing;
+
+/// Native conclusion cleanup reproduced in the owning worktree.
+pub mod conclusion_cleanup;
+
+/// The invocation capture:
+///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
+pub mod capture_invocation;
+
+/// The private index and object store a commit's preparation selects, and the Git request that carries them.
+pub mod private_index_request;
+
+/// The shadow conclusion copies at preparation.
+pub mod conclusion_copy;
+
+/// Argument transforms of native preparation: normalisation, global split, `-a` removal and private arguments.
+pub mod commit_args;
+
+/// The private commit index: copies, selection modes, pathspec files and listings.
+pub mod commit_index;
+
+/// Native `git commit` in the shadow, the prepared commit read back and `prepared.json`.
+pub mod commit_preparation;
+
+/// The post-commit gate over a landed commit: its events, its blocking and the backup it allows.
+pub mod post_commit;

@@ -34,14 +34,14 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "the all flag is removed from the commit region",
-    file: "src/native/commit_args.rs",
+    file: "src/native/commit/commit_args.rs",
     from: "if token == \"--all\" {",
     to: "if false {",
     failing: "commit_args::tests::without_all_flag_removes_only_the_all_letter",
   },
   {
     name: "index commits without staging skip the staging step",
-    file: "src/native/commit_index.rs",
+    file: "src/native/commit/commit_index.rs",
     from: "if !selection.stage_into_index {",
     to: "if false {",
     failing: "commit_index::tests::index_without_staging_matches_the_real_index",
@@ -62,7 +62,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "the sequencer is copied into the shadow",
-    file: "src/native/conclusion_copy.rs",
+    file: "src/native/commit/conclusion_copy.rs",
     from: "if path_present(sequencer.as_path())",
     to: "if false && path_present(sequencer.as_path())",
     failing: "conclusion_copy::tests::sequencer_is_copied_recursively",
@@ -76,14 +76,14 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "amend wins over the conclusion markers",
-    file: "src/native/capture_invocation.rs",
+    file: "src/native/commit/capture_invocation.rs",
     from: "if amend {",
     to: "if false {",
     failing: "capture_invocation::tests::conclusion_markers_decide_the_kind",
   },
   {
     name: "a failed interactive selection is reported",
-    file: "src/native/commit_index.rs",
+    file: "src/native/commit/commit_index.rs",
     from: "    if !status.success() {",
     to: "    if false {",
     failing: "commit_index::tests::interactive_selection_reports_a_failed_git_add",
@@ -139,7 +139,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: 'post-commit gate blocks the backup on a blocking event',
-    file: 'src/native/post_commit.rs',
+    file: 'src/native/commit/post_commit.rs',
     from: 'let blocked = pass_exit_code(events.as_slice(), end) != 0;',
     to: 'let blocked = false;',
     failing: 'post_commit::tests::a_blocked_landed_commit_ends_with_an_explicit_commit_landed_event',

@@ -13,25 +13,25 @@
 //! ```
 
 /// The landed-commit object name and the candidate layer's landed-delta source.
-use super::candidate_object::parse_object_id;
-use super::candidate_prediction::CandidateRequest;
+use crate::candidate_object::parse_object_id;
+use crate::candidate_prediction::CandidateRequest;
 /// The policy configuration the gate runs with.
-use super::config_schema::PolicyConfig;
+use crate::config_schema::PolicyConfig;
 /// The reading of the invocation's environment.
-use super::child_environment::environment_value;
+use crate::child_environment::environment_value;
 /// The failure code and the event kinds the gate emits.
-use super::diagnostics::EngineFailureCode;
+use crate::diagnostics::EngineFailureCode;
 /// The linter the Markdown policy finds on, and runs with, the invocation's environment.
-use super::policy_checks::shipped_checks;
-use super::policy_content::LifecycleContent;
-use super::policy_engine::{StageEnd, StageRequest, pass_exit_code};
-use super::policy_events::PolicyEvent;
-use super::policy_pass::run_policy_pass;
-use super::policy_trigger::Trigger;
-use super::repository_facts::git_facts;
+use crate::policy_checks::shipped_checks;
+use crate::policy_content::LifecycleContent;
+use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
+use crate::policy_events::PolicyEvent;
+use crate::policy_pass::run_policy_pass;
+use crate::policy_trigger::Trigger;
+use crate::repository_facts::git_facts;
 /// The variable naming the forbidden-strings rules file.
-use super::scanner_selection::RULES_VARIABLE;
-use super::wrapper_controls::Controls;
+use crate::scanner_selection::RULES_VARIABLE;
+use crate::wrapper_controls::Controls;
 /// Owned OS strings for the replayed global options and the child environment.
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.
@@ -140,7 +140,7 @@ pub fn run_post_commit_gate(request: &PostCommitRequest) -> PostCommitGate {
 /// ```
 fn run_staged_gate(
     request: &PostCommitRequest,
-    commit: super::candidate_object::ObjectId,
+    commit: crate::candidate_object::ObjectId,
 ) -> (Vec<PolicyEvent>, StageEnd) {
     let facts = git_facts(request.real_git, request.global_prefix, request.overlay);
     let mut checks = shipped_checks(

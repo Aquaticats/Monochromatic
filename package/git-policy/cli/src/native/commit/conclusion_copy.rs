@@ -14,21 +14,21 @@
 //! ```
 
 /// Names and helpers the landing side already uses.
-use super::conclusion_cleanup::{
+use crate::conclusion_cleanup::{
     CONCLUSION_COPY_DIRECTORY, CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY, STORE_RECORD_FILENAME,
     is_store_held, resolve_pseudoref,
 };
 /// Private file writes and directory creation.
-use super::private_storage::{create_private_directory, write_private_file};
+use crate::private_storage::{create_private_directory, write_private_file};
 /// Optional reads that treat a missing entry as absent.
-use super::recovery_files::{path_present, read_optional};
+use crate::recovery_files::{path_present, read_optional};
 /// JSON object writer for the store-held record.
-use super::json_record::ObjectWriter;
+use crate::json_record::ObjectWriter;
 /// The shadow ref helper and the process context.
-use super::shadow_git::shadow_request;
-use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
+use crate::shadow_git::shadow_request;
+use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// Ref storage backend.
-use super::transaction_journal::RefFormat;
+use crate::transaction_journal::RefFormat;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 

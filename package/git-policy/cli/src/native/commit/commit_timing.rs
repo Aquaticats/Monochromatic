@@ -28,13 +28,13 @@
 //! await appendFile(join(commonDir, 'cli-git-commit-timing.jsonl'), JSON.stringify(timing) + '\n');
 //! ```
 
-use super::diagnostic_log::debug;
-use super::discard_audit::append_line;
-use super::iso_time::now_iso;
-use super::json_record::{quote, string_array};
-use super::quiet_ledger::{drain, longest_healthy, object_json};
-use super::service_instance::instance_of;
-use super::service_protocol::RELEASE;
+use crate::diagnostic_log::debug;
+use crate::discard_audit::append_line;
+use crate::iso_time::now_iso;
+use crate::json_record::{quote, string_array};
+use crate::quiet_ledger::{drain, longest_healthy, object_json};
+use crate::service_instance::instance_of;
+use crate::service_protocol::RELEASE;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 

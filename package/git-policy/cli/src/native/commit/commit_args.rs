@@ -23,7 +23,7 @@
 /// The pathspec separator that ends option parsing in Git and in the incumbent.
 const PATHSPEC_SEPARATOR: &str = "--";
 /// Commit selection mode of the transaction.
-use super::transaction_journal::TransactionMode;
+use crate::transaction_journal::TransactionMode;
 
 /// Global options that redirect native Git away from the shadow repository, so they are dropped.
 const REDIRECTING_VALUE_OPTIONS: [&str; 3] = ["-C", "--git-dir", "--work-tree"];

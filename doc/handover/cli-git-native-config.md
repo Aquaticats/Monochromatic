@@ -298,9 +298,9 @@ Git 2.56.0 base `6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802
 - Because `cargo test` stops after the first failing target, the remaining targets were run in the same image with
   `--no-fail-fast`: the binary target passed 50 tests and the consumer target 1.
 - `mise run //package/git-policy/cli:native:clippy` fails on the base before this branch's files are linted:
-  an unused import `git_text` in `src/native/commit_convergence_tests.rs:14`,
-  a collapsible `if` in `src/native/commit_transaction.rs:148`,
-  and two missing `return` statements in `src/native/commit_transaction_tests.rs:64` and `:139`.
+  an unused import `git_text` in `src/native/commit/commit_convergence_tests.rs:14`,
+  a collapsible `if` in `src/native/commit/commit_transaction.rs:148`,
+  and two missing `return` statements in `src/native/commit/commit_transaction_tests.rs:64` and `:139`.
   None of the four diagnostics is in a file this branch changed.
 
 ## Trailing gates

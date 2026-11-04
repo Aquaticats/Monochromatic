@@ -18,19 +18,19 @@
 //! ```
 
 /// One required Git start, its request builder and the failure text.
-use super::private_index_request::{CaptureIndexes, indexed_request};
-use super::start_retry::RetryStart;
+use crate::private_index_request::{CaptureIndexes, indexed_request};
+use crate::start_retry::RetryStart;
 /// Staged additions carried into the explicit-path index, and the pathspec-file reader.
-use super::commit_staged_additions::{
+use crate::commit_staged_additions::{
     StagedAddition, carry_additions, explain_ignored_refusal, pathspecs_of_file, staged_additions_selected,
 };
-use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 /// Commit selection mode of the transaction.
-use super::transaction_journal::TransactionMode;
+use crate::transaction_journal::TransactionMode;
 /// What marks the captured index carries.
-use super::index_flags::{IndexFlags, read_index_flags};
+use crate::index_flags::{IndexFlags, read_index_flags};
 /// Real-Git command builder shared with the forwarded commands.
-use super::forwarding::git_command;
+use crate::forwarding::git_command;
 /// `FileTimes` carries the copied timestamps.
 use std::fs::FileTimes;
 /// `OsString` is owned operating-system text.
@@ -292,7 +292,7 @@ fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes,
         Some(indexes.captured_index.as_path()),
         Some(indexes.object_directory.as_path()),
     );
-    return super::repo_read_hook::try_request(context, &request)
+    return crate::repo_read_hook::try_request(context, &request)
         .is_some_and(|answer| { return answer.code == Some(0) && answer.stdout.is_empty(); });
 }
 

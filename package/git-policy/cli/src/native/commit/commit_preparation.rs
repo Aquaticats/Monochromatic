@@ -18,16 +18,16 @@
 /// Private file write for the journal record.
 /// Journal record shape and its encoder.
 /// Invocation capture facts the shadow was built from.
-use super::capture_invocation::InvocationCapture;
+use crate::capture_invocation::InvocationCapture;
 /// The hooks-off value Git is given again after the caller's options.
-use super::hooks_off::NO_HOOKS_DIRECTORY;
+use crate::hooks_off::NO_HOOKS_DIRECTORY;
 /// Shadow removal, so a failed preparation leaves no shadow.
 /// The shadow request and the real-Git command builder.
-use super::shadow_git::shadow_request;
-use super::forwarding::git_command;
-use super::signal_relay::{SignalGuard, is_guard_active_refusal};
+use crate::shadow_git::shadow_request;
+use crate::forwarding::git_command;
+use crate::signal_relay::{SignalGuard, is_guard_active_refusal};
 /// Context, one required Git start and failure text.
-use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -222,7 +222,7 @@ fn run_guarded_child(command: &mut std::process::Command) -> Result<i32, Prepara
     let outcome = guard.run_child(command).map_err(|error| {
         return PreparationError::Git(GitFailure(format!("git commit could not start: {error}")));
     })?;
-    return Ok(super::forwarding::exit_code(outcome));
+    return Ok(crate::forwarding::exit_code(outcome));
 }
 
 /// What:

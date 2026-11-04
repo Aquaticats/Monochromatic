@@ -233,21 +233,21 @@ The scoped mutation campaign, with the files and the skipped planted phase named
 NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=pathbytes \
   node "${HOME}/temp/agent/gate-slot.ts" \
   mise run //package/git-policy/cli:native:mutation:scoped -- \
-  --file src/native/commit_conclusion.rs \
-  --file src/native/commit_convergence.rs \
-  --file src/native/commit_index.rs \
+  --file src/native/commit/commit_conclusion.rs \
+  --file src/native/commit/commit_convergence.rs \
+  --file src/native/commit/commit_index.rs \
   --file src/native/commit_landing_loop.rs \
-  --file src/native/commit_no_change.rs \
-  --file src/native/commit_preparation.rs \
+  --file src/native/commit/commit_no_change.rs \
+  --file src/native/commit/commit_preparation.rs \
   --file src/native/commit_revalidation.rs \
-  --file src/native/commit_transaction.rs \
-  --file src/native/commit_worktree_records.rs \
+  --file src/native/commit/commit_transaction.rs \
+  --file src/native/commit/commit_worktree_records.rs \
   --file src/native/policy/event_path.rs \
   --file src/native/landing_attempt.rs \
   --file src/native/landing_index.rs \
   --file src/native/policy/path_bytes.rs \
   --file src/native/policy/policy_events.rs \
-  --file src/native/private_index_stage.rs \
+  --file src/native/commit/private_index_stage.rs \
   --file src/native/replay_commit.rs \
   --file src/native/shadow/replay_merge.rs \
   --file src/native/transaction/transaction_journal.rs \
