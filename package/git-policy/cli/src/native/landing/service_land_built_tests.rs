@@ -130,3 +130,30 @@ fn an_empty_change_and_a_merge_land_as_before() {
     crate::service_durable::drain();
     remove(world.root.as_path());
 }
+
+/// The proof of a wide directory costs work in proportion to the directory, not to its square: a commit that adds one file to a
+/// directory of thousands of files is checked with a few steps per entry. The steps are counted (name comparisons), so the control
+/// does not depend on how fast the host is.
+#[test]
+fn the_proof_of_a_wide_directory_is_linear_in_its_width() {
+    let (world, trace) = traced("service-built-wide");
+    let width: usize = 3000;
+    std::fs::create_dir_all(world.repo.join("wide")).expect("wide");
+    for number in 0..width {
+        std::fs::write(world.repo.join(format!("wide/file-{number:05}.txt")), format!("{number}\n")).expect("file");
+    }
+    git(world.repo.as_path(), &["add", "--all"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=wide"]);
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "wide/zz-added.txt", &[base.as_str()]);
+    let before: u64 = crate::service_built_checks::name_steps();
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert!(matches!(outcomes.as_slice(), [Outcome::Landed { .. }]), "{outcomes:?}");
+    let steps: u64 = crate::service_built_checks::name_steps() - before;
+    assert_eq!(starts_of(trace.as_path(), "rev-list"), 0, "the object store answered");
+    let allowed: u64 = 8 * width as u64;
+    assert!(steps > 0, "the proof looked at the names");
+    assert!(steps <= allowed, "{steps} name steps for a directory of {width} files; a linear proof needs at most a few per entry ({allowed})");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}

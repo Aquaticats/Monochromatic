@@ -28,6 +28,17 @@ const ENTRY_BUDGET: usize = 1_000_000;
 /// The deepest tree nesting one proof follows, as the readers of `repo_read_tree.rs` follow it.
 const TREE_DEPTH_LIMIT: usize = 256;
 
+thread_local! {
+    /// How many name comparisons the proofs of this thread have made, which a control reads to show the work grows with the
+    ///  directory and not with its square.
+    static NAME_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The name comparisons the proofs of this thread have made so far.
+pub(crate) fn name_steps() -> u64 {
+    return NAME_STEPS.with(std::cell::Cell::get);
+}
+
 /// The commit's header facts the landing needs.
 #[derive(Debug, Eq, PartialEq)]
 pub struct BuiltCommit {
@@ -116,7 +127,10 @@ impl Proof<'_> {
         }
         self.budget -= wanted.len();
         for entry in wanted {
-            let same_name = before.iter().find(|candidate| { return candidate.name == entry.name; });
+            let same_name = before.iter().find(|candidate| {
+                NAME_STEPS.with(|steps| { steps.set(steps.get() + 1); });
+                return candidate.name == entry.name;
+            });
             if same_name.is_some_and(|candidate| { return candidate.id == entry.id && candidate.mode == entry.mode; }) || entry.mode == MODE_GITLINK {
                 continue;
             }
