@@ -3100,9 +3100,11 @@ A lock is reclaimed only when its marker names a process that is gone or was bor
 
 The reclaim steps (read the marker,
 unlink the lock,
-place a new one) are not one atomic step,
-and no lock of the service's own makes them one.
-They are safe because at most one process that writes this marker takes a given `index.lock` at any moment.
+place a new one) are not one atomic step.
+The removal of a stale lock is kept to one reclaimer per stale file by an exclusive `flock` on that file
+(`service_index_reclaim.rs`; below, "One reclaimer per stale lock");
+placing the new lock is by exclusive creation.
+The rest is safe because at most one process that writes this marker takes a given `index.lock` at any moment.
 Three things enforce that:
 
 1.  Inside one service,
@@ -3159,7 +3161,48 @@ not fixed:
   The cure is the documented one:
   stop `cli-git@*` before committing with the older release.
 - A user who points two worktrees at one index with `GIT_INDEX_FILE` makes two instances take one lock.
-  That is not a path the service ships.
+  That is not a path the service ships; their reclaims of a stale lock of it are kept apart by the `flock` below, and
+  their placements by exclusive creation.
+
+#### One reclaimer per stale lock
+
+Every path that removes a stale `index.lock` of the service (`remove_stale` and `try_acquire` in the recovery of open
+batches, and the wait of a landing) goes through `reclaim_if`, which opens the lock, reads the marker from that open file, takes
+a non-blocking exclusive `flock` on it, checks that the name still refers to that file (device and inode), and only then
+unlinks the name.
+Nothing is moved aside, so a live lock is never off its name.
+There are six answers, and each has its own consequence:
+
+- Removed: the stale file was removed, or was already gone; the placement is tried again.
+- Changed: the name refers to another file than the one judged (the stale lock was reclaimed and a live one placed); nothing is
+  removed, and the placement is tried again.
+- Busy: another reclaimer holds the stale file (or the call was interrupted); a landing waits as for any held lock and looks
+  again after the poll pause, because the end of a hold leaves no event in the directory, and the ceiling ends the wait; a
+  restart leaves the batch open.
+- Unguarded: the hold could not be taken for any other reason (no `flock` on the file system, the kernel refused it). Nothing is
+  removed, because an unlink without the hold could remove a live lock. A landing waits as for any held lock to its ceiling and
+  withdraws the commit to its side ref; its notice is written from the marker of the file that was judged (never a second read
+  of the name, which a live landing may hold by then), names the lock, the batch and the dead process, and says to remove the lock
+  by hand once no git command and no commit of the service is running and the file's first line still reads as quoted. A restart
+  leaves the batch open.
+- Kept: the file is not a stale lock of the service (a live holder's, Git's, or unreadable); it is left where it is.
+- Stuck: the file is stale and cannot be removed; the log says why, and the landing fails as before.
+
+The lock is the one that `doc/planning/cli-git-one-reclaimer-per-index.md` argues for: the unit is the one file being
+reclaimed, the hold lasts a few system calls, and the kernel drops it when the descriptor closes or the process dies, so no
+leftover can block a reclaim.
+It is on the lock inventory (`source_guard/service_lock_inventory_tests.rs`) with its reason beside the call.
+Two reclaimers, and a reclaimer against a landing, are kept apart; Git takes no part and never reclaims.
+What stays open: a person's `rm index.lock` between the check of the name and the unlink, when Git then places its own lock in
+the two system calls between, because no system call unlinks a name only if it still names a given file; a file system that
+gives no `flock` (the stale lock is then left for the person, and the log says so); and reclaimers on different hosts over a
+shared file system, which `flock` does not reach.
+Release 0.5.28's reclaim could leave a file at a taken-aside name (`<lock>.aside-<process>-<time>`) beside the lock, when a third
+program took the name while it was off it. This release makes none, and nothing removes the ones already there: a scan of the
+visible processes does not prove that no process holds one, and the file may hold a native Git's pending index. Once no git
+command and no commit of this service is running, list them with `ls -l -- "$(git rev-parse --absolute-git-dir)"/index.lock.aside-*`
+(an alternate index: the directory of that index), keep any whose first line is not `cli-git-service `, and remove the rest with
+`rm` (`doc/planning/cli-git-one-reclaimer-per-index.md`, "Aside files an earlier release left").
 
 #### A violation fails loudly
 
@@ -3448,9 +3491,10 @@ The result goes to a temporary file made exclusively beside the copy, given Git'
 calculation from the mode the file really has), flushed to the disk, and renamed over the copy; an interrupted write is
 tried again, and a run removes only the file it made.
 An entry another session staged in the same second as the copy is racily clean to Git, so the update leaves that landing to Git.
-One lifecycle requirement stays: at most one service reclaims the stale lock of a physical index at a time
-(`remove_stale` reads the marker and then removes the lock, which is not one step), which the one service per worktree
-instance gives; a shared alternate index used by several worktrees is not covered by it.
+At most one service removes the stale lock of a physical index at a time, whatever the number of worktrees that share it
+(a shared alternate index included): the reclaim holds an exclusive `flock` on the stale lock file and checks that the name
+still refers to it before it unlinks (`reclaim_if`; "One reclaimer per stale lock"). A reclaimer that finds the file held
+backs off, and a person's `rm index.lock` in the two system calls between the check and the unlink stays open.
 Whatever the update does not reproduce (the list is in the planning section) is left to `git reset --no-refresh` on the same
 private file, so Git's `core.fsync` governs only that fallback; the in-process write always flushes the file, as Git's default does.
 The rename that installs the copy has the durability native Git's has, by default and when the user opts in.
