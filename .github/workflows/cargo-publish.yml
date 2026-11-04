@@ -2293,7 +2293,11 @@ jobs:
   #   release gate, and the repository's immutable releases mean one failing target produces no release.
   # - The executable is `cli-git-native`, not the crate name, so the archive holds
   #   monochromatic-git-policy-cli-<version>-<target>/cli-git-native, the layout the crate's
-  #   [package.metadata.binstall] table points at.
+  #   [package.metadata.binstall] table points at. It is the crate's only `[[bin]]`: the commit service is its mode
+  #   `cli-git-native cli-git service run`, because cargo-binstall refuses an archive that lacks any `[[bin]]` of the crate
+  #   (the second `cli-git-service` bin added on 2026-11-01 turned the catalog-specifiers workflow red).
+  #   `package/git-policy/cli/bin/native-release-bins.unit.test.ts` fails when this job, Cargo.toml,
+  #   releasable-crates.json and toolchain.lock.json list different executables.
   # - The crate links forbidden-strings by path in the repository and by version on crates.io once packaged, so the
   #   publish job waits until the required forbidden-strings release is in the crates.io index, which lets one push
   #   carry both version bumps.
