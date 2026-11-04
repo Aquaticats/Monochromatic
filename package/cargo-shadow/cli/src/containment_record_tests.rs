@@ -408,10 +408,20 @@ fn an_acknowledgement_does_not_override_a_live_group_or_unrelated_validation() {
     acknowledge(&live).expect("acknowledges");
 
     let note: Option<String> = survivor_note(&live);
+    // The real recovery and admission hold the acknowledged journal too while the group lives (fourth certification pass); the group is
+    // stopped only afterwards.
+    let held: Vec<String> = recover(root.path(), &refusing);
+    let admitted = begin(root.path(), &[snapshot("second")], false);
+    let held_lock: String = live_lock(root.path());
+    let kept: bool = live.exists();
     let _ = orphan.kill();
     let _ = orphan.wait();
 
     assert!(note.is_some_and(|text| { return text.contains("still running"); }), "a live recorded group was overridden");
+    assert!(held.iter().any(|message| { return message.contains("still running"); }), "the recovery did not name the live group: {held:?}");
+    assert_eq!(held_lock, LEFT_BY_THE_KILLED_RUN, "an acknowledged recovery went ahead beside a live group: {held:?}");
+    assert!(kept, "the acknowledged journal was removed while its group lives");
+    assert!(admitted.is_err(), "a transaction was admitted beside an acknowledged live group");
 
     let other = repository();
     let invalid: PathBuf = journal_with_records(other.path(), "pgroup starting\n");
