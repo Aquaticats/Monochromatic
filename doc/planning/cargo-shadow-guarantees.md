@@ -577,7 +577,7 @@ No row is certified by this map: the cross-vendor review of round 10 has not run
 (`cargo-shadow-sol-9b.txt`) said that "16 rows shown" was not established by the attachments it saw.
 Counts: 16 rows, 14 shown, 2 partly (A2/R4: the call-site test has no shim and no user-command sentinel behind it; V3/V4: the
 preparation windows are built by hand, not cut at the real boundaries), 0 not yet.
-Suite counts at the round 10 tip `TIPHASH` (the docs commit after it changes no code): the debug run
+Suite counts at the round 10 tip `4c7d357f27` (the docs commit after it changes no code): the debug run
 (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate (`mise run //package/cargo-shadow/cli:test`) each ran 571
 tests: 571 passed, 0 failed, 5 skipped; `lint:clippy` with warnings denied is clean.
 The 5 skipped are the `#[ignore]` helper entries that five other tests start as child processes (their names are in the `ignore`
