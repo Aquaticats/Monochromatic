@@ -594,8 +594,8 @@ fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_ke
     let inventory = || -> Vec<(PathBuf, Vec<u8>, u64)> {
         let mut found: Vec<(PathBuf, Vec<u8>, u64)> = Vec::new();
         for directory in [&central, &crate_root] {
-            for entry in std::fs::read_dir(directory).expect("lists the directory") {
-                let entry = entry.expect("reads an entry");
+            for listed in std::fs::read_dir(directory).expect("lists the directory") {
+                let entry = listed.expect("reads an entry");
                 let name: String = entry.file_name().to_string_lossy().into_owned();
                 let kept_beside: bool = name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
                 if directory == &central || kept_beside {
