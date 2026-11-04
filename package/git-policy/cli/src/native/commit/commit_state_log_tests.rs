@@ -229,7 +229,7 @@ fn a_sync_acknowledges_only_the_captured_prefix() {
     set_fault_point(Some(append_during_the_sync));
     let prefix: Prefix = sync_prefix(&dir).expect("sync");
     set_fault_point(None);
-    assert_eq!(prefix, Prefix { number: 1, length: captured, generation: 1 });
+    assert_eq!(prefix, Prefix { number: 1, length: captured, generation: 1, live: Vec::new() });
     assert!(std::fs::metadata(dir.join("state.log.1")).expect("size").len() > captured, "the later record is visible");
     assert_eq!(read(&dir).expect("readable").expect("state").0, 2);
 }
@@ -325,8 +325,8 @@ fn lane_with_envelope(label: &str) -> (PathBuf, PathBuf, PathBuf) {
     let lane: PathBuf = scratch(label);
     let state: PathBuf = lane.join("state");
     std::fs::create_dir(&state).expect("state directory");
-    let envelope: PathBuf = lane.join("request");
-    let bytes: Vec<u8> = {
+    std::fs::create_dir(lane.join("inbox")).expect("inbox directory");
+    let (id, bytes): (String, Vec<u8>) = {
         use git_policy_cli::commit_inbox::{encode_inbox_file, with_identity};
         use git_policy_cli::commit_request::{Change, Operation, Request};
         let request: Request = with_identity(
@@ -348,8 +348,9 @@ fn lane_with_envelope(label: &str) -> (PathBuf, PathBuf, PathBuf) {
             },
         )
         .expect("identity");
-        encode_inbox_file(&request, &[b"new bytes".to_vec()], &[Vec::new()]).expect("encode")
+        (request.id.clone(), encode_inbox_file(&request, &[b"new bytes".to_vec()], &[Vec::new()]).expect("encode"))
     };
+    let envelope: PathBuf = lane.join("inbox").join(id);
     std::fs::write(&envelope, bytes).expect("write the envelope");
     return (lane, state, envelope);
 }

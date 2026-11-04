@@ -19,7 +19,12 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::{Request, RequestError, decode, encode};
-use super::commit_state_log::{Prefix, sync_prefix};
+use super::commit_state_log::{Prefix, select, sync_prefix};
+
+/// How many times a departure re-forces the live closure when the state grows while it is forced. Owner decision 14 makes the departure
+/// run to completion; the bound only turns a writer that appends without end into a named refusal instead of a hang. Four passes cover a
+/// writer that appends once per pass with margin; no workload measurement exists yet (a measured value belongs in the notes).
+const LIVE_FORCE_PASSES: usize = 4;
 
 /// What:
 ///  `enum InboxError { ... }`: why a request cannot be encoded, decoded or accepted.
@@ -388,6 +393,8 @@ pub enum DepartureError {
         /// The generation the forced prefix reaches.
         forced: u64,
     },
+    /// A file given for the disposition is not the one that carries its promise (the reason names it).
+    NotThePromise(&'static str),
     /// A file system call failed.
     Io(io::Error),
 }
@@ -490,10 +497,44 @@ impl<'a> Departure<'a> {
             Disposition::Handover if self.order.is_none() => Some("a handover needs the order file that adopts it"),
             _ => None,
         };
-        return match missing {
-            Some(reason) => Err(DepartureError::MissingPromise(reason)),
-            None => Ok(()),
-        };
+        if let Some(reason) = missing {
+            return Err(DepartureError::MissingPromise(reason));
+        }
+        return self.validate_promise_files();
+    }
+
+    /// Checks that each file given for the promise is the file that carries it, not merely a file: the stop is the mark of one of the
+    /// requests, a terminal outcome has its line for each request, and a handover's order file adopts each request.
+    fn validate_promise_files(&self) -> Result<(), DepartureError> {
+        if let Some(stop) = self.stop {
+            let named: Option<&str> = stop.file_name().and_then(|name| { return name.to_str(); });
+            let in_decision: bool = stop.parent().and_then(|parent| { return parent.file_name(); }).is_some_and(|name| { return name == "decision"; });
+            if !in_decision || !named.is_some_and(|name| { return self.ids.iter().any(|id| { return id == name; }); }) {
+                return Err(DepartureError::NotThePromise("the stop receipt is not the decision mark of a departing request"));
+            }
+        }
+        if self.disposition == Disposition::Terminal
+            && let Some(ledger) = self.ledger
+        {
+            for id in self.ids {
+                let line = super::commit_ledger::lookup(ledger, id).map_err(|_| { return DepartureError::NotThePromise("the ledger cannot be read as a ledger"); })?;
+                if line.is_none() {
+                    return Err(DepartureError::NotThePromise("the ledger has no terminal line for a departing request"));
+                }
+            }
+        }
+        if self.disposition == Disposition::Handover
+            && let Some(order) = self.order
+        {
+            let text: Vec<u8> = fs::read(order)?;
+            for id in self.ids {
+                let wanted: String = format!("adopt {}", id);
+                if !text.split(|byte| { return *byte == b'\n'; }).any(|line| { return line == wanted.as_bytes(); }) {
+                    return Err(DepartureError::NotThePromise("the order file has no adoption line for a departing request"));
+                }
+            }
+        }
+        return Ok(());
     }
 
     /// Runs the barrier to completion and acknowledges what it forced.
@@ -519,7 +560,7 @@ impl<'a> Departure<'a> {
             self.force_with_name(path)?;
             forced.push(path.to_path_buf());
         }
-        let state: Prefix = sync_prefix(self.state_dir)?;
+        let state: Prefix = self.force_state_with_live(&mut forced)?;
         if let Some(needed) = self.names_generation
             && state.generation < needed
         {
@@ -530,6 +571,42 @@ impl<'a> Departure<'a> {
             forced.push(path.to_path_buf());
         }
         return Ok(Acknowledgment { disposition: self.disposition, stop_forced: self.stop.is_some(), forced, state });
+    }
+
+    /// Forces the state prefix together with every request that prefix declares live: an acknowledged state is a recoverable promise only
+    /// when its whole closure is durable, not just the departing requests.
+    fn force_state_with_live(&self, forced: &mut Vec<PathBuf>) -> Result<Prefix, DepartureError> {
+        // Each pass forces the envelopes of the state recovery selects now; a record appended meanwhile can declare more, so the prefix the
+        // sync captured is checked against what was forced and another pass runs when it names more. A fixed pass count bounds the wait.
+        for _ in 0..LIVE_FORCE_PASSES {
+            if let Some(selected) = select(self.state_dir).map_err(|_| { return DepartureError::NotThePromise("the state cannot be selected"); })? {
+                self.force_live(&selected.live, forced)?;
+            }
+            let prefix: Prefix = sync_prefix(self.state_dir)?;
+            if prefix.live.iter().all(|id| { return forced.contains(&self.inbox.join(id)); }) {
+                return Ok(prefix);
+            }
+            self.force_live(&prefix.live, forced)?;
+        }
+        return Err(DepartureError::NotThePromise("the state kept declaring new live requests while it was forced"));
+    }
+
+    /// Forces the envelope of each live request not yet forced, then the inbox directory.
+    fn force_live(&self, live: &[String], forced: &mut Vec<PathBuf>) -> io::Result<()> {
+        let mut any: bool = false;
+        for id in live {
+            let path: PathBuf = self.inbox.join(id);
+            if forced.contains(&path) {
+                continue;
+            }
+            sync_file(&File::open(&path)?, &path)?;
+            forced.push(path);
+            any = true;
+        }
+        if any {
+            sync_directory(self.inbox)?;
+        }
+        return Ok(());
     }
 
     /// Forces a file, its directory, and (with an anchor) the chain above the directory.

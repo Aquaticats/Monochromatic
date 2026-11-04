@@ -190,8 +190,7 @@ fn a_departure_forces_the_whole_closure_including_state_names_order_and_ledger()
     std::fs::write(&order, b"adopt line
 ").expect("order");
     let ledger: PathBuf = lane.join("queue").join("ledger");
-    std::fs::write(&ledger, b"ledger line
-").expect("ledger");
+    std::fs::write(&ledger, ledger_line(&request.id)).expect("ledger");
     start_events();
     Departure::new(Disposition::Terminal, &lane.join("inbox"), std::slice::from_ref(&request.id), &state).with_order(&order).with_ledger(&ledger).run().expect("depart");
     let events: Vec<String> = take_events();
@@ -389,7 +388,7 @@ fn a_departure_forces_the_stop_first_and_alone_then_the_closure_and_the_ancestry
     state_append(&lane.join("state"), 1, b"adopted").expect("append");
     let decision: PathBuf = lane.join("decision");
     std::fs::create_dir(&decision).expect("decision directory");
-    let mark: PathBuf = decision.join("mark");
+    let mark: PathBuf = decision.join(&request.id);
     std::fs::write(&mark, b"").expect("the empty mark file");
     let saved: PathBuf = lane.join("saved-commit");
     std::fs::write(&saved, b"objects").expect("saved");
@@ -404,7 +403,7 @@ fn a_departure_forces_the_stop_first_and_alone_then_the_closure_and_the_ancestry
     let events: Vec<String> = take_events();
     assert_eq!(events[0], format!("file-sync:{}", mark.display()), "the stop receipt is forced first");
     assert_eq!(events[1], format!("dir:{}", decision.display()), "and alone with its own directory entry");
-    let request_sync: usize = events.iter().position(|event| { return event.starts_with("file-sync:") && event.ends_with(&request.id); }).expect("request");
+    let request_sync: usize = events.iter().position(|event| { return event.starts_with("file-sync:") && event.ends_with(&format!("inbox/{}", request.id)); }).expect("request");
     let saved_sync: usize = events.iter().position(|event| { return event == &format!("file-sync:{}", saved.display()); }).expect("saved content");
     assert!(2 <= request_sync && request_sync < saved_sync, "{:?}", events);
     assert!(events.iter().any(|event| { return *event == format!("dir:{}", root.display()); }), "the ancestry reaches the anchor");
@@ -501,6 +500,13 @@ fn p9_a_withdrawal_with_an_unrelated_stop_file_is_refused() {
     assert!(outcome.is_err(), "an unrelated file was acknowledged as the stop receipt");
 }
 
+/// The ledger line that records `id` as conflicted.
+fn ledger_line(id: &str) -> Vec<u8> {
+    use git_policy_cli::commit_ledger::{LedgerEntry, encode_line};
+    return encode_line(&LedgerEntry { id: id.to_string(), outcome: "conflicted".to_string(), commit: "-".to_string(), time: "2026-01-01T00:00:00+00:00".to_string() })
+        .expect("a valid ledger line");
+}
+
 /// Components 9, P1: a terminal departure accepts any ledger file, whether or not it holds a terminal line for the request.
 #[test]
 fn p9_a_terminal_departure_needs_the_terminal_line_of_its_request() {
@@ -525,9 +531,9 @@ fn p9_a_departure_forces_the_whole_closure_of_the_state_it_acknowledges() {
     let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
     let (request, new_files, old_files) = one_path_request();
     accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept x");
-    let mut other = request.clone();
-    other.nonce = vec![9; 16];
-    let other = git_policy_cli::commit_inbox::with_identity(INSTANCE, other).expect("identity");
+    let mut variant = request.clone();
+    variant.nonce = vec![9; 16];
+    let other = git_policy_cli::commit_inbox::with_identity(INSTANCE, variant).expect("identity");
     accept(&lane.join("inbox"), INSTANCE, &other, &new_files, &old_files).expect("accept r");
     state_append(&lane.join("state"), 1, b"first").expect("append");
     let entries: Vec<ClosureEntry> = [&request.id, &other.id]
