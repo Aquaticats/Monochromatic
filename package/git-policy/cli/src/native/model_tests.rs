@@ -173,3 +173,8 @@ mod model_fixture_tests;
 #[cfg(feature = "test-seams")]
 #[path = "commit_inbox_tests.rs"]
 mod commit_inbox_tests;
+
+/// Revision 13's hash-chained state log with checkpoint rotation.
+#[cfg(feature = "test-seams")]
+#[path = "commit_state_log_tests.rs"]
+mod commit_state_log_tests;
