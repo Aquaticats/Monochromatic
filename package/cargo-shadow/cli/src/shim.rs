@@ -357,15 +357,13 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     }
 }
 
-/// What:
-/// `pub(crate) fn rerun_command(arguments: &[OsString]) -> String` is the command line the user ran, for errors that say "run it again".
-/// Why:
-/// Round 6 (5c N5): arguments are joined with their boundaries kept, so the text can be copied into a shell.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function rerunCommand(args: string[]): string
-/// ```
 pub(crate) fn rerun_command(arguments: &[std::ffi::OsString]) -> String {
-    return format!("cargo {}", arguments.iter().map(|argument| { return argument.to_string_lossy().to_string(); }).collect::<Vec<String>>().join(" "));
+    // POSIX shell quoting: a word of plain characters stays as it is; anything else is single-quoted, with each single quote
+    // written as close-quote, escaped quote, open-quote. Bytes that are not text are shown as the replacement character.
+    let word = |argument: &std::ffi::OsString| -> String {
+        let text: String = argument.to_string_lossy().to_string();
+        let plain: bool = !text.is_empty() && text.chars().all(|character| { return character.is_ascii_alphanumeric() || "_@%+=:,./-".contains(character); });
+        return if plain { text } else { format!("'{}'", text.replace('\'', "'\\''")) };
+    };
+    return format!("cargo {}", arguments.iter().map(word).collect::<Vec<String>>().join(" "));
 }
