@@ -230,8 +230,8 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     receipt; a later command queues leftover receipts for background forcing and waits for none. A durable receipt
     suppresses automatic reconstruction of a lost Git ref or object write, because recovery then sees "already
     published" (the Git data follows `core.fsync`). This is decision 3 ("Land it") applied to a command that had
-    already returned success, now owner-approved. Decision 19 was recorded by commit RECORD5_COMMIT, whose time is
-    RECORD5_TIME. 2026-11-03T21:47:28-05:00.
+    already returned success, now owner-approved. Decision 19 was recorded by commit f9b9b80f81, whose time is
+    2026-11-04T06:51:38-05:00. 2026-11-03T21:47:28-05:00.
 
 
 Amendments by 4 to 6 (the newest owner answers govern): decision 1's set-aside-as-pending of a commit behind a person's hook, the earlier answer "Save on a
