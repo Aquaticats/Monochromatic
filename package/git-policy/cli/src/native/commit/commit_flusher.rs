@@ -175,26 +175,26 @@ fn end_on_forcing_error(lane: &Path, forced: &BTreeSet<OsString>, lock: FlusherL
     let mut recorded: BTreeSet<OsString> = BTreeSet::new();
     let first: io::Result<Vec<PathBuf>> = unforced(lane, forced);
     fault_point("flusher:after-error-snapshot");
-    let mut recording: Option<io::Error> = None;
+    let mut failed_recording: Option<io::Error> = None;
     match first {
         Ok(names) => {
             if let Err(failed) = record_errors(lane, &names, &error, &mut recorded) {
-                recording = Some(failed);
+                failed_recording = Some(failed);
             }
         }
-        Err(failed) => recording = Some(failed),
+        Err(failed) => failed_recording = Some(failed),
     }
     drop(lock);
     after_release();
     match unforced(lane, forced) {
         Ok(names) => {
             if let Err(failed) = record_errors(lane, &names, &error, &mut recorded) {
-                recording = recording.or(Some(failed));
+                failed_recording = failed_recording.or(Some(failed));
             }
         }
-        Err(failed) => recording = recording.or(Some(failed)),
+        Err(failed) => failed_recording = failed_recording.or(Some(failed)),
     }
-    return match recording {
+    return match failed_recording {
         None => FlushError::Forcing(error),
         Some(recording) => FlushError::ForcingUnrecorded { forcing: error, recording },
     };
@@ -212,10 +212,10 @@ fn end_on_forcing_error(lane: &Path, forced: &BTreeSet<OsString>, lock: FlusherL
 /// ```ts
 /// function flushHeld(lane: string, lock: Lock, force: (path: string) => void, afterRelease: () => void): Flushed; // throws FlushError
 /// ```
-pub fn flush_held(lane: &Path, lock: FlusherLock, force: &mut dyn FnMut(&Path) -> io::Result<()>, after_release: &mut dyn FnMut()) -> Result<Flushed, FlushError> {
+pub fn flush_held(lane: &Path, first_lock: FlusherLock, force: &mut dyn FnMut(&Path) -> io::Result<()>, after_release: &mut dyn FnMut()) -> Result<Flushed, FlushError> {
     let mut forced: BTreeSet<OsString> = BTreeSet::new();
     let mut total: usize = 0;
-    let mut lock: FlusherLock = lock;
+    let mut lock: FlusherLock = first_lock;
     loop {
         loop {
             match sweep(lane, &mut forced, force) {
