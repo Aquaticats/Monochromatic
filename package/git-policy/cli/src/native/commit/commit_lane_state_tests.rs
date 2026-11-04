@@ -42,6 +42,11 @@ fn order_of(lane: &Path, line: &str) -> ClosureEntry {
     return ClosureEntry::capture(lane, &path, EntryKind::AppendPrefix).expect("capture the order file");
 }
 
+/// The adoption line of request `id` as the lane's order file carries it.
+fn adopt_line(id: &str) -> String {
+    return format!("adopt {} 0badc0de\n", id);
+}
+
 /// A document that carries every kind of state, for one request `id`.
 fn full_state(id: &str, position: u64) -> LaneState {
     return LaneState {
@@ -66,7 +71,7 @@ fn r23_a_full_real_state_document_round_trips_and_only_the_canonical_bytes_parse
     let id: String = identity_of(&envelope);
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
     let mark: ClosureEntry = mark_of(&lane, &id, "withdraw");
-    let order: ClosureEntry = order_of(&lane, "adopt a\n");
+    let order: ClosureEntry = order_of(&lane, &adopt_line(&id));
     let document: LaneDocument = document_with(&[request, mark, order], full_state(&id, 0));
     let bytes: Vec<u8> = document.encode();
     assert_eq!(LaneDocument::parse(&bytes), Some(document.clone()), "the document did not read back as itself");
@@ -96,7 +101,7 @@ fn r23_a_request_position_beyond_the_order_extent_is_not_a_document() {
     let (lane, _state, envelope) = lane_with_envelope("r23-position");
     let id: String = identity_of(&envelope);
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
-    let order: ClosureEntry = order_of(&lane, "adopt a\n");
+    let order: ClosureEntry = order_of(&lane, &adopt_line(&id));
     let inside: LaneDocument = document_with(&[request.clone(), order.clone()], full_state(&id, 0));
     assert!(LaneDocument::parse(&inside.encode()).is_some());
     let beyond: LaneDocument = document_with(&[request.clone(), order.clone()], full_state(&id, order.length()));
@@ -210,7 +215,7 @@ fn r23_a_changed_state_still_reclaims_and_covers_because_state_has_no_file_behin
     let (lane, state, envelope) = lane_with_envelope("r23-state-changes");
     let id: String = identity_of(&envelope);
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
-    let order: ClosureEntry = order_of(&lane, "adopt a\n");
+    let order: ClosureEntry = order_of(&lane, &adopt_line(&id));
     let entries: Vec<ClosureEntry> = vec![request, order];
     let before: LaneDocument = document_with(&entries, full_state(&id, 0));
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
@@ -243,4 +248,80 @@ fn r23_a_reclaiming_checkpoint_compares_references_not_state() {
     let dangling: LaneDocument = document_with(std::slice::from_ref(&request), full_state(&"f".repeat(32), 0));
     assert!(LaneDocument::parse(&dangling.encode()).is_none());
     assert!(writer.begin_checkpoint_reclaiming(2, &dangling, std::slice::from_ref(&request)).is_err(), "a document with a state for a request it does not adopt was reclaimed");
+}
+
+/// Review of step 1, finding A: an unterminated ledger fragment is not a published outcome (`commit_ledger::lookup` ignores it and tail
+/// repair cuts it), so it cannot discharge a request and its mark; with its newline it can. A damaged line before a valid one is damaged
+/// history and discharges nothing, whatever follows it.
+#[test]
+fn r23_a_ledger_fragment_without_its_newline_or_after_damage_is_not_a_discharge() {
+    let (lane, state, envelope) = lane_with_envelope("r23-ledger-fragment");
+    let id: String = identity_of(&envelope);
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let mark: ClosureEntry = mark_of(&lane, &id, "withdraw");
+    let both: Vec<ClosureEntry> = vec![request, mark];
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.append_with(1, &document_with(&both, LaneState::default()).encode(), &both).expect("a record that retains the request and its mark");
+    let line: Vec<u8> = ledger_line_of(&id, "conflicted");
+    let retire = |writer: &mut StateWriter, bytes: &[u8]| -> std::io::Result<git_policy_cli::commit_state_log::Candidate> {
+        std::fs::write(lane.join("ledger"), bytes).expect("the ledger");
+        let ledger: ClosureEntry = ClosureEntry::capture(&lane, &lane.join("ledger"), EntryKind::AppendPrefix).expect("capture the ledger");
+        let discharged: Vec<ClosureEntry> = vec![ledger];
+        return writer.begin_checkpoint_reclaiming_retiring(2, &document_with(&discharged, LaneState::default()), &discharged, std::slice::from_ref(&id));
+    };
+    assert!(retire(&mut writer, &line[..line.len() - 1]).is_err(), "an unterminated final fragment discharged the request");
+    let mut damaged: Vec<u8> = b"not a ledger line\n".to_vec();
+    damaged.extend_from_slice(&line);
+    assert!(retire(&mut writer, &damaged).is_err(), "a line after damaged history discharged the request");
+    assert!(state.join("state.log.1").exists());
+    assert!(retire(&mut writer, &line).is_ok(), "the complete line of a genuine terminal outcome other than withdrawn discharges the request and its mark");
+}
+
+/// Finding B: a request's position names its adopt line in the order prefix the document relies on: a line boundary whose line is
+/// `adopt <that request> ...`. A position inside a line, or at another request's line, is refused at admission and at the checkpoint.
+#[test]
+fn r23_a_position_must_be_the_adopt_line_of_its_request() {
+    let (lane, state, envelope) = lane_with_envelope("r23-position-line");
+    let id: String = identity_of(&envelope);
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let other: String = "f".repeat(32);
+    let first: String = adopt_line(&other);
+    let order: ClosureEntry = order_of(&lane, &format!("{}{}", first, adopt_line(&id)));
+    let entries: Vec<ClosureEntry> = vec![request, order];
+    let at = |position: u64| -> LaneDocument { return document_with(&entries, full_state(&id, position)); };
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    for (label, position) in [("inside a line", 1_u64), ("at another request's adopt line", 0)] {
+        assert!(writer.append_with(1, &at(position).encode(), &entries).is_err(), "a position {} was admitted", label);
+        assert!(writer.begin_checkpoint_reclaiming(1, &at(position), &entries).is_err(), "a position {} was checkpointed", label);
+    }
+    let own: u64 = first.len() as u64;
+    writer.append_with(1, &at(own).encode(), &entries).expect("the request's own adopt line is admitted");
+}
+
+/// Finding C: a closure that holds two captures of one file does not decide the document by input order.
+#[test]
+fn r23_a_closure_with_two_captures_of_one_path_is_not_a_document() {
+    let (lane, _state, _envelope) = lane_with_envelope("r23-duplicate-paths");
+    let short: ClosureEntry = order_of(&lane, "adopt a 0\n");
+    let long: ClosureEntry = order_of(&lane, "adopt b 0\n");
+    assert!(LaneDocument::from_closure(&[short.clone(), long.clone()]).is_none());
+    assert!(LaneDocument::from_closure(&[long, short]).is_none());
+}
+
+/// Finding D (second part): a historical suppression outlives the envelope of its request, which T1 retires; an entry that carries an
+/// obligation (an installation, a merge install, a cleanup watch) still has to name a request the document adopts.
+#[test]
+fn r23_a_suppression_may_outlive_its_request_and_an_obligation_may_not() {
+    let (lane, _state, envelope) = lane_with_envelope("r23-suppress");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let gone: String = "f".repeat(32);
+    let consume = |kind: ConsumptionKind| -> LaneState {
+        return LaneState { consumption: vec![Consumption { path: b"f.txt".to_vec(), kind, request: gone.clone(), version: 1, entry: vec![1] }], ..LaneState::default() };
+    };
+    let suppressed: LaneDocument = document_with(std::slice::from_ref(&request), consume(ConsumptionKind::Suppress));
+    assert!(LaneDocument::parse(&suppressed.encode()).is_some(), "a suppression of a retired request was refused");
+    for kind in [ConsumptionKind::Install, ConsumptionKind::MergeInstall, ConsumptionKind::AttachWatch] {
+        let obliged: LaneDocument = document_with(std::slice::from_ref(&request), consume(kind));
+        assert!(LaneDocument::parse(&obliged.encode()).is_none(), "{:?} for a request the document does not adopt was accepted", kind);
+    }
 }
