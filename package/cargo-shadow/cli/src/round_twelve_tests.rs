@@ -177,11 +177,11 @@ fn procfs_namespace_fixture() {
     // An arbitrary start time stands for a launcher recorded earlier; in a consistent procfs a live process has another start time
     // only if it is another process, and in an inconsistent one nothing can be said.
     let arbitrary: u64 = recorded_start.as_ref().map_or(1, |start| { return start + 1; });
-    let against_other_start: String = format!("{:?}", launcher_state(pid, arbitrary, namespace, crate::control_group::time_namespace_id().ok()));
-    let against_own_start: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace, crate::control_group::time_namespace_id().ok())); });
+    let against_other_start: String = format!("{:?}", launcher_state(pid, arbitrary, namespace));
+    let against_own_start: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
     let _ = launcher.kill();
     let _ = launcher.wait();
-    let after_end: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace, crate::control_group::time_namespace_id().ok())); });
+    let after_end: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
     fs::write(
         root.join("fixture-result"),
         format!(
@@ -216,11 +216,11 @@ fn run_procfs_fixture(mode: &str) -> String {
 /// a process in a child process id namespace that still uses the procfs of its ancestor (`kill` and `/proc/<pid>` then name different
 /// processes) cannot establish a launcher's start time, and the question answers "unknown", never "gone".
 /// The control is a procfs of the namespace's own: the start time is read, the live launcher is alive, a reused id (another start
-/// time) and an ended launcher are gone.
+/// time) is unknown and an ended launcher is gone.
 #[test]
 fn a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher() {
     let own: String = run_procfs_fixture("own");
-    assert!(own.contains("recorded ok") && own.contains("other start Gone") && own.contains("own start Alive") && own.contains("after end Gone"), "the control did not move: {own}");
+    assert!(own.contains("recorded ok") && own.contains("other start Unknown(") && own.contains("own start Alive") && own.contains("after end Gone"), "the control did not move: {own}");
     let ancestor: String = run_procfs_fixture("ancestor");
     assert!(ancestor.contains("recorded err"), "a start time was read through a procfs of another namespace: {ancestor}");
     // The prerequisite (12b 3.2): the ancestor's procfs has a readable entry under the launcher's number that is another process, so a

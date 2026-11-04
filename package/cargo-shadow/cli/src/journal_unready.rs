@@ -388,17 +388,17 @@ fn assess(directory: &Path) -> Option<Finding> {
                 // The launcher is asked about before the scope is read (round 11): a launcher that is gone can never join the scope, so
                 // what the scope shows afterwards is final; one that is alive keeps blocking, and no acknowledgement overrides it.
                 let settled: bool = settled_paths.contains(&&scope_path);
-                let launcher: Option<(i32, u64, u64, Option<u64>)> = records.iter().rev().find_map(|other| {
-                    return if let Ok(Record::Launcher { pid, start, pid_namespace, time_namespace, path: noted_path }) = other
+                let launcher: Option<(i32, u64, u64)> = records.iter().rev().find_map(|other| {
+                    return if let Ok(Record::Launcher { pid, start, pid_namespace, path: noted_path }) = other
                         && *noted_path == scope_path
                     {
-                        Some((*pid, *start, *pid_namespace, *time_namespace))
+                        Some((*pid, *start, *pid_namespace))
                     } else {
                         None
                     };
                 });
                 if !settled {
-                    match launcher.map(|(pid, start, pid_namespace, time_namespace)| { return (pid, launcher_state(pid, start, pid_namespace, time_namespace)); }) {
+                    match launcher.map(|(pid, start, pid_namespace)| { return (pid, launcher_state(pid, start, pid_namespace)); }) {
                         None => unsettled.push(scope_path.clone()),
                         Some((pid, LauncherState::Alive)) => {
                             return Some(Finding::Live(format!(

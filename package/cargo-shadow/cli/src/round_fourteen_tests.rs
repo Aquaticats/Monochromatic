@@ -1,8 +1,10 @@
 //! What:
-//! Round 14 tests: the start time of a launcher read from another time namespace (13, section 3).
+//! Round 14 and 15 tests: the start time of a launcher read from another time namespace (13 section 3, 14 sections 2 and 3).
 //! Why:
 //! The start time in `/proc/<pid>/stat` is relative to the boot-time offset of the time namespace of the process that reads it, so
 //! a recovery in another time namespace reads a live launcher's start time differently and must not take that for a reused id.
+//! Round 15: the namespace number that identifies the writer's time namespace is recycled once the namespace has no process, so it
+//! proves nothing; a start time that differs from the record is unknown, whatever the namespace numbers say.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 use crate::cgroup_test_support::delegated_route;
-use crate::control_group::{ControlGroup, Record, launcher_state, parse_record, pid_namespace_id, process_start, time_namespace_id};
+use crate::control_group::{ControlGroup, Record, launcher_state, parse_record, pid_namespace_id, process_start};
 use crate::crates::LockSnapshot;
 use crate::journal_recover::survivor_note;
 use crate::journal_support::plant;
@@ -26,7 +28,7 @@ const CRATE_DIR: &str = "package/n/one";
 /// The environment variable that gives the helper process its workspace.
 const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_ROOT";
 
-/// The environment variable that gives the helper the recorded identity of the launcher, as `pid start pid_namespace time_namespace`.
+/// The environment variable that gives the helper the recorded identity of the launcher, as `pid start pid_namespace`.
 const FIXTURE_IDENTITY: &str = "CARGO_SHADOW_ROUND_FOURTEEN_FIXTURE_IDENTITY";
 
 /// A snapshot of the lockfile of the case.
@@ -57,17 +59,29 @@ impl Drop for Held {
     }
 }
 
-/// Contract A1 (round 14): the record of a launcher carries the time namespace of its writer, reads back as written, and a line of an
-/// older version (without it) still parses, with no time namespace.
+/// Contract A1 (round 15): the launcher line reads back as written; a line of the form of round 14 (a time namespace number before the
+/// path) is not understood, so it waits for an acknowledgement like any journal that cannot be read.
 #[test]
-fn a_launcher_record_carries_the_time_namespace_and_an_older_line_has_none() {
-    let record: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, time_namespace: Some(4_026_531_834), path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
+fn a_launcher_record_reads_back_and_a_line_with_a_time_namespace_is_not_understood() {
+    let record: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
+    assert_eq!(record.to_string(), "launcher 4242 987654 4026531836 /sys/fs/cgroup/a b/c.scope");
     assert_eq!(parse_record(&record.to_string()), Ok(record));
-    let older: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, time_namespace: None, path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
-    assert_eq!(older.to_string(), "launcher 4242 987654 4026531836 /sys/fs/cgroup/a b/c.scope");
-    assert_eq!(parse_record(&older.to_string()), Ok(older));
-    for damaged in ["launcher 4 5 6 7", "launcher 4 5 6 x /a", "launcher 4 5 6 7 ", "launcher 4 5 6 -7 /a"] {
-        assert!(parse_record(damaged).is_err(), "{damaged:?} was understood");
+    for refused in ["launcher 4 5 6 7 /a", "launcher 4 5 6 7", "launcher 4 5 6 x /a", "launcher 4 5 6 relative"] {
+        assert!(parse_record(refused).is_err(), "{refused:?} was understood");
+    }
+}
+
+/// Acceptance rows A1, V2 (round 15): with everything else equal, a start time that differs from the record is unknown, never gone:
+/// the record cannot show that the reader's time namespace is the writer's, and an equal start time is alive.
+#[test]
+fn a_start_time_that_differs_from_the_record_is_unknown_and_an_equal_one_is_alive() {
+    let launcher = Held(Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts"));
+    let pid: i32 = i32::try_from(launcher.0.id()).expect("a process id");
+    let (start, namespace): (u64, u64) = (process_start(pid).expect("start"), pid_namespace_id().expect("namespace"));
+
+    assert_eq!(launcher_state(pid, start, namespace), crate::control_group::LauncherState::Alive);
+    for other in [start + 1, start.saturating_sub(1), start + 720_000] {
+        assert!(matches!(launcher_state(pid, other, namespace), crate::control_group::LauncherState::Unknown(text) if text.contains("start time")), "start {other} against {start} was not unknown");
     }
 }
 
@@ -83,18 +97,16 @@ fn time_namespace_fixture() {
     let root: PathBuf = PathBuf::from(root_text);
     let identity: String = std::env::var(FIXTURE_IDENTITY).expect("an identity");
     let numbers: Vec<u64> = identity.split(' ').map(|part| { return part.parse::<u64>().expect("a number"); }).collect();
-    let (pid, start, pid_namespace, recorded_time): (i32, u64, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2], numbers[3]);
+    let (pid, start, pid_namespace): (i32, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2]);
     let own_start: String = process_start(pid).map_or_else(|error| { return format!("err {error}"); }, |found| { return found.to_string(); });
     let journal: PathBuf = crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal");
     let note: String = survivor_note(&journal).unwrap_or_else(|| { return "no survivor".to_string(); });
     fs::write(
         root.join("fixture-result"),
         format!(
-            "own start {own_start}\ntime namespace here {}\nwith the recorded time namespace {:?}\nwith none (an older line) {:?}\nwith another time namespace {:?}\nrecovery {}\n",
-            time_namespace_id().map_or_else(|error| { return format!("err {error}"); }, |found| { return found.to_string(); }),
-            launcher_state(pid, start, pid_namespace, Some(recorded_time)),
-            launcher_state(pid, start, pid_namespace, None),
-            launcher_state(pid, start, pid_namespace, Some(recorded_time + 1)),
+            "own start {own_start}\ntime namespace here {}\nquestion {:?}\nrecovery {}\n",
+            fs::metadata("/proc/self/ns/time").map_or_else(|error| { return format!("err {error}"); }, |found| { return std::os::unix::fs::MetadataExt::ino(&found).to_string(); }),
+            launcher_state(pid, start, pid_namespace),
             note.lines().next().unwrap_or("")
         ),
     )
@@ -134,10 +146,10 @@ fn run_time_fixture_in(root: &Path, identity: &str, shifted: bool, user_namespac
 }
 
 /// Acceptance rows A1, V2 (13 section 3): the same process id namespace, procfs and journal, a recovery in another time namespace with a
-/// boot-time offset: the live launcher's start time reads differently there, and the question answers "unknown", never "gone"; a line
-/// without a time namespace (an older version) is unknown as well.
+/// boot-time offset: the live launcher's start time reads differently there, and the question and the recovery answer "unknown", never
+/// "gone".
 /// The control is a recovery in the writer's own time namespace, where the same question answers "alive" and the start time is the one
-/// recorded; the prerequisite is shown by the helper's own reading of a different start time in the other namespace.
+/// recorded; the prerequisite is the shifted reader's own successful reading of a different start time, as a number.
 #[test]
 fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
     let Some(route) = delegated_route() else {
@@ -146,10 +158,10 @@ fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
     let launcher = Held(Command::new("sleep").arg("600").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("starts"));
     let pid: i32 = i32::try_from(launcher.0.id()).expect("a process id");
     let start: u64 = process_start(pid).expect("the start time here");
-    let (pid_namespace, time_namespace): (u64, u64) = (pid_namespace_id().expect("pid namespace"), time_namespace_id().expect("time namespace"));
-    let identity: String = format!("{pid} {start} {pid_namespace} {time_namespace}");
+    let pid_namespace: u64 = pid_namespace_id().expect("pid namespace");
+    let identity: String = format!("{pid} {start} {pid_namespace}");
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let record: Record = Record::Launcher { pid, start, pid_namespace, time_namespace: Some(time_namespace), path: planned.directory().to_path_buf() };
+    let record: Record = Record::Launcher { pid, start, pid_namespace, path: planned.directory().to_path_buf() };
 
     let same_root = scratch();
     fs::create_dir_all(same_root.path().join(CRATE_DIR)).expect("dir");
@@ -163,8 +175,7 @@ fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
     fs::write(other_journal.join("groups"), format!("{}\n{record}\n", planned.record())).expect("records");
     let shifted: String = run_time_fixture(other_root.path(), &identity, true);
 
-    assert!(same.contains(&format!("own start {start}\n")) && same.contains("with the recorded time namespace Alive"), "the control did not move: {same}");
-    assert!(same.contains("with none (an older line) Unknown(") && same.contains("with another time namespace Unknown("), "the same time namespace did not check the record: {same}");
+    assert!(same.contains(&format!("own start {start}\n")) && same.contains("question Alive"), "the control did not move: {same}");
     // The prerequisite (14 section 3): the shifted reader read a start time successfully, as a number, and it differs from the recorded one.
     let shifted_start: u64 = shifted
         .lines()
@@ -172,8 +183,7 @@ fn a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone() {
         .and_then(|text| { return text.parse::<u64>().ok(); })
         .unwrap_or_else(|| { panic!("the shifted reader did not read a start time as a number: {shifted}"); });
     assert_ne!(shifted_start, start, "the prerequisite failed: the other time namespace read the same start time: {shifted}");
-    assert!(shifted.contains("with the recorded time namespace Unknown("), "a live launcher read from another time namespace was not unknown: {shifted}");
-    assert!(shifted.contains("with none (an older line) Unknown("), "{shifted}");
+    assert!(shifted.contains("question Unknown("), "a live launcher read from another time namespace was not unknown: {shifted}");
     assert!(!shifted.contains("Gone"), "a live launcher read from another time namespace was read as gone: {shifted}");
     // The recovery's refusal names the cause (14 section 3), with the other views equal: it is the start-time comparison that is refused.
     let recovery: &str = shifted.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
@@ -205,7 +215,9 @@ fn wrapper_in_its_own_time_namespace_fixture() {
     crate::cgroup_test_support::wait_until("the launcher's process id", &|| { return fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); });
     let pid: i32 = fs::read_to_string(&pid_file).expect("the id").trim().parse::<i32>().expect("a process id");
     let start: u64 = process_start(pid).expect("the start time on this time namespace's basis");
-    let identity: String = format!("{pid} {start} {} {}", pid_namespace_id().expect("pid namespace"), time_namespace_id().expect("time namespace"));
+    // The time namespace of this helper, written beside the identity only so that the test can wait for its destruction.
+    let time_namespace: u64 = std::os::unix::fs::MetadataExt::ino(&fs::metadata("/proc/self/ns/time").expect("the time namespace"));
+    let identity: String = format!("{pid} {start} {} {time_namespace}", pid_namespace_id().expect("pid namespace"));
     fs::write(root.join("identity.part"), identity).expect("write the identity");
     fs::rename(root.join("identity.part"), root.join("identity")).expect("publish the identity");
     std::thread::sleep(std::time::Duration::from_secs(300));
@@ -229,7 +241,7 @@ fn processes_in_time_namespace(inode: u64) -> Vec<i32> {
 /// Acceptance rows A1, V2 (14 section 2, the review's schedule): the writer's time namespace T0 is destroyed while the launcher lives in
 /// another (T1), a new time namespace T2 is created and receives the freed inode number, and a recovery in T2 reads the live launcher's
 /// start time on another basis. A recorded number that names a later, different namespace must not make that difference a reused id:
-/// the question answers "unknown", never "gone".
+/// the question answers "unknown", never "gone", because no recorded number is used.
 /// The prerequisites are asserted: the freed number was reused, and the recovery's own reading of the start time differs.
 #[test]
 fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
@@ -261,13 +273,13 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     let still_alive: bool = crate::contain_counterexample_tests::is_running(pid);
 
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let record: Record = Record::Launcher { pid, start, pid_namespace, time_namespace: Some(time_namespace), path: planned.directory().to_path_buf() };
+    let record: Record = Record::Launcher { pid, start, pid_namespace, path: planned.directory().to_path_buf() };
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
     let journal: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
     fs::write(journal.join("groups"), format!("{}\n{record}\n", planned.record())).expect("records");
     // The recovery joins the user namespace that the launcher is still in, so its new time namespace is the only namespace it creates
     // (a new user namespace would take the freed number first).
-    let result: String = run_time_fixture_in(root.path(), &format!("{pid} {start} {pid_namespace} {time_namespace}"), true, Some(pid));
+    let result: String = run_time_fixture_in(root.path(), &format!("{pid} {start} {pid_namespace}"), true, Some(pid));
     crate::contain_counterexample_tests::stop_quietly(pid);
 
     assert!(still_alive, "the launcher did not outlive its writer's time namespace, so the schedule was not made");
@@ -275,6 +287,7 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     assert_eq!(here, time_namespace, "the freed time namespace number was not reused by the recovery's namespace, so the schedule was not made: {result}");
     let own: u64 = result.lines().find_map(|line| { return line.strip_prefix("own start "); }).and_then(|text| { return text.parse::<u64>().ok(); }).unwrap_or_else(|| { panic!("the recovery did not read a start time: {result}"); });
     assert_ne!(own, start, "the recovery read the recorded start time, so the bases were the same: {result}");
+    assert!(result.contains("question Unknown("), "the question did not answer unknown: {result}");
     assert!(!result.contains("Gone"), "a live launcher was read as gone through a recycled time namespace number: {result}");
     let recovery: &str = result.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
     assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery did not refuse for the start times: {recovery}");

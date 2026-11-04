@@ -639,20 +639,6 @@ fn start_of(pid: i32) -> StartOf {
 }
 
 /// What:
-/// `pub(crate) fn time_namespace_id() -> io::Result<u64>` is the inode number of this process's time namespace.
-/// Why:
-/// The start time in `/proc/<pid>/stat` is relative to the boot-time offset of the time namespace of the process that reads it, so a
-/// start time means the same only for a reader in the same time namespace (round 14).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function timeNamespaceId(): number
-/// ```
-pub(crate) fn time_namespace_id() -> io::Result<u64> {
-    return Ok(fs::metadata("/proc/self/ns/time")?.ino());
-}
-
-/// What:
 /// `pub(crate) fn process_start(pid: i32) -> io::Result<u64>` is the start time of a process, in clock ticks since boot
 /// (field 22 of `/proc/<pid>/stat`).
 /// Why:
@@ -696,7 +682,8 @@ fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
 /// still join its scope.
 /// Why:
 /// The launcher becomes the program, and a process that is gone cannot be attached to a scope later (round 11).
-/// It is gone only when this process is in the process id and time namespaces of the record and no process with that id and that start time exists,
+/// It is gone only when this process is in the process id namespace of the record and no process has that id (a different start
+/// time is unknown, not gone),
 /// read through a procfs that numbers processes as this namespace does (`start_of`, round 12);
 /// a different namespace, another namespace's procfs, a hidden or unreadable process and a state that is not understood are
 /// "unknown", never "gone".
@@ -705,26 +692,22 @@ fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
 /// ```ts
 /// export function launcherState(pid: number, start: number, pidNamespace: number): 'gone' | 'alive' | { unknown: string }
 /// ```
-pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64, time_namespace: Option<u64>) -> LauncherState {
+pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64) -> LauncherState {
 
     match pid_namespace_id() {
         Ok(found) if found == pid_namespace => {}
         Ok(_) => return LauncherState::Unknown(format!("the launcher {pid} was recorded in another process id namespace than this process is in")),
         Err(error) => return LauncherState::Unknown(format!("the process id namespace of this process cannot be identified ({error})")),
     }
-    // The start time is relative to the boot-time offset of the reader's time namespace, so a different start time means a reused id
-    // only when the record was made in the reader's own time namespace (round 14); without that proof the answer is unknown.
-    match (time_namespace, time_namespace_id()) {
-        (Some(recorded), Ok(here)) if recorded == here => {}
-        (Some(recorded), Ok(here)) => {
-            return LauncherState::Unknown(format!("the launcher {pid} was recorded in time namespace {recorded} and this process is in {here}, so the start times cannot be compared"));
-        }
-        (None, _) => return LauncherState::Unknown(format!("the record of the launcher {pid} has no time namespace (a line of an older version), so its start time cannot be compared")),
-        (Some(_), Err(error)) => return LauncherState::Unknown(format!("the time namespace of this process cannot be identified ({error})")),
-    }
     return match start_of(pid) {
         StartOf::Gone => LauncherState::Gone,
-        StartOf::Process(seen) if seen != start => LauncherState::Gone,
+        // The start time in procfs is relative to the boot-time offset of the reader's time namespace, and that the reader is in the
+        // writer's time namespace cannot be proven (a namespace number is recycled once the namespace has no process), so a start time
+        // that differs from the record does not show a reused id: it is unknown (round 15, 14 section 2).
+        // An equal start time keeps the launcher alive, and an id that no process has is gone whatever the basis.
+        StartOf::Process(seen) if seen != start => LauncherState::Unknown(format!(
+            "process {pid} has start time {seen} and the launcher was recorded with start time {start}; the start time in procfs is relative to the reader's time namespace, which cannot be shown to be the writer's, so it cannot be told whether the launcher is gone or its id was reused"
+        )),
         StartOf::Process(_) => LauncherState::Alive,
         StartOf::Unknown(reason) => LauncherState::Unknown(reason),
     };
@@ -1011,9 +994,6 @@ pub(crate) enum Record {
         start: u64,
         /// The inode number of the process id namespace of the wrapper, which is the one the pid belongs to.
         pid_namespace: u64,
-        /// The inode number of the time namespace of the wrapper, whose boot-time offset the start time is relative to
-        /// (`None` in a line of an older version, which has none).
-        time_namespace: Option<u64>,
         /// The directory of the scope the launcher was to enter.
         path: PathBuf,
     },
@@ -1419,8 +1399,7 @@ impl fmt::Display for Record {
         return match self {
             Record::Scope { namespace, parent_view, path } => write!(formatter, "scope {namespace} {parent_view} {}", path.display()),
             Record::Settled { path } => write!(formatter, "settled {}", path.display()),
-            Record::Launcher { pid, start, pid_namespace, time_namespace: Some(time_namespace), path } => write!(formatter, "launcher {pid} {start} {pid_namespace} {time_namespace} {}", path.display()),
-            Record::Launcher { pid, start, pid_namespace, time_namespace: None, path } => write!(formatter, "launcher {pid} {start} {pid_namespace} {}", path.display()),
+            Record::Launcher { pid, start, pid_namespace, path } => write!(formatter, "launcher {pid} {start} {pid_namespace} {}", path.display()),
             Record::ProcessGroup(leader) => write!(formatter, "pgroup {leader}"),
             Record::ProcessGroupStarting => write!(formatter, "pgroup starting"),
         };
@@ -1469,18 +1448,12 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
         }
         let start: u64 = parse_number(parts.next().unwrap_or(""), "start time", line)?;
         let pid_namespace: u64 = parse_number(parts.next().unwrap_or(""), "process id namespace", line)?;
-        let remainder: &str = parts.next().unwrap_or("");
-        // A line of an older version has the path next (it is absolute); the line of this version has the time namespace first.
-        let (time_namespace, path): (Option<u64>, &str) = if remainder.starts_with('/') {
-            (None, remainder)
-        } else {
-            let (time_text, path_text) = remainder.split_once(' ').ok_or_else(|| { return format!("{line:?} has no path"); })?;
-            (Some(parse_number(time_text, "time namespace", line)?), path_text)
-        };
-        if path.is_empty() {
-            return Err(format!("{line:?} has no path"));
+        let path: &str = parts.next().unwrap_or("");
+        // The path is absolute: a line with anything else there (a field of another version) is not understood.
+        if !path.starts_with('/') {
+            return Err(format!("{line:?} has no absolute path"));
         }
-        return Ok(Record::Launcher { pid, start, pid_namespace, time_namespace, path: PathBuf::from(path) });
+        return Ok(Record::Launcher { pid, start, pid_namespace, path: PathBuf::from(path) });
     }
     if let Some(rest) = line.strip_prefix("settled ") {
         if rest.is_empty() {

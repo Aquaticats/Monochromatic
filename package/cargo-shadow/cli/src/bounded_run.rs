@@ -936,9 +936,7 @@ fn note_launcher(log: &Path, scope: &Path, child: &Child) {
     let pid: i32 = i32::try_from(child.id()).unwrap_or(0);
     let noted: io::Result<()> = crate::control_group::process_start(pid).and_then(|start| {
         let pid_namespace: u64 = crate::control_group::pid_namespace_id()?;
-        // A time namespace that cannot be read gives the line of the older form, which a recovery cannot use as proof.
-        let time_namespace: Option<u64> = crate::control_group::time_namespace_id().ok();
-        return append_record_with(log, &Record::Launcher { pid, start, pid_namespace, time_namespace, path: scope.to_path_buf() }, false);
+        return append_record_with(log, &Record::Launcher { pid, start, pid_namespace, path: scope.to_path_buf() }, false);
     });
     if let Err(error) = noted {
         eprintln!("cargo-shadow: warning: the launcher of {} could not be recorded ({error}); if this wrapper is killed, a recovery will ask for an acknowledgement", scope.display());
