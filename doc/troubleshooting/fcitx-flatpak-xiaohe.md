@@ -170,9 +170,12 @@ The initiating action remains unknown.
 `systemctl --user status` reported its current Flatpak scope active since `09:30:38 EST`.
 Read-only D-Bus calls with `--auto-start=no` returned:
 
-- `CurrentInputMethod`: `shuangpin`.
-- `InputMethodGroupInfo`: `keyboard-us` and `shuangpin`.
-- Pinyin `GetConfig`: `ShuangpinProfile=Xiaohe`.
+- `CurrentInputMethod`:
+  `shuangpin`.
+- `InputMethodGroupInfo`:
+  `keyboard-us` and `shuangpin`.
+- Pinyin `GetConfig`:
+  `ShuangpinProfile=Xiaohe`.
 
 The process and controller were responsive;
 typing in an application was not tested.
