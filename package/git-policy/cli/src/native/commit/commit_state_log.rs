@@ -232,8 +232,7 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
                 EntryKind::Mark => mark_identity(text).unwrap_or(text).to_string(),
                 _ => text.to_string(),
             };
-            let outcome: Option<&str> = if kind == EntryKind::Opaque { Some("disposed") } else { None };
-            if !held && !ledger_prefix_has(lane, closure, &key, outcome) {
+            if !held && !item_is_discharged(lane, closure, kind, &key) {
                 return Err(refuse(match kind {
                     EntryKind::Opaque => "saved content",
                     EntryKind::Mark => "a decision mark",
@@ -1121,6 +1120,27 @@ fn ledger_prefix_has(lane: &Path, items: &[ClosureEntry], id: &str, outcome: Opt
     });
 }
 
+/// The outcomes that promise nothing saved: a request that ends this way no longer needs its envelope. Any other terminal outcome
+/// (`withdrawn`, `conflicted`, `unresolved`, `rewritten-away`) promises the request's saved inputs, and the envelope is one of them: it
+/// stays until a `disposed` line for the request is in the ledger (the design, "Retention lifecycle and the spool closure").
+const SAVED_FREE_OUTCOMES: [&str; 4] = ["published", "refused", "already", "superseded"];
+
+/// Whether the ledger prefix held in `items` discharges the request envelope of `id`: a line with an outcome that promises nothing saved,
+/// or a `disposed` line for the request.
+fn request_is_discharged(lane: &Path, items: &[ClosureEntry], id: &str) -> bool {
+    return SAVED_FREE_OUTCOMES.iter().any(|outcome| { return ledger_prefix_has(lane, items, id, Some(outcome)); }) || ledger_prefix_has(lane, items, id, Some("disposed"));
+}
+
+/// Whether the ledger prefix held in `items` discharges `old`, the item of a kind, under its key: the rule of its kind.
+fn item_is_discharged(lane: &Path, items: &[ClosureEntry], kind: EntryKind, key: &str) -> bool {
+    return match kind {
+        EntryKind::InboxEnvelope => request_is_discharged(lane, items, key),
+        EntryKind::Opaque => ledger_prefix_has(lane, items, key, Some("disposed")),
+        EntryKind::Mark => ledger_prefix_has(lane, items, key, None),
+        EntryKind::AppendPrefix => false,
+    };
+}
+
 /// The key under which a retained item is discharged: a request by its identity, saved content by the first characters of its name.
 fn retirement_key(entry: &ClosureEntry) -> Option<String> {
     let name: &str = entry.path.file_name().and_then(|name| { return name.to_str(); })?;
@@ -1154,8 +1174,7 @@ fn check_non_drop(lane: &Path, previous: &[ClosureEntry], new: &[ClosureEntry], 
             continue;
         }
         let discharged: bool = retirement_key(old).is_some_and(|key| {
-            let outcome: Option<&str> = if old.kind == EntryKind::Opaque { Some("disposed") } else { None };
-            return retired.is_none_or(|names| { return names.contains(&key); }) && ledger_prefix_has(lane, new, &key, outcome);
+            return retired.is_none_or(|names| { return names.contains(&key); }) && item_is_discharged(lane, new, old.kind, &key);
         });
         if !discharged {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "the new document drops a retained item that is not discharged by a ledger line inside its own retained set"));
@@ -1292,7 +1311,7 @@ fn segment_is_contained(dir: &Path, number: u64, lane: &Path, closure: &[Closure
             Payload::Damaged => return Ok(false),
         };
         let Some(old) = LaneDocument::parse(&document) else { return Ok(false) };
-        let requests_kept: bool = old.requests.iter().all(|id| { return new.requests.contains(id) || ledger_prefix_has(lane, closure, id, None); });
+        let requests_kept: bool = old.requests.iter().all(|id| { return new.requests.contains(id) || request_is_discharged(lane, closure, id); });
         let saved_kept: bool = old.saved.iter().all(|name| {
             let key: String = name.chars().take(32).collect();
             return new.saved.contains(name) || ledger_prefix_has(lane, closure, &key, Some("disposed"));

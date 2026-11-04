@@ -576,7 +576,7 @@ fn r14_a_retirement_forces_the_ledger_prefix_that_discharges_it() {
     let ledger: PathBuf = lane.join("ledger");
     let line = git_policy_cli::commit_ledger::encode_line(&git_policy_cli::commit_ledger::LedgerEntry {
         id: request_id.clone(),
-        outcome: "conflicted".to_string(),
+        outcome: "published".to_string(),
         commit: "-".to_string(),
         time: "2026-01-01T00:00:00+00:00".to_string(),
     })

@@ -165,7 +165,7 @@ fn r23_a_mark_is_retained_until_its_request_is_discharged_by_the_ledger() {
     assert!(writer.begin_checkpoint_reclaiming(2, &document_with(&only, LaneState::default()), &only).is_err(), "a checkpoint dropped a mark that no ledger line discharges");
     assert!(state.join("state.log.1").exists(), "the segment whose record promised the mark was reclaimed");
     assert!(state_covers(&state, &promised).expect("readable"), "the acknowledgment is still covered by the log that holds it");
-    std::fs::write(lane.join("ledger"), ledger_line_of(&id, "withdrawn")).expect("a ledger line that discharges the request");
+    std::fs::write(lane.join("ledger"), ledger_line_of(&id, "published")).expect("a ledger line that discharges the request");
     let ledger: ClosureEntry = ClosureEntry::capture(&lane, &lane.join("ledger"), EntryKind::AppendPrefix).expect("capture the ledger");
     let discharged: Vec<ClosureEntry> = vec![ledger];
     assert!(writer.begin_checkpoint_reclaiming(3, &document_with(&discharged, LaneState::default()), &discharged).is_err(), "a retirement the writer did not name was accepted");
@@ -263,7 +263,7 @@ fn r23_a_ledger_fragment_without_its_newline_or_after_damage_is_not_a_discharge(
     let both: Vec<ClosureEntry> = vec![request, mark];
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.append_with(1, &document_with(&both, LaneState::default()).encode(), &both).expect("a record that retains the request and its mark");
-    let line: Vec<u8> = ledger_line_of(&id, "conflicted");
+    let line: Vec<u8> = ledger_line_of(&id, "published");
     let retire = |owner: &mut StateWriter, bytes: &[u8]| -> std::io::Result<git_policy_cli::commit_state_log::Candidate> {
         std::fs::write(lane.join("ledger"), bytes).expect("the ledger");
         let ledger: ClosureEntry = ClosureEntry::capture(&lane, &lane.join("ledger"), EntryKind::AppendPrefix).expect("capture the ledger");
@@ -275,7 +275,7 @@ fn r23_a_ledger_fragment_without_its_newline_or_after_damage_is_not_a_discharge(
     damaged.extend_from_slice(&line);
     assert!(retire(&mut writer, &damaged).is_err(), "a line after damaged history discharged the request");
     assert!(state.join("state.log.1").exists());
-    assert!(retire(&mut writer, &line).is_ok(), "the complete line of a genuine terminal outcome other than withdrawn discharges the request and its mark");
+    assert!(retire(&mut writer, &line).is_ok(), "the complete line of a genuine outcome that promises nothing saved discharges the request and its mark");
 }
 
 /// Finding B: a request's position names its adopt line in the order prefix the document relies on: a line boundary whose line is
