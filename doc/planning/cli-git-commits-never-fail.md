@@ -30,9 +30,9 @@ decision 7: the one exception to "nothing lands later", never a fresh attempt). 
 command returning exit 0 with a commit that "lands later" (a foreign ref lock, a held `index.lock` before publication,
 a request set aside as pending) describes the earlier owner answers and applies now only to a request that has no
 client; the normative state machine, its register of waits, W1 and W2 govern. Two exceptions to "nothing lands later"
-are stated: decision 7 (owner-approved: a submitted `commit` instruction may complete after the error) and the
-post-success replay ambiguity of owner question 8, whose approval is not established and which stays open until the
-owner answers. A different thing is not a commit landing later: derived index and worktree materialization after a
+are stated, both owner-approved: decision 7 (a submitted `commit` instruction may complete after the error) and
+decision 19 (after a power loss with no decisive positive authority, a fresh attempt of an already-reported success,
+with a notice). A different thing is not a commit landing later: derived index and worktree materialization after a
 commit or merge that is already published (M1, MG3).
 
 What exists on the branch from before the correction, kept and not discarded:
@@ -215,7 +215,23 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     moved and a file still matches what the wrapper wrote; the restore command re-checks and saves the current
     versions first; dismissing stops reminders and deletes no saved copy; saved copies and their metadata stay until
     explicit disposal. Decisions 15 to 18 were recorded by commit 5073225ed4, whose time is 2026-11-04T03:27:31-05:00.
-    2026-11-03T21:47:28-05:00.
+19. Post-success replay ambiguity, "Retry it, leave a notice (Recommended)" (question tool, 2026-11-04, question 8;
+    answered before the commit named below records it). The operative text is option A as the design stated it. When a
+    power loss leaves no decisive positive authority (no receipt, no recorded `published`, no `commit: ok`, no other
+    publication or removal evidence; a branch that survives at the old tip is part of the ambiguous state), recovery
+    makes a fresh attempt of the request and stores an outcome-specific notice: attempt scheduled or running;
+    published, with the identifier of the commit actually made and the command to drop it; or conflicted, refused or
+    signing failed, with the retained inputs and what to do next. The next wrapper command in that worktree prints the
+    notice; it is retained until delivered, survives another crash, and is not discarded while the request's recovery
+    data is still needed. Accepted risk, as written: in the bad case a commit removed on purpose can be published
+    again; this is not promised to happen only once (another crash before the new attempt's own records are on disk
+    can repeat the ambiguity), and "restores a lost write" holds only when no positive authority survives and only as
+    far as the fresh attempt's permitted outcomes allow. No pre-success barrier is added for the new request's
+    receipt; a later command queues leftover receipts for background forcing and waits for none. A durable receipt
+    suppresses automatic reconstruction of a lost Git ref or object write, because recovery then sees "already
+    published" (the Git data follows `core.fsync`). This is decision 3 ("Land it") applied to a command that had
+    already returned success, now owner-approved. Decision 19 was recorded by commit RECORD5_COMMIT, whose time is
+    RECORD5_TIME. 2026-11-03T21:47:28-05:00.
 
 
 Amendments by 4 to 6 (the newest owner answers govern): decision 1's set-aside-as-pending of a commit behind a person's hook, the earlier answer "Save on a
@@ -432,7 +448,7 @@ made D first; revision 15 adds the owner's decision that this final save is neve
   command exits success saying the receipt is not yet forced; missing binaries or broken launch code are defects and
   not that exception. `SYNC_LAG` is a scheduling target for the queue, not a completion bound: the time to force is
   the disk's. The residual ambiguity (a power loss before the receipt is D, a deliberate removal that persisted, no
-  decisive evidence) is owner question 8.
+  decisive evidence) is accepted by decision 19.
 - Preservation barrier (R12-5B). Before the recovery authority of a version that only the person had is replaced (the
   staged-only blob saved by MG3, a displaced inode of the carry-forward protocol, the pre-merge file `N`), the
   preserving file, its directory entry and the log record that names it are D. The carry-forward protocol's own
@@ -1037,23 +1053,22 @@ Build and publication (lane)
   the flusher needs, which the disk sets) and a tip that lacks `new`; if the ref write was lost the replay restores
   the commit the person was told succeeded, and the only bad case is a deliberate reset that persisted while its
   reflog record and the receipt did not (the reflog may be lost with the same power failure, disabled, expired or
-  erased), so the recovery evidence shows the old branch state. Owner question 8 asks whether to accept that residual
-  window, force the receipt before success returns on every commit, or keep and ask. The owner records the end of the
-  child in `result` and then `closed a` or `unresolved a` (E1). `commit` failing makes `update-ref` die on standard
-  error with no line on standard output (`update-ref.c:645-658`). The exception the owner approved (decision 7): the
-  client has submitted `commit` and neither the landing evidence nor a positive close has been seen when its
-  COMMITTING bound passes. That is an instruction already submitted, whether Git has read it or not, and not only a
-  disk write already begun. The client leaves by the unresolved exit of W1. The extra wait `WAIT_COMMITTING` improves
-  the observed outcome of a slow write; it is not a correctness bound. Owner death: the child is ended by the
-  parent-death signal that L5 sets and is reaped by L2; Git removes its own lock files when it ends on a catchable
-  signal (`lockfile.c:83`, `tempfile.c:93`), a backend obligation to check for the signal L5 sets; a lock stranded by
-  an uncatchable kill is the residue of choice R (the lane never removes a ref lock). End of input aborts a prepared
-  transaction only when every write end is closed and the buffered input is consumed, and a `commit` already in the
-  buffer is not cancelled by later end of input. After `commit` was written, `update-ref` finishes on its own;
-  recovery classes R1 to R5 decide what happened, and the mark rule above forbids a new attempt after a normal exit.
-  Nothing but L6 and the lifetime owner lock `lane/owner` is held across P2. Crash: the recovery classes apply; a
-  request with an attached client waits as in FOREGROUND for the next attempt (Q1) only when its last attempt closed
-  by class F, and W1 stays available.
+  erased), so the recovery evidence shows the old branch state. Decision 19 accepts that residual window, with a fresh
+  attempt and a notice. The owner records the end of the child in `result` and then `closed a` or `unresolved a` (E1).
+  `commit` failing makes `update-ref` die on standard error with no line on standard output (`update-ref.c:645-658`).
+  The exception the owner approved (decision 7): the client has submitted `commit` and neither the landing evidence
+  nor a positive close has been seen when its COMMITTING bound passes. That is an instruction already submitted,
+  whether Git has read it or not, and not only a disk write already begun. The client leaves by the unresolved exit of
+  W1. The extra wait `WAIT_COMMITTING` improves the observed outcome of a slow write; it is not a correctness bound.
+  Owner death: the child is ended by the parent-death signal that L5 sets and is reaped by L2; Git removes its own
+  lock files when it ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`), a backend obligation to check for
+  the signal L5 sets; a lock stranded by an uncatchable kill is the residue of choice R (the lane never removes a ref
+  lock). End of input aborts a prepared transaction only when every write end is closed and the buffered input is
+  consumed, and a `commit` already in the buffer is not cancelled by later end of input. After `commit` was written,
+  `update-ref` finishes on its own; recovery classes R1 to R5 decide what happened, and the mark rule above forbids a
+  new attempt after a normal exit. Nothing but L6 and the lifetime owner lock `lane/owner` is held across P2. Crash:
+  the recovery classes apply; a request with an attached client waits as in FOREGROUND for the next attempt (Q1) only
+  when its last attempt closed by class F, and W1 stays available.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
 - P4 swap-failed. Pre: E1 classified the attempt as class F (positive evidence only: owner death and an enqueued
   `abort` do not establish it), for example `store-failure`. Do: in one S1 replacement record
@@ -1367,39 +1382,38 @@ attempt in flight may complete, and its message does not say that staging is unc
 publish and its follow-up may run. `published`: after a process crash the receipt forbids a fresh attempt; after a
 power loss the tip decides, and the remaining residue is the conjunction, inside the syncer's lag, of a lost receipt,
 a deliberate reset that removed the publication and an erased reflog, in which recovery lands the commit with a notice
-under owner decision 3 ("Land it": the publication cannot be told from a deliberate removal); whether that decision
-was meant to cover a command that already returned success is not established by the supplied owner wording and is
-owner question 8; the follow-up is materialized under `WAIT_MATERIALIZE` or explicitly continues under the service.
-`conflicted`, `rewritten-away`, `unresolved`: the D-set of rule V; "staging as it was" is said only for unpublished
-withdrawal and refusal, and a rewritten-away request is reported with what was materialized. `already` and a
-superseded client: terminal, following the successor without renewing the deadline. Query and resend: C3 answers
-`withdrawn` only for a plain mark and says for `withdraw-unresolved` that the original attempt may still complete. A
-push that returns `queued`: the approved exception. The person's own foreground programs: decision 9. Outside kill,
-OOM or power loss: the outside-cause rule, with the stop disposition and the client lock deciding whether a fresh
-attempt is authorized. Owner and helper exits: a failed recovery-helper acquisition mutates nothing and the caller
-re-evaluates within CAPTURE; a helper that finishes L4 dispatches nothing; SERVICE-ACQUIRE and REAP expiry mutate
-nothing; an L6 gate failure admits nothing; an L7 restarter that cannot take the gate or finds a changed incarnation
-aborts. Planned service shutdown (revision 15, R14-9): a draining shutdown, never a cancellation. The service stops
-admitting new work, records `draining` in the log, lets every running protected execution and every open P2 attempt
-finish by its own result, and exits when they are done; for a prepared attempt of a request with no client it enqueues
-`abort` without claiming that it cancels a buffered `commit` (a line Git has already read into its buffer is invisible
-in the pipe) and classifies the result P, F or U; for a client-held attempt it does nothing; it never ends a person's
-hook. A planned exit is a drain, so it never causes the parent-death signal of L5 to end a protected execution: that
-signal acts only after an outside kill of the owner, and L5 sets it only on children that are not the runner of a
-protected execution, which lives in its own scope. The installed service unit must make the drain possible (R15-7):
-its stop timeout is infinity and its kill mode does not signal the protected executions, and the wrapper's own upgrade
-or restart path is a drain request whose caller waits at most `WAIT_DRAIN` (a named constant that must be measured)
-for the result and then returns non-zero saying the drain is in progress and the upgrade has not been applied, while
-the service goes on draining (R16a-3); an upgrade that cannot proceed safely does not proceed, and its foreground
-command is not blocked for ever; the wrapper never ships or invokes a finite forced-stop timeout. The installed unit
-and every package, restart and shutdown caller are verification gates and not facts of this document. Genuinely
-external force (a person's `kill`, the kernel, a manager configured by someone else) is an outside kill and the
-owner-death rules apply. An indefinitely running hook delays the drain, which protects the hook; it does not lengthen
-an attached command's own bounds. A client-held attempt keeps its client as decider throughout the drain. When a
-submitted `commit` is followed by the death of the child with no positive evidence (a parent-death signal, an L2 reap,
-a kill), the attempt is class U: the client stays in COMMITTING and leaves through the unresolved form, and plain W1
-is not available. An internal error in the owner after a request is exposed is an owner death, not a normal exit, so
-recovery and the client lock decide.
+under owner decision 3 ("Land it": the publication cannot be told from a deliberate removal); decision 19 confirms
+that it covers a command that already returned success; the follow-up is materialized under `WAIT_MATERIALIZE` or
+explicitly continues under the service. `conflicted`, `rewritten-away`, `unresolved`: the D-set of rule V; "staging as
+it was" is said only for unpublished withdrawal and refusal, and a rewritten-away request is reported with what was
+materialized. `already` and a superseded client: terminal, following the successor without renewing the deadline.
+Query and resend: C3 answers `withdrawn` only for a plain mark and says for `withdraw-unresolved` that the original
+attempt may still complete. A push that returns `queued`: the approved exception. The person's own foreground
+programs: decision 9. Outside kill, OOM or power loss: the outside-cause rule, with the stop disposition and the
+client lock deciding whether a fresh attempt is authorized. Owner and helper exits: a failed recovery-helper
+acquisition mutates nothing and the caller re-evaluates within CAPTURE; a helper that finishes L4 dispatches nothing;
+SERVICE-ACQUIRE and REAP expiry mutate nothing; an L6 gate failure admits nothing; an L7 restarter that cannot take
+the gate or finds a changed incarnation aborts. Planned service shutdown (revision 15, R14-9): a draining shutdown,
+never a cancellation. The service stops admitting new work, records `draining` in the log, lets every running
+protected execution and every open P2 attempt finish by its own result, and exits when they are done; for a prepared
+attempt of a request with no client it enqueues `abort` without claiming that it cancels a buffered `commit` (a line
+Git has already read into its buffer is invisible in the pipe) and classifies the result P, F or U; for a client-held
+attempt it does nothing; it never ends a person's hook. A planned exit is a drain, so it never causes the parent-death
+signal of L5 to end a protected execution: that signal acts only after an outside kill of the owner, and L5 sets it
+only on children that are not the runner of a protected execution, which lives in its own scope. The installed service
+unit must make the drain possible (R15-7): its stop timeout is infinity and its kill mode does not signal the
+protected executions, and the wrapper's own upgrade or restart path is a drain request whose caller waits at most
+`WAIT_DRAIN` (a named constant that must be measured) for the result and then returns non-zero saying the drain is in
+progress and the upgrade has not been applied, while the service goes on draining (R16a-3); an upgrade that cannot
+proceed safely does not proceed, and its foreground command is not blocked for ever; the wrapper never ships or
+invokes a finite forced-stop timeout. The installed unit and every package, restart and shutdown caller are
+verification gates and not facts of this document. Genuinely external force (a person's `kill`, the kernel, a manager
+configured by someone else) is an outside kill and the owner-death rules apply. An indefinitely running hook delays
+the drain, which protects the hook; it does not lengthen an attached command's own bounds. A client-held attempt keeps
+its client as decider throughout the drain. When a submitted `commit` is followed by the death of the child with no
+positive evidence (a parent-death signal, an L2 reap, a kill), the attempt is class U: the client stays in COMMITTING
+and leaves through the unresolved form, and plain W1 is not available. An internal error in the owner after a request
+is exposed is an owner death, not a normal exit, so recovery and the client lock decide.
 
 Cancellation
 - X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its exact invocation (the subcommand, its options and the
@@ -2174,83 +2188,10 @@ Adopted without a question (the coordinator may veto; each follows from a rule t
 - An invocation nonce is part of every request ("one operation, one identity"), so a repeated identical operation is a
   new request and a resend is the same one.
 
-## Owner questions for revision 18 (open)
+## Open owner questions
 
-One question remains. It is also written to a separate file named `commits-never-fail-questions-` followed by the
-abbreviated hash of the commit that holds this text. It is asked only after the review of revision 17 has checked it.
-The questions answered so far are decisions 15 to 18; question 6 was settled by decision 14.
-
-### Question 8: a success receipt that did not reach the disk, and a recovery policy for the ambiguous case
-
-Plain context. When a commit succeeds, the wrapper writes a tiny receipt that says "this request already published",
-and a background flusher forces it to disk. If the power fails before that, the receipt can be lost. On restart the
-wrapper decides from every piece of evidence that survived: the receipt, the recorded `published` state, the
-`commit: ok` line of the attempt, and what the branch and its reflog show. A fresh attempt is considered only when no
-decisive positive authority survives (no receipt, no recorded `published`, no `commit: ok`, no other publication or
-removal evidence); a branch that survives at the old tip is part of the ambiguous state and is not itself decisive. If
-the branch still holds the commit, nothing happens. If the branch lost the commit because its own write did not reach
-the disk, the fresh attempt restores a commit you were told succeeded. The bad case is the same recovery state arising
-from a removal you made on purpose: you reset the branch after the success, the reset reached the disk, and no
-decisive positive authority survived (the receipt did not, and the reflog record of the reset did not, which the same
-power failure can cause; reflogs can also be disabled, expired or erased). The wrapper cannot tell your removal from a
-lost write and makes the fresh attempt. Your earlier decision 3, "Land it", covers an indistinguishable publication;
-it was not asked about a command that had already returned success. What a fresh attempt is. It is another attempt,
-not a guaranteed copy of the original. It may build a different commit (the base may have moved), it may stop on a
-replay conflict, a hook refusal or a signing failure, and recovery may still be pending when you next run a command.
-Notices are specific to the outcome: attempt scheduled or running; published, with the identifier of the commit that
-was actually made and the command to drop it; or conflicted, refused or signing failed, with the retained inputs and
-what to do next. The notice is stored and printed by the next wrapper command in that worktree; it is retained until
-it has been delivered and survives another crash, and a notice for a request is not discarded while that request's
-recovery data is still needed (a mechanism obligation, not a choice for you). Nothing waits for an outcome in order to
-print its notice. Example: you run `git commit`, it prints success, you run `git reset --hard HEAD~1` two seconds
-later, and the power fails one second after that. The reset reached the disk; neither the receipt nor the reflog
-record of the reset did, and no `published` record or `commit: ok` line survived. What the design already does about
-the window. The receipt is its own registration: every executor (the service, the next start, a one-shot flusher)
-enumerates the receipt directory. The running service enumerates it on a recurring timer that does not depend on any
-doorbell, and a client whose doorbell cannot be delivered starts a one-shot flusher itself, so a failed wake-up does
-not leave a registered receipt waiting for the next shutdown. The client reads a seal marker after creating the
-receipt, and a service that shuts down seals before its final sweep, so a receipt created after that sweep gets a
-flusher of its own. The flusher is a launch of the internal flush logic (not the ordinary command line), outside the
-incarnation's scope, one per lane. A later command, including a `git commit`, never waits for another command's
-receipt; it queues what remains for background forcing. In normal operation the protocol therefore schedules
-continuing background forcing without making unrelated commands wait. Completion has no measured bound (a scheduling
-target exists, not a completion bound; the time is the disk's). Actual launch or forcing failures can leave the
-receipt pending: a returned forcing error is recorded, reported and retried by a later owner, and a cap-refused launch
-can leave it pending until a later owner retries in the background; an already-running service may force it on a
-recurring sweep before then. Those failures are reported; avoidable lost wake-ups, broken launch code or avoidable
-worker accumulation are defects and not outside causes.
-- Option A, accept the remaining window; make the fresh attempt with an outcome-specific stored notice (Recommended).
-  Visible here: after the reboot the next wrapper command in that worktree prints the retained notice for the fresh
-  attempt, as described above. Risk: in the bad case a commit you removed on purpose can be published again; this is
-  not promised to happen only once (another crash before the new attempt's own records are on disk can repeat the
-  ambiguity), and "restores a lost write" holds only when no positive authority survives and only as far as the fresh
-  attempt's permitted outcomes allow. No pre-success barrier is added for the new request's receipt; a later command
-  queues leftover receipts for background forcing and waits for none. A durable receipt has the same consequence in A
-  as in B: once it is D, a lost Git ref or object write is not restored automatically, because recovery then sees
-  "already published" (the Git data follows your `core.fsync` setting). The difference between A and B is when the
-  receipt becomes D, not whether it can suppress reconstruction.
-- Option B, force the receipt to disk before the command returns success, on every commit. This extends your "Force at
-  leaving, else background" to a barrier before a success return. Visible here: two forced writes (the receipt file
-  and its directory) wait on every successful commit, which can push a commit past native Git plus five seconds when
-  the disk is busy; disk pressure is not treated as an exemption, so this would relax your rule "commits vs native git
-  should not take 5s longer." in those cases. Scope: after the forcing succeeds the post-return ambiguity is closed
-  for as long as the receipt is retained; the branch contents are still not made durable by it (Git's `core.fsync`),
-  and outside I/O failures remain. If forcing fails after the publication, the command cannot undo the publication: it
-  exits 0 and prints a warning that the commit is published and its receipt is not durable. Exit 0 means "published";
-  the warning is the only signal about durability.
-- Option C, in this indistinguishable case do not publish again; keep the request and ask you. Applicability: recovery
-  cannot know that an ambiguous request once returned success; the same surviving state can come from a client killed
-  before publication or during submission. C therefore applies to every request that is indistinguishable under the
-  predicate "no decisive positive authority survives", and its change to decision 3 is that broad. Visible here: after
-  the reboot the next wrapper command prints that a commit may or may not have been published; the request and its
-  recovery content stay retained; ordinary commands return within their normal bounds (a request pending confirmation
-  does not occupy a blocked command); nothing is replayed until you confirm or drop it, and later automatic replay is
-  not silently resumed. Risk: a commit whose write was really lost needs your confirmation to come back.
-- Ranking (a policy preference; no event rate or completion window has been measured): A > C > B. A beats C because it
-  restores a lost write without a step from you when no positive authority survives, at the stated risks and without
-  any wait on another command's receipt; C beats B because C adds nothing to the success path and keeps every case you
-  could care about asked, while B puts forced writes on every commit and relaxes the five-second rule to close one
-  ambiguity.
+None. Question 8 was answered as decision 19 (option A); its text is in the history record. Questions 5, 7a, 7b and 7c
+were answered as decisions 15 to 18 and question 6 was settled by decision 14.
 
 ## Acceptance target
 
@@ -2345,8 +2286,8 @@ distinct; notices are outcome-specific and retained through recovery until deliv
 counts and batching costs are accurate.
 
 Showing controls. Whole-command timing and sync instrumentation, no-manager preparation timeout, recovery conflict,
-refusal and signing failure, notice crash and reclamation tests. Resolve question 8 using corrected options before
-enabling its recovery policy.
+refusal and signing failure, notice crash and reclamation tests. Its recovery policy is decision 19 (option A of
+question 8).
 
 ### The rule for new counterexamples
 
@@ -2385,8 +2326,8 @@ included in the guarantee, nor called an I/O error merely because it is slow.
 If the only captured copy is V and the power fails before any durable copy exists, or the process is killed before
 completing its save, no software can guarantee survival. The owner's list of causes outside our control supplies the
 exception; it is not permission for normal wrapper lifecycle transitions to lose responsibility. "Keep it for a retry"
-does not require keeping a command blocked. Question 8 stays a separate recovery-policy choice and does not waive
-these execution obligations.
+does not require keeping a command blocked. Decision 19 (the answer to question 8) stays a separate recovery-policy
+choice and does not waive these execution obligations.
 
 ## Verification plan and build order
 
@@ -2460,7 +2401,7 @@ answers each:
     never returns normally; planned exit never causes parent-death termination of a hook.
 18. Models 6b: a checkpoint with two live requests must keep both; an invalid suffix claiming disposal must not
 discharge. Do not make these pass using atomic abstractions for "save", "checkpoint", "handoff" or "cleanup". Models
-must not label question 8 green by adopting the recommended answer.
+implement the recovery policy of decision 19 with the actual observations and do not assume an atomic recovery.
 
 Properties to check at minimum (revision 11 restates the second and the third; revision 10 corrected the second: a perfect health classifier is not assumed, because the approved quiet-interval
 heuristic can target healthy but unusually quiet work, so the checkable properties concern incarnation identity, gate admission and protected

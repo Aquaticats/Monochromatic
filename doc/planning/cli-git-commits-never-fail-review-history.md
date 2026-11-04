@@ -2026,3 +2026,83 @@ The held case: B3 gives an obsolete version a durable terminal outcome (`superse
 the active version without releasing them, and ties the release of its spool to the end of its discarded hook execution.
 
 The wrapper's own index commands do not wait for the lane's intents behind a foreign lock.
+
+## Question 8 as asked (answered as decision 19), moved from the design in revision 19
+
+## Owner questions for revision 18 (open)
+
+One question remains. It is also written to a separate file named `commits-never-fail-questions-` followed by the
+abbreviated hash of the commit that holds this text. It is asked only after the review of revision 17 has checked it.
+The questions answered so far are decisions 15 to 18; question 6 was settled by decision 14.
+
+### Question 8: a success receipt that did not reach the disk, and a recovery policy for the ambiguous case
+
+Plain context. When a commit succeeds, the wrapper writes a tiny receipt that says "this request already published",
+and a background flusher forces it to disk. If the power fails before that, the receipt can be lost. On restart the
+wrapper decides from every piece of evidence that survived: the receipt, the recorded `published` state, the
+`commit: ok` line of the attempt, and what the branch and its reflog show. A fresh attempt is considered only when no
+decisive positive authority survives (no receipt, no recorded `published`, no `commit: ok`, no other publication or
+removal evidence); a branch that survives at the old tip is part of the ambiguous state and is not itself decisive. If
+the branch still holds the commit, nothing happens. If the branch lost the commit because its own write did not reach
+the disk, the fresh attempt restores a commit you were told succeeded. The bad case is the same recovery state arising
+from a removal you made on purpose: you reset the branch after the success, the reset reached the disk, and no
+decisive positive authority survived (the receipt did not, and the reflog record of the reset did not, which the same
+power failure can cause; reflogs can also be disabled, expired or erased). The wrapper cannot tell your removal from a
+lost write and makes the fresh attempt. Your earlier decision 3, "Land it", covers an indistinguishable publication;
+it was not asked about a command that had already returned success. What a fresh attempt is. It is another attempt,
+not a guaranteed copy of the original. It may build a different commit (the base may have moved), it may stop on a
+replay conflict, a hook refusal or a signing failure, and recovery may still be pending when you next run a command.
+Notices are specific to the outcome: attempt scheduled or running; published, with the identifier of the commit that
+was actually made and the command to drop it; or conflicted, refused or signing failed, with the retained inputs and
+what to do next. The notice is stored and printed by the next wrapper command in that worktree; it is retained until
+it has been delivered and survives another crash, and a notice for a request is not discarded while that request's
+recovery data is still needed (a mechanism obligation, not a choice for you). Nothing waits for an outcome in order to
+print its notice. Example: you run `git commit`, it prints success, you run `git reset --hard HEAD~1` two seconds
+later, and the power fails one second after that. The reset reached the disk; neither the receipt nor the reflog
+record of the reset did, and no `published` record or `commit: ok` line survived. What the design already does about
+the window. The receipt is its own registration: every executor (the service, the next start, a one-shot flusher)
+enumerates the receipt directory. The running service enumerates it on a recurring timer that does not depend on any
+doorbell, and a client whose doorbell cannot be delivered starts a one-shot flusher itself, so a failed wake-up does
+not leave a registered receipt waiting for the next shutdown. The client reads a seal marker after creating the
+receipt, and a service that shuts down seals before its final sweep, so a receipt created after that sweep gets a
+flusher of its own. The flusher is a launch of the internal flush logic (not the ordinary command line), outside the
+incarnation's scope, one per lane. A later command, including a `git commit`, never waits for another command's
+receipt; it queues what remains for background forcing. In normal operation the protocol therefore schedules
+continuing background forcing without making unrelated commands wait. Completion has no measured bound (a scheduling
+target exists, not a completion bound; the time is the disk's). Actual launch or forcing failures can leave the
+receipt pending: a returned forcing error is recorded, reported and retried by a later owner, and a cap-refused launch
+can leave it pending until a later owner retries in the background; an already-running service may force it on a
+recurring sweep before then. Those failures are reported; avoidable lost wake-ups, broken launch code or avoidable
+worker accumulation are defects and not outside causes.
+- Option A, accept the remaining window; make the fresh attempt with an outcome-specific stored notice (Recommended).
+  Visible here: after the reboot the next wrapper command in that worktree prints the retained notice for the fresh
+  attempt, as described above. Risk: in the bad case a commit you removed on purpose can be published again; this is
+  not promised to happen only once (another crash before the new attempt's own records are on disk can repeat the
+  ambiguity), and "restores a lost write" holds only when no positive authority survives and only as far as the fresh
+  attempt's permitted outcomes allow. No pre-success barrier is added for the new request's receipt; a later command
+  queues leftover receipts for background forcing and waits for none. A durable receipt has the same consequence in A
+  as in B: once it is D, a lost Git ref or object write is not restored automatically, because recovery then sees
+  "already published" (the Git data follows your `core.fsync` setting). The difference between A and B is when the
+  receipt becomes D, not whether it can suppress reconstruction.
+- Option B, force the receipt to disk before the command returns success, on every commit. This extends your "Force at
+  leaving, else background" to a barrier before a success return. Visible here: two forced writes (the receipt file
+  and its directory) wait on every successful commit, which can push a commit past native Git plus five seconds when
+  the disk is busy; disk pressure is not treated as an exemption, so this would relax your rule "commits vs native git
+  should not take 5s longer." in those cases. Scope: after the forcing succeeds the post-return ambiguity is closed
+  for as long as the receipt is retained; the branch contents are still not made durable by it (Git's `core.fsync`),
+  and outside I/O failures remain. If forcing fails after the publication, the command cannot undo the publication: it
+  exits 0 and prints a warning that the commit is published and its receipt is not durable. Exit 0 means "published";
+  the warning is the only signal about durability.
+- Option C, in this indistinguishable case do not publish again; keep the request and ask you. Applicability: recovery
+  cannot know that an ambiguous request once returned success; the same surviving state can come from a client killed
+  before publication or during submission. C therefore applies to every request that is indistinguishable under the
+  predicate "no decisive positive authority survives", and its change to decision 3 is that broad. Visible here: after
+  the reboot the next wrapper command prints that a commit may or may not have been published; the request and its
+  recovery content stay retained; ordinary commands return within their normal bounds (a request pending confirmation
+  does not occupy a blocked command); nothing is replayed until you confirm or drop it, and later automatic replay is
+  not silently resumed. Risk: a commit whose write was really lost needs your confirmation to come back.
+- Ranking (a policy preference; no event rate or completion window has been measured): A > C > B. A beats C because it
+  restores a lost write without a step from you when no positive authority survives, at the stated risks and without
+  any wait on another command's receipt; C beats B because C adds nothing to the success path and keeps every case you
+  could care about asked, while B puts forced writes on every commit and relaxes the five-second rule to close one
+  ambiguity.
