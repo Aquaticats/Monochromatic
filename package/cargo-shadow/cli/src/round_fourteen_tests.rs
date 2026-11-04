@@ -59,6 +59,28 @@ impl Drop for Held {
     }
 }
 
+/// Stops a process by its id when it drops, so a failed assertion leaves no launcher behind.
+struct StopOnDrop(
+    /// The process id.
+    i32,
+);
+
+/// How the guard cleans up.
+impl Drop for StopOnDrop {
+    /// What:
+    /// `fn drop(&mut self)` sends the process `SIGKILL` and does not mind if it is gone.
+    /// Why:
+    /// The launcher of the recycled-number test lives in a time namespace of its own and has no parent of the test.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose](): void
+    /// ```
+    fn drop(&mut self) {
+        crate::contain_counterexample_tests::stop_quietly(self.0);
+    }
+}
+
 /// Contract A1 (round 15): the launcher line reads back as written; a line of the form of round 14 (a time namespace number before the
 /// path) is not understood, so it waits for an acknowledgement like any journal that cannot be read.
 #[test]
@@ -262,6 +284,7 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     let identity: String = fs::read_to_string(root.path().join("identity")).expect("the identity");
     let numbers: Vec<u64> = identity.split(' ').map(|part| { return part.parse::<u64>().expect("a number"); }).collect();
     let (pid, start, pid_namespace, time_namespace): (i32, u64, u64, u64) = (i32::try_from(numbers[0]).expect("a pid"), numbers[1], numbers[2], numbers[3]);
+    let _stop_launcher: StopOnDrop = StopOnDrop(pid);
 
     // The writer's time namespace loses its last reference: its processes are killed (the launcher is in another namespace and lives).
     for member in processes_in_time_namespace(time_namespace) {

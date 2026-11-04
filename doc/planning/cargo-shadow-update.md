@@ -1264,7 +1264,7 @@ superseded; the contract states why the number proves nothing and what replaced 
 The coverage map of the contract carries the counts: 592 tests, 592 passed, 0 failed, 12 skipped (the `#[ignore]` helper entries),
 for the debug run and the release gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own criterion,
 none certified.
-Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r15-debug1.log`, `r15-gate1.log`, `r15-clippy2.log`.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r15-debug2.log`, `r15-gate2.log`, `r15-clippy3.log`.
 Nothing was published and nothing was merged into main.
 
 ## Resume point (round 15, rewritten 2026-11-04T10:21:27-05:00 after the gate)

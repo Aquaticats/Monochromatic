@@ -671,7 +671,7 @@ The 12 skipped are the `#[ignore]` helper entries that twelve other tests start 
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,
 `src/round_eleven_tests.rs`, `src/round_twelve_tests.rs`, `src/round_thirteen_tests.rs` and `src/round_fourteen_tests.rs`); they are not
 run on their own.
-Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r15-debug1.log`, `r15-gate1.log`, `r15-clippy2.log`.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r15-debug2.log`, `r15-gate2.log`, `r15-clippy3.log`.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 to 10 the new guards were removed from the committed tests and the tests failed, then the guard was put back:
