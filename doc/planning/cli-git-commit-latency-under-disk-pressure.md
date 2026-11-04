@@ -886,3 +886,38 @@ change documents and a module header only): 4727 tests run, 4727 passed, 7 skipp
 (unit `gpc-gate-less-foreground-work-20261104T050534-0500`). On the host before it, the new and touched controls ran as
 457 landing controls, 171 `repo_read` controls, 33 cache-tree and query controls, 127 snapshot, landing-sync and durable
 controls, and 17 timing controls.
+
+## Resume point (2026-11-04, review of the third round by the cross-vendor reviewer)
+
+State: `main` (5328f45ccc) is merged into the branch without conflicts. Review file:
+`/var/home/user/temp/agent/reviews/less-foreground-sol-1.txt`. No gate has run on the fixed tip; no gate unit is running.
+
+Fixed, each with its control (red first where the old code could show red):
+
+- Quadratic proof of a wide directory: `the_proof_of_a_wide_directory_is_linear_in_its_width` (red: 4,504,501 name steps for 3,000
+  files, green: at most eight per entry).
+- A matching cache-tree hiding a missing root tree: `a_root_tree_that_is_gone_is_not_hidden_by_a_matching_cache_tree` (red: the
+  readers answered an empty diff), both diff paths, SHA-1 and SHA-256.
+- A kept pack not flushed where native Git would flush the same objects loose: `a_kept_pack_gets_the_flush_native_gives_the_same_objects`
+  (red: 0 flushes), plus `the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_components` against real Git and
+  the cases in `the_import_gets_a_value_without_packs_only_where_loose_objects_are_not_flushed`.
+- Effective history context: `every_setting_that_changes_the_history_git_shows_sends_the_checks_to_rev_list` (red: a
+  `GIT_SHALLOW_FILE` answered from the store), with `GIT_GRAFT_FILE`, `GIT_REPLACE_REF_BASE`, `GIT_NO_REPLACE_OBJECTS`, the object
+  directory variables, `--no-replace-objects` and `core.useReplaceRefs`; also pinned: a shallow file, a replacement object.
+- Supported maintenance concurrency: written in `SPEC.md` ("Maintenance that may run while a commit is made"). The statement in
+  this document that "the guarantee that holds is the scratch reference" is too strong: the reference is a reachability root for a
+  collector that reads references after it exists, and `prune --expire=now`, `gc --prune=now` and `repack -a -d` are not
+  supported while a commit is made. The decision record's claim stays for the owner (not edited here).
+- Pinned controls added: SHA-256 for the built-commit checks (loose, packed, missing tree), the built commit removed at
+  `before-connectivity`, a built amend, split and sparse indexes in both formats on both diff paths, per-thread loose-look counter.
+
+Measured after the fixes (new fixture of 21,070 files, three alternating runs per arm, warm, pooled paired delta against native 52
+and 56 ms): base 111 ms unsigned and 146 signed; previous tip 87 and 112; fixed tip 85 and 123. The fixed tip is within the spread
+of the previous one (per-run medians 83 to 126 and 122 to 132 against 78 to 95 and 109 to 126), so the walk change moved nothing
+on this fixture, where no directory on the changed path is wide.
+
+Next: run the gate on the tip (`node /var/home/user/temp/agent/gate/launch-gate.ts <worktree> <label>`, then
+`wait-unit-gate.ts`); the one failure seen on the host, `service_index_lock::tests::a_foreign_lock_is_described_with_the_process_that_has_it_open`,
+passed alone and in a rerun (a timing-dependent control of the merged index reclamation work). Not done: a built root (unborn
+branch) commit control; the planning document's earlier "Result of the third round" figures predate these fixes except where
+stated here.
