@@ -643,8 +643,13 @@ and an HTTP 429 is retried after its `Retry-After`.
   so a program that cargo starts (a compiler cache daemon,
   say) cannot keep it held forever.
   A killed wrapper's cargo is found another way:
-  the process group of every child the run starts is recorded in the run's journal,
-  and a recovery leaves a journal whose recorded group still has a member (it names the group) for a later run.
+  the process group of every child the run starts is written and synced by the child itself before it executes anything
+  (a child whose group cannot be recorded is not started),
+  and a recovery or a new transaction stops while any journal of the workspace names a group that still has a member,
+  or holds a group record that cannot be read or understood (it names the journal and the record to remove once you are sure).
+  Only the groups are recorded: a descendant that left its group and outlived a killed wrapper is not found by a recovery.
+  The Linux feature that would find it (a control group per run) needs delegation that an ordinary login session does not have,
+  so it is not used; this limit is a pick open to the owner's veto.
   Every run keeps a journal under `.cache/cargo-shadow/journal/<unique name>/`,
   created exclusively (a journal is never reused or truncated),
   with the snapshots synced and a `ready` record written last that lists every file with its length;
@@ -690,11 +695,16 @@ and an HTTP 429 is retried after its `Retry-After`.
   "nothing should ever wait forever or indefinitely").
   Locks are tried,
   never waited for.
-  Every child process runs in its own process group under a bound.
-  At the bound the whole group is killed and shown to be gone,
-  and the error names the call and the command the user ran;
-  after a normal exit any member left in the group is killed too,
-  and output is returned only when it is complete (a process outside the group that holds the pipe makes it an error).
+  Every child process runs in its own process group under a bound, and while it runs this process is a child subreaper
+  (Linux `PR_SET_CHILD_SUBREAPER`), so a descendant that left the group with `setsid` or `setpgid` and closed its pipes
+  is still a descendant and is found by a scan of `/proc`.
+  At the bound the group and every descendant are killed and shown to be gone,
+  and the error names the call and the command the user ran (quoted so it can be copied);
+  after a normal exit any descendant left is killed too.
+  A descendant that cannot be killed (an uninterruptible wait) is "not quiescent": install and update then stop with the lockfiles
+  neither rolled back nor accepted and the journal kept, and the command is not run.
+  Output is returned only when it is complete, and the pipe workers are cancelled when the call ends.
+  Only one bounded run is in flight in a process, because adopted orphans cannot be told apart between two runs.
   The bounds,
   with what was measured in this repository on 2026-11-04 (load average 6.2 to 6.9 on 32 CPUs,
   3 runs each):

@@ -359,7 +359,9 @@ Where an earlier section of this record says a finding was "fixed" and this sect
   declines for repositories another user owns and for system configurations in other known places, and every Git call is bounded
   and reaped.
   Not fixed: a system configuration in a place no list knows of.
-- `cargo add` and `cargo remove` are an explicit exclusion: the policy is enforced by the install step of the next command.
+- `cargo add` and `cargo remove` are an explicit exclusion: they run cargo first and only warn; the policy is enforced by the install
+  step of the next command that resolves dependencies, and only if that command goes through the shim. Dispatch tests for the
+  whole table of verbs are not written (round 6: open).
 
 ## Review findings of the fourth cross-vendor review (started 2026-11-03T18:56:11Z)
 
@@ -374,16 +376,20 @@ Where an earlier section of this record says a finding was "fixed" and this sect
   background"); the background half (syncing what a command did not promise) is not built.
 - Kept files are never deleted or refused over by the tool (owner answer of round 6, "Warn past a count, never refuse (Recommended)"):
   past 1,000 files every run prints the count, the total size and the folder; the 1,000 is a warning point open to veto.
-- The system configuration of the Git reader is what the answering Git reports, cached per Git program.
+- The system configuration of the Git reader is what the answering Git reports; the answer is reused only for a compiled program
+  (round 6 replaced the wrapper-blind cache key).
 - Limits are measured or labeled unmeasured beside their values (repository rule LQM); the numbers measured on 2026-11-04 are in
   the README.
 - pnpm oracle (pnpm 12.16.1, `minimumReleaseAge: 5256000`, a lockfile pinning `is-odd@3.0.1`, whose dependency `is-number@6.0.0` is
   also younger than the cutoff): `pnpm install --lockfile-only` fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`; `pnpm update`
   fails the same way (and, when the policy is not strict, first adds the entries to `minimumReleaseAgeExclude`); `pnpm update
   is-odd` fails with `ERR_PNPM_NO_MATURE_MATCHING_VERSION` when strict and with the same violation for `is-number@6.0.0` when not.
-  So pnpm, too, refuses an unchanged update that leaves a too-young version locked; the update verification here does not
-  overshoot the owner's "follow pnpm semantics".
-  The one difference: pnpm's non-strict mode edits `minimumReleaseAgeExclude` as a side effect, and cargo-shadow does not.
+  So pnpm, too, refuses an unchanged full update that leaves a too-young version locked in this configuration.
+  Round 6 narrows the claim: the oracle shows that for a full update and for a target whose own dependency is too young.
+  It does not show what pnpm does for an unrelated refused package outside a targeted update's dependency closure (cargo-shadow
+  verifies the whole final lockfile, which can be stricter), for ordinary, latest and precise selection, for a version trusted at the
+  configured base, or across unrelated workspace roots. Those cases are open, and the difference is a candidate for the owner's veto.
+  Another difference: pnpm's non-strict mode edits `minimumReleaseAgeExclude` as a side effect, and cargo-shadow does not.
 
 ## Delegated picks of 2026-11-03
 
