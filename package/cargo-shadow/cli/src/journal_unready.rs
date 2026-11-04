@@ -198,6 +198,10 @@ enum Finding {
     ),
 }
 
+/// The largest process id Linux allows (`PID_MAX_LIMIT` for 64-bit kernels, `include/linux/threads.h`): an acknowledgement naming zero or
+/// a larger number was not written by a process.
+const LARGEST_LINUX_PROCESS_ID: u32 = 4_194_304;
+
 /// What:
 /// `fn is_acknowledged(directory: &Path) -> bool` says whether a person acknowledged this journal.
 /// Why:
@@ -218,7 +222,7 @@ pub(crate) fn is_acknowledged(directory: &Path) -> bool {
     let complete: bool = text.ends_with('\n')
         && lines.len() == 3
         && lines[0] == ACKNOWLEDGED_HEADER
-        && lines[1].parse::<u32>().is_ok()
+        && lines[1].parse::<u32>().is_ok_and(|pid| { return (1..=LARGEST_LINUX_PROCESS_ID).contains(&pid); })
         && lines[2].parse::<u64>().is_ok();
     if !complete {
         return false;

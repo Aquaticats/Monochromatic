@@ -439,7 +439,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     assert_eq!(String::from_utf8_lossy(&after_a.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
 
     // Fix B, copied as printed: the record command writes the launcher's `.launch` file, after which the original PATH works.
-    let record_command: &str = said.lines().map(str::trim).find(|line| { return line.starts_with("printf '{"); }).expect("a record line");
+    let record_command: &str = said.lines().map(str::trim).find(|line| { return line.starts_with("printf %s '{"); }).expect("a record line");
     let written = Command::new("/bin/sh").arg("-c").arg(record_command).output().expect("runs the record line");
     assert!(written.status.success(), "the record line does not run as printed: {record_command}: {}", String::from_utf8_lossy(&written.stderr));
     assert!(launcher_directory.join("cargo.launch").exists(), "the record line did not write the record beside the launcher");

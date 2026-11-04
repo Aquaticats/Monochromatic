@@ -389,6 +389,8 @@ mod round_sixteen_tests;
 #[cfg(test)]
 mod round_seventeen_tests;
 #[cfg(test)]
+mod round_twentyone_tests;
+#[cfg(test)]
 mod acceptance_rows_tests;
 #[cfg(test)]
 mod quiescence_failure_tests;
