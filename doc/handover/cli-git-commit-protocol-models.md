@@ -1699,8 +1699,10 @@ reached only when that flag is passed.
   the start is confirmed (no `--no-block`), running `cli-git-service --flush-lane <lane>`; the double fork is the fallback when the manager
   refuses, is missing or does not confirm within the service start ceiling (measured, `wait_ceilings.rs`). A fresh unit name per launch,
   so a refusal never means a flusher already runs. No `CPUQuota` or `MemoryMax` on the unit: no measurement of a flusher exists to cite.
-  Deviation to tell the owner: the route is `systemd-run`, not a D-Bus `StartTransientUnit` call; the repository's bus client marshals
-  only string arguments, and `systemd-run` is the manager's own tool for this. The single-thread requirement binds the fork only.
+  Decision 22 note (recorded by the coordinator, so nobody re-asks it): the route is `systemd-run --user`, not a D-Bus `StartTransientUnit`
+  call, and that is within the decision. The question offered "Systemd unit + fallback (Recommended)"; the owner chose the route, not the
+  call; and the manual of `systemd-run` (systemd 262 on this host) says it may be used "to create and start a transient .service or
+  .scope unit". The repository's bus client marshals only string arguments. The single-thread requirement binds the fork only.
 - `commit_drain.rs` and the register row `DRAIN-REQUEST`: the caller's bounded poll and its "draining, upgrade not applied" answer. No
   `WAIT_DRAIN` constant is shipped because it must be measured and no measurement exists.
 - Tests: `commit_lane_lifecycle_tests.rs` (17, including the real user manager and the departure racing the real seal through the fault
