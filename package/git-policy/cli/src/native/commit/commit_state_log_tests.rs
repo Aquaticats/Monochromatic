@@ -22,6 +22,16 @@ fn append(dir: &std::path::Path, generation: u64, payload: &[u8]) -> std::io::Re
     return StateWriter::acquire(dir)?.append(generation, payload);
 }
 
+/// The checked document that names nothing: what a lane with no request, no saved content and no ledger holds.
+fn empty_document() -> Vec<u8> {
+    return git_policy_cli::commit_state_log::LaneDocument::default().encode();
+}
+
+/// The checked document that names exactly what `closure` holds.
+fn checked(closure: &[ClosureEntry]) -> git_policy_cli::commit_state_log::LaneDocument {
+    return git_policy_cli::commit_state_log::LaneDocument::from_closure(closure).expect("a closure the representation can express");
+}
+
 /// Starts a checkpoint as the writer.
 fn rotate(dir: &std::path::Path, generation: u64, document: &[u8]) -> std::io::Result<Candidate> {
     return StateWriter::acquire(dir)?.begin_checkpoint(generation, document, &[]);
@@ -83,18 +93,18 @@ fn a_valid_looking_record_after_a_damaged_one_is_ignored() {
 #[test]
 fn a_rotation_interrupted_at_each_step_keeps_a_valid_log() {
     let dir: PathBuf = scratch("log-rotate");
-    append(&dir, 1, b"first").expect("append");
-    append(&dir, 2, b"second").expect("append");
-    let candidate: Candidate = rotate(&dir, 3, b"the whole document").expect("rotate");
+    append(&dir, 1, &empty_document()).expect("append");
+    append(&dir, 2, &empty_document()).expect("append");
+    let candidate: Candidate = StateWriter::acquire(&dir).expect("writer").begin_checkpoint_reclaiming(3, &git_policy_cli::commit_state_log::LaneDocument::default(), &[]).expect("rotate");
     assert_eq!(candidate.number, 2);
     let new_path: PathBuf = dir.join("state.log.2");
     let complete: Vec<u8> = std::fs::read(&new_path).expect("read");
     for cut in 0..complete.len() {
         std::fs::write(&new_path, &complete[..cut]).expect("interrupted");
-        assert_eq!(read(&dir).expect("readable").expect("old log"), (2, b"second".to_vec()), "cut {}", cut);
+        assert_eq!(read(&dir).expect("readable").expect("old log"), (2, empty_document()), "cut {}", cut);
     }
     std::fs::write(&new_path, &complete).expect("complete");
-    assert_eq!(read(&dir).expect("readable").expect("new log"), (3, b"the whole document".to_vec()));
+    assert_eq!(read(&dir).expect("readable").expect("new log"), (3, empty_document()));
     assert!(dir.join("state.log.1").exists(), "the old file stays until the new one is durable");
     start_events();
     finish(&dir, &candidate).expect("complete");
@@ -108,7 +118,7 @@ fn a_rotation_interrupted_at_each_step_keeps_a_valid_log() {
         ]
     );
     assert!(!dir.join("state.log.1").exists());
-    assert_eq!(read(&dir).expect("readable").expect("after"), (3, b"the whole document".to_vec()));
+    assert_eq!(read(&dir).expect("readable").expect("after"), (3, empty_document()));
     assert_eq!(rotation_number(&dir).expect("listing"), Some(2));
     append(&dir, 4, b"later").expect("append");
     assert_eq!(read(&dir).expect("readable").expect("later"), (4, b"later".to_vec()));
@@ -241,9 +251,9 @@ fn one_writer_owns_the_state_and_a_checkpoint_does_not_lose_later_appends() {
     let dir: PathBuf = scratch("log-writer");
     let mut writer: StateWriter = StateWriter::acquire(&dir).expect("acquire");
     assert_eq!(StateWriter::acquire(&dir).expect_err("a second writer").kind(), std::io::ErrorKind::WouldBlock);
-    writer.append(1, b"one").expect("append");
-    writer.append(2, b"two").expect("append");
-    assert_eq!(writer.checkpoint(2, b"two", &[]).expect("checkpoint"), 2);
+    writer.append(1, &empty_document()).expect("append");
+    writer.append(2, &empty_document()).expect("append");
+    assert_eq!(writer.checkpoint_reclaiming(2, &git_policy_cli::commit_state_log::LaneDocument::default(), &[]).expect("checkpoint"), 2);
     writer.append(3, b"three").expect("append after the cutover");
     assert!(!dir.join("state.log.1").exists());
     assert_eq!(read(&dir).expect("readable").expect("state"), (3, b"three".to_vec()));
@@ -429,9 +439,9 @@ fn a_completion_removes_only_the_segments_the_authority_names() {
     let lane: PathBuf = scratch("log-reclaims");
     let state: PathBuf = lane.join("state");
     std::fs::create_dir(&state).expect("state directory");
-    append(&state, 1, b"first").expect("append");
+    append(&state, 1, &empty_document()).expect("append");
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    let candidate: Candidate = writer.begin_checkpoint(2, b"second", &[]).expect("begin");
+    let candidate: Candidate = writer.begin_checkpoint_reclaiming(2, &git_policy_cli::commit_state_log::LaneDocument::default(), &[]).expect("begin");
     std::fs::copy(state.join("state.log.1"), state.join("state.log.0")).expect("an unrelated older-numbered file the authority does not name");
     writer.complete_checkpoint(&candidate).expect("complete");
     assert!(!state.join("state.log.1").exists(), "the named predecessor is removed");
@@ -491,9 +501,9 @@ fn p9_an_append_to_a_captured_ledger_does_not_invalidate_the_root() {
     std::fs::create_dir(&state).expect("state directory");
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, b"line one\n").expect("ledger");
-    append(&state, 1, b"first").expect("append");
+    append(&state, 1, &empty_document()).expect("append");
     let entry: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture");
-    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry)).expect("checkpoint");
+    StateWriter::acquire(&state).expect("writer").checkpoint_reclaiming(2, &checked(std::slice::from_ref(&entry)), std::slice::from_ref(&entry)).expect("checkpoint");
     std::fs::OpenOptions::new().append(true).open(&ledger).and_then(|mut file| { return std::io::Write::write_all(&mut file, b"line two\n"); }).expect("the legitimate append succeeds");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2, "the root stays valid after a legitimate append");
     // The prefix is what is identified: a rewrite of the captured bytes is not an append and invalidates the root.
@@ -507,9 +517,9 @@ fn p9_an_append_to_a_captured_ledger_does_not_invalidate_the_root() {
 #[test]
 fn p9_an_established_root_with_a_lost_dependency_fails_closed() {
     let (lane, state, envelope) = lane_with_envelope("p9-established-lost");
-    append(&state, 1, b"first").expect("append");
+    append(&state, 1, &empty_document()).expect("append");
     let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
-    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document adopting the request", std::slice::from_ref(&entry)).expect("checkpoint");
+    StateWriter::acquire(&state).expect("writer").checkpoint_reclaiming(2, &checked(std::slice::from_ref(&entry)), std::slice::from_ref(&entry)).expect("checkpoint");
     assert!(!state.join("state.log.1").exists(), "the predecessor is gone: the checkpoint is the only root");
     std::fs::remove_file(&envelope).expect("the listed request file is lost");
     assert!(matches!(read(&state), Err(StateError::Damaged)), "recovery must stop and report");
@@ -886,19 +896,21 @@ fn r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_docu
     let (lane, state, envelope) = lane_with_envelope("r16-derived-closure");
     append(&state, 1, b"first").expect("a durable record that retains nothing");
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    assert!(writer.begin_checkpoint(2, b"a document that declares nothing", &[]).is_err(), "a visible request R was left out of a reclaiming checkpoint");
+    assert!(writer.begin_checkpoint_reclaiming(2, &git_policy_cli::commit_state_log::LaneDocument::default(), &[]).is_err(), "a visible request R was left out of a reclaiming checkpoint");
     assert!(state.join("state.log.1").exists());
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
     let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
-    assert!(writer.begin_checkpoint(2, b"declares nothing", std::slice::from_ref(&request)).is_err(), "saved content S was left out");
+    assert!(writer.begin_checkpoint_reclaiming(2, &checked(std::slice::from_ref(&request)), std::slice::from_ref(&request)).is_err(), "saved content S was left out");
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, ledger_line_of(&"1".repeat(32), "conflicted")).expect("a ledger line");
     let short: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger now");
     let mut grown = std::fs::OpenOptions::new().append(true).open(&ledger).expect("the ledger writer");
     std::io::Write::write_all(&mut grown, &ledger_line_of(&"2".repeat(32), "conflicted")).expect("a later line");
-    assert!(writer.begin_checkpoint(2, b"declares nothing", &[request.clone(), content.clone(), short]).is_err(), "a ledger prefix shorter than the ledger now was accepted");
+    let stale: Vec<ClosureEntry> = vec![request.clone(), content.clone(), short];
+    assert!(writer.begin_checkpoint_reclaiming(2, &checked(&stale), &stale).is_err(), "a ledger prefix shorter than the ledger now was accepted");
     let whole: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the whole ledger");
-    writer.checkpoint(2, b"declares nothing", &[request, content, whole]).expect("the closure that holds everything the lane holds is accepted");
+    let complete: Vec<ClosureEntry> = vec![request, content, whole];
+    writer.checkpoint_reclaiming(2, &checked(&complete), &complete).expect("the closure that holds everything the lane holds is accepted");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2);
 }
 
@@ -909,17 +921,18 @@ fn r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_docu
 #[test]
 fn r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment() {
     let (lane, state, envelope) = lane_with_envelope("r15-succession");
-    append(&state, 1, b"first").expect("append");
+    append(&state, 1, &empty_document()).expect("append");
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let document_d: Vec<u8> = checked(std::slice::from_ref(&request)).encode();
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    writer.append_with(2, b"d adopts the request", std::slice::from_ref(&request)).expect("append d");
+    writer.append_with(2, &document_d, std::slice::from_ref(&request)).expect("append d");
     let promised: Prefix = sync_prefix(&state).expect("d is acknowledged");
     let unrelated: PathBuf = lane.join("state-of-another-history");
     std::fs::create_dir(&unrelated).expect("another state directory in the same lane");
     StateWriter::acquire(&unrelated).expect("writer").checkpoint(9, b"e is another document", std::slice::from_ref(&request)).expect("checkpoint e");
     assert!(!git_policy_cli::commit_state_log::state_covers(&unrelated, &promised).expect("readable"), "an unrelated document with the same items was taken for the acknowledged state");
-    writer.checkpoint(2, b"d adopts the request", std::slice::from_ref(&request)).expect("the compaction of the head replaces the segment");
-    assert!(!state.join("state.log.1").exists(), "the acknowledged record's segment was reclaimed");
+    writer.checkpoint_reclaiming(2, &checked(std::slice::from_ref(&request)), std::slice::from_ref(&request)).expect("the checked compaction of the head replaces the segment");
+    assert!(!state.join("state.log.1").exists(), "the segment whose records the checked document contains was reclaimed");
     assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "the checkpoint that replaced the acknowledged record covers it");
 }
 
@@ -937,7 +950,7 @@ fn r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowle
     writer.append_with(2, b"d adopts the request", std::slice::from_ref(&request)).expect("append d");
     let promised: Prefix = sync_prefix(&state).expect("d is acknowledged");
     writer.checkpoint(3, b"e is another document that retains the same request", std::slice::from_ref(&request)).expect("checkpoint e");
-    assert!(!state.join("state.log.1").exists(), "the acknowledged record's segment was reclaimed");
+    assert!(state.join("state.log.1").exists(), "an opaque checkpoint reclaimed the segment that holds the acknowledged record");
     assert!(!git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "a checkpoint that changed the document covered the acknowledgment");
 }
 

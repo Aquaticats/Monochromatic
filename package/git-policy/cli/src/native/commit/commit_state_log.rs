@@ -1041,7 +1041,33 @@ pub struct Candidate {
     pub hash: String,
 }
 
-fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[ClosureEntry], retired: &[String]) -> io::Result<Candidate> {
+/// Whether every record of segment `number` is a document in the checked representation whose references the new checked document
+/// contains (each request and saved content kept in `closure` or discharged by a ledger line inside it, the ledger no longer than the new
+/// one). Only then is the state the segment promised shown to be preserved, and only then may the segment be reclaimed.
+fn segment_is_contained(dir: &Path, number: u64, lane: &Path, closure: &[ClosureEntry], new: &LaneDocument) -> io::Result<bool> {
+    let bytes: Vec<u8> = fs::read(log_path(dir, number))?;
+    for record in records(&bytes) {
+        let document: Vec<u8> = match parse_payload(&record.payload) {
+            Payload::Plain(plain) => plain,
+            Payload::Body { document, .. } => document,
+            Payload::Authority(authority) => authority.document,
+            Payload::Damaged => return Ok(false),
+        };
+        let Some(old) = LaneDocument::parse(&document) else { return Ok(false) };
+        let requests_kept: bool = old.requests.iter().all(|id| { return new.requests.contains(id) || ledger_prefix_has(lane, closure, id, None); });
+        let saved_kept: bool = old.saved.iter().all(|name| {
+            let key: String = name.chars().take(32).collect();
+            return new.saved.contains(name) || ledger_prefix_has(lane, closure, &key, Some("disposed"));
+        });
+        let ledger_kept: bool = old.ledger_length.is_none_or(|length| { return new.ledger_length.is_some_and(|newer| { return newer >= length; }); });
+        if !(requests_kept && saved_kept && ledger_kept) {
+            return Ok(false);
+        }
+    }
+    return Ok(true);
+}
+
+fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[ClosureEntry], retired: &[String], reclaiming: bool) -> io::Result<Candidate> {
     let selected: Option<Selected> = select(dir).map_err(to_io)?;
     let lane: PathBuf = lane_of(dir);
     let existing: Vec<u64> = numbers(dir)?;
@@ -1050,7 +1076,16 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
     if !document_is_covered(document, closure) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the document names a dependency that the closure does not cover"));
     }
-    check_lane_obligations(&lane, closure)?;
+    let checked: Option<LaneDocument> = if reclaiming {
+        let parsed: LaneDocument = LaneDocument::parse(document).ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidInput, "a reclaiming checkpoint needs a document in the checked representation"); })?;
+        if LaneDocument::from_closure(closure).as_ref() != Some(&parsed) {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "a reclaiming checkpoint's document must name exactly what its closure holds, and the closure may hold only what the representation expresses"));
+        }
+        check_lane_obligations(&lane, closure)?;
+        Some(parsed)
+    } else {
+        None
+    };
     for entry in closure {
         validate_entry(&lane, entry)?;
         if fs::canonicalize(lane.join(&entry.path))?.starts_with(&canonical_state) {
@@ -1075,15 +1110,20 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
         .last()
         .map_or(Some(1), |number| { return number.checked_add(1); })
         .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the segment numbers are exhausted"); })?;
-    // The records this authority replaces, recorded only when it is a compaction of the head (the head's document at the head's
-    // generation): an acknowledgment of any record of that chain is covered by the compaction that names its hash here (one hop; an
-    // acknowledgment older than the previous checkpoint is not covered, and a checkpoint that changes the document covers nothing).
-    let lineage: Vec<String> = match &selected {
-        Some(chosen) if generation == chosen.generation && document == chosen.payload.as_slice() => records(&fs::read(log_path(dir, chosen.number))?).into_iter().filter(|record| { return record.end <= chosen.length; }).map(|record| { return record.hash; }).collect(),
-        // A checkpoint that changes the document is a new state and records no lineage: it covers no earlier acknowledgment.
-        _ => Vec::new(),
-    };
-    let (record, hash) = encode_record(generation, &genesis(), &encode_authority(document, closure, &existing, &lineage));
+    // A segment is reclaimed only when the checkpoint's document is shown to contain the state every record of it promised; an opaque
+    // checkpoint, or a segment with an opaque or uncontained record, reclaims nothing. The lineage names the records of the reclaimed
+    // segments, and so only records shown to be contained: an acknowledgment of any of them is covered, any other is not.
+    let mut reclaims: Vec<u64> = Vec::new();
+    let mut lineage: Vec<String> = Vec::new();
+    if let Some(new) = &checked {
+        for number in &existing {
+            if segment_is_contained(dir, *number, &lane, closure, new)? {
+                reclaims.push(*number);
+                lineage.extend(records(&fs::read(log_path(dir, *number))?).into_iter().map(|record| { return record.hash; }));
+            }
+        }
+    }
+    let (record, hash) = encode_record(generation, &genesis(), &encode_authority(document, closure, &reclaims, &lineage));
     let mut file: File = OpenOptions::new().create_new(true).write(true).open(log_path(dir, next))?;
     file.write_all(&record)?;
     return Ok(Candidate { number: next, generation, hash });
@@ -1204,15 +1244,16 @@ impl StateWriter {
         return append(&self.dir, generation, document, items, retired);
     }
 
-    /// Starts a checkpoint: writes `document` and its complete validated retained set as the first record of the next segment and returns
+    /// Starts a checkpoint of an opaque document, which never reclaims a predecessor (the component cannot derive an opaque document's
+    /// dependencies): writes `document` and its validated retained set as the first record of the next segment and returns
     /// the candidate to complete. The candidate is not a root until recovery's validation of the set passes.
     pub fn begin_checkpoint(&mut self, generation: u64, document: &[u8], closure: &[ClosureEntry]) -> io::Result<Candidate> {
-        return begin_checkpoint(&self.dir, generation, document, closure, &[]);
+        return begin_checkpoint(&self.dir, generation, document, closure, &[], false);
     }
 
     /// As `begin_checkpoint`, retiring requests and disposing saved content that a ledger prefix inside `closure` proves discharged.
     pub fn begin_checkpoint_retiring(&mut self, generation: u64, document: &[u8], closure: &[ClosureEntry], retired: &[String]) -> io::Result<Candidate> {
-        return begin_checkpoint(&self.dir, generation, document, closure, retired);
+        return begin_checkpoint(&self.dir, generation, document, closure, retired, false);
     }
 
     /// Completes exactly `candidate` after forcing its closure with the ancestry; the segments it authorizes are removed last, and every
@@ -1221,14 +1262,23 @@ impl StateWriter {
         return complete_checkpoint(&self.dir, candidate);
     }
 
-    /// A reclaiming checkpoint of a document in the checked representation (stub: see the round 17 notes).
+    /// Starts a reclaiming checkpoint: `document` is in the checked representation, names exactly what `closure` holds, and the closure holds
+    /// everything the lane holds. Segments whose every record is a checked document that `document` contains are reclaimed at completion;
+    /// every other segment stays.
+    pub fn begin_checkpoint_reclaiming(&mut self, generation: u64, document: &LaneDocument, closure: &[ClosureEntry]) -> io::Result<Candidate> {
+        return begin_checkpoint(&self.dir, generation, &document.encode(), closure, &[], true);
+    }
+
+    /// A reclaiming checkpoint in one owner step.
     pub fn checkpoint_reclaiming(&mut self, generation: u64, document: &LaneDocument, closure: &[ClosureEntry]) -> io::Result<u64> {
-        return self.checkpoint(generation, &document.encode(), closure);
+        let candidate: Candidate = begin_checkpoint(&self.dir, generation, &document.encode(), closure, &[], true)?;
+        complete_checkpoint(&self.dir, &candidate)?;
+        return Ok(candidate.number);
     }
 
     /// Seals the current segment and replaces it by a checkpoint in one owner step; future appends go to the new segment.
     pub fn checkpoint(&mut self, generation: u64, document: &[u8], closure: &[ClosureEntry]) -> io::Result<u64> {
-        let candidate: Candidate = begin_checkpoint(&self.dir, generation, document, closure, &[])?;
+        let candidate: Candidate = begin_checkpoint(&self.dir, generation, document, closure, &[], false)?;
         complete_checkpoint(&self.dir, &candidate)?;
         return Ok(candidate.number);
     }
