@@ -195,6 +195,14 @@ mod model_register_r13;
 #[path = "model_register_r13_tests.rs"]
 mod model_register_r13_tests;
 
+/// Revision 18's effective ordered base: the support of a deferred selection as the fold of the live entries in tail order.
+#[path = "model_support_r18.rs"]
+mod model_support_r18;
+
+/// The controls of revision 18's effective ordered base.
+#[path = "model_support_r18_tests.rs"]
+mod model_support_r18_tests;
+
 /// Rule V's barriers (departure, reclamation, preservation) at the filesystem's level of detail.
 #[path = "model_barrier_r13.rs"]
 mod model_barrier_r13;
