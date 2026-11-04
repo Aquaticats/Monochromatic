@@ -3761,6 +3761,18 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     Certification reviews of groups 1 and 2 running (`cargo-shadow-cert-sol-1.txt`,
     `cargo-shadow-cert-sol-2.txt`);
     group 3 queued for the next free review slot (prompt `cargo-shadow-cert-prompt-3.txt` written);
+    group 2 `cargo-shadow-cert-sol-2.txt`:
+    "not certified" (scope lifecycle shown;
+    spawn isolation,
+    post-start failures and recording partly shown:
+    the overlap misses the real spawn boundary,
+    no post-spawn startup-completion failure,
+    fault arming not told apart from consumption,
+    no write-sync-launch ordering,
+    no proof of the containment kind attempted);
+    no production defect;
+    sent to the agent as evidence fixes;
+    bundles rebuilt after groups 1 and 3 report;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
@@ -3916,8 +3928,7 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   20 samples at load 14);
   baton no miss but needs the unit route;
   the agent ranks inline-whenever-held first.
-  Review queued for the next free slot,
-  ahead of cargo-shadow certification group 3:
+  Review running:
   prompt `commit-models-prompt-13.txt`,
   inputs `commit-models-13-part-1..4`,
   output `commit-models-sol-13.txt`;
