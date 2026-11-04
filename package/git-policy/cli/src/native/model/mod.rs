@@ -20,6 +20,14 @@ mod model_explore;
 #[path = "model_explore_tests.rs"]
 mod model_explore_tests;
 
+/// The lane's reclaim of a proven-stale `index.lock` of its own dead incarnation (owner decision of 2026-11-04): one reclaimer, an identity check, an unlink.
+#[path = "model_m1_reclaim_r19.rs"]
+mod model_m1_reclaim_r19;
+
+/// The controls of the reclaim: green with the `flock` and with the claim chain, red for the superseded rule and for each single defect.
+#[path = "model_m1_reclaim_r19_tests.rs"]
+mod model_m1_reclaim_r19_tests;
+
 /// Finding F7: the same identity with different content from two clients.
 #[path = "model_f7_identity.rs"]
 mod model_f7_identity;

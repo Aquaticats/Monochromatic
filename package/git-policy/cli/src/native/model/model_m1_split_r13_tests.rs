@@ -30,7 +30,9 @@ fn a_recovery_that_compares_and_then_unlinks_removes_the_replacement() {
     assert!(check(Rules::Twelve).violation.is_some());
 }
 
-/// Revision 13 (green): a lock without a live creator has no comparison step and no unlink, so a replacement is never removed.
+/// Revision 13 (green, historical since the owner decision of 2026-11-04 that the lane reclaims its own dead incarnation's lock; the current
+/// rule is in `model_m1_reclaim_r19_tests.rs`): a lock without a live creator has no comparison step and no unlink, so a replacement is
+/// never removed.
 #[test]
 fn a_lock_without_a_live_creator_is_never_removed() {
     let report: Report = check(Rules::Thirteen);

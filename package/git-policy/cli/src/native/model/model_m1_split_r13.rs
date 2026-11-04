@@ -3,6 +3,10 @@
 //!  identity and unlinks it in one operation: a recovery that observed the journaled identity at `index.lock` and unlinks later, a live
 //!  creator's own normal abort (`fstat` against `stat`, then `unlink`), and a foreign program that replaces the lock in between.
 //! Why:
+//!  Superseded for a lock of the lane's own dead incarnation: the owner decided on 2026-11-04 ("Reclaim it (Recommended)") that the lane
+//!  removes a proven-stale lock of its own dead incarnation, and `model_m1_reclaim_r19.rs` models that. This model stays as the control of
+//!  the split compare and unlink and of a live creator's own abort; its revision 13 rule (never remove a lock found without a live creator)
+//!  is the earlier choice and is a labelled historical rule, not the current one.
 //!  Revision 12's text allowed a recovery to remove the lock when its journaled identity matched; the match and the removal are two
 //!  system calls, and the file at the name can be replaced between them. Revision 13 never removes a lock found without a live creator
 //!  (it reports and defers), and keeps unlink only for a live creator's own lock, where the premise of every Git lock (no program
