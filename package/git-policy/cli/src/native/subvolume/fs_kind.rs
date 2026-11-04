@@ -94,7 +94,8 @@ pub fn filesystem_facts(path: &Path) -> Result<(FilesystemKind, u64), PrimitiveE
 /// const kind = (await filesystemFacts(path)).kind;
 /// ```
 pub fn filesystem_kind(path: &Path) -> Result<FilesystemKind, PrimitiveError> {
-    return filesystem_facts(path).map(|facts| { return facts.0; });
+    let facts = filesystem_facts(path)?;
+    return Ok(facts.0);
 }
 
 /// What:
@@ -133,9 +134,10 @@ pub fn is_subvolume_root(path: &Path) -> Result<bool, PrimitiveError> {
     if filesystem_kind(path)? != FilesystemKind::Btrfs {
         return Ok(false);
     }
-    let metadata = std::fs::metadata(path).map_err(|error| {
-        return PrimitiveError { operation: "stat", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) };
-    })?;
+    let metadata = match std::fs::metadata(path) {
+        Ok(found) => found,
+        Err(error) => return Err(PrimitiveError { operation: "stat", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) }),
+    };
     return Ok(metadata.is_dir() && metadata.ino() == BTRFS_SUBVOLUME_ROOT_INODE);
 }
 

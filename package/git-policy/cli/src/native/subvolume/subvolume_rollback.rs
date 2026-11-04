@@ -57,8 +57,22 @@ fn nested_subvolumes(run: &Run<'_>, top: &Path) -> Vec<PathBuf> {
             stack.push(item.path());
         }
     }
-    found.sort_by_key(|path: &PathBuf| { return std::cmp::Reverse(path.components().count()); });
-    return found;
+    // Each path is paired with its depth so the sort compares numbers; the sort is stable, so equal depths keep their order.
+    let mut with_depth: Vec<(usize, PathBuf)> = Vec::new();
+    for path in found {
+        with_depth.push((path.components().count(), path));
+    }
+    with_depth.sort_by(deeper_first);
+    let mut ordered: Vec<PathBuf> = Vec::new();
+    for (_depth, path) in with_depth {
+        ordered.push(path);
+    }
+    return ordered;
+}
+
+/// Order two paths with the one that has more components first.
+fn deeper_first(left: &(usize, PathBuf), right: &(usize, PathBuf)) -> std::cmp::Ordering {
+    return right.0.cmp(&left.0);
 }
 
 /// What:
@@ -76,7 +90,7 @@ fn remove_one_subvolume(run: &mut Run<'_>, path: &Path) -> Result<(), MigrateErr
     if run.platform.removal_allowed(path) && run.platform.destroy_subvolume(path).is_ok() {
         return Ok(());
     }
-    remove_tree(path).map_err(|error: std::io::Error| { return MigrateError::io("empty and remove the subvolume", path, &error); })?;
+    MigrateError::from_io_result(remove_tree(path), "empty and remove the subvolume", path)?;
     return Ok(());
 }
 
@@ -124,7 +138,10 @@ fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<R
         }
         let carried: SyncStats = run.pass_unrecorded("carry back (files newer in the new root)", root.as_path(), old_path.as_path(), false, true)?;
         if !carried.unreadable.is_empty() && !discard_unreadable {
-            let shown: Vec<String> = carried.unreadable.iter().take(10).map(|path: &PathBuf| { return path.display().to_string(); }).collect();
+            let mut shown: Vec<String> = Vec::new();
+            for path in carried.unreadable.iter().take(10) {
+                shown.push(path.display().to_string());
+            }
             return Ok(Some(vec![Refusal {
                 cause: format!("{} file(s) that this user may not read exist only in the new subvolume {} and cannot be carried back: {}", carried.unreadable.len(), root.display(), shown.join(", ")),
                 remedy: String::from("Copy them out with the privilege they need (for example `sudo cp --archive`), or pass --discard-unreadable together with --rollback to delete them with the new subvolume."),
@@ -136,7 +153,7 @@ fn swap_back(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Vec<R
         run.checkpoint("rollback-after-swap")?;
     }
     if old_path.exists() && !new_path.exists() {
-        std::fs::rename(&old_path, &new_path).map_err(|error: std::io::Error| { return MigrateError::io("rename", old_path.as_path(), &error); })?;
+        MigrateError::from_io_result(std::fs::rename(&old_path, &new_path), "rename", old_path.as_path())?;
     }
     run.checkpoint("rollback-after-rename")?;
     run.journal.mark("exchange", "rolled-back")?;
@@ -165,7 +182,7 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     let old_path: PathBuf = run.layout.old_path.clone();
     if run.journal.has_begun("exchange") && !run.journal.is_done("exchange") && run.platform.is_subvolume_root(root.as_path()).unwrap_or(false) {
         if new_path.exists() && !old_path.exists() {
-            std::fs::rename(&new_path, &old_path).map_err(|error: std::io::Error| { return MigrateError::io("rename", new_path.as_path(), &error); })?;
+            MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
         }
         run.journal.mark("exchange", "done")?;
     }
@@ -182,7 +199,10 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     // The carried-back index describes the new tree's inodes; this runs after a stop at any step above, once.
     if run.journal.state("exchange") == Some("rolled-back") && !run.journal.is_done("rollback-indexes") {
         let mut lines: Vec<String> = Vec::new();
-        refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut |text: &str| { lines.push(text.to_string()); });
+        // The refresh reports each index through a callback that carries the list the lines are collected in.
+        #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the refresh's say parameter is a state-carrying dyn FnMut that tests and other folders also fill"))]
+        let mut collect_line = |text: &str| { lines.push(text.to_string()); };
+        refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut collect_line);
         for text in &lines {
             run.line(text.as_str());
         }
@@ -235,7 +255,7 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Op
     let mut refusals: Vec<Refusal> = remove_old_refusals(run.layout, &run.journal);
     let old_path: PathBuf = run.layout.old_path.clone();
     if refusals.is_empty() {
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(&old_path).map_err(|error: std::io::Error| { return MigrateError::io("examine", old_path.as_path(), &error); })?;
+        let metadata: std::fs::Metadata = MigrateError::from_io_result(std::fs::symlink_metadata(&old_path), "examine", old_path.as_path())?;
         if metadata.file_type().is_symlink() {
             return Ok(Some(vec![Refusal {
                 cause: format!("{} is a symbolic link, and the command deletes only a directory it moved itself", old_path.display()),
@@ -254,7 +274,7 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Op
         return Ok(Some(refusals));
     }
     run.line(format!("deleting {} (every file is unlinked; this can take minutes)", old_path.display()).as_str());
-    remove_tree(&old_path).map_err(|error: std::io::Error| { return MigrateError::io("delete", old_path.as_path(), &error); })?;
+    MigrateError::from_io_result(remove_tree(&old_path), "delete", old_path.as_path())?;
     run.journal.delete()?;
     remove_if_present(run.layout.unreadable_path.as_path())?;
     run.line("the old tree is deleted and the migration journal is removed.");

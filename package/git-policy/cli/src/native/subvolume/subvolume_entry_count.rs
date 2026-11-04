@@ -86,7 +86,10 @@ pub fn count_entries(root: &Path) -> u64 {
             // ```ts
             // if (entry.isDirectory()) pending.push(join(directory, entry.name)); // isDirectory() is false for a symlink
             // ```
-            let is_directory: bool = entry.file_type().ok().is_some_and(|kind: std::fs::FileType| { return kind.is_dir(); });
+            let is_directory: bool = match entry.file_type() {
+                Ok(kind) => kind.is_dir(),
+                Err(_) => false,
+            };
             if is_directory {
                 pending.push(entry.path());
             }

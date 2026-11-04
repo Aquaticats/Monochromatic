@@ -120,7 +120,7 @@ fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), M
             let Ok(relative) = linked.worktree.strip_prefix(run.layout.root.as_path()) else { continue };
             let target: PathBuf = run.layout.new_path.join(relative);
             if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent).map_err(|error: std::io::Error| { return MigrateError::io("create the directory", parent, &error); })?;
+                MigrateError::from_io_result(std::fs::create_dir_all(parent), "create the directory", parent)?;
             }
             if !target.exists() {
                 run.platform.create_subvolume(target.as_path())?;
@@ -152,7 +152,7 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
     let old_path: PathBuf = run.layout.old_path.clone();
     if run.journal.has_begun("exchange") && is_subvolume(run.platform, root.as_path()) {
         if new_path.exists() && !old_path.exists() {
-            std::fs::rename(&new_path, &old_path).map_err(|error: std::io::Error| { return MigrateError::io("rename", new_path.as_path(), &error); })?;
+            MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
         }
         return run.journal.mark("exchange", "done");
     }
@@ -169,7 +169,7 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
     run.checkpoint("before-exchange")?;
     run.platform.exchange(root.as_path(), new_path.as_path())?;
     run.checkpoint("after-exchange")?;
-    std::fs::rename(&new_path, &old_path).map_err(|error: std::io::Error| { return MigrateError::io("rename", new_path.as_path(), &error); })?;
+    MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
     run.checkpoint("after-rename")?;
     run.line(format!("exchanged; the old tree is now {}", old_path.display()).as_str());
     return run.journal.mark("exchange", "done");
@@ -234,7 +234,10 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     if options.refresh_indexes && !run.journal.is_done("indexes") {
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
-        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut |text: &str| { lines.push(text.to_string()); });
+        // The refresh reports each index through a callback that carries the list the lines are collected in.
+        #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the refresh's say parameter is a state-carrying dyn FnMut that tests and other folders also fill"))]
+        let mut collect_line = |text: &str| { lines.push(text.to_string()); };
+        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut collect_line);
         for text in &lines {
             run.line(text.as_str());
         }

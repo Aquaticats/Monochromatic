@@ -41,7 +41,10 @@ pub struct Anchor {
 
 /// The path text of a name given as bytes, or the error a name with an interior NUL deserves.
 fn c_name(name: &OsStr) -> std::io::Result<CString> {
-    return CString::new(name.as_bytes()).map_err(|_| { return std::io::Error::from_raw_os_error(libc::EINVAL); });
+    return match CString::new(name.as_bytes()) {
+        Ok(text) => Ok(text),
+        Err(_) => Err(std::io::Error::from_raw_os_error(libc::EINVAL)),
+    };
 }
 
 /// `openat` for a directory, with the given extra flags, returning the descriptor as a file.
