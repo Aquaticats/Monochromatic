@@ -540,3 +540,127 @@ Not done in round 6, so a later review does not read them as addressed:
   oversized bodies; add and remove dispatch tests.
 - Per-line concept annotations of the new code (the tool that wrote them is a Python script, which the repository's script rules
   forbid, and it was not ported).
+
+## Round 7: control group probes (run 2026-11-04T03:40:00-05:00 to 2026-11-04T04:05:00-05:00)
+
+The coordinator replaced the process group (round 5) and the subreaper with a `/proc` scan (round 6) with a delegated control
+group (cgroup v2): cargo and everything it starts run in a group cargo-shadow owns, stop is `cgroup.kill`, quiescence is
+`cgroup.events` reporting `populated 0`, and a survivor after a crash is a membership query of the group the journal recorded.
+The probes below ran on this host: Linux 7.2.15-ogc1.1.fc45.x86_64, systemd 262.1-1.fc45, cgroup2 mounted at `/sys/fs/cgroup`
+with `nsdelegate,memory_recursiveprot`, uid 1000.
+Every probe ran inside `systemd-run --user --scope --property=CPUQuota=100% --property=MemoryMax=512M --property=TasksMax=200
+--property=IOWeight=10`.
+The scripts are scratch `.ts` files in `${HOME}/temp/agent/cargo-shadow-r7/` and passed cgroup paths as arguments, never
+interpolated into shell text (a path holds `\x2d` escapes that a shell ate on the first run, which made the first
+probe read an empty group).
+The same facts are asserted by tests of the package (`cgroup_probe_tests.rs`), each named after the probe number.
+
+### Probe 1: can an unprivileged process get a group it may write?
+
+Two ways, and when each applies:
+
+- A child of the process's own group.
+  `mkdir` of `<own group>/probe-<pid>` succeeded and the new directory is owned by uid 1000.
+  It needs the own group (from `/proc/self/cgroup`, hierarchy `0::`) to be owned by the user.
+  True here for everything the user manager starts: the interactive terminal shells (`app-odytty@....service`), the harness
+  scope `claude-code-bash`, and any `systemd-run --user` scope.
+  False for a login session: `session-3.scope` is `root:root` mode 755 and `mkdir` there fails with `EACCES`.
+  A read of `/proc/self/cgroup` is namespace-relative, so inside a container the path is relative to the container's cgroup
+  root, and the same `mkdir` rule decides.
+- A transient scope through the user manager: `systemd-run --user --scope --quiet --property=Delegate=yes true` is accepted
+  and the scope is a user-owned delegated subtree.
+  Its start cost 7.0 ms median (6.2 ms minimum, 14.3 ms maximum, 15 runs) against 1.9 ms for a plain `true`, so about 5 ms
+  is added; it needs a running user manager (`XDG_RUNTIME_DIR`, a session bus), which a login session usually has and a
+  plain container or CI runner does not.
+  Not built in round 7: it needs the scope's path before the command starts and a gate between the two, and no P1 finding
+  needs it.
+  It is the next step for login sessions and is listed under "queued for round 8".
+
+Result: the writable child of the own group is built; where `mkdir` or the later checks fail (not cgroup2, not writable,
+no `cgroup.kill`), cargo-shadow takes the weaker path with a one-line notice (below).
+
+### Probe 2: does `cgroup.events` report `populated 0` once every member is gone?
+
+- After `cgroup.kill` on a group with an ordinary member, `populated 0` was reported within 5 ms and `cgroup.procs` was empty.
+- **A leader thread that ended with `pthread_exit` while a second thread lives (the 6a R1 A counterexample) stays a member:**
+  `/proc/<pid>/stat` shows `Z` for the leader, `cgroup.procs` lists the leader's id, `cgroup.threads` lists the live thread,
+  and `cgroup.events` reports `populated 1`, so `populated` is correct and a `/proc` state test was not.
+- **`cgroup.kill` alone did not end that group:** after 2000 ms (and in an earlier run 5000 ms) `populated 1` remained.
+  `kill(2)` with `SIGKILL` on the id listed in `cgroup.procs` ended it in 1 ms, and so did `cgroup.kill` followed by `kill(2)`.
+  The mechanism is the kernel's: `cgroup.kill` signals each listed task, and a signal sent to the task of a zombie
+  leader does not wake the live threads, while a signal sent to the process does.
+  So the stop is `cgroup.kill`, then `SIGKILL` to every process listed by `cgroup.procs` (through a pidfd that is checked
+  against the listing again), repeated until `populated 0` or the bound; this is built and tested.
+- A zombie that nobody reaped, alone in a group, is not listed and `populated` is 0 (the kernel leaves the group when
+  the task exits), so reaping the direct child stays its own `waitpid` with its own bound.
+- Removing the group (`rmdir`) while a member lives fails with `EBUSY`.
+
+### Probe 3: is a `setsid` plus double-fork escapee still a member?
+
+Yes.
+A member that ran `setsid sh -c '(sleep 600 &); sleep 600'` and whose grandchild was reparented to the user manager
+(`ppid` 5698, a different session) was still listed in `cgroup.procs`; four processes in two sessions, one group.
+The limit, which the review attached ("provided descendants cannot move themselves outside it"): a member of the same uid
+that writes its id into the parent group's `cgroup.procs` leaves the group (probe: members left 0, `populated 0`).
+So the group contains accidental and ordinary escapes (`setsid`, `setpgid`, double forks, closed pipes, daemons), not a
+build script that deliberately moves itself out.
+The known closer is a cgroup namespace with the `nsdelegate` boundary, which needs a user namespace and changes how cargo
+runs; it is not built and is the coordinator's to decide.
+
+### Probe 4: does the group outlive cargo-shadow, and can its name be recorded and queried?
+
+Yes, while the enclosing unit lives.
+A creator process made a group, moved a `sleep` into it, recorded the group's path and its directory inode (the cgroup id)
+in a file and exited without killing.
+A fresh process resolved the path, found the same inode, read `populated 1` and the member in `cgroup.procs`, failed
+`rmdir` with `EBUSY`, killed the group, saw `populated 0`, and removed it.
+The condition: if the enclosing unit itself ends (the first run had the creator's own scope as the enclosing unit) systemd
+stops the unit and signals its whole tree, group included, so the group was gone with its members, which is also a safe
+answer.
+A recorded group that is absent, or whose directory inode differs, has no member (`rmdir` needs an empty group and a
+new group gets a new id); a present group with `populated 1` is a survivor.
+
+### Probe 5: does a child started inside the group inherit membership without a hook?
+
+Inheritance: yes, children and grandchildren (also those that `setsid`) are members from their first instruction.
+Placement of the first process without `pre_exec`: `std::process::Command` and `rustix` 1.1.6 have no `clone3` with
+`CLONE_INTO_CGROUP` (grep of the installed sources found nothing).
+The spawning process can enter the group by writing `0` to the group's `cgroup.procs`, spawn, and write `0` to its own
+group's `cgroup.procs` again: the child was in the group, the parent was back in its own group, and the group held the child
+and its background `sleep`.
+Measured in a node process with many threads: enter 7.7 ms (the first migration takes the kernel's per-process
+migration lock), spawn 3.4 ms, leave 0.04 ms.
+This retires the `pre_exec` record path (6a R4, R10): the group is created and recorded before anything starts, so there is
+no per-run hook on the caller's `Command`.
+The cost is that, for the span of one `spawn`, other threads of the wrapper that start a process would land in the group;
+every spawn site of the package is `output_within` (one run per process), so none does.
+
+### The weaker path (coordinator's pick, veto open)
+
+Where the own group is not writable or there is no cgroup v2, a run is contained by a process group only, as in round 5.
+cargo-shadow prints one line naming the missing capability (for example "cargo-shadow: no writable control group (mkdir in
+<group> failed: Permission denied); descendants that leave the process group cannot be stopped or found") and the journal
+records which containment was in force, so a recovery never reads "the recorded process group is gone" as quiescence of a
+journal whose containment was a control group, nor the reverse.
+No quiescence is claimed on this path: the run reports the group stopped, not the tree.
+
+## Queued for round 8 (the P2 and P3 findings and the missing-test lists)
+
+Not worked on in round 7 unless a P1 fix needed it.
+Files are under `/var/home/user/temp/agent/reviews/`.
+
+- `cargo-shadow-sol-6a.txt`: R4 (blocking opens; the `pre_exec` half is retired by the control group, the ELF probe open and
+  the FIFO program remain), R5 (worker cancellation on every iteration), R6 (incomplete stdin as success), R7 (exit 1 with
+  output), R8 (ELF header and the system-config cache), R9 (execute-bit test), R10 (retired by the control group), R11 (limit
+  evidence for the runner constants), R12 (the generic error names the journal), and the P2 and P3 missing-test lists.
+- `cargo-shadow-sol-6b.txt`: finding 2 (warning inventory outside the kept folder), finding 3 (authorization of the attempt
+  limit), the hard-link and post-exchange fault matrix, reporting through actual callers, concurrency and ownership tests, the
+  warning boundary test that creates one file instead of the count.
+- `cargo-shadow-sol-6b2.txt`: findings 3 (ambiguous `*.tmp` in an unready journal), 4 (lossy path conversion in the unready
+  barrier), 6 (finish does not check surviving writers), 7 (the advertised repair for an unreadable group record), the
+  missing tests for scope ownership, unready cleanup, integrity and deployment.
+- `cargo-shadow-sol-6c.txt`: R3 (two restore failures aggregated), R4 (pnpm oracle for an unrelated refused dependency),
+  R5 (non-UTF-8 arguments in the rerun text), the resource-limit assessment, and the missing regression coverage (shim
+  dispatch, capture, policy, HTTP, name allocation, registration of `rerun_tests.rs`).
+- Added by round 7: a transient user scope as the second way to a writable group (probe 1), the cgroup namespace closer
+  (probe 3).
