@@ -1,5 +1,7 @@
 # pnpm-shadow
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Shadows `pnpm`.
 Before a pnpm command that resolves or changes dependencies,
 it checks the `package.json` files of the pnpm workspace that contains the current directory,

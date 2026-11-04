@@ -1,5 +1,7 @@
 # monochromatic-cargo-shadow
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 A shadow for `cargo`,
 modeled on `pnpm-shadow`,
 that keeps every `Cargo.lock` satisfying its manifests under the trust policy in `rust-catalog.toml`.

@@ -1,5 +1,7 @@
 # search-shadow
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Shadows the tools that walk many files:
 
 - `rg`.

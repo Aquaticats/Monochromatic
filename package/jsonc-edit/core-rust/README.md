@@ -1,5 +1,7 @@
 # monochromatic-jsonc-edit
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Comment-preserving JSONC parse,
  immutable edit and canonical emit for Rust.
 

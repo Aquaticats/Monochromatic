@@ -1,5 +1,7 @@
 # monochromatic-catalog-specifier
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Pure checker for the repository's catalog specifier rule:
 every dependency specifier in a package manifest is `catalog:`, `catalog:<name>` or exactly `workspace:*`.
 

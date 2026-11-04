@@ -1,5 +1,7 @@
 # monochromatic-lint
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Rust replacement for the repository's Rust and Markdown/MDX linters.
 The `monochromatic-lint` executable is verified in containers
 and published to crates.io with prebuilt release binaries,

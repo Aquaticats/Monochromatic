@@ -1,5 +1,7 @@
 # monochromatic-browserslist
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Resolves this repository's `.browserslistrc` to the same target list npm `browserslist` 4.29.5 produces,
 from `caniuse-lite` and `node-releases` data pinned by hash in a committed lock.
 It supports only the seven query lines the repository uses.

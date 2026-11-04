@@ -1,5 +1,7 @@
 # monochromatic-file-enforcer
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 The rule engine behind the `file-enforcer` command.
 It reads `file-enforcer.config.jsonc`,
 plans every rule against a virtual view of the worktree,

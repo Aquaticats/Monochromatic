@@ -1,5 +1,7 @@
 # nested-wayland-session
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 A minimal single-app nested Wayland compositor for GUI testing.
 It hosts exactly one Wayland client fullscreen on the real GPU (dmabuf) path,
 photographs the framebuffer as a PNG,

@@ -1,5 +1,7 @@
 # mpm-shadow
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 Owns this repository's toolchain plan and lock,
 and shadows `mpm` ([Meta Package Manager](https://mpm.run)).
 

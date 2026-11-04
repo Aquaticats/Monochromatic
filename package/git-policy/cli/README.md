@@ -1,5 +1,7 @@
 # monochromatic-git-policy-cli
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 A Git wrapper that enforces repository-owned policies.
 It is installed as `git` ahead of the real Git on `PATH`,
 forwards every command to the real Git,

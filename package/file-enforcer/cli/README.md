@@ -1,5 +1,7 @@
 # file-enforcer command line
 
+EXTREMELY UNSTABLE AND UNFINISHED DO NOT USE
+
 The `file-enforcer` binary over [`monochromatic-file-enforcer`](../core-rust/README.md).
 It generates and checks the files this repository derives from other files,
 as described in
