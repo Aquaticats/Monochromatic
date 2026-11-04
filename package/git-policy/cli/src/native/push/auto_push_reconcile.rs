@@ -211,13 +211,21 @@ impl GitRunner for PushRunner<'_> {
         // The input goes in from a thread of its own, so a command that answers while it reads cannot block on a full pipe.
         let pipe = child.stdin.take();
         let bytes: Vec<u8> = input.map(<[u8]>::to_vec).unwrap_or_default();
-        let writer = std::thread::spawn(move || {
+        let writer = match crate::scoped_start::spawn_named("cli-git-second-pass-input", move || {
             if let Some(mut open) = pipe
                 && let Err(error) = open.write_all(bytes.as_slice())
             {
                 debug(TAG, &format!("the input of a second-pass command was not taken: {error}"));
             }
-        });
+        }) {
+            Ok(started) => started,
+            // Writing the input here could block on a full pipe while Git waits for its output to be read; the command is stopped instead.
+            Err(error) => {
+                let _stopped = child.kill();
+                let _reaped = child.wait();
+                return Err(format!("no thread could be started to give git {} its input: {error}", arguments.join(" ")));
+            }
+        };
         let output = child.wait_with_output().map_err(|error| { return format!("git {} did not finish: {error}", arguments.join(" ")); })?;
         if writer.join().is_err() {
             return Err(format!("the input thread of git {} ended abnormally", arguments.join(" ")));

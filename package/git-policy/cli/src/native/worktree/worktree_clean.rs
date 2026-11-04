@@ -15,6 +15,7 @@
 //! const clean = await checkClean({ root, gitDir, commonDir }); // { headCommit, headTree } or throws a reason
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_odb::ObjectDatabase;
@@ -739,7 +740,7 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
     // The tracked files (the index, the tree of `HEAD`, a stat of every file) and the untracked scan (one Git run over the
     //  directory tree) read different things and write nothing, so they run side by side; the tracked refusal still comes first.
     let (tracked, untracked): (Result<CleanSource, CleanRefusal>, Result<Option<String>, CleanRefusal>) = std::thread::scope(|scope| {
-        let scan = scope.spawn(|| { return crate::add_timing::work("untrackedScan", || { return untracked_file(context, root); }); });
+        let scan = start_or_run(scope, || { return crate::add_timing::work("untrackedScan", || { return untracked_file(context, root); }); });
         let tracked = check_tracked(root, git_dir, common_dir, None, false);
         let scanned = scan.join().unwrap_or_else(|_panic| { return Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")); });
         return (tracked, scanned);

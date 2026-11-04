@@ -559,10 +559,15 @@ Results (cuts are the cut points times two signals):
 - Added in round 3 (2026-11-04T14:20:00-05:00 onward, same method): identical, `update-ref --no-deref REF VALUE` with
   `-c core.logAllRefUpdates=false` on the command line while the configuration says `always` (12 cuts), the same with REF a symbolic ref
   to a branch (8), `update-ref -d --no-deref REF` with the setting (14), `symbolic-ref HEAD REF` in a bare repository (4).
-  Different: `init --bare --template= --ref-format=reftable DIR` (64 cuts, all different: the reftable names are random, and 57 second
-  runs failed), and `fast-import --done --export-marks=FILE` with the wrapper's own stream, the setting on the command line and the
+  Different: `init --bare --template= --ref-format=reftable DIR`, run again in place (104 cuts, 54 identical and 50 different: a cut
+  leaves reftable tables the second run does not replace; every second run exited zero), and `fast-import --done --export-marks=FILE` with the wrapper's own stream, the setting on the command line and the
   configuration saying `always` (88 cuts, 2 different, both second runs failed on a `marks-1.lock` a cut left in the worktree).
-  Output files: `cut-experiment-round3.out` and a run of the `fast-import` case.
+  Output files: `cut-experiment-round3.out` and a run of the `fast-import` case. Correction of 2026-11-04 (round 4): the first run of
+  the `init` case gave the step an absolute path inside the template directory, so its cuts and second runs acted on one shared
+  directory; the figures "64 cuts, 57 second runs failed" that this paragraph and the first round 3 report gave were that artifact and
+  are withdrawn. The run with the path relative to each copy (`cut-experiment-init-r4.out`, `cut-experiment.ts`) is the one above. The
+  same case with the partial directory discarded before the second run (the fresh shadow of `init_with_git`) came out identical in
+  104 of 104 cuts, normalizing the random reftable table names and checking the refs through the repository.
 - Not run, so counted with the different ones because data is lost by guessing wrong and a wait is not:
   every other form, such as `reset --soft`, `update-ref` of a ref outside `refs/cli-git/`, `stash push`.
 - Limits: one small repository, Git 2.56.0, local filesystem; a step cut part way through a large worktree could differ in ways a
@@ -806,8 +811,9 @@ named fixes. Each finding, with its disposition and its test (red first unless s
   `symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs`.
   The reflog setting must be the last `-c` of its key (the key is not case-sensitive and `--config-env` of it is refused), and the
   `init` form is the exact argv of `shadow_create.rs`; those two controls were written after their code and not run red first.
-  `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists, so the proof for
-  `refs/cli-git/kept/<seq>` rests on the sequence number being new at each use (noted beside `is_side_ref`).
+  `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists. The first answer to
+  that was that the proof rests on the sequence number being new at each use; the round 3 review rejected it (an earlier release or
+  another writer may have made the log), and round 4 replaced it with a check (below).
 - Unbounded capture read (sol-1 P1, sol-2 A). The output is read once as a snapshot of the last `STEP_OUTPUT_LIMIT` bytes of the
   sizes found when the read began, with a note for what was left out and for a read that failed; the files are emptied after the
   read and when the command stops waiting for a step. Tests in `output_capture_tests.rs`
@@ -838,3 +844,301 @@ named fixes. Each finding, with its disposition and its test (red first unless s
 - Foreign-owner expiry (sol-1, sol-2 C): decided and built, above.
 - Not changed: guard-fixture cleanup in older tests, `wait_ceilings.rs` verification (sol-2 round 1 notes), and the unrun reviewer
   items about reason-string tests versus end-to-end propagation.
+
+### The output snapshot limit, measured 2026-11-04
+
+`STEP_OUTPUT_LIMIT` (8 MiB per stream) is the most of a step's output the wrapper keeps when it captures it in full: the steps that are
+never ended and the repair tools. Measured on this host (`measure-output.ts`, outputs in `measure-output.out`, `pnpm-out.txt` and
+`mpm-out.txt` beside it): `cargo metadata --locked --offline --no-deps --format-version 1` for every one of the 35 manifests of the
+repository, at most 21,012 bytes (`package/ide/app`); `pnpm install --offline --frozen-lockfile` in a worktree, 634 bytes;
+`mpm install --frozen-lockfile`, 639 bytes; the diffstat of the three merges with the most changed files in the Monochromatic history
+(4096, 1850 and 1393 files), 638,784, 114,892 and 201,802 bytes, and of the three largest in `/var/home/user/resharp`, at most 2,381
+bytes. Git's own writers print one line (`HEAD is now at ...`) or nothing when their output is not a terminal. So the largest was 638,784
+bytes, and 8 MiB is 13.1 times that. The value stays at 8 MiB with this citation; what a step writes beyond it is disclosed, and output
+that was cut is never parsed as a whole result.
+
+### Retirement of the single service of the earlier releases: options for an owner question, 2026-11-04
+
+The coordinator asked for these options on 2026-11-04 (round 4).
+Decided by the owner on 2026-11-04 through the question tool,
+verbatim
+choice:
+"A:
+fail,
+retry (Recommended)".
+It is built (the stop of the service goes only to a service that has left,
+and a service still
+there after `RETIREMENT_WAIT` fails the commit with a retryable sentence);
+the options below are kept as the record of what was weighed.
+
+What exists today:
+
+- The releases before one service per worktree ran one `cli-git.service` with a `cli-git.socket` for every worktree, listening on
+  `cli-git/service.sock` under the runtime directory. The first release with a service for each worktree is 0.5.7 (the commit
+  `4b52f3745c`, 2026-11-01T16:51:44-05:00, is first contained in the tag `monochromatic-git-policy-cli-v0.5.7`), so the earlier
+  installs are 0.5.0 to 0.5.6.
+- On this host none can exist: no `cli-git.service` or `cli-git.socket` in `~/.config/systemd/user`, in the runtime directory's
+  `systemd/user`, or anywhere under the home directory to four levels, no `cli-git/service.sock` in the runtime directory, and
+  `systemctl --user list-units --all 'cli-git.service' 'cli-git.socket'` lists nothing. The units that exist are `cli-git@<instance>`
+  of the current design (their sockets are `<instance>.sock`). Other accounts, containers and machines were not looked at; a machine
+  where an install of 0.5.0 to 0.5.6 still runs would meet this the first time the current release provisions its first worktree.
+- The retirement is `retire_earlier_service` (`service_provision.rs`). Before round 4 it asked the service to retire (a message the
+  service handles between batches) and then had the manager stop both units at once; the manager's stop sends `SIGTERM` to the unit's
+  whole control group, the Git children of a landing in progress included, and `SIGKILL` after its own timeout. Built in round 4: the
+  socket is stopped, the service is given `retirement_wait` (10 seconds, `RETIREMENT_WAIT`) to leave by itself, the stop of the
+  service goes only to a service that has left, and a service still there fails the commit.
+- Why a service can still be there after the wait: it is landing a batch (a Git step that can run for the class ceiling and more), or
+  it is stuck in one that is never ended, or it is an old release that does not read the retire message.
+
+Options:
+
+- A. Fail the commit and let it be retried (built).
+  Schedule: the commit asks the old service to retire and stops its socket; 10 seconds later the service is still in a landing; the
+  commit exits non-zero with a sentence that names the service, says it may be in the middle of a landing that stopping it would cut,
+  and gives `systemctl --user stop cli-git.service cli-git.socket` for when no commit is running. The next commit, run again, finds
+  the service gone if its landing finished (it handled the retire between batches) and goes on.
+  The person sees one failed commit with a retryable sentence, once per upgrade per machine, and nothing else changes. What can be
+  lost: nothing of the repository; a commit that was built and not made can be made again by running the command again.
+  Costs: it is the one place where a commit fails for want of a bounded wait, against the owner's "Commits should never fail."
+- B. Land through the worktree's own service while the old one still runs.
+  Not safe, as the code and the invariant stand. The documented invariant (`SPEC.md`, the lock section) is that two commit services
+  never overlap on one repository: an instance that starts recovers the batches open in the journals it finds and claims work items,
+  and the old service is still doing that work. Two landing threads would race for the index lock marker and the branch write, and
+  the new instance's recovery would settle an intent that the old service is writing. Schedule: the old service has an open intent
+  for batch 41 and is inside its `update-ref --stdin`; the new instance starts, reads the open intent, finds the branch not yet
+  moved, drops the intent; the old service's write completes and moves the branch, and the journal says the batch was dropped. What
+  can be lost: a landed commit recorded as dropped, a client told "not landed" for a commit that is on the branch. Making it safe
+  needs a handshake between the two releases that the earlier ones, which cannot be changed, would have to take part in.
+- C. Wait longer, with a stated bound.
+  Schedule: as A, but the commit waits for the service to leave for a longer bound (for example `LOCK_CEILING`, 10 minutes, which is
+  the longest the wrapper waits for a lock holder, or `ANSWER_CEILING`, 20 minutes), polling the manager and saying once a minute
+  what it waits for; if the service leaves, the commit goes on and succeeds; if not, it fails as in A.
+  The person sees a commit that takes as long as the old service's landing, with a notice, and a failure only after the longer
+  bound. What can be lost: nothing of the repository. Costs: a commit that waits minutes on a machine that has the old service stuck
+  in a write; the bound is a new number that needs a measurement (the longest landing is 751 seconds, measured) or an owner
+  decision.
+- D. Stop the old service anyway after the wait.
+  Schedule: as A, but after 10 seconds the manager is asked to stop the units (the behavior before round 4). The control group
+  receives `SIGTERM`; a Git child cut in the middle of `update-ref --stdin` or `merge` is exactly what "Never cut a branch write
+  (Recommended)" decided against, and the service's own recovery (the intent journal) has to complete or undo the batch afterwards
+  in the worktree's instance.
+  The person sees a commit that succeeds. What can be lost: a branch write cut at an unlucky moment (the cut experiment shows
+  `update-ref --stdin` and `merge` come out different at some cuts), the work of the clients queued behind it, and an index lock left
+  by the killed process (reclaimed by the stale-lock sweep).
+
+Ranking: A > C > D > B.
+A over C because A never makes a commit wait for a landing it cannot see the end of, fails once, retryably, per upgrade per machine
+(none exists on this host), and needs no new number, where C adds a bound that nothing measures and that a stuck service makes the
+person pay in full before the same failure.
+C over D because C keeps every landing whole and costs only time, where D cuts a write that cannot run twice, which the owner's
+decision rules out for branch writes.
+D over B because D loses at worst one cut write that the journal recovery is built to settle,
+where B can report a landed commit as
+dropped with no recovery at all,
+and only a change to releases that are already published could make it safe.
+The owner chose A:
+it puts "never discard user data" before "Commits should never fail."
+for this one case.
+
+## Round 4, 2026-11-04: the findings of the cross-vendor review of round 3
+
+Review: `/var/home/user/temp/agent/reviews/branch-write-r3-sol.txt` ("correct after named fixes"). Each finding, its fix and its test:
+
+- A, P1. Withdrawal confirmations were not tied to a decision generation. The decision now reads `withdrawn:<token>` and its
+  confirmation is `<id>.<token>.cancelled`; a withdrawer acknowledges another's decision only when the confirmation with that
+  decision's token exists. The retention moved to the landing thread (`end_group`), so there is one pruner, and it removes a decision
+  only while it still carries the token of the confirmation it removes, so a replacement from a stale listing stays. The comment about
+  the order of the two removals was wrong (the decision first leaves the confirmation standing alone) and is replaced by the rule above.
+  Tests: `a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision` (the reviewer's schedule: failed when the
+  confirmation was shared by the id again) and `the_retention_never_removes_a_decision_that_replaced_the_one_it_listed`.
+- B, P1. An existing reflog defeats the side-ref proof. `step_bound_checked` asks `git reflog exists <ref>` at the start of the write,
+  on either ref backend, and the write keeps its ceiling only when Git answers that there is none; Git that cannot be asked is no
+  proof. Test: `a_side_ref_that_has_a_reflog_keeps_no_ceiling` (files and reftable repositories, both side-ref shapes, set and
+  delete, and a missing repository).
+- C, P1. A foreign-owner refusal could follow mutations. Every owner is now judged once before anything changes: the journals and the
+  stage claims and temporaries of a worktree copy (`judge_stage_owners`, `reap_judged_stages`), and the records of the merge recovery.
+  `token_owner_is_dead` reads the item's age once and propagates the expiry; it no longer calls `is_alive`, which read it again and
+  whose refusal was swallowed. Tests: `an_expired_foreign_journal_after_a_dead_one_stops_recovery_before_the_dead_one_is_touched`,
+  `an_expired_foreign_claim_stops_the_sweep_before_any_stage_is_removed`,
+  `an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed`,
+  `an_old_record_of_another_namespace_after_a_dead_one_stops_recovery_before_the_dead_one_is_settled`, and
+  `an_owner_of_another_namespace_is_judged_from_one_reading_of_its_item` (counts the lookups). An item that is young when judged and
+  expires during the run is acted on as judged; it is refused by the next command.
+- D, P1. The review timeout could wait for ever after the worker released the runner and stalled before its send. The caller now waits
+  for the value at most `SHORT_EXTRA_WAIT` and reports the ceiling otherwise. Test:
+  `a_worker_that_stalls_between_its_release_and_its_send_does_not_hold_the_caller` (with a deadline of its own; the unbounded receive
+  fails it after thirty seconds), and the controlled `a_runner_with_a_running_job_admits_no_other`.
+- E, P2. The notes of the snapshot reach the person (the failure text of a repair tool) and the result (`ToolRun::notes`); the
+  `cargo metadata` of a repair refuses cut output; `output_of` and the stop path of `run_tool` release the pages. Tests:
+  `output_past_the_snapshot_is_disclosed_to_the_person`, `the_output_of_a_step_is_released_once_it_is_read`, and
+  `a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_released` (a reaper is given to `run_tool_reaping`).
+- `init`. The first round 3 report said `init` came out different in 64 of 64 cuts with 57 second runs failing. That run gave the step
+  an absolute path in the template directory, so it measured a shared directory; it is withdrawn (see "The cut experiment"). With the
+  path relative to each copy: in place, 50 of 104 cuts differ and every second run exits zero; with the partial directory discarded
+  and a fresh one made, 104 of 104 are identical. `init_with_git` discards and starts again, at most `SHADOW_CREATION_ATTEMPTS` (2)
+  times, also when the system refused the start, and `init` is no longer in the allow-list of steps run again in place. Tests:
+  `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`,
+  `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`, `only_the_shadow_creation_init_keeps_a_ceiling`.
+- Tests the reviewer called too weak: the snapshot control appends after every chunk the reader takes
+  (`the_snapshot_reads_the_length_it_found_and_no_more`); the failed-write control fails inside `decide`
+  (`a_decision_whose_write_fails_leaves_no_temporary_file`); the 10 ms helper control is kept for what it proves (the run does not
+  wait for a helper) and the snapshot boundary is proven by the control above, since a loop that writes fast enough to outrun a reader
+  is a busy loop, which the synthetic-load rule forbids. Not written: a binary test that a busy legacy service and its Git children are
+  untouched when the legacy socket is stopped. It needs a legacy-socket client and a service held in a landing, which the harness has
+  no helper for; the recorder controls (`an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`)
+  and the fake-bus call order in `binary_service_provision_tests.rs` cover the wrapper's calls.
+- Legacy retirement: the reviewer calls failing (retryable) the correct safety direction; the options for the owner are in
+  "Retirement of the single service of the earlier releases".
+
+## Round 5, 2026-11-04: the findings of the cross-vendor review of round 4, and the shipped thread-start panic
+
+Review:
+`/var/home/user/temp/agent/reviews/branch-write-r4-sol.txt` ("correct after named fixes";
+B "still lacks a valid safety proof").
+
+- B,
+  P1.
+  The probe of `git reflog exists` was not atomic with the write:
+  another Git can create the log between them,
+  and a cut write
+  then appends twice on its rerun.
+  No write of a side ref keeps a ceiling any more (the absence probe,
+  the argv classification and the
+  `reflog` read form are removed);
+  on the landing thread they are waited for like the branch write.
+  The call sites keep `--no-deref`
+  and the reflog setting as hygiene.
+  Red shown:
+  `a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state`
+  failed with the side-ref forms in its "differs" list while the classifier still ended them ("came out different after a second run
+  and has no ceiling").
+- `init`,
+  direct refusal.
+  A start refused before the command ran reaches `init_with_git` as an I/O error of kind `WouldBlock`
+  (`EAGAIN`);
+  it is now discarded and started again in a fresh directory like a cut or a refused-as-finished start,
+  and other I/O
+  errors are not retried.
+  Test `only_a_cut_or_refused_start_of_init_is_retried` (red with the `WouldBlock` arm removed).
+- E,
+  the wait error.
+  A failed wait for a repair tool returned before the group was stopped,
+  the pages released and the leader reaped.
+  It is now a stop.
+  Test `a_wait_that_fails_stops_the_tool_and_releases_its_output` (red first:
+  the reaper was never called).
+  The stop
+  control now first establishes that the tool had written.
+- A,
+  regression.
+  The record of confirmed withdrawals was no longer bounded while the landing thread was stuck (only it prunes).
+  Past `WITHDRAWALS_CEILING` (twice the retained number) the connection threads leave withdrawals to the landing thread.
+  Test
+  `the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck` (red first:
+  2058 withdrawn against 2048).
+- C and D,
+  test strength.
+  A cross-category test (dead journal,
+  expired foreign stage claim),
+  temporaries judged in name order,
+  and a
+  handoff control that forces the release before the caller gives up.
+- The thread-start panic (shipped since 0.5.28,
+  found by the gate of 2026-11-04,
+  test
+  `a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  4873 of 4874).
+  `landing/service_durable.rs`
+  made the syncs of a landing with `Scope::spawn`,
+  which panics when the system gives no thread;
+  on the service's main thread
+  (`force`) that took the service down,
+  so the commit could not land.
+  The measured cause:
+  the test lowers the address space of the
+  service until a start fails,
+  and the two places that start threads for the syncs were the first to be refused;
+  the panic is in the
+  program,
+  not in the load.
+  `foundation/scoped_start.rs` starts a scoped thread and runs the work on the calling thread when the start
+  is refused (the closure is handed through a slot,
+  because `spawn_scoped` consumes it even when it fails).
+  Every production site:
+  - `landing/service_durable.rs` `sync_batch` and `force`:
+    fixed;
+    test `a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_not_panic`
+    (a child with a process limit of one;
+    red against the old code with the exact panic).
+  - `foundation/parallel_runner.rs`,
+    `repair/package_repair.rs`,
+    `repair/package_repair_cargo.rs`,
+    `repair/package_repair_tree_clone.rs`,
+    `worktree/worktree_clean.rs`,
+    `worktree/worktree_snapshot_source.rs`,
+    `worktree_copying/worktree_copy_compare.rs`,
+    `worktree_copy_install.rs`,
+    `worktree_copy_journal.rs`,
+    `worktree_copy_stage.rs`:
+    fixed the same way.
+    Controls:
+    a child refused
+    every thread for the parallel runner,
+    the cargo `map_concurrent`,
+    the tree clone,
+    the install,
+    the final check,
+    the removal and the
+    stage copy;
+    the seam of `scoped_start` for the clean check and the repair,
+    whose scenarios start Git.
+    The snapshot source has no
+    scenario of its own that runs without a btrfs fixture,
+    so its two starts are covered by the mechanism's tests only.
+  - `push/auto_push_reconcile.rs`:
+    the input thread of a second-pass command was a plain `std::thread::spawn`;
+    a refusal now stops the
+    command and reports,
+    since writing the input here could block on a full pipe.
+    Test
+    `a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported` (the seam;
+    no plant is possible against a plain spawn).
+  - Already handled,
+    unchanged:
+    `landing/service_index_prestage.rs` (no marker made ahead),
+    `landing/service_claim_renewal.rs` (no
+    renewal,
+    claims expire),
+    `push/bounded_push.rs`,
+    `process/thread_quiet.rs`,
+    `push/child_watch.rs` watch thread,
+    `markdown/markdown_linter_guard.rs`
+    (`GuardFailure::Start`),
+    `repair/package_repair_command.rs` reaper (the leader is left to init),
+    and `push/child_watch.rs` left-running
+    waiter,
+    which reports that no thread could be started to wait for the step.
+    `testing/test_support.rs` watchdog:
+    failure ignored.
+  Planted proof:
+    with the fallback replaced by the panic of `Scope::spawn`,
+    8 of 8 child controls and the durable control failed,
+    and the
+  two seam controls failed.
+
+- Correction after the first round 5 report:
+  removing the ceiling of the side-ref writes would have made `keep_unlanded` and the scratch
+  deletions wait without a bound on the landing thread,
+  which the owner's "nothing should ever wait forever or indefinitely" does not
+  allow and "Never cut a branch write (Recommended)" does not cover (a side ref is not the branch).
+  They are now left running after the
+  class ceiling plus the short extra wait on every thread,
+  the landing thread included.
+  Test
+  `a_side_ref_write_that_hangs_on_the_landing_thread_is_left_running_after_a_bound` (red first:
+  `Unbounded`).
+  What still waits without a
+  bound on the landing thread is the branch write (`update-ref --stdin`),
+  `fast-import` and the other steps that cannot run twice,
+  which
+  the clients behind them are told about after `NEVER_ENDED_STEP_SLOW_AFTER` and which end for each client at its own `ANSWER_CEILING`.

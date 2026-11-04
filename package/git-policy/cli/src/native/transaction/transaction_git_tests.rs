@@ -614,9 +614,7 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     let ends = |arguments: &[&str]| { return matches!(bound(arguments, false), StepBound::EndAt(_)); };
     // Identical after a second run at every cut.
     for same in [
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/1"],
-        &["stash", "list", "--format=%H"],
+        &["stash", "list", "--format=%H"][..],
         &["clean", "--force", "-d"],
         &["read-tree", "--reset", "-u", "abc"],
         &["update-index", "--refresh"],
@@ -633,7 +631,13 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     }
     // Different after a second run at some cut, or not in the experiment.
     for differs in [
-        &["update-ref", "--stdin"][..],
+        // A write of a side ref cannot be shown to run twice, with the protections on its argv or without (sol-1 round 4, P1 B): a reflog
+        //  another Git creates between any check and the write is appended to twice by a cut write and its rerun.
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/1"],
+        &["update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        &["update-ref", "--stdin"],
         // The import is a writer of a reference whatever its stream says here: the experiment found a marks lock it left that the
         //  second run could not pass.
         &["-c", "core.logAllRefUpdates=false", "fast-import", "--done", "--export-marks=marks-1"],
@@ -847,9 +851,7 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
     }
     // The forms that were run are exact: the same words with the proven options, and nothing else, keep the ceiling.
     for proven in [
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/12", "0123456789abcdef0123456789abcdef01234567"][..],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "-d", "refs/worktree/cli-git-service/1793"],
-        &["stash", "list", "--format=%H"],
+        &["stash", "list", "--format=%H"][..],
         &["clean", "--force", "-d"],
         &["read-tree", "--reset", "-u", "abc"],
         &["config", "--local", "a.b", "c"],
@@ -884,15 +886,69 @@ fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
     assert!(!may(&["symbolic-ref", "--delete", "HEAD"], true));
     assert!(!may(&["symbolic-ref", "-m", "why", "HEAD", "refs/heads/main"], true));
     assert!(!may(&["symbolic-ref", "--delete", "--quiet", "HEAD"], false));
-    // The shadow's creation.
-    assert!(may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
-    assert!(may(&["init", "--bare", "--template=", "--object-format=sha256", "--ref-format=reftable", "/shadow"], true));
-    // Any other words, or an extra one, are not the form the wrapper runs.
-    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
-    assert!(!may(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
-    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
+    // The shadow's creation is not run again in place: a cut `init` leaves a directory the second run fails in, and the shadow's creator
+    //  discards the directory and starts a fresh one (`a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`).
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
     // Any other `init` can relocate or re-initialize the repository of the person.
     assert!(!may(&["init", "--bare", "--template=", "/shadow"], false));
     assert!(!may(&["init", "--quiet", "--initial-branch=main"], true));
     assert!(!may(&["init", "--separate-git-dir=/elsewhere", "--bare"], false));
+}
+
+/// The shadow's creation keeps its ceiling only in the exact form the wrapper runs and only for a request on a shadow: its creator
+/// discards a cut start's directory and starts again in a fresh one, which the experiment found equal to an uncut run (104 of 104).
+/// Any other `init` can touch the repository of the person, so it has no ceiling.
+#[test]
+fn only_the_shadow_creation_init_keeps_a_ceiling() {
+    let ends = |arguments: &[&str], shadow: bool| -> bool {
+        let mut request: GitRequest = GitRequest::new(Path::new("/repo"), arguments);
+        request.without_prefix = shadow;
+        return matches!(step_bound(&request), StepBound::EndAt(_));
+    };
+    for object_format in ["sha1", "sha256"] {
+        let format: String = format!("--object-format={object_format}");
+        assert!(ends(&["init", "--bare", "--template=", format.as_str(), "--ref-format=reftable", "/shadow"], true), "{object_format}");
+    }
+    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], false), "not a shadow request");
+    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
+    assert!(!ends(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
+    assert!(!ends(&["init", "--quiet", "--initial-branch=main"], true));
+}
+
+/// A side-ref write on the landing thread is never ended and never waited for without a bound (owner: "Never cut a branch write
+/// (Recommended)" covers the branch write; "nothing should ever wait forever or indefinitely" covers this): the landing thread stops
+/// waiting at the class ceiling plus the short extra wait, with the not-known error, and the step is left running. The branch write
+/// `update-ref --stdin` on the same thread is still waited for as long as it lives, and its record tells the clients behind it.
+#[test]
+fn a_side_ref_write_that_hangs_on_the_landing_thread_is_left_running_after_a_bound() {
+    let root: PathBuf = fixture("transaction-git-side-ref-landing");
+    let program: PathBuf = root.join("hung-update-ref-git");
+    let started: PathBuf = root.join("started");
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\n: > '{started}'\nwhile [ ! -e '{release}' ] && {alive}; do sleep 0.05; done\n", started = started.display(), release = root.join("release").display(), alive = while_test_lives(root.as_path())).as_bytes(),
+    );
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(root.clone()) };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let journal: PathBuf = root.join("journal");
+    let work_root: PathBuf = root.clone();
+    // The landing thread of the control: it has a record, and the bounds are shortened on it alone.
+    let landing = std::thread::Builder::new().spawn(move || {
+        STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
+        EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
+        crate::service_busy::use_on_this_thread(crate::service_busy::LandingBoard::new(journal, Duration::from_secs(60)));
+        let side: GitRequest = GitRequest::new(work_root.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/7"]);
+        let branch: GitRequest = GitRequest::new(work_root.as_path(), &["update-ref", "--stdin"]);
+        assert_eq!(step_bound(&branch), StepBound::Unbounded, "the branch write is waited for on the landing thread");
+        assert!(matches!(step_bound(&side), StepBound::LeaveRunning { .. }), "a side ref is not a branch: {:?}", step_bound(&side));
+        let _sent = sender.send(run_git(&context, &side));
+    });
+    assert!(landing.is_ok());
+    let outcome = receiver.recv_timeout(Duration::from_secs(30)).expect("the landing thread came back from a hung side-ref write");
+    let failure = outcome.expect_err("it stopped waiting");
+    assert!(crate::child_watch::is_not_known(&failure), "{failure}");
+    assert!(started.exists());
+    std::fs::write(root.join("release"), b"").expect("release");
+    remove(root.as_path());
 }

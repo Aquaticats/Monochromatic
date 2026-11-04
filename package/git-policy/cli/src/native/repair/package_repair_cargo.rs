@@ -15,6 +15,7 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::add_timing::work;
 use crate::diagnostic_log::debug;
 use crate::package_repair::RepairRequest;
@@ -255,6 +256,7 @@ fn read_workspace(cargo: &Path, directory: &Path, limit: ToolLimits) -> Result<W
     let command: ToolCommand = ToolCommand { arguments, directory: PathBuf::from(directory), set: Vec::new() };
     let run: ToolRun = run_tool(cargo, &command, limit);
     return match run.end {
+        ToolEnd::Succeeded if !run.notes.is_empty() => Err(format!("cargo metadata in {} wrote output that could not be taken whole ({}), so it was not read", directory.display(), run.notes.join("; "))),
         ToolEnd::Succeeded => parse_metadata(String::from_utf8_lossy(run.stdout.as_slice()).as_ref()),
         ToolEnd::Failed(reason) => Err(format!("cargo metadata in {} failed: {reason}", directory.display())),
         ToolEnd::TimedOut => Err(format!("cargo metadata in {} showed no sign of work for the quiet window and was stopped", directory.display())),
@@ -397,7 +399,7 @@ fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, label: &(dyn Fn
     let mut results: Vec<(usize, Result<R, String>)> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers.max(1).min(items.len().max(1)))
             .map(|_worker: usize| {
-                return scope.spawn(|| {
+                return start_or_run(scope, || {
                     let mut done: Vec<(usize, Result<R, String>)> = Vec::new();
                     loop {
                         let index: usize = next.fetch_add(1, Ordering::Relaxed);

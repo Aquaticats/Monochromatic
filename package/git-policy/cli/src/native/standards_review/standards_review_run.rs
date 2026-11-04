@@ -239,6 +239,13 @@ pub struct Containment {
     /// The generation of the job in the high bits and `IDLE`, `RUNNING` or `ABANDONED` in the low two. A change names the generation
     ///  it expects, so a caller that gave up on job 7 can never change the state of job 8.
     state: std::sync::atomic::AtomicU64,
+    /// How long the caller waits for the value of a job that ended as the caller gave up, when the value does not come: the short
+    ///  extra wait of the owner's "7 s (Recommended)" (`wait_ceilings.rs`, `SHORT_EXTRA_WAIT`). A job that released the runner has
+    ///  not necessarily sent its value, so the wait is bounded (sol-1 round 3, P1 D).
+    handoff_wait: Duration,
+    /// A control holds this to keep a worker between its release of the runner and its send of the value.
+    #[cfg(test)]
+    handoff_gate: std::sync::Mutex<()>,
 }
 
 /// No job.
@@ -256,7 +263,17 @@ pub static RUNNER: Containment = Containment::new();
 impl Containment {
     /// A runner with no job.
     pub const fn new() -> Self {
-        return Self { state: std::sync::atomic::AtomicU64::new(IDLE) };
+        return Self::with_handoff_wait(crate::wait_ceilings::SHORT_EXTRA_WAIT);
+    }
+
+    /// A runner whose caller waits `handoff_wait` for the value of a job that ended as the caller gave up.
+    pub const fn with_handoff_wait(handoff_wait: Duration) -> Self {
+        return Self {
+            state: std::sync::atomic::AtomicU64::new(IDLE),
+            handoff_wait,
+            #[cfg(test)]
+            handoff_gate: std::sync::Mutex::new(()),
+        };
     }
 
     /// How many jobs the caller stopped waiting for are still running: zero or one.
@@ -339,6 +356,8 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
         let release: Release<'static> = Release { runner, generation };
         let value: T = job();
         drop(release);
+        #[cfg(test)]
+        drop(runner.handoff_gate.lock());
         let _ = sender.send(value);
     });
     if worker.is_err() {
@@ -353,8 +372,13 @@ pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: im
             if runner.change(generation, RUNNING, ABANDONED) {
                 Contained::CeilingReached(ceiling)
             } else {
-                // The job ended between the timeout and now: its value is in the channel, or it panicked.
-                receiver.recv().map_or(Contained::Panicked, Contained::Finished)
+                // The job released the runner between the timeout and now. Its value is in the channel, or on its way, or it panicked; the
+                //  release is not proof the value was sent, so the wait is bounded, and a value that does not come is a ceiling.
+                match receiver.recv_timeout(runner.handoff_wait) {
+                    Ok(value) => Contained::Finished(value),
+                    Err(mpsc::RecvTimeoutError::Disconnected) => Contained::Panicked,
+                    Err(mpsc::RecvTimeoutError::Timeout) => Contained::CeilingReached(ceiling),
+                }
             }
         }
     }

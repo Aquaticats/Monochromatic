@@ -284,24 +284,84 @@ fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
 }
 
 /// A temporary file of a decision is removed whichever way the decision ends (sol-1 round 2, P2: a failed write returned before the
-/// removal and left it): the guard removes its file when it goes out of scope, by an early return as by the end of the function.
+/// removal and left it). The failure is injected inside `decide`, after its temporary file was made and written, so removing the
+/// guard from `decide` leaves a file behind and fails this control (round 3: the earlier control failed a closure of its own).
 #[test]
-fn a_temporary_file_is_removed_by_an_early_return() {
+fn a_decision_whose_write_fails_leaves_no_temporary_file() {
     let directory: std::path::PathBuf = crate::test_support::fixture("service-busy-temporary");
-    let leaking = |path: std::path::PathBuf| -> std::io::Result<()> {
-        let guard: TemporaryFile = TemporaryFile(path);
-        std::fs::write(guard.0.as_path(), b"partial")?;
-        return Err(std::io::Error::other("the write failed after the file was made"));
-    };
-    let file: std::path::PathBuf = directory.join("r.1.1.tmp");
-    assert!(leaking(file.clone()).is_err());
-    assert!(!file.exists(), "the file is removed although the function returned early");
     let record: Arc<LandingBoard> = LandingBoard::new(directory.join("journal"), AT_ONCE);
+    AFTER_THE_TEMPORARY_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the write failed after the file was made")); })); });
+    for round in 0..5 {
+        assert!(record.decide("same", LANDING).is_err(), "round {round}");
+    }
+    AFTER_THE_TEMPORARY_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
+    let leftovers = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".tmp"); }).count(); };
+    assert_eq!(leftovers(&record), 0, "a failed write leaves no temporary file");
+    assert!(!record.decision_path("same").exists(), "and decided nothing");
     for round in 0..20 {
         assert!(record.decide("same", LANDING).is_ok(), "round {round}");
     }
-    let leftovers: usize = std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".tmp"); }).count();
-    assert_eq!(leftovers, 0, "a decision that wins or loses leaves no temporary file");
+    assert_eq!(leftovers(&record), 0, "a decision that wins or loses leaves no temporary file");
+}
+
+/// Request `r` has a confirmed withdrawal, and the retention removed its decision and paused before its confirmation (sol-1 round 3,
+/// P1 A). Withdrawer W1 wins a new decision and is stopped before its journal read; W2 meets that decision beside the old
+/// confirmation. W2 must not answer "withdrawn": the old confirmation belongs to the old decision. W1 then finds the request landed.
+#[test]
+fn a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-confirmation").join("journal");
+    let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "the first withdrawal is confirmed");
+    // The retention's first removal, and its pause.
+    std::fs::remove_file(record.decision_path("r")).expect("the retention removed the decision");
+    let seen_by_w2: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::new(std::sync::Mutex::new(None));
+    let sink: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::clone(&seen_by_w2);
+    let other: Arc<LandingBoard> = Arc::clone(&record);
+    AFTER_THE_DECISION_IS_WON.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            // W2, on another thread with a board of its own view, meets W1's decision beside the old confirmation.
+            let board: Arc<LandingBoard> = Arc::clone(&other);
+            let answer: EarlyAnswer = std::thread::spawn(move || { return board.withdraw_early("r"); }).join().expect("W2");
+            *sink.lock().expect("lock") = Some(answer);
+            // The request lands before W1 asks the journal again.
+            record_landed(journal.as_path(), 1, "r");
+        }));
+    });
+    let first: EarlyAnswer = record.withdraw_early("r");
+    AFTER_THE_DECISION_IS_WON.with(|hook| { *hook.borrow_mut() = None; });
+    assert_eq!(*seen_by_w2.lock().expect("lock"), Some(EarlyAnswer::Queued), "the old confirmation is not W1's");
+    assert_eq!(first, EarlyAnswer::Landed("1".repeat(40)), "W1 finds the request in the journal");
+}
+
+/// The retention works from a listing and removes by what it still finds: a decision that replaced the one it listed (another token)
+/// stays, with its confirmation, while the pair it listed is forgotten (sol-1 round 3, P1 A: concurrent pruners from a stale listing).
+#[test]
+fn the_retention_never_removes_a_decision_that_replaced_the_one_it_listed() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-listing").join("journal");
+    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    for round in 0..(WITHDRAWALS_RETAINED + 1) {
+        assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // Between the listing and the removals, the oldest request's pair is replaced by a decision of another withdrawal.
+    let replaced: std::path::PathBuf = record.decision_path("r0");
+    let replacement: String = format!("{WITHDRAWN}:another-token");
+    let target = replaced.clone();
+    AFTER_THE_LISTING.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::remove_file(target.as_path()).expect("the old decision goes");
+            std::fs::write(target.as_path(), replacement.as_bytes()).expect("the new decision");
+        }));
+    });
+    record.end_group(&[]);
+    AFTER_THE_LISTING.with(|hook| { *hook.borrow_mut() = None; });
+    assert_eq!(std::fs::read_to_string(replaced).expect("the replacement stays"), format!("{WITHDRAWN}:another-token"));
 }
 
 /// The memory of confirmed withdrawals is bounded: past the retention the oldest are forgotten, decision and confirmation together.
@@ -315,7 +375,35 @@ fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
     for round in 0..(WITHDRAWALS_RETAINED + 6) {
         assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
     }
+    // The retention runs on the landing thread, between two groups.
+    record.end_group(&[]);
     let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
     assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
     assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_RETAINED, "a decision never outlives its confirmation, nor the other way");
+}
+
+/// The memory of confirmed withdrawals is bounded while the landing thread is stuck in a write and prunes nothing (sol-1 round 4,
+/// P2): past `WITHDRAWALS_CEILING` confirmed withdrawals the connection threads leave further withdrawals to the landing thread, as
+/// they do when nothing is stuck, instead of adding a decision and a confirmation for each.
+#[test]
+fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
+    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stuck-bound").join("journal");
+    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    let mut withdrawn: usize = 0;
+    for round in 0..(WITHDRAWALS_CEILING + 10) {
+        if matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)) {
+            withdrawn += 1;
+        }
+    }
+    let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
+    assert_eq!(withdrawn, WITHDRAWALS_CEILING, "withdrawals past the bound are left to the landing thread");
+    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_CEILING);
+    assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_CEILING);
+    // The landing thread's retention brings the memory back to the retained number, and withdrawals are answered again.
+    record.end_group(&[]);
+    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
+    assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
 }

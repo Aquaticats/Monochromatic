@@ -12,6 +12,7 @@
 //! const copied = await installSnapshot({ snapshot, destinationRoot, journalState, priorCreations });
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::parallel_budget::{HostResources, sliced_workers};
@@ -258,7 +259,7 @@ fn install_leaves(
     let results: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = std::thread::scope(|scope| {
         let handles: Vec<_> = leaves
             .chunks(slice_length)
-            .map(|slice| return scope.spawn(move || return install_slice(stage_root, destination_root, slice)))
+            .map(|slice| return start_or_run(scope, move || return install_slice(stage_root, destination_root, slice)))
             .collect();
         return handles
             .into_iter()

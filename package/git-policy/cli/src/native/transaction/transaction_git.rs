@@ -338,8 +338,8 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
 }
 
 /// Commands whose second run after a refusal is harmless: they read, or they write content-addressed objects,
-///  or they set the same value again. `symbolic-ref` and `init` are not here: only the forms the wrapper runs may be run again
-///  (`may_be_rerun`).
+///  or they set the same value again. `symbolic-ref` is not here: only the forms the wrapper runs may be run again (`may_be_rerun`).
+///  `init` is not run again in place at all: its one form is ended at a ceiling and restarted in a fresh directory (`may_be_ended`).
 const RERUNNABLE: [&str; 15] = [
     "rev-parse",
     "for-each-ref",
@@ -448,7 +448,6 @@ fn may_be_rerun(request: &GitRequest) -> bool {
         "remote" => return rest.first().is_some_and(|word| { return word == "get-url"; }),
         "add" | "reset" | "read-tree" | "update-index" => return request.index.is_some(),
         "symbolic-ref" => return symbolic_ref_may_be_rerun(&Words::of(rest.as_slice()), request.without_prefix),
-        "init" => return request.without_prefix && is_shadow_creation(&rest),
         other => return RERUNNABLE.contains(&other),
     }
 }
@@ -463,7 +462,7 @@ fn may_be_rerun(request: &GitRequest) -> bool {
 /// ```ts
 /// output.exitCode !== 0 && output.stderr.includes('Resource temporarily unavailable')
 /// ```
-fn refused_by_the_system(output: &GitOutput) -> bool {
+pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
     return output.code != Some(0)
         && String::from_utf8_lossy(output.stderr.as_slice()).contains("Resource temporarily unavailable");
 }
@@ -644,69 +643,11 @@ impl<'a> Words<'a> {
     }
 }
 
-/// The setting that keeps a reference write from appending to a reflog, which the wrapper puts on the command line of every write of
-///  a side ref it wants ended at a ceiling. The repository's own `core.logAllRefUpdates=always` would append a second entry in a
-///  second run, so the setting is on the command line (it wins over the configuration files) and the classifier requires it.
+/// The setting the wrapper puts on the command line of every write of a side ref, with `--no-deref`: a side ref is not created with a
+///  reflog and is not followed through a symbolic ref. It is hygiene and not a proof: the write is never ended at a ceiling, whatever
+///  its argv says, because a reflog that another Git creates between any check and the write is appended to twice by a cut write and
+///  its rerun, and nothing the wrapper holds excludes an ordinary Git (cross-vendor review of round 4, P1 B).
 pub(crate) const NO_REFLOG_SETTING: &str = "core.logAllRefUpdates=false";
-
-/// What:
-///  Whether the last `-c` setting of the global options before the subcommand that names `setting`'s key gives it the value `setting`
-///  gives, and no other option sets the key another way.
-/// Why:
-///   Git takes the last `-c` for a key, so `-c core.logAllRefUpdates=false -c core.logAllRefUpdates=always` logs the update; and a key's
-///  spelling is not case-sensitive, and `--config-env` sets a key too (sol-1 round 2: the classifier requires the exact argv).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const settings = globals.filter(isSettingOf(key)); settings.at(-1) === wanted && !globals.some(isConfigEnvOf(key))
-/// ```
-fn has_global_setting(arguments: &[OsString], setting: &str) -> bool {
-    let Some((key, _)) = setting.split_once('=') else { return false };
-    let mut last: Option<String> = None;
-    let mut index: usize = 0;
-    while index < arguments.len() {
-        let text: String = arguments[index].to_string_lossy().into_owned();
-        if text == "-c" {
-            if let Some(pair) = arguments.get(index + 1).map(|word| { return word.to_string_lossy().into_owned(); })
-                && pair.split_once('=').map_or(pair.as_str(), |(name, _)| { return name; }).eq_ignore_ascii_case(key)
-            {
-                last = Some(pair);
-            }
-            index += 2;
-            continue;
-        }
-        if text == "-C" {
-            index += 2;
-            continue;
-        }
-        if text.starts_with('-') {
-            if text.strip_prefix("--config-env=").is_some_and(|rest| { return rest.split_once('=').map_or(rest, |(name, _)| { return name; }).eq_ignore_ascii_case(key); }) {
-                return false;
-            }
-            index += 1;
-            continue;
-        }
-        break;
-    }
-    return last.as_deref() == Some(setting);
-}
-
-/// Whether `word` names a side ref the wrapper makes for itself: `refs/cli-git/kept/<number>` or
-///  `refs/worktree/cli-git-service/<number>`. The number is all digits, so no `..` and no further path can stand in it. The sequence
-///  number is new at each use, so the ref has no reflog file yet: `core.logAllRefUpdates=false` stops a reflog from being created
-///  but does not stop an append to one that exists, so reusing a number would void the proof. That the ref
-///  is a plain ref and has no reflog is not assumed: the classifier requires `--no-deref` and `NO_REFLOG_SETTING` on the exact
-///  argv (`is_proven_to_run_twice`).
-fn is_side_ref(word: &str) -> bool {
-    return ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"]
-        .iter()
-        .any(|prefix| { return word.strip_prefix(prefix).is_some_and(|number| { return !number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); }); }); });
-}
-
-/// Whether `word` is an object name of full length in hexadecimal.
-fn is_object_id(word: &str) -> bool {
-    return matches!(word.len(), 40 | 64) && word.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
-}
 
 /// What:
 ///  Whether the request's step is one the cut experiment ran twice to the same state, in the exact form it ran.
@@ -717,8 +658,8 @@ fn is_object_id(word: &str) -> bool {
 ///  files a killed Git leaves were removed as the wrapper's sweep removes them, the step was run again, and the refs, reflogs,
 ///  index, worktree, stash list, configuration and every file of the Git directory were compared with an uncut run's.
 ///  This is a whitelist of those forms, parsed by their options and words (sol-1: a rule by the name of the step ended
-///  `config --add`, `stash -m list` and `update-ref --create-reflog`, which are not the forms that were run): `update-ref` set or delete
-///  of one of the wrapper's own side refs, `stash list --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index`
+///  `config --add`, `stash -m list` and `update-ref --create-reflog`, which are not the forms that were run): `stash list --format=%H`,
+///  `clean --force -d`, `read-tree --reset -u <tree>`, `update-index`
 ///  with `--refresh`, with `--index-info` (and `-z`) or with `--add --cacheinfo <triple>`, `add --update` or `add --all` with
 ///  optional pathspecs, `checkout-index --all --force`, `restore` with `--staged`, `--worktree`, `--source=` and paths after `--`,
 ///  `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key> <value>`. The experiment ran these on Git 2.56.0 with
@@ -729,18 +670,10 @@ fn is_object_id(word: &str) -> bool {
 /// ```ts
 /// PROVEN_FORMS.some((form) => form.matches(parse(subcommand, words)))
 /// ```
-fn is_proven_to_run_twice(arguments: &[OsString], name: &str, rest: &[String]) -> bool {
+fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
     let words: Words<'_> = Words::of(rest);
     let no_paths = words.after.is_none();
     return match name {
-        "update-ref" => {
-            // `--no-deref` and the reflog setting are enforced on the argv; the experiment ran the form with both, with the
-            //  configuration saying `always`, and with the ref a symbolic ref to a branch.
-            let plain: bool = words.after.is_none() && words.only_options(&["-d", "--no-deref"]) && words.has("--no-deref") && has_global_setting(arguments, NO_REFLOG_SETTING);
-            let delete: bool = words.has("-d") && words.before.len() == 1 && is_side_ref(words.before[0]);
-            let set: bool = !words.has("-d") && words.before.len() == 2 && is_side_ref(words.before[0]) && is_object_id(words.before[1]);
-            plain && (delete || set)
-        }
         "stash" => rest.first().is_some_and(|first| { return first == "list"; }) && rest.len() == 2 && rest[1] == "--format=%H",
         "clean" => no_paths && words.before.is_empty() && words.only_options(&["--force", "-d"]) && words.has("--force") && words.has("-d"),
         "read-tree" => no_paths && words.before.len() == 1 && words.only_options(&["--reset", "-u"]) && words.has("--reset") && words.has("-u"),
@@ -787,7 +720,13 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
         return true;
     }
     let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
-    return is_proven_to_run_twice(request.arguments.as_slice(), name.as_str(), rest.as_slice());
+    // The shadow's creation cannot be run twice in place (a cut `init` leaves a directory the second run fails in), and it is ended at
+    //  its ceiling because its creator discards that directory and starts a fresh one (`shadow_create.rs`, `init_with_git`), which the
+    //  cut experiment found equal to an uncut run.
+    if name == "init" {
+        return request.without_prefix && is_shadow_creation(&rest);
+    }
+    return is_proven_to_run_twice(name.as_str(), rest.as_slice());
 }
 
 /// What:
@@ -815,14 +754,58 @@ fn step_bound(request: &GitRequest) -> StepBound {
     if may_be_ended(request) {
         return StepBound::EndAt(class_ceiling);
     }
-    if crate::service_busy::on_landing_thread() {
-        return StepBound::Unbounded;
+    // A write of one of the wrapper's own side refs is never ended, but it is not the branch write the owner's "Never cut a branch write
+    //  (Recommended)" is about, and "nothing should ever wait forever or indefinitely" holds for it: even the landing thread stops
+    //  waiting at the bound and leaves it running, with the not-known error.
+    if is_side_ref_write(request) {
+        return leave_running_bound(class_ceiling);
     }
+    return not_ended_bound(class_ceiling);
+}
+
+/// Whether the request is an `update-ref` of one of the wrapper's own side refs, `refs/cli-git/kept/<number>` or
+///  `refs/worktree/cli-git-service/<number>`, with at most `-d` and `--no-deref` and no input: what `keep_unlanded` and the scratch
+///  deletions of `service_land.rs` run.
+fn is_side_ref_write(request: &GitRequest) -> bool {
+    let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else { return false };
+    if name != "update-ref" || request.input.is_some() {
+        return false;
+    }
+    let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    let words: Words<'_> = Words::of(rest.as_slice());
+    let is_side_ref = |word: &str| -> bool {
+        return ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"]
+            .iter()
+            .any(|prefix| { return word.strip_prefix(prefix).is_some_and(|number| { return !number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); }); }); });
+    };
+    return words.after.is_none() && words.only_options(&["-d", "--no-deref"]) && words.before.first().is_some_and(|word| { return is_side_ref(word); });
+}
+
+/// The bound of a step that is never ended and never waited for without a bound, on any thread: left running after the class ceiling
+///  plus the short extra wait.
+fn leave_running_bound(class_ceiling: Duration) -> StepBound {
     #[cfg(test)]
     let extra: Duration = EXTRA_WAIT_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(crate::wait_ceilings::SHORT_EXTRA_WAIT);
     #[cfg(not(test))]
     let extra: Duration = crate::wait_ceilings::SHORT_EXTRA_WAIT;
     return StepBound::LeaveRunning { after: class_ceiling, extra };
+}
+
+/// What:
+///  The bound of a step that is never ended: unbounded on the landing thread, else left running after the class ceiling plus the
+///  short extra wait.
+/// Why:
+///   Both `step_bound` and `step_bound_checked` give a step this bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// onLandingThread() ? unbounded : leaveRunning(classCeiling, SHORT_EXTRA_WAIT)
+/// ```
+fn not_ended_bound(class_ceiling: Duration) -> StepBound {
+    if crate::service_busy::on_landing_thread() {
+        return StepBound::Unbounded;
+    }
+    return leave_running_bound(class_ceiling);
 }
 
 #[cfg(test)]
@@ -900,7 +883,7 @@ pub fn run_git_checked(
 /// ```ts
 /// function checkedFrom(outcome: GitOutput | Error, args: string[]): GitOutput; // throws CommitTransactionGitError
 /// ```
-fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
+pub(crate) fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
     let output: GitOutput = match outcome {
         Ok(finished) => finished,
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {

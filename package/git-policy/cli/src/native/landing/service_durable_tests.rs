@@ -145,3 +145,79 @@ fn a_landing_begun_with_the_index_named_reports_it_hardened_and_the_default_retu
     drop(unhardened);
     assert!(index_is_hardened(), "a dropped landing leaves the default behind");
 }
+
+/// The variable that names the directory the helper below works in; a test run without it does nothing.
+const HELPER_DIRECTORY: &str = "CLI_GIT_DURABLE_HELPER_DIRECTORY";
+
+/// Says whether one thread can start in this process. A test run without the variable does nothing.
+#[test]
+fn thread_probe() {
+    if std::env::var_os(HELPER_DIRECTORY).is_none() {
+        return;
+    }
+    let started: bool = std::thread::Builder::new().spawn(|| {}).is_ok();
+    println!("{}", if started { "thread-started" } else { "thread-refused" });
+}
+
+/// Makes the syncs of a landing, both ways (`force` as a landing that publishes nothing does, `sync_batch` as the background thread does),
+/// in a process of its own that the control below gives no thread to start. A test run without the variable does nothing.
+#[test]
+fn durable_helper() {
+    let Some(named) = std::env::var_os(HELPER_DIRECTORY) else { return };
+    let directory: std::path::PathBuf = std::path::PathBuf::from(named);
+    let pending = |what: &'static str| -> Vec<Pending> {
+        return (0..3).map(|_| { return Pending { handle: File::open(directory.join("record")).expect("open"), what }; }).collect();
+    };
+    let before: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    force(pending("forced"));
+    sync_batch(pending("background"));
+    let made: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
+    std::fs::write(directory.join("done"), made.to_string()).expect("the helper says it finished");
+}
+
+/// A landing whose syncs cannot start a thread makes them on its own thread and does not panic (shipped since 0.5.28: `Scope::spawn`
+/// panics when the system refuses the thread, and the panic on the service's thread took the service down, so the commit could not
+/// land: `a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`, gate of 2026-11-04). The helper runs with
+/// a process limit of one, under which every start of a thread is refused. The control skips where the user may exceed the limit.
+#[test]
+fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_not_panic() {
+    use std::os::unix::process::CommandExt;
+    let apply_limit = || -> std::io::Result<()> {
+        let mut found = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        // SAFETY: `getrlimit` and `setrlimit` are async-signal-safe and read and write only this local value.
+        unsafe {
+            if libc::getrlimit(libc::RLIMIT_NPROC, &mut found) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let lowered = libc::rlimit { rlim_cur: 1, rlim_max: found.rlim_max };
+            if libc::setrlimit(libc::RLIMIT_NPROC, &lowered) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+        }
+        return Ok(());
+    };
+    // The probe is a process of the same program that tries to start one thread under the limit and says what happened.
+    let test_binary: std::path::PathBuf = std::path::PathBuf::from(std::env::args_os().next().expect("the program this test runs as"));
+    let mut probe = std::process::Command::new(test_binary.as_path());
+    probe.args(["--exact", "landing::service_durable::tests::thread_probe", "--nocapture", "--test-threads=1"]).env(HELPER_DIRECTORY, "probe").stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    // SAFETY: between fork and exec only `getrlimit` and `setrlimit` run.
+    unsafe { probe.pre_exec(apply_limit); }
+    if String::from_utf8_lossy(probe.output().expect("the probe runs").stdout.as_slice()).contains("thread-started") {
+        eprintln!("skipped: this user may exceed RLIMIT_NPROC, so no start was refused");
+        return;
+    }
+    let (root, _file) = record("durable-no-thread");
+    let mut helper = std::process::Command::new(test_binary);
+    helper
+        .args(["--exact", "landing::service_durable::tests::durable_helper", "--nocapture", "--test-threads=1"])
+        .env(HELPER_DIRECTORY, root.as_os_str())
+        .stdin(std::process::Stdio::null());
+    // SAFETY: between fork and exec only `getrlimit` and `setrlimit` run.
+    unsafe { helper.pre_exec(apply_limit); }
+    let output = helper.output().expect("the helper runs");
+    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    assert!(output.status.success(), "the helper panicked or failed: {said}");
+    assert!(!said.contains("failed to spawn thread"), "{said}");
+    assert_eq!(std::fs::read_to_string(root.join("done")).expect("the helper finished").trim(), "3", "the background batch was made here, handle by handle: {said}");
+    remove(root.as_path());
+}

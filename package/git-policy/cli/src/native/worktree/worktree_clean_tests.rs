@@ -283,3 +283,11 @@ fn the_cursor_answers_like_a_lookup_of_each_path_alone() {
     }
     remove(root.as_path());
 }
+
+/// Where the system starts no thread the scan for untracked files runs on the calling thread and the verdict is the same (the starts
+/// are refused to this thread by the seam of `scoped_start`).
+#[test]
+fn a_clean_worktree_is_clean_where_no_thread_can_start() {
+    let _refused = crate::scoped_start::RefusedStarts::here();
+    a_clean_worktree_is_clean_and_names_its_head();
+}

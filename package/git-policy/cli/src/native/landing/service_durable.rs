@@ -18,6 +18,7 @@
 //! landing.settle(published); // true: hand the queue to the background thread; false: sync it now
 //! ```
 
+use crate::scoped_start::{Started, start_or_run};
 use std::cell::{Cell, RefCell};
 use std::fs::File;
 use std::sync::OnceLock;
@@ -58,15 +59,26 @@ pub static BACKGROUND_SYNCED: std::sync::atomic::AtomicU64 = std::sync::atomic::
 ///  fail a commit that was already answered, and the next landing or restart handles the record as it would after a power cut.
 fn sync_batch(batch: Vec<Pending>) {
     std::thread::scope(|scope| {
-        for pending in &batch {
-            scope.spawn(move || {
-                if let Err(error) = pending.handle.sync_all() {
-                    crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
-                }
-                BACKGROUND_SYNCED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            });
-        }
+        let started: Vec<_> = batch
+            .iter()
+            .map(|pending| {
+                return start_or_run(scope, move || {
+                    if let Err(error) = pending.handle.sync_all() {
+                        crate::service_warn!("the background sync of the {} failed: {error}", pending.what);
+                    }
+                    BACKGROUND_SYNCED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                });
+            })
+            .collect();
+        say_once_if_inline(started.as_slice());
     });
+}
+
+/// Logs once, for a batch, that a sync was made on the calling thread because the system could not start a thread for it.
+fn say_once_if_inline<T>(started: &[Started<'_, T>]) {
+    if started.iter().any(Started::ran_inline) {
+        crate::service_warn!("the system could not start a thread for a sync of the landing's records; it was made where it was asked for");
+    }
 }
 
 /// The background thread: takes the jobs in order until the sender is gone.
@@ -130,13 +142,17 @@ fn force(batch: Vec<Pending>) {
         crate::service_fault::note(format!("sync-waited:{}", pending.what).as_str());
     }
     std::thread::scope(|scope| {
-        for pending in &batch {
-            scope.spawn(move || {
-                if let Err(error) = pending.handle.sync_all() {
-                    crate::service_warn!("the sync of the {} failed: {error}", pending.what);
-                }
-            });
-        }
+        let started: Vec<_> = batch
+            .iter()
+            .map(|pending| {
+                return start_or_run(scope, move || {
+                    if let Err(error) = pending.handle.sync_all() {
+                        crate::service_warn!("the sync of the {} failed: {error}", pending.what);
+                    }
+                });
+            })
+            .collect();
+        say_once_if_inline(started.as_slice());
     });
 }
 

@@ -93,3 +93,16 @@ fn an_owner_of_another_namespace_with_an_old_item_is_refused_and_named() {
     assert!(item.exists(), "the item is untouched");
     crate::test_support::remove(root.as_path());
 }
+
+/// One decision is made from one reading of the item's age (sol-1 round 3, P1 C): an owner that is young at the first look cannot be
+/// found expired at a second one, and the refusal is never read as "not dead".
+#[test]
+fn an_owner_of_another_namespace_is_judged_from_one_reading_of_its_item() {
+    let item: PathBuf = crate::test_support::fixture("copy-owner-one-reading").join("item");
+    std::fs::write(item.as_path(), b"x").expect("item");
+    let foreign = CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
+    crate::pid_namespace::STANDING_LOOKUPS.with(|count| { count.set(0); });
+    let dead: bool = token_owner_is_dead(Some(foreign.token().as_str()), item.as_path()).expect("a young foreign item");
+    assert!(!dead, "a young item of another namespace is alive");
+    assert_eq!(crate::pid_namespace::STANDING_LOOKUPS.with(std::cell::Cell::get), 1, "the age was read once for the decision");
+}

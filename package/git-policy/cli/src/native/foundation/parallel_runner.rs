@@ -13,6 +13,7 @@
 //! await runOrdered({ items, lanes, workers, work: (index, item, say) => convert(item, say), onEvent });
 //! ```
 
+use crate::scoped_start::{Started, start_or_run};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Sender, channel};
 
@@ -148,10 +149,14 @@ pub fn run_ordered<T: Sync, R: Send>(run: OrderedRun<'_, T, R>) {
     let (sender, receiver) = channel::<Message<R>>();
     let mut cursor: Cursor<R> = Cursor { head: 0, begun: false, held_lines: items.iter().map(|_item: &T| { return Vec::new(); }).collect(), finished: items.iter().map(|_item: &T| { return None; }).collect() };
     std::thread::scope(|scope| {
+        // A worker whose thread cannot start runs its lanes here, before the events are read; a panic it had is raised after them.
+        let mut inline_panic: Option<Box<dyn std::any::Any + Send>> = None;
         for _worker in 0..workers.max(1).min(lanes.len().max(1)) {
             let worker_sender: Sender<Message<R>> = sender.clone();
             let next: &AtomicUsize = &next_lane;
-            scope.spawn(move || { work_lanes((items, lanes, next, work), &worker_sender); });
+            if let Started::Inline(Err(payload)) = start_or_run(scope, move || { work_lanes((items, lanes, next, work), &worker_sender); }) {
+                inline_panic.get_or_insert(payload);
+            }
         }
         drop(sender);
         cursor.advance(on_event);
@@ -167,6 +172,9 @@ pub fn run_ordered<T: Sync, R: Send>(run: OrderedRun<'_, T, R>) {
                 Message::Done(index, result) => cursor.finished[index] = Some(result),
             }
             cursor.advance(on_event);
+        }
+        if let Some(payload) = inline_panic {
+            std::panic::resume_unwind(payload);
         }
     });
 }

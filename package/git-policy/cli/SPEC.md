@@ -1381,33 +1381,137 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   Only a step that is safe to run twice is ended: the reads, the writers of content-addressed objects and the changes
   of a
   private index (`may_be_rerun`).
-  A step keeps a ceiling only when `may_be_ended` in `src/native/transaction/transaction_git.rs` says so. The owner decided it for
-  the branch write on 2026-11-04 ("Never cut a branch write (Recommended)"), and the coordinator's follow-up made the owner's
-  criterion the rule for every step: a step keeps its ceiling exactly when it can run twice, decided by cutting it at every
-  mutating system call with `SIGKILL` and `SIGTERM`, running it again, and comparing the end state with an uncut run's
-  (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The rule is a whitelist of the exact forms the experiment
-  ran, parsed by their options and words, so a form it did not run has no ceiling: `update-ref` set or delete of one numbered side
-  ref (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`) only with `--no-deref` and with
-  `-c core.logAllRefUpdates=false` on the same argv as the last setting of that key (Git takes the last; `--config-env` of the key is refused too), which the wrapper passes at each of its call sites in
-  `src/native/landing/service_land.rs` (the repository's own `core.logAllRefUpdates=always` and a side ref that is a symbolic ref
-  were both run), `stash list
-  --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index` with only `--refresh`, only `--index-info` (and
-  `-z`), or `--add --cacheinfo <triple>`, `add` with `--update` or `--all`, `checkout-index --all --force`, `restore` with
-  `--staged`, `--worktree`, `--source=` and paths after `--`, `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key>
-  <value>`; and the steps `RERUNNABLE` names, and the readers and writers of unreferenced objects (`rev-list`, `merge-base`, `log`,
-  `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`, `fmt-merge-msg`, `show-ref`, `name-rev`,
-  `commit-tree`, `mktree`; `fast-import` is not among them: its input can update and checkpoint branches, and the experiment ran the
-  wrapper's own stream and found a marks lock a cut left that the second run could not pass). `RERUNNABLE` no longer names
-  `symbolic-ref` or `init`: `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the
-  wrapper made, as a write of one name to one target with no option (identical in the experiment), and `init` only as the shadow's
-  creation (the one argv `shadow_create.rs` runs, on a shadow request), which the experiment found different after a second run (reftable names are random) and
-  which is private and thrown away with its transaction when it fails. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
-  `checkout`, `switch`, `config --add`, `gc` and the rest, is never ended. On the commit service's landing thread such a step is
-  announced at the usual interval and waited for as long as it lives. Any other command stops waiting at the bound of the step's
-  class plus `SHORT_EXTRA_WAIT` (7 seconds; the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
-  names the step and its command line and says it was left running, so the result is not known, with `git status`, `git log -1`
-  and `ps` to check. The step writes its output into anonymous files, not pipes (`src/native/process/output_capture.rs`), so it
-  does not die of `SIGPIPE` when the command exits, and the system's init or subreaper reaps it.
+  A step keeps a ceiling only when `may_be_ended` in `src/native/transaction/transaction_git.rs` says so.
+  The owner decided it for
+  the branch write on 2026-11-04 ("Never cut a branch write (Recommended)"),
+  and the coordinator's follow-up made the owner's
+  criterion the rule for every step:
+  a step keeps its ceiling exactly when it can run twice,
+  decided by cutting it at every
+  mutating system call with `SIGKILL` and `SIGTERM`,
+  running it again,
+  and comparing the end state with an uncut run's
+  (`doc/planning/cli-git-no-unbounded-waits.md`,
+  "The cut experiment").
+  The rule is a whitelist of the exact forms the experiment
+  ran,
+  parsed by their options and words,
+  so a form it did not run has no ceiling:
+  `stash list
+  --format=%H`,
+  `clean --force -d`,
+  `read-tree --reset -u <tree>`,
+  `update-index` with only `--refresh`,
+  only `--index-info` (and
+  `-z`),
+  or `--add --cacheinfo <triple>`,
+  `add` with `--update` or `--all`,
+  `checkout-index --all --force`,
+  `restore` with
+  `--staged`,
+  `--worktree`,
+  `--source=` and paths after `--`,
+  `reset [--quiet] <commit> -- <paths>`,
+  and `config [--local] <key>
+  <value>`;
+  and the steps `RERUNNABLE` names,
+  and the readers and writers of unreferenced objects (`rev-list`,
+  `merge-base`,
+  `log`,
+  `ls-tree`,
+  `status`,
+  `var`,
+  `diff-files`,
+  `check-attr`,
+  `check-ignore`,
+  `stripspace`,
+  `fmt-merge-msg`,
+  `show-ref`,
+  `name-rev`,
+  `commit-tree`,
+  `mktree`).
+  `fast-import` is not among them:
+  its input can update and checkpoint branches,
+  and the experiment ran the
+  wrapper's own stream and found a marks lock a cut left that the second run could not pass.
+  What bounds it now is the rule for every
+  step that cannot run twice:
+  on the landing thread it is waited for as long as it lives,
+  with the clients behind it told what it is
+  stuck in;
+  a person's command that started it stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT` (7 seconds,
+  the owner's
+  "Class ceiling + 7 s (Recommended)") and says the result is not known.
+  `RERUNNABLE` names neither `symbolic-ref` nor `init`:
+  `symbolic-ref` may be run again as a read (`--quiet`,
+  `--short`,
+  one name) or,
+  on a shadow repository the wrapper made,
+  as a write
+  of one name to one target with no option (identical in the experiment).
+  `init` is never run again in place (a cut leaves reftable
+  tables the second run does not replace:
+  50 of 104 cuts differed);
+  its one form,
+  the argv `shadow_create.rs` runs on a shadow
+  request,
+  keeps its ceiling because `init_with_git` discards the partial directory and starts a fresh one when the start was cut,
+  refused as a finished command,
+  or refused before the command ran (`EAGAIN`;
+  other I/O errors are not retried),
+  at most
+  `SHADOW_CREATION_ATTEMPTS` (2) times,
+  which the experiment found identical to an uncut run in 104 of 104 cuts;
+  a shadow whose `init`
+  is cut every time fails its transaction.
+  No `update-ref` keeps a ceiling,
+  the write of a side ref included
+  (`refs/cli-git/kept/<number>`,
+  `refs/worktree/cli-git-service/<number>`,
+  written by `keep_unlanded` and the scratch deletions in
+  `src/native/landing/service_land.rs`):
+  a reflog that another Git creates between any check and the write is appended to twice by a
+  cut write and its rerun,
+  `core.logAllRefUpdates=false` does not stop an append to a log that exists,
+  and nothing the wrapper holds
+  excludes an ordinary Git.
+  The wrapper still passes `--no-deref` and that setting at those call sites,
+  as hygiene and not as a proof.
+  A write of a side ref is never ended,
+  but it is not the branch write that the owner's "Never cut a branch write (Recommended)" covers,
+  and "nothing should ever wait forever or indefinitely" holds for it:
+  even the landing thread stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT`,
+  gets the not-known error,
+  and the step is left running (`is_side_ref_write`,
+  `leave_running_bound`).
+  A `keep_unlanded` that gets it tells the person the commit could not be confirmed on its side ref;
+  a scratch deletion ignores it.
+  Everything else,
+  every other `update-ref`,
+  `stash`,
+  `merge`,
+  `reset`,
+  `read-tree`,
+  `checkout`,
+  `switch`,
+  `config --add`,
+  `gc` and the rest,
+  is never ended.
+  On the commit service's landing thread such a step is
+  announced at the usual interval and waited for as long as it lives.
+  Any other command stops waiting at the bound of the step's
+  class plus `SHORT_EXTRA_WAIT` (7 seconds;
+  the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
+  names the step and its command line and says it was left running,
+  so the result is not known,
+  with `git status`,
+  `git log -1`
+  and `ps` to check.
+  The step writes its output into anonymous files,
+  not pipes (`src/native/process/output_capture.rs`),
+  so it
+  does not die of `SIGPIPE` when the command exits,
+  and the system's init or subreaper reaps it.
 - The person's hook is never ended.
   No hook of the person runs below a step the wrapper starts, because every Git the wrapper starts carries
   `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`), so the watch
@@ -1587,29 +1691,80 @@ What happens at the bound, on the commit path:
   (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
   not begun to land. Admission and cancellation are one decision per request: the file `<id>.decision` in the journal's `busy`
   directory, made with `link(2)` of a whole file, which exactly one side can create (`landing` by the landing thread before it
-  lands the request, `withdrawn` by a connection thread before it answers). A `withdrawn` decision is provisional until its maker has
-  checked the journal once more and created the file `<id>.cancelled`; only a decision with that file is acknowledged to a client or
-  kept, and a maker that finds the request landed, open or unknown removes its decision, which nobody has acknowledged, so no
-  observer reports a cancellation that is later undone. A `withdrawn` decision with its `.cancelled` file stays as a tombstone, so every
-  copy of the request that reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches, and
-  cleared when the service starts like the service's own memory of withdrawals); a `landing` decision is removed when its group is
-  done, after the batch is in the journal, and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
-  request the journal names. A request that a batch still open names is left to the landing thread. Whatever cannot be established
-  (a file that cannot be made or read, a journal that cannot be read whole) is never evidence of a cancellation: the withdrawal goes
-  to the landing thread, and a request that cannot be admitted is answered with a failure and not landed. So a commit queued behind
-  the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`, with the write named in the error and the log and
-  restart commands as the way out. A request that is the landing thread's is not withdrawn that way, because its commit may be made
-  by the write: the service sends its client, when the write starts and on the connection it opens to withdraw too, the same
-  `waiting` line with one more field, `"inside_write": true` (a client that does not know the field reads a plain `waiting`
-  notice, a service that does not send it leaves a client that does on the older path, and the protocol version stays 7), and that
-  client, at its original `ANSWER_CEILING` deadline plus `SHORT_EXTRA_WAIT` (7 seconds: the owner's "7 s (Recommended)", twice the
-  longest of 2,093 reference updates, 3,438 ms), does not ask to be withdrawn but listens for the landing and then ends with the
-  "not known whether the commit was made" failure, which names the write and the scratch ref and says `git log -1` and `git status`;
-  the write is left running and the commit lands when it returns. A client that is never told takes the older path and waits
-  `WITHDRAW_CEILING`. The record holds no lock (the owner: "Use as few locks as possible."), and the directory is emptied when the
-  service starts. Protocol messages are unchanged.
-  A client that waits behind a hung write keeps the service busy only as long as the write lasts; nothing in the wrapper ends it.
-- A merge waits for a foreign `index.lock` until `LOCK_CEILING`; at the bound it names the holder and ends the wait,
+  lands the request, `withdrawn:<token>` by a connection thread before it answers, the token being the maker's own). A `withdrawn`
+  decision is provisional until its maker has checked the journal once more and created the file `<id>.<token>.cancelled` with the
+  token the decision carries;
+  only a decision whose own confirmation exists is acknowledged to a client or kept,
+  and a maker that
+  finds the request landed,
+  open or unknown removes its decision,
+  which nobody has acknowledged,
+  so no observer reports a
+  cancellation that is later undone.
+  A confirmation belongs to one decision:
+  one that outlives its decision confirms nothing of the
+  decision that replaces it.
+  A `withdrawn` decision with its confirmation stays as a tombstone,
+  so every copy of the request that
+  reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches,
+  forgotten oldest first by the landing
+  thread alone,
+  between two groups,
+  and while it is stuck in a write the record holds at most twice that number:
+  past it the connection
+  threads leave withdrawals to the landing thread,
+  which removes a decision only while it still carries the token of the confirmation it removes;
+  the
+  memory is cleared when the service starts like the service's own memory of withdrawals);
+  a `landing` decision is removed when its group is
+  done,
+  after the batch is in the journal,
+  and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
+  request the journal names.
+  A request that a batch still open names is left to the landing thread.
+  Whatever cannot be established
+  (a file that cannot be made or read,
+  a journal that cannot be read whole) is never evidence of a cancellation:
+  the withdrawal goes
+  to the landing thread,
+  and a request that cannot be admitted is answered with a failure and not landed.
+  So a commit queued behind
+  the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`,
+  with the write named in the error and the log and
+  restart commands as the way out.
+  A request that is the landing thread's is not withdrawn that way,
+  because its commit may be made
+  by the write:
+  the service sends its client,
+  when the write starts and on the connection it opens to withdraw too,
+  the same
+  `waiting` line with one more field,
+  `"inside_write": true` (a client that does not know the field reads a plain `waiting`
+  notice,
+  a service that does not send it leaves a client that does on the older path,
+  and the protocol version stays 7),
+  and that
+  client,
+  at its original `ANSWER_CEILING` deadline plus `SHORT_EXTRA_WAIT` (7 seconds:
+  the owner's "7 s (Recommended)",
+  twice the
+  longest of 2,093 reference updates,
+  3,438 ms),
+  does not ask to be withdrawn but listens for the landing and then ends with the
+  "not known whether the commit was made" failure,
+  which names the write and the scratch ref and says `git log -1` and `git status`;
+  the write is left running and the commit lands when it returns.
+  A client that is never told takes the older path and waits
+  `WITHDRAW_CEILING`.
+  The record holds no lock (the owner:
+  "Use as few locks as possible."),
+  and the directory is emptied when the
+  service starts.
+  Protocol messages are unchanged.
+  A client that waits behind a hung write keeps the service busy only as long as the write lasts;
+  nothing in the wrapper ends it.
+- A merge waits for a foreign `index.lock` until `LOCK_CEILING`;
+  at the bound it names the holder and ends the wait,
   and Git's own
   refusal ends the merge non-zero with nothing changed.
   The index reconciliation of a commit with no change left ends the same
@@ -1671,33 +1826,104 @@ of a conversion claim (`single_owner_claim.rs`), and the journals and stage clai
 
 #### Output of a step, the review runner, and releases that meet
 
-- The output of a step the wrapper started (`src/native/process/output_capture.rs`) is read once, when the step has ended or the
-  command has stopped waiting for it, as a snapshot of the last `STEP_OUTPUT_LIMIT` (8 MiB) bytes of each stream as the files were
-  sized when the read began. What was left out is said in the text the person sees ("N bytes at the start ... are left out"), and
-  a read that fails is said too and is never taken for the end of the output. A descendant that keeps appending after its leader
-  has exited therefore holds nothing up. The files are emptied (`ftruncate`) once nobody will read them, which frees what was
-  written until then; a step left running that keeps writing is held in memory by the kernel (it is anonymous memory of the step's
-  own output file) until the step ends or closes its output, which nothing in the wrapper bounds, and a very verbose step left
-  running can use memory in proportion to what it writes after the command has gone. A step the wrapper stops at its ceiling is
-  stopped with its whole process group, and the leader is reaped within `STOP_GRACE`: a leader that does not end then (an
-  uninterruptible wait for the disk) is handed to a reaper thread, and the command goes on.
-- The review of the commit service (`standards_review_run.rs`) admits one job at a time in one atomic step: a state of a
-  generation and a status, changed by compare-and-swap, so two callers that arrive together are never admitted both, and the
-  release of the state runs from a guard when the job's thread unwinds, so a review that panics after its timeout leaves nothing
-  outstanding. The look at the review's log runs inside the contained job.
-- Releases that meet. The protocol version stays 7 and no message changes: `waiting` with `"inside_write": true`, `withdraw` and
-  `withdrawn` are the messages of 0.5.31 and 0.5.33. A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
-  it was released with: a classifier by the name of the step, a decision race between landing and withdrawal that this release
-  closes, a step left running that dies of `SIGPIPE` when its command exits, and no snapshot bound on output. A client of those
-  releases sends its withdrawal on a connection that the service of this release answers, but it does not take the shortened
-  deadline a late `inside_write` notice gives, and this release's client against a service of those releases may get no timely
-  notice and then keeps to the longer withdrawal path (`WITHDRAW_CEILING`). Installing a new executable does not repair a service
-  that is running: the first connection of the new release sends it a `retire`, which it handles between batches, and waits for it
-  to leave for `START_WAIT`; a service in the middle of a write is never stopped by the wrapper, and the command that waited ends
-  with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again. The single service of the releases before one service per
-  worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it, because the manager's
-  stop ends the whole unit and with it a Git step that cannot run twice; one that is still there fails the commit with the stop
-  named for the person to run when no commit is running. Test: `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
+- The output of a step the wrapper started (`src/native/process/output_capture.rs`) is read once,
+  when the step has ended or the
+  command has stopped waiting for it,
+  as a snapshot of the last `STEP_OUTPUT_LIMIT` (8 MiB) bytes of each stream as the files were
+  sized when the read began.
+  What was left out is said in the text the person sees ("N bytes at the start ... are left out"),
+  and
+  a read that fails is said too and is never taken for the end of the output.
+  The notes reach the person with a failure of a repair tool
+  and are kept in the tool's result,
+  where a reader of its output (the `cargo metadata` of a repair) refuses output that was not taken
+  whole.
+  The files are emptied after the read on every path that ends a step,
+  a stop included.
+  A descendant that keeps appending after its leader
+  has exited therefore holds nothing up.
+  The files are emptied (`ftruncate`) once nobody will read them,
+  which frees what was
+  written until then;
+  a step left running that keeps writing is held in memory by the kernel (it is anonymous memory of the step's
+  own output file) until the step ends or closes its output,
+  which nothing in the wrapper bounds,
+  and a very verbose step left
+  running can use memory in proportion to what it writes after the command has gone.
+  A step the wrapper stops at its ceiling is
+  stopped with its whole process group,
+  and the leader is reaped within `STOP_GRACE`:
+  a leader that does not end then (an
+  uninterruptible wait for the disk) is handed to a reaper thread,
+  and the command goes on.
+- The review of the commit service (`standards_review_run.rs`) admits one job at a time in one atomic step:
+  a state of a
+  generation and a status,
+  changed by compare-and-swap,
+  so two callers that arrive together are never admitted both,
+  and the
+  release of the state runs from a guard when the job's thread unwinds,
+  so a review that panics after its timeout leaves nothing
+  outstanding.
+  The look at the review's log runs inside the contained job.
+  A caller whose wait ran out and who finds the job released waits for
+  its value at most `SHORT_EXTRA_WAIT` (7 seconds):
+  the release does not prove the value was sent.
+- Threads that cannot start.
+  A thread is only a way to do work sooner,
+  so no shipped site panics when the system gives none
+  (`Scope::spawn` did,
+  since 0.5.28:
+  on the service's thread it took the service down and the commit could not land).
+  A scoped start
+  (`src/native/foundation/scoped_start.rs`,
+  `start_or_run`) runs the work on the calling thread when the thread is refused,
+  and logs
+  it once for the syncs of a landing;
+  the second-pass input thread of a reconcile reports and stops its command instead,
+  because
+  writing the input in turn could block on a full pipe.
+  The sites and their controls are listed in
+  `doc/planning/cli-git-no-unbounded-waits.md`,
+  "Round 5".
+- Releases that meet.
+  The protocol version stays 7 and no message changes:
+  `waiting` with `"inside_write": true`,
+  `withdraw` and
+  `withdrawn` are the messages of 0.5.31 and 0.5.33.
+  A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
+  it was released with:
+  a classifier by the name of the step,
+  a decision race between landing and withdrawal that this release
+  closes,
+  a step left running that dies of `SIGPIPE` when its command exits,
+  and no snapshot bound on output.
+  A client of those
+  releases sends its withdrawal on a connection that the service of this release answers,
+  but it does not take the shortened
+  deadline a late `inside_write` notice gives,
+  and this release's client against a service of those releases may get no timely
+  notice and then keeps to the longer withdrawal path (`WITHDRAW_CEILING`).
+  Installing a new executable does not repair a service
+  that is running:
+  the first connection of the new release sends it a `retire`,
+  which it handles between batches,
+  and waits for it
+  to leave for `START_WAIT`;
+  a service in the middle of a write is never stopped by the wrapper,
+  and the command that waited ends
+  with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again.
+  The single service of the releases before one service per
+  worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it,
+  because the manager's
+  stop ends the whole unit and with it a Git step that cannot run twice;
+  one that is still there fails the commit with the stop
+  named for the person to run when no commit is running.
+  The owner chose this on 2026-11-04 ("A:
+  fail,
+  retry (Recommended)").
+  Test:
+  `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
 
 
 #### Commands that add commits

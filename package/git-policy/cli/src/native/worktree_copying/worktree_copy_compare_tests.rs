@@ -285,3 +285,13 @@ fn a_replaced_source_file_fails_the_final_check() {
     assert!(final_check(source.as_path(), stage.as_path(), entries.as_slice(), stamps.as_slice()).is_err());
     remove(root.as_path());
 }
+
+/// Where the system starts no thread the two manifest walks run one after the other and the final check still passes. The body runs in
+/// a child that is refused every thread.
+#[test]
+fn the_final_check_where_no_thread_can_start_walks_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "the_final_check_where_no_thread_can_start_walks_in_turn") {
+        return;
+    }
+    unchanged_source_passes_final_check();
+}

@@ -354,3 +354,21 @@ fn an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes()
     assert!(merge_intents_to_recover(world.git_dir.as_path()).is_err(), "the check that decides whether recovery is needed refuses as well");
     remove(world.parent.as_path());
 }
+
+/// Records `[dead A, expired-foreign B]`: recovery refuses before it settles A (sol-1 round 3, P1 C: the refusal said nothing was
+/// changed after the first record had been settled).
+#[test]
+fn an_old_record_of_another_namespace_after_a_dead_one_stops_recovery_before_the_dead_one_is_settled() {
+    let world: World = world("merge-recovery-foreign-after-dead");
+    let dead: PathBuf = record_of(&world, dead_owner("00000000-0000-4000-8000-000000000001"), Some("refs/heads/main"));
+    let mut owner: TransactionOwner = dead_owner("ffffffff-0000-4000-8000-000000000002");
+    owner.owner_pid_namespace = Some(String::from("pid:[4026531999]"));
+    owner.owner_pid = 31337;
+    let foreign: PathBuf = record_of(&world, owner, Some("refs/heads/main"));
+    std::fs::File::options().write(true).open(foreign.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age the record");
+    assert!(dead.file_name() < foreign.file_name(), "the dead owner's record is read first");
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect_err("an expired foreign record is refused");
+    assert!(refused.0.contains("31337"), "{}", refused.0);
+    assert!(dead.exists() && foreign.exists(), "nothing was settled before the refusal");
+    remove(world.parent.as_path());
+}
