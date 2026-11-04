@@ -72,3 +72,39 @@ fn the_printed_record_command_writes_valid_json_for_a_path_with_quotes_and_backs
     let record: serde_json::Value = serde_json::from_str(&record_text).unwrap_or_else(|error| { panic!("the record is not JSON ({error}): {record_text}"); });
     assert_eq!(record.get("real").and_then(serde_json::Value::as_str), Some(executable.to_str().expect("utf-8")), "{record_text}");
 }
+
+/// Sixth pass, group 12 (V3): a new journal is made durable and then the name that lists it, in that order, before `begin` returns and
+/// so before any recorded child can start. Each barrier is failed on its own: the transaction is refused, with the fault reached, the
+/// error naming the barrier, and the "journal published" event absent.
+#[test]
+fn a_failed_barrier_of_the_new_journal_refuses_the_transaction_before_anything_can_start() {
+    use crate::failpoints::{Point, arm, fires};
+    let root = scratch();
+    fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "live").expect("lock");
+    let snapshots: Vec<LockSnapshot> = vec![LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() }];
+
+    // The order of the two barriers on success.
+    let _ = crate::bounded_run::take_trace_for_test();
+    let transaction = crate::journal::begin(root.path(), &snapshots, false).expect("a transaction begins");
+    let events: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("journal "); }).collect();
+    assert_eq!(events, ["journal directory synced", "journal published"]);
+    drop(transaction);
+
+    for (point, reason, surviving_events) in [(Point::JournalDirectorySync, "journal directory", 0), (Point::JournalParentSync, "journal's name", 1)] {
+        let other = scratch();
+        fs::create_dir_all(other.path().join(CRATE_DIR)).expect("dir");
+        fs::write(other.path().join(CRATE_DIR).join("Cargo.lock"), "live").expect("lock");
+        arm(point);
+        let _ = crate::bounded_run::take_trace_for_test();
+
+        let refused = crate::journal::begin(other.path(), &snapshots, false);
+
+        assert!(!fires(point), "{point:?}: the barrier was never reached");
+        let message: String = refused.err().map(|error| { return error.to_string(); }).unwrap_or_else(|| { panic!("{point:?}: a transaction began although a barrier of its journal failed"); });
+        assert!(message.contains(reason), "{point:?}: {message}");
+        let events: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("journal "); }).collect();
+        assert_eq!(events.len(), surviving_events, "{point:?}: {events:?}");
+        assert!(!events.iter().any(|event| { return event == "journal published"; }), "{point:?}: {events:?}");
+    }
+}

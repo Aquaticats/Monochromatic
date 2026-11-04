@@ -526,8 +526,22 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         write_ready(&directory, &listed, false)?;
         at_step("ready");
     }
-    sync_directory(&directory)?;
-    sync_directory(&journals)?;
+    // The journal and then the name that lists it are made durable before any recorded child can start. A test replaces the result of
+    // each barrier, so a failure takes the path of a failure of the kernel (round 21, sixth pass, V3).
+    #[cfg(test)]
+    let own_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalDirectorySync) { Err(io::Error::other("injected failure to make the journal directory durable")) } else { sync_directory(&directory) };
+    #[cfg(not(test))]
+    let own_barrier: io::Result<()> = sync_directory(&directory);
+    own_barrier?;
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "journal directory synced".to_string(); });
+    #[cfg(test)]
+    let parent_barrier: io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::JournalParentSync) { Err(io::Error::other("injected failure to make the journal's name durable")) } else { sync_directory(&journals) };
+    #[cfg(not(test))]
+    let parent_barrier: io::Result<()> = sync_directory(&journals);
+    parent_barrier?;
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return "journal published".to_string(); });
     // `Some`: the present or the absent value of an `Option`.
     let scope: RunScope = RunScope::open(directory.join(GROUPS_FILE));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
