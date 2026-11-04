@@ -46,6 +46,8 @@ pub const GUARD_VARIABLE: &str = "CARGO_SHADOW_GUARD";
 /// so a
 /// longer chain means the guard did not do its job,
 /// and a message is better than a loop.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 pub const MAX_HOPS: u32 = 8;
 
 /// What:

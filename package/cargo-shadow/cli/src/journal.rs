@@ -176,8 +176,8 @@ pub(crate) const GROUPS_FILE: &str = "groups";
 /// "Warn past a count,
 /// never refuse (Recommended)":
 /// nothing is refused or deleted past it.
-/// The value is the warning point carried over from round 5,
-/// open to veto;
+/// The value is the warning point carried over from round 5, a delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open;
 /// the rate at which files are kept has not been measured.
 pub const KEPT_FILES_WARNING_COUNT: usize = 1_000;
 

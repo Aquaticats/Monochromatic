@@ -422,13 +422,8 @@ pub struct Seams<'a> {
 
 /// The most names tried when a kept file's name is taken,
 /// and the most temporary names tried.
-/// Implementer's pick,
-/// open to veto,
-/// made under the owner's delegation of 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back.";
-/// doc/planning/cargo-shadow-update.md),
-/// which may not reach a later round;
-/// not a measurement.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 /// Collisions were not counted;
 /// the names carry the process id,
 /// a nanosecond clock and a counter,

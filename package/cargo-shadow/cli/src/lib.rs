@@ -366,6 +366,10 @@ mod cgroup_probe_tests;
 mod cgroup_test_support;
 #[cfg(test)]
 mod survivor_discovery_tests;
+#[cfg(test)]
+mod finish_phase_tests;
+#[cfg(test)]
+mod containment_record_tests;
 
 /// Helpers the journal tests share.
 #[cfg(test)]

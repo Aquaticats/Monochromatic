@@ -86,13 +86,8 @@ use crate::manifest_edit::ManifestEdit;
 use crate::journal_finish::FinishError;
 
 /// The most journal names tried when one exists already.
-/// Implementer's pick,
-/// open to veto,
-/// made under the owner's delegation of 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back.";
-/// doc/planning/cargo-shadow-update.md),
-/// which may not reach a later round;
-/// not a measurement.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 /// The names carry a clock,
 /// a process id and a counter,
 /// so a second try is the exception;
@@ -544,6 +539,20 @@ impl Transaction {
     /// ```
     pub fn writers_may_remain(&self) -> bool {
         return self.scope.writers_may_remain();
+    }
+
+    /// What:
+    /// `pub fn process_group_only(&self) -> bool` says whether a run of this transaction was contained by a process group only,
+    /// because no control group could be had.
+    /// Why:
+    /// Quiescence was not shown for what leaves a process group.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// processGroupOnly(): boolean
+    /// ```
+    pub fn process_group_only(&self) -> bool {
+        return self.scope.process_group_only();
     }
 
     /// What:

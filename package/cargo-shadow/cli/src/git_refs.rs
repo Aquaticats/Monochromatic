@@ -131,8 +131,9 @@ pub struct GitProgram {
 /// all in a warm repository.
 /// A minute is about 3,000 times the slowest of these and leaves room for a cold disk or a promisor fetch,
 /// neither of which was measured.
-/// The owner's rule of 2026-11-03 justifies that a bound exists,
-/// not this number.
+/// The owner's rule of 2026-11-03 justifies that a bound exists;
+/// the number is a Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open.
 pub const GIT_CALL_SECONDS: u64 = 60;
 
 /// The methods of the type above.

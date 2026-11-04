@@ -193,24 +193,14 @@ const API_URL: &str = "https://crates.io/api/v1";
 pub const API_MIN_INTERVAL: Duration = Duration::from_millis(1_100);
 
 /// How many times a rate-limited request is tried.
-/// Implementer's pick,
-/// open to veto,
-/// made under the owner's delegation of 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back.";
-/// doc/planning/cargo-shadow-update.md),
-/// which may not reach a later round;
-/// not a measurement.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 /// The number of 429 answers crates.io gives in a row was not observed.
 const RATE_LIMIT_ATTEMPTS: u32 = 5;
 
 /// The longest pause for an HTTP 429 that cargo-shadow sits through.
-/// Implementer's pick,
-/// open to veto,
-/// made under the owner's delegation of 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back.";
-/// doc/planning/cargo-shadow-update.md),
-/// which may not reach a later round;
-/// not a measurement.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 /// No `Retry-After` value was observed in this repository's logs or runs.
 /// Two minutes assumes crates.io asks for seconds;
 /// a longer request ends the call,
@@ -219,13 +209,8 @@ const MAX_PAUSE: Duration = Duration::from_secs(120);
 
 /// The first backoff when a 429 carries no `Retry-After`;
 /// it doubles each attempt.
-/// Implementer's pick,
-/// open to veto,
-/// made under the owner's delegation of 2026-11-03 ("Pick options as if I had picked them and invite
-/// veto when I say I'm back.";
-/// doc/planning/cargo-shadow-update.md),
-/// which may not reach a later round;
-/// not a measurement.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 /// Used only when a 429 carries no `Retry-After`;
 /// the values crates.io sends were not observed.
 const RATE_LIMIT_BACKOFF: Duration = Duration::from_secs(30);
@@ -278,6 +263,8 @@ pub trait Registry {
 pub const DATABASE_DUMP_URL: &str = "https://static.crates.io/db-dump.tar.gz";
 
 /// How many uncached crates make the dump cheaper than the API (one request per 1.1 seconds each).
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 pub const DUMP_BREAKEVEN_CRATES: usize = 100;
 
 /// The sparse index path of a crate:

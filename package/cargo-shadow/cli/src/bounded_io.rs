@@ -41,16 +41,16 @@ use rustix::fs::{OFlags, fcntl_setfl};
 use rustix::io::Errno;
 
 /// How long a worker waits before it asks a pipe again.
-/// Round 6 pick,
-/// open to veto:
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open:
 /// short against the 10 ms process polling of the runner,
 /// so a cancelled worker ends
 /// within one runner poll.
 const RETRY_INTERVAL: Duration = Duration::from_millis(5);
 
 /// The size of one read.
-/// Round 6 pick,
-/// open to veto:
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open:
 /// the default pipe capacity of Linux (64 KiB).
 const CHUNK_BYTES: usize = 64 * 1024;
 
