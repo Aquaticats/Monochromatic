@@ -28,7 +28,7 @@ pub struct Capture {
     err: File,
 }
 
-/// One anonymous file: a `memfd` where the system has them, otherwise the unnamed file `tmpfile` makes.
+/// One anonymous file: a `memfd`, where the system has them.
 fn anonymous_file() -> std::io::Result<File> {
     #[cfg(target_os = "linux")]
     {
@@ -41,22 +41,11 @@ fn anonymous_file() -> std::io::Result<File> {
         // SAFETY: the descriptor is new, open, and owned by nothing else.
         return Ok(unsafe { File::from_raw_fd(descriptor) });
     }
+    // UNTESTED ON OTHER SYSTEMS: only Linux has `memfd_create`, and the owner said to ignore macOS until told. An unnamed file made by
+    // C's `tmpfile` would be made in `/tmp`, which this repository never uses (the device behind it is unknowable), so there is none.
     #[cfg(not(target_os = "linux"))]
     {
-        use std::os::unix::io::FromRawFd;
-        // SAFETY: `tmpfile` returns a stream on an unnamed file or null; its descriptor is duplicated and the stream closed.
-        unsafe {
-            let stream: *mut libc::FILE = libc::tmpfile();
-            if stream.is_null() {
-                return Err(std::io::Error::last_os_error());
-            }
-            let duplicate: libc::c_int = libc::dup(libc::fileno(stream));
-            libc::fclose(stream);
-            if duplicate < 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            return Ok(File::from_raw_fd(duplicate));
-        }
+        return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "anonymous output files need memfd_create, which this system lacks"));
     }
 }
 

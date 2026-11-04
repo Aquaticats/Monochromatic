@@ -723,9 +723,9 @@ pub fn output_watched_within(
             // goes on; the thread reaps it when it ends.
             let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
             let waiter = std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
-                let mut child: Child = child;
+                let mut leaving: Child = child;
                 // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
-                let _abandoned = sender.send(child.wait());
+                let _abandoned = sender.send(leaving.wait());
             });
             if let Err(error) = waiter {
                 watch.end();
@@ -741,8 +741,8 @@ pub fn output_watched_within(
         }
         StepBound::EndAt(_) => child.wait_with_output(),
         StepBound::Unbounded => {
-            let mut child: Child = child;
-            child.wait().map(|status| { return output_of(status, captured.as_ref()); })
+            let mut waited_for: Child = child;
+            waited_for.wait().map(|status| { return output_of(status, captured.as_ref()); })
         }
     };
     watch.end();

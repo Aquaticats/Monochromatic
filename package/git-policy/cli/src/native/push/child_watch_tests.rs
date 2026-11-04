@@ -507,8 +507,8 @@ const HELPER_DIRECTORY: &str = "CLI_GIT_LEFT_RUNNING_DIRECTORY";
 /// variable does nothing, so this is a no-op in a normal run.
 #[test]
 fn left_running_helper() {
-    let Some(directory) = std::env::var_os(HELPER_DIRECTORY) else { return };
-    let directory: PathBuf = PathBuf::from(directory);
+    let Some(named) = std::env::var_os(HELPER_DIRECTORY) else { return };
+    let directory: PathBuf = PathBuf::from(named);
     let script: PathBuf = directory.join("step.sh");
     let mut command: Command = Command::new("sh");
     command.arg(script.as_path());
@@ -540,7 +540,8 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
         ),
     )
     .expect("the step");
-    let test_binary: PathBuf = std::env::current_exe().expect("this test binary");
+    // The test binary is the program this process was started as (the test harness starts it by its path).
+    let test_binary: PathBuf = PathBuf::from(std::env::args_os().next().expect("the program this test runs as"));
     let helper = Command::new(test_binary)
         .args(["--exact", "push::child_watch::tests::left_running_helper", "--nocapture"])
         .env(HELPER_DIRECTORY, directory.as_os_str())

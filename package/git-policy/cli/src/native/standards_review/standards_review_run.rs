@@ -216,8 +216,26 @@ pub enum Contained<T> {
     /// The job panicked or its thread could not start.
     Panicked,
     /// The job was still running when the ceiling passed; the caller stopped waiting and the job's thread is left to end with the
-    ///  process.
+    ///  process, or when the step it is stuck in returns. Until then it counts as outstanding (`outstanding_reviews`).
     CeilingReached(Duration),
+    /// The job was not started: an earlier one that the caller stopped waiting for is still running and may hold what this one
+    ///  needs (the review log), so no second thread is added behind it.
+    Busy,
+}
+
+/// How many jobs the caller stopped waiting for are still running.
+static OUTSTANDING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The state of a job's thread, shared with the caller that waits for it.
+const RUNNING: u8 = 0;
+/// The job ended while the caller still waited, or the caller got its value.
+const ENDED: u8 = 1;
+/// The caller stopped waiting while the job ran.
+const ABANDONED: u8 = 2;
+
+/// How many reviews the service stopped waiting for that are still running.
+pub fn outstanding_reviews() -> usize {
+    return OUTSTANDING.load(std::sync::atomic::Ordering::SeqCst);
 }
 
 /// What:
@@ -234,16 +252,39 @@ pub enum Contained<T> {
 /// await Promise.race([job().catch(() => PANICKED), after(ceilingMs).then(() => CEILING)])
 /// ```
 pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+    use std::sync::atomic::Ordering;
+    // A review the caller stopped waiting for may still hold the log: a second one would queue behind it, and be abandoned in its
+    // turn (sol-2, B). Nothing starts until the earlier one has ended.
+    if OUTSTANDING.load(Ordering::SeqCst) > 0 {
+        return Contained::Busy;
+    }
     let (sender, receiver) = mpsc::channel::<T>();
+    let state: std::sync::Arc<std::sync::atomic::AtomicU8> = std::sync::Arc::new(std::sync::atomic::AtomicU8::new(RUNNING));
+    let worker_state: std::sync::Arc<std::sync::atomic::AtomicU8> = std::sync::Arc::clone(&state);
     let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
         let _ = sender.send(job());
+        // The job is over: if the caller had stopped waiting, it was counted as outstanding, and it is not any more.
+        if worker_state.swap(ENDED, Ordering::SeqCst) == ABANDONED {
+            OUTSTANDING.fetch_sub(1, Ordering::SeqCst);
+        }
     });
     if worker.is_err() {
         return Contained::Panicked;
     }
     return match receiver.recv_timeout(ceiling) {
         Ok(value) => Contained::Finished(value),
-        Err(mpsc::RecvTimeoutError::Timeout) => Contained::CeilingReached(ceiling),
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            // Counted before the state changes, so the worker's decrement can never come before the count.
+            OUTSTANDING.fetch_add(1, Ordering::SeqCst);
+            match state.compare_exchange(RUNNING, ABANDONED, Ordering::SeqCst, Ordering::SeqCst) {
+                Ok(_) => Contained::CeilingReached(ceiling),
+                Err(_) => {
+                    // The job ended between the timeout and now: it is not outstanding, and its value is in the channel.
+                    OUTSTANDING.fetch_sub(1, Ordering::SeqCst);
+                    receiver.recv().map_or(Contained::Panicked, Contained::Finished)
+                }
+            }
+        }
         Err(mpsc::RecvTimeoutError::Disconnected) => Contained::Panicked,
     };
 }

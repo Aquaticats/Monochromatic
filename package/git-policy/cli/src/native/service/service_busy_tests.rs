@@ -176,11 +176,11 @@ fn admission_and_early_withdrawal_never_both_succeed() {
         let id: String = format!("race-{round}");
         let barrier: Arc<std::sync::Barrier> = Arc::new(std::sync::Barrier::new(2));
         let withdrawer = {
-            let (record, barrier, id) = (Arc::clone(&record), Arc::clone(&barrier), id.clone());
-            std::thread::spawn(move || { barrier.wait(); return record.withdraw_early(id.as_str()); })
+            let (shared_record, shared_barrier, shared_id) = (Arc::clone(&record), Arc::clone(&barrier), id.clone());
+            std::thread::spawn(move || { shared_barrier.wait(); return shared_record.withdraw_early(shared_id.as_str()); })
         };
         barrier.wait();
-        let dropped: Vec<String> = record.begin_group(&[id.clone()]).dropped;
+        let dropped: Vec<String> = record.begin_group(std::slice::from_ref(&id)).dropped;
         let answer: EarlyAnswer = withdrawer.join().expect("withdrawer");
         match answer {
             EarlyAnswer::Withdrawn(_) => assert_eq!(dropped, vec![id.clone()], "round {round}: answered withdrawn, so it must not land"),
