@@ -333,8 +333,8 @@ classification is the author's until a review accepts it.
   `model_register_r13_tests.rs`.
 - Narrower, property: captured authority valid through completion or verified substitution:
   `r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support` in
-  `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer (the reclamation-during-capture
-  control is not yet); a checkpoint covers an earlier acknowledgment only when its document is shown to contain
+  `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer on the component (it is modeled in
+  `model_capture_reclaim_r23_tests.rs`); a checkpoint covers an earlier acknowledgment only when its document is shown to contain
   the state that acknowledgment promised: both are documents in the checked representation (LaneDocument) and
   the new one names every request, saved content, decision mark and ledger and order extent of the old or
   discharges it (r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation,
@@ -350,7 +350,16 @@ classification is the author's until a review accepts it.
   r15_an_unrelated_document_that_retains_the_same_items_does_not_cover_the_acknowledgment); one hop only, so an
   acknowledgment older than the previous checkpoint is not covered; the older test
   p9_completion_cannot_delete_a_dependency_it_validated_and_forced shows only the state-directory refusal.
-- Not yet, control: reclamation during capture. Needs: a model of capture against a concurrent reclaimer.
+- Narrower, control: reclamation during capture:
+  `a_reclaimer_that_removes_the_segment_for_an_unrelated_candidate_loses_the_promise` in
+  `model_capture_reclaim_r23_tests.rs`. Not shown: the model abstracts the log to one promised record, one candidate
+  and the old segment's name, with one power loss; it shows the rule (the departure returns on a durable cover, the
+  reclaimer removes the old segment only for a durable candidate whose lineage names the record:
+  a_reclaimer_that_removes_the_segment_before_the_candidate_is_durable_loses_the_promise_in_a_power_loss,
+  a_departure_that_returns_on_a_visible_cover_loses_the_promise_in_a_power_loss); the departure's own forcing and
+  its durable-cover check are redundant guards (either alone keeps the green; removed together they are the
+  visible-cover control); a component test of a real departure against a real reclaimer needs the departure at a
+  real call site (plan step 2).
 - Not yet, control: every forcing error. Needs: fault injection at each forcing call of the departure, with
   the outside-fault exit checked.
 - Not yet, control: cross-filesystem refs (level 2). Needs: level 2 eligibility checks; level 2 may stay
@@ -441,8 +450,15 @@ classification is the author's until a review accepts it.
 - Historical only, property: maintenance cannot outlive its recovery protection:
   `ten_roots_the_closure_until_the_release_is_done` in `model_f8_tests.rs` (a labelled historical control, not
   approval evidence).
-- Not yet, property: saved content survives until authorized disposal. Needs: a disposal model: the disposed
-  ledger line durable before the saved content is deleted.
+- Narrower, property: saved content survives until authorized disposal:
+  `a_removal_before_the_line_is_durable_leaves_a_root_that_names_a_lost_item` in
+  `model_disposal_r23_tests.rs`. Not shown: the model shows the order (the person's explicit disposal, then the
+  disposed line durable, then the removal and the root's drop:
+  retirement_never_removes_saved_content_and_the_control_that_does_is_red,
+  a_root_that_drops_the_item_before_the_line_is_durable_is_red); no component removes saved content yet, so the
+  order is a rule the disposal component must follow and the model is its specification; the non-drop check already
+  refuses a checkpoint that drops saved content without a disposed line in its own closure; a disposal command and a
+  component test of it are not built.
 - Not yet, obligation: live cutover excludes old probe-capable holders or provides recovery responsibility
   (review 15). Needs: a cutover rule: an old client that probes the flusher lock and holds it without sweeping,
   overlapping the new implementation, recreates the schedule where a new client's helper loses to the probe and
@@ -1610,9 +1626,9 @@ the sentence "the real lane state document is not implemented" is replaced by wh
 caller writes the document at a real call site yet, which is plan step 2; the spool and attempt directories; the
 protocol's rule for when a transition may drop a consumption entry or change a phase, which belongs to the models).
 The rows "non-drop for later appends" and "captured authority valid through completion or verified substitution" stay
-Narrower for those reasons. The rows "reclamation during capture", "saved content survives until authorized disposal",
-"damaged established roots fail closed" and the two others of step 1 are not started: they need models or callers
-this step does not add.
+Narrower for those reasons. The rows "reclamation during capture" and "saved content survives until authorized
+disposal" were Not yet and are Narrower after the models below. "Damaged established roots fail closed" and the others
+of step 1 are not started: they need an establishment record or callers this step does not add.
 
 Gates: full `native:test:model` 499 passed, 0 failed (4 leaky, the same stalled children as before:
 `/var/home/user/temp/agent/r23/full-model.log`); `native:clippy` and `native:clippy:seams` clean
@@ -1620,3 +1636,25 @@ Gates: full `native:test:model` 499 passed, 0 failed (4 leaky, the same stalled 
 
 Next: the rest of step 1 (the models for reclamation during capture and for disposal), then step 2 (the call sites,
 where the first caller of the document appears).
+
+### Step 1 models: reclamation during capture and the disposal of saved content
+
+New models `model_capture_reclaim_r23.rs` and `model_disposal_r23.rs` with `_tests.rs` files, registered in `mod.rs` and
+listed in `model_labels_tests.rs` (now 41 current names). Both use `model_observe::World` for visible and durable facts,
+one power loss, write-back as environment steps.
+
+- Reclamation during capture: a departure captures the acknowledgment of a record in the current segment, forces the
+  descriptor it captured and returns on a durable cover; the owner writes a candidate that descends from the record
+  or one that changed the document, forces it with its directory entry, and removes the old segment. Invariant: a
+  returned departure always has a log that a power loss would leave covering the record. Controls, each red for its
+  defect only: removal for any durable candidate, removal before the candidate is durable, return on a visible cover.
+- Disposal: the person disposes explicitly; the owner appends the `disposed` line, forces it, removes the content and
+  may checkpoint a root that no longer names the item. Invariants: no removal without the person's authorization; no
+  durable root that names an item whose content is gone with no durable line; no durable drop without the line.
+  Controls: removal before the line is durable, removal by retirement, root drop before the line is durable.
+- Guard removals (`/var/home/user/temp/agent/r23/mutations-models.log`): ignoring lineage, ignoring candidate
+  durability, removal without a durable line and root drop on a visible line each turn the green test red. The
+  mutation "departure returns on a visible cover under the checked rule" stays green because the departure's forcing
+  precedes its return; that is an equivalent mutant, recorded in the row.
+- Map: "reclamation during capture" and "saved content survives until authorized disposal" moved from Not yet to
+  Narrower (65 covered, 18 narrower, 9 historical, 16 not yet).
