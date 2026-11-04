@@ -3522,6 +3522,28 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the minimum rises to the tests' Git,
   and an older Git gets a warning and the command runs.
   Both sent to the agent on `feat/git-policy-cli-test-images-from-pacman`.
+  CM7's wording:
+  the owner chose "Leave CM7 unchanged" with the note "Record this carve-out for whatever the git wrapper needs.";
+  so `AGENTS.md` stays as it is,
+  and the package docs of `package/git-policy/cli` record the carve-out (its test images take tools from pacman).
+- After the check of the older delegated picks (report of 2026-11-04,
+  live picks listed under "Older picks still live"):
+  - Branch writes:
+    "Never cut a branch write (Recommended)":
+    the shipped 60 s ceiling on `git update-ref` goes;
+    steps that can run twice keep their ceilings;
+    the command still returns at its own bound with the "Short extra wait" text.
+  - Non-Git tools during `git worktree add` (package repair,
+    Markdown linter,
+    standards review):
+    "Silence plus a ceiling (Recommended)":
+    keep ending on silence and add a measured overall ceiling per tool that ends it with an error naming the tool.
+  - The commit design's R-never (the lane never removes an `index.lock` its own dead process left):
+    "Reclaim it (Recommended)":
+    the new protocol reclaims a proven-stale lock of its own dead incarnation through the shipped mechanism once that passes review;
+    revision 19 is to be amended (coordinator),
+    and the models agent was told.
+  The first two are built on `fix/git-policy-cli-branch-write-and-tool-ceilings`.
   The other container picks (resolve `latest` once per run,
   run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
 - #6261 native-layer move:
