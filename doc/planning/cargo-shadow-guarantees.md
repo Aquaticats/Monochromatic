@@ -596,7 +596,7 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written 2026-11-04T09:30:00-05:00 against the tip that carries it (round 11); the round 10 text it replaces was written at
+Written 2026-11-04T09:12:24-05:00 against the tip that carries it (round 11); the round 10 text it replaces was written at
 2026-11-04T08:57:09-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
@@ -604,8 +604,8 @@ No row is certified by this map: the cross-vendor review of rounds 10 and 11 has
 (`cargo-shadow-sol-9b.txt`) said that "16 rows shown" was not established by the attachments it saw.
 Counts: 16 rows, 14 shown, 2 partly (A2/R4: the call-site test has no shim and no user-command sentinel behind it; V3/V4: the
 preparation windows are built by hand, not cut at the real boundaries), 0 not yet.
-Suite counts at the round 11 code tip `CODETIP`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran COUNT tests: COUNT passed, 0 failed, 6 skipped; `lint:clippy` with warnings
+Suite counts at the round 11 code tip `2146b4cb70`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran 578 tests: 578 passed, 0 failed, 6 skipped; `lint:clippy` with warnings
 denied is clean.
 The 6 skipped are the `#[ignore]` helper entries that six other tests start as child processes (their names are in the `ignore`
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs` and

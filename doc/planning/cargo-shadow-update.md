@@ -860,7 +860,7 @@ Options for removing that cost, ranked (the owner is asked if the choice is not 
   wrapper would then kill cargo, which changes the product.
 Ranking: B > A > C, because B keeps A's refusal and removes the person from all but a narrow window, at the price of a protocol the
 reviewer must check; A is complete and the smallest, but sends every killed run to a person; C proves nothing a recovery can read.
-Built: A, because the review asked for the refusal and the narrower reading is the one to do first; B is proposed.
+Built: A, because the review asked for the refusal and the narrower reading is the one to do first; B is proposed (built in round 11 at the owner's pick, see "Round 11").
 
 ### 9a D2: strict boot identity
 
@@ -1032,12 +1032,12 @@ The planted-journal tests use a stand-in process for the launcher; the end-to-en
 
 ### Result
 
-The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 6 skipped (the `#[ignore]` helper entries),
+The coverage map of the contract carries the counts: 578 tests, 578 passed, 0 failed, 6 skipped (the `#[ignore]` helper entries),
 for the debug run and the release gate; `lint:clippy` with warnings denied is clean.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r11-debug1.log`, `r11-gate1.log`, `r11-clippy3.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 11, rewritten TIMESTAMP after the gate)
+## Resume point (round 11, rewritten 2026-11-04T09:12:24-05:00 after the gate)
 
 Done: rounds 10 and 11 (the sections above).
 The review inputs cover `16249ffe94` to the tip of round 11, in `/var/home/user/temp/agent/reviews/cargo-shadow-11*.diff`.
