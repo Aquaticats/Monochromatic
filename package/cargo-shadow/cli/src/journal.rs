@@ -328,33 +328,34 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
     return restore_if_unchanged_with(root, snapshots, produced, &no_hook);
 }
 
+pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> (Vec<String>, Option<io::Error>) {
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::Restore) {
+        return (Vec::new(), Some(io::Error::other("injected restore failure")));
+    }
+    let mut warnings: Vec<String> = Vec::new();
+    let mut first_failure: Option<io::Error> = None;
+    // A root that fails does not stop the others: every root still holding unapproved output gets its chance, and every retained
+    // path is reported (round 6, 5b 2).
+    for snapshot in snapshots {
+        if let Err(error) = restore_one(root, snapshot, produced, between, &mut warnings) {
+            warnings.push(format!("{}/{LOCKFILE_NAME} could not be restored: {error}", snapshot.crate_dir));
+            first_failure.get_or_insert(error);
+        }
+    }
+    return (warnings, first_failure);
+}
+
 /// What:
-/// `pub fn restore_if_unchanged_with(root, snapshots, produced, between)` is `restore_if_unchanged` with a hook that runs after a
-/// lockfile was compared and before it is replaced.
+/// `fn restore_one(root, snapshot, produced, between, warnings) -> io::Result<()>` puts one lockfile back when it still holds what the run produced.
 /// Why:
-/// The gap between the comparison and the replacement is where another writer can publish a lockfile;
-/// the hook lets a test publish one exactly there.
+/// One root's failure must not stop the restore of the others.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function restoreIfUnchangedWith({ root, snapshots, produced, between }): string[]
+/// function restoreOne(root: string, snapshot: LockSnapshot, produced: LockSnapshot[], between: Hook, warnings: string[]): void
 /// ```
-pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> (Vec<String>, Option<io::Error>) {
-    return match restore_stopping_at_first_failure(root, snapshots, produced, between) {
-        Ok(warnings) => (warnings, None),
-        Err(error) => (Vec::new(), Some(error)),
-    };
-}
-
-/// The restore as it was before round 6: it stops at the first failure and drops the warnings.
-fn restore_stopping_at_first_failure(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> io::Result<Vec<String>> {
-    #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::Restore) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        return Err(io::Error::other("injected restore failure"));
-    }
-    let mut warnings: Vec<String> = Vec::new();
-    for snapshot in snapshots {
+fn restore_one(root: &Path, snapshot: &LockSnapshot, produced: &[LockSnapshot], between: &dyn Fn(&Path), warnings: &mut Vec<String>) -> io::Result<()> {
         let path: PathBuf = root.join(&snapshot.crate_dir).join(LOCKFILE_NAME);
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // `match`: picks the arm whose pattern fits the value.
@@ -367,11 +368,11 @@ fn restore_stopping_at_first_failure(root: &Path, snapshots: &[LockSnapshot], pr
             None => {
                 // Macro `format!`: builds or prints text (or a list) from a template.
                 warnings.push(format!("{}/{LOCKFILE_NAME} is missing; it was not restored", snapshot.crate_dir));
-                continue;
+                return Ok(());
             }
         };
         if live == snapshot.source {
-            continue;
+            return Ok(());
         }
         // `match`: picks the arm whose pattern fits the value.
         // Borrow `&snapshot.crate_dir`: lends the value without copying or giving it away.
@@ -382,14 +383,14 @@ fn restore_stopping_at_first_failure(root: &Path, snapshots: &[LockSnapshot], pr
                     "{}/{LOCKFILE_NAME} was changed by another process while the step ran; it was left as that process wrote it, not restored",
                     snapshot.crate_dir
                 ));
-                continue;
+                return Ok(());
             }
             None => {
                 warnings.push(format!(
                     "{}/{LOCKFILE_NAME} differs from the snapshot, but this run did not write it, so another process did; it was left as it is, not restored",
                     snapshot.crate_dir
                 ));
-                continue;
+                return Ok(());
             }
         }
         // Borrow `&root.join`: lends the value without copying or giving it away.
@@ -418,8 +419,7 @@ fn restore_stopping_at_first_failure(root: &Path, snapshots: &[LockSnapshot], pr
                 copy.display()
             )),
         }
-    }
-    return Ok(warnings);
+    return Ok(());
 }
 
 /// What:
