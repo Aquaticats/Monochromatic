@@ -382,7 +382,7 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
     let script = format!("sleep 30 & echo $! > {}; sleep 30", pid_file.display());
     let attempts: std::cell::Cell<u32> = std::cell::Cell::new(0);
 
-    let (result, limit, _judged) = crate::cgroup_test_support::run_until_the_payload_started(
+    let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(400),
         &|| { let _ = std::fs::remove_file(&pid_file); },
         &|| { return std::fs::read_to_string(&pid_file).is_ok_and(|text| { return text.trim().parse::<i32>().is_ok(); }); },
@@ -397,6 +397,9 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
     assert!(limit > Duration::from_secs(1), "the judged bound {limit:?} is not longer than the startup");
     // The retried run ended at its bound with the timeout, not with some other error.
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "the judged run did not end at its bound: {result:?}");
+    // Sixth pass, group 9: the judged attempt itself ended at its enlarged bound (a run that waited for the shell and its sleeps to end
+    // would also be a timeout, but it would take as long as they live).
+    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
     drop(transaction);
 }
