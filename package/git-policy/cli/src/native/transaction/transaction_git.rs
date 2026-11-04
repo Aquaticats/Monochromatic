@@ -20,20 +20,20 @@
 //! ```
 
 /// Building a Git child from an argument array and an overlay.
-use super::forwarding::git_command;
-use super::repo_read_hook::try_request;
+use crate::forwarding::git_command;
+use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
-use super::child_class::{ChildClass, class_of};
-use super::child_watch::{WatchTerms, output_watched_within};
-use super::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING, REFERENCE_STEP_CEILING};
+use crate::child_class::{ChildClass, class_of};
+use crate::child_watch::{WatchTerms, output_watched_within};
+use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING, REFERENCE_STEP_CEILING};
 /// Private exclusive files for standard input.
-use super::private_storage::write_exclusive_scratch;
+use crate::private_storage::write_exclusive_scratch;
 /// The repository scratch directory the input file is made in.
-use super::scratch_location::prepare_repository_scratch;
+use crate::scratch_location::prepare_repository_scratch;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::{START_RETRY_BUDGET, retry_refused_start_with};
+use crate::start_retry::{START_RETRY_BUDGET, retry_refused_start_with};
 /// Unique temporary names.
-use super::random_id::random_uuid;
+use crate::random_id::random_uuid;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -333,8 +333,8 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
     if let Some(answered) = try_request(context, request) {
         return Ok(answered);
     }
-    let label: String = super::add_timing::git_step_label(request.arguments.as_slice());
-    return super::add_timing::step(label.as_str(), || { return run_git_pausing(context, request, START_RETRY_BUDGET, &mut |wait: Duration| { std::thread::sleep(wait); }); });
+    let label: String = crate::add_timing::git_step_label(request.arguments.as_slice());
+    return crate::add_timing::step(label.as_str(), || { return run_git_pausing(context, request, START_RETRY_BUDGET, &mut |wait: Duration| { std::thread::sleep(wait); }); });
 }
 
 /// Commands whose second run after a refusal is harmless: they read, or they write content-addressed objects,
@@ -524,7 +524,7 @@ fn run_git_once_with(
 ) -> std::io::Result<GitOutput> {
     let first: std::io::Result<GitOutput> = run_git_watched(context, request, terms());
     return match first {
-        Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !super::child_watch::is_ceiling(&error) => {
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut && may_be_rerun(request) && !crate::child_watch::is_ceiling(&error) => {
             // Terminal output error: a notice is advisory; a failed write must not stop the commit.
             let _written = writeln!(
                 std::io::stderr(),
@@ -599,7 +599,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     }
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
     let subject: String = step_subject(request);
-    let ledger_step: String = super::add_timing::git_step_label(request.arguments.as_slice());
+    let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
     let output: std::process::Output =
         output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), step_ceiling(request))?;
     return Ok(GitOutput {

@@ -466,7 +466,7 @@ it silences only traditional hooks and leaves config hooks running
 ### Phase markers
 
 No scenario arms a phase marker.
-The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` (`src/native/transaction_phase.rs`) names only the phases of an isolated
+The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` (`src/native/transaction/transaction_phase.rs`) names only the phases of an isolated
 merge and of a commit headed for the service,
 which the binary tests of the crate use;
 the phases of the retired landing are gone.

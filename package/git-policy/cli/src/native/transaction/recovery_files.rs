@@ -11,7 +11,7 @@
 //! ```
 
 /// The fail-closed recovery failure.
-use super::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{RecoveryError, io_failure};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 

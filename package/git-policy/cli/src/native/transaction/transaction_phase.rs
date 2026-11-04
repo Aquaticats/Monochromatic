@@ -17,7 +17,7 @@
 //! ```
 
 /// Diagnostic output to standard error when a marker fires.
-use super::diagnostic_log::warn;
+use crate::diagnostic_log::warn;
 /// Strict JSON string quoting for the refusal message, as `JSON.stringify` writes it.
 use serde_json::to_string as json_string;
 /// `OsStr` is borrowed operating-system text, and `Path`/`PathBuf` are filesystem paths.
@@ -28,7 +28,7 @@ use std::time::Duration;
 pub const PHASE_SIGNAL_VARIABLE: &str = "CLI_GIT_TEST_ONLY_PHASE_SIGNAL";
 
 /// Poll interval while paused.
-use super::wait_ceilings::PHASE_PATIENCE;
+use crate::wait_ceilings::PHASE_PATIENCE;
 
 const RELEASE_POLL: Duration = Duration::from_millis(20);
 

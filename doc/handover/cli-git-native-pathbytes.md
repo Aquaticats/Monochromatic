@@ -250,7 +250,7 @@ NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=pathbytes \
   --file src/native/private_index_stage.rs \
   --file src/native/replay_commit.rs \
   --file src/native/shadow/replay_merge.rs \
-  --file src/native/transaction_journal.rs \
+  --file src/native/transaction/transaction_journal.rs \
   --file src/native/transaction_journal_encode.rs \
   --file src/native/transaction_journal_parse.rs \
   --file src/native/worktree/worktree_completion.rs

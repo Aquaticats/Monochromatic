@@ -205,18 +205,14 @@ pub mod foundation;
 /// Re-exports every module of `foundation` at the crate root, as above.
 pub use foundation::*;
 
-/// The fail-closed failure of reading or recovering durable transaction state.
-pub mod recovery_error;
+/// Durable transaction state:
+///  owner records,
+///  journal,
+///  phases and recovery.
+pub mod transaction;
 
-/// The owner record of one commit-transaction directory and its liveness rule.
-pub mod transaction_owner;
-
-/// The schema-version-2 journal records of one commit transaction and their filenames.
-pub mod transaction_journal;
-
-/// Running real Git for transaction,
-///  recovery and landing work.
-pub mod transaction_git;
+/// Re-exports every module of `transaction` at the crate root, as above.
+pub use transaction::*;
 
 /// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
 #[cfg(test)]
@@ -241,12 +237,6 @@ pub mod lfs;
 
 /// Re-exports every module of `lfs` at the crate root, as above.
 pub use lfs::*;
-
-/// No-follow file operations recovery and landing share.
-pub mod recovery_files;
-
-/// Test-only transaction phase markers, compiled into the release executable and armed only by an environment variable.
-pub mod transaction_phase;
 
 /// The shadow repository and the replay of captured changes onto it.
 pub mod shadow;

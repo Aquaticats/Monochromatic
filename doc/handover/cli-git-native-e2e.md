@@ -172,7 +172,7 @@ are out of scope for the native executable.
 
 ### Phase markers
 
-`src/native/transaction_phase.rs` implements the incumbent's protocol: `<phase>:kill`, `<phase>:kill:<directory>` and
+`src/native/transaction/transaction_phase.rs` implements the incumbent's protocol: `<phase>:kill`, `<phase>:kill:<directory>` and
 `<phase>:pause:<directory>`, with `<directory>/<phase>.reached` written at the phase, `<directory>/<phase>.release`
 waited for under `pause`, and `race-lost-<n>` files for the occurrence.
 The five `sigkill-phase-*` scenarios and the `race-lost` pause in `reservation-after-lost-races` pass with it.

@@ -1365,7 +1365,7 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured and a run 
 bound
 is the rule.
 
-- A Git step of a commit (`src/native/push/child_watch.rs`, `src/native/transaction_git.rs`) is judged by the push meter on
+- A Git step of a commit (`src/native/push/child_watch.rs`, `src/native/transaction/transaction_git.rs`) is judged by the push meter on
   the
   process the wrapper started.
   A step that has shown no sign of work for the window, 60 seconds for a quick query step and 300 seconds for a bulk

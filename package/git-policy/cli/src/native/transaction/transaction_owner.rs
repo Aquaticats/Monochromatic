@@ -16,15 +16,15 @@
 
 /// Record field readers,
 ///  the fatal decoder and the ordered writer.
-use super::json_record::{
+use crate::json_record::{
     ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field,
 };
 /// Birth identities and the existence probe.
-use super::process_identity::{
+use crate::process_identity::{
     ProcessIdentityError, current_birth_identity, process_birth_identity,
 };
 /// The namespace an owner record names and the rule for an owner of another one.
-use super::pid_namespace::{current_pid_namespace, foreign_owner_standing};
+use crate::pid_namespace::{current_pid_namespace, foreign_owner_standing};
 
 /// Owner record schema;
 ///  version 2 marks the per-transaction directory layout.
@@ -198,7 +198,7 @@ pub fn parse_transaction_owner(bytes: &[u8]) -> Option<TransactionOwner> {
 fn process_exists(pid: i64) -> Result<bool, OwnerLivenessError> {
     #[cfg(unix)]
     {
-        return super::process_identity::signal_probe(pid).map_err(OwnerLivenessError::Probe);
+        return crate::process_identity::signal_probe(pid).map_err(OwnerLivenessError::Probe);
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
