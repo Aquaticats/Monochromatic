@@ -138,6 +138,12 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   handover).
   Its `--lane` options in `service_main.rs` will conflict with the one-executable change;
   that agent was told to keep the service options a pass-through.
+  The `-a2.txt` review (component tests) returned "Sufficient after named additions, not sufficient as is"
+  with one product risk (blocking doorbell sends can wait without a bound);
+  sent to the models agent at once,
+  which resumed even with five other agents running
+  (resuming a finished agent was not refused by the five-agent limit).
+  `-a1.txt` and `-b.txt` go to it the moment each lands.
 
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,
