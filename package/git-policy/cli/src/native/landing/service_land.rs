@@ -572,3 +572,8 @@ mod witness_tests;
 #[cfg(test)]
 #[path = "service_land_head_tests.rs"]
 mod head_tests;
+
+/// Controls for the flushes of the Git children of a landing stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_fsync_tests.rs"]
+mod fsync_tests;

@@ -31,6 +31,9 @@ pub mod config_rules_file;
 /// Typed settings and their defaults.
 pub mod config_schema;
 
+/// Git's `core.fsync` value read into the components it flushes.
+pub mod config_fsync;
+
 /// One `git config --list` read, parsed, and the lookups the commit path makes against it.
 pub mod config_snapshot;
 
