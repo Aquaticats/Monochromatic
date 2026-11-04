@@ -131,3 +131,39 @@ fn discovery_errors_are_not_empty_successes() {
     assert!(supported_source(Path::new(".github/workflows/ci.yml")));
     assert!(!supported_source(Path::new("config/other.yml")));
 }
+
+/// The `uses` links of the layout rules point to source folders, and a link to a folder that holds a link back
+/// makes the tree infinite when followed.
+/// Discovery must list each real file once and enter no link,
+/// whether a link names a folder or a single file,
+/// so a package with many `uses` links is linted once, not once per link.
+#[cfg(unix)]
+#[test]
+fn layout_uses_links_are_never_entered_by_the_walk() {
+    let fixture: Fixture = Fixture::new();
+    let top: PathBuf = file(&fixture, "src/top/mod.rs");
+    let middle: PathBuf = file(&fixture, "src/middle/mod.rs");
+    let bottom: PathBuf = file(&fixture, "src/bottom/mod.rs");
+    for (entry, target) in [
+        ("src/top/uses/middle", "../../middle"),
+        ("src/middle/uses/bottom", "../../bottom"),
+        ("src/middle/uses/top", "../../top"),
+        ("src/bottom/uses/file_link.rs", "../mod.rs"),
+    ] {
+        let link: PathBuf = fixture.path.join(entry);
+        std::fs::create_dir_all(link.parent().expect("link parent")).expect("link parent folder");
+        std::os::unix::fs::symlink(target, &link).expect("fixture link");
+    }
+    let mut expected: Vec<PathBuf> = vec![top, middle, bottom];
+    expected.sort();
+    assert_eq!(discover_literal_path(&fixture.path, &options(&fixture)).expect("walk"), expected);
+    // The same holds when the package folder is named from inside the tree.
+    assert_eq!(
+        discover_literal_path(&fixture.path.join("src"), &options(&fixture)).expect("walk of src"),
+        expected
+    );
+    // Only a link that the user names themselves is entered, and then once.
+    let named: Vec<PathBuf> =
+        discover_literal_path(&fixture.path.join("src/top/uses/middle"), &options(&fixture)).expect("named link");
+    assert_eq!(named, [fixture.path.join("src/top/uses/middle/mod.rs")]);
+}
