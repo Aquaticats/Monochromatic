@@ -217,7 +217,7 @@ So a worktree created through the native wrapper from the main checkout or from 
 `.cache/forbidden-strings.rules.txt`, and a source without that file copies nothing,
 so the missing-file error below stands.
 A worktree created by another tool, or with `--no-worktree-copy`, still has no `.cache`.
-The copy runs in the executable as measured by the binary tests in `src/native/binary_worktree_copy_tests.rs`.
+The copy runs in the executable as measured by the binary tests in `src/native/binary/binary_worktree_copy_tests.rs`.
 
 Measured with both wrappers in a disposable repository that has the configuration and no `.cache`:
 the native `git cli-git check --policy security/forbidden-strings --all` exits 2 with an `engine-failure` event,

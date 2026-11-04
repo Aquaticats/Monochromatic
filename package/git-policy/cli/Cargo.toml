@@ -48,7 +48,7 @@ pkg-fmt = "tgz"
 # Consumer-level controls that start the built executable against real Git.
 [[test]]
 name = "native_binary"
-path = "src/native/binary_tests.rs"
+path = "src/native/binary/binary_tests.rs"
 
 # A consumer of the candidate and scanner layers that can reach only the library's public interface.
 [[test]]

@@ -79,7 +79,7 @@ Unit tests in `src/native/commit/post_commit_tests.rs`, one per setting:
 - `the_configured_rules_file_reaches_the_post_commit_scanner`
 - `the_rules_variable_reaches_the_post_commit_scanner`
 
-Binary test in `src/native/binary_markdown_tests.rs`:
+Binary test in `src/native/binary/binary_markdown_tests.rs`:
 `the_post_commit_stage_finds_the_linter_on_the_invocations_path` commits a Markdown file through the built
 executable, in a disposable repository, with a fake `monochromatic-lint` on PATH.
 The fake returns its input and records the commit `main` names on each run.

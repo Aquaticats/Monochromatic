@@ -63,7 +63,7 @@ Wiring (executable):
 
 ## Tests
 
-- Binary tests, `src/native/binary_worktree_copy_tests.rs`, built `cli-git-native` through `git worktree add` in
+- Binary tests, `src/native/binary/binary_worktree_copy_tests.rs`, built `cli-git-native` through `git worktree add` in
   throwaway repositories, each followed by `git cli-git check --policy security/forbidden-strings --all`:
   from the main checkout (rules file copied, siblings and other ignored trees not, scanner finds its rules;
   with `--no-worktree-copy` the scanner fails closed); from a linked worktree (everything ignored is copied);

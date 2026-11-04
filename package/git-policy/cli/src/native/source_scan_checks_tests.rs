@@ -187,7 +187,7 @@ fn the_real_crate_is_fully_classified() {
     assert!(!test_only_of(&listing, "lib.rs"));
     assert!(!test_only_of(&listing, "main.rs"));
     assert!(!test_only_of(&listing, "service_main.rs"));
-    assert!(test_only_of(&listing, "binary_tests.rs"), "a [[test]] target is test-only");
+    assert!(test_only_of(&listing, "binary/binary_tests.rs"), "a [[test]] target is test-only");
     assert!(test_only_of(&listing, "testing/test_support.rs"), "a `#[cfg(test)]` module of lib.rs is test-only");
     assert!(test_only_of(&listing, "no_self_invocation_rules_tests.rs"), "a child of a test-only module");
 }

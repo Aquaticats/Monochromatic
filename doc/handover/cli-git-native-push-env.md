@@ -60,7 +60,7 @@ forward-target marker; both are unchanged.
 All green on the final code (host and container).
 
 - `push_environment::an_auto_push_after_a_landed_commit_runs_git_with_the_invocation_environment` in
-  `src/native/binary_push_environment_tests.rs`, registered in `binary_tests.rs`.
+  `src/native/binary/binary_push_environment_tests.rs`, registered in `binary_tests.rs`.
   A repository whose `origin` is an `ext::` transport runs a shim that records `HOME`, `PATH`, a marker variable
   set only in the wrapper's environment, the forward-target marker and `GIT_CONFIG_COUNT`, and refuses the push
   without the marker.

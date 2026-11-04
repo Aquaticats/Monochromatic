@@ -84,7 +84,7 @@ hold the same for records.
 
 ## What the commit path does with a bad name
 
-The 17 binary controls in `src/native/binary_event_path_commit_tests.rs` run the built `cli-git-native` in a throwaway
+The 17 binary controls in `src/native/binary/binary_event_path_commit_tests.rs` run the built `cli-git-native` in a throwaway
 repository with the file name `bad` + byte `0xff` + `.txt`, unless the line says otherwise.
 Today every one passes.
 

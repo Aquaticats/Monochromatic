@@ -127,7 +127,7 @@ New modules (each with its `*_tests.rs` where it has pure logic; the transaction
   Git 2.56.0 image starts that repack after the second landing even in a repository of 11 objects (it settles to one
   pack plus `multi-pack-index`, 0 garbage), so `assert_nothing_left` raced with it: 45 of 100 runs of the test failed in
   the container (2 parallel), none of 800 on the host's Git 2.55.0, which starts no repack at that size. Fix, test only:
-  `edited_repository` in `src/native/binary_commit_tests.rs` sets `maintenance.autoDetach false`, so the wrapper
+  `edited_repository` in `src/native/binary/binary_commit_tests.rs` sets `maintenance.autoDetach false`, so the wrapper
   returns after the maintenance finished; the assertion message now lists the pack directory. Control
   `commit::a_landing_returns_after_its_automatic_maintenance_finished` (a `gc.autoPackLimit` of 1 and 8 MiB of
   incompressible files make the repack outlast the wrapper's last steps) failed 20 of 20 runs without the config line

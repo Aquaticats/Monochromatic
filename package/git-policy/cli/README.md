@@ -833,7 +833,7 @@ At one mebibyte the file moves aside to the next free number (`cli-git-audit.jso
  A failed write never changes a command's result.
 
 The forms and their alternatives follow.
-Each alternative is run through the built executable by `src/native/binary_discard_tests.rs`.
+Each alternative is run through the built executable by `src/native/binary/binary_discard_tests.rs`.
 
 - `git stash` (every form except `list`, `show` and `create`):
    commit work in progress with explicit paths on a topic branch in its own linked worktree
@@ -1544,7 +1544,7 @@ Git accepts (with `extensions.worktreeConfig` on, the file is otherwise read and
 a file that became a directory, a gitlink, a possible rename, replace refs, shallow or grafted history,
 split or sparse indexes, and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
-(`src/native/repo_read_*_tests.rs`, `src/native/binary_budget_tests.rs`).
+(`src/native/repo_read_*_tests.rs`, `src/native/binary/binary_budget_tests.rs`).
 
 Set `CLI_GIT_IN_PROCESS_READS=off` in the wrapper's environment to start Git for every one of these questions,
 for a measurement that compares both paths or to rule the readers out when output differs.
@@ -1580,7 +1580,7 @@ The owner's words (2026-11-01):
 > The measure is always just commits vs native git should not take 5s longer.
 
 The 5-second `timeout --signal=KILL` of the binary tests is a hang guard of the test harness
-(`TIME_BOUND_SECONDS` in `src/native/binary_support.rs`), short so that a mutant that loops fails every affected control
+(`TIME_BOUND_SECONDS` in `src/native/binary/binary_support.rs`), short so that a mutant that loops fails every affected control
 quickly.
 It says nothing about how long a correct wrapped command may take.
 

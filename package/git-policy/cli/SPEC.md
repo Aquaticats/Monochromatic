@@ -2564,9 +2564,9 @@ The step:
   A shim never runs through the wrapper (see "Real Git starts with traditional hooks off"), so there is no second
   upload; `git cli-git doctor` explains the shims apart from the unsupported hooks (see "Doctor").
 
-Verified by `src/native/binary_lfs_pre_push_tests.rs`
+Verified by `src/native/binary/binary_lfs_pre_push_tests.rs`
 (a stand-in `git-lfs` that records the arguments, the input and the origin's branch at the moment it ran)
-and `src/native/binary_lfs_server_tests.rs`
+and `src/native/binary/binary_lfs_server_tests.rs`
 (the real `git-lfs` against an LFS server written inline in the test).
 
 ### Direct check
