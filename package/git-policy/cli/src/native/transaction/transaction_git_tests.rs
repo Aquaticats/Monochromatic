@@ -614,9 +614,7 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     let ends = |arguments: &[&str]| { return matches!(bound(arguments, false), StepBound::EndAt(_)); };
     // Identical after a second run at every cut.
     for same in [
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/1"],
-        &["stash", "list", "--format=%H"],
+        &["stash", "list", "--format=%H"][..],
         &["clean", "--force", "-d"],
         &["read-tree", "--reset", "-u", "abc"],
         &["update-index", "--refresh"],
@@ -633,7 +631,13 @@ fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_
     }
     // Different after a second run at some cut, or not in the experiment.
     for differs in [
-        &["update-ref", "--stdin"][..],
+        // A write of a side ref cannot be shown to run twice, with the protections on its argv or without (sol-1 round 4, P1 B): a reflog
+        //  another Git creates between any check and the write is appended to twice by a cut write and its rerun.
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"][..],
+        &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/1"],
+        &["update-ref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        &["update-ref", "--stdin"],
         // The import is a writer of a reference whatever its stream says here: the experiment found a marks lock it left that the
         //  second run could not pass.
         &["-c", "core.logAllRefUpdates=false", "fast-import", "--done", "--export-marks=marks-1"],
@@ -847,9 +851,7 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
     }
     // The forms that were run are exact: the same words with the proven options, and nothing else, keep the ceiling.
     for proven in [
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "refs/cli-git/kept/12", "0123456789abcdef0123456789abcdef01234567"][..],
-        &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "-d", "refs/worktree/cli-git-service/1793"],
-        &["stash", "list", "--format=%H"],
+        &["stash", "list", "--format=%H"][..],
         &["clean", "--force", "-d"],
         &["read-tree", "--reset", "-u", "abc"],
         &["config", "--local", "a.b", "c"],
@@ -912,45 +914,4 @@ fn only_the_shadow_creation_init_keeps_a_ceiling() {
     assert!(!ends(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
     assert!(!ends(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
     assert!(!ends(&["init", "--quiet", "--initial-branch=main"], true));
-}
-
-/// A side ref keeps its ceiling only while it has no reflog (sol-1 round 3, P1 B): `core.logAllRefUpdates=false` does not stop an
-/// append to a log that exists, an earlier release or another writer may have made one, and a write cut after its append and run again
-/// would append twice. Git is asked at the start of the write; a repository where it cannot be asked gives no ceiling.
-#[test]
-fn a_side_ref_that_has_a_reflog_keeps_no_ceiling() {
-    let root: PathBuf = fixture("transaction-git-side-ref-reflog");
-    for (name, extra) in [("files", None), ("reftable", Some("--ref-format=reftable"))] {
-        let repo: PathBuf = root.join(name);
-        std::fs::create_dir_all(&repo).expect("directory");
-        let mut init: Vec<&str> = vec!["init", "--quiet", "--initial-branch=main"];
-        init.extend(extra);
-        crate::test_support::git(repo.as_path(), &init);
-        crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
-        let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-        // The two refs the wrapper writes, one of which has a reflog made by something else.
-        crate::test_support::git(repo.as_path(), &["update-ref", "--create-reflog", "refs/cli-git/kept/1", tip.as_str()]);
-        crate::test_support::git(repo.as_path(), &["update-ref", "--create-reflog", "refs/worktree/cli-git-service/1", tip.as_str()]);
-        let bound = |arguments: &[&str]| -> StepBound { return step_bound_checked(&git_context(), &GitRequest::new(repo.as_path(), arguments)); };
-        let write = |reference: &str| -> Vec<String> {
-            return ["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", reference, tip.as_str()].iter().map(|word| { return (*word).to_string(); }).collect();
-        };
-        let delete = |reference: &str| -> Vec<String> {
-            return ["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", reference].iter().map(|word| { return (*word).to_string(); }).collect();
-        };
-        let ends = |words: Vec<String>| -> bool {
-            let arguments: Vec<&str> = words.iter().map(String::as_str).collect();
-            return matches!(bound(arguments.as_slice()), StepBound::EndAt(_));
-        };
-        assert!(!ends(write("refs/cli-git/kept/1")), "{name}: a log exists, the write may append twice");
-        assert!(!ends(delete("refs/cli-git/kept/1")), "{name}");
-        assert!(!ends(write("refs/worktree/cli-git-service/1")), "{name}");
-        assert!(!ends(delete("refs/worktree/cli-git-service/1")), "{name}");
-        assert!(ends(write("refs/cli-git/kept/2")), "{name}: no log, the proven form keeps its ceiling");
-        assert!(ends(delete("refs/worktree/cli-git-service/2")), "{name}");
-    }
-    // A repository Git cannot be asked in is not proof.
-    let words: Vec<&str> = vec!["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", "refs/cli-git/kept/9", "0123456789abcdef0123456789abcdef01234567"];
-    assert!(!matches!(step_bound_checked(&git_context(), &GitRequest::new(root.join("missing").as_path(), words.as_slice())), StepBound::EndAt(_)));
-    remove(root.as_path());
 }

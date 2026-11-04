@@ -643,68 +643,11 @@ impl<'a> Words<'a> {
     }
 }
 
-/// The setting that keeps a reference write from appending to a reflog, which the wrapper puts on the command line of every write of
-///  a side ref it wants ended at a ceiling. The repository's own `core.logAllRefUpdates=always` would append a second entry in a
-///  second run, so the setting is on the command line (it wins over the configuration files) and the classifier requires it.
+/// The setting the wrapper puts on the command line of every write of a side ref, with `--no-deref`: a side ref is not created with a
+///  reflog and is not followed through a symbolic ref. It is hygiene and not a proof: the write is never ended at a ceiling, whatever
+///  its argv says, because a reflog that another Git creates between any check and the write is appended to twice by a cut write and
+///  its rerun, and nothing the wrapper holds excludes an ordinary Git (cross-vendor review of round 4, P1 B).
 pub(crate) const NO_REFLOG_SETTING: &str = "core.logAllRefUpdates=false";
-
-/// What:
-///  Whether the last `-c` setting of the global options before the subcommand that names `setting`'s key gives it the value `setting`
-///  gives, and no other option sets the key another way.
-/// Why:
-///   Git takes the last `-c` for a key, so `-c core.logAllRefUpdates=false -c core.logAllRefUpdates=always` logs the update; and a key's
-///  spelling is not case-sensitive, and `--config-env` sets a key too (sol-1 round 2: the classifier requires the exact argv).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const settings = globals.filter(isSettingOf(key)); settings.at(-1) === wanted && !globals.some(isConfigEnvOf(key))
-/// ```
-fn has_global_setting(arguments: &[OsString], setting: &str) -> bool {
-    let Some((key, _)) = setting.split_once('=') else { return false };
-    let mut last: Option<String> = None;
-    let mut index: usize = 0;
-    while index < arguments.len() {
-        let text: String = arguments[index].to_string_lossy().into_owned();
-        if text == "-c" {
-            if let Some(pair) = arguments.get(index + 1).map(|word| { return word.to_string_lossy().into_owned(); })
-                && pair.split_once('=').map_or(pair.as_str(), |(name, _)| { return name; }).eq_ignore_ascii_case(key)
-            {
-                last = Some(pair);
-            }
-            index += 2;
-            continue;
-        }
-        if text == "-C" {
-            index += 2;
-            continue;
-        }
-        if text.starts_with('-') {
-            if text.strip_prefix("--config-env=").is_some_and(|rest| { return rest.split_once('=').map_or(rest, |(name, _)| { return name; }).eq_ignore_ascii_case(key); }) {
-                return false;
-            }
-            index += 1;
-            continue;
-        }
-        break;
-    }
-    return last.as_deref() == Some(setting);
-}
-
-/// Whether `word` names a side ref the wrapper makes for itself: `refs/cli-git/kept/<number>` or
-///  `refs/worktree/cli-git-service/<number>`. The number is all digits, so no `..` and no further path can stand in it. That the ref is a plain ref and
-///  has no reflog is not assumed: the classifier requires `--no-deref` and `NO_REFLOG_SETTING` on the exact argv
-///  (`is_proven_to_run_twice`), and `step_bound_checked` asks Git whether a reflog exists for the ref at the start of the write,
-///  because `core.logAllRefUpdates=false` does not stop an append to a log that exists, whatever the sequence number.
-fn is_side_ref(word: &str) -> bool {
-    return ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"]
-        .iter()
-        .any(|prefix| { return word.strip_prefix(prefix).is_some_and(|number| { return !number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); }); }); });
-}
-
-/// Whether `word` is an object name of full length in hexadecimal.
-fn is_object_id(word: &str) -> bool {
-    return matches!(word.len(), 40 | 64) && word.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
-}
 
 /// What:
 ///  Whether the request's step is one the cut experiment ran twice to the same state, in the exact form it ran.
@@ -715,8 +658,8 @@ fn is_object_id(word: &str) -> bool {
 ///  files a killed Git leaves were removed as the wrapper's sweep removes them, the step was run again, and the refs, reflogs,
 ///  index, worktree, stash list, configuration and every file of the Git directory were compared with an uncut run's.
 ///  This is a whitelist of those forms, parsed by their options and words (sol-1: a rule by the name of the step ended
-///  `config --add`, `stash -m list` and `update-ref --create-reflog`, which are not the forms that were run): `update-ref` set or delete
-///  of one of the wrapper's own side refs, `stash list --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index`
+///  `config --add`, `stash -m list` and `update-ref --create-reflog`, which are not the forms that were run): `stash list --format=%H`,
+///  `clean --force -d`, `read-tree --reset -u <tree>`, `update-index`
 ///  with `--refresh`, with `--index-info` (and `-z`) or with `--add --cacheinfo <triple>`, `add --update` or `add --all` with
 ///  optional pathspecs, `checkout-index --all --force`, `restore` with `--staged`, `--worktree`, `--source=` and paths after `--`,
 ///  `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key> <value>`. The experiment ran these on Git 2.56.0 with
@@ -727,20 +670,10 @@ fn is_object_id(word: &str) -> bool {
 /// ```ts
 /// PROVEN_FORMS.some((form) => form.matches(parse(subcommand, words)))
 /// ```
-fn is_proven_to_run_twice(arguments: &[OsString], name: &str, rest: &[String]) -> bool {
+fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
     let words: Words<'_> = Words::of(rest);
     let no_paths = words.after.is_none();
     return match name {
-        "update-ref" => {
-            // `--no-deref` and the reflog setting are enforced on the argv; the experiment ran the form with both, with the
-            //  configuration saying `always`, and with the ref a symbolic ref to a branch.
-            let plain: bool = words.after.is_none() && words.only_options(&["-d", "--no-deref"]) && words.has("--no-deref") && has_global_setting(arguments, NO_REFLOG_SETTING);
-            let delete: bool = words.has("-d") && words.before.len() == 1 && is_side_ref(words.before[0]);
-            let set: bool = !words.has("-d") && words.before.len() == 2 && is_side_ref(words.before[0]) && is_object_id(words.before[1]);
-            plain && (delete || set)
-        }
-        // A read: whether a reflog exists for a ref, which the side-ref writes ask before they are ended (`step_bound_checked`).
-        "reflog" => rest.len() == 2 && rest[0] == "exists" && !rest[1].starts_with('-'),
         "stash" => rest.first().is_some_and(|first| { return first == "list"; }) && rest.len() == 2 && rest[1] == "--format=%H",
         "clean" => no_paths && words.before.is_empty() && words.only_options(&["--force", "-d"]) && words.has("--force") && words.has("-d"),
         "read-tree" => no_paths && words.before.len() == 1 && words.only_options(&["--reset", "-u"]) && words.has("--reset") && words.has("-u"),
@@ -793,7 +726,7 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
     if name == "init" {
         return request.without_prefix && is_shadow_creation(&rest);
     }
-    return is_proven_to_run_twice(request.arguments.as_slice(), name.as_str(), rest.as_slice());
+    return is_proven_to_run_twice(name.as_str(), rest.as_slice());
 }
 
 /// What:
@@ -845,43 +778,6 @@ fn not_ended_bound(class_ceiling: Duration) -> StepBound {
     return StepBound::LeaveRunning { after: class_ceiling, extra };
 }
 
-/// The side ref an `update-ref` request writes or deletes, when the request is the proven form of one (`is_proven_to_run_twice`).
-fn side_ref_written(request: &GitRequest) -> Option<String> {
-    let (position, name) = subcommand_of(request.arguments.as_slice())?;
-    if name != "update-ref" || !may_be_ended(request) {
-        return None;
-    }
-    return request.arguments[position + 1..]
-        .iter()
-        .map(|argument| { return argument.to_string_lossy().into_owned(); })
-        .find(|word| { return is_side_ref(word.as_str()); });
-}
-
-/// What:
-///  `step_bound`, and a write of a side ref keeps its ceiling only while the ref has no reflog.
-/// Why:
-///   `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists, so a write that
-///  is cut after its append and run again would append twice (sol-1 round 3, P1 B). A fresh sequence number does not prove the
-///  repository holds no log for the ref: an earlier release or another writer may have made one. Git is asked, at the start of the
-///  write (`git reflog exists`, which works on either ref backend); an answer that is not "no such log" (Git could not be asked, the
-///  question was refused) is not proof, and the write has no ceiling.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// stepBound(request) is endAt && sideRef(request) && !(await reflogAbsent(ref)) ? notEndedBound(...) : stepBound(request)
-/// ```
-fn step_bound_checked(context: &GitContext, request: &GitRequest) -> StepBound {
-    let bound: StepBound = step_bound(request);
-    let StepBound::EndAt(class_ceiling) = bound else { return bound };
-    let Some(reference) = side_ref_written(request) else { return bound };
-    let mut ask: GitRequest = GitRequest::new(request.cwd.as_path(), &["reflog", "exists", reference.as_str()]);
-    ask.without_prefix = request.without_prefix;
-    ask.unset = request.unset.clone();
-    ask.environment = request.environment.clone();
-    let absent: bool = run_git(context, &ask).is_ok_and(|answer| { return answer.code == Some(1) && answer.stdout.is_empty(); });
-    return if absent { bound } else { not_ended_bound(class_ceiling) };
-}
-
 #[cfg(test)]
 thread_local! {
     /// A shortened ceiling for the steps the current thread starts, so a control ends a step in a moment.
@@ -912,7 +808,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
     let subject: String = step_subject(request);
     let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
-    let bound: StepBound = step_bound_checked(context, request);
+    let bound: StepBound = step_bound(request);
     // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
     let _recorded = if matches!(bound, StepBound::Unbounded) {
         crate::service_busy::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
