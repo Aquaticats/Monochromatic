@@ -480,14 +480,19 @@ pub fn judge_stage_owners(common_dir: &Path) -> Result<StageVerdicts, WorktreeCo
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(verdicts),
         Err(error) => return Err(raw_failure(&error)),
     };
+    // In name order, so which temporary is judged first (and which refusal is reported first) does not depend on the directory's order.
+    let mut temporaries: Vec<(String, PathBuf)> = Vec::new();
     for listed in listing {
         let entry: std::fs::DirEntry = listed.map_err(|error| return raw_failure(&error))?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if !name.ends_with(TEMPORARY_SUFFIX) {
-            continue;
+        if name.ends_with(TEMPORARY_SUFFIX) {
+            temporaries.push((name, entry.path()));
         }
+    }
+    temporaries.sort_by(|left, right| return js_order(&left.0, &right.0));
+    for (name, path) in temporaries {
         // The name is `<item>.<writer>.<unique>.tmp`; a name of another shape has no writer and counts as a dead one's.
-        if token_owner_is_dead(temporary_writer_token(name.as_str()), entry.path().as_path())? {
+        if token_owner_is_dead(temporary_writer_token(name.as_str()), path.as_path())? {
             verdicts.dead_temporaries.insert(name);
         }
     }

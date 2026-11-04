@@ -307,16 +307,18 @@ fn two_callers_that_arrive_together_are_never_admitted_at_once() {
 }
 
 /// A worker that released the runner and stalls before it sends its value (sol-1 round 3, P1 D): the caller's wait for the value is
-/// bounded, so the call returns, as a ceiling, and the next job runs. The control has a deadline of its own around the call.
+/// bounded, so the call returns, as a ceiling, and the next job runs. The job returns at once and the ceiling is long beside it, so the
+/// worker has released the runner (and stands at the gate, withholding the send) before the caller's wait runs out: the caller meets a
+/// runner that is idle, which is the schedule of the review, every time. The control has a deadline of its own around the call.
 #[test]
 fn a_worker_that_stalls_between_its_release_and_its_send_does_not_hold_the_caller() {
     static OWN: Containment = Containment::with_handoff_wait(Duration::from_millis(300));
+    let ceiling: Duration = Duration::from_millis(600);
     let gate = OWN.handoff_gate.lock().expect("the control holds the handoff");
     let (sender, receiver) = std::sync::mpsc::channel::<Contained<u32>>();
-    std::thread::spawn(move || { let _sent = sender.send(run_contained_in(&OWN, || { return 7_u32; }, Duration::from_millis(1))); });
-    // The 1 ms ceiling passes while the worker waits at the gate or has not yet started; either way the call must come back.
+    std::thread::spawn(move || { let _sent = sender.send(run_contained_in(&OWN, || { return 7_u32; }, ceiling)); });
     let answer: Contained<u32> = receiver.recv_timeout(Duration::from_secs(30)).expect("the caller came back without the value");
-    assert!(matches!(answer, Contained::CeilingReached(_) | Contained::Finished(7)), "{answer:?}");
+    assert_eq!(answer, Contained::CeilingReached(ceiling), "the value never came, so the wait ends as a ceiling");
     drop(gate);
     // The runner is free again once the worker is let go, and the next job runs.
     let waiting_since: std::time::Instant = std::time::Instant::now();
