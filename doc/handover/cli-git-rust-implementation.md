@@ -257,8 +257,30 @@ Done since the last list:
   child progress owner-dependent,
   the register still assumes timeout completion;
   F7 `EEXIST` and F9 not retired by rule V).
-  Both were sent to models round 8,
-  which rebuilds the W1 and register models for revision 13.
+  Both were sent to models round 8.
+- Models round 8 (tip `8b31735dd3`,
+  198 of 198,
+  both clippy tasks clean),
+  partly done before that agent ran out of room:
+  `commit_state_log.rs` (hash-chained log,
+  longest valid prefix,
+  rotation safe at every step,
+  0 syncs while waiting);
+  `repair_tail` and `append` crate-private behind `LedgerOwner`;
+  the departure forces request files,
+  inbox directory,
+  order file,
+  state log and ledger with their directories;
+  a 16-byte invocation nonce in each request (`REQUEST_VERSION` 4);
+  `explore_eventually` stated as AG EF and truncation no longer makes violations.
+  A fresh agent took the rest (models round 9,
+  same branch):
+  the W1 and register models rebuilt for revision 13 with fallible recovery,
+  the twenty controls,
+  F7 and F9 re-opened,
+  the leftovers,
+  historical greens labelled,
+  components items 3.5 to 3.7 and removal of unused legacy modules.
 - #6260 merged into the base.
 
 Queue,
