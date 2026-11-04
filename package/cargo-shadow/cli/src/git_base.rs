@@ -288,46 +288,54 @@ fn run_git(environment: &NativeEnvironment, root: &Path, arguments: &[&str], inp
     });
 }
 
+/// How asking Git about one revision failed.
+enum Candidate {
+    /// Git answered that the revision names no commit (an ordinary negative answer).
+    NotACommit,
+    /// Git could not be asked or did not finish (a timeout, a start failure, a transport failure): nothing is known.
+    Operational(
+        /// What happened.
+        String,
+    ),
+}
+
 /// What:
-/// `fn resolve_commit(environment, root, base, starts) -> Result<String, String>` asks Git which commit a revision names.
+/// `fn resolve_candidate(environment, root, base, starts) -> Result<String, Candidate>` asks Git which commit a revision names
+/// and keeps an ordinary "no" apart from a failure to ask.
 /// Why:
-/// It is the one start for an explicit base and for each candidate of the sequential fallback.
+/// Review finding (4a 6): a query that did not finish has not shown that the revision names no commit, so the fallback must not
+/// go on to a lower candidate.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveCandidate(environment: NativeEnvironment, root: string, base: string, starts: { count: number }): string  // throws Candidate
+/// ```
+fn resolve_candidate(environment: &NativeEnvironment, root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, Candidate> {
+    starts.set(starts.get() + 1);
+    let resolved = run_git(environment, root, &["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")], None).map_err(Candidate::Operational)?;
+    if !resolved.status.success() {
+        return Err(Candidate::NotACommit);
+    }
+    return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
+}
+
+/// What:
+/// `fn resolve_commit(environment, root, base, starts) -> Result<String, String>` asks Git which commit a revision names, with
+/// the message to show when it names none.
+/// Why:
+/// It is the one start for an explicit base and for the base of CI.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function resolveCommit(environment: NativeEnvironment, root: string, base: string, starts: { count: number }): string  // throws a message
 /// ```
 fn resolve_commit(environment: &NativeEnvironment, root: &Path, base: &str, starts: &Cell<u32>) -> Result<String, String> {
-    starts.set(starts.get() + 1);
-    // `None`: the present or the absent value of an `Option`.
-    // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-    // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
-    // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const value = await expr;   // throws to the caller on failure
-    // ```
-    // Borrow `&[`: lends the value without copying or giving it away.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-    // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
-    let resolved = run_git(environment, root, &["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")], None)?;
-    if !resolved.status.success() {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        return Err(not_a_commit_message(base));
-    }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    // Borrow `&resolved.stdout`: lends the value without copying or giving it away.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
+    return match resolve_candidate(environment, root, base, starts) {
+        Ok(commit) => Ok(commit),
+        Err(Candidate::NotACommit) => Err(not_a_commit_message(base)),
+        Err(Candidate::Operational(message)) => Err(message),
+    };
 }
-
 /// What the one batched Git start answered.
 enum Batch {
     /// Every candidate was answered:
@@ -411,10 +419,11 @@ fn resolve_sequentially(environment: &NativeEnvironment, root: &Path, starts: &C
     for candidate in [UPSTREAM_BASE, DEFAULT_REMOTE_BASES[0], DEFAULT_REMOTE_BASES[1]] {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-        if let Ok(commit) = resolve_commit(environment, root, candidate, starts) {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-            return TrustBase { spelling: candidate.to_string(), commit: Ok(commit), git_starts: starts.get() };
+        match resolve_candidate(environment, root, candidate, starts) {
+            Ok(commit) => return TrustBase { spelling: candidate.to_string(), commit: Ok(commit), git_starts: starts.get() },
+            Err(Candidate::NotACommit) => {}
+            // Review finding (4a 6): a query that did not finish says nothing about this candidate, so no lower one is chosen.
+            Err(Candidate::Operational(message)) => return TrustBase { spelling: candidate.to_string(), commit: Err(message), git_starts: starts.get() },
         }
     }
     // Typed binding: `commit: Result<String, String>`.

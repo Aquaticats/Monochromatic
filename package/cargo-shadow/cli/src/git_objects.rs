@@ -54,7 +54,7 @@ use std::path::{Path, PathBuf};
 
 // Imports `flate2::read::ZlibDecoder`.
 /// Imports the zlib decoder that reads a loose object header.
-use flate2::read::ZlibDecoder;
+use flate2::{Decompress, FlushDecompress, Status};
 
 /// The object name length of a SHA-1 repository,
 /// in hexadecimal digits.
@@ -328,111 +328,149 @@ const MAX_COMMIT_BYTES: u64 = 16 * 1024 * 1024;
 const PACK_HEADER_BYTES: usize = 12;
 
 /// What:
-/// `fn looks_like_commit(body: &[u8]) -> bool` says whether a body starts the way every commit does:
-/// `tree `,
-/// a full object name
-/// and a newline.
+/// `fn is_regular_file(path: &Path) -> bool` says whether the path is a regular file, without following a link.
 /// Why:
-/// Review finding (3a 4):
-/// a type word in a header proves nothing about the body Git must parse.
+/// Review finding (4a 7): opening a FIFO blocks, and a link is not what Git reads as an object file;
+/// anything that is not a regular file is Git's to judge.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const looksLikeCommit = (body: Buffer): boolean => /^tree [0-9a-f]{40}\n/.test(body.toString('latin1', 0, 46));
+/// const isRegularFile = (path: string): boolean => lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
+/// ```
+fn is_regular_file(path: &Path) -> bool {
+    return fs::symlink_metadata(path).map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
+}
+
+/// What:
+/// `fn looks_like_commit(body: &[u8]) -> bool` applies the conditions of Git's commit parser to a body: a `tree ` line with a
+/// full object name, then any number of `parent ` lines that each carry a full object name.
+/// Why:
+/// Review finding (4a 1): these are the lines Git must parse for `X^{commit}`; nothing stricter (that would be `git fsck`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const looksLikeCommit = (body: Buffer): boolean => /^tree [0-9a-f]{40}\n(parent [0-9a-f]{40}\n)*/.test(body.toString('latin1'));
 /// ```
 fn looks_like_commit(body: &[u8]) -> bool {
-    // Typed binding: `prefix: &[u8]`.
-    let prefix: &[u8] = b"tree ";
-    return body.len() > prefix.len() + OBJECT_NAME_DIGITS
-        && body.starts_with(prefix)
-        // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-        && body[prefix.len()..prefix.len() + OBJECT_NAME_DIGITS].iter().all(u8::is_ascii_hexdigit)
-        && body[prefix.len() + OBJECT_NAME_DIGITS] == b'\n';
+    fn name_line(rest: &[u8], word: &[u8]) -> Option<usize> {
+        let length: usize = word.len() + OBJECT_NAME_DIGITS + 1;
+        if rest.len() < length || !rest.starts_with(word) {
+            return None;
+        }
+        let name: &[u8] = &rest[word.len()..word.len() + OBJECT_NAME_DIGITS];
+        return if name.iter().all(u8::is_ascii_hexdigit) && rest[length - 1] == b'\n' { Some(length) } else { None };
+    }
+    let Some(tree) = name_line(body, b"tree ") else {
+        return false;
+    };
+    let mut position: usize = tree;
+    while body[position..].starts_with(b"parent ") {
+        match name_line(&body[position..], b"parent ") {
+            Some(length) => position += length,
+            None => return false,
+        }
+    }
+    return true;
+}
+
+/// What:
+/// `fn inflate_complete(source: impl Read, output_limit: usize, input_limit: u64) -> Result<Vec<u8>, String>` inflates a zlib
+/// stream and succeeds only when the inflater reports the end of the stream (the checksum included).
+/// Why:
+/// Review finding (4a 2): `read_to_end` returning is not proof that the stream ended, and a limit reached is not an end;
+/// the compressed input is bounded as well as the output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function inflateComplete(source: Readable, outputLimit: number, inputLimit: number): Buffer  // throws unless the stream ended
+/// ```
+fn inflate_complete(mut source: impl Read, output_limit: usize, input_limit: u64) -> Result<Vec<u8>, String> {
+    let mut inflater: Decompress = Decompress::new(true);
+    let mut input: Vec<u8> = vec![0; 16 * 1024];
+    let mut available: usize = 0;
+    let mut used: usize = 0;
+    let mut read_total: u64 = 0;
+    let mut produced_all: Vec<u8> = Vec::new();
+    let mut chunk: Vec<u8> = vec![0; 16 * 1024];
+    loop {
+        let mut at_end: bool = false;
+        if used == available {
+            available = source.read(&mut input).map_err(|error| { return format!("an object could not be read: {error}"); })?;
+            used = 0;
+            read_total += available as u64;
+            at_end = available == 0;
+            if read_total > input_limit {
+                return Err("an object is larger than this reader confirms".to_string());
+            }
+        }
+        let before_in: u64 = inflater.total_in();
+        let before_out: u64 = inflater.total_out();
+        let status = inflater.decompress(&input[used..available], &mut chunk, FlushDecompress::None).map_err(|error| { return format!("an object is not a valid zlib stream: {error}"); })?;
+        used += usize::try_from(inflater.total_in() - before_in).unwrap_or(0);
+        let produced: usize = usize::try_from(inflater.total_out() - before_out).unwrap_or(0);
+        produced_all.extend_from_slice(&chunk[..produced]);
+        if produced_all.len() > output_limit {
+            return Err("an object inflates to more than this reader confirms".to_string());
+        }
+        match status {
+            Status::StreamEnd => return Ok(produced_all),
+            Status::Ok | Status::BufError => {
+                if at_end && produced == 0 && inflater.total_in() == before_in {
+                    return Err("an object's zlib stream ends before its end marker".to_string());
+                }
+            }
+        }
+    }
+}
+
+/// What:
+/// `fn canonical_size(text: &str) -> Option<usize>` reads a size the way Git's loose header does: decimal digits, no sign, and
+/// no leading zero unless the size is zero.
+/// Why:
+/// Review finding (4a 1): Rust's `parse` also takes `+12` and `012`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const canonicalSize = (text: string): number | undefined => /^(0|[1-9][0-9]*)$/.test(text) ? Number(text) : undefined;
+/// ```
+fn canonical_size(text: &str) -> Option<usize> {
+    if text.is_empty() || !text.bytes().all(|byte| { return byte.is_ascii_digit(); }) || (text.len() > 1 && text.starts_with('0')) {
+        return None;
+    }
+    return text.parse().ok();
 }
 
 /// What:
 /// `fn loose_commit(path: &Path) -> Result<(), String>` inflates a whole loose object and confirms that it is a commit:
-/// a complete stream,
-/// a `commit <size>` header,
-/// exactly that many bytes of body,
-/// and a body that starts like a commit.
+/// a complete stream, a `commit <size>` header with a canonical size, exactly that many bytes of body, and a body Git's commit
+/// parser accepts.
 /// Why:
-/// A prefix that merely says `commit`,
-/// or a stream that is cut off,
-/// is not an object `X^{commit}` accepts.
+/// A prefix that merely says `commit`, or a stream that is cut off, is not an object `X^{commit}` accepts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function looseCommit(path: string): void  // throws when the object is not a whole commit
 /// ```
 fn loose_commit(path: &Path) -> Result<(), String> {
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Closure `|error|`: an anonymous function, like a TS arrow function.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `file: File`.
-    // Macro `format!`: builds or prints text (or a list) from a template.
+    if !is_regular_file(path) {
+        return Err(format!("{} is not a regular file, so only Git reads it", path.display()));
+    }
     let file: File = File::open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
-    // `let mut`: a binding that may change.
-    // Typed binding: `inflated: Vec<u8>`.
-    // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-    // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const list: string[] = [];   // or new Set() / new Map()
-    // ```
-    let mut inflated: Vec<u8> = Vec::new();
-    ZlibDecoder::new(file.take(MAX_COMMIT_BYTES))
-        .take(MAX_COMMIT_BYTES + 1)
-        // Borrow `&mut inflated`: lends the value without copying or giving it away.
-        .read_to_end(&mut inflated)
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        .map_err(|error| { return format!("{} is not a complete object: {error}", path.display()); })?;
-    // `Some`: the present or the absent value of an `Option`.
-    // Closure `|byte|`: an anonymous function, like a TS arrow function.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
+    let inflated: Vec<u8> = inflate_complete(file, usize::try_from(MAX_COMMIT_BYTES).unwrap_or(usize::MAX), MAX_COMMIT_BYTES).map_err(|message| { return format!("{}: {message}", path.display()); })?;
     let Some(end) = inflated.iter().position(|byte| { return *byte == 0; }) else {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{} has no object header", path.display()));
     };
-    // Borrow `&inflated`: lends the value without copying or giving it away.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // Typed binding: `header: String`.
-    // What:     `String` is an owned, growable UTF-8 text; the sibling `&str` is a borrowed read-only view that owns nothing.
-    // Why:      A returned value or a stored field must own its text, so `String` and not `&str`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: string
-    // ```
     let header: String = String::from_utf8_lossy(&inflated[..end]).to_string();
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     let Some((kind, size)) = header.split_once(' ') else {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{} has the object header {header:?}", path.display()));
     };
     if kind != "commit" {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
         return Err(format!("{} is a {kind}, not a commit", path.display()));
     }
-    // Borrow `&inflated`: lends the value without copying or giving it away.
-    // Typed binding: `body: &[u8]`.
     let body: &[u8] = &inflated[end + 1..];
-    // `Some`: the present or the absent value of an `Option`.
-    // `.ok()`/`.ok_or()`: converts between `Result` and `Option`.
-    if size.parse::<usize>().ok() != Some(body.len()) || !looks_like_commit(body) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
+    if canonical_size(size) != Some(body.len()) || !looks_like_commit(body) {
         return Err(format!("{} is not a well-formed commit", path.display()));
     }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(());
 }
 
@@ -468,99 +506,79 @@ impl Read for At<'_> {
 }
 
 /// What:
-/// `fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String>` confirms a pack entry:
-/// the pack header,
-/// a whole
-/// commit entry (not a delta),
-/// and an inflated body of exactly the declared size that starts like a commit.
+/// `fn check_pack_opens(pack: &File, index: &File) -> Result<(), String>` applies the checks Git makes when it opens a pack:
+/// the header, an object count equal to the index's, and the pack's trailing checksum equal to the one the index records.
 /// Why:
-/// Review finding (3a 4):
-/// one type byte does not show the entry is readable.
+/// Review finding (4a 2): a pack that Git would refuse to open must not be read as a source of commits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkPackOpens(pack: number, index: number): void  // throws
+/// ```
+fn check_pack_opens(pack: &File, index: &File) -> Result<(), String> {
+    let header: Vec<u8> = read_at(pack, 0, PACK_HEADER_BYTES).map_err(pack_failure)?;
+    let version: u64 = big_endian(&header[4..8]);
+    if &header[..4] != b"PACK" || (version != 2 && version != 3) {
+        return Err("a pack has an unknown header".to_string());
+    }
+    let fanout_end: Vec<u8> = read_at(index, 8 + 255 * 4, 4).map_err(index_failure)?;
+    if big_endian(&header[8..12]) != big_endian(&fanout_end) {
+        return Err("a pack's object count disagrees with its index".to_string());
+    }
+    let index_length: u64 = index.metadata().map_err(index_failure)?.len();
+    let pack_length: u64 = pack.metadata().map_err(pack_failure)?.len();
+    if index_length < 40 || pack_length < 32 {
+        return Err("a pack or its index is too short".to_string());
+    }
+    let recorded: Vec<u8> = read_at(index, index_length - 40, 20).map_err(index_failure)?;
+    let actual: Vec<u8> = read_at(pack, pack_length - 20, 20).map_err(pack_failure)?;
+    if recorded != actual {
+        return Err("a pack's trailing checksum disagrees with its index".to_string());
+    }
+    return Ok(());
+}
+
+/// What:
+/// `fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String>` confirms a pack entry: a whole commit entry (not a
+/// delta), a complete zlib stream of exactly the declared size, and a body Git's commit parser accepts.
+/// Why:
+/// Review finding (4a 2): one type byte does not show the entry is readable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function packedEntryIsCommit(pack: number, offset: number): boolean  // throws when the entry cannot be read
 /// ```
 fn packed_entry_is_commit(pack: &File, offset: u64) -> Result<bool, String> {
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `header: Vec<u8>`.
-    let header: Vec<u8> = read_at(pack, 0, PACK_HEADER_BYTES).map_err(pack_failure)?;
-    // Borrow `&header`: lends the value without copying or giving it away.
-    // Typed binding: `version: u64`.
-    let version: u64 = big_endian(&header[4..8]);
-    // Borrow `&header`: lends the value without copying or giving it away.
-    if &header[..4] != b"PACK" || (version != 2 && version != 3) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return Err("a pack has an unknown header".to_string());
-    }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // `.map_err(...)`: converts the callee's error into this function's error type.
-    // Typed binding: `first: Vec<u8>`.
     let first: Vec<u8> = read_at(pack, offset, 1).map_err(pack_failure)?;
-    // `let mut`: a binding that may change.
-    // Typed binding: `byte: u8`.
     let mut byte: u8 = first[0];
-    // Typed binding: `kind: u8`.
     let kind: u8 = (byte >> 4) & 0x7;
     if kind != PACK_TYPE_COMMIT {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         return Ok(false);
     }
-    // `let mut`: a binding that may change.
-    // Typed binding: `size: u64`.
     let mut size: u64 = u64::from(byte & 0x0f);
-    // `let mut`: a binding that may change.
-    // Typed binding: `shift: u32`.
     let mut shift: u32 = 4;
-    // `let mut`: a binding that may change.
-    // Typed binding: `position: u64`.
     let mut position: u64 = offset + 1;
     while byte & 0x80 != 0 {
         if shift > 56 {
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
             return Err("a pack entry has an oversized length".to_string());
         }
-        // `.map_err(...)`: converts the callee's error into this function's error type.
         byte = read_at(pack, position, 1).map_err(pack_failure)?[0];
         size |= u64::from(byte & 0x7f) << shift;
         shift += 7;
         position += 1;
     }
     if size > MAX_COMMIT_BYTES {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         return Err("a packed commit is larger than this reader confirms".to_string());
     }
-    // `let mut`: a binding that may change.
-    // Typed binding: `body: Vec<u8>`.
-    // Constructor `Vec::new()`: an empty owned collection or a boxed value.
-    let mut body: Vec<u8> = Vec::new();
-    ZlibDecoder::new(At { file: pack, offset: position })
-        .take(size + 1)
-        // Borrow `&mut body`: lends the value without copying or giving it away.
-        .read_to_end(&mut body)
-        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-        // Closure `|error|`: an anonymous function, like a TS arrow function.
-        // `.map_err(...)`: converts the callee's error into this function's error type.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        .map_err(|error| { return format!("a packed commit is not a complete stream: {error}"); })?;
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
-    // Borrow `&body`: lends the value without copying or giving it away.
-    // Cast `as u64`: converts between numeric types.
+    let body: Vec<u8> = inflate_complete(At { file: pack, offset: position }, usize::try_from(size).unwrap_or(usize::MAX), MAX_COMMIT_BYTES)?;
     return Ok(body.len() as u64 == size && looks_like_commit(&body));
 }
 
 /// What:
 /// `fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool, String>` says whether some pack stores the
-/// object as a whole,
-/// readable commit.
+/// object as a whole, readable commit, in a pack Git would open.
 /// Why:
-/// A tag,
-/// tree,
-/// blob or deltified entry is not a commit this reader can vouch for.
+/// A tag, tree, blob or deltified entry is not a commit this reader can vouch for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -578,12 +596,16 @@ fn packed_commit(objects: &Path, name: &[u8; OBJECT_NAME_BYTES]) -> Result<bool,
         if path.extension().and_then(OsStr::to_str) != Some("idx") {
             continue;
         }
+        let pack_path: PathBuf = path.with_extension("pack");
+        if !is_regular_file(&path) || !is_regular_file(&pack_path) {
+            return Err(format!("{} or its pack is not a regular file, so only Git reads it", path.display()));
+        }
         let index: File = File::open(&path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
         let Some(offset) = pack_offset(&index, name)? else {
             continue;
         };
-        let pack: File = File::open(path.with_extension("pack")).map_err(pack_failure)?;
-        // Borrow `&pack`: lends the value without copying or giving it away.
+        let pack: File = File::open(&pack_path).map_err(pack_failure)?;
+        check_pack_opens(&pack, &index)?;
         return packed_entry_is_commit(&pack, offset);
     }
     return Ok(false);

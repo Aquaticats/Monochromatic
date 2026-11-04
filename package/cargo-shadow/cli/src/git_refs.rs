@@ -542,6 +542,7 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         return Err(format!("{name} is set, so only Git can say where the repository is"));
     }
     let dot_git: PathBuf = root.join(".git");
+    let dot_git_path: PathBuf = dot_git.clone();
     // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
     // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
     // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
@@ -553,7 +554,11 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&dot_git`: lends the value without copying or giving it away.
     // `.map_err(...)`: converts the callee's error into this function's error type.
-    let metadata = fs::metadata(&dot_git).map_err(|error| { return cannot_read(&dot_git, &error); })?;
+    // Review finding (4a 5): Git inspects the `.git` entry itself (an `lstat`), so a link is not followed and is Git's to judge.
+    let metadata = fs::symlink_metadata(&dot_git).map_err(|error| { return cannot_read(&dot_git, &error); })?;
+    if metadata.file_type().is_symlink() {
+        return Err(format!("{} is a symbolic link, which only Git judges", dot_git.display()));
+    }
     let git_dir: PathBuf = if metadata.is_dir() {
         dot_git
     } else {
@@ -603,7 +608,13 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
         // `Some`: the present or the absent value of an `Option`.
         // Closure `|character|`: an anonymous function, like a TS arrow function.
         // Macro `matches!`: builds or prints text (or a list) from a template.
-        Some(text) => git_dir.join(text.trim_end_matches(is_line_end)),
+        Some(text) => {
+            let path: &str = text.trim_end_matches(is_line_end);
+            if path.is_empty() {
+                return Err(format!("{} is empty, which Git refuses", git_dir.join("commondir").display()));
+            }
+            git_dir.join(path)
+        }
         // `None`: the present or the absent value of an `Option`.
         // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
         // Why:      The copy can be stored or moved elsewhere while the original stays in place.
@@ -619,13 +630,13 @@ pub fn find_layout(root: &Path, environment: &NativeEnvironment) -> Result<GitLa
     // Borrow `&common_dir`: lends the value without copying or giving it away.
     check_git_directory(&common_dir)?;
     // Review finding (3a 8): Git refuses a repository another user owns unless it is declared safe; that decision is Git's.
-    for owned in [root, git_dir.as_path(), common_dir.as_path()] {
+    for owned in [root, dot_git_path.as_path(), git_dir.as_path(), common_dir.as_path()] {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Closure `|error|`: an anonymous function, like a TS arrow function.
         // Borrow `&error`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
         // Typed binding: `owner: u32`.
-        let owner: u32 = fs::metadata(owned).map_err(|error| { return cannot_read(owned, &error); })?.uid();
+        let owner: u32 = fs::symlink_metadata(owned).map_err(|error| { return cannot_read(owned, &error); })?.uid();
         if owner != environment.user_id {
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
