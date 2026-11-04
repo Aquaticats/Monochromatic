@@ -1303,7 +1303,7 @@ The ways each of these can still exit nonzero are listed under "Merging" in `REA
 A `git pull` that is stated to merge (`--no-rebase`, `pull.rebase` or `branch.<name>.rebase` false, or `--ff`
  or `--no-ff`
 with nothing else stated) and that carries only the options and operands the wrapper reads exactly
-(`src/native/pull_isolation.rs`) is split the way Git splits it (`builtin/pull.c`, `run_fetch` and `run_merge`):
+(`src/native/merge/pull_isolation.rs`) is split the way Git splits it (`builtin/pull.c`, `run_fetch` and `run_merge`):
  the wrapper runs
 `git fetch --update-head-ok` with the pull's fetch options and operands,
  moves the working tree along when the fetch moved the
@@ -1325,7 +1325,7 @@ A merge, the person's or the auto-push's, never runs native Git's stash and neve
 the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, the checkout moves with
 `git merge --ff-only`, and the whole is preceded by a bounded wait for `index.lock`.
 A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
-content, and the merge is computed again on the moved head (`src/native/merge_isolation_moved.rs`).
+content, and the merge is computed again on the moved head (`src/native/merge/merge_isolation_moved.rs`).
 A push the service stopped or that failed is tried again by the service on its own, with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push_retry.rs`).
 The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
@@ -3965,11 +3965,11 @@ parts word by word, the way Jujutsu merges with `merge.hunk-level = "word"`, acc
 and lists each merged part on standard error and in the journal; and that the wrapper's own unattended merges
 (the auto-push reconcile merge, the commit replay merge) and the isolated merge use the same pass.
 
-The merge is `src/native/word_merge.rs`: line hunks first, then every line hunk both sides changed is diffed by word
+The merge is `src/native/merge/word_merge.rs`: line hunks first, then every line hunk both sides changed is diffed by word
 and by the bytes between words (the `similar` crate, Myers algorithm, no other feature of it), and kept only when every part of
 the hunk resolves; a file is resolved only when every hunk resolves.
 The controls hold it to the stored results of Jujutsu 0.46.0 on a corpus of real and measured inputs
-(`src/native/word_merge_corpus/`): the same verdict on every input and the same bytes on every resolved one.
+(`src/native/merge/word_merge_corpus/`): the same verdict on every input and the same bytes on every resolved one.
 It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
 which the owner accepted; it never drops a byte that either side added or kept, and it never orders two insertions at one point,
 so both sides appending different text at one place stays a conflict.

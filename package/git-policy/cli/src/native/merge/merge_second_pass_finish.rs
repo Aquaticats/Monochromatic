@@ -24,10 +24,10 @@
 //! const code = await finishLikeCleanRun({ forward, gitDir }); // undefined: leave the operation stopped
 //! ```
 
-use super::child_environment::{CHILD_SET_PREFIX, environment_value};
-use super::entry::run_process;
-use super::forwarded_command::ResolvedCommand;
-use super::merge_isolation::{editor_would_open, stdin_and_stdout_are_one_terminal};
+use crate::child_environment::{CHILD_SET_PREFIX, environment_value};
+use crate::entry::run_process;
+use crate::forwarded_command::ResolvedCommand;
+use crate::merge_isolation::{editor_would_open, stdin_and_stdout_are_one_terminal};
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
 use std::path::Path;
@@ -484,7 +484,7 @@ pub fn finish(plan: &Finish, command: &ResolvedCommand, environment: &[(OsString
         if cleaned != message {
             let result = if cleaned.is_empty() { std::fs::remove_file(&message_file) } else { std::fs::write(&message_file, cleaned) };
             if let Err(error) = result {
-                super::diagnostic_log::warn("wordMergeFinish", format!("the conflict hint could not be cut from {}: {error}", message_file.display()).as_str());
+                crate::diagnostic_log::warn("wordMergeFinish", format!("the conflict hint could not be cut from {}: {error}", message_file.display()).as_str());
             }
         }
     }

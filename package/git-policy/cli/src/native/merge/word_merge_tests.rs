@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 /// Where the stored inputs and Jujutsu's outputs are.
 fn corpus() -> PathBuf {
-    return Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/word_merge_corpus");
+    return Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus");
 }
 
 /// The bytes of one stored file of a corpus input.

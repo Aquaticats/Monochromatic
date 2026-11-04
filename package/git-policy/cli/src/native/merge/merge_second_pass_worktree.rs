@@ -15,20 +15,20 @@
 //! const watch = watchBefore(forward); const code = await runGit(forward); if (code !== 0) await resolveAfter(watch, forward, stderr);
 //! ```
 
-use super::child_environment::environment_value;
-use super::conflict_side_state::conflicted_paths;
-use super::diagnostic_log::{debug, warn};
-use super::index_writer_forward::CoordinatedForward;
-use super::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
-use super::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
-use super::journald_native::CLIENT_IDENTIFIER;
-use super::merge_second_pass_tree::announce;
-use super::path_bytes::path_message_text;
-use super::private_storage::read_regular_file;
-use super::repo_read_index::{IndexEntry, parse_index};
-use super::repo_read_layout::{RepoLayout, read_layout_after_success_for};
-use super::repo_read_object::to_hex;
-use super::transaction_git::GitContext;
+use crate::child_environment::environment_value;
+use crate::conflict_side_state::conflicted_paths;
+use crate::diagnostic_log::{debug, warn};
+use crate::index_writer_forward::CoordinatedForward;
+use crate::merge_second_pass::{Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, Stage, Verdict, config_options, resolved_record, second_pass, write_blob};
+use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
+use crate::journald_native::CLIENT_IDENTIFIER;
+use crate::merge_second_pass_tree::announce;
+use crate::path_bytes::path_message_text;
+use crate::private_storage::read_regular_file;
+use crate::repo_read_index::{IndexEntry, parse_index};
+use crate::repo_read_layout::{RepoLayout, read_layout_after_success_for};
+use crate::repo_read_object::to_hex;
+use crate::transaction_git::GitContext;
 use std::collections::BTreeSet;
 use std::io::Write;
 
@@ -269,7 +269,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         text.push_str(
             format!(
                 "{LINE_PREFIX}{}: staged as resolved by the second merge pass: {}. {}\n",
-                super::merge_second_pass::REPORT_MARK,
+                crate::merge_second_pass::REPORT_MARK,
                 names.join(", "),
                 closing_words(operation.as_str(), remaining)
             )
@@ -295,7 +295,7 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
 /// ```ts
 /// async function branchMergeOptions(runner, gitDir, command): Promise<string[] | undefined>;
 /// ```
-fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::Path, command: &super::forwarded_command::ResolvedCommand) -> Option<Vec<std::ffi::OsString>> {
+fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::Path, command: &crate::forwarded_command::ResolvedCommand) -> Option<Vec<std::ffi::OsString>> {
     if !matches!(command.word(), b"merge" | b"pull") {
         return Some(Vec::new());
     }

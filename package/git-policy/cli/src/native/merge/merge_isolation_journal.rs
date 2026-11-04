@@ -14,13 +14,13 @@
 //! ```
 
 /// Record writers and readers.
-use super::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field};
+use crate::json_record::{ObjectWriter, decode_fatal, number_equals, parse_object, safe_integer_field, string_field};
 /// The owner of a record.
-use super::transaction_owner::TransactionOwner;
+use crate::transaction_owner::TransactionOwner;
 /// Exclusive, synced, private files and directories.
-use super::private_storage::{create_private_directory, sync_directory, write_exclusive_synced};
+use crate::private_storage::{create_private_directory, sync_directory, write_exclusive_synced};
 /// The fail-closed recovery failure.
-use super::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{RecoveryError, io_failure};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 

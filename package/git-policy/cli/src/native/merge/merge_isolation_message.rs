@@ -14,7 +14,7 @@
 //! ```
 
 /// Running real Git on a request.
-use super::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 
 /// What:
 ///  The line `git merge` hands to `git fmt-merge-msg` for one merged commit, or nothing when the name needs a form

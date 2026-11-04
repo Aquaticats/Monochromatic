@@ -17,18 +17,18 @@
 //! ```
 
 /// The raw differences and the worktree states.
-use super::merge_isolation_changes::{Change, WorktreeState, parse_raw_changes, worktree_state};
+use crate::merge_isolation_changes::{Change, WorktreeState, parse_raw_changes, worktree_state};
 /// The intent record.
-use super::merge_isolation_journal::MergeIntent;
+use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
-use super::merge_isolation_recovery::{
+use crate::merge_isolation_recovery::{
     MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes, remove_record,
     standing,
 };
 /// The fail-closed recovery failure.
-use super::recovery_error::RecoveryError;
+use crate::recovery_error::RecoveryError;
 /// Running real Git.
-use super::transaction_git::{GitRequest, run_git_checked};
+use crate::transaction_git::{GitRequest, run_git_checked};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 

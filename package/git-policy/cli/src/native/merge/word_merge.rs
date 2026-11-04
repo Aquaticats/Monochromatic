@@ -7,7 +7,7 @@
 //!  in the way Jujutsu merges with `merge.hunk-level = "word"`: re-merge the conflicted regions word by word, keep the
 //!  result only when every region resolves, and show each region it merged. The diff is the `similar` crate's Myers
 //!  algorithm; the controls keep the results equal to Jujutsu 0.46.0's on the stored corpus
-//!  (`src/native/word_merge_corpus/`, `doc/planning/cli-git-merge-auto-resolution.md`).
+//!  (`src/native/merge/word_merge_corpus/`, `doc/planning/cli-git-merge-auto-resolution.md`).
 //!  The pass can produce text neither side wrote (two edits of different arguments of one call); it never drops
 //!  a byte that either side added or kept.
 //!

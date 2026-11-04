@@ -210,7 +210,7 @@ fn both_endings_are_one_core_finding_with_status_one() {
 
 /// A stored corpus file of the word-level merge.
 fn corpus(name: &str, extension: &str) -> Vec<u8> {
-    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/word_merge_corpus").join(format!("{name}.{extension}"))).expect("a corpus file");
+    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}"))).expect("a corpus file");
 }
 
 /// A repository whose first commit holds `path` as the corpus input's base, with the branch left on it.

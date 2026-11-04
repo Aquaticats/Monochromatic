@@ -28,7 +28,7 @@ pub(super) const BOTH_APPEND: &str = "md2";
 
 /// The bytes of one stored corpus file.
 pub(super) fn corpus(name: &str, extension: &str) -> Vec<u8> {
-    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/word_merge_corpus").join(format!("{name}.{extension}")))
+    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
         .expect("a stored corpus file");
 }
 

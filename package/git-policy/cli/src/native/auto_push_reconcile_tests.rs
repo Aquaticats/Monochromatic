@@ -1486,7 +1486,7 @@ fn an_explicit_push_whose_merge_push_is_refused_as_stale_is_retried() {
 
 /// A stored corpus file of the word-level merge.
 fn corpus(name: &str, extension: &str) -> Vec<u8> {
-    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/word_merge_corpus").join(format!("{name}.{extension}")))
+    return std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native/merge/word_merge_corpus").join(format!("{name}.{extension}")))
         .expect("a corpus file");
 }
 

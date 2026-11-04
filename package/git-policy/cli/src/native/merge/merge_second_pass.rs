@@ -16,12 +16,12 @@
 //! const verdicts = await secondPass(runner, conflicts); // [{ merged: { path, mode, bytes, parts } } | { left: { path, why } }]
 //! ```
 
-use super::client_journal::record_entry_as;
-use super::diagnostic_log::debug;
-use super::journald_native::Priority;
-use super::path_bytes::path_message_text;
-use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
+use crate::client_journal::record_entry_as;
+use crate::diagnostic_log::debug;
+use crate::journald_native::Priority;
+use crate::path_bytes::path_message_text;
+use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::word_merge::{LineSpan, MergedPart, WordMerge, merge_by_word};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};

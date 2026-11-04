@@ -11,9 +11,9 @@
 //! ```
 
 /// The path list of an overlap report: a few names, then a count.
-use super::auto_push_dirty_paths::listed;
+use crate::auto_push_dirty_paths::listed;
 /// The finding event and its rendering.
-use super::policy_events::{PolicyEvent, render_policy_events};
+use crate::policy_events::{PolicyEvent, render_policy_events};
 
 /// The finding family of every refusal here.
 pub const CORE_ID: &str = "merge-isolation";

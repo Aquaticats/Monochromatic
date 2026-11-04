@@ -17,25 +17,25 @@
 //! ```
 
 /// Debug diagnostics.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// Where Git's words go now that the checkout carries no `--quiet`.
-use super::inner_git_words::record_words;
+use crate::inner_git_words::record_words;
 /// The intent records and their files.
-use super::merge_isolation_journal::{
+use crate::merge_isolation_journal::{
     MergeIntent, list_merge_intents, parse_merge_intent, remove_merge_intent,
 };
 /// A merge whose branch moved while it was prepared.
-use super::merge_isolation_moved::settle_moved_branch;
+use crate::merge_isolation_moved::settle_moved_branch;
 /// The raw differences and the worktree states.
-use super::merge_isolation_changes::{
+use crate::merge_isolation_changes::{
     Change, WorktreeState, parse_raw_changes, worktree_path, worktree_state,
 };
 /// The fail-closed recovery failure.
-use super::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{RecoveryError, io_failure};
 /// Owner liveness of a record.
-use super::transaction_owner::{OwnerLiveness, OwnerLivenessError, classify_transaction_owner_record};
+use crate::transaction_owner::{OwnerLiveness, OwnerLivenessError, classify_transaction_owner_record};
 /// Running real Git.
-use super::transaction_git::{GitContext, GitRequest, run_git, run_git_checked};
+use crate::transaction_git::{GitContext, GitRequest, run_git, run_git_checked};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 

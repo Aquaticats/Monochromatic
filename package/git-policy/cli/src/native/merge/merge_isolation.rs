@@ -19,49 +19,49 @@
 //! ```
 
 /// Names and sets of unsaved work.
-use super::auto_push_dirty_paths::{diff_paths, overlapping_paths, status_paths};
+use crate::auto_push_dirty_paths::{diff_paths, overlapping_paths, status_paths};
 /// Reading an environment value.
-use super::child_environment::{environment_value, environment_with_overlay};
+use crate::child_environment::{environment_value, environment_with_overlay};
 /// Diagnostics for the log.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// Where Git's words about the wrapper's own fast-forward go now that the run carries no `--quiet`.
-use super::inner_git_words::record_streams;
+use crate::inner_git_words::record_streams;
 /// The failure rendering for state that cannot be read.
-use super::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
+use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// The resolved command.
-use super::forwarded_command::ResolvedCommand;
+use crate::forwarded_command::ResolvedCommand;
 /// The merge messages.
-use super::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source, fetch_head_merge_heads};
+use crate::merge_isolation_message::{clean_message, default_merge_message, describe_merge_source, fetch_head_merge_heads};
 /// The word-level second pass over the conflicts of the merge tree, and the attribute tree it reads.
-use super::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, config_options, conflicts_of_merge_tree};
-use super::journald_native::CLIENT_IDENTIFIER;
-use super::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
-use super::path_bytes::path_message_text;
+use crate::merge_second_pass::{ContextRunner, GitReply, GitRunner, Merged, config_options, conflicts_of_merge_tree};
+use crate::journald_native::CLIENT_IDENTIFIER;
+use crate::merge_second_pass_tree::{AttributeProbe, announce, attribute_tree_variables, resolve_tree};
+use crate::path_bytes::path_message_text;
 /// The intent record.
-use super::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
+use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent, write_merge_intent};
 /// Recovery of records.
-use super::merge_isolation_recovery::{
+use crate::merge_isolation_recovery::{
     MergeRecoveryAction, recover_interrupted_merges, settle_failed_merge,
 };
 /// The refusal findings.
-use super::merge_isolation_report::{conflict_finding, not_applied_finding, overlap_finding};
+use crate::merge_isolation_report::{conflict_finding, not_applied_finding, overlap_finding};
 /// The command-line reading.
-use super::merge_options::{FastForwardChoice, MergeShape, ParsedMerge, Signing, parse_merge_shape};
+use crate::merge_options::{FastForwardChoice, MergeShape, ParsedMerge, Signing, parse_merge_shape};
 /// The place recovery runs in.
-use super::merge_isolation_recovery::RecoveryPlace;
+use crate::merge_isolation_recovery::RecoveryPlace;
 /// Marker phases for the crash controls.
-use super::transaction_phase::{Phase, reach_transaction_phase};
+use crate::transaction_phase::{Phase, reach_transaction_phase};
 /// Real Git.
-use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// The owner of the intent record, and its identifier.
-use super::transaction_owner::current_transaction_owner;
+use crate::transaction_owner::current_transaction_owner;
 /// Unique identifiers and the clock.
-use super::iso_time::now_iso;
-use super::random_id::random_uuid;
+use crate::iso_time::now_iso;
+use crate::random_id::random_uuid;
 /// The repository shape.
-use super::worktree_identity::WorktreeIdentity;
+use crate::worktree_identity::WorktreeIdentity;
 /// Waiting for any program's hold on the index lock before the checkout changes.
-use super::index_holder_wait::wait_for_index_release_here;
+use crate::index_holder_wait::wait_for_index_release_here;
 /// Owned operating-system text.
 use std::ffi::OsString;
 /// The notices of a round that is made again.

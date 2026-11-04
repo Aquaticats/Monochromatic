@@ -15,14 +15,14 @@
 //! const resolved = await resolveTree(runner, { commonDir, tree, conflicts }); // { tree, merged } | undefined
 //! ```
 
-use super::diagnostic_log::debug;
-use super::merge_second_pass::{Conflict, GitRunner, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
-use super::path_bytes::path_message_text;
-use super::repo_read_config_list::list_config;
-use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_layout::read_layout_after_success_with;
-use super::random_id::random_uuid;
-use super::scratch_location::prepare_repository_scratch;
+use crate::diagnostic_log::debug;
+use crate::merge_second_pass::{Conflict, GitRunner, Left, Merged, Verdict, journal_merged, report_lines, second_pass, tree_with_files, write_blob};
+use crate::path_bytes::path_message_text;
+use crate::repo_read_config_list::list_config;
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_layout::read_layout_after_success_with;
+use crate::random_id::random_uuid;
+use crate::scratch_location::prepare_repository_scratch;
 use std::ffi::OsString;
 use std::path::Path;
 

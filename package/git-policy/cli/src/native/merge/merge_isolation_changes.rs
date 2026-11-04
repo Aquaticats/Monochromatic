@@ -12,7 +12,7 @@
 //! ```
 
 /// Running real Git for a blob hash.
-use super::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 

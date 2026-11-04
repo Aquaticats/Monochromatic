@@ -85,7 +85,7 @@ ureq = { workspace = true, default-features = false, features = ["rustls"] }
 # It adds two packages (itself and `adler2`) to the lockfile; the measurement is in
 # doc/planning/cli-git-in-process-reads.md.
 miniz_oxide = { workspace = true, default-features = false, features = ["with-alloc"] }
-# The diff behind the word-level second merge pass (`src/native/word_merge.rs`): `capture_diff_slices` with the Myers
+# The diff behind the word-level second merge pass (`src/native/merge/word_merge.rs`): `capture_diff_slices` with the Myers
 # algorithm, nothing else of the crate. Apache-2.0, no dependencies of its own, one package added to the lockfile.
 # The owner chose a merge of the wrapper's own on this crate over a port of Jujutsu's code and over linking `jj-lib`
 # (doc/planning/cli-git-merge-auto-resolution.md, "merge-code options measured"); the tests keep it equal to Jujutsu's results.

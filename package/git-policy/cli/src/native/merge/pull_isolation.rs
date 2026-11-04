@@ -16,24 +16,24 @@
 //! ```
 
 /// The wait for any program's hold on the index lock, and for the commit service's own hold.
-use super::index_holder_wait::wait_for_index_release_here;
-use super::service_index_wait::wait_for_service_hold_here;
+use crate::index_holder_wait::wait_for_index_release_here;
+use crate::service_index_wait::wait_for_service_hold_here;
 /// The inherited environment, which decides whether the reflog message is already set.
-use super::child_environment::environment_value;
+use crate::child_environment::environment_value;
 /// Diagnostics for the log.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The command a pull becomes.
-use super::forwarded_command::ResolvedCommand;
+use crate::forwarded_command::ResolvedCommand;
 /// The forward being run and how it ended.
-use super::index_writer_forward::{CoordinatedForward, CoordinatedRun};
+use crate::index_writer_forward::{CoordinatedForward, CoordinatedRun};
 /// The heads `FETCH_HEAD` lists for merging.
-use super::merge_isolation_message::fetch_head_merge_heads;
+use crate::merge_isolation_message::fetch_head_merge_heads;
 /// Running real Git for the queries.
-use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// Running real Git as a child that owns the terminal, for the fetch.
-use super::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
+use crate::worktree_copy_forward::{ForwardedRun, run_forwarded_git};
 /// The repository shape of the invocation.
-use super::worktree_identity::WorktreeIdentity;
+use crate::worktree_identity::WorktreeIdentity;
 /// Owned operating-system text.
 use std::ffi::OsString;
 /// Standard error for the pull's own warning.
