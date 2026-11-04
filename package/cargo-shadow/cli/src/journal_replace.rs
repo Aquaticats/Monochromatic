@@ -554,10 +554,7 @@ pub fn create_exclusive(directory: &Path, base: &str, text: &str, mode: u32, nex
     }
     // `Err(...)`: builds the success or the failure variant of a `Result`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    return Err(io::Error::other(format!(
-        "{} holds {MAX_NAME_ATTEMPTS} temporary files named after {base}; those files can be the only names of data another writer produced, so keep them, and move or archive the older ones before running the command again",
-        directory.display()
-    )));
+    return Err(io::Error::other(names_exhausted_message(directory, &base)));
 }
 
 /// What:
@@ -951,4 +948,20 @@ pub fn replace_with_seams(path: &Path, expected: &str, new_text: &str, keep: &Ke
     let ops: Ops = Ops { swap: seams.swap, link: seams.link, sync_file: seams.sync_file, sync_dir: seams.sync_dir };
     // Borrow `&ops`: lends the value without copying or giving it away.
     return replace_core(path, expected, new_text, keep, seams.between, seams.after_exchange, &ops);
+}
+
+/// What:
+/// `pub(crate) fn names_exhausted_message(directory: &Path, base: &str) -> String` is the error for a directory whose temporary names are used up.
+/// Why:
+/// The files may be the only names of another writer's data, so the text says what keeps the data and what loses it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namesExhaustedMessage(directory: string, base: string): string
+/// ```
+pub(crate) fn names_exhausted_message(directory: &Path, base: &str) -> String {
+    return format!(
+        "{} holds {MAX_NAME_ATTEMPTS} temporary files named after {base}; those files can be the only names of data another writer produced, so keep them, and move or archive the older ones before running the command again",
+        directory.display()
+    );
 }

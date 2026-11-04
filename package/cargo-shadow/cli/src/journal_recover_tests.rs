@@ -150,3 +150,13 @@ fn a_ready_record_with_an_unexpected_entry_is_rejected() {
 
     assert!(read_ready(&journal).is_err(), "an unexpected entry passed");
 }
+
+/// Round 6 (5b 4): the advice about exhausted temporary names never offers a copy-and-delete as safe,
+/// because a program that still has the file open keeps writing to the original.
+#[test]
+fn the_exhausted_names_advice_does_not_recommend_archiving_and_names_the_open_file_risk() {
+    let message = crate::journal_replace::names_exhausted_message(Path::new("/x"), "Cargo.lock");
+
+    assert!(!message.contains("archive"), "{message}");
+    assert!(message.contains("open"), "{message}");
+}
