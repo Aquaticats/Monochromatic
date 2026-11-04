@@ -216,7 +216,7 @@ fn a_failed_flock_never_has_the_stale_lock_removed() {
     };
     let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
     let outcome: Reclaimed = reclaim(&platform, &lock);
-    assert_ne!(outcome, Reclaimed::Removed, "the stale lock was removed without the hold");
+    assert_eq!(outcome, Reclaimed::Unguarded, "the stale lock is left, and the caller is told why");
     assert_eq!(tried.get(), 1, "the hold was asked for once");
     assert!(lock.exists(), "the stale lock stays");
     remove(root.as_path());
@@ -315,5 +315,42 @@ fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
     assert!(!seen.contains("index.lock"), "the live lock's name saw events: {seen:?}");
     assert_eq!(std::fs::read_to_string(&lock).expect("the live lock stands"), marker_text(7, &crate::service_index_marker::own_identity).expect("this process has an identity"));
     drop(live);
+    remove(root.as_path());
+}
+
+/// Files an earlier release's reclaim left at a taken-aside name are removed when no process has them open, and what they held
+///  is in the log line; the files that only look like them are not touched.
+#[test]
+fn stranded_aside_files_nobody_has_open_are_removed() {
+    let (root, index) = index_in("reclaim-sweep");
+    let lock: PathBuf = lock_path_of(&index);
+    let stranded: PathBuf = root.join("index.lock.aside-123-abc");
+    let other: PathBuf = root.join("index.lock.other");
+    std::fs::write(&stranded, stale_lock_text(5)).expect("stranded");
+    std::fs::write(&other, "not an aside file").expect("other");
+    remove_stranded_asides(&lock);
+    assert!(!stranded.exists(), "the stranded file is removed");
+    assert!(other.exists(), "a file with another name stays");
+    assert!(index.exists());
+    remove(root.as_path());
+}
+
+/// Refused: an aside file that a process has open (a live holder's lock), and one with another name too (a lock being put back by
+///  a hard link), stay.
+#[test]
+fn an_aside_file_a_process_has_open_or_another_name_has_stays() {
+    let (root, index) = index_in("reclaim-sweep-kept");
+    let lock: PathBuf = lock_path_of(&index);
+    let open: PathBuf = root.join("index.lock.aside-1-a");
+    let linked: PathBuf = root.join("index.lock.aside-2-b");
+    std::fs::write(&open, "held by a process").expect("open");
+    std::fs::write(&linked, "put back by a link").expect("linked");
+    std::fs::hard_link(&linked, root.join("index.lock.second-name")).expect("a second name");
+    let mut holder = std::process::Command::new("sleep").arg("60").stdin(std::fs::File::open(&open).expect("the file")).spawn().expect("a process that holds the file");
+    remove_stranded_asides(&lock);
+    holder.kill().expect("stopped");
+    holder.wait().expect("reaped");
+    assert!(open.exists(), "a file a process has open stays");
+    assert!(linked.exists(), "a file with another name too stays");
     remove(root.as_path());
 }

@@ -38,6 +38,9 @@ pub enum Reclaimed {
     Kept,
     /// The file is stale and cannot be removed; the log says why.
     Stuck,
+    /// The file is stale, but the hold a safe removal needs could not be taken (no `flock` on the file system, or the kernel
+    ///  refused it): the file is left where it is, and the person is told how to remove it.
+    Unguarded,
 }
 
 /// What:
@@ -86,7 +89,11 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
         Hold::Taken => {}
         Hold::Busy => return Reclaimed::Busy,
         Hold::Unavailable(error) => {
-            crate::service_error!("the index lock {} is removed without the reclaim hold ({error}): this file system gives no flock, so two services reclaiming one physical index at once are not kept apart", lock.display());
+            crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: the hold that keeps two reclaimers apart could not be taken ({error}), so a removal could take a live lock; \
+                 remove it by hand once no git command runs in this repository",
+                lock.display()
+            );
+            return Reclaimed::Unguarded;
         }
     }
     crate::service_fault::reach("reclaim-held");
@@ -123,7 +130,7 @@ enum Hold {
     Taken,
     /// Another reclaimer holds it.
     Busy,
-    /// The file system gives no `flock`, or the call failed: the reclaim goes on unguarded.
+    /// The file system gives no `flock`, or the call failed for a reason that waiting does not change: nothing is removed.
     Unavailable(std::io::Error),
 }
 
@@ -139,7 +146,8 @@ enum Hold {
 fn hold(platform: &Platform, file: &std::fs::File) -> Hold {
     return match (platform.flock)(file) {
         Ok(()) => Hold::Taken,
-        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => Hold::Busy,
+        // An interrupted call is asked again by the wait, like a hold another reclaimer has taken.
+        Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted) => Hold::Busy,
         Err(error) => Hold::Unavailable(error),
     };
 }
@@ -171,4 +179,75 @@ fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
     let named = std::fs::symlink_metadata(lock)?;
     let open = file.metadata()?;
     return Ok(named.dev() == open.dev() && named.ino() == open.ino());
+}
+
+/// What:
+///  The words for a stale lock that was not removed: which lock, which batch and process left it, and how to remove it.
+/// Why:
+///   Native Git leaves a stale `index.lock` to the person, and so does a service that cannot take the hold a safe removal needs;
+///  the person must be able to act from the notice alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `The index lock ${lock} was left by cli-git-service batch ${seq} (process ${pid}, gone). ... remove it yourself: rm ${lock}`
+/// ```
+pub fn stale_lock_words(lock: &Path) -> String {
+    let who: String = match crate::service_index_marker::marker_of(lock) {
+        Some(Marked { seq, holder: Some((pid, _)) }) => format!("cli-git-service batch {seq} (process {pid}, which is gone)"),
+        Some(Marked { seq, holder: None }) => format!("cli-git-service batch {seq}"),
+        None => String::from("cli-git-service"),
+    };
+    return format!(
+        "The index lock {} was left by {who} and is not removed here, because the file lock that makes its removal safe could not be taken on this file system. \
+         The commit waits as for any held lock. Once no git command is running in this repository, remove it yourself (`rm {}`).",
+        lock.display(),
+        lock.display()
+    );
+}
+
+/// What:
+///  Removes the files an earlier release's reclaim left at a taken-aside name beside `lock` (`<lock>.aside-<process>-<time>`),
+///  when no process has them open, and says in the log what each held.
+/// Why:
+///   That release took a lock aside by a rename and put it back by a hard link; when the name was taken meanwhile, the file
+///  stayed at its aside name. A live holder keeps its file open, so a file no process has open is a lock nobody holds. These are
+///  lock files, not user data; their bytes go into the log line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of await readdir(dir)) if (name.startsWith(`${lockName}.aside-`) && nobodyHasOpen(name)) { log(await read(name)); await rm(name) }
+/// ```
+pub fn remove_stranded_asides(lock: &Path) {
+    use std::os::unix::ffi::OsStrExt;
+    let (Some(directory), Some(file)) = (lock.parent(), lock.file_name()) else { return };
+    let mut prefix: Vec<u8> = file.as_bytes().to_vec();
+    prefix.extend_from_slice(b".aside-");
+    let Ok(entries) = std::fs::read_dir(directory) else { return };
+    for entry in entries.flatten() {
+        if !entry.file_name().as_bytes().starts_with(prefix.as_slice()) {
+            continue;
+        }
+        let path: PathBuf = entry.path();
+        let Ok(metadata) = std::fs::symlink_metadata(&path) else { continue };
+        // A file with another name too is a lock being put back by a hard link, not a stranded one.
+        if !metadata.is_file() || metadata.nlink() != 1 {
+            continue;
+        }
+        let seen = crate::index_lock_holders::scan_platform_holders_bounded(path.as_path(), metadata.dev(), metadata.ino());
+        // The processes of other accounts have descriptors this reader cannot list (a reason per process); a holder of these files is a
+        //  service of this account, whose descriptors it can. A scan that stopped at its time bound, or never listed the processes,
+        //  has not looked, and the file stays.
+        let looked_everywhere: bool = !seen.partial.iter().any(|reason| { return reason.starts_with("stopped at the time bound") || reason.starts_with("/proc"); });
+        if !seen.holders.is_empty() || !looked_everywhere {
+            continue;
+        }
+        let mut text: String = String::new();
+        if let Ok(opened) = std::fs::File::open(&path) {
+            let _read = std::io::Read::read_to_string(&mut std::io::Read::take(&opened, 512), &mut text);
+        }
+        match std::fs::remove_file(&path) {
+            Ok(()) => crate::service_log!("removed {}, an index lock an earlier release's reclaim left at a taken-aside name; no process had it open; it held {text:?}", path.display()),
+            Err(error) => crate::service_error!("{} is an index lock an earlier release's reclaim left at a taken-aside name; no process has it open, and it cannot be removed ({error}); it held {text:?}", path.display()),
+        }
+    }
 }
