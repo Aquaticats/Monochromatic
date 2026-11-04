@@ -51,6 +51,8 @@ mod seams {
         pub static EVENTS: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
         /// The fault point callback of this thread.
         pub static FAULT: Cell<Option<fn(&str)>> = const { Cell::new(None) };
+        /// A forcing error to inject on this thread: how many syncs succeed first, and the error number of the one that fails.
+        pub static SYNC_FAILURE: Cell<Option<(u32, i32)>> = const { Cell::new(None) };
     }
 }
 
@@ -71,6 +73,33 @@ pub fn take_events() -> Vec<String> {
 #[cfg(feature = "test-seams")]
 pub fn set_fault_point(callback: Option<fn(&str)>) {
     seams::FAULT.with(|cell| { cell.set(callback); });
+}
+
+/// Makes the sync after the next `after` successful ones on this thread fail once with the error number `errno` (`None` clears it): a disk
+/// that answers a forcing with `EIO`, `ENOSPC` or `EROFS`. Both file syncs and directory syncs of the durable-record components count.
+#[cfg(feature = "test-seams")]
+pub fn inject_sync_error(failure: Option<(u32, i32)>) {
+    seams::SYNC_FAILURE.with(|cell| { cell.set(failure); });
+}
+
+/// The error this sync must fail with, if a test asked for one at this point; the injection fires once.
+fn injected_sync_error() -> Option<io::Error> {
+    #[cfg(feature = "test-seams")]
+    return seams::SYNC_FAILURE.with(|cell| {
+        return match cell.get() {
+            Some((0, errno)) => {
+                cell.set(None);
+                Some(io::Error::from_raw_os_error(errno))
+            }
+            Some((left, errno)) => {
+                cell.set(Some((left - 1, errno)));
+                None
+            }
+            None => None,
+        };
+    });
+    #[cfg(not(feature = "test-seams"))]
+    return None;
 }
 
 /// Records one event on this thread when a test is recording; an empty function in a production build.
@@ -106,6 +135,9 @@ pub fn fault_point(name: &str) {
 /// Syncs a file's data and records the event `file-sync:<path>` (test seam) after it succeeded; every file sync of the durable-record
 /// components goes through here, so a test can count them.
 pub fn sync_file(file: &File, path: &Path) -> io::Result<()> {
+    if let Some(error) = injected_sync_error() {
+        return Err(error);
+    }
     file.sync_all()?;
     record_event_lazy(|| { return format!("file-sync:{}", path.display()); });
     return Ok(());
@@ -113,6 +145,9 @@ pub fn sync_file(file: &File, path: &Path) -> io::Result<()> {
 
 /// Syncs a directory so entries made in it survive power loss. The event `dir:<path>` is recorded after the sync succeeded.
 pub fn sync_directory(directory: &Path) -> io::Result<()> {
+    if let Some(error) = injected_sync_error() {
+        return Err(error);
+    }
     File::open(directory)?.sync_all()?;
     record_event_lazy(|| { return format!("dir:{}", directory.display()); });
     return Ok(());
