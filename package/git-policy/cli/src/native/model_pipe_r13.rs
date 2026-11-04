@@ -11,6 +11,11 @@
 //!  combination of those mistakes being possible; thirteen as the specified bootstrap only. A queued `commit` is not cancelled by
 //!  later end of input (the child reads it first), which is why the owner's death does not undo a submitted instruction.
 //!
+//! The steps labelled `git:` (reading the queued line, ending on end of input) are Git's documented reactions to its input
+//! (`update-ref.c:712-770`, a backend gate that is still to be confirmed against the installed Git); they are labelled apart from
+//! `environment:` because the check `explore_eventually` counts only the protocol's own steps. The green of `check_end_of_input` rests
+//! on that assumption about Git, and not on any help from the environment.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // type Pipe = { rules; readCopy; strayWrite; splitLines; child; client; owner; queued; partialFrom; garbage; hidden };

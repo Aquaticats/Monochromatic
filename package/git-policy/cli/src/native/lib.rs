@@ -1673,11 +1673,12 @@ pub mod commit_integrity;
 #[cfg(target_os = "linux")]
 pub mod commit_ledger;
 
-/// The permanent binding of a request identity to the hash of its content, created complete and never overwritten.
+/// The shared durable-file helpers of the commit protocol's record components (temporary names, directory sync chains, the initialized
+/// root, the test seams); the permanent identity binding it once held is removed.
 #[cfg(target_os = "linux")]
 pub mod commit_identity;
 
-/// The immutable commit request record, its strict codec and its no-replace publication.
+/// The immutable commit request record and its strict codec; publication is the inbox's `accept`.
 #[cfg(target_os = "linux")]
 pub mod commit_request;
 
