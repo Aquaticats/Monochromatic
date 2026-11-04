@@ -486,7 +486,8 @@ pub(crate) fn pid_namespace_id() -> io::Result<u64> {
 }
 
 /// What `start_of` found about a process id.
-enum StartOf {
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum StartOf {
     /// No process has this id in this process's namespace.
     Gone,
     /// The process, with its start time, read through a procfs that numbers it with this id.
@@ -499,6 +500,25 @@ enum StartOf {
         /// Why.
         String,
     ),
+}
+
+/// What:
+/// `pub(crate) fn missing_entry_verdict(number: i64, pid: i32, reason: &str) -> StartOf` reads the number that the procfs gives a pidfd's process
+/// after the process's directory could not be read.
+/// Why:
+/// Only the value the kernel prints for a process that has ended and been reaped (`-1`) shows that the process is gone;
+/// the same number as before means the process exists and procfs hides it, and any other number (another positive id, or `0` for a
+/// process that this procfs does not show) says nothing about whether it ended (round 13, 12a).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function missingEntryVerdict(number: number, pid: number, reason: string): StartOf
+/// ```
+pub(crate) fn missing_entry_verdict(number: i64, pid: i32, reason: &str) -> StartOf {
+    return match number {
+        n if n == i64::from(pid) => StartOf::Unknown(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({reason})")),
+        _ => StartOf::Gone,
+    };
 }
 
 /// What:
@@ -540,8 +560,7 @@ fn start_of(pid: i32) -> StartOf {
         Ok((start, _)) => StartOf::Process(start),
         // The same process was numbered `pid` a moment ago: if procfs now has no entry, it ended (its number is then -1), or procfs hides it.
         Err(error) if error.kind() == io::ErrorKind::NotFound => match number_in_procfs() {
-            Ok(number) if number == pid => StartOf::Unknown(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({error})")),
-            Ok(_) => StartOf::Gone,
+            Ok(number) => missing_entry_verdict(i64::from(number), pid, &error.to_string()),
             Err(reason) => StartOf::Unknown(reason),
         },
         Err(error) => StartOf::Unknown(format!("/proc/{pid}/stat cannot be read ({error})")),
