@@ -559,10 +559,15 @@ Results (cuts are the cut points times two signals):
 - Added in round 3 (2026-11-04T14:20:00-05:00 onward, same method): identical, `update-ref --no-deref REF VALUE` with
   `-c core.logAllRefUpdates=false` on the command line while the configuration says `always` (12 cuts), the same with REF a symbolic ref
   to a branch (8), `update-ref -d --no-deref REF` with the setting (14), `symbolic-ref HEAD REF` in a bare repository (4).
-  Different: `init --bare --template= --ref-format=reftable DIR` (64 cuts, all different: the reftable names are random, and 57 second
-  runs failed), and `fast-import --done --export-marks=FILE` with the wrapper's own stream, the setting on the command line and the
+  Different: `init --bare --template= --ref-format=reftable DIR`, run again in place (104 cuts, 54 identical and 50 different: a cut
+  leaves reftable tables the second run does not replace; every second run exited zero), and `fast-import --done --export-marks=FILE` with the wrapper's own stream, the setting on the command line and the
   configuration saying `always` (88 cuts, 2 different, both second runs failed on a `marks-1.lock` a cut left in the worktree).
-  Output files: `cut-experiment-round3.out` and a run of the `fast-import` case.
+  Output files: `cut-experiment-round3.out` and a run of the `fast-import` case. Correction of 2026-11-04 (round 4): the first run of
+  the `init` case gave the step an absolute path inside the template directory, so its cuts and second runs acted on one shared
+  directory; the figures "64 cuts, 57 second runs failed" that this paragraph and the first round 3 report gave were that artifact and
+  are withdrawn. The run with the path relative to each copy (`cut-experiment-init-r4.out`, `cut-experiment.ts`) is the one above. The
+  same case with the partial directory discarded before the second run (the fresh shadow of `init_with_git`) came out identical in
+  104 of 104 cuts, normalizing the random reftable table names and checking the refs through the repository.
 - Not run, so counted with the different ones because data is lost by guessing wrong and a wait is not:
   every other form, such as `reset --soft`, `update-ref` of a ref outside `refs/cli-git/`, `stash push`.
 - Limits: one small repository, Git 2.56.0, local filesystem; a step cut part way through a large worktree could differ in ways a

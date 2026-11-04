@@ -146,9 +146,9 @@ fn init_with_git(
     let mut attempt: u32 = 1;
     loop {
         let outcome = run_git(context, &init);
-        // A start ended at its ceiling, or refused a process or a thread, leaves a directory that a second `init` in place fails in (the cut
-        //  experiment: reftable table names are random, 57 of 64 second runs failed). It is discarded and the start is made again in a
-        //  fresh directory, which the experiment found equal to an uncut run.
+        // A start ended at its ceiling, or refused a process or a thread, leaves a directory that a second `init` in place does not bring to
+        //  the state of an uncut run (the cut experiment: 50 of 104 second runs differed in the reftable tables). It is discarded and the
+        //  start is made again in a fresh directory, which the experiment found equal to an uncut run (104 of 104).
         let cut: bool = match &outcome {
             Err(error) => error.kind() == std::io::ErrorKind::TimedOut,
             Ok(finished) => refused_by_the_system(finished),

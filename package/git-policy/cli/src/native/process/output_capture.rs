@@ -80,9 +80,18 @@ impl Capture {
     /// ```
     pub fn snapshot(&self, limit: usize) -> Captured {
         let mut notes: Vec<String> = Vec::new();
-        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes);
-        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes);
+        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, &mut || {});
+        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes, &mut || {});
         return Captured { stdout, stderr, notes };
+    }
+
+    /// `snapshot` of standard output, calling `after_chunk` after every chunk it read: a control appends to the file there, which a
+    ///  reader that chases the end of the file would follow for ever.
+    #[cfg(test)]
+    pub fn snapshot_stdout_with(&self, limit: usize, after_chunk: &mut dyn FnMut()) -> (Vec<u8>, Vec<String>) {
+        let mut notes: Vec<String> = Vec::new();
+        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes, after_chunk);
+        return (stdout, notes);
     }
 
     /// Free what the files hold in memory. The child's offset is its own, so what it writes afterwards leaves a hole before it and
@@ -106,7 +115,7 @@ pub struct Captured {
 
 /// The last `limit` bytes of the first `length` bytes of `file`, where `length` is the size when the call began; a note for the bytes
 ///  left out and for a read that failed.
-fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>) -> Vec<u8> {
+fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>, after_chunk: &mut dyn FnMut()) -> Vec<u8> {
     let length: u64 = match file.metadata() {
         Ok(found) => found.len(),
         Err(error) => {
@@ -129,6 +138,7 @@ fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>) -
             Ok(read) => {
                 collected.extend_from_slice(&buffer[..read]);
                 position += read as u64;
+                after_chunk();
             }
             Err(error) => {
                 notes.push(format!("the {name} of the step could not be read whole ({error}); {} of {wanted} bytes are shown", collected.len()));

@@ -625,6 +625,8 @@ fn output_of(status: std::process::ExitStatus, captured: Option<&Capture>) -> Ou
     for note in &shown.notes {
         stderr.extend_from_slice(format!("\ncli-git: {note}\n").as_bytes());
     }
+    // Read once, and a descendant that keeps the files open must not keep the pages of what was read.
+    files.discard();
     return Output { status, stdout: shown.stdout, stderr };
 }
 

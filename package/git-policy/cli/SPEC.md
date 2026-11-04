@@ -1396,12 +1396,18 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   `--staged`, `--worktree`, `--source=` and paths after `--`, `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key>
   <value>`; and the steps `RERUNNABLE` names, and the readers and writers of unreferenced objects (`rev-list`, `merge-base`, `log`,
   `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`, `fmt-merge-msg`, `show-ref`, `name-rev`,
-  `commit-tree`, `mktree`; `fast-import` is not among them: its input can update and checkpoint branches, and the experiment ran the
-  wrapper's own stream and found a marks lock a cut left that the second run could not pass). `RERUNNABLE` no longer names
-  `symbolic-ref` or `init`: `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the
-  wrapper made, as a write of one name to one target with no option (identical in the experiment), and `init` only as the shadow's
-  creation (the one argv `shadow_create.rs` runs, on a shadow request), which the experiment found different after a second run (reftable names are random) and
-  which is private and thrown away with its transaction when it fails. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
+  `commit-tree`, `mktree`). `fast-import` is not among them: its input can update and checkpoint branches, and the experiment ran the
+  wrapper's own stream and found a marks lock a cut left that the second run could not pass. What bounds it now is the rule for every
+  step that cannot run twice: on the landing thread it is waited for as long as it lives, with the clients behind it told what it is
+  stuck in; a person's command that started it stops waiting at the class ceiling plus `SHORT_EXTRA_WAIT` (7 seconds, the owner's
+  "Class ceiling + 7 s (Recommended)") and says the result is not known. `RERUNNABLE` names neither `symbolic-ref` nor `init`:
+  `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the wrapper made, as a write
+  of one name to one target with no option (identical in the experiment). `init` is never run again in place (a cut leaves reftable
+  tables the second run does not replace: 50 of 104 cuts differed); its one form, the argv `shadow_create.rs` runs on a shadow
+  request, keeps its ceiling because `init_with_git` discards the partial directory and starts a fresh one, at most
+  `SHADOW_CREATION_ATTEMPTS` (2) times, which the experiment found identical to an uncut run in 104 of 104 cuts; a shadow whose `init`
+  is cut every time fails its transaction. A side-ref write also keeps its ceiling only while `git reflog exists` says the ref has no
+  reflog, asked at the start of the write: `core.logAllRefUpdates=false` does not stop an append to a log that exists. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
   `checkout`, `switch`, `config --add`, `gc` and the rest, is never ended. On the commit service's landing thread such a step is
   announced at the usual interval and waited for as long as it lives. Any other command stops waiting at the bound of the step's
   class plus `SHORT_EXTRA_WAIT` (7 seconds; the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
@@ -1587,12 +1593,15 @@ What happens at the bound, on the commit path:
   (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
   not begun to land. Admission and cancellation are one decision per request: the file `<id>.decision` in the journal's `busy`
   directory, made with `link(2)` of a whole file, which exactly one side can create (`landing` by the landing thread before it
-  lands the request, `withdrawn` by a connection thread before it answers). A `withdrawn` decision is provisional until its maker has
-  checked the journal once more and created the file `<id>.cancelled`; only a decision with that file is acknowledged to a client or
-  kept, and a maker that finds the request landed, open or unknown removes its decision, which nobody has acknowledged, so no
-  observer reports a cancellation that is later undone. A `withdrawn` decision with its `.cancelled` file stays as a tombstone, so every
-  copy of the request that reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches, and
-  cleared when the service starts like the service's own memory of withdrawals); a `landing` decision is removed when its group is
+  lands the request, `withdrawn:<token>` by a connection thread before it answers, the token being the maker's own). A `withdrawn`
+  decision is provisional until its maker has checked the journal once more and created the file `<id>.<token>.cancelled` with the
+  token the decision carries; only a decision whose own confirmation exists is acknowledged to a client or kept, and a maker that
+  finds the request landed, open or unknown removes its decision, which nobody has acknowledged, so no observer reports a
+  cancellation that is later undone. A confirmation belongs to one decision: one that outlives its decision confirms nothing of the
+  decision that replaces it. A `withdrawn` decision with its confirmation stays as a tombstone, so every copy of the request that
+  reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches, forgotten oldest first by the landing
+  thread alone, between two groups, which removes a decision only while it still carries the token of the confirmation it removes; the
+  memory is cleared when the service starts like the service's own memory of withdrawals); a `landing` decision is removed when its group is
   done, after the batch is in the journal, and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
   request the journal names. A request that a batch still open names is left to the landing thread. Whatever cannot be established
   (a file that cannot be made or read, a journal that cannot be read whole) is never evidence of a cancellation: the withdrawal goes
@@ -1674,7 +1683,9 @@ of a conversion claim (`single_owner_claim.rs`), and the journals and stage clai
 - The output of a step the wrapper started (`src/native/process/output_capture.rs`) is read once, when the step has ended or the
   command has stopped waiting for it, as a snapshot of the last `STEP_OUTPUT_LIMIT` (8 MiB) bytes of each stream as the files were
   sized when the read began. What was left out is said in the text the person sees ("N bytes at the start ... are left out"), and
-  a read that fails is said too and is never taken for the end of the output. A descendant that keeps appending after its leader
+  a read that fails is said too and is never taken for the end of the output. The notes reach the person with a failure of a repair tool
+  and are kept in the tool's result, where a reader of its output (the `cargo metadata` of a repair) refuses output that was not taken
+  whole. The files are emptied after the read on every path that ends a step, a stop included. A descendant that keeps appending after its leader
   has exited therefore holds nothing up. The files are emptied (`ftruncate`) once nobody will read them, which frees what was
   written until then; a step left running that keeps writing is held in memory by the kernel (it is anonymous memory of the step's
   own output file) until the step ends or closes its output, which nothing in the wrapper bounds, and a very verbose step left
@@ -1684,7 +1695,8 @@ of a conversion claim (`single_owner_claim.rs`), and the journals and stage clai
 - The review of the commit service (`standards_review_run.rs`) admits one job at a time in one atomic step: a state of a
   generation and a status, changed by compare-and-swap, so two callers that arrive together are never admitted both, and the
   release of the state runs from a guard when the job's thread unwinds, so a review that panics after its timeout leaves nothing
-  outstanding. The look at the review's log runs inside the contained job.
+  outstanding. The look at the review's log runs inside the contained job. A caller whose wait ran out and who finds the job released waits for
+  its value at most `SHORT_EXTRA_WAIT` (7 seconds): the release does not prove the value was sent.
 - Releases that meet. The protocol version stays 7 and no message changes: `waiting` with `"inside_write": true`, `withdraw` and
   `withdrawn` are the messages of 0.5.31 and 0.5.33. A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
   it was released with: a classifier by the name of the step, a decision race between landing and withdrawal that this release

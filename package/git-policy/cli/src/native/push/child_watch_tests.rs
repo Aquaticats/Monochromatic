@@ -574,3 +574,16 @@ fn a_step_left_running_survives_the_exit_of_the_command_that_left_it() {
     }
     crate::test_support::remove(directory.as_path());
 }
+
+/// What a step wrote is released once it is read (sol-1 round 3, P2 E): a descendant that keeps the files open cannot keep the pages
+/// the reader no longer needs.
+#[test]
+fn the_output_of_a_step_is_released_once_it_is_read() {
+    let capture: Capture = Capture::new().expect("the files");
+    let (out, err) = capture.stdio().expect("the streams");
+    let status = Command::new("sh").args(["-c", "echo kept-for-the-reader; echo and-this >&2"]).stdout(out).stderr(err).status().expect("the child");
+    let output: Output = output_of(status, Some(&capture));
+    assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("kept-for-the-reader"));
+    let again: crate::output_capture::Captured = capture.snapshot(1024);
+    assert!(again.stdout.is_empty() && again.stderr.is_empty(), "the files were emptied after the read");
+}

@@ -353,9 +353,9 @@ fn reftable_with_hanging_init(root: &Path, hang: u32) -> (GitContext, PathBuf, I
 }
 
 /// A shadow whose `init` was ended at its ceiling is thrown away and made again in a fresh directory, never run again in the partial
-/// one: the experiment found a cut `init` cannot run twice in place (the reftable table names are random and 57 of 64 second runs
-/// failed), and after the partial directory is discarded the second run equals an uncut one (the owner's "Never cut a branch write
-/// (Recommended)": a step that cannot run twice has no ceiling unless it is restartable like this).
+/// one: the experiment found a cut `init` does not run twice to the same state in place (50 of 104 second runs ended with
+/// different reftable tables), and after the partial directory is discarded the second run equals an uncut one (104 of 104; the owner's
+/// "Never cut a branch write (Recommended)": a step that cannot run twice has no ceiling unless it is restartable like this).
 #[test]
 fn a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory() {
     let root: PathBuf = fixture("shadow-create-init-cut");

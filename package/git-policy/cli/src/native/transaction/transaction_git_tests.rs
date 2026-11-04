@@ -894,7 +894,7 @@ fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
 }
 
 /// The shadow's creation keeps its ceiling only in the exact form the wrapper runs and only for a request on a shadow: its creator
-/// discards a cut start's directory and starts again in a fresh one, which the experiment found equal to an uncut run (64 of 64).
+/// discards a cut start's directory and starts again in a fresh one, which the experiment found equal to an uncut run (104 of 104).
 /// Any other `init` can touch the repository of the person, so it has no ceiling.
 #[test]
 fn only_the_shadow_creation_init_keeps_a_ceiling() {

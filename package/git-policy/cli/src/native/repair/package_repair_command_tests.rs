@@ -300,3 +300,48 @@ fn a_leader_that_ends_is_reaped_within_the_budget() {
     let child: Child = command.spawn().expect("the leader");
     assert!(reap_within(child, Duration::from_secs(10)));
 }
+
+/// A tool that writes more than the snapshot keeps, then fails: the person is told the start of its output is left out (sol-1 round 3,
+/// P2 E: the notes of the snapshot were dropped). A tool that succeeds with output that could not be taken whole says so in
+/// `notes`, which a parser of that output must look at.
+#[test]
+fn output_past_the_snapshot_is_disclosed_to_the_person() {
+    let root: PathBuf = fixture("runs-output-past-the-limit");
+    let program: PathBuf = root.join("tool");
+    let too_much: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1024;
+    executable(program.as_path(), format!("#!/bin/sh\nhead --bytes={too_much} /dev/zero | tr '\\0' 'x'\necho the-reason >&2\nexit {FAILING_STATUS}\n").as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
+    let ToolEnd::Failed(text) = &run.end else { panic!("{run:?}") };
+    assert!(text.contains("the-reason"), "the tail of the error output is shown: {text}");
+    assert!(text.contains("left out"), "the person is told output was left out: {text}");
+    let succeeding: PathBuf = root.join("succeeding");
+    executable(succeeding.as_path(), format!("#!/bin/sh\nhead --bytes={too_much} /dev/zero | tr '\\0' 'x'\n").as_bytes());
+    let succeeded: ToolRun = run_tool(succeeding.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
+    assert_eq!(succeeded.end, ToolEnd::Succeeded);
+    assert!(succeeded.notes.iter().any(|note| { return note.contains("left out"); }), "output that was cut is not a complete result: {:?}", succeeded.notes);
+    remove(&root);
+}
+
+/// The stop path hands the killed leader to the reaper the run was given, after the captured pages were released (sol-1 round 3,
+/// P2 E and the test review: nothing showed that `run_tool` reaps within a budget when a killed leader does not end).
+#[test]
+fn a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_released() {
+    let root: PathBuf = fixture("runs-stop-reaper");
+    let program: PathBuf = root.join("tool");
+    executable(program.as_path(), format!("#!/bin/sh\necho before-the-stop\nsleep {SLOW_SECONDS}\n").as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let calls = std::cell::Cell::new(0_u32);
+    let emptied = std::cell::Cell::new(false);
+    let run: ToolRun = run_tool_reaping(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: BRIEF }, &|mut leader: Child, captured: &Capture| -> bool {
+        calls.set(calls.get() + 1);
+        emptied.set(captured.snapshot(1024).stdout.is_empty());
+        // A leader that does not end is the reaper's to wait for: this one is reaped here.
+        let _ended = leader.wait();
+        return false;
+    });
+    assert_eq!(run.end, ToolEnd::CeilingReached(BRIEF));
+    assert_eq!(calls.get(), 1, "the stop path reaps through the reaper it was given");
+    assert!(emptied.get(), "what the tool wrote is released before the reaper runs");
+    remove(&root);
+}

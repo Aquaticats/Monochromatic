@@ -255,6 +255,7 @@ fn read_workspace(cargo: &Path, directory: &Path, limit: ToolLimits) -> Result<W
     let command: ToolCommand = ToolCommand { arguments, directory: PathBuf::from(directory), set: Vec::new() };
     let run: ToolRun = run_tool(cargo, &command, limit);
     return match run.end {
+        ToolEnd::Succeeded if !run.notes.is_empty() => Err(format!("cargo metadata in {} wrote output that could not be taken whole ({}), so it was not read", directory.display(), run.notes.join("; "))),
         ToolEnd::Succeeded => parse_metadata(String::from_utf8_lossy(run.stdout.as_slice()).as_ref()),
         ToolEnd::Failed(reason) => Err(format!("cargo metadata in {} failed: {reason}", directory.display())),
         ToolEnd::TimedOut => Err(format!("cargo metadata in {} showed no sign of work for the quiet window and was stopped", directory.display())),

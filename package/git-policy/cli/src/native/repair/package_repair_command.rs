@@ -101,6 +101,9 @@ pub struct ToolRun {
     pub millis: u128,
     /// What the program wrote to its standard output; empty when it did not run to its end.
     pub stdout: Vec<u8>,
+    /// What was left out of the output or could not be read, in words for the person. Output with a note is not the whole output:
+    ///  a parser of `stdout` must not take it for a complete result.
+    pub notes: Vec<String>,
 }
 
 /// The most bytes of a program's output kept for its failure text.
@@ -196,6 +199,11 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 /// async function runTool(program: string, command: ToolCommand, limits: { windowMs: number; ceilingMs: number }): Promise<ToolRun>;
 /// ```
 pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
+    return run_tool_reaping(program, command, limits, &|leader: Child, _captured: &Capture| { return reap_within(leader, crate::bounded_push::STOP_GRACE); });
+}
+
+/// `run_tool` with the reaper of a stopped leader given: a control sees that the stop path reaps through it.
+pub fn run_tool_reaping(program: &Path, command: &ToolCommand, limits: ToolLimits, reap: &dyn Fn(Child, &Capture) -> bool) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -206,7 +214,7 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
             starting.stdout(out).stderr(err);
             files
         }
-        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
+        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be started: no place for its output ({error})", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
     };
     starting.args(&command.arguments).current_dir(&command.directory).stdin(Stdio::null()).process_group(0);
     for (name, value) in &command.set {
@@ -214,7 +222,7 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
     }
     let mut child: Child = match starting.spawn() {
         Ok(running) => running,
-        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
+        Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not start: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
     };
     let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
     let mut at_ceiling: bool = false;
@@ -228,7 +236,7 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
             }
             Ok(None) if clock.check().is_some() => break None,
             Ok(None) => std::thread::sleep(POLL_INTERVAL),
-            Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
+            Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() },
         }
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
@@ -239,9 +247,11 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
         stop_group(&child);
         // The leader is reaped so it leaves no zombie, within a budget: a process in uninterruptible I/O ends only when the I/O does,
         // and a wait with no bound would keep the add for as long as it lasts. Nothing waits for the output, which is in files.
-        let _reaped_in_time: bool = reap_within(child, crate::bounded_push::STOP_GRACE);
+        // What the tool wrote is released first: nobody reads it, and a descendant that keeps the files open would keep the pages.
+        captured.discard();
+        let _reaped_in_time: bool = reap(child, &captured);
         let end: ToolEnd = if at_ceiling { ToolEnd::CeilingReached(limits.ceiling) } else { ToolEnd::TimedOut };
-        return ToolRun { end, millis: started.elapsed().as_millis(), stdout: Vec::new() };
+        return ToolRun { end, millis: started.elapsed().as_millis(), stdout: Vec::new(), notes: Vec::new() };
     };
     let shown: crate::output_capture::Captured = captured.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
     // Nothing reads the files again, and a helper that still holds them would keep what they hold in memory.
@@ -249,11 +259,13 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
     let (stdout, errors): (Vec<u8>, Vec<u8>) = (shown.stdout, shown.stderr);
     let millis: u128 = started.elapsed().as_millis();
     if finished.success() {
-        return ToolRun { end: ToolEnd::Succeeded, millis, stdout };
+        return ToolRun { end: ToolEnd::Succeeded, millis, stdout, notes: shown.notes };
     }
     let combined: Vec<u8> = [stdout.as_slice(), errors.as_slice()].concat();
     let text: String = tail_of(combined.as_slice());
-    return ToolRun { end: ToolEnd::Failed(format!("{}: {text}", describe_status(finished))), millis, stdout: Vec::new() };
+    // What was left out, or could not be read, is part of what the person is told: the text shows the tail only.
+    let disclosed: String = if shown.notes.is_empty() { String::new() } else { format!(" ({})", shown.notes.join("; ")) };
+    return ToolRun { end: ToolEnd::Failed(format!("{}: {text}{disclosed}", describe_status(finished))), millis, stdout: Vec::new(), notes: shown.notes };
 }
 
 /// What:

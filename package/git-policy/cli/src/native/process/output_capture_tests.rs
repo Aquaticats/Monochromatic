@@ -44,22 +44,28 @@ fn output_past_the_limit_keeps_the_tail_and_says_what_was_left_out() {
     assert!(shown.notes[0].contains(left_out.as_str()) && shown.notes[0].contains("the last 100 bytes"), "{}", shown.notes[0]);
 }
 
-/// What the child writes after the snapshot began is not chased: the length is read once, so a file that grows ahead of the reader
-/// cannot hold the read.
+/// What is appended after the snapshot began is not chased (sol-1 round 3: the earlier control passed under a reader that reads to the
+/// end of the file). The control appends to the file after every chunk the reader takes, so a reader that follows the end never gets
+/// there; the snapshot has the length it found and the control has a count to stop a chasing reader with a failure.
 #[test]
 fn the_snapshot_reads_the_length_it_found_and_no_more() {
     let capture: Capture = Capture::new().expect("the files");
     let (out, err) = capture.stdio().expect("the streams");
-    let mut writer = Command::new("sh").args(["-c", "printf first; sleep 30"]).stdout(out).stderr(err).spawn().expect("the child");
-    let waiting_since: std::time::Instant = std::time::Instant::now();
-    while capture.snapshot(1024).stdout.is_empty() {
-        assert!(waiting_since.elapsed() < std::time::Duration::from_secs(20), "the child wrote nothing");
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    let shown: Captured = capture.snapshot(1024);
-    assert_eq!(shown.stdout, b"first".to_vec());
-    let _ended = writer.kill();
-    let _reaped = writer.wait();
+    let found: usize = 100_000;
+    let status = Command::new("sh").args(["-c", format!("head --bytes={found} /dev/zero | tr '\\0' 'a'").as_str()]).stdout(out).stderr(err).status().expect("the child");
+    assert!(status.success());
+    let mut appender = capture.out.try_clone().expect("a second handle on the same file");
+    let mut chunks: usize = 0;
+    let (shown, notes) = capture.snapshot_stdout_with(usize::MAX, &mut || {
+        use std::io::{Seek, SeekFrom, Write};
+        chunks += 1;
+        assert!(chunks < 10_000, "the reader chased the growing end of the file");
+        appender.seek(SeekFrom::End(0)).expect("end");
+        appender.write_all(&[b'b'; 8192]).expect("append");
+    });
+    assert_eq!(shown.len(), found, "exactly the length found when the read began");
+    assert!(shown.iter().all(|byte| { return *byte == b'a'; }), "none of what was appended");
+    assert!(notes.is_empty(), "{notes:?}");
 }
 
 /// A read that fails is not the end of the output: the note says so, and the bytes read so far are shown as what they are.
