@@ -212,3 +212,69 @@ fn a_program_that_does_not_exist_is_an_io_error() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(result, Err(RunError::Io(_))));
 }
+
+/// Whether a process with this id still exists.
+fn alive(pid: i32) -> bool {
+    return std::path::Path::new(&format!("/proc/{pid}")).exists() && !std::fs::read_to_string(format!("/proc/{pid}/stat")).map(|text| { return text.contains(") Z "); }).unwrap_or(true);
+}
+
+/// Waits (a few milliseconds at a time, at most a second) for a process to be gone.
+fn gone_soon(pid: i32) -> bool {
+    for _attempt in 0..100 {
+        if !alive(pid) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    return false;
+}
+
+/// Reads the process id a script wrote to a file.
+fn pid_in(path: &std::path::Path) -> i32 {
+    return std::fs::read_to_string(path).expect("pid file").trim().parse().expect("a pid");
+}
+
+/// Review finding (4c F2): at the bound the whole process group is stopped, not only the immediate child; a descendant that could
+/// still write would otherwise race the rollback.
+#[test]
+fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
+    let directory = crate::test_scratch::scratch();
+    let pid_file = directory.path().join("pid");
+    let script = format!("sleep 30 & echo $! > {}; sleep 30", pid_file.display());
+
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_millis(400)));
+
+    assert!(result.is_err());
+    assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
+}
+
+/// Review finding (4c F2): a descendant that outlives the parent's normal exit is stopped before the call returns, and the output
+/// is complete.
+#[test]
+fn a_descendant_left_after_a_normal_exit_is_stopped() {
+    let directory = crate::test_scratch::scratch();
+    let pid_file = directory.path().join("pid");
+    let script = format!("sleep 30 & echo $! > {}; echo done", pid_file.display());
+
+    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(10))).expect("runs");
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
+    assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
+}
+
+/// Review finding (4c F4): when a process outside the group keeps the output pipe open, the output cannot be complete, and the call
+/// says so instead of returning a prefix.
+#[test]
+fn output_that_cannot_be_completed_is_an_error_not_a_prefix() {
+    let directory = crate::test_scratch::scratch();
+    let pid_file = directory.path().join("pid");
+    let script = format!("setsid sh -c 'echo $$ > {}; exec sleep 30' & echo started; sleep 0.3", pid_file.display());
+
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(10)));
+
+    if let Ok(pid) = std::fs::read_to_string(&pid_file) {
+        let _ = Command::new("kill").arg(pid.trim()).status();
+    }
+    let message: String = result.expect_err("an incomplete capture").to_string();
+    assert!(message.contains("output"), "{message}");
+}
