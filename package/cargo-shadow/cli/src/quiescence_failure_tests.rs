@@ -18,7 +18,7 @@ use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crate::bounded_run::{Bound, RunError, on_start_for_test, output_within};
+use crate::bounded_run::{Bound, RunError, on_start_for_test, on_startup_for_test, output_within};
 use crate::cgroup_test_support::{assert_scope_record, delegated_route, scope_directory_of, wait_until};
 use crate::control_group::{RouteSettings, detect_route};
 use crate::crates::LockSnapshot;
@@ -62,18 +62,30 @@ fn clean_up(scope: &Path) {
     wait_until("the scope's end", &|| { return !scope.exists() || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| { return text.contains("populated 0"); }); });
 }
 
-/// Acceptance row "A2, R4 (7a F3)":
+/// Acceptance row "A2, R4 (7a F3)" (certification group 2):
 /// the program and a writer started, and then the stop of the scope fails (an error),
 /// the inspection of its members fails,
 /// or a member cannot be stopped within the bound:
 /// each is `NotQuiescent`, the scope reports that writers may remain, the journal is retained, and nothing is downgraded to an
 /// ordinary I/O failure.
+/// Each run has a control without the fault (it returns normally and stops the writer), so the injected failure is the cause of the
+/// refusal and not some other conservative outcome; the fault must have been armed and then consumed, and the writer's ready marker
+/// must exist (the writer was running before the fault).
 #[test]
 fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent() {
     if delegated_route().is_none() {
         return;
     }
     for fault in [Point::ContainmentStopError, Point::ContainmentInspection, Point::ContainmentStopStuck] {
+        // The control: no fault armed, the same program and writer.
+        let control_root = repository();
+        let control_transaction = begin(control_root.path(), &[snapshot()], false).expect("begin");
+        let control_ready: PathBuf = control_root.path().join("writer-ready");
+        let control = output_within(Command::new("sh").args(["-c", &script_leaving_a_writer(&control_ready)]), None, &bound(Duration::from_secs(30)));
+        assert!(control.is_ok(), "{fault:?}: the control without the fault was refused, so the refusal below has another cause: {control:?}");
+        assert!(control_ready.exists() && !control_transaction.writers_may_remain(), "{fault:?}: the control did not run its writer or reported writers that may remain");
+        drop(control_transaction);
+
         let root = repository();
         let transaction = begin(root.path(), &[snapshot()], false).expect("begin");
         let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
@@ -82,18 +94,74 @@ fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent
 
         let result = output_within(Command::new("sh").args(["-c", &script_leaving_a_writer(&ready)]), None, &bound(Duration::from_secs(30)));
 
+        let consumed: bool = !crate::failpoints::fires(fault);
         let groups: String = journal.join("groups").display().to_string();
         assert_scope_record(&groups);
         let scope: PathBuf = scope_directory_of(&groups);
         let writer_alive: bool = fs::read_to_string(scope.join("cgroup.procs")).is_ok_and(|text| { return !text.trim().is_empty(); });
         clean_up(&scope);
+        assert!(consumed, "{fault:?}: the armed fault was never reached, so the refusal has another cause");
+        assert!(ready.exists(), "{fault:?}: the writer was not ready before the fault");
         assert!(matches!(result, Err(RunError::NotQuiescent { .. })), "{fault:?}: {result:?}");
         if !matches!(fault, Point::ContainmentInspection) {
-            // The inspection fails after `cgroup.kill`, so the writer is already gone in that case; the verdict is conservative anyway.
             assert!(writer_alive, "{fault:?}: the writer was not left in the scope, so the test shows nothing");
         }
         assert!(transaction.writers_may_remain(), "{fault:?}: the scope was not told that writers may remain");
         assert!(journal.exists() && !journal.to_string_lossy().ends_with(".done"), "{fault:?}: the journal was not retained");
+        drop(transaction);
+    }
+}
+
+/// Acceptance row "A2, R4 (7a F3)" (certification group 2, the startup completion):
+/// the program has started and a writer is running and ready, and then the completion of the startup fails.
+/// When the scope can then not be shown empty the failure is `NotQuiescent`, the scope reports that writers may remain, and the
+/// journal is retained, the same as for a failed stop; when it can, the writer is stopped, quiescence is shown and the error is the
+/// startup failure itself (the control, which shows that the refusal comes from the failed stop and not from the startup failure alone).
+#[test]
+fn a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_scope_cannot_be_emptied() {
+    if delegated_route().is_none() {
+        return;
+    }
+    for stuck in [true, false] {
+        let root = repository();
+        let transaction = begin(root.path(), &[snapshot()], false).expect("begin");
+        let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
+        let ready: PathBuf = root.path().join("writer-ready");
+        let hook_ready: PathBuf = ready.clone();
+        on_startup_for_test(Some(Rc::new(move || {
+            // The child and the writer are running and ready before the startup is made to fail.
+            wait_until("the writer to be ready", &|| { return hook_ready.exists(); });
+            if stuck {
+                arm(Point::ContainmentStopStuck);
+            }
+            return true;
+        })));
+        let script: String = format!("setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & exec sleep 600", ready = ready.display());
+
+        let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(30)));
+        on_startup_for_test(None);
+
+        let groups: String = journal.join("groups").display().to_string();
+        assert_scope_record(&groups);
+        let scope: PathBuf = scope_directory_of(&groups);
+        let writer_alive: bool = fs::read_to_string(scope.join("cgroup.procs")).is_ok_and(|text| { return !text.trim().is_empty(); });
+        let consumed: bool = !crate::failpoints::fires(Point::ContainmentStopStuck);
+        let record: String = fs::read_to_string(&groups).expect("the record");
+        clean_up(&scope);
+        assert!(ready.exists(), "stuck={stuck}: the writer was not ready before the startup failed");
+        if stuck {
+            assert!(consumed, "the stuck stop was never reached");
+            assert!(matches!(result, Err(RunError::NotQuiescent { .. })), "a failed startup completion with a scope that cannot be emptied was downgraded: {result:?}");
+            assert!(writer_alive, "the writer was not left in the scope, so the test shows nothing");
+            assert!(transaction.writers_may_remain(), "the scope was not told that writers may remain");
+            assert!(journal.exists() && !record.lines().any(|line| { return line.starts_with("settled "); }), "the journal was settled or lost: {record:?}");
+        } else {
+            let message: String = result.expect_err("the startup failure is the error").to_string();
+            assert!(message.contains("injected failure to complete the startup"), "{message}");
+            assert!(!transaction.writers_may_remain(), "quiescence was shown, yet the scope reports writers that may remain");
+            assert!(!writer_alive, "the writer was left running although the stop succeeded");
+            assert!(record.lines().any(|line| { return line.starts_with("settled "); }), "the run's end was not recorded: {record:?}");
+        }
         drop(transaction);
     }
 }

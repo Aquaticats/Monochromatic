@@ -179,17 +179,23 @@ fn shim_with_a_scope_that_cannot_be_stopped_fixture() {
     let starts: std::cell::Cell<u32> = std::cell::Cell::new(0);
     let counted: Rc<std::cell::Cell<u32>> = Rc::new(starts);
     let seen: Rc<std::cell::Cell<u32>> = Rc::clone(&counted);
+    // Arming is tracked apart from consumption (certification group 2): a fault that was never armed is not consumed either, and
+    // `!fires` alone would read that as "reached".
+    let armed: Rc<std::cell::Cell<bool>> = Rc::new(std::cell::Cell::new(false));
+    let arming: Rc<std::cell::Cell<bool>> = Rc::clone(&armed);
     crate::bounded_run::on_start_for_test(Some(Rc::new(move || {
         seen.set(seen.get() + 1);
         if seen.get() == 2 {
             crate::failpoints::arm(crate::failpoints::Point::ContainmentStopStuck);
+            arming.set(true);
         }
     })));
     let code: i32 = crate::shim::run_shim(vec![OsString::from("check")]);
     // The fault must have been reached: an armed fault that was never used is still armed here.
-    let reached: bool = !crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck);
+    let consumed: bool = !crate::failpoints::fires(crate::failpoints::Point::ContainmentStopStuck);
     let root: PathBuf = PathBuf::from(root_text);
-    fs::write(root.join("shim-fault-reached"), reached.to_string()).expect("write whether the fault was reached");
+    fs::write(root.join("shim-fault-armed"), armed.get().to_string()).expect("write whether the fault was armed");
+    fs::write(root.join("shim-fault-reached"), (armed.get() && consumed).to_string()).expect("write whether the fault was reached");
     fs::write(root.join("shim-exit-code"), code.to_string()).expect("write the exit code");
 }
 
@@ -240,7 +246,8 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     assert!(!said.contains("no delegated control group"), "the helper fell back to the weaker path: {said}");
     // The intended containment fault was reached and is the refusal: the writers-may-remain refusal of a run that could not be shown
     // empty, not some other failure of the finishing.
-    assert_eq!(fs::read_to_string(root.path().join("shim-fault-reached")).expect("whether the fault was reached").trim(), "true", "the scope fault was never reached: {said}");
+    assert_eq!(fs::read_to_string(root.path().join("shim-fault-armed")).expect("whether the fault was armed").trim(), "true", "the scope fault was never armed: {said}");
+    assert_eq!(fs::read_to_string(root.path().join("shim-fault-reached")).expect("whether the fault was reached").trim(), "true", "the scope fault was armed and not consumed: {said}");
     assert!(said.contains("could not be stopped, so it may still write the lockfiles"), "the refusal is not the not-quiescent one: {said}");
     assert_eq!(code, INSTALL_FAILED_EXIT_CODE, "the shim did not stop the command: {calls:?}");
     assert!(!sentinel.exists(), "the user's command was started: {calls:?}");
