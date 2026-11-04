@@ -354,30 +354,38 @@ made D first; revision 15 adds the owner's decision that this final save is neve
   depends on what is verified, in two levels. Level 1, always: the captured intent (the immutable request, enough for
   another replay) is saved. Level 2, only when verified: the exact built commit `D`. Reachability and a side ref are
   not a durability barrier, and the objects `D` inherits from a parent that another writer published may be V only.
-  Level 2 is optional and is not part of the uncut final save: it runs in a short-lived helper child within
-  `WAIT_VERIFY` (a named constant that must be measured), and if any step has not completed by then, or fails, the
-  exit promises level 1 and says the exact commit may have to be rebuilt on retry. The helper holds no lock, no gate
-  and no registry entry, runs only read-only checks and flushes (it creates and removes nothing, so an abandoned
-  helper has no late effect that disposal or cleanup could race), and is abandoned at `WAIT_VERIFY`, so an abandoned
-  flush or check cannot block the syncer, a later command or the lane. A helper that has not returned is not
-  diagnosed: only a returned I/O error is the outside failure, and the command has left with level 1 promised. Level 2
-  requires all of, in this order: (1) eligibility: the objects directory, every alternate and the ref storage root
-  (for the files backend the `refs/` directory and `packed-refs`, for reftable the `reftable/` directory) have the
-  same `st_dev`, so that one `syncfs` covers all of them; otherwise level 1; (2) take the registry observation of T1
-  (the probe of the next reservation number and the listing), then the command itself (not the helper) creates the
-  side ref `refs/cli-git/<instance>/withdrawn/<id>` as an internal transaction on the wrapper's own namespace with the
-  person's hooks disabled (an empty hooks path, as for an inline owner), so no protected program can be dispatched and
-  the creation is not abandoned mid-way; (3) `syncfs` of that file system, so the closure, the ref and their
-  namespaces are D in one barrier (a verified closure-specific forcing or an archive of the closure is another valid
-  design; `syncfs` is one barrier that covers inherited objects and the new ref together, not the only one); (4) read
-  the side ref back and check connectivity of `D` from it; (5) take the registry observation again and require it
-  unchanged from step (2), so the whole interval from before the flush to after the check contains no wrapper-started
-  run that could replace a representation or prune. Retention lifetime: wrapper-started maintenance runs with
-  `core.fsync` set to force packs, loose objects and references, so a replacement representation is forced before the
-  old one is removed and a later run cannot swap the verified durable representation for an unforced one; maintenance
-  another tool runs is that tool's act. A request held by a hook, or one whose build had not finished, has no commit
-  and the message names the retained inputs. A command that waits for its request until it is published has no
-  departure before publication.
+  Pick (coordinator, under the owner's delegation, veto open; R17a-5, review 18a): level 2 is disabled on this
+  execution path, so every exit promises level 1 only and says the exact commit may have to be rebuilt on retry; the
+  review's 17c allows "Optional level 2 may remain disabled when its eligibility cannot be established". The
+  alternative, not picked: keep level 2 and bound the whole optional operation, side-ref creation included, by
+  `WAIT_VERIFY`, with a fence (a token in the request's attempt directory that the creation checks, so a creation that
+  outlives the deadline cannot recreate a ref after disposal or cleanup). The steps below are kept as the
+  specification of what enabling level 2 requires, and a transaction that cannot be abandoned must not run in the
+  foreground under a deadline that does not cover it. Level 2 is optional and is not part of the uncut final save: it
+  runs in a short-lived helper child within `WAIT_VERIFY` (a named constant that must be measured), and if any step
+  has not completed by then, or fails, the exit promises level 1 and says the exact commit may have to be rebuilt on
+  retry. The helper holds no lock, no gate and no registry entry, runs only read-only checks and flushes (it creates
+  and removes nothing, so an abandoned helper has no late effect that disposal or cleanup could race), and is
+  abandoned at `WAIT_VERIFY`, so an abandoned flush or check cannot block the syncer, a later command or the lane. A
+  helper that has not returned is not diagnosed: only a returned I/O error is the outside failure, and the command has
+  left with level 1 promised. Level 2 requires all of, in this order: (1) eligibility: the objects directory, every
+  alternate and the ref storage root (for the files backend the `refs/` directory and `packed-refs`, for reftable the
+  `reftable/` directory) have the same `st_dev`, so that one `syncfs` covers all of them; otherwise level 1; (2) take
+  the registry observation of T1 (the probe of the next reservation number and the listing), then the command itself
+  (not the helper) creates the side ref `refs/cli-git/<instance>/withdrawn/<id>` as an internal transaction on the
+  wrapper's own namespace with the person's hooks disabled (an empty hooks path, as for an inline owner), so no
+  protected program can be dispatched (this step belongs to the specification of an enabled level 2 and runs only
+  inside the bounded, fenced form of the alternative above); (3) `syncfs` of that file system, so the closure, the ref
+  and their namespaces are D in one barrier (a verified closure-specific forcing or an archive of the closure is
+  another valid design; `syncfs` is one barrier that covers inherited objects and the new ref together, not the only
+  one); (4) read the side ref back and check connectivity of `D` from it; (5) take the registry observation again and
+  require it unchanged from step (2), so the whole interval from before the flush to after the check contains no
+  wrapper-started run that could replace a representation or prune. Retention lifetime: wrapper-started maintenance
+  runs with `core.fsync` set to force packs, loose objects and references, so a replacement representation is forced
+  before the old one is removed and a later run cannot swap the verified durable representation for an unforced one;
+  maintenance another tool runs is that tool's act. A request held by a hook, or one whose build had not finished, has
+  no commit and the message names the retained inputs. A command that waits for its request until it is published has
+  no departure before publication.
 - Terminal answer. A command that leaves with a final outcome forces that outcome's ledger line as its stop
   disposition; a successful return forces nothing of ours.
 - Reclamation barrier (R12-5A, R15-1, R15-2, R16a-7). Nothing a request's recovery or its identity depends on is
@@ -391,34 +399,38 @@ made D first; revision 15 adds the owner's decision that this final save is neve
   one-shot flusher) enumerates `lane/receipt/` and forces what is not yet D, so responsibility never depends on a
   message having been delivered. Handoff protocol, in this order, which keeps "a flusher exists" true across creation,
   admission, sealing and fallback: (1) the client creates the receipt (V); (2) it reads `lane/sealed`; (3) if the file
-  is absent it wakes the running service by a doorbell (a wake-up only; correctness rests on enumeration), and is
-  done; (4) if the file exists, or no service holds the lane, it starts a one-shot flusher. A service that shuts down
-  creates `lane/sealed` (`O_CREAT | O_EXCL`) and only then makes its final sweep of `lane/receipt/`, and exits after
-  the sweep; so for every receipt either the client's step (2) sees the seal and starts a flusher, or the service's
-  sweep, which follows the seal, sees the receipt that step (1) created before it. A receipt created after the sweep
-  therefore always meets the seal and gets a flusher. Next owner: it removes `lane/sealed` at L3 (a lane-owned name,
-  rule N) before its startup sweep, so a new service is again reachable by the doorbell path (in every interleaving
-  either the sweep sees the receipt that the client created before reading the seal, or the client sees the seal, or
-  both start work, which the flusher lock bounds; an owner that dies between removing the seal and sweeping is an
-  outside cause, and the next owner sweeps). At startup its syncer is told to sweep `lane/receipt/` as background
-  work; L4 recognizes outstanding receipts, queues them first and dispatches without waiting for them; no owner forces
-  a receipt in the foreground before dispatch, and an unrelated command (a later `git commit` included) never waits
-  for another command's receipt. Until a receipt is D the recovery evidence is the V receipt, which is the true state
-  within a boot. The one-shot flusher is a launch of the internal flush entry point, never the wrapper's ordinary
-  command line (no recursive invocation). It is started through the manager as a transient unit, which keeps it out of
-  the inline incarnation's scope so that no L2 reap or owner exit ends it; else, where there is no manager and
-  therefore no incarnation scope for L2 to reap, as a double-forked child in its own session that has closed every
-  descriptor but its own (`close_range`), holding no lane lock, client lock, gate or pipe description. At most one
-  flusher runs per lane (it holds `lane/flusher.lock`); a client that finds the lock held has still created its
-  receipt first, and the holder, after its last empty sweep, releases the lock and sweeps once more without it, taking
-  the lock again if it finds work, so no wake-up is lost. It exits after a sweep that finds nothing unforced; an
-  asynchronous forcing error is recorded in `lane/receipt-errors` (V), the flusher exits, and the next owner's syncer
-  retries in the background and reports it at the next wrapper command's notice. If no flusher can be started because
-  of a process-count or memory cap set by someone else (the owner's outside list), the command exits success saying
-  the receipt is not yet forced; missing binaries or broken launch code are defects and not that exception. `SYNC_LAG`
-  is a scheduling target for the queue, not a completion bound: the time to force is the disk's. The residual
-  ambiguity (a power loss before the receipt is D, a deliberate removal that persisted, no decisive evidence) is owner
-  question 8.
+  is absent it wakes the running service by a doorbell (a wake-up only; correctness rests on enumeration) and is done,
+  unless the doorbell write fails or is rejected, in which case it starts a one-shot flusher as in (4) (the bounded
+  wake-failure fallback); the running service additionally enumerates `lane/receipt/` on a recurring timer,
+  `RECEIPT_SWEEP` (a named scheduling interval that must be measured), independent of any doorbell, so a lost wake-up
+  that the client could not observe delays forcing by at most that interval and never leaves a registered receipt
+  waiting for the next shutdown; (4) if the file exists, or no service holds the lane, it starts a one-shot flusher. A
+  service that shuts down creates `lane/sealed` (`O_CREAT | O_EXCL`) and only then makes its final sweep of
+  `lane/receipt/`, and exits after the sweep; so for every receipt either the client's step (2) sees the seal and
+  starts a flusher, or the service's sweep, which follows the seal, sees the receipt that step (1) created before it.
+  A receipt created after the sweep therefore always meets the seal and gets a flusher. Next owner: it removes
+  `lane/sealed` at L3 (a lane-owned name, rule N) before its startup sweep, so a new service is again reachable by the
+  doorbell path (in every interleaving either the sweep sees the receipt that the client created before reading the
+  seal, or the client sees the seal, or both start work, which the flusher lock bounds; an owner that dies between
+  removing the seal and sweeping is an outside cause, and the next owner sweeps). At startup its syncer is told to
+  sweep `lane/receipt/` as background work; L4 recognizes outstanding receipts, queues them first and dispatches
+  without waiting for them; no owner forces a receipt in the foreground before dispatch, and an unrelated command (a
+  later `git commit` included) never waits for another command's receipt. Until a receipt is D the recovery evidence
+  is the V receipt, which is the true state within a boot. The one-shot flusher is a launch of the internal flush
+  entry point, never the wrapper's ordinary command line (no recursive invocation). It is started through the manager
+  as a transient unit, which keeps it out of the inline incarnation's scope so that no L2 reap or owner exit ends it;
+  else, where there is no manager and therefore no incarnation scope for L2 to reap, as a double-forked child in its
+  own session that has closed every descriptor but its own (`close_range`), holding no lane lock, client lock, gate or
+  pipe description. At most one flusher runs per lane (it holds `lane/flusher.lock`); a client that finds the lock
+  held has still created its receipt first, and the holder, after its last empty sweep, releases the lock and sweeps
+  once more without it, taking the lock again if it finds work, so no wake-up is lost. It exits after a sweep that
+  finds nothing unforced; an asynchronous forcing error is recorded in `lane/receipt-errors` (V), the flusher exits,
+  and the next owner's syncer retries in the background and reports it at the next wrapper command's notice. If no
+  flusher can be started because of a process-count or memory cap set by someone else (the owner's outside list), the
+  command exits success saying the receipt is not yet forced; missing binaries or broken launch code are defects and
+  not that exception. `SYNC_LAG` is a scheduling target for the queue, not a completion bound: the time to force is
+  the disk's. The residual ambiguity (a power loss before the receipt is D, a deliberate removal that persisted, no
+  decisive evidence) is owner question 8.
 - Preservation barrier (R12-5B). Before the recovery authority of a version that only the person had is replaced (the
   staged-only blob saved by MG3, a displaced inode of the carry-forward protocol, the pre-merge file `N`), the
   preserving file, its directory entry and the log record that names it are D. The carry-forward protocol's own
@@ -2192,15 +2204,19 @@ print its notice. Example: you run `git commit`, it prints success, you run `git
 later, and the power fails one second after that. The reset reached the disk; neither the receipt nor the reflog
 record of the reset did, and no `published` record or `commit: ok` line survived. What the design already does about
 the window. The receipt is its own registration: every executor (the service, the next start, a one-shot flusher)
-enumerates the receipt directory, so the obligation to force it is never lost between creation, handoff, shutdown and
-a replacement executor; the client reads a seal marker after creating the receipt, and a service that shuts down seals
-before its final sweep, so a receipt created after that sweep always gets a flusher of its own. The flusher is a
-launch of the internal flush logic (not the ordinary command line), outside the incarnation's scope, one per lane. A
-later command, including a `git commit`, never waits for another command's receipt; it queues what remains for
-background forcing. Only if no flusher can be started because of a process-count or memory cap set by someone else
-does the receipt stay unforced until the next wrapper command in that worktree starts forcing it in the background.
-The window is therefore the time the flusher needs, which the disk sets and which has not been measured (a scheduling
-target exists, not a completion bound), and the ambiguity itself.
+enumerates the receipt directory. The running service enumerates it on a recurring timer that does not depend on any
+doorbell, and a client whose doorbell cannot be delivered starts a one-shot flusher itself, so a failed wake-up does
+not leave a registered receipt waiting for the next shutdown. The client reads a seal marker after creating the
+receipt, and a service that shuts down seals before its final sweep, so a receipt created after that sweep gets a
+flusher of its own. The flusher is a launch of the internal flush logic (not the ordinary command line), outside the
+incarnation's scope, one per lane. A later command, including a `git commit`, never waits for another command's
+receipt; it queues what remains for background forcing. In normal operation the protocol therefore schedules
+continuing background forcing without making unrelated commands wait. Completion has no measured bound (a scheduling
+target exists, not a completion bound; the time is the disk's). Actual launch or forcing failures can leave the
+receipt pending: a returned forcing error is recorded, reported and retried by a later owner, and a launch refused by
+a process-count or memory cap set by someone else leaves it pending until the next wrapper command in that worktree
+starts forcing it in the background. Those failures are reported; avoidable lost wake-ups, broken launch code or
+avoidable worker accumulation are defects and not outside causes.
 - Option A, accept the remaining window; make the fresh attempt with an outcome-specific stored notice (Recommended).
   Visible here: after the reboot the next wrapper command in that worktree prints the retained notice for the fresh
   attempt, as described above. Risk: in the bad case a commit you removed on purpose can be published again; this is
