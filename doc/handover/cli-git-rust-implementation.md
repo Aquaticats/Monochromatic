@@ -3637,6 +3637,19 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     assumption a is extended to exclude it,
     cheap guards stay,
     and the reviews judge against that premise.
+    Round 13 done (tip `f463a87151`;
+    588 passed,
+    10 skipped helpers,
+    debug and release;
+    clippy clean;
+    map 16 shown,
+    0 partly:
+    real kills after each step of `begin` for V3/V4 and a real shim run with a user-command sentinel for A2/R4;
+    pinned procfs reads with `openat2`;
+    only fdinfo `-1` reads as gone).
+    Cross-vendor review running:
+    `cargo-shadow-sol-13.txt` (one part,
+    prompt `cargo-shadow-prompt-13.txt`).
 - Test images from pacman merged to main (`85984b790e`;
   branch tip `4bafaa418d`;
   gate 4754/4754 with passing names identical to a main control except the tests the owner's older-Git decision changed;
