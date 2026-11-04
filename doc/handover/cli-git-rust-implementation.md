@@ -4165,8 +4165,21 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   negative controls rebuilt on a test-only legacy probe seam,
   reap and timing wording corrected,
   and one Not-yet cutover row for old probe-capable clients.
-  Review running:
-  `commit-models-sol-16.txt` (prompt `commit-models-prompt-16.txt`).
+  Review `commit-models-sol-16.txt`:
+  "Yes—for the models/components' claimed,
+  explicitly limited coverage.
+  Not approval of the live protocol."
+  The model rounds have converged
+  (limits kept:
+  `assert_never_recorded` observes 1.5 s;
+  `the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock` does not force a failed recheck acquisition).
+  Next phase sent to the models agent:
+  the declared disposable Git experiments for the supported scope,
+  and an ordered plan for the remaining live-approval gates (cutover fence,
+  lifecycle and forcing at real call sites,
+  recovery and preservation,
+  installation and latency) in the design file,
+  owner decisions marked as questions.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
