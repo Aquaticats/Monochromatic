@@ -221,3 +221,34 @@ fn kept_entries_with_huge_sparse_lengths_are_summed_exactly_and_never_refuse() {
     assert!(notice.contains(&format!("{expected_total} bytes in all")), "the total is not the exact sum: {notice}");
     drop(transaction);
 }
+
+/// Acceptance row K1 (certification, fourth pass; "Warn past a count, never refuse"): an inventory that could not be completed is
+/// never taken as small. The central folder lists but its entries cannot be examined (a directory without the search permission lists
+/// its names and refuses `lstat` of each), so the number kept there is unknown although far fewer than the threshold were counted:
+/// the warning says the inventory is unknown, and the transaction is admitted with every kept file retained.
+#[test]
+fn an_inventory_that_could_not_be_read_is_reported_as_unknown_and_never_taken_as_small() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = repository("original");
+    let kept = root.path().join(QUARANTINE_DIR);
+    fs::create_dir_all(&kept).expect("kept directory");
+    for index in 0..3 {
+        fs::write(kept.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a kept file");
+    }
+    fs::set_permissions(&kept, fs::Permissions::from_mode(0o444)).expect("list but do not search");
+    let examinable: bool = fs::symlink_metadata(kept.join("Cargo.lock.displaced.0")).is_ok();
+    if examinable {
+        fs::set_permissions(&kept, fs::Permissions::from_mode(0o755)).expect("restore");
+        eprintln!("skipped: permissions do not stop this user from examining the entries, so the unreadable inventory cannot be built this way");
+        return;
+    }
+
+    let admitted = begin(root.path(), &[snapshot("original")], false);
+    fs::set_permissions(&kept, fs::Permissions::from_mode(0o755)).expect("restore");
+
+    let transaction = admitted.expect("a kept folder never refuses, however unreadable");
+    let notice: String = transaction.kept_notice().map(str::to_string).expect("an inventory that could not be completed is not silence");
+    assert!(notice.contains("could not all be read") && notice.contains("unknown"), "{notice}");
+    assert_eq!(fs::read_dir(&kept).expect("lists").count(), 3, "a kept file was removed");
+    drop(transaction);
+}
