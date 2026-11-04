@@ -3955,11 +3955,37 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   20 samples at load 14);
   baton no miss but needs the unit route;
   the agent ranks inline-whenever-held first.
-  Review running:
-  prompt `commit-models-prompt-13.txt`,
-  inputs `commit-models-13-part-1..4`,
-  output `commit-models-sol-13.txt`;
-  the owner question follows it.
+  Review `commit-models-sol-13.txt`:
+  "no, as submitted";
+  C closed;
+  A and B reopen through deeper timings (a handover timeout then launcher death;
+  the intermediate child's inherited lock copy before its first close with failed cleanup);
+  protocol 4 misses a receipt when the client dies before its own force,
+  its one-helper bound breaks while launched helpers are delayed before taking the lock,
+  and no time bound is shown for its foreground sync;
+  the comparison omits client death,
+  worker death,
+  launch interleaving and mixed versions,
+  and its crash exemption is too broad;
+  new plain bug:
+  a helper that fails to take the lock is acknowledged as a launched executor.
+  Third "no" in a row where each closed finding is replaced by a deeper interleaving of the same family
+  (launch,
+  handover,
+  death,
+  cleanup);
+  the coordinator stopped sending fix-everything rounds (second opinion concurred).
+  The helper-count bound is the reviewer's acceptance target ("launch is non-recursive and resource-bounded"),
+  not an owner rule;
+  the supported scope was fixed by the coordinator,
+  veto open.
+  Sent to the models agent now:
+  the plain bug and the map and comparison corrections only.
+  Owner question on the bound asked 2026-11-04 (keep built with a stated limit,
+  inline force,
+  manager-started owner,
+  or more rounds);
+  the remaining findings wait on that answer.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
