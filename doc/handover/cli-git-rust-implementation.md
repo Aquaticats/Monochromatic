@@ -143,7 +143,38 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   sent to the models agent at once,
   which resumed even with five other agents running
   (resuming a finished agent was not refused by the five-agent limit).
-  `-a1.txt` and `-b.txt` go to it the moment each lands.
+  `-a1.txt` ("not correct as is": a disposal revalidation hole and the doorbell blocking clients) and `-b.txt`
+  ("correct after named fixes") were sent the moment each landed.
+- cargo-shadow 0.1.1 as `cargo` blocked every wrapper gate:
+  `bin/native-scanner-snapshot.ts` runs `cargo vendor --manifest-path` on a staged copy outside the work tree,
+  and the shadow counted all 281 locked versions of an unchanged lockfile as new and refused 4 on trust level
+  (log `~/temp/agent/gate/gpc-gate-branch-write-round4-retry-20261104T155841-0500.log`).
+  The `cargo` link is off (`8917a3f221`;
+  the install left the old symlinks,
+  removed by hand in the main checkout and in the branch-write worktree;
+  that stale-link defect went to the mpm-shadow agent).
+  The cargo-shadow agent has the vendor defect as top priority;
+  the link returns after its fixed release passes the launcher trace again.
+- Branch-write round 4 (`aa0fee0c2cf70bb31`,
+  tip `07076dc23b`,
+  host suite 4874/4874) re-gated without the link:
+  unit `gpc-gate-branch-write-round4-no-cargo-link-20261104T160436-0500`;
+  review `~/temp/agent/reviews/branch-write-r4-sol.txt` running.
+  Owner decision on the earlier single service,
+  2026-11-04 (question tool):
+  "A: fail, retry (Recommended)",
+  which round 4 built;
+  record it in `doc/planning/cli-git-no-unbounded-waits.md` and `SPEC.md` when the branch merges.
+- Service startup wake (`aca6e78c5ffbd5680` done;
+  branch `fix/git-policy-cli-service-recovers-claims-without-a-wake`,
+  gate 4847/4847 on the Rust tip `f2dc8833f8`,
+  e2e kill scenarios green on seeds 1 to 3):
+  main merged in cleanly,
+  gate `gpc-gate-service-startup-wake-with-main-20261104T160613-0500` running,
+  review `~/temp/agent/reviews/service-startup-wake-sol.txt` running;
+  it merges to main when that gate passes.
+- QWD tightened as the owner chose ("Tighten QWD (Recommended)",
+  `3abcbf585e`).
 
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,
