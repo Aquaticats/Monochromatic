@@ -106,7 +106,7 @@ fn rules_are_loaded_once_body(directory: &Path) {
 #[test]
 fn rules_are_loaded_once() {
     run_isolated(
-        "scanner_adapter::tests::rules_are_loaded_once",
+        "candidate::scanner_adapter::tests::rules_are_loaded_once",
         "scanner-once",
         rules_are_loaded_once_body,
     );
@@ -157,7 +157,7 @@ fn pathnames_are_scanned_and_masked_body(directory: &Path) {
 #[test]
 fn pathnames_are_scanned_and_masked() {
     run_isolated(
-        "scanner_adapter::tests::pathnames_are_scanned_and_masked",
+        "candidate::scanner_adapter::tests::pathnames_are_scanned_and_masked",
         "scanner-names",
         pathnames_are_scanned_and_masked_body,
     );
@@ -179,7 +179,7 @@ fn cache_warnings_are_the_scanners_own_body(directory: &Path) {
 #[test]
 fn cache_warnings_are_the_scanners_own() {
     run_isolated(
-        "scanner_adapter::tests::cache_warnings_are_the_scanners_own",
+        "candidate::scanner_adapter::tests::cache_warnings_are_the_scanners_own",
         "scanner-cache",
         cache_warnings_are_the_scanners_own_body,
     );
@@ -242,7 +242,7 @@ fn load_failures_leave_no_scanner_body(directory: &Path) {
 #[test]
 fn load_failures_leave_no_scanner() {
     run_isolated(
-        "scanner_adapter::tests::load_failures_leave_no_scanner",
+        "candidate::scanner_adapter::tests::load_failures_leave_no_scanner",
         "scanner-load",
         load_failures_leave_no_scanner_body,
     );
@@ -267,7 +267,7 @@ fn unrepresentable_pathname_is_refused_body(directory: &Path) {
 #[test]
 fn unrepresentable_pathname_is_refused() {
     run_isolated(
-        "scanner_adapter::tests::unrepresentable_pathname_is_refused",
+        "candidate::scanner_adapter::tests::unrepresentable_pathname_is_refused",
         "scanner-pathname",
         unrepresentable_pathname_is_refused_body,
     );
@@ -334,7 +334,7 @@ fn listed_rules_files_body(directory: &Path) {
 #[test]
 fn listed_rules_files_load_as_one_scanner() {
     run_isolated(
-        "scanner_adapter::tests::listed_rules_files_load_as_one_scanner",
+        "candidate::scanner_adapter::tests::listed_rules_files_load_as_one_scanner",
         "scanner-listed",
         listed_rules_files_body,
     );

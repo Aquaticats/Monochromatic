@@ -298,7 +298,7 @@ fn landed_needle() -> (PathBuf, String) {
 #[test]
 fn the_configured_rules_file_reaches_the_post_commit_scanner() {
     run_isolated(
-        "post_commit::tests::the_configured_rules_file_reaches_the_post_commit_scanner",
+        "commit::post_commit::tests::the_configured_rules_file_reaches_the_post_commit_scanner",
         "pc-config-rules",
         configured_rules,
     );
@@ -328,7 +328,7 @@ fn configured_rules(_work: &Path) {
 #[test]
 fn the_rules_variable_reaches_the_post_commit_scanner() {
     run_isolated(
-        "post_commit::tests::the_rules_variable_reaches_the_post_commit_scanner",
+        "commit::post_commit::tests::the_rules_variable_reaches_the_post_commit_scanner",
         "pc-variable-rules",
         variable_rules,
     );

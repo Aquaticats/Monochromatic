@@ -148,7 +148,7 @@ fn staged_bytes_are_scanned_not_the_worktree_body(directory: &Path) {
 #[test]
 fn staged_bytes_are_scanned_not_the_worktree() {
     run_isolated(
-        "scanner_run::tests::staged_bytes_are_scanned_not_the_worktree",
+        "candidate::scanner_run::tests::staged_bytes_are_scanned_not_the_worktree",
         "run-staged",
         staged_bytes_are_scanned_not_the_worktree_body,
     );
@@ -212,7 +212,7 @@ fn committed_bytes_are_scanned_not_the_worktree_body(directory: &Path) {
 #[test]
 fn committed_bytes_are_scanned_not_the_worktree() {
     run_isolated(
-        "scanner_run::tests::committed_bytes_are_scanned_not_the_worktree",
+        "candidate::scanner_run::tests::committed_bytes_are_scanned_not_the_worktree",
         "run-committed",
         committed_bytes_are_scanned_not_the_worktree_body,
     );

@@ -20,7 +20,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// The name the controls give the probe test in order to run it as a process of its own.
-const PROBE_NAME: &str = "push_wait_tests::tcp_probe";
+const PROBE_NAME: &str = "push::push_wait_tests::tcp_probe";
 
 /// The variable that holds the port the probe connects to; without it the probe does nothing.
 const PORT_VARIABLE: &str = "CLI_GIT_TCP_PROBE_PORT";

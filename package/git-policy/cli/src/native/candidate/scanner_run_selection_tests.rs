@@ -99,7 +99,7 @@ fn ineligible_candidates_are_not_scanned_body(directory: &Path) {
 #[test]
 fn ineligible_candidates_are_not_scanned() {
     run_isolated(
-        "scanner_run::selection_tests::ineligible_candidates_are_not_scanned",
+        "candidate::scanner_run::selection_tests::ineligible_candidates_are_not_scanned",
         "run-eligibility",
         ineligible_candidates_are_not_scanned_body,
     );
@@ -180,7 +180,7 @@ fn failures_end_the_pass_body(directory: &Path) {
 #[test]
 fn failures_end_the_pass() {
     run_isolated(
-        "scanner_run::selection_tests::failures_end_the_pass",
+        "candidate::scanner_run::selection_tests::failures_end_the_pass",
         "run-failures",
         failures_end_the_pass_body,
     );

@@ -174,7 +174,7 @@ fn kill_marker_sigkills_the_process_after_writing_its_marker() {
     let root: PathBuf = fixture("phase-kill");
     let value: String = format!("service-staged:kill:{}", root.display());
     let status = std::process::Command::new(crate::test_support::this_test_binary().expect("test binary"))
-        .args(["--exact", "transaction_phase::tests::child_reaches_service_staged", "--ignored"])
+        .args(["--exact", "transaction::transaction_phase::tests::child_reaches_service_staged", "--ignored"])
         .env(PHASE_SIGNAL_VARIABLE, &value)
         .status()
         .expect("child test binary");

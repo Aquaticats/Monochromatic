@@ -1597,7 +1597,7 @@ fn a_new_pid_namespace_over_the_old_proc_is_told_from_the_view() {
         let done = std::process::Command::new("unshare")
             .args(["--user", "--map-root-user", "--pid", "--fork"])
             .arg(std::env::current_exe().expect("this test binary"))
-            .args(["--exact", "service_index_lock::tests::a_new_pid_namespace_over_the_old_proc_is_told_from_the_view", "--nocapture"])
+            .args(["--exact", "landing::service_index_lock::tests::a_new_pid_namespace_over_the_old_proc_is_told_from_the_view", "--nocapture"])
             .env(OUTSIDE_SCOPE, own_number)
             .output()
             .expect("unshare runs");

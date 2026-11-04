@@ -139,7 +139,7 @@ fn child_writes_a_record_past_the_size_limit() {
 fn a_write_cut_half_way_leaves_nothing_behind() {
     let root: PathBuf = fixture("private-cut-write");
     let status = crate::test_support::run_child_under_file_size_limit(
-        "private_storage::tests::child_writes_a_record_past_the_size_limit",
+        "foundation::private_storage::tests::child_writes_a_record_past_the_size_limit",
         100,
         root.as_path(),
     );

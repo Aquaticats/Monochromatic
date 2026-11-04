@@ -78,7 +78,7 @@ fn repository_with_known_file(work: &Path) -> (PathBuf, ScannerSettings, String)
 #[test]
 fn a_rename_or_copy_of_content_in_head_is_not_scanned_again() {
     run_isolated(
-        "policy_forbidden_strings::tests::known_content::a_rename_or_copy_of_content_in_head_is_not_scanned_again",
+        "policy::policy_forbidden_strings::tests::known_content::a_rename_or_copy_of_content_in_head_is_not_scanned_again",
         "forbidden-known-head",
         known_in_head,
     );
@@ -142,7 +142,7 @@ fn known_in_head(work: &Path) {
 #[test]
 fn staged_entries_are_compared_with_the_recorded_base() {
     run_isolated(
-        "policy_forbidden_strings::tests::known_content::staged_entries_are_compared_with_the_recorded_base",
+        "policy::policy_forbidden_strings::tests::known_content::staged_entries_are_compared_with_the_recorded_base",
         "forbidden-known-staged",
         known_staged,
     );
@@ -183,7 +183,7 @@ fn known_staged(work: &Path) {
 #[test]
 fn a_root_commit_and_an_unborn_branch_are_scanned() {
     run_isolated(
-        "policy_forbidden_strings::tests::known_content::a_root_commit_and_an_unborn_branch_are_scanned",
+        "policy::policy_forbidden_strings::tests::known_content::a_root_commit_and_an_unborn_branch_are_scanned",
         "forbidden-known-root",
         known_root,
     );
@@ -218,7 +218,7 @@ fn known_root(work: &Path) {
 #[test]
 fn a_merge_is_judged_against_every_parent_and_a_push_against_the_published_ones() {
     run_isolated(
-        "policy_forbidden_strings::tests::known_content::a_merge_is_judged_against_every_parent_and_a_push_against_the_published_ones",
+        "policy::policy_forbidden_strings::tests::known_content::a_merge_is_judged_against_every_parent_and_a_push_against_the_published_ones",
         "forbidden-known-merge",
         known_merge,
     );

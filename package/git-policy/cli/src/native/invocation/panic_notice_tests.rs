@@ -89,7 +89,7 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
         let output: Output = Command::new(crate::test_support::this_test_binary().expect("test executable"))
             .args([
                 "--exact",
-                "panic_notice::tests::a_caught_panic_shows_only_the_notice_in_its_own_process",
+                "invocation::panic_notice::tests::a_caught_panic_shows_only_the_notice_in_its_own_process",
                 "--nocapture",
                 "--test-threads=1",
             ])

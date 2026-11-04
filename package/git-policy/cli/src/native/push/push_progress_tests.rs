@@ -15,7 +15,7 @@ use super::*;
 use crate::test_support::{fixture, remove, spawn_owned};
 use std::process::{Child, Command, Stdio};
 /// The name the control gives the probe test in order to run it as a process of its own.
-const PROBE_NAME: &str = "push_progress::tests::disk_wait_probe";
+const PROBE_NAME: &str = "push::push_progress::tests::disk_wait_probe";
 
 /// The variable that holds the probe's hold in milliseconds; without it the probe does nothing.
 const PROBE_HOLD_VARIABLE: &str = "CLI_GIT_DISK_WAIT_PROBE_HOLD_MILLISECONDS";

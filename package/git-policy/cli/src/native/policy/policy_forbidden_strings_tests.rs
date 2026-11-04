@@ -112,7 +112,7 @@ fn repository_with_needle(work: &Path) -> PathBuf {
 #[test]
 fn rules_come_from_the_configuration_the_variable_or_the_default_file() {
     run_isolated(
-        "policy_forbidden_strings::tests::rules_come_from_the_configuration_the_variable_or_the_default_file",
+        "policy::policy_forbidden_strings::tests::rules_come_from_the_configuration_the_variable_or_the_default_file",
         "forbidden-rules-sources",
         rules_sources,
     );
@@ -188,7 +188,7 @@ fn rules_sources(work: &Path) {
 #[test]
 fn missing_rules_files_fail_only_when_something_is_scanned() {
     run_isolated(
-        "policy_forbidden_strings::tests::missing_rules_files_fail_only_when_something_is_scanned",
+        "policy::policy_forbidden_strings::tests::missing_rules_files_fail_only_when_something_is_scanned",
         "forbidden-rules-missing",
         missing_rules,
     );
@@ -257,7 +257,7 @@ fn missing_rules(work: &Path) {
 #[test]
 fn matches_are_redacted_and_read_from_what_would_be_staged() {
     run_isolated(
-        "policy_forbidden_strings::tests::matches_are_redacted_and_read_from_what_would_be_staged",
+        "policy::policy_forbidden_strings::tests::matches_are_redacted_and_read_from_what_would_be_staged",
         "forbidden-redacted",
         redacted_matches,
     );
@@ -367,7 +367,7 @@ fn redacted_matches(work: &Path) {
 #[test]
 fn an_uninspectable_pathname_fails_the_policy() {
     run_isolated(
-        "policy_forbidden_strings::tests::an_uninspectable_pathname_fails_the_policy",
+        "policy::policy_forbidden_strings::tests::an_uninspectable_pathname_fails_the_policy",
         "forbidden-line-break",
         line_break,
     );
@@ -453,7 +453,7 @@ fn failure_findings_take_precedence_over_matches() {
 #[test]
 fn an_unknown_top_level_is_unavailable_content() {
     run_isolated(
-        "policy_forbidden_strings::tests::an_unknown_top_level_is_unavailable_content",
+        "policy::policy_forbidden_strings::tests::an_unknown_top_level_is_unavailable_content",
         "forbidden-no-root",
         unknown_root,
     );

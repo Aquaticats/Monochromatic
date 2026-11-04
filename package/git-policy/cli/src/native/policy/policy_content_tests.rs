@@ -301,7 +301,7 @@ fn corrections_overlay_the_prepared_bytes() {
 #[test]
 fn the_scan_reads_corrected_bytes() {
     run_isolated(
-        "policy_content::tests::the_scan_reads_corrected_bytes",
+        "policy::policy_content::tests::the_scan_reads_corrected_bytes",
         "content-scan-overlay",
         scan_overlay,
     );

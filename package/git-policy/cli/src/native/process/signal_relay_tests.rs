@@ -125,7 +125,7 @@ fn spawn_helper(mode: &str, directory: &Path) -> Child {
     // Owned, so a helper that waits for a signal a failing control never sent does not outlive the control.
     return crate::test_support::spawn_owned(
         Command::new(executable_path)
-            .args(["--exact", "signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
+            .args(["--exact", "process::signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
             .env(MODE_VAR, mode)
             .env(DIR_VAR, directory)
             .stdout(std::process::Stdio::null())
@@ -360,7 +360,7 @@ fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
     let executable_path: PathBuf = crate::test_support::this_test_binary().expect("test executable");
     let mut command: Command = Command::new(executable_path);
     command
-        .args(["--exact", "signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
+        .args(["--exact", "process::signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
         .env(MODE_VAR, "terminal")
         .env(DIR_VAR, directory)
         .stdin(std::process::Stdio::from(slave_owned.try_clone().expect("slave clone")))
