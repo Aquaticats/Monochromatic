@@ -336,39 +336,13 @@ pub mod traditional_hook_warning;
 /// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
 pub mod doctor;
 
-/// When a push needs the Git LFS upload, and the texts the parent prints around it.
-pub mod lfs_pre_push;
+/// Git LFS support:
+///  pre-push planning,
+///  pointer scanning and bounded uploads.
+pub mod lfs;
 
-/// What the Git LFS upload sends: the remote and the refs, read from the push and the configuration Git would read.
-pub mod lfs_upload_plan;
-
-/// The configuration the Git LFS upload plan reads, and the default remote derived from it.
-pub mod lfs_upload_settings;
-
-/// Hides the credentials inside URLs in the text relayed from `git-lfs`.
-pub mod lfs_output_mask;
-
-/// Whether a blob is a Git LFS pointer, decided as `git-lfs` decides it.
-pub mod lfs_pointer;
-
-/// The LFS objects a push introduces, found in process from the commits to be pushed.
-#[cfg(unix)]
-pub mod lfs_pointer_scan;
-
-/// The upload plan narrowed to the objects the push introduces, or to nothing.
-pub mod lfs_object_plan;
-
-/// The parent's bounded or interactive run of the Git LFS upload.
-pub mod lfs_upload;
-
-/// The Git LFS step before a push the caller typed: pre-check, plan and upload with the caller's streams.
-pub mod lfs_interactive;
-
-/// The check that `git-lfs` can start, made before a push that is preceded by the upload.
-pub mod lfs_push_precheck;
-
-/// The auto-push's bounded `git push`, preceded by the upload, its pre-check and its explanation.
-pub mod lfs_bounded_push;
+/// Re-exports every module of `lfs` at the crate root, as above.
+pub use lfs::*;
 
 /// The push of a merge that integrated a lost race, planned and run inside the running wrapper.
 pub mod stacked_merge_push;

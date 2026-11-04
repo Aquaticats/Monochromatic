@@ -14,7 +14,7 @@
 //! ```
 
 /// Whether the configuration snapshot holds LFS keys.
-use super::config_snapshot::ConfigSnapshot;
+use crate::config_snapshot::ConfigSnapshot;
 /// Owned operating-system text for the arguments.
 use std::ffi::{OsStr, OsString};
 /// Where `PATH` entries are looked at.
@@ -98,7 +98,7 @@ fn reads_as_false(value: &str) -> bool {
 /// ```
 pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> bool {
     let mut off: bool = false;
-    let count: usize = super::child_environment::environment_value(environment, "GIT_CONFIG_COUNT")
+    let count: usize = crate::child_environment::environment_value(environment, "GIT_CONFIG_COUNT")
         .and_then(|value| {
             return value.to_str().and_then(|text| {
                 return text.parse::<usize>().ok();
@@ -107,7 +107,7 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
         .unwrap_or(0);
     for index in 0..count {
         let name_of = |kind: &str| -> Option<OsString> {
-            return super::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
+            return crate::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
         };
         if name_of("KEY").is_some_and(|name| {
             return is_switch_key(&name.to_string_lossy());
@@ -188,7 +188,7 @@ pub fn program_on_path(path: &OsStr) -> bool {
 /// ['1', 't', 'true', 'y', 'yes', 'on'].includes(env.GIT_LFS_SKIP_PUSH?.toLowerCase())
 /// ```
 pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) -> bool {
-    return super::child_environment::environment_value(environment, "GIT_LFS_SKIP_PUSH").is_some_and(|value| {
+    return crate::child_environment::environment_value(environment, "GIT_LFS_SKIP_PUSH").is_some_and(|value| {
         let text: String = value.to_string_lossy().to_ascii_lowercase();
         return ["1", "t", "true", "y", "yes", "on"].contains(&text.as_str());
     });

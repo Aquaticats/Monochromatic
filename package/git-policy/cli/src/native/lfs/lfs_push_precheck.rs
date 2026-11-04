@@ -13,11 +13,11 @@
 //! ```
 
 /// The invocation's environment values.
-use super::child_environment::environment_value;
+use crate::child_environment::environment_value;
 /// The table-driven read of a push's options.
-use super::command_push::parse_push_region;
+use crate::command_push::parse_push_region;
 /// The hook switch, the lookup and the refusal text.
-use super::lfs_pre_push::{hook_switched_off, missing_program_message, program_on_path, skip_requested};
+use crate::lfs_pre_push::{hook_switched_off, missing_program_message, program_on_path, skip_requested};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 

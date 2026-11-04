@@ -16,11 +16,11 @@
 
 #![cfg(unix)]
 
-use super::lfs_pointer::{Verdict, decode_pointer};
-use super::repo_read_layout::ObjectFormat;
-use super::repo_read_object::{ObjectKind, name_length};
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_tree::{CommitFields, MODE_GITLINK, is_tree_mode, parse_commit, parse_tree};
+use crate::lfs_pointer::{Verdict, decode_pointer};
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_object::{ObjectKind, name_length};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_tree::{CommitFields, MODE_GITLINK, is_tree_mode, parse_commit, parse_tree};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::{Duration, Instant};
 
@@ -71,7 +71,7 @@ impl Scan<'_> {
     }
 
     /// The entries of the tree `name`.
-    fn tree(&self, name: &[u8]) -> Option<Vec<super::repo_read_tree::TreeEntry>> {
+    fn tree(&self, name: &[u8]) -> Option<Vec<crate::repo_read_tree::TreeEntry>> {
         let object = self.database.read(name)?;
         if object.kind != ObjectKind::Tree {
             return None;
@@ -99,7 +99,7 @@ impl Scan<'_> {
             if entry.mode == MODE_GITLINK {
                 continue;
             }
-            let counterparts: Vec<&super::repo_read_tree::TreeEntry> = parent_entries
+            let counterparts: Vec<&crate::repo_read_tree::TreeEntry> = parent_entries
                 .iter()
                 .filter_map(|list| {
                     return list.iter().find(|candidate| {

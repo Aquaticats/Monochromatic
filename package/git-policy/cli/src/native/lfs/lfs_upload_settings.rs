@@ -11,7 +11,7 @@
 //! ```
 
 /// The configuration snapshot the caller may already hold.
-use super::config_snapshot::ConfigSnapshot;
+use crate::config_snapshot::ConfigSnapshot;
 /// Owned OS text for arguments.
 use std::ffi::OsString;
 

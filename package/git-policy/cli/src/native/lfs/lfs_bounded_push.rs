@@ -13,20 +13,20 @@
 //! ```
 
 /// The attempt record, the coordinator's Git and its error type.
-use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, git_command, run_query};
 /// The patience, the grace and the push itself.
-use super::bounded_push::{STOP_GRACE, push_patience, run_bounded_push, strip_one_line_break};
+use crate::bounded_push::{STOP_GRACE, push_patience, run_bounded_push, strip_one_line_break};
 /// The check that the program can start.
-use super::lfs_push_precheck::lfs_refusal;
+use crate::lfs_push_precheck::lfs_refusal;
 /// Narrows the plan to the objects the push introduces.
-use super::lfs_object_plan::narrow_plan;
+use crate::lfs_object_plan::narrow_plan;
 /// What to upload and the bounded run of it.
-use super::lfs_upload::run_upload_bounded;
+use crate::lfs_upload::run_upload_bounded;
 /// The repository found from the files.
-use super::git_system_config::with_real_git;
-use super::repo_read_layout::read_layout_after_success;
-use super::lfs_pre_push::plan_failed_message;
-use super::lfs_upload_plan::{Query, plan_upload, read_settings};
+use crate::git_system_config::with_real_git;
+use crate::repo_read_layout::read_layout_after_success;
+use crate::lfs_pre_push::plan_failed_message;
+use crate::lfs_upload_plan::{Query, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 

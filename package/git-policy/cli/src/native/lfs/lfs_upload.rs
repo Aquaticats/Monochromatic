@@ -16,24 +16,24 @@
 //! ```
 
 /// The attempt record, the coordinator's Git and its error type.
-use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
+use crate::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// The deadline, the grace and the push runner.
-use super::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_patience, run_bounded_push};
+use crate::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_patience, run_bounded_push};
 /// The invocation's environment values.
-use super::child_environment::environment_value;
+use crate::child_environment::environment_value;
 /// How a child ended, as a status.
-use super::forwarding::{ChildOutcome, exit_code, outcome_of};
+use crate::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The texts, the program lookup and the plan.
-use super::lfs_pre_push::{failed_message, find_program, missing_program_message};
+use crate::lfs_pre_push::{failed_message, find_program, missing_program_message};
 /// Hides the credentials in a URL of relayed text.
-use super::lfs_output_mask::{mask_userinfo, mask_userinfo_text};
-use super::lfs_upload_plan::UploadPlan;
+use crate::lfs_output_mask::{mask_userinfo, mask_userinfo_text};
+use crate::lfs_upload_plan::UploadPlan;
 /// The anonymous file the interactive upload's standard error goes to.
-use super::scratch_location::scratch_file;
+use crate::scratch_location::scratch_file;
 /// Relays signals to the child.
-use super::signal_relay::SignalGuard;
+use crate::signal_relay::SignalGuard;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+use crate::start_retry::RetryStart;
 /// Owned OS text for arguments.
 use std::ffi::OsString;
 /// The real Git whose directory leads `PATH`.

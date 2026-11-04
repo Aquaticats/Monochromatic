@@ -17,12 +17,12 @@
 //! ```
 
 /// The destination and the named refs of a push.
-use super::command_push::{parse_push_region, push_shape};
+use crate::command_push::{parse_push_region, push_shape};
 /// The configuration the plan reads.
-use super::lfs_upload_settings::{current_branch, default_remote, reads_as_true, setting, values};
-pub use super::lfs_upload_settings::{PlanError, Query, Settings, read_settings, resolve_push_remote, settings_from_snapshot};
+use crate::lfs_upload_settings::{current_branch, default_remote, reads_as_true, setting, values};
+pub use crate::lfs_upload_settings::{PlanError, Query, Settings, read_settings, resolve_push_remote, settings_from_snapshot};
 /// The switch and the skip variable.
-use super::lfs_pre_push::{hook_switched_off, skip_requested};
+use crate::lfs_pre_push::{hook_switched_off, skip_requested};
 /// Owned OS text for arguments.
 use std::ffi::{OsStr, OsString};
 /// Locations.

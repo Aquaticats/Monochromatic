@@ -14,8 +14,8 @@
 //! const narrowed = narrowPlan(plan, layout); // undefined: nothing to upload; same plan: ask git-lfs
 //! ```
 
-use super::lfs_upload_plan::UploadPlan;
-use super::repo_read_layout::RepoLayout;
+use crate::lfs_upload_plan::UploadPlan;
+use crate::repo_read_layout::RepoLayout;
 
 /// What:
 ///  The plan to run: the same plan when the readers decline, the plan with its objects named when the scan found some,
@@ -49,13 +49,13 @@ pub fn narrow_plan(plan: UploadPlan, layout: Option<&RepoLayout>) -> Option<Uplo
 /// The readers' side of the narrowing.
 #[cfg(unix)]
 mod unix {
-    use super::super::diagnostic_log::debug;
-    use super::super::lfs_pointer_scan::{SCAN_BUDGET, new_pointer_objects};
-    use super::super::lfs_upload_plan::UploadPlan;
-    use super::super::repo_read_layout::RepoLayout;
-    use super::super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
-    use super::super::repo_read_odb::ObjectDatabase;
-    use super::super::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
+    use crate::diagnostic_log::debug;
+    use crate::lfs_pointer_scan::{SCAN_BUDGET, new_pointer_objects};
+    use crate::lfs_upload_plan::UploadPlan;
+    use crate::repo_read_layout::RepoLayout;
+    use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
+    use crate::repo_read_odb::ObjectDatabase;
+    use crate::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
 
     /// The tag of the decision lines.
     const TAG: &str = "cli-git lfs-object-plan";

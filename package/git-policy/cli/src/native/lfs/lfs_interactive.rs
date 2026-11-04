@@ -12,22 +12,22 @@
 //! ```
 
 /// The invocation's directory option.
-use super::commit_command::effective_directory;
+use crate::commit_command::effective_directory;
 /// The builder of real-Git commands.
-use super::forwarding::git_command;
+use crate::forwarding::git_command;
 /// The refusal texts.
-use super::lfs_pre_push::plan_failed_message;
+use crate::lfs_pre_push::plan_failed_message;
 /// The pre-check that the program can start.
-use super::lfs_push_precheck::lfs_refusal;
+use crate::lfs_push_precheck::lfs_refusal;
 /// Narrows the plan to the objects the push introduces.
-use super::lfs_object_plan::narrow_plan;
+use crate::lfs_object_plan::narrow_plan;
 /// The upload itself.
-use super::lfs_upload::{run_upload_interactive, submodule_notice};
+use crate::lfs_upload::{run_upload_interactive, submodule_notice};
 /// The repository found from the files.
-use super::git_system_config::with_real_git;
-use super::repo_read_layout::read_layout_after_success_for;
+use crate::git_system_config::with_real_git;
+use crate::repo_read_layout::read_layout_after_success_for;
 /// What to upload.
-use super::lfs_upload_plan::{Query, Settings, plan_upload, read_settings};
+use crate::lfs_upload_plan::{Query, Settings, plan_upload, read_settings};
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 /// Standard error as a writable stream.
