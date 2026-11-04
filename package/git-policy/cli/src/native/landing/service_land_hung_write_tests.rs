@@ -73,6 +73,11 @@ fn serve_on_a_thread(context: LandContext, name: &str) -> Serving {
 
 /// A client of the service with the given ceilings.
 fn client(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duration) -> ClientConfig {
+    return client_with_extra_wait(serving, answer_ceiling, withdraw_ceiling, crate::wait_ceilings::SHORT_EXTRA_WAIT);
+}
+
+/// A client of the service with the given ceilings and the given extra wait for a request inside the branch write.
+fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duration, extra_wait: Duration) -> ClientConfig {
     return ClientConfig {
         address: Bind::Path(serving.socket.clone()),
         activation: Activation::Managed,
@@ -82,6 +87,7 @@ fn client(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duratio
         keep_fresh: None,
         answer_ceiling,
         withdraw_ceiling,
+        extra_wait,
         start_ceiling: PATIENCE,
     };
 }
@@ -157,9 +163,14 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
     let mut context: LandContext = LandContext { git: crate::test_support::git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
     context.git.real_git = hanging;
     let serving: Serving = serve_on_a_thread(context, "inside");
-    let only = submit_on_a_thread(client(&serving, SECOND_CEILING, Duration::from_secs(4)), request(&world, "only", "only.txt", "only\n"));
+    // The withdrawal ceiling is far past the control: a client that was told its request is inside the write does not wait for it.
+    let extra_wait: Duration = Duration::from_secs(2);
+    let only = submit_on_a_thread(client_with_extra_wait(&serving, SECOND_CEILING, SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
     wait_for(entered.as_path());
+    let began: Instant = Instant::now();
     let (answer, notices) = only.join().expect("client");
+    let waited: Duration = began.elapsed();
+    assert!(waited < SECOND_WITHDRAWAL / 3, "returned at its own bound plus the extra wait, not at the withdrawal ceiling: {waited:?}");
     let Err(ClientFailure::WithdrawalUnconfirmed { blocker }) = &answer else { panic!("{answer:?} {notices}") };
     let words: &str = blocker.as_deref().expect("the error names the write");
     assert!(words.contains("git update-ref --stdin") && words.contains("refs/worktree/cli-git-service/"), "{words}");

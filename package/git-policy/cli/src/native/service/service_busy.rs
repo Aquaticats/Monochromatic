@@ -132,6 +132,11 @@ impl LandingBoard {
         }
     }
 
+    /// Whether the request of this identity is in the group the landing thread is landing.
+    pub fn is_in_flight(&self, id: &str) -> bool {
+        return is_plain(id) && self.marker(id, "flight").exists();
+    }
+
     /// The write the landing thread is inside, as `(command, detail, millis since it began)`, when there is one.
     fn running(&self) -> Option<(String, Option<String>, u128)> {
         let text: String = std::fs::read_to_string(self.directory.join(STEP_FILE)).ok()?;

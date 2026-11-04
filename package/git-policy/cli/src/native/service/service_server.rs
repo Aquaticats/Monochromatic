@@ -296,15 +296,17 @@ const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 /// ```ts
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
-fn stuck_notice(board: &LandingBoard) -> impl FnMut() -> Option<ServiceMessage> + '_ {
-    let mut last: Option<String> = None;
+fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>) -> impl FnMut() -> Option<ServiceMessage> + 'a {
+    let mut last: Option<(String, bool)> = None;
     return move || {
         let words: String = board.describe()?;
-        if last.as_deref() == Some(words.as_str()) {
+        // A client whose own request is in the group being landed is told so, because its commit may be on the branch already.
+        let inside: bool = request.is_some_and(|id| { return board.is_in_flight(id); });
+        if last.as_ref().is_some_and(|(sent, was_inside)| { return *sent == words && *was_inside == inside; }) {
             return None;
         }
-        last = Some(words.clone());
-        return Some(ServiceMessage::Waiting { text: words });
+        last = Some((words.clone(), inside));
+        return Some(if inside { ServiceMessage::InsideWrite { text: words } } else { ServiceMessage::Waiting { text: words } });
     };
 }
 
@@ -347,7 +349,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             crate::service_fault::queued(id.as_str());
             // This thread has nothing else to do until the request is answered, so it writes the answers the landing thread
             //  queues and keeps the client told that the service lives, and what it is stuck in when it is stuck in a write.
-            write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board));
+            write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, Some(id.as_str())));
         }
         Ok(ClientMessage::Withdraw { id }) => {
             // Behind a write that never returns the landing thread answers nothing, so a request that has not begun to land is
@@ -363,7 +365,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
                 EarlyAnswer::Queued => {
                     let (reply, messages) = Reply::new();
                     let _queued = queue.send(Job::Withdraw(id, reply));
-                    write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board));
+                    write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, None));
                 }
             }
         }

@@ -73,6 +73,9 @@ pub struct ClientConfig {
     pub answer_ceiling: Duration,
     /// The longest the client waits for the service to answer the withdrawal.
     pub withdraw_ceiling: Duration,
+    /// How much longer a client whose own request is inside the service's branch write waits, after its answer ceiling, for that
+    ///  write to end before it reports that the result is not known (`wait_ceilings.rs`, `SHORT_EXTRA_WAIT`).
+    pub extra_wait: Duration,
     /// The longest a start is waited for when the service manager can be asked.
     pub start_ceiling: Duration,
 }
@@ -485,7 +488,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     break Some(Err(ClientFailure::IndexInUse(holder.take().unwrap_or_else(|| { return String::from("Another program"); }))));
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
-                Heard::Message(ServiceMessage::Waiting { text }) => {
+                Heard::Message(ServiceMessage::Waiting { text } | ServiceMessage::InsideWrite { text }) => {
                     last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
                     trace.holder_kind = Some(holder_kind_of(text.as_str()));
@@ -553,7 +556,7 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>) -> R
         match listen(&mut reader) {
             Heard::Message(ServiceMessage::Landed { commit, .. }) => return Ok(Submitted::Landed { commit, already: true }),
             Heard::Message(ServiceMessage::Withdrawn { .. }) => return Err(ClientFailure::StillWithService { minutes, blocker }),
-            Heard::Message(ServiceMessage::Waiting { text }) => blocker = Some(text.trim().to_string()),
+            Heard::Message(ServiceMessage::Waiting { text } | ServiceMessage::InsideWrite { text }) => blocker = Some(text.trim().to_string()),
             Heard::Message(_) => {}
             Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed { blocker }),
         }

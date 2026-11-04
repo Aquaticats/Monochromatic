@@ -107,3 +107,13 @@ pub const REVIEW_CALL_CEILING: Duration = Duration::from_secs(60);
 ///  median of 668 ms, a 99th percentile of 2,351 ms and a longest of 18,208 ms. Margin: the smallest whole number of minutes at
 ///  least five times the longest, so 91 s is 2 minutes.
 pub const REVIEW_CEILING: Duration = Duration::from_secs(2 * 60);
+
+/// How much longer a command whose own write is still running waits, after its own bound, before it reports that the result is not
+///  known: the client of the commit service whose request is inside the stuck branch write, and a command that started a write in
+///  place that cannot be run twice and has outlasted its class's ceiling. The write is left running, never ended.
+///  Owner, 2026-11-04, commit protocol revision 12, "Short extra wait (Recommended)": "the command waits a few more seconds, a
+///  constant to be measured, for the write it started; if the disk is still stalled it exits non-zero saying the result is not
+///  known, naming `git log -1` and the side ref". Owner, 2026-11-04, "7 s (Recommended)": twice the longest measured branch write.
+///  Measured: the longest of 2,093 reference updates in the service journal (`answered` lines, `ref_ms`, 2026-11-02T04:01:38-05:00
+///  to 2026-11-04T09:11:09-05:00) took 3,438 ms (99th percentile 47 ms); twice that is 6.9 s, 7 s.
+pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
