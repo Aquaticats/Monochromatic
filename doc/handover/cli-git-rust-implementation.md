@@ -3785,8 +3785,21 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     the pipe-holder `alive` oracle fails open,
     one timeout test checks only text);
     sent to the agent as well;
-    group 3 running (`cargo-shadow-cert-sol-3.txt`);
-    bundles rebuilt after group 3 reports and the fixes land;
+    group 3 `cargo-shadow-cert-sol-3.txt`:
+    "Not certified" (all eight rows partly shown:
+    completion failures with an operational error,
+    kept files not read back,
+    one inode not inventoried,
+    rollback refusal cause unasserted,
+    combined kept size,
+    the barrier after the kept link,
+    active recovery's own finish,
+    weaker-path capability classes,
+    lock and two-journal schedules;
+    and the shared `journal_dirs` helper reads an unreadable directory as empty);
+    no production defect;
+    all three groups' fixes sent;
+    the agent rebuilds the bundles at its new tip and the three certification reviews run again;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
