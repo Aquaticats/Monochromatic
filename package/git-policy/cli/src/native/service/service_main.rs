@@ -104,6 +104,19 @@ pub fn run(arguments: &[String]) -> i32 {
     crate::service_signal::install();
     // The push messages this process writes name the remedies that reach the service, not a terminal's variable.
     crate::push_deadline_advice::mark_service_process();
+    let address: Bind = match (option(arguments, "--abstract"), option(arguments, "--path")) {
+        (Some(name), _) => Bind::Abstract(name),
+        (None, Some(path)) => Bind::Path(PathBuf::from(path)),
+        (None, None) => Bind::Inherited,
+    };
+    // A person who typed `git cli-git service run` has no socket from the manager and named no address: the refusal comes before
+    //  anything is read, created or bound, so no stray server and no stray directory is left.
+    if matches!(address, Bind::Inherited) && !crate::service_server::socket_passed_in() {
+        crate::service_error!(
+            "cli-git service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
+        );
+        return EXIT_NOT_LISTENING;
+    }
     let Some(journal) = option(arguments, "--journal").map(PathBuf::from) else {
         crate::service_error!("--journal <directory> is required");
         return EXIT_REFUSED;
@@ -115,19 +128,6 @@ pub fn run(arguments: &[String]) -> i32 {
             git.display()
         );
         return EXIT_REFUSED;
-    }
-    let address: Bind = match (option(arguments, "--abstract"), option(arguments, "--path")) {
-        (Some(name), _) => Bind::Abstract(name),
-        (None, Some(path)) => Bind::Path(PathBuf::from(path)),
-        (None, None) => Bind::Inherited,
-    };
-    // A person who typed `git cli-git service run` has no socket from the manager and named no address: the refusal comes before
-    //  anything is created or bound, so no stray server and no stray directory is left.
-    if matches!(address, Bind::Inherited) && !crate::service_server::socket_passed_in() {
-        crate::service_error!(
-            "cli-git service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
-        );
-        return EXIT_NOT_LISTENING;
     }
     if let Err(error) = std::fs::create_dir_all(&journal) {
         crate::service_error!("cannot create the journal directory {}: {error}", journal.display());
