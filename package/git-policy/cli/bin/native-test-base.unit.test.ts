@@ -35,7 +35,7 @@ await describe({
   children: [
     it({
       name: 'names the same inputs by the same tag, with or without the digest prefix',
-      fn: () => {
+      fn: async () => {
         expect(testBaseTag({
           repository,
           cachyosImageId: `sha256:${imageId}`,
@@ -49,7 +49,7 @@ await describe({
     }),
     it({
       name: 'starts with the repository and the first digits of the image ID',
-      fn: () => {
+      fn: async () => {
         expect(testBaseTag({
           repository,
           cachyosImageId: imageId,
@@ -63,7 +63,7 @@ await describe({
     }),
     it({
       name: 'changes when the pulled CachyOS image changes',
-      fn: () => {
+      fn: async () => {
         expect(testBaseTag({
           repository,
           cachyosImageId: imageId,
@@ -77,7 +77,7 @@ await describe({
     }),
     it({
       name: 'changes when the Containerfile text changes',
-      fn: () => {
+      fn: async () => {
         expect(testBaseTag({
           repository,
           cachyosImageId: imageId,
@@ -112,7 +112,7 @@ await describe({
               return line.startsWith('FROM ') || line.startsWith('ARG CACHYOS_IMAGE');
             });
           expect(instructions[0]).toBe('ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest');
-          expect(instructions[1]?.startsWith('FROM ${CACHYOS_IMAGE}')).toBe(true);
+          expect(instructions[1]?.startsWith(`FROM \${CACHYOS_IMAGE}`)).toBe(true);
           expect(text.includes('@sha256:')).toBe(false);
         },
       });

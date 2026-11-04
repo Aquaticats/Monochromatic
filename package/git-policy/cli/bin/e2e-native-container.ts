@@ -205,8 +205,9 @@ async function buildImage(): Promise<void> {
       // becomes the `git` the scenarios find first on PATH.
       'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-native /opt/native/cli-git-native',
       'RUN ["ln", "--symbolic", "/opt/native/cli-git-native", "/opt/native/bin/git"]',
-      // The executable was linked in another stage; a C library older than the one it was linked against fails the build here.
-      'RUN ["ldd", "/opt/native/cli-git-native"]',
+      // The executable was linked in another stage; `ldd` exits zero even for a missing library or symbol version, so the step
+      // looks for its `not found` lines: a C library older than the one the executable was linked against fails the build here.
+      'RUN ["sh", "-c", "! ldd /opt/native/cli-git-native 2>&1 | grep --quiet \'not found\'"]',
       // The commit service sits beside the wrapper, where the wrapper looks for it; the suite starts it before the scenarios.
       'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-service /opt/native/cli-git-service',
       '',
