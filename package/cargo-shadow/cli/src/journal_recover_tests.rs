@@ -96,7 +96,14 @@ fn an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable() {
 
     let messages = run_recovery(root.path());
 
+    // The fault was reached by this state (an unrelated earlier refusal would leave it armed), and the message names it.
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::RecoverDurability), "the durability barrier was never reached: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("could not be made durable"); }), "{messages:?}");
     assert!(journal.exists(), "the durable copy was deleted before the live files were durable: {messages:?}");
+
+    // Control: the same state without the fault completes, so the retention above is the barrier's and not a refusal of the state.
+    let again = run_recovery(root.path());
+    assert!(!journal.exists(), "the redundant journal was not removed once the barrier succeeded: {again:?}");
 }
 
 /// A planted ready journal with one manifest,
@@ -105,6 +112,29 @@ fn ready_journal(root: &Path) -> (PathBuf, String) {
     let journal = plant(root, &[snapshot("lock")], &[edit(root, "manifest before")]);
     let ready = fs::read_to_string(journal.join("ready")).expect("ready record");
     return (journal, ready);
+}
+
+/// A planted ready journal whose live lockfile has changed since the snapshot, so that a recovery that accepted the journal would
+/// restore the snapshot text.
+fn ready_journal_of_a_changed_lock(root: &Path) -> (PathBuf, String) {
+    let (journal, ready) = ready_journal(root);
+    fs::write(root.join(CRATE_DIR).join("Cargo.lock"), "changed by the killed run").expect("the run changed the lock");
+    return (journal, ready);
+}
+
+/// The live lockfile of the case.
+fn live_lock(root: &Path) -> String {
+    return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("the live lock");
+}
+
+/// Real recovery of a journal whose ready record is invalid (certification, second pass): the journal is kept as it is, the live
+/// files are not touched, and the message says it is damaged. The same journal with a valid record is restored, which shows that
+/// the rejection and not some other refusal kept it.
+fn assert_recovery_keeps_a_damaged_ready_journal(root: &Path, journal: &Path, case: &str) {
+    let messages = run_recovery(root);
+    assert!(messages.iter().any(|message| { return message.contains("damaged"); }), "{case}: recovery did not call the journal damaged: {messages:?}");
+    assert!(journal.exists(), "{case}: the journal of the damaged record was deleted: {messages:?}");
+    assert_eq!(live_lock(root), "changed by the killed run", "{case}: recovery acted on a journal whose record is invalid");
 }
 
 /// Rewrites the ready record with the given file lines (name and length) and the matching end line.
@@ -129,11 +159,25 @@ fn file_lines(ready: &str) -> Vec<String> {
 #[test]
 fn a_ready_record_that_omits_a_manifest_snapshot_is_rejected() {
     let root = repository("lock", "manifest");
-    let (journal, ready) = ready_journal(root.path());
+    let (journal, ready) = ready_journal_of_a_changed_lock(root.path());
     let kept: Vec<String> = file_lines(&ready).into_iter().filter(|line| { return !line.starts_with("m0.toml"); }).collect();
     write_ready(&journal, &kept);
 
     assert!(read_ready(&journal).is_err(), "an omitted manifest snapshot passed");
+    assert_recovery_keeps_a_damaged_ready_journal(root.path(), &journal, "an omitted manifest snapshot");
+}
+
+/// Control of the three tests that follow: a journal with a valid ready record and a changed live lockfile is restored by the same
+/// recovery, so a kept journal there is the rejection of the record.
+#[test]
+fn a_journal_with_a_valid_ready_record_is_restored_by_the_same_recovery() {
+    let root = repository("lock", "manifest");
+    let (journal, _ready) = ready_journal_of_a_changed_lock(root.path());
+
+    let messages = run_recovery(root.path());
+
+    assert_eq!(live_lock(root.path()), "lock", "the control did not restore the snapshot: {messages:?}");
+    assert!(!journal.exists(), "the control journal was not completed: {messages:?}");
 }
 
 /// Round 6 (5b2 5):
@@ -141,12 +185,13 @@ fn a_ready_record_that_omits_a_manifest_snapshot_is_rejected() {
 #[test]
 fn a_ready_record_with_a_duplicate_entry_is_rejected() {
     let root = repository("lock", "manifest");
-    let (journal, ready) = ready_journal(root.path());
+    let (journal, ready) = ready_journal_of_a_changed_lock(root.path());
     let mut lines = file_lines(&ready);
     lines.push(lines[0].clone());
     write_ready(&journal, &lines);
 
     assert!(read_ready(&journal).is_err(), "a duplicate entry passed");
+    assert_recovery_keeps_a_damaged_ready_journal(root.path(), &journal, "a duplicate entry");
 }
 
 /// Round 6 (5b2 5):
@@ -154,13 +199,14 @@ fn a_ready_record_with_a_duplicate_entry_is_rejected() {
 #[test]
 fn a_ready_record_with_an_unexpected_entry_is_rejected() {
     let root = repository("lock", "manifest");
-    let (journal, ready) = ready_journal(root.path());
+    let (journal, ready) = ready_journal_of_a_changed_lock(root.path());
     let mut lines = file_lines(&ready);
     let length = fs::metadata(journal.join("owner")).expect("owner").len();
     lines.push(format!("owner\t{length}"));
     write_ready(&journal, &lines);
 
     assert!(read_ready(&journal).is_err(), "an unexpected entry passed");
+    assert_recovery_keeps_a_damaged_ready_journal(root.path(), &journal, "an unexpected entry");
 }
 
 /// Round 6 (5b 4):
