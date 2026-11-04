@@ -498,6 +498,17 @@ each in its own worktree:
   the dead holder and how to remove it;
   plus the sweep of 0.5.28's `.aside-*` files.
   Merge into main after its gate.
+  Fix round done (`de34a39194`,
+  gate 4719 of 4719);
+  its re-review (`one-reclaimer-sol-2.txt`) "correct after named fixes":
+  the original three closed,
+  two new P1s in the `.aside-*` sweep (an incomplete process view authorizes deleting a live aside;
+  prefix matching does not show the file is disposable).
+  Coordinator's pick (veto open):
+  remove the sweep,
+  document the leftovers and a manual removal ("Allow the rare leftover");
+  plus the notice's evidence and deterministic `Busy` controls.
+  Sent to the agent.
   The older index review's P2 and P3 findings (`private_index_path` aliasing,
   `head_names` revalidation,
   `Interrupted` writes) are already fixed on main,
