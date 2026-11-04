@@ -16,15 +16,22 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-03T07:59:21-05:00).
+Installed versions and the release in flight were written 2026-11-04T14:08:00-05:00 against main `651fc7b9a5`;
+the branch and agent lists below them are older and carry their own times.
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.27 (`toolchain.lock.json`,
+- Git wrapper `monochromatic-git-policy-cli` 0.5.32 (`toolchain.lock.json`,
   row `cargo:monochromatic-git-policy-cli`,
-  lock commit `4779907f6e`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.27,
+  lock commit `e6bb6fbb62`;
+  `git --version` prints "monochromatic-git-policy-cli 0.5.32,
   shadowing git at /usr/bin/git" over Git 2.56.0).
+  Installed by `upgrade-wrapper.ts 0.5.32`:
+  the 0.5.31 service retired on the client's request,
+  0.5.32 started (protocol 7),
+  and the sample commit on main landed in 1680 ms in all,
+  1215 ms of it provisioning the new service (landing 31 ms,
+  lock hold 28 ms).
   Its commit service unit runs with systemd's defaults
   (`systemctl --user show` at 2026-11-03T10:47-05:00:
   `MemoryMax=infinity`,
@@ -38,8 +45,16 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
   `monochromatic-search-shadow` 0.2.1,
   `monochromatic-file-enforcer-cli` 0.1.1,
   `monochromatic-lint` 0.5.0 (all from the same lock file).
-- `monochromatic-dependency-catalog` 0.1.0 is the published version;
-  0.2.0 (with `trustLockfile`) exists only on the cargo-shadow branch.
+- `monochromatic-dependency-catalog` 0.2.0 (with `trustLockfile`) was published 2026-11-04T18:58:16Z,
+  after the cargo-shadow merge reached main;
+  0.1.0 is the earlier version.
+- `monochromatic-cargo-shadow` 0.1.0 was published 2026-11-04 with the owner's `cargo login` token
+  (`mise run //package/cargo-shadow/cli:publish`);
+  Trusted Publishing config 30988 (`Aquaticats/Monochromatic`,
+  `cargo-publish.yml`,
+  no environment,
+  `repository_owner_id` 343218767) was created through the API.
+  It is not yet in `toolchain.lock.json`.
 - The global toolchain lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`) was moved to wrapper 0.5.25
   on
   2026-11-03;
@@ -47,7 +62,18 @@ Written 2026-11-03T08:16:08-05:00 against main `8ec558b68a` (committed 2026-11-0
 
 ### Release in flight
 
-None.
+cargo-shadow 0.1.0's Trusted Publishing proof:
+dispatched dry run 41893310452 and real run 41893318423 (`cargo-publish.yml`,
+crate `monochromatic-cargo-shadow`);
+the real run should authenticate through Trusted Publishing,
+skip the upload that exists,
+and create release `monochromatic-cargo-shadow-v0.1.0`.
+Then:
+a `cargo binstall` consumer check in a disposable root,
+the runbook section for cargo-shadow,
+and telling the owner the token can be revoked.
+
+Older:
 0.5.28 was published to crates.io at 2026-11-04T03:09:07Z (publish run 41764751088,
 built from `7b41c215ec`) and installed by `upgrade-wrapper.ts 0.5.28`
 (`git --version`:
@@ -3686,6 +3712,39 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
+  Done 2026-11-04:
+  0.5.32 installed;
+  cargo-shadow merged to main (`624e4ea5d2`,
+  without waiting for 0.5.32,
+  owner:
+  "you don't have to wait for that.");
+  release wiring committed (`651fc7b9a5`;
+  the crate-release cli test now reads the expected crate list from the registry);
+  0.1.0 published and Trusted Publishing config 30988 created
+  (state in "Release in flight").
+  Branch-write round 2 (agent `aa0fee0c2cf70bb31`, finished):
+  all twelve follow-up items done except item 10,
+  which is analysis only
+  (foreign-owner patience options B > C > D > A in `doc/planning/cli-git-no-unbounded-waits.md`,
+  section "Foreign-owner patience: what its expiry authorizes";
+  owner question after the round-2 review checks the analysis);
+  gate r6 passed 4827/4827 on `d2f74ce55a`.
+  Main (with the index-lock change) merged into the branch as `bbf3317aff`;
+  gate `gpc-gate-branch-write-and-tool-ceilings-r7-20261104T140212-0500` running;
+  on pass,
+  merge to main and release 0.5.33.
+  Cross-vendor round-2 reviews running:
+  `branch-write-r2-sol-1.txt` (landing record,
+  protocol,
+  client,
+  step classifier,
+  output capture)
+  and `branch-write-r2-sol-2.txt` (tool ceilings,
+  review log,
+  the foreign-owner analysis).
+  Known gap the agent left:
+  `RERUNNABLE` names `symbolic-ref` and `init` in every form,
+  and the cut experiment never ran them.
   - Every other live pick in `doc/planning/cli-git-delegated-picks-status.md`,
     asked in seven grouped questions,
     each answered "Keep all (Recommended)":
