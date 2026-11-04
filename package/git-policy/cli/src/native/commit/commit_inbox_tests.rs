@@ -567,7 +567,7 @@ fn p9_a_stop_failure_still_attempts_the_remaining_saves() {
         .with_closure(&[saved.as_path()])
         .run();
     let events: Vec<String> = take_events();
-    assert!(matches!(outcome, Err(git_policy_cli::commit_inbox::DepartureError::StopNotForced(_))), "{:?}", outcome.map(|_| ()));
+    assert!(matches!(outcome, Err(git_policy_cli::commit_inbox::DepartureError::Incomplete { stop_failed: true, .. })), "{:?}", outcome.map(|_| ()));
     assert!(events.contains(&format!("file-sync:{}", lane.join("inbox").join(&request.id).display())), "the request was not forced: {:?}", events);
     assert!(events.contains(&format!("file-sync:{}", saved.display())), "the saved content was not forced: {:?}", events);
     assert!(events.contains(&format!("dir:{}", lane.join("state").display())), "the state was not forced: {:?}", events);
@@ -667,4 +667,46 @@ fn r14_a_valid_ledger_of_another_request_does_not_satisfy_a_terminal_departure()
     std::fs::write(&ledger, ledger_line(&second_request().id)).expect("a valid ledger of another request");
     let outcome = Departure::new(Disposition::Terminal, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).with_ledger(&ledger).run();
     assert!(matches!(outcome, Err(git_policy_cli::commit_inbox::DepartureError::NotThePromise(_))), "{:?}", outcome.map(|_| ()));
+}
+
+/// Models review 8 (disposition-bound adoptions and per-request stops): the positive controls. A withdrawal of two requests with both of
+/// their marks is accepted; a handover is accepted only when the order file holds an adoption line for every departing request.
+#[test]
+fn r14_each_departing_request_needs_its_own_stop_and_its_own_adoption() {
+    let root: PathBuf = scratch("r14-positive");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (first, new_files, old_files) = one_path_request();
+    let second: Request = second_request();
+    accept(&lane.join("inbox"), INSTANCE, &first, &new_files, &old_files).expect("accept r");
+    accept(&lane.join("inbox"), INSTANCE, &second, &new_files, &old_files).expect("accept x");
+    state_append(&lane.join("state"), 1, b"adopted both").expect("append");
+    std::fs::create_dir(lane.join("decision")).expect("decision");
+    let marks: Vec<PathBuf> = [&first.id, &second.id].iter().map(|id| { return lane.join("decision").join(id); }).collect();
+    for mark in &marks {
+        std::fs::write(mark, b"").expect("mark");
+    }
+    let ids: Vec<String> = vec![first.id.clone(), second.id.clone()];
+    let withdrawn = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), &ids, &lane.join("state")).with_stop(&marks[0]).with_stop(&marks[1]).run().expect("both marks");
+    assert!(withdrawn.stop_forced);
+    let order: PathBuf = lane.join("order");
+    std::fs::write(&order, format!("adopt {}\n", first.id)).expect("order with one adoption");
+    let partial = Departure::new(Disposition::Handover, &lane.join("inbox"), &ids, &lane.join("state")).with_order(&order).run();
+    assert!(matches!(partial, Err(git_policy_cli::commit_inbox::DepartureError::NotThePromise(_))), "an order file adopting only one request was accepted");
+    std::fs::write(&order, format!("adopt {}\nadopt {}\n", first.id, second.id)).expect("order with both");
+    Departure::new(Disposition::Handover, &lane.join("inbox"), &ids, &lane.join("state")).with_order(&order).run().expect("both adoptions");
+}
+
+/// Models review 8 (content-bound acknowledgment through the departure): the acknowledgment of a departure still covers after the state
+/// grows by a later append, and it is the acknowledgment's own method that says so.
+#[test]
+fn r14_a_departures_acknowledgment_still_covers_after_a_later_append() {
+    let root: PathBuf = scratch("r14-ack-departure");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    let acknowledgment = Departure::new(Disposition::Saved, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).run().expect("depart");
+    assert!(acknowledgment.still_covers(&lane.join("state")));
+    state_append(&lane.join("state"), 2, b"later").expect("append");
+    assert!(acknowledgment.still_covers(&lane.join("state")));
 }

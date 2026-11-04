@@ -229,7 +229,7 @@ fn a_sync_acknowledges_only_the_captured_prefix() {
     set_fault_point(Some(append_during_the_sync));
     let prefix: Prefix = sync_prefix(&dir).expect("sync");
     set_fault_point(None);
-    assert_eq!(prefix, Prefix { number: 1, length: captured, generation: 1, live: Vec::new() });
+    assert_eq!((prefix.number, prefix.length, prefix.generation, prefix.items.len()), (1, captured, 1, 0));
     assert!(std::fs::metadata(dir.join("state.log.1")).expect("size").len() > captured, "the later record is visible");
     assert_eq!(read(&dir).expect("readable").expect("state").0, 2);
 }
@@ -370,18 +370,17 @@ fn a_checkpoint_validates_and_forces_its_closure_first_and_refuses_a_missing_ent
 }
 
 /// Review 8, 2.1 (P1, was red against the path-list API): a path that exists and is forced is not a satisfied dependency. A torn envelope
-/// cannot be captured as an envelope entry, and an entry hand-built from its bytes does not validate: the checkpoint is refused.
+/// cannot be captured as an envelope entry, and an entry captured whole whose file is torn afterwards does not validate at begin: the
+/// checkpoint is refused. Entries have no public fields, so none can be forged from bytes.
 #[test]
 fn p1_a_torn_envelope_named_as_a_dependency_is_not_a_satisfied_dependency() {
     let (lane, state, envelope) = lane_with_envelope("p1-torn-dependency");
     let whole: Vec<u8> = std::fs::read(&envelope).expect("read");
+    let captured: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("the whole envelope is captured");
     std::fs::write(&envelope, &whole[..whole.len() / 2]).expect("tear the envelope");
     assert!(ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).is_err(), "a torn envelope is not captured as an envelope");
-    let torn: Vec<u8> = std::fs::read(&envelope).expect("read");
-    let forged: ClosureEntry =
-        ClosureEntry { path: PathBuf::from("request"), kind: EntryKind::InboxEnvelope, length: torn.len() as u64, sha256: git_policy_cli::commit_integrity::sha256_hex(&torn) };
     append(&state, 1, b"first").expect("append");
-    let outcome = StateWriter::acquire(&state).expect("writer").begin_checkpoint(2, b"document adopting the request", &[forged]);
+    let outcome = StateWriter::acquire(&state).expect("writer").begin_checkpoint(2, b"document adopting the request", &[captured]);
     assert!(outcome.is_err(), "a checkpoint whose closure has a torn envelope was written");
     assert!(state.join("state.log.1").exists());
 }
@@ -395,7 +394,7 @@ fn p1_a_dependency_under_an_unsynced_name_chain_is_forced_through_the_anchor() {
     std::fs::create_dir(&state).expect("state directory");
     let saved: PathBuf = lane.join("saved");
     std::fs::create_dir(&saved).expect("saved directory whose name in the lane was never synced");
-    let input: PathBuf = saved.join("input");
+    let input: PathBuf = saved.join(git_policy_cli::commit_integrity::sha256_hex(b"a valid dependency"));
     std::fs::write(&input, b"a valid dependency").expect("write");
     append(&state, 1, b"first").expect("append");
     let entry: ClosureEntry = ClosureEntry::capture(&lane, &input, EntryKind::Opaque).expect("capture");
@@ -479,7 +478,7 @@ fn p9_completion_cannot_delete_a_dependency_it_validated_and_forced() {
     let state: PathBuf = lane.join("state");
     std::fs::create_dir(&state).expect("state directory");
     append(&state, 1, b"first").expect("append");
-    let entry: ClosureEntry = ClosureEntry::capture(&lane, &state.join("state.log.1"), EntryKind::Opaque).expect("capture the predecessor segment");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &state.join("state.log.1"), EntryKind::AppendPrefix).expect("capture the predecessor segment");
     let outcome = StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry));
     assert!(outcome.is_err(), "completion succeeded and removed the file its own closure requires");
     assert!(state.join("state.log.1").exists());
@@ -496,11 +495,13 @@ fn p9_an_append_to_a_captured_ledger_does_not_invalidate_the_root() {
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, b"line one\n").expect("ledger");
     append(&state, 1, b"first").expect("append");
-    let entry: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::Opaque).expect("capture");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture");
     StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry)).expect("checkpoint");
-    let appended = std::fs::OpenOptions::new().append(true).open(&ledger).and_then(|mut file| { return std::io::Write::write_all(&mut file, b"line two\n"); });
-    // Either the append is refused by an enforced lifetime rule, or it succeeds and the root stays valid. Both keep the lane recoverable.
-    assert!(appended.is_err() || read(&state).is_ok(), "the lane is damaged by a legitimate append: {:?}", read(&state).err());
+    std::fs::OpenOptions::new().append(true).open(&ledger).and_then(|mut file| { return std::io::Write::write_all(&mut file, b"line two\n"); }).expect("the legitimate append succeeds");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2, "the root stays valid after a legitimate append");
+    // The prefix is what is identified: a rewrite of the captured bytes is not an append and invalidates the root.
+    std::fs::write(&ledger, b"line ONE\nline two\n").expect("a rewrite");
+    assert!(matches!(read(&state), Err(StateError::Damaged)));
 }
 
 /// Revision 17 control 10 (R16a-6): an established root (the checkpoint completed and its predecessor was deleted) whose listed request file is
@@ -518,31 +519,26 @@ fn p9_an_established_root_with_a_lost_dependency_fails_closed() {
     assert!(state.join("state.log.2").exists(), "the bytes of the root are kept");
 }
 
-/// Models review 8 (mandatory kinds at the validation boundary): a closure entry built field by field with the kind `AppendPrefix` under
-/// `inbox/<id>` validated a torn envelope as a prefix and escaped the live set. An entry under `inbox/` is an envelope whatever its kind.
+/// Models review 8 (mandatory kinds at the validation boundary): a closure entry built with the kind `AppendPrefix` under `inbox/<id>` used to
+/// validate a torn envelope as a prefix and escape the live set. The kind follows from the path now and entries have no public fields: a torn
+/// envelope is refused whatever kind the caller names.
 #[test]
 fn r14_a_prefix_entry_under_the_inbox_cannot_validate_a_torn_envelope() {
     let (lane, state, envelope) = lane_with_envelope("r14-prefix-torn");
     let whole: Vec<u8> = std::fs::read(&envelope).expect("read");
-    let torn: &[u8] = &whole[..whole.len() / 2];
-    std::fs::write(&envelope, torn).expect("tear the envelope");
+    std::fs::write(&envelope, &whole[..whole.len() / 2]).expect("tear the envelope");
     append(&state, 1, b"first").expect("append");
-    let entry: ClosureEntry = ClosureEntry {
-        path: envelope.strip_prefix(&lane).expect("under the lane").to_path_buf(),
-        kind: EntryKind::AppendPrefix,
-        length: torn.len() as u64,
-        sha256: git_policy_cli::commit_integrity::sha256_hex(torn),
-    };
-    let outcome = StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document adopting the request", std::slice::from_ref(&entry));
-    assert!(outcome.is_err(), "a torn envelope was accepted as an append-only prefix");
+    for declared in [EntryKind::AppendPrefix, EntryKind::Opaque, EntryKind::InboxEnvelope] {
+        assert!(ClosureEntry::capture(&lane, &envelope, declared).is_err(), "a torn envelope was captured as {:?}", declared);
+    }
     assert!(state.join("state.log.1").exists());
 }
 
 /// Models review 8 (mutable dependency lifetime): a ledger writer already holds an append descriptor when the ledger is captured and the
-/// checkpoint completes (permission bits do not revoke a descriptor). Either the capture of a mutable file as immutable content is refused,
-/// or the root survives the writer's next line.
+/// checkpoint completes (permission bits do not revoke a descriptor). A mutable file cannot be captured as immutable content; captured as the
+/// append-only prefix it is, the root survives the writer's next line through the descriptor it already held.
 #[test]
-fn r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger_as_immutable() {
+fn r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger() {
     let lane: PathBuf = scratch("r14-open-descriptor");
     let state: PathBuf = lane.join("state");
     std::fs::create_dir(&state).expect("state directory");
@@ -550,18 +546,16 @@ fn r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledg
     std::fs::write(&ledger, b"line one\n").expect("ledger");
     let mut writer_descriptor = std::fs::OpenOptions::new().append(true).open(&ledger).expect("the ledger writer's descriptor");
     append(&state, 1, b"first").expect("append");
-    let captured = ClosureEntry::capture(&lane, &ledger, EntryKind::Opaque);
-    if let Ok(entry) = captured {
-        let completed = StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry));
-        if completed.is_ok() {
-            std::io::Write::write_all(&mut writer_descriptor, b"line two\n").expect("the open descriptor still writes");
-            assert!(read(&state).is_ok_and(|found| { return found.is_some(); }), "the only root was invalidated by its own ledger's writer");
-        }
-    }
+    assert!(ClosureEntry::capture(&lane, &ledger, EntryKind::Opaque).is_err(), "a mutable file was captured as immutable content");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("the ledger is an append-only prefix");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry)).expect("checkpoint");
+    std::io::Write::write_all(&mut writer_descriptor, b"line two\n").expect("the open descriptor still writes");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2, "the only root was invalidated by its own ledger's writer");
 }
 
-/// Models review 8 (retirement discharge): a request is retired because its ledger line is visible, and the replacement authority does not
-/// capture or force that ledger prefix, so a power loss can leave a durable root that retires a request with no durable proof.
+/// Models review 8 (retirement discharge): a request is retired because its ledger line exists, and the proof must be inside the replacement
+/// authority: the ledger prefix is a retained item, so completion forces it, and a retirement whose ledger prefix does not hold the request's
+/// line is refused.
 #[test]
 fn r14_a_retirement_forces_the_ledger_prefix_that_discharges_it() {
     let (lane, state, envelope) = lane_with_envelope("r14-retire");
@@ -578,10 +572,96 @@ fn r14_a_retirement_forces_the_ledger_prefix_that_discharges_it() {
     })
     .expect("line");
     std::fs::write(&ledger, line).expect("a visible terminal line");
+    let proof: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture the ledger prefix");
+    let mut writer = StateWriter::acquire(&state).expect("writer");
+    assert!(writer.begin_checkpoint_retiring(3, b"retired without proof", &[], std::slice::from_ref(&request_id)).is_err(), "a retirement with no ledger prefix in the authority was accepted");
     start_events();
-    let mut writer = StateWriter::acquire(&state).expect("writer").with_ledger(&ledger);
-    let candidate = writer.begin_checkpoint_retiring(3, b"the request is retired", &[], std::slice::from_ref(&request_id)).expect("begin");
+    let candidate = writer.begin_checkpoint_retiring(3, b"the request is retired", std::slice::from_ref(&proof), std::slice::from_ref(&request_id)).expect("begin");
     writer.complete_checkpoint(&candidate).expect("complete");
     let events: Vec<String> = take_events();
     assert!(events.contains(&format!("file-sync:{}", ledger.display())), "the retirement was not backed by a forced ledger prefix: {:?}", events);
+}
+
+/// Writes saved content under `lane/saved/<sha256>` and returns its path.
+fn saved_content(lane: &std::path::Path, bytes: &[u8]) -> PathBuf {
+    std::fs::create_dir_all(lane.join("saved")).expect("saved directory");
+    let path: PathBuf = lane.join("saved").join(git_policy_cli::commit_integrity::sha256_hex(bytes));
+    std::fs::write(&path, bytes).expect("saved content");
+    return path;
+}
+
+/// Models review 8 (later records and retained-prefix obligations): a later record retains the complete set, not only new request
+/// identities. The record that adds saved content S is selected while S is there, and when a power loss takes S it is no longer eligible and
+/// recovery returns the previous record, whose set still holds.
+#[test]
+fn r14_a_later_record_that_retains_new_saved_content_is_not_selected_without_it() {
+    let (lane, state, envelope) = lane_with_envelope("r14-later-saved");
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.checkpoint(2, b"adopts a", std::slice::from_ref(&request)).expect("checkpoint");
+    let saved: PathBuf = saved_content(&lane, b"objects of b");
+    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    writer.append_with(3, b"requires a and s", &[request.clone(), content.clone()]).expect("append with the complete set");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 3);
+    std::fs::remove_file(&saved).expect("a power loss takes the saved content");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2, "the record whose set is incomplete must not be selected");
+}
+
+/// Models review 8 (complete document-bound obligations): an append that leaves out an item the previous record retained is refused, the
+/// omitted request and the omitted saved content alike; saved content is dropped only by a `disposed` ledger line inside the new set.
+#[test]
+fn r14_a_record_cannot_omit_what_the_previous_record_retained() {
+    let (lane, state, envelope) = lane_with_envelope("r14-omit");
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
+    let saved: PathBuf = saved_content(&lane, b"objects of b");
+    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.checkpoint(2, b"adopts a and s", &[request.clone(), content.clone()]).expect("checkpoint");
+    assert!(writer.append_with(3, b"forgets s", std::slice::from_ref(&request)).is_err(), "saved content was dropped without disposal");
+    assert!(writer.append_with(3, b"forgets a", std::slice::from_ref(&content)).is_err(), "a request was dropped without a ledger line");
+    assert!(writer.append_with(3, b"forgets both", &[]).is_err());
+    let name: String = saved.file_name().expect("name").to_string_lossy().chars().take(32).collect();
+    let ledger: PathBuf = lane.join("ledger");
+    let line = |outcome: &str| -> Vec<u8> {
+        return git_policy_cli::commit_ledger::encode_line(&git_policy_cli::commit_ledger::LedgerEntry {
+            id: name.clone(),
+            outcome: outcome.to_string(),
+            commit: "-".to_string(),
+            time: "2026-01-01T00:00:00+00:00".to_string(),
+        })
+        .expect("line");
+    };
+    std::fs::write(&ledger, line("kept")).expect("a ledger line that is not a disposal");
+    let wrong: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture ledger");
+    assert!(writer.append_retiring(3, b"disposes s", &[request.clone(), wrong], std::slice::from_ref(&name)).is_err(), "a line that is not `disposed` discharged saved content");
+    std::fs::write(&ledger, line("disposed")).expect("the disposal line");
+    let right: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::AppendPrefix).expect("capture ledger");
+    writer.append_retiring(3, b"disposes s", &[request, right], std::slice::from_ref(&name)).expect("a disposed line inside the set discharges it");
+}
+
+/// Models review 8 (content-bound covering acknowledgment): the acknowledgment names the record it covered. It still covers after the
+/// checkpoint completes and after a later append that keeps its items, and it does not cover a substitute that dropped what it promised.
+#[test]
+fn r14_an_acknowledgment_survives_completion_and_not_a_substitute_that_drops_its_support() {
+    let (lane, state, envelope) = lane_with_envelope("r14-ack");
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    let candidate: Candidate = writer.begin_checkpoint(2, b"adopts a", std::slice::from_ref(&request)).expect("begin");
+    let promised = sync_prefix(&state).expect("sync the candidate, which recovery selects");
+    assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "the record itself");
+    writer.complete_checkpoint(&candidate).expect("complete");
+    assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "after completion the support survives");
+    writer.append_with(3, b"later", std::slice::from_ref(&request)).expect("append that keeps the item");
+    assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "after a later append that keeps the items");
+    let forged_hash: Prefix = Prefix { hash: "0".repeat(64), ..promised.clone() };
+    assert!(git_policy_cli::commit_state_log::state_covers(&state, &forged_hash).expect("readable"), "a successor that carries every item covers the same promise");
+    // A substitute root that dropped the request: a second lane directory standing in for a verified-substitution failure.
+    let other_lane: PathBuf = scratch("r14-ack-substitute");
+    let other_state: PathBuf = other_lane.join("state");
+    std::fs::create_dir(&other_state).expect("state");
+    append(&other_state, 5, b"a substitute at a newer generation with nothing retained").expect("append");
+    assert!(!git_policy_cli::commit_state_log::state_covers(&other_state, &promised).expect("readable"), "a substitute that drops the support is not coverage");
 }

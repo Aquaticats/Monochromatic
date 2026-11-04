@@ -19,12 +19,7 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::{Request, RequestError, decode, encode};
-use super::commit_state_log::{Prefix, select, sync_prefix};
-
-/// How many times a departure re-forces the live closure when the state grows while it is forced. Owner decision 14 makes the departure
-/// run to completion; the bound only turns a writer that appends without end into a named refusal instead of a hang. Four passes cover a
-/// writer that appends once per pass with margin; no workload measurement exists yet (a measured value belongs in the notes).
-const LIVE_FORCE_PASSES: usize = 4;
+use super::commit_state_log::{ClosureEntry, EntryKind, Prefix, force_item, select, state_covers, sync_prefix};
 
 /// What:
 ///  `enum InboxError { ... }`: why a request cannot be encoded, decoded or accepted.
@@ -395,9 +390,14 @@ pub enum DepartureError {
     },
     /// A file given for the disposition is not the one that carries its promise (the reason names it).
     NotThePromise(&'static str),
-    /// The stop receipt could not be forced; every other save was attempted before this was reported, and none of them is acknowledged.
-    StopNotForced(io::Error),
-    /// A file system call failed.
+    /// At least one forcing returned an error. Every other save was still attempted, and nothing is acknowledged.
+    Incomplete {
+        /// Whether a stop receipt was among the failures (the one failure that leaves a request publishable after the error).
+        stop_failed: bool,
+        /// What failed, in the order attempted: the file and the error.
+        failures: Vec<(String, io::Error)>,
+    },
+    /// A file system call failed before any forcing began.
     Io(io::Error),
 }
 
@@ -408,13 +408,14 @@ impl From<io::Error> for DepartureError {
     }
 }
 
-/// What a completed departure acknowledges: which disposition it was bound to, whether its stop receipt was forced first, which files
-/// it forced, and the state prefix it forced (the promise covers that prefix and no more).
+/// What a completed departure acknowledges: which disposition it was bound to, whether its stop receipts were forced first, which files
+/// it forced, and the state prefix it forced, bound to the content of its last record (the promise covers that record and its retained set
+/// and no more).
 #[derive(Debug)]
 pub struct Acknowledgment {
     /// The disposition the departure was bound to.
     pub disposition: Disposition,
-    /// The stop receipt was forced first and alone.
+    /// Every stop receipt was forced first and alone.
     pub stop_forced: bool,
     /// Every file forced, in order.
     pub forced: Vec<PathBuf>,
@@ -422,18 +423,27 @@ pub struct Acknowledgment {
     pub state: Prefix,
 }
 
+impl Acknowledgment {
+    /// Whether the state recovery would select now still carries what this acknowledgment promised: the same record, or a successor that
+    /// carries every retained item of it (completion of a checkpoint, a later append). A substitute that drops support is not coverage.
+    pub fn still_covers(&self, state_dir: &Path) -> bool {
+        return state_covers(state_dir, &self.state).unwrap_or(false);
+    }
+}
+
 /// What:
-///  One exit's departure, bound to its `Disposition`: the stop receipt, forced first and alone, with the chain of its directories; the
-///  request files and the `inbox/` directory; the saved content the exit names; the order file, the state prefix and the ledger. `run`
-///  refuses a disposition whose promise has no file, checks that the forced state prefix reaches the record that names the saved item,
-///  and returns an `Acknowledgment` of exactly what it forced.
+///  One exit's departure, bound to its `Disposition`: the stop receipts, one per departing request, forced first and alone, with the chain of
+///  their directories; the request files and the `inbox/` directory; the saved content the exit names; the order file, the state prefix with
+///  every item that prefix retains, and the ledger. `run` refuses a disposition whose promise has no file or whose files do not carry the
+///  promise for each request, attempts every save even after an error, checks that the forced state prefix reaches the record that names the
+///  saved item, and returns an `Acknowledgment` of exactly what it forced.
 /// Why:
 ///  A flush list assembled by the caller can omit the one file that carries the prohibition on later attempts. Decision 14 makes the
 ///  barrier run to completion; this makes its contents depend on the promise and not on the caller's care.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function departure(disposition, inbox, ids, stateDir, { stop, order, ledger, closure, anchor, namesRecord }): Acknowledgment;
+/// function departure(disposition, inbox, ids, stateDir, { stops, order, ledger, closure, anchor, namesRecord }): Acknowledgment;
 /// ```
 pub struct Departure<'a> {
     disposition: Disposition,
@@ -442,21 +452,48 @@ pub struct Departure<'a> {
     state_dir: &'a Path,
     order: Option<&'a Path>,
     ledger: Option<&'a Path>,
-    stop: Option<&'a Path>,
+    stops: Vec<&'a Path>,
     closure: &'a [&'a Path],
     anchor: Option<&'a Path>,
     names_generation: Option<u64>,
 }
 
+/// What a departure has forced and what failed, so that one failure does not end the other saves.
+struct Saves {
+    forced: Vec<PathBuf>,
+    failures: Vec<(String, io::Error)>,
+}
+
+impl Saves {
+    /// Records the outcome of forcing `path`; returns whether it succeeded.
+    fn attempt(&mut self, label: &str, result: io::Result<()>, path: &Path) -> bool {
+        match result {
+            Ok(()) => {
+                self.forced.push(path.to_path_buf());
+                return true;
+            }
+            Err(error) => {
+                self.failures.push((format!("{} {}", label, path.display()), error));
+                return false;
+            }
+        }
+    }
+}
+
+/// How many times a departure re-forces the live closure when the state grows while it is forced. Owner decision 14 makes the departure
+/// run to completion; the bound only turns a writer that appends without end into a named refusal instead of a hang. Four passes cover a
+/// writer that appends once per pass with margin; no workload measurement exists yet (a measured value belongs in the notes).
+const LIVE_FORCE_PASSES: usize = 4;
+
 impl<'a> Departure<'a> {
     /// A departure of `disposition` for the requests `ids` in `inbox`, with the lane's state in `state_dir`.
     pub fn new(disposition: Disposition, inbox: &'a Path, ids: &'a [String], state_dir: &'a Path) -> Departure<'a> {
-        return Departure { disposition, inbox, ids, state_dir, order: None, ledger: None, stop: None, closure: &[], anchor: None, names_generation: None };
+        return Departure { disposition, inbox, ids, state_dir, order: None, ledger: None, stops: Vec::new(), closure: &[], anchor: None, names_generation: None };
     }
 
-    /// The stop receipt (the mark file).
+    /// A stop receipt (a mark file). A withdrawal needs one per departing request.
     pub fn with_stop(mut self, stop: &'a Path) -> Departure<'a> {
-        self.stop = Some(stop);
+        self.stops.push(stop);
         return self;
     }
 
@@ -490,10 +527,15 @@ impl<'a> Departure<'a> {
         return self;
     }
 
+    /// The lane directory: the parent of the inbox.
+    fn lane(&self) -> &Path {
+        return parent_directory(self.inbox);
+    }
+
     /// Refuses a disposition whose promise has no file.
     fn validate(&self) -> Result<(), DepartureError> {
         let missing: Option<&'static str> = match self.disposition {
-            Disposition::Withdrawn | Disposition::Unresolved if self.stop.is_none() => Some("a withdrawal needs its stop receipt"),
+            Disposition::Withdrawn | Disposition::Unresolved if self.stops.is_empty() => Some("a withdrawal needs its stop receipt"),
             Disposition::Terminal if self.ledger.is_none() => Some("a terminal outcome needs its ledger line"),
             Disposition::Withdrawn | Disposition::Unresolved | Disposition::Handover | Disposition::Saved if self.ids.is_empty() => Some("the exit names no request"),
             Disposition::Handover if self.order.is_none() => Some("a handover needs the order file that adopts it"),
@@ -505,14 +547,22 @@ impl<'a> Departure<'a> {
         return self.validate_promise_files();
     }
 
-    /// Checks that each file given for the promise is the file that carries it, not merely a file: the stop is the mark of one of the
-    /// requests, a terminal outcome has its line for each request, and a handover's order file adopts each request.
+    /// Checks that each file given for the promise is the file that carries it for each departing request, not merely a file: a withdrawal
+    /// has the mark `decision/<id>` of every departing request (and no other mark), a terminal outcome has its line for each request, and a
+    /// handover's order file adopts each request.
     fn validate_promise_files(&self) -> Result<(), DepartureError> {
-        if let Some(stop) = self.stop {
-            let named: Option<&str> = stop.file_name().and_then(|name| { return name.to_str(); });
-            let in_decision: bool = stop.parent().and_then(|parent| { return parent.file_name(); }).is_some_and(|name| { return name == "decision"; });
-            if !in_decision || !named.is_some_and(|name| { return self.ids.iter().any(|id| { return id == name; }); }) {
-                return Err(DepartureError::NotThePromise("the stop receipt is not the decision mark of a departing request"));
+        if matches!(self.disposition, Disposition::Withdrawn | Disposition::Unresolved) || !self.stops.is_empty() {
+            let decision: PathBuf = self.lane().join("decision");
+            for stop in &self.stops {
+                let belongs: bool = stop.parent() == Some(decision.as_path()) && stop.file_name().and_then(|name| { return name.to_str(); }).is_some_and(|name| { return self.ids.iter().any(|id| { return id == name; }); });
+                if !belongs {
+                    return Err(DepartureError::NotThePromise("a stop receipt is not the decision mark of a departing request in this lane"));
+                }
+            }
+            for id in self.ids {
+                if !self.stops.iter().any(|stop| { return *stop == decision.join(id); }) {
+                    return Err(DepartureError::NotThePromise("a departing request has no stop receipt of its own"));
+                }
             }
         }
         if self.disposition == Disposition::Terminal
@@ -539,84 +589,109 @@ impl<'a> Departure<'a> {
         return Ok(());
     }
 
-    /// Runs the barrier to completion and acknowledges what it forced.
+    /// Runs the barrier to completion and acknowledges what it forced. Every save is attempted even after an error: a returned error is an
+    /// outside fault, it does not excuse the saves that could still succeed, and nothing is acknowledged when any failed.
     pub fn run(&self) -> Result<Acknowledgment, DepartureError> {
         self.validate()?;
-        let mut forced: Vec<PathBuf> = Vec::new();
-        // A stop that cannot be forced (a returned error) does not end the departure: every other save is still attempted, and the failure
-        // is reported afterwards as the outside fault it is. Nothing is acknowledged then.
-        let mut stop_failure: Option<io::Error> = None;
-        if let Some(stop) = self.stop {
-            match self.force_with_name(stop) {
-                Ok(()) => forced.push(stop.to_path_buf()),
-                Err(error) => stop_failure = Some(error),
+        let mut saves: Saves = Saves { forced: Vec::new(), failures: Vec::new() };
+        let mut stop_failed: bool = false;
+        for stop in &self.stops {
+            let result: io::Result<()> = self.force_with_name(stop);
+            if !saves.attempt("stop receipt", result, stop) {
+                stop_failed = true;
             }
         }
         for id in self.ids {
             let path: PathBuf = self.inbox.join(id);
-            let file: File = File::open(&path)?;
-            sync_file(&file, &path)?;
-            forced.push(path);
+            let result: io::Result<()> = File::open(&path).and_then(|file| { return sync_file(&file, &path); });
+            saves.attempt("request", result, &path);
         }
-        sync_directory(self.inbox)?;
+        if let Err(error) = sync_directory(self.inbox) {
+            saves.failures.push((format!("directory {}", self.inbox.display()), error));
+        }
         for saved in self.closure {
-            self.force_with_name(saved)?;
-            forced.push((*saved).to_path_buf());
+            let result: io::Result<()> = self.force_with_name(saved);
+            saves.attempt("saved content", result, saved);
         }
         if let Some(path) = self.order {
-            self.force_with_name(path)?;
-            forced.push(path.to_path_buf());
+            let result: io::Result<()> = self.force_with_name(path);
+            saves.attempt("order file", result, path);
         }
-        let state: Prefix = self.force_state_with_live(&mut forced)?;
-        if let Some(needed) = self.names_generation
-            && state.generation < needed
+        let state: Option<Prefix> = self.force_state_with_items(&mut saves.forced, &mut saves.failures);
+        let mut not_covering: Option<(u64, u64)> = None;
+        if let (Some(prefix), Some(needed)) = (&state, self.names_generation)
+            && prefix.generation < needed
         {
-            return Err(DepartureError::StateNotCovering { needed, forced: state.generation });
+            not_covering = Some((needed, prefix.generation));
         }
         if let Some(path) = self.ledger {
-            self.force_with_name(path)?;
-            forced.push(path.to_path_buf());
+            let result: io::Result<()> = self.force_with_name(path);
+            saves.attempt("ledger", result, path);
         }
-        if let Some(error) = stop_failure {
-            return Err(DepartureError::StopNotForced(error));
+        let Saves { forced, failures } = saves;
+        if !failures.is_empty() {
+            return Err(DepartureError::Incomplete { stop_failed, failures });
         }
-        return Ok(Acknowledgment { disposition: self.disposition, stop_forced: self.stop.is_some(), forced, state });
+        if let Some((needed, reached)) = not_covering {
+            return Err(DepartureError::StateNotCovering { needed, forced: reached });
+        }
+        let Some(prefix) = state else {
+            return Err(DepartureError::NotThePromise("the state could not be forced"));
+        };
+        return Ok(Acknowledgment { disposition: self.disposition, stop_forced: !self.stops.is_empty(), forced, state: prefix });
     }
 
-    /// Forces the state prefix together with every request that prefix declares live: an acknowledged state is a recoverable promise only
-    /// when its whole closure is durable, not just the departing requests.
-    fn force_state_with_live(&self, forced: &mut Vec<PathBuf>) -> Result<Prefix, DepartureError> {
-        // Each pass forces the envelopes of the state recovery selects now; a record appended meanwhile can declare more, so the prefix the
-        // sync captured is checked against what was forced and another pass runs when it names more. A fixed pass count bounds the wait.
+    /// Forces the state prefix together with every item that prefix retains (envelopes, saved content, ledger and order prefixes): an
+    /// acknowledged state is a recoverable promise only when its whole closure is durable, not just the departing requests. Failures are
+    /// recorded and the next item is still attempted.
+    fn force_state_with_items(&self, forced: &mut Vec<PathBuf>, failures: &mut Vec<(String, io::Error)>) -> Option<Prefix> {
+        let lane: &Path = self.lane();
+        // Each pass forces the items of the state recovery selects now; a record appended meanwhile can retain more, so the prefix the sync
+        // captured is checked against what was forced and another pass runs when it names more. A fixed pass count bounds the wait.
         for _ in 0..LIVE_FORCE_PASSES {
-            if let Some(selected) = select(self.state_dir).map_err(|_| { return DepartureError::NotThePromise("the state cannot be selected"); })? {
-                self.force_live(&selected.live, forced)?;
+            match select(self.state_dir) {
+                Ok(Some(selected)) => self.force_each(lane, &selected.items, forced, failures),
+                Ok(None) => {}
+                Err(error) => {
+                    failures.push((format!("state {}", self.state_dir.display()), io::Error::other(format!("{:?}", error))));
+                    return None;
+                }
             }
-            let prefix: Prefix = sync_prefix(self.state_dir)?;
-            if prefix.live.iter().all(|id| { return forced.contains(&self.inbox.join(id)); }) {
-                return Ok(prefix);
+            let prefix: Prefix = match sync_prefix(self.state_dir) {
+                Ok(prefix) => prefix,
+                Err(error) => {
+                    failures.push((format!("state {}", self.state_dir.display()), error));
+                    return None;
+                }
+            };
+            if prefix.items.iter().all(|entry| { return forced.contains(&lane.join(entry.path())); }) {
+                return Some(prefix);
             }
-            self.force_live(&prefix.live, forced)?;
+            self.force_each(lane, &prefix.items, forced, failures);
         }
-        return Err(DepartureError::NotThePromise("the state kept declaring new live requests while it was forced"));
+        failures.push((format!("state {}", self.state_dir.display()), io::Error::other("the state kept retaining new items while it was forced")));
+        return None;
     }
 
-    /// Forces the envelope of each live request not yet forced, then the inbox directory.
-    fn force_live(&self, live: &[String], forced: &mut Vec<PathBuf>) -> io::Result<()> {
-        let mut any: bool = false;
-        for id in live {
-            let path: PathBuf = self.inbox.join(id);
+    /// Forces each item not yet forced, recording failures, then the inbox directory when an envelope was among them.
+    fn force_each(&self, lane: &Path, items: &[ClosureEntry], forced: &mut Vec<PathBuf>, failures: &mut Vec<(String, io::Error)>) {
+        let mut any_envelope: bool = false;
+        for entry in items {
+            let path: PathBuf = lane.join(entry.path());
             if forced.contains(&path) {
                 continue;
             }
-            sync_file(&File::open(&path)?, &path)?;
-            forced.push(path);
-            any = true;
+            match force_item(lane, entry) {
+                Ok(()) => {
+                    any_envelope = any_envelope || entry.kind() == EntryKind::InboxEnvelope;
+                    forced.push(path);
+                }
+                Err(error) => failures.push((format!("retained item {}", path.display()), error)),
+            }
         }
-        if any {
-            sync_directory(self.inbox)?;
+        if any_envelope && let Err(error) = sync_directory(self.inbox) {
+            failures.push((format!("directory {}", self.inbox.display()), error));
         }
-        return Ok(());
     }
 
     /// Forces a file, its directory, and (with an anchor) the chain above the directory.
