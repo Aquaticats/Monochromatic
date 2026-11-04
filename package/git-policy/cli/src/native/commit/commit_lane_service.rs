@@ -65,8 +65,11 @@ fn check_doorbell(found: &std::fs::Metadata) -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the doorbell name is held by something that is not a socket"));
     }
     // SAFETY: `geteuid` takes no argument and touches no memory.
-    if found.uid() != unsafe { libc::geteuid() } || found.mode() & 0o077 != 0 {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the doorbell is not a socket private to this account"));
+    // A second name (a hard link to another lane's doorbell) is refused: it is a private socket of the account by every other test, and it
+    // leads to the service of the lane it was made in. The entry could still be replaced between this check and the send by a process
+    // that may rename entries of the lane; the lane directory is private to the account, and that is the premise of the lane.
+    if found.uid() != unsafe { libc::geteuid() } || found.mode() & 0o077 != 0 || found.nlink() != 1 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the doorbell is not a socket private to this account with one name"));
     }
     return Ok(());
 }

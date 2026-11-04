@@ -110,8 +110,10 @@ pub fn retire_saved_content(lane: &Path, state: &Path, authorization: &DisposalA
     let mut writer: StateWriter = StateWriter::acquire(state)?;
     // Before any line is written: a saved directory that is a link is not the lane's, and nothing in it is the person's to dispose of here.
     super::commit_state_log::open_lane_subdirectory(lane, "saved")?;
-    let (_selected, document) = newest_checked_root(state)?;
-    if !document.saved().contains(&authorization.name) {
+    let (selected, document) = newest_checked_root(state)?;
+    // Held by the document or by the retained set alone, as recovery and the unlink read it.
+    let held_by_closure: bool = selected.items.iter().any(|entry| { return entry.path() == Path::new("saved").join(&authorization.name); });
+    if !document.saved().contains(&authorization.name) && !held_by_closure {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the newest root does not hold that saved content"));
     }
     let key: String = key_of(&authorization.name);
