@@ -1821,3 +1821,46 @@ What the rest of the leftovers belong to:
   it, it is an owner question with options, not a constant.
 
 Rows: the cutover obligation is Narrower now (66 covered, 20 narrower, 9 historical, 13 not yet).
+
+## Round 27: the third round of review of step 2 (2026-11-04)
+
+Correction first: the sentence of round 25 "no seal can name a retired item again" was too strong. A seal that began capturing before the
+`disposed` line existed could publish its earlier closure over the replacement root. It is closed now by serialization, and the claim is
+this: the state writer is held by a seal from its capture to its publication and by a disposal from its line to its root; the unlink
+revalidates and unlinks under the writer; capture never includes content whose line exists. The model has the split capture and publication
+(`NoSerialization` is red, `RecheckOnly` is red, `SealRescansRetired` is red).
+
+Part A (code), by finding:
+- Recovery could unlink behind an uncompleted replacement (a visible candidate that omits the item is not a durable cover): the unlink now
+  forces the selected root and everything it retains first (`recovery_forces_the_selected_root_before_it_unlinks_behind_an_uncompleted_replacement`,
+  with a crash point between the candidate and its completion).
+- The check and the unlink race: both happen under the writer (`the_state_writer_serializes_the_unlink_the_retirement_and_the_seal`).
+- Empty closures left the state directory's entry unforced: an acknowledgment and a completion force the lane directory too. The expected
+  event lists of three older tests gained that sync.
+- Establishment checked a generation only: the record binds segment, generation and the full hash (64 hexadecimal characters); recovery
+  refuses a segment older than the established one, a different first record at the same number, and a same-generation fallback past a
+  completed checkpoint (`an_established_checkpoint_at_the_same_generation_is_not_replaced_by_the_older_segment`,
+  `the_establishment_record_binds_the_segment_and_the_hash`). A completed later checkpoint rewrites the record, so the record always names the
+  newest completed one.
+- The retry record: compared by bytes under the exclusive lock (`a_new_record_of_the_same_length_survives_a_pass_that_read_the_old_one`).
+  Two recorders may both add a line for one name; that is harmless and stated.
+- Several pending disposals: the replacement retires every omitted item (`several_pending_disposals_recover_together`).
+- Duplicate closure paths: refused at admission, at a checkpoint and when a record is parsed.
+- The departure retries ENOENT in `state_covers` and in the forcing of support a disposal removed.
+- Flush mode: the error record is opened without following a link or blocking and must be a regular file (a link is not written through, a
+  FIFO neither hangs the flusher nor the syncer), and its shared lock is waited for at most `RECORD_LOCK_WAIT` (two seconds, a pick, veto
+  open). A timed-out command that is not reaped in its window is handed to a thread that waits for it, so no zombie is left.
+- Startup: the damaged-state test now proves the good receipt was forced and the state error reported.
+- Not changed, stated: a post-exec death of a unit leaves its receipts to the next pass, which exists in the real service behind `--lane`
+  and not in any shipped unit; the double fork still dies with a session scope; the ring in the older lifecycle tests was a callback, and
+  the real ring is tested on the real binary (round 26); the manager tests skip without a user manager.
+Part B (models and map): lineage text corrected in the map (it is carried across checkpoints, and still needed for the substitution relation
+of `state_covers`); `ConfirmsAgainstDurableRoot` is named as not invariant-red; `NoNonDrop` is isolated and its counterexample needs no removal;
+the capture model's support never undergoes an authorized removal (stated; the disposal model covers that); "damaged established roots fail
+closed" stays Covered now that the identity is bound and the boundary tests exist.
+
+Plan step 3 so far is in round 26. The full `commit_flusher.rs` is in the bundle of this round.
+
+Gates: `native:test:model` 605 passed, 0 failed (4 leaky, the same stalled children); both clippy tasks clean; `source_guard` 39 of 39.
+Guard removals: `/var/home/user/temp/agent/r25/mutations-review3.log` (ten, all red; the retirement-takes-the-writer-first guard was shown
+red by hand).
