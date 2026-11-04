@@ -236,6 +236,18 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     otherwise (rule V). Revision 13 adds what the decision does not say and the review found necessary: the same force
     applies to every exit that promises saved work, and background forcing finishes before anything is reclaimed.
     Recorded by commit 4d8445dd52, whose time is 2026-11-03T20:16:29-05:00.
+11. Staged version and file differ at a merge, "Carry the file, save staged (Recommended)" (question tool, 2026-11-03,
+    answered before the commit named below records it, on the revision 13 question 5): the file you see is the edit
+    that is carried and the staged-only version is saved aside. Given; asked again only because the thirteenth review
+    found an option missing (revision 14, question 5), and the answer stands unless the added option changes it.
+12. Slow forcing at leaving, "Short wait, then say unconfirmed (Recommended)" (same date and recording, revision 13
+    question 6): provisional: framing corrected in revision 14. The question omitted that a departure that times out
+    can lose the no-further-attempts disposition, and its example promised a side ref where a request held by a hook
+    has no commit. It is asked again (revision 14, questions 6a and 6b).
+13. Late `git switch` watch, "A measured span, then stop (Recommended)" (same date and recording, revision 13 question
+    7): provisional: framing corrected in revision 14. The question claimed the cleanup never undoes a later
+    intentional change, which the thirteenth review disproved. It is asked again as three questions (revision 14,
+    questions 7a, 7b and 7c). Decisions 11 to 13 were recorded by commit RECORD2_COMMIT, whose time is RECORD2_TIME.
 
 
 Amendments by 4 to 6 (the newest owner answers govern): decision 1's set-aside-as-pending of a commit behind a person's hook, the earlier answer "Save on a
