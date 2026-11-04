@@ -113,55 +113,44 @@ classification is the author's until a review accepts it.
   `a_lane_lock_the_launcher_releases_is_free_while_the_helper_lives` in `commit_helper_launch_tests.rs`. Not
   shown: the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started
   transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory
-  (a_launched_helper_inherits_no_descriptor_of_its_launcher), the lock test, and the flusher helper, which takes
-  the lock itself after the handover while the launcher alone holds it until then (the intermediate child and
-  the helper close the held descriptors at once): the handover goes in one order, intermediate child reaped
-  (killed if it does not leave, with the kill and the wait checked), launcher copy closed, handover byte sent,
-  helper takes the lock, acknowledges and only then works
-  (a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor,
-  no_copy_of_the_lock_but_the_executors_exists_when_the_handover_is_sent,
-  a_refused_kill_of_the_intermediate_child_is_a_failed_launch); a helper that gets no handover still takes the
-  lock itself and works when it gets it (the launcher died: it is the executor; the launcher is only slow: it
-  still holds the lock, the helper ends, and the launch fails with every receipt recorded,
-  a_helper_whose_handover_wait_expires_runs_nothing_and_the_launch_accounts_for_every_receipt), but that is not
-  responsibility when the slow launcher then dies before it accounts (open, review 13); a helper that cannot
-  take the lock is a failed launch with every receipt recorded
-  (a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_recorded); the lock and the pipes
-  are above the standard streams and every descriptor has an owner on every path, driven through EMFILE
-  (a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock,
+  (a_launched_helper_inherits_no_descriptor_of_its_launcher) and the lock test; the flusher helper takes the
+  lock itself after its setup and the launcher only probes it and releases the probe, so no lock exists before
+  the helper holds it and no process but the one that works ever carries a copy: a launcher that dies, is slow
+  or cannot reap its intermediate child leaves none
+  (a_helper_that_times_out_while_the_launcher_is_slow_and_then_loses_it_leaves_every_receipt_with_an_executor,
+  a_client_that_arrives_after_a_launch_that_could_not_reap_its_intermediate_child_has_an_executor,
+  a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor,
+  a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor); the helper reports the
+  result of taking the lock (a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_recorded);
+  the lock and the pipes are above the standard streams and every descriptor has an owner on every path, driven
+  through EMFILE (a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock,
   a_launch_whose_descriptor_normalization_fails_leaks_no_descriptor,
   a_lock_acquisition_whose_descriptor_move_fails_leaks_no_descriptor); a descriptor a raw creator keeps outside
   this component is not visible to it.
 - Narrower, obligation: launch is non-recursive and resource-bounded:
   `a_launched_entry_is_a_function_in_a_new_session_and_not_a_second_start_of_the_program` in
-  `commit_helper_launch_tests.rs`. Not shown: the transient unit route is not built; a refused fork is injected
-  by a real process limit and a memory cap is not; a process with more than one thread is refused, shown on test
-  copies of a process and not at real call sites, which do not exist yet; the bound on helpers is one lock
-  holder (clients_that_find_the_flusher_lock_held_start_no_helper,
-  many_clients_start_one_helper_and_it_holds_the_lock) and NOT a bound on live helpers: a helper that released
-  the lock and is in its recheck or exit step holds nothing, and a launch in that step starts another; the token
-  kept to exit with the running syncer as the only retry misses a receipt when no owner runs
+  `commit_helper_launch_tests.rs`. Not shown: OWNER OVERRIDE of the resource-bounded part, 2026-11-04, question
+  tool, choice \"Keep built, state limit (Recommended)\": keep the helper that releases the lock, rechecks for
+  new saves and exits, and record that the helper count is bounded only by how many commits arrive during those
+  few milliseconds; the owner's reason: no save lost in any modeled case, no added commit time, no new lock or
+  process. The limit, stated plainly: the helpers in the release, recheck and exit step, and the launched
+  helpers that do not yet hold the lock (every client that probes while the lock is free forks a helper, one
+  wins it and the others end at once), are bounded only by arrivals; what is bounded is the number that hold the
+  lock (one). Protocols 2 to 5 of the comparison (the singleton retry owner, inline forcing while sealed, inline
+  forcing whenever the token is held, the baton) are not built; the comparison (model_helper_bound_r20_tests.rs,
+  handover rounds 18 and 19) stays as recorded evidence with its claims corrected (its crash exemption excuses
+  every visible receipt until replacement, its maxima are lower bounds where a search stopped at a miss, its
+  foreground count is a number and not a time, and it omits client death during inline forcing, worker death and
+  partial forcing, launcher timeout and death, mixed-version helpers, enqueue rejection, non-atomic transfers
+  and blocking time). The non-recursive part stands: the launch is a function in a new session and not a second
+  start of the program. The token kept to exit with the running syncer as the only retry misses a receipt
   (a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it,
-  a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown); five
-  protocols are compared on misses, live processes and foreground synchronisations, as exploration and not as a
-  ranking basis: the comparison excuses every visible receipt after a service crash until replacement, including
-  receipts created after the crash, its maxima are lower bounds where the search stopped at a miss, and it omits
-  client death during inline forcing, worker death and partial forcing, launcher timeout and death,
-  mixed-version helpers, enqueue rejection, non-atomic transfers and blocking time
-  (model_helper_bound_r20_tests.rs, handover round 18): the built one keeps no miss and a live-helper count that
-  grows with the clients, a singleton retry owner, a baton between the service and that owner, and a client that
-  forces its own receipt inline whenever the token is held each show no miss in the model with at most two (or
-  one) live processes, and none is built, because the owner picks; the obligation stays open until then; a
-  process other than the launcher carries no copy of the lock during a launch and the helper takes the lock
-  itself after the handover whatever its outcome, so an immediate launcher death and a setup failure in the
-  grandchild leave no unaccounted holder
-  (a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor,
-  a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor); NOT shown, and open: the
-  intermediate child inherits the lock until its own first close, so a child delayed before it and not reaped in
-  time still holds a copy when the launcher drops its own and records, and a timeout of the helper followed by
-  the launcher's death leaves nobody responsible; the launch is bounded by three limits (report, intermediate
-  child, acknowledgment) plus the bounded reap of a killed child; a launch that fails records every receipt of
-  the lane, joiners included.
+  a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown). Also
+  open: the transient unit route is not built; a refused fork is injected by a real process limit and a memory
+  cap is not; a process with more than one thread is refused, shown on test copies of a process and not at real
+  call sites, which do not exist yet; a launch is bounded by the report, the intermediate child's exit and the
+  acknowledgment, plus the bounded reap of a killed child; a launch that fails records every receipt of the
+  lane.
 
 ### C0 to C5, S1, C3 repair
 
@@ -1161,3 +1150,68 @@ covered, 17 narrower, 9 historical and 17 not yet.
   before the
   intermediate child's first close, the client-death and launch-interleaving schedules of protocol 4, and its
   foreground bound.
+
+## Round 19 state
+
+### Owner decision of 2026-11-04 on the helper count
+
+Question tool, choice "Keep built, state limit (Recommended)": keep the helper design (a helper releases the lock,
+rechecks for
+new saves, then exits) and record that the helper count is bounded only by how many commits arrive during those few
+milliseconds, overriding the reviewer's limit. The owner's reasons: no save lost in any modeled case, no added
+commit time, no new
+lock or process. The question also said: "Whichever option you pick, the plain launch bugs the review found still
+get fixed."
+
+Recorded in the map: the launch row's "resource-bounded" part is overridden with this quote and date, and the row
+states the
+limit plainly. The helpers in the release, recheck and exit step, and the launched helpers that do not yet hold the
+lock, are
+bounded only by arrivals; what is bounded is the number that hold the lock, which is one. Protocols 2 to 5 of the
+round 18
+comparison are not built; the comparison stays as recorded evidence with its corrected claims (round 18 corrections).
+
+For the design file's acceptance-target notes (the coordinator places it): "Owner decision, 2026-11-04, question
+tool, 'Keep
+built, state limit (Recommended)': the resource-bounded part of the launch obligation is overridden. The helper
+that releases the
+lock, rechecks for new saves and exits is kept; the number of helpers is bounded only by the commits that arrive
+while the lock is
+free or being released. The number that hold the lock is one."
+
+### Review 13 section 1, the two receipt-responsibility findings
+
+- A (a helper whose handover wait expires while the launcher is slow, the launcher then dying before it accounts). Red:
+  `a_helper_that_times_out_while_the_launcher_is_slow_and_then_loses_it_leaves_every_receipt_with_an_executor`.
+- B (the intermediate child delayed before its first close, not reaped in time, holding a lock copy when the
+  launcher drops its own
+  and records). Red:
+  `a_client_that_arrives_after_a_launch_that_could_not_reap_its_intermediate_child_has_an_executor`, with the
+  kill-refused seam now stalling the child before it closes anything.
+- Fix for both, one design change and no second lock, no unbounded wait and no recursion: the launcher holds no
+  lock for the
+  launch. `launch_flusher` probes the lock (takes and releases it) and forks a helper only when it was free; the
+  helper takes the lock
+  itself in `prepare`, after its setup, and the result is part of its report. No lock exists before the helper
+  holds it, so a copy
+  cannot sit in a child, the handover byte and its two timeouts are gone, and a launcher that dies or is slow
+  leaves nothing to
+  account for. A helper that finds the lock taken by now ends: the holder took it after the client's receipt
+  existed and lists after
+  taking it, so it sweeps that receipt. The cost, within the owner's decision: every client that probes while the
+  lock is free forks
+  a helper; one wins the lock and the others end at once.
+- Why a fix with a held lock was not possible: a child's inherited copy cannot vanish at the instant of the fork,
+  so a launcher
+  that holds the lock has to account for a child it may not reap within any bound, and a child killed before it
+  runs cannot
+  account; holding nothing removes the copy instead of accounting for it.
+
+### Gates at the tip
+
+The full `native:test:model` run is 473 passed, 0 failed (`/var/home/user/temp/agent/r19/full-model.log`; nextest
+reports four
+leaky tests, the stalled children that their alarms end); `native:clippy` and `native:clippy:seams` are clean
+(`/var/home/user/temp/agent/r19/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
+map has 64
+covered, 17 narrower, 9 historical and 17 not yet.

@@ -95,8 +95,7 @@ fn client_joins_in_the_launch_window(name: &str) {
         std::thread::sleep(Duration::from_millis(5));
     }
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
-    let joined = launch_flusher(&lane).expect("client X's launch");
-    assert_eq!(joined, git_policy_cli::commit_flusher::Launched::LockHeld, "X found the lock held by the launcher's description");
+    launch_flusher(&lane).expect("client X's launch");
 }
 
 /// Review 10a section 3A, healthy path: the helper reported ready; the launcher still holds its copy of the lock. A helper that did not
@@ -104,7 +103,7 @@ fn client_joins_in_the_launch_window(name: &str) {
 /// copy, started nothing: no executor and no record. The helper now waits for the launcher's handover before it works, so X's receipt is
 /// in the sweep it runs.
 #[test]
-fn a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor() {
+fn a_client_that_joins_during_the_launch_has_an_executor() {
     let lane: PathBuf = lane_with("flusher-launch-window", &[]);
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
     let launch_lane: PathBuf = lane.clone();
@@ -146,8 +145,8 @@ fn client_joins_in_the_failed_launch(name: &str) {
     }
     let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
     fs::write(lane.join(RECEIPT_DIR).join("x"), b"receipt").expect("client X's receipt");
-    let joined = launch_flusher(&lane).expect("client X's launch");
-    assert_eq!(joined, git_policy_cli::commit_flusher::Launched::LockHeld);
+    // The injected setup failure applies to this nested launch too, which fails and records the lane's receipts as well.
+    let _ = launch_flusher(&lane);
 }
 
 /// Review 10a section 4 and 9a section 4: the real handover, deterministic. The second executor is pinned across the handover decision
@@ -186,44 +185,10 @@ fn a_second_executor_pinned_across_the_handover_decision_carries_the_receipt() {
     drop(writer);
 }
 
-/// The fault point of the handover-timeout control: the launcher is paused after the helper reported ready, longer than the helper waits
-/// for the handover (a short wait is injected). A helper that then ran its entry would finish, release and exit while the launcher's copy
-/// still held the lock; client X, created after that, finds the lock held.
-fn launcher_paused_past_the_helpers_wait(name: &str) {
-    if name != "launch:after-report" {
-        return;
-    }
-    let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
-    std::thread::sleep(Duration::from_millis(400));
-    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
-    let joined = launch_flusher(&lane).expect("client X's launch");
-    assert_eq!(joined, git_policy_cli::commit_flusher::Launched::LockHeld, "X found the lock held by the launcher's description");
-}
-
-/// Review 11 section 3A, window A: an expired wait for the handover must not run the entry as though ownership were transferred. The
-/// helper gives up without working, the launch reports that the handover was not acknowledged, and the launch-failure accounting records
-/// every receipt of the lane, X's included.
-#[test]
-fn a_helper_whose_handover_wait_expires_runs_nothing_and_the_launch_accounts_for_every_receipt() {
-    let lane: PathBuf = lane_with("flusher-handover-timeout", &[]);
-    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
-    let launch_lane: PathBuf = lane.clone();
-    let launched: Option<i32> = in_single_threaded_process(move || {
-        LAUNCH_WINDOW.with(|cell| { *cell.borrow_mut() = Some(launch_lane.clone()); });
-        git_policy_cli::commit_helper_launch::inject_launch_fault(Some(git_policy_cli::commit_helper_launch::LaunchFault::ShortHandoverWait));
-        set_fault_point(Some(launcher_paused_past_the_helpers_wait));
-        return flusher_launch_code(launch_flusher(&launch_lane));
-    });
-    assert_eq!(launched, Some(19), "the launch must report the unacknowledged handover");
-    let names: Vec<String> = recorded(&lane);
-    assert!(names.iter().any(|name| { return name == "x"; }), "X has no record: {:?}", names);
-    assert!(names.iter().any(|name| { return name == "r1"; }), "the launching client's receipt has no record: {:?}", names);
-}
-
 /// The fault point after the handover byte was sent: waits (bounded) for any helper that already works to have finished with the first
 /// receipt, then lets client X create a receipt that cannot be forced and launch a flusher.
-fn client_joins_after_the_handover(name: &str) {
-    if name != "launch:after-handover" {
+fn client_joins_while_the_intermediate_child_is_stalled(name: &str) {
+    if name != "launch:after-report" {
         return;
     }
     let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
@@ -239,14 +204,14 @@ fn client_joins_after_the_handover(name: &str) {
 /// byte was sent. The executor finished and exited, client X found the lock held by the child's copy, and the launcher then killed the
 /// child and returned success: X had no executor and no record. Every copy that is not the executor's is gone before the handover byte.
 #[test]
-fn no_copy_of_the_lock_but_the_executors_exists_when_the_handover_is_sent() {
+fn a_client_that_joins_while_the_intermediate_child_is_stalled_has_an_executor() {
     let lane: PathBuf = lane_with("flusher-intermediate-copy", &[]);
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
     let launch_lane: PathBuf = lane.clone();
     let launched: Option<i32> = in_single_threaded_process(move || {
         LAUNCH_WINDOW.with(|cell| { *cell.borrow_mut() = Some(launch_lane.clone()); });
         git_policy_cli::commit_helper_launch::inject_launch_fault(Some(git_policy_cli::commit_helper_launch::LaunchFault::FirstChildHangs));
-        set_fault_point(Some(client_joins_after_the_handover));
+        set_fault_point(Some(client_joins_while_the_intermediate_child_is_stalled));
         return flusher_launch_code(launch_flusher(&launch_lane));
     });
     assert_eq!(launched, Some(0));
@@ -265,8 +230,7 @@ fn client_joins_then_the_launcher_dies(name: &str) {
     }
     let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
-    let joined = launch_flusher(&lane).expect("client X's launch");
-    assert_eq!(joined, git_policy_cli::commit_flusher::Launched::LockHeld);
+    launch_flusher(&lane).expect("client X's launch");
     // SAFETY: `_exit` takes an integer; the launcher dies here, before the handover, with no accounting of its own.
     unsafe { libc::_exit(0) };
 }
@@ -357,7 +321,6 @@ fn a_helper_that_times_out_while_the_launcher_is_slow_and_then_loses_it_leaves_e
     let launch_lane: PathBuf = lane.clone();
     let _ = in_single_threaded_process(move || {
         LAUNCH_WINDOW.with(|cell| { *cell.borrow_mut() = Some(launch_lane.clone()); });
-        git_policy_cli::commit_helper_launch::inject_launch_fault(Some(git_policy_cli::commit_helper_launch::LaunchFault::ShortHandoverWait));
         set_fault_point(Some(launcher_slow_then_dead));
         return flusher_launch_code(launch_flusher(&launch_lane));
     });

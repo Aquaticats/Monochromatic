@@ -15,7 +15,7 @@
 //! // launchFlusher(lane): lock first, fork only the holder; flushLane(lane, force): while (sweep()) {}; unlock; if (pending()) { relock or hand over }
 //! ```
 
-use super::commit_helper_launch::{Holding, LaunchError, launch_detached_holding, move_above_streams};
+use super::commit_helper_launch::{LaunchError, launch_detached_preparing, move_above_streams};
 use super::commit_identity::fault_point;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
@@ -97,8 +97,8 @@ pub enum Flushed {
 /// What:
 ///  The lane's flusher lock, held for the value's life: an exclusive non-blocking `flock` on `<lane>/flusher.lock`.
 /// Why:
-///  At most one flusher holds the lock, and at most one helper is forked per holder: the launcher takes the lock before it forks and hands the open
-///  file description to the helper. A foreign special file at the path is refused without being opened.
+///  At most one flusher holds the lock. A client probes it and forks a helper only when it was free; the helper takes the lock itself, so
+///  no process but the one that works carries a copy of it. A foreign special file at the path is refused without being opened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,7 +109,7 @@ pub struct FlusherLock {
     // Lock kept: at most one flusher holds it and forces a lane's receipts at a time (the helpers in their release, recheck and exit step hold nothing), and a client forks a helper only when it took this lock, so many
     // outstanding receipts start one process and not one per client. It covers one lane, is never waited for (`try_lock`), and is released
     // after the last empty sweep, before the recheck sweep.
-    file: File,
+    _file: File,
 }
 
 impl FlusherLock {
@@ -131,19 +131,12 @@ impl FlusherLock {
         // The descriptor has an owner at every step: a failed move closes it.
         let file: File = File::from(move_above_streams(std::os::fd::OwnedFd::from(opened))?);
         return match file.try_lock() {
-            Ok(()) => Ok(Some(FlusherLock { file })),
+            Ok(()) => Ok(Some(FlusherLock { _file: file })),
             Err(std::fs::TryLockError::WouldBlock) => Ok(None),
             Err(std::fs::TryLockError::Error(error)) => Err(FlushError::Io(error)),
         };
     }
 
-}
-
-impl Holding for FlusherLock {
-    fn descriptors(&self) -> Vec<libc::c_int> {
-        use std::os::fd::AsRawFd;
-        return vec![self.file.as_raw_fd()];
-    }
 }
 
 /// Forces one path (a file, or the receipt directory) to disk.
@@ -244,7 +237,7 @@ fn end_on_forcing_error(lane: &Path, forced: &BTreeSet<OsString>, lock: FlusherL
 ///  flusher has it). A forcing error ends the flush through `end_on_forcing_error`.
 /// Why:
 ///  `after_release` is the window where a client that found the lock held has created its receipt and started no flusher; the tests put a
-///  receipt there. The launcher takes the lock before it forks and the helper arrives here holding it.
+///  receipt there. The helper arrives here holding the lock it took itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -317,7 +310,7 @@ pub fn flusher_entry(lane: &Path) -> i32 {
     return exit_code(flush_lane(lane));
 }
 
-/// The entry of a helper that was handed the lane's lock by its launcher.
+/// The entry of a helper that took the lane's lock itself.
 pub fn flusher_entry_holding(lane: &Path, lock: FlusherLock) -> i32 {
     return exit_code(flush_held(lane, lock, &mut sync_path, &mut || {}));
 }
@@ -343,29 +336,32 @@ pub enum FlusherLaunchError {
 }
 
 /// What:
-///  Starts the one-shot flusher for `lane` as a detached helper that holds none of this process's descriptors but the lane's flusher lock,
-///  which this call took first and handed over (the launcher's copy is closed before the helper works); when another flusher holds the
-///  lock nothing is forked. When the helper cannot be started, the lock is dropped and every receipt in the lane, those of clients that
-///  found the lock held meanwhile included, is recorded as not forced.
+///  Starts the one-shot flusher for `lane` as a detached helper that holds none of this process's descriptors; the helper takes the lane's
+///  flusher lock itself. The client probes the lock first and forks nothing when another flusher holds it. When the helper cannot be
+///  started or cannot take the lock, every receipt in the lane is recorded as not forced.
 /// Why:
-///  Review 9a section 3C: forking before trying the lock gave one live helper per client. Review 10a section 3A: the launcher's copy of the
-///  lock must not outlive the helper's release, and clients that joined a launch that failed must not be left with no executor and no record.
+///  Review 9a section 3C: forking before looking at the lock gave one live helper per client; the probe keeps a client from forking while a
+///  flusher holds it (the number of helpers is then bounded only by the arrivals while the lock is free or being released, the owner's
+///  decision of 2026-11-04). Reviews 10a to 13: a launcher that holds the lock for the launch leaves copies in its children, so it holds none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function launchFlusher(lane: string): 'started' | 'lock-held'; // throws FlusherLaunchError
 /// ```
 pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
-    let Some(lock) = FlusherLock::try_acquire(lane).map_err(FlusherLaunchError::Lock)? else {
-        return Ok(Launched::LockHeld);
-    };
+    // A probe: the lock is taken and released at once, so that a client forks a helper only when no flusher holds it. The launcher holds
+    // nothing during the launch; the helper takes the lock itself, and a client that arrives meanwhile finds it free or held by the
+    // helper that works (which lists after it took the lock, so after every receipt created before the probe).
+    match FlusherLock::try_acquire(lane).map_err(FlusherLaunchError::Lock)? {
+        Some(probe) => drop(probe),
+        None => return Ok(Launched::LockHeld),
+    }
     let owned: PathBuf = lane.to_path_buf();
     let lane_for_helper: PathBuf = lane.to_path_buf();
-    return match launch_detached_holding(
-        lock,
+    return match launch_detached_preparing(
         move || { return FlusherLock::try_acquire(&lane_for_helper).map_err(|error| { return io::Error::other(format!("{:?}", error)); }); },
         move |acquired| {
-            // The helper takes the lock itself after the handover; when someone else holds it, that holder sweeps this client's receipt.
+            // When someone else holds the lock by now, that holder took it after this client's receipt existed and sweeps it.
             return match acquired {
                 Ok(Some(held)) => flusher_entry_holding(&owned, held),
                 Ok(None) => 0,
