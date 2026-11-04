@@ -26,12 +26,14 @@ Revision 11 and the owner's bound answers (2026-11-03T12:45, recorded as decisio
 commit land later by itself. The exceptions are stated, not hidden: a push ends at its bound with exit 0 and is queued
 (the owner's own answer), the person's own programs in their foreground have no bound (owner decision 9), and a
 `commit` instruction that the command itself already submitted when its bound passes cannot be recalled (owner
-decision 7: the one exception to "nothing lands later", never a fresh attempt).
-Narrative text below that describes a command returning exit 0 with a commit that "lands later" (a foreign ref lock, a
-held `index.lock` before publication, a request set aside as pending) describes the earlier owner answers and applies
-now only to a request that has no client; the normative state machine, its register of waits, W1 and W2 govern. A
-different thing is not a commit landing later: derived index and worktree materialization after a commit or merge that
-is already published (M1, MG3).
+decision 7: the one exception to "nothing lands later", never a fresh attempt). Narrative text below that describes a
+command returning exit 0 with a commit that "lands later" (a foreign ref lock, a held `index.lock` before publication,
+a request set aside as pending) describes the earlier owner answers and applies now only to a request that has no
+client; the normative state machine, its register of waits, W1 and W2 govern. Two exceptions to "nothing lands later"
+exist, both owner-approved and both stated: decision 7 (a submitted `commit` instruction may complete after the error)
+and decision 10 (after a power loss a lost receipt of a published exit can let recovery replay, if a deliberate reset
+and an erased reflog also hide the publication). A different thing is not a commit landing later: derived index and
+worktree materialization after a commit or merge that is already published (M1, MG3).
 
 What exists on the branch from before the correction, kept and not discarded:
 
@@ -269,7 +271,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 14, first committed REV14_TIME)
+### Normative state machine (revision 14, first committed 2026-11-03T21:53:06-05:00 in 94d9d80188)
 
 Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea, and revision 13 at
 2026-11-03T20:22:09-05:00 in 4a7bea95a2.
@@ -1156,22 +1158,26 @@ records the absorbing outcome first, so no exposed request is left clientless an
 before the command returns, so the request cannot publish after the error, and the index and worktree are unchanged
 because nothing was written before publication. The unresolved COMMITTING exit: only the attempt in flight may
 complete, and its message does not say that staging is unchanged, because the attempt may publish and its follow-up
-may run. `published`: the receipt forbids a fresh attempt; the follow-up is materialized under `WAIT_MATERIALIZE` or
-explicitly continuing. `conflicted`, `rewritten-away`, `unresolved`: the D-set of rule V; "staging as it was" is said
-only for unpublished withdrawal and refusal, and a rewritten-away request is reported with what was materialized.
-`already` and a superseded client: terminal, following the successor without renewing the deadline. Query and resend:
-C3 answers `withdrawn` only for a plain mark and says for `withdraw-unresolved` that the original attempt may still
-complete. A push that returns `queued`: the approved exception. The person's own foreground programs: decision 9.
-Outside kill, OOM or power loss: the outside-cause rule, with the stop receipt and the client lock deciding whether a
-fresh attempt is authorized. Owner and helper exits: a failed recovery-helper acquisition mutates nothing and the
-caller re-evaluates within CAPTURE; a helper that finishes L4 dispatches nothing; SERVICE-ACQUIRE and REAP expiry
-mutate nothing; an L6 gate failure admits nothing; an L7 restarter that cannot take the gate or finds a changed
-incarnation aborts. Planned service shutdown (revision 14, previously unspecified): the service stops admitting; for
-an attempt that is prepared with no closing line it writes `abort` only if the request has no client (it never decides
-for a client that holds the lock); it records `clean-shutdown` in the log, writes nothing else, and exits; a protected
-execution it owns is an owner-death exception stated for shutdown (the next incarnation's L2 reaps it), and a request
-with an attached client is withdrawn by that client at its bound as usual. An internal error in the owner after a
-request is exposed is an owner death, not a normal exit, so recovery and the client lock decide.
+may run. `published`: after a process crash the receipt forbids a fresh attempt; after a power loss the tip decides,
+and a reset with an erased reflog is the residue decision 10 accepts for a published exit; the follow-up is
+materialized under `WAIT_MATERIALIZE` or explicitly continuing. `conflicted`, `rewritten-away`, `unresolved`: the
+D-set of rule V; "staging as it was" is said only for unpublished withdrawal and refusal, and a rewritten-away request
+is reported with what was materialized. `already` and a superseded client: terminal, following the successor without
+renewing the deadline. Query and resend: C3 answers `withdrawn` only for a plain mark and says for
+`withdraw-unresolved` that the original attempt may still complete. A push that returns `queued`: the approved
+exception. The person's own foreground programs: decision 9. Outside kill, OOM or power loss: the outside-cause rule,
+with the stop receipt and the client lock deciding whether a fresh attempt is authorized. Owner and helper exits: a
+failed recovery-helper acquisition mutates nothing and the caller re-evaluates within CAPTURE; a helper that finishes
+L4 dispatches nothing; SERVICE-ACQUIRE and REAP expiry mutate nothing; an L6 gate failure admits nothing; an L7
+restarter that cannot take the gate or finds a changed incarnation aborts. Planned service shutdown (revision 14,
+previously unspecified): the service stops admitting; for an attempt that is prepared with no closing line it writes
+`abort` only if the request has no client (it never decides for a client that holds the lock); it records
+`clean-shutdown` in the log, writes nothing else, and exits; a protected execution it owns is an owner-death exception
+stated for shutdown (the next incarnation's L2 reaps it), and a request with an attached client is withdrawn by that
+client at its bound as usual. A client-held attempt whose keeper write end closes at shutdown aborts as class F when
+the client has not yet written `commit`, or completes if `commit` was already buffered; the client then returns to
+FOREGROUND and plain W1 stays available. An internal error in the owner after a request is exposed is an owner death,
+not a normal exit, so recovery and the client lock decide.
 
 Cancellation
 - X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its exact invocation (the subcommand, its options and the
@@ -2327,8 +2333,10 @@ cleanup would restore the old file and entry, undoing your deliberate staged cha
 merge commit).
 - Option A, yes, with the index-unchanged test and the span of question 7b (Recommended). Visible here: in the rare
   example above your staged change is undone and a line says what was restored from which saved copy; in the ordinary
-  late switch the leftover is cleaned. Pros: the leftover you accepted is cleaned automatically. Cons: a deliberate
-  sequence like the example can be mistaken for a leftover inside the span.
+  late switch the leftover is cleaned. If any command wrote the index between the merge and the late switch (a
+  `git add`, a refresh), the wrapper does not clean up, and the line names the leftover instead. Pros: the leftover
+  you accepted is cleaned automatically. Cons: a deliberate sequence like the example can be mistaken for a leftover
+  inside the span.
 - Option B, yes, but ask first: the next wrapper command in that worktree prints the leftover and the exact command
   that restores it, and restores nothing by itself. Visible here: nothing is undone; the line stays until you act or
   dismiss it. Pros: no deliberate change is ever undone. Cons: the leftover stays until you act.
