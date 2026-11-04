@@ -54,6 +54,10 @@ fn lane_digest(lane: &Path, nonce: u64) -> String {
 /// then makes the manager refuse the unit, and the caller falls back to the fork).
 pub fn fresh_nonce() -> u64 {
     use std::io::Read;
+    #[cfg(feature = "test-seams")]
+    if let Some(fixed) = FIXED_NONCE.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }).as_ref() {
+        return *fixed;
+    }
     let mut bytes: [u8; 8] = [0; 8];
     if std::fs::File::open("/dev/urandom").and_then(|mut source| { return source.read_exact(&mut bytes); }).is_ok() {
         return u64::from_le_bytes(bytes);
@@ -64,6 +68,16 @@ pub fn fresh_nonce() -> u64 {
     let frozen: Option<u64> = None;
     let clock: u64 = frozen.unwrap_or_else(|| { return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_nanos() as u64; }); });
     return clock ^ (u64::from(std::process::id()) << 32);
+}
+
+/// The nonce a test fixes, so that a name derived from it can be occupied beforehand.
+#[cfg(feature = "test-seams")]
+static FIXED_NONCE: std::sync::Mutex<Option<u64>> = std::sync::Mutex::new(None);
+
+/// Fixes the nonce (`None` frees it): the control of the exclusive creation of a name derived from it.
+#[cfg(feature = "test-seams")]
+pub fn inject_nonce(value: Option<u64>) {
+    *FIXED_NONCE.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }) = value;
 }
 
 /// The clock reading the nonce fallback uses while a test freezes it; `u64::MAX` is off.

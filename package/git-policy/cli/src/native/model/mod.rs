@@ -415,3 +415,8 @@ mod commit_review5_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_review6_tests.rs"]
 mod commit_review6_tests;
+
+/// Plan step 3: the third review (old disposal authorization, confinement below the lane, the flusher lock, the hint file).
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_review7_tests.rs"]
+mod commit_review7_tests;

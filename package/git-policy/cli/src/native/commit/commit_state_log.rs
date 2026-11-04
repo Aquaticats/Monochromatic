@@ -1338,6 +1338,7 @@ fn append(dir: &Path, generation: u64, document: &[u8], items: &[ClosureEntry], 
     }
     let path: PathBuf = log_path(dir, number);
     let (record, _) = encode_record(generation, &previous, &encode_body(items, document));
+    fault_point("state:before-append-open");
     let mut file: File = OpenOptions::new().create(true).write(true).truncate(false).open(&path)?;
     if keep as u64 != file.metadata()?.len() {
         file.set_len(keep as u64)?;
