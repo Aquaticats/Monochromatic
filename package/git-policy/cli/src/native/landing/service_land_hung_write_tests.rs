@@ -122,7 +122,10 @@ fn wait_until_settled(world: &World) {
     loop {
         let open: usize = crate::service_journal::list_intents(world.context.journal.as_path(), crate::service_journal::OPEN_EXTENSION).len();
         // The landing thread removes the markers of its group after it has answered.
-        let marked: bool = std::fs::read_dir(world.context.journal.join("busy")).is_ok_and(|mut entries| { return entries.next().is_some(); });
+        // A withdrawal's tombstone stays by design; what must be gone is a request still marked as the landing thread's, and the step.
+        let marked: bool = std::fs::read_dir(world.context.journal.join("busy")).is_ok_and(|entries| {
+            return entries.flatten().any(|entry| { return entry.file_name() == "step" || std::fs::read_to_string(entry.path()).is_ok_and(|content| { return content == "landing"; }); });
+        });
         if open == 0 && !marked && !world.repo.join(".git/index.lock").exists() {
             break;
         }
@@ -230,7 +233,7 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
     land_with_failed_index(&world, 1, &[landed]);
     let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
     crate::service_busy::use_on_this_thread(std::sync::Arc::clone(&board));
-    assert!(board.begin_group(&[String::from("stuck")]).is_empty());
+    assert_eq!(board.begin_group(&[String::from("stuck")]), crate::service_busy::GroupAdmission::default());
     let _step = crate::service_busy::enter_step(String::from("git update-ref --stdin in /repo"));
     std::thread::sleep(Duration::from_millis(20));
     assert_eq!(board.withdraw_early("landed"), crate::service_busy::EarlyAnswer::Queued, "its commit is on the branch");

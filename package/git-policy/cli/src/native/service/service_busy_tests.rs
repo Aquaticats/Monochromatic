@@ -78,14 +78,14 @@ fn a_withdrawal_is_queued_while_nothing_is_stuck() {
 fn only_a_request_that_has_not_begun_is_withdrawn_while_the_landing_is_stuck() {
     let record: Arc<LandingBoard> = board();
     use_on_this_thread(Arc::clone(&record));
-    assert!(record.begin_group(ids(&["running"]).as_slice()).is_empty());
+    assert_eq!(record.begin_group(ids(&["running"]).as_slice()), GroupAdmission::default());
     let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
     std::thread::sleep(A_MOMENT);
     assert_eq!(record.withdraw_early("running"), EarlyAnswer::Queued, "the request in flight waits for the landing");
     let EarlyAnswer::Withdrawn(words) = record.withdraw_early("later") else { panic!("a request that has not begun is withdrawn") };
     assert!(words.contains("git update-ref --stdin"), "the answer carries the words that name the stuck write: {words}");
     record.end_group(ids(&["running"]).as_slice());
-    let dropped: Vec<String> = record.begin_group(ids(&["later", "other"]).as_slice());
+    let dropped: Vec<String> = record.begin_group(ids(&["later", "other"]).as_slice()).dropped;
     assert_eq!(dropped, ids(&["later"]), "the withdrawn request is dropped when its group would begin");
     assert_eq!(record.withdraw_early("other"), EarlyAnswer::Queued, "the request that begins is in flight");
 }
@@ -112,9 +112,9 @@ fn an_identity_that_is_not_a_plain_name_is_never_answered_early() {
     std::thread::sleep(A_MOMENT);
     for hostile in ["../escape", "a/b", "", "with space", &"x".repeat(LONGEST_ID + 1)] {
         assert_eq!(record.withdraw_early(hostile), EarlyAnswer::Queued, "{hostile:?}");
-        assert!(record.begin_group(&[String::from(hostile)]).is_empty(), "{hostile:?}");
+        assert_eq!(record.begin_group(&[String::from(hostile)]), GroupAdmission::default(), "{hostile:?}");
     }
-    assert!(!record.directory.parent().expect("parent").join("escape.withdrawn").exists());
+    assert!(!record.directory.parent().expect("parent").join("escape.decision").exists());
 }
 
 /// A service that starts finds no record of a thread that ran before it.
@@ -122,10 +122,10 @@ fn an_identity_that_is_not_a_plain_name_is_never_answered_early() {
 fn a_new_board_removes_what_an_earlier_service_left() {
     let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-restart").join("journal");
     let first: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
-    assert!(first.begin_group(&ids(&["old"])).is_empty());
-    assert!(first.marker("old", "flight").exists());
+    assert_eq!(first.begin_group(&ids(&["old"])), GroupAdmission::default());
+    assert!(first.is_in_flight("old"));
     let second: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
-    assert!(!second.marker("old", "flight").exists());
+    assert!(!second.is_in_flight("old"));
 }
 
 /// Fails closed (sol-1, P1): when the record cannot be written, a withdrawal is never answered "withdrawn" and a request is never
@@ -141,10 +141,10 @@ fn a_record_that_cannot_be_written_never_answers_withdrawn() {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("make the directory read-only");
     let answer: EarlyAnswer = record.withdraw_early("later");
-    let admission: Vec<String> = record.begin_group(ids(&["later"]).as_slice());
+    let admission: GroupAdmission = record.begin_group(ids(&["later"]).as_slice());
     std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
     assert_eq!(answer, EarlyAnswer::Queued, "no cancellation was established, so none is confirmed");
-    assert!(admission.is_empty(), "a request is not dropped on a marker that was not made");
+    assert!(admission.dropped.is_empty() && admission.unavailable == ids(&["later"]), "a request is not landed on a decision that was not made, and is not dropped either");
 }
 
 /// A withdrawal is a tombstone with the identity of a normal one (sol-1, P1): every copy of the request that reaches a group after
@@ -157,7 +157,7 @@ fn every_copy_of_a_withdrawn_request_is_dropped_not_only_the_first() {
     std::thread::sleep(A_MOMENT);
     assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)));
     for copy in 0..3 {
-        assert_eq!(record.begin_group(ids(&["r"]).as_slice()), ids(&["r"]), "copy {copy} is dropped");
+        assert_eq!(record.begin_group(ids(&["r"]).as_slice()).dropped, ids(&["r"]), "copy {copy} is dropped");
         record.end_group(ids(&["r"]).as_slice());
     }
     assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "and the same answer to a repeated withdrawal");
@@ -180,7 +180,7 @@ fn admission_and_early_withdrawal_never_both_succeed() {
             std::thread::spawn(move || { barrier.wait(); return record.withdraw_early(id.as_str()); })
         };
         barrier.wait();
-        let dropped: Vec<String> = record.begin_group(&[id.clone()]);
+        let dropped: Vec<String> = record.begin_group(&[id.clone()]).dropped;
         let answer: EarlyAnswer = withdrawer.join().expect("withdrawer");
         match answer {
             EarlyAnswer::Withdrawn(_) => assert_eq!(dropped, vec![id.clone()], "round {round}: answered withdrawn, so it must not land"),
