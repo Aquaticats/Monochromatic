@@ -62,13 +62,19 @@ the branch and agent lists below them are older and carry their own times.
 
 ### Release in flight
 
-Git wrapper 0.5.33:
-branch-write round 2 merged to main (`6fc72e8abe`,
-gate r7 4839/4839 with main);
-`native:clippy` on main clean;
-dispatched as run 41896129005 (2026-11-04T14:25-05:00);
-`native:release:wait` following it;
-then `upgrade-wrapper.ts 0.5.33`.
+Git wrapper 0.5.33 is installed:
+branch-write round 2 (`6fc72e8abe`,
+gate r7 4839/4839 with main,
+`native:clippy` on main clean),
+release run 41896129005,
+publish run 41896943949 built from `6a922adfee`,
+crates.io 2026-11-04T19:28:15Z;
+`upgrade-wrapper.ts 0.5.33`:
+the 0.5.32 service retired on the client's request,
+0.5.33 started (protocol 7),
+and the sample commit on main landed in 1980 ms in all,
+1271 ms of it provisioning the new service (landing 34 ms,
+lock hold 31 ms).
 
 Agents running at 2026-11-04T14:27:00-05:00:
 - Branch-write round 3 (`aa0fee0c2cf70bb31`):
