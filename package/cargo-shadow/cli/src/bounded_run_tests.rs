@@ -422,7 +422,7 @@ fn record_sync_fixture() {
 #[test]
 fn the_record_sync_is_given_to_the_kernel_after_the_write() {
     if std::process::Command::new("strace").arg("--version").output().is_err() {
-        eprintln!("skipped: strace is not installed, so the system calls of the record cannot be observed here");
+        crate::test_scratch::skip_or_fail("strace is not installed, so the system calls of the record cannot be observed here");
         return;
     }
     let directory = crate::test_scratch::scratch();

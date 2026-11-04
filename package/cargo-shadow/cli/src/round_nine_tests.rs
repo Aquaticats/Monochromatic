@@ -720,7 +720,7 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
     fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o755)).expect("make it writable again");
     let _ = fs::remove_file(failing_directory.join(".probe"));
     if bypassed {
-        eprintln!("skipped: permissions do not stop this user, so a failed restore cannot be built this way");
+        crate::test_scratch::skip_or_fail("permissions do not stop this user, so a failed restore cannot be built this way");
         return;
     }
 

@@ -108,3 +108,19 @@ fn a_failed_barrier_of_the_new_journal_refuses_the_transaction_before_anything_c
         assert!(!events.iter().any(|event| { return event == "journal published"; }), "{point:?}: {events:?}");
     }
 }
+
+/// Round 21 (check-to-start race): the cargo of an install step runs inside a scope, whose launcher takes the program as an argument and
+/// starts it itself, so an open descriptor of this process cannot name it there. A compiled real cargo is started by its checked path
+/// in that run (with the check repeated right before), and it must actually run: here a copy of `echo` stands in for it.
+#[test]
+fn a_compiled_real_cargo_runs_in_the_contained_runner_of_the_install_step() {
+    use crate::cargo_run::{CargoRunner, RealCargo};
+    let directory = scratch();
+    let chosen: PathBuf = directory.path().join("cargo");
+    fs::copy("/usr/bin/echo", &chosen).expect("a compiled stand-in for the real cargo");
+    let cargo = RealCargo { program: chosen, toolchain: String::new(), bound: std::time::Duration::from_secs(60) };
+
+    let outcome = cargo.run(directory.path(), &["ran".to_string(), "contained".to_string()]).expect("the stand-in starts");
+
+    assert!(outcome.ok && outcome.stdout == "ran contained\n", "{outcome:?}");
+}

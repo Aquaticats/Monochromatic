@@ -159,7 +159,8 @@ impl CargoRunner for RealCargo {
     /// ```
     fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
         let vetted = crate::real_binary::vet(&self.program)?;
-        let mut command: Command = vetted.command()?;
+        // The runner below puts the program inside a scope whose launcher starts it from its own process, so only a path names it there.
+        let mut command: Command = vetted.command_by_path()?;
         command.args(args).current_dir(cwd);
         // The loop guard (`guard.rs`): the candidate's resolved path joins the skip list of the instance it may start, so a
         // `cargo` that is a launcher leading back to the shadow is skipped there and the next `cargo` on PATH runs instead.

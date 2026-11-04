@@ -28,3 +28,22 @@ fn scratch_root() -> PathBuf {
 pub(crate) fn scratch() -> tempfile::TempDir {
     return tempfile::tempdir_in(scratch_root()).expect("make a scratch directory");
 }
+
+/// The variable that lets a test whose schedule cannot be built on this host end as a printed skip instead of a failure.
+pub(crate) const ALLOW_SKIPS: &str = "CARGO_SHADOW_ALLOW_SKIPS";
+
+/// What:
+/// `pub(crate) fn skip_or_fail(reason: &str)` ends a test whose schedule cannot be built on this host: it fails the test, unless
+/// `CARGO_SHADOW_ALLOW_SKIPS` is set, when it prints the skip.
+/// Why:
+/// A test that returns green without running its schedule is evidence of nothing (sixth pass); a certification run therefore fails on
+/// such a host instead of counting the test as passed, and a host that cannot build the schedule says so explicitly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function skipOrFail(reason: string): void  // throws unless CARGO_SHADOW_ALLOW_SKIPS is set
+/// ```
+pub(crate) fn skip_or_fail(reason: &str) {
+    assert!(std::env::var_os(ALLOW_SKIPS).is_some(), "this host cannot build the schedule ({reason}); set {ALLOW_SKIPS}=1 to skip the test");
+    eprintln!("skipped: {reason}");
+}

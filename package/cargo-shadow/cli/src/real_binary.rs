@@ -264,6 +264,23 @@ impl Vetted {
             command.arg0(&self.spelled);
             return Ok(command);
         }
+        return self.command_by_path();
+    }
+
+    /// What:
+    /// `pub fn command_by_path(&self) -> Result<Command, String>` is the command that starts the program by the path it was chosen
+    /// under, after the check is repeated.
+    /// Why:
+    /// A program started by another process (a scope's launcher takes its path as an argument and starts it itself) cannot be named
+    /// by a descriptor of this one, and a script cannot be started through a descriptor at all. The instants between the repeated
+    /// check and the start remain for these starts; a hit there reaches the arrival stop of the second cargo-shadow (exit status 2),
+    /// so nothing runs twice.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// commandByPath(): Command  // throws the reason
+    /// ```
+    pub fn command_by_path(&self) -> Result<std::process::Command, String> {
         refuse_if_ourselves(&self.spelled)?;
         return Ok(std::process::Command::new(&self.spelled));
     }

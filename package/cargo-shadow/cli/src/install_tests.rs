@@ -333,7 +333,7 @@ fn real_cargo_finds_the_path_workspace_stale_updates_it_offline_and_then_finds_i
     let program: PathBuf = match crate::real_binary::find_real_cargo() {
         Some(found) => found,
         None => {
-            eprintln!("skipped: no cargo on PATH, so the real-cargo install case cannot run");
+            crate::test_scratch::skip_or_fail("no cargo on PATH, so the real-cargo install case cannot run");
             return;
         }
     };
