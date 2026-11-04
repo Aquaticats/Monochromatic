@@ -77,7 +77,7 @@ use crate::bounded_run::{Bound, RunError, output_within};
 /// ```ts
 /// import { nativeBase } from 'crate/git_native';
 /// ```
-use crate::git_native::native_base;
+use crate::git_native::native_base_counting;
 /// What:
 /// `use crate::git_refs::NativeEnvironment;` imports the description of where the user configuration lives and whether the environment forbids reading the files.
 /// Why:
@@ -566,8 +566,8 @@ pub fn resolve_trust_base_with(root: &Path, in_ci: bool, explicit: Option<&str>,
         return TrustBase { spelling, commit, git_starts: starts.get() };
     }
     // The files answer for the plain layouts.
-    if let Ok(native) = native_base(root, in_ci, environment) {
-        return TrustBase { spelling: native.spelling, commit: native.commit, git_starts: native.git_starts };
+    if let Ok(native) = native_base_counting(root, in_ci, environment, &starts) {
+        return TrustBase { spelling: native.spelling, commit: native.commit, git_starts: starts.get() };
     }
     // CI keeps its base.
     if in_ci {
@@ -680,23 +680,27 @@ pub fn explicit_base_from_environment() -> Option<String> {
 const SYSTEM_CONFIG_CACHE: &str = ".cache/cargo-shadow/git-system-config";
 
 /// What:
-/// `fn find_program(program: &Path, search: &str) -> Option<PathBuf>` finds the executable a program name stands for.
+/// `fn find_program(program: &Path, search: &str, working_directory: &Path) -> Option<PathBuf>` finds the executable that `execvp`
+/// would run for a program name.
 /// Why:
-/// The cache is keyed by the identity of the Git that will answer,
-/// so the name must be resolved the way a shell would.
+/// The first regular file is not the first executable, and a relative name or search entry is relative to the directory the Git
+/// runs in, which is the repository (round 6, 5a F5).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function findProgram(program: string, search: string): string | undefined
+/// function findProgram(program: string, search: string, workingDirectory: string): string | undefined
 /// ```
-fn find_program(program: &Path, search: &str) -> Option<PathBuf> {
+fn find_program(program: &Path, search: &str, working_directory: &Path) -> Option<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+    let runnable = |candidate: &Path| -> bool { return candidate.metadata().is_ok_and(|metadata| { return metadata.is_file() && metadata.permissions().mode() & 0o111 != 0; }); };
     if program.components().count() > 1 {
-        // `Some`: the present or the absent value of an `Option`.
-        return Some(program.to_path_buf());
+        let anchored: PathBuf = working_directory.join(program);
+        return Some(anchored);
     }
-    // Closure `|directory|`: an anonymous function, like a TS arrow function.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    return search.split(':').map(|directory| { return Path::new(directory).join(program); }).find(|candidate| { return candidate.is_file(); });
+    return search
+        .split(':')
+        .map(|directory| { return working_directory.join(if directory.is_empty() { "." } else { directory }).join(program); })
+        .find(|candidate| { return runnable(candidate); });
 }
 
 /// What:
@@ -770,7 +774,7 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     // ```ts
     // // TS has one type for this: string
     // ```
-    let program: PathBuf = find_program(&environment.git.program, &search).ok_or_else(|| { return format!("{} was not found on the search path, so its system configuration is unknown", environment.git.program.display()); })?;
+    let program: PathBuf = find_program(&environment.git.program, &search, root).ok_or_else(|| { return format!("{} was not found on the search path, so its system configuration is unknown", environment.git.program.display()); })?;
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Closure `|error|`: an anonymous function, like a TS arrow function.
     // Borrow `&program`: lends the value without copying or giving it away.
@@ -792,13 +796,38 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     let modified_nanos: u128 = metadata.modified().ok().and_then(|time| { return time.duration_since(std::time::UNIX_EPOCH).ok(); }).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
     // Typed binding: `key: String`.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    let key: String = format!("{}\t{}\t{modified_nanos}", canonical.display(), metadata.len());
+    // An answer is reused only for a compiled program: a script may forward to any Git, chosen by files, variables or the
+    // directory, so nothing about the script says which Git answers (round 6, 5a F5).
+    let compiled: bool = {
+        use std::io::Read;
+        let mut magic: [u8; 4] = [0; 4];
+        std::fs::File::open(&canonical).and_then(|mut file| { return file.read_exact(&mut magic); }).is_ok() && magic == *b"\x7fELF"
+    };
+    // What the compiled program reads to find its system configuration: its own file and the two variables that move or remove it.
+    let seen = |name: &str| -> String {
+        let given: Option<String> = environment.git.environment.iter().rev().find(|(key, _)| { return key == name; }).map(|(_, value)| { return value.clone(); });
+        return given.or_else(|| { return if environment.git.clean_environment { None } else { std::env::var(name).ok() }; }).unwrap_or_default();
+    };
+    let key: String = {
+        use std::os::unix::fs::MetadataExt;
+        format!(
+            "{}\t{}\t{}\t{}\t{modified_nanos}\t{}\t{}\t{}\t{}",
+            canonical.display(),
+            metadata.dev(),
+            metadata.ino(),
+            metadata.len(),
+            metadata.ctime_nsec() + metadata.ctime() * 1_000_000_000,
+            seen("GIT_CONFIG_SYSTEM"),
+            seen("GIT_CONFIG_NOSYSTEM"),
+            seen("GIT_EXEC_PATH")
+        )
+    };
     // Typed binding: `cache: PathBuf`.
     let cache: PathBuf = root.join(SYSTEM_CONFIG_CACHE);
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
     // Borrow `&cache`: lends the value without copying or giving it away.
-    if let Ok(text) = std::fs::read_to_string(&cache) {
+    if compiled && let Ok(text) = std::fs::read_to_string(&cache) {
         // `let mut`: a binding that may change.
         let mut lines = text.lines();
         // `Some`: the present or the absent value of an `Option`.
@@ -840,7 +869,9 @@ pub(crate) fn system_config_of_git(environment: &NativeEnvironment, root: &Path,
     // Borrow `&cache`: lends the value without copying or giving it away.
     // Macro `format!`: builds or prints text (or a list) from a template.
     // `let _ =`: discards the result on purpose.
-    let _ = crate::journal::atomic_write(&cache, &format!("{key}\n{reported}\n"));
+    if compiled {
+        let _ = crate::journal::atomic_write(&cache, &format!("{key}\n{reported}\n"));
+    }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(PathBuf::from(reported));
 }

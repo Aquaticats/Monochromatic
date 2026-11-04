@@ -192,15 +192,29 @@ fn head_base(layout: &GitLayout, git_starts: u32) -> Result<NativeBase, String> 
 /// export function nativeBase(root: string, inCi: boolean, environment: NativeEnvironment): NativeBase  // throws: ask Git
 /// ```
 pub fn native_base(root: &Path, in_ci: bool, environment: &NativeEnvironment) -> Result<NativeBase, String> {
+    return native_base_counting(root, in_ci, environment, &std::cell::Cell::new(0));
+}
+
+/// What:
+/// `pub fn native_base_counting(root, in_ci, environment, starts) -> Result<NativeBase, String>` is `native_base` with the count of
+/// Git starts kept by the caller.
+/// Why:
+/// A declined attempt may already have started Git (to ask for its system configuration); the caller adds its own starts to the
+/// same count, so a declined choice reports every start it cost (round 6, 5a F6).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function nativeBaseCounting(root: string, inCi: boolean, environment: NativeEnvironment, starts: { count: number }): NativeBase  // throws to decline
+/// ```
+pub fn native_base_counting(root: &Path, in_ci: bool, environment: &NativeEnvironment, starts: &std::cell::Cell<u32>) -> Result<NativeBase, String> {
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Typed binding: `layout: GitLayout`.
     let layout: GitLayout = find_layout(root, environment)?;
     // The configuration is read even for CI's `HEAD`, because a reftable store or an include changes what `HEAD` means.
-    let starts: std::cell::Cell<u32> = std::cell::Cell::new(0);
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&layout`: lends the value without copying or giving it away.
     // Typed binding: `config: ParsedConfig`.
-    let config: ParsedConfig = read_config(&layout, environment, root, &starts)?;
+    let config: ParsedConfig = read_config(&layout, environment, root, starts)?;
     if in_ci {
         // Borrow `&layout`: lends the value without copying or giving it away.
         return head_base(&layout, starts.get());
