@@ -905,9 +905,9 @@ Each `cargo-binstall` tool installs into a cargo root of its own,
 # shape of the command install starts for a third-party crate (the paths are examples)
 cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --version 10.4.2 fd-find
 
-# the same for a crate this repository publishes: the compile strategy is switched off
+# the same for a crate this repository publishes: the compile and quick-install strategies are switched off
 cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shadow/0.2.5 --version 0.2.5 \
-  --disable-strategies compile monochromatic-mpm-shadow
+  --disable-strategies compile,quick-install monochromatic-mpm-shadow
 ```
 
 - Binaries land in `<root>/bin` and cargo's own record in `<root>/.crates.toml`.
@@ -921,7 +921,7 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shad
   so one flag isolates both ways of installing.
   The fallback exists for third-party crates only (see the next item).
 - A crate this repository publishes never compiles:
-  `--disable-strategies compile` makes a missing or unusable release archive fail the install instead of building the
+  `--disable-strategies compile,quick-install` makes a missing or unusable release archive fail the install instead of building the
   crate from source (cargo-binstall 1.26.2 otherwise builds it silently;
   measured 2026-11-04: the installed `cli-git-native` of `monochromatic-git-policy-cli` 0.5.34 was 13,710,088 bytes
   against the archive's 13,728,056, beside a `cli-git-service` the archive lacks).
@@ -937,8 +937,13 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shad
   Any other binstall failure keeps the generic message.
   A third-party crate keeps cargo-binstall's strategies,
   so one with no prebuilt archive is still compiled when needed.
-  The quick-install strategy (a third-party host of prebuilt binaries) is left on for every crate;
-  it is not covered by any recorded decision.
+  The same flag switches off the quick-install strategy (the third-party cargo-quickinstall host of prebuilt binaries)
+  for these crates, so their binaries come only from the crate's own release archive.
+  cargo-binstall still finds that archive itself from the crate's published binstall metadata;
+  mpm-shadow passes no URL.
+  Owner decision 2026-11-04 (question tool), "A: one flag, our crates (Recommended)":
+  "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
+  A third-party crate keeps both strategies (measured 2026-11-04: `fastmod` and `apple-codesign` resolve only through quick-install).
 - Tracking stays on (no `--no-track`):
   the root's `.crates.toml` is the record `list` and `install` read,
   and cargo-binstall's own lock then covers two trees installing one version at once.
