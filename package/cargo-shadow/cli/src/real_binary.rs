@@ -147,7 +147,7 @@ pub fn find_in_path_with_image(name: &str, path_variable: &str, skip: &[PathBuf]
 }
 
 /// The suffix of the record that the toolchain writes beside a launcher (`mpm-shadow`, `package/mpm-shadow/cli/README.md`, section "The launcher").
-const LAUNCH_RECORD_SUFFIX: &str = ".launch";
+pub const LAUNCH_RECORD_SUFFIX: &str = ".launch";
 
 /// How many launchers in a row are followed before the chain is taken as one that never reaches a program: a record chain longer than
 /// this is a loop, and a loop leads back.

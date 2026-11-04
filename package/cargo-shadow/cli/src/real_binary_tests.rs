@@ -342,8 +342,8 @@ fn running_image_lookup_fixture() {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     let own: PathBuf = crate::real_binary::own_real_path();
-    let direct = find_in_path(NAME, &path_value(&[&root.join("alias"), &root.join("real")]), &[own.clone()]);
-    let chain = find_in_path(NAME, &path_value(&[&root.join("links"), &root.join("real")]), &[own]);
+    let direct = find_in_path(NAME, &path_value(&[&root.join("alias"), &root.join("real")]), std::slice::from_ref(&own));
+    let chain = find_in_path(NAME, &path_value(&[&root.join("links"), &root.join("real")]), std::slice::from_ref(&own));
     std::fs::write(root.join("direct.answer"), direct.map(|found| { return found.display().to_string(); }).unwrap_or_default()).expect("write the direct answer");
     std::fs::write(root.join("chain.answer"), chain.map(|found| { return found.display().to_string(); }).unwrap_or_default()).expect("write the chain answer");
 }

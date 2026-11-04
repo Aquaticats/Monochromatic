@@ -1229,8 +1229,10 @@ the cap with the manifest attached and with production items listed apart from t
   right before each of the three starts (`a_chosen_path_that_names_the_running_image_at_the_start_is_refused`). That shrinks the
   window to the instants between the check and the start; it does not close it. Closing it means executing an opened descriptor,
   which breaks scripts and proxies that open their own path, so it is not done and needs an owner decision.
-  The test of an unrecorded launcher shows bounded re-entry (one to six runs), not none; the owner's rule of no self-invocation is
-  being asked about, and the behavior is unchanged. The test name says so.
+  Owner decision of 2026-11-04 (option A): a launcher with no record that leads back no longer gets a bounded fallback; the second
+  cargo-shadow stops at once with exit status 2 and a message a reader with no context can follow
+  (`an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied`, which runs
+  both printed fixes and shows the command then works; red with the stop removed, planted).
 - **Weaker path, V6.**
   Production defect: the once-per-process notice used `Once::call_once`, so a second run waited with no deadline for the first run's
   write to standard error. It is a flag won with a swap now (`a_run_does_not_wait_for_another_runs_slow_notice`, a fresh process that

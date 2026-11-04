@@ -516,7 +516,7 @@ fn the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member() {
     let note: Option<String> = survivor_note(&scoped);
     // The real recovery and admission give the same refusal inside the same identity override (fifth certification pass): the member
     // after a reboot is a contradiction, so nothing is restored, the journal stays and no transaction is admitted.
-    let messages: Vec<String> = recover(contradiction.path(), &refusing);
+    let refusals: Vec<String> = recover(contradiction.path(), &refusing);
     let admitted = begin(contradiction.path(), &[snapshot("second")], false);
     let kept: bool = scoped.exists();
     let lock_after: String = live_lock(contradiction.path());
@@ -525,8 +525,8 @@ fn the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member() {
     let _ = planned.stop(Duration::from_secs(10));
     let _ = member.wait();
     assert!(note.is_some_and(|text| { return text.contains("although the boot id changed"); }), "a scope with a member after a reboot was cleared");
-    assert!(messages.iter().any(|message| { return message.contains("although the boot id changed"); }), "the recovery did not refuse for the member after a reboot: {messages:?}");
-    assert_eq!(lock_after, "unchecked output of the killed run", "a recovery restored beside a member after a reboot: {messages:?}");
+    assert!(refusals.iter().any(|message| { return message.contains("although the boot id changed"); }), "the recovery did not refuse for the member after a reboot: {refusals:?}");
+    assert_eq!(lock_after, "unchecked output of the killed run", "a recovery restored beside a member after a reboot: {refusals:?}");
     assert!(kept, "the journal was removed beside a member after a reboot");
     assert!(admitted.is_err(), "a transaction was admitted beside a member after a reboot");
 }

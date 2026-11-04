@@ -55,8 +55,8 @@ use std::process::{Child, Command, ExitStatus, Output, Stdio};
 /// Imports `std::rc::Rc` for this file.
 use std::rc::Rc;
 
-/// Imports `std::sync::{Arc, Once}` for this file.
-use std::sync::{Arc, Once};
+/// Imports `std::sync::Arc` for this file.
+use std::sync::Arc;
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
 use std::sync::atomic::{AtomicBool, Ordering};
