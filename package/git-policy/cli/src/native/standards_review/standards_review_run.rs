@@ -200,24 +200,52 @@ pub fn review_landed(
 }
 
 /// What:
-///  Run `job` on a helper thread and wait for it; `None` means the job panicked.
+///  How a contained job ended.
 /// Why:
-///   The review shares the service's work thread, so a panic in any step must cost one failed item and never the thread. No
-///  time limit applies: each step of the job ends on no progress by itself.
+///   The caller words a panic and a ceiling differently: one is a defect, the other is a review that ran as long as the service lets
+///  one run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await job().catch(() => undefined)
+/// type Contained<T> = { kind: 'finished'; value: T } | { kind: 'panicked' } | { kind: 'ceiling'; afterMs: number };
 /// ```
-pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Contained<T> {
+    /// The job returned its value.
+    Finished(T),
+    /// The job panicked or its thread could not start.
+    Panicked,
+    /// The job was still running when the ceiling passed; the caller stopped waiting and the job's thread is left to end with the
+    ///  process.
+    CeilingReached(Duration),
+}
+
+/// What:
+///  Run `job` on a helper thread and wait for it, at most `ceiling`.
+/// Why:
+///   The review shares the service's work thread, so a panic in any step must cost one failed item and never the thread. Each step
+///  of the job ends by itself on no progress or at its own ceiling; the ceiling here covers the whole job, including the one step
+///  with no judge of its own, the local write of the log entry (owner, 2026-11-04, "Silence plus a ceiling (Recommended)";
+///  `wait_ceilings.rs`, `REVIEW_CEILING`). A thread cannot be stopped from outside, so the caller stops waiting and the thread ends
+///  with the process, or when its write returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await Promise.race([job().catch(() => PANICKED), after(ceilingMs).then(() => CEILING)])
+/// ```
+pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
     let (sender, receiver) = mpsc::channel::<T>();
     let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
         let _ = sender.send(job());
     });
     if worker.is_err() {
-        return None;
+        return Contained::Panicked;
     }
-    return receiver.recv().ok();
+    return match receiver.recv_timeout(ceiling) {
+        Ok(value) => Contained::Finished(value),
+        Err(mpsc::RecvTimeoutError::Timeout) => Contained::CeilingReached(ceiling),
+        Err(mpsc::RecvTimeoutError::Disconnected) => Contained::Panicked,
+    };
 }
 
 /// Controls stay out of the release executable.

@@ -159,17 +159,35 @@ fn options_follow_the_script_environment() {
     assert!(!full_review_requested(&none));
 }
 
-/// The contained runner returns a job's value however long the job takes, and survives a panic.
+/// The contained runner returns a job's value however long the job takes up to the ceiling, and survives a panic.
 #[test]
 fn the_runner_waits_for_a_slow_job_and_contains_a_panic() {
-    assert_eq!(run_contained(|| return 7_u8), Some(7));
+    let roomy: Duration = Duration::from_secs(3600);
+    assert_eq!(run_contained(|| return 7_u8, roomy), Contained::Finished(7));
     let pause: Duration = Duration::from_millis(1500);
-    let slow: Option<u8> = run_contained(move || {
+    let slow: Contained<u8> = run_contained(move || {
         std::thread::sleep(pause);
         return 2_u8;
-    });
-    assert_eq!(slow, Some(2), "a slow job is waited for");
-    assert_eq!(run_contained(|| -> u8 { panic!("job failure") }), None);
+    }, roomy);
+    assert_eq!(slow, Contained::Finished(2), "a slow job is waited for");
+    assert_eq!(run_contained(|| -> u8 { panic!("job failure") }, roomy), Contained::Panicked);
+}
+
+/// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a job that is still running when the ceiling passes is not waited for
+/// any longer, though it is working; the runner answers while the job still runs.
+#[test]
+fn the_runner_stops_waiting_for_a_job_at_its_ceiling() {
+    let ceiling: Duration = Duration::from_millis(600);
+    let (release, blocked) = mpsc::channel::<()>();
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome: Contained<u8> = run_contained(move || {
+        let _ = blocked.recv();
+        return 1_u8;
+    }, ceiling);
+    let waited: Duration = began.elapsed();
+    drop(release);
+    assert_eq!(outcome, Contained::CeilingReached(ceiling));
+    assert!(waited >= ceiling && waited < ceiling * 20, "{waited:?}");
 }
 
 /// A commit the log already names is not asked about again, and a log that does not exist yet is created by the first entry.
