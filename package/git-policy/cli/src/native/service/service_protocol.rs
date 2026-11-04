@@ -276,6 +276,11 @@ pub enum ServiceMessage {
     Failed { id: String, code: FailureCode },
     /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
     Waiting { text: String },
+    /// A `waiting` line that also says this client's own request is inside the service's stuck branch write, so the commit may
+    ///  already be on the branch. On the wire it is the `waiting` message with the extra field `inside_write` set to true, so a client
+    ///  that does not know the field reads it as the `waiting` line it is (a notice, and the blocker its error names), and a service that
+    ///  does not send it leaves a client that does on its older path: nothing in the protocol changes for either, and the version stays.
+    InsideWrite { text: String },
     /// The request of this identity was withdrawn at the client's asking and will never land.
     Withdrawn { id: String },
     /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
@@ -607,6 +612,7 @@ pub fn encode_service(message: &ServiceMessage) -> String {
             ),
         ]),
         ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
+        ServiceMessage::InsideWrite { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str())), ("inside_write", Value::from(true))]),
         ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
         ServiceMessage::Heartbeat => object(vec![("type", Value::from("heartbeat"))]),
         ServiceMessage::Withdrawn { id } => object(vec![("type", Value::from("withdrawn")), ("id", Value::from(id.as_str()))]),
@@ -665,6 +671,7 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
                 })
                 .unwrap_or_default(),
         }),
+        "waiting" if value.get("inside_write").and_then(Value::as_bool) == Some(true) => Ok(ServiceMessage::InsideWrite { text: field(&value, "text")?.to_string() }),
         "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
         "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
         "heartbeat" => Ok(ServiceMessage::Heartbeat),

@@ -15,7 +15,7 @@
 //! ```
 
 use crate::standards_review_input::has_shadow_log;
-use crate::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained};
+use crate::standards_review_run::{Contained, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained};
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
 use crate::standards_review_text::commit_subject;
 use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
@@ -142,12 +142,30 @@ pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions
     // item's Git directory for its input file, as the landing sets it for each request.
     let owned_context: GitContext = GitContext { common_dir: Some(PathBuf::from(item.git_dir.as_str())), ..context.clone() };
     let owned: WorkItem = item.clone();
-    let outcome: Option<ReviewOutcome> = run_contained(move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); });
+    let outcome: Contained<ReviewOutcome> = run_contained(move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); }, crate::wait_ceilings::REVIEW_CEILING);
     return match outcome {
-        None => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
-        Some(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message)) => Verdict::Failed(message),
-        Some(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged) => Verdict::Done,
+        Contained::Panicked => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
+        Contained::CeilingReached(ceiling) => Verdict::Failed(ceiling_reason(item.oid.as_str(), ceiling)),
+        Contained::Finished(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message)) => Verdict::Failed(message),
+        Contained::Finished(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged) => Verdict::Done,
     };
+}
+
+/// What:
+///  The reason of a review that ran as long as the service lets one run.
+/// Why:
+///   It names what was running (the standards review of the commit), the ceiling, and the command that does it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the standards review of ${oid} ran for ${seconds} seconds, ...; run SHADOW_REVIEW_SHA=${oid} mise run shadow-review`
+/// ```
+pub fn ceiling_reason(oid: &str, ceiling: Duration) -> String {
+    return format!(
+        "the standards review of {oid} ran for {} seconds, the longest the service lets one review run, and the service stopped waiting for it; \
+         review it again with `SHADOW_REVIEW_SHA={oid} mise run shadow-review`",
+        ceiling.as_secs()
+    );
 }
 
 /// Review controls stay out of the release executable.

@@ -296,3 +296,21 @@ fn the_review_clock_reads_the_wall_clock() {
     let after: u64 = epoch_milliseconds();
     assert!(before <= read && read <= after, "{before} <= {read} <= {after}");
 }
+
+/// A review that ran as long as the service lets one run is a failed item whose reason names what was running, the ceiling and
+/// the command that does it again.
+#[test]
+fn a_review_stopped_at_the_ceiling_names_the_review_the_ceiling_and_the_command() {
+    let oid: &str = "0123456789abcdef0123456789abcdef01234567";
+    let ceiling: Duration = crate::wait_ceilings::REVIEW_CEILING;
+    let reason: String = ceiling_reason(oid, ceiling);
+    assert!(reason.contains(oid) && reason.contains(ceiling.as_secs().to_string().as_str()), "{reason}");
+    assert!(reason.contains("standards review") && reason.contains(format!("SHADOW_REVIEW_SHA={oid} mise run shadow-review").as_str()), "{reason}");
+}
+
+/// The shipped review ceiling covers the shipped call ceiling and its quiet window, or the call's own bound could never be reached.
+#[test]
+fn the_review_ceiling_is_past_the_call_ceiling_and_the_quiet_window() {
+    assert!(crate::wait_ceilings::REVIEW_CEILING > crate::wait_ceilings::REVIEW_CALL_CEILING);
+    assert!(crate::wait_ceilings::REVIEW_CALL_CEILING > CALL_QUIET_WINDOW);
+}

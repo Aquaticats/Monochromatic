@@ -19,6 +19,9 @@ pub mod service_protocol;
 /// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
 pub mod wait_ceilings;
 
+/// What the one landing thread is doing, shared with the threads that talk to waiting clients.
+pub mod service_busy;
+
 /// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
 

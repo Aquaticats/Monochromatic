@@ -24,8 +24,8 @@ use crate::forwarding::git_command;
 use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use crate::child_class::{ChildClass, class_of};
-use crate::child_watch::{WatchTerms, output_watched_within};
-use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING, REFERENCE_STEP_CEILING};
+use crate::child_watch::{StepBound, WatchTerms, output_watched_within};
+use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 /// Private exclusive files for standard input.
 use crate::private_storage::write_exclusive_scratch;
 /// The repository scratch directory the input file is made in.
@@ -547,35 +547,94 @@ fn step_subject(request: &GitRequest) -> String {
 }
 
 /// What:
-///  The longest the request's step runs before it is ended, whatever it shows: the reference update has the shortest ceiling, the
-///  other steps the ceiling of their class.
+///  Whether the request's step is one that cannot be run twice: it changes the repository in place and, cut part way and run again,
+///  did not come out in the state an uncut run leaves.
 /// Why:
-///   The owner's rule is that nothing waits for ever, and a landing's one thread must not be held for good by a step that never
-///  returns (`wait_ceilings.rs`). In a unit test the ceiling can be shortened for the thread that runs the control.
+///   The owner's criterion (2026-11-04, "Never cut a branch write (Recommended)"): "Steps that can safely run twice keep their
+///  ceilings". Decided by experiment and not by reading (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"): each
+///  form below was ended with SIGKILL and with SIGTERM at every mutating system call of its run on a throwaway repository, the lock
+///  files a killed Git leaves were removed as the wrapper's sweep removes them, the step was run again, and the refs, reflogs,
+///  index, worktree, stash list, configuration and every file of the Git directory were compared with an uncut run's.
+///  Identical every time, and so ended at the ceiling of their class: `update-ref` of a ref under `refs/cli-git/` or
+///  `refs/worktree/cli-git-service/` (set, or delete one), `stash list`, `clean`, `read-tree --reset`, `update-index` with
+///  `--refresh`, `--index-info` or `--cacheinfo`, `add`, `checkout-index`, `restore`, `reset <commit> -- <paths>`, and `config`
+///  writes. Different at some cut, and so never ended: `update-ref` of anything else (a branch has a reflog, which a second run
+///  doubles, and a compare-and-swap or a transaction of two refs fails or leaves the scratch ref), `stash store`, `merge`,
+///  `reset --hard`, `reset --soft`, `read-tree -m`, `checkout` and `switch`. A form no experiment ran is counted with the
+///  different ones, because data is lost by guessing wrong and a wait is not. Requests `may_be_rerun` accepts, the readers, and
+///  the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`) are not in question and are ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stepCeiling(request): number { return request.subcommand === 'update-ref' ? REFERENCE_STEP_CEILING : classOf(request).ceiling }
+/// !mayBeRerun(request) && CUT_EXPERIMENT_DIFFERED.has(formOf(request))
 /// ```
-fn step_ceiling(request: &GitRequest) -> Duration {
+pub(crate) fn cannot_run_twice(request: &GitRequest) -> bool {
+    if may_be_rerun(request) {
+        return false;
+    }
+    let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else {
+        return false;
+    };
+    let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    let has = |flag: &str| -> bool { return rest.iter().any(|word| { return word == flag; }); };
+    let positional: Vec<&str> = rest.iter().map(String::as_str).filter(|word| { return !word.starts_with('-'); }).collect();
+    let side_ref = |reference: &str| -> bool { return reference.starts_with("refs/cli-git/") || reference.starts_with("refs/worktree/cli-git-service/"); };
+    return match name.as_str() {
+        "update-ref" => {
+            let plain_delete: bool = has("-d") && positional.len() == 1 && side_ref(positional[0]);
+            let plain_set: bool = !has("-d") && !has("--stdin") && positional.len() == 2 && side_ref(positional[0]);
+            !(plain_delete || plain_set)
+        }
+        "stash" => !positional.first().is_some_and(|word| { return *word == "list"; }),
+        "merge" | "checkout" | "switch" => true,
+        "reset" => has("--hard") || has("--soft") || has("--merge") || has("--keep") || !has("--"),
+        "read-tree" => !has("--reset") || has("-m"),
+        "update-index" => !(has("--refresh") || has("--index-info") || has("--cacheinfo")),
+        _ => false,
+    };
+}
+
+/// What:
+///  How long the request's step is waited for, and what happens then.
+/// Why:
+///   A step that can be run twice is ended at the ceiling of its class, whatever it shows. A step that cannot is never ended
+///  (owner, 2026-11-04: "Never cut a branch write (Recommended)"): on the commit service's landing thread it is waited for, and the
+///  clients that wait behind it are told what it is stuck in (`service_busy.rs`); anywhere else the command that started it stops
+///  waiting at the bound of the step's class plus the short extra wait, with an error saying the result is not known, and the step is
+///  left running. In a unit test the bound of the class can be shortened for the thread that runs the control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stepBound(request): StepBound { return !cannotRunTwice(request) ? endAt(classCeiling) : onLandingThread() ? unbounded : leaveRunning(classCeiling, SHORT_EXTRA_WAIT) }
+/// ```
+fn step_bound(request: &GitRequest) -> StepBound {
     #[cfg(test)]
-    if let Some(shortened) = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get) {
-        return shortened;
-    }
-    let reference: bool = subcommand_of(request.arguments.as_slice()).is_some_and(|(_, name)| { return name == "update-ref"; });
-    if reference {
-        return REFERENCE_STEP_CEILING;
-    }
-    return match class_of(request.arguments.as_slice()) {
+    let shortened: Option<Duration> = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    let shortened: Option<Duration> = None;
+    let class_ceiling: Duration = shortened.unwrap_or(match class_of(request.arguments.as_slice()) {
         ChildClass::Plumbing => PLUMBING_STEP_CEILING,
         ChildClass::Object => OBJECT_STEP_CEILING,
-    };
+    });
+    if !cannot_run_twice(request) {
+        return StepBound::EndAt(class_ceiling);
+    }
+    if crate::service_busy::on_landing_thread() {
+        return StepBound::Unbounded;
+    }
+    #[cfg(test)]
+    let extra: Duration = EXTRA_WAIT_FOR_THIS_THREAD.with(std::cell::Cell::get).unwrap_or(crate::wait_ceilings::SHORT_EXTRA_WAIT);
+    #[cfg(not(test))]
+    let extra: Duration = crate::wait_ceilings::SHORT_EXTRA_WAIT;
+    return StepBound::LeaveRunning { after: class_ceiling, extra };
 }
 
 #[cfg(test)]
 thread_local! {
     /// A shortened ceiling for the steps the current thread starts, so a control ends a step in a moment.
     pub(crate) static STEP_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
+    /// A shortened extra wait for the steps the current thread leaves running.
+    pub(crate) static EXTRA_WAIT_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
 
 /// What:
@@ -600,8 +659,15 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
     let subject: String = step_subject(request);
     let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
+    let bound: StepBound = step_bound(request);
+    // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
+    let _recorded = if matches!(bound, StepBound::Unbounded) {
+        crate::service_busy::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
+    } else {
+        None
+    };
     let output: std::process::Output =
-        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), step_ceiling(request))?;
+        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound)?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

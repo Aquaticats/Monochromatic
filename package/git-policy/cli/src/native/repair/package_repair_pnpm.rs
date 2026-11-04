@@ -61,7 +61,7 @@ pub fn repair_pnpm(destination: &Path, environment: &RepairEnvironment) -> Optio
         return Some(missing_tool(Tool::Pnpm, PROGRAM, manual.as_str()));
     };
     let command: ToolCommand = ToolCommand { arguments: ARGUMENTS.iter().map(OsString::from).collect(), directory: PathBuf::from(destination), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, environment.quiet_window);
+    let run: ToolRun = run_tool(program.as_path(), &command, environment.limits());
     crate::diagnostic_log::debug("packageRepairPnpm", format!("{}: {} ended {:?} after {} ms", destination.display(), program.display(), run.end, run.millis).as_str());
     return Some(finding_from(Tool::Pnpm, &run, "pnpm relinked node_modules", manual.as_str()));
 }

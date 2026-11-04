@@ -8,6 +8,14 @@ use crate::test_support::{fixture, remove};
 /// A limit long enough that no control reaches it unless the control is about the limit.
 const GENEROUS: Duration = Duration::from_secs(60);
 
+/// A ceiling no control reaches unless the control is about the ceiling.
+const ROOMY: Duration = Duration::from_secs(3600);
+
+/// The limits of a control that is about the quiet window only.
+fn limits(window: Duration) -> ToolLimits {
+    return ToolLimits { window, ceiling: ROOMY };
+}
+
 /// A limit short enough to wait out.
 const BRIEF: Duration = Duration::from_millis(300);
 
@@ -55,7 +63,7 @@ fn runs_in_the_directory_with_the_variables_and_reports_success() {
         format!("#!/bin/sh\npwd -P > '{}'\nprintf '%s' \"$REPAIR_PROBE\" >> '{}'\n", record.display(), record.display()).as_bytes(),
     );
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: vec![(OsString::from("REPAIR_PROBE"), OsString::from("kept"))] };
-    let run: ToolRun = run_tool(program.as_path(), &command, GENEROUS);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(GENEROUS));
     assert_eq!(run.end, ToolEnd::Succeeded);
     let recorded: String = std::fs::read_to_string(&record).expect("record");
     assert!(recorded.starts_with(root.to_str().expect("utf8 root")), "ran in {recorded}");
@@ -70,7 +78,7 @@ fn reports_a_failure_with_its_status_and_output() {
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), format!("#!/bin/sh\necho 'reason printed on stderr' >&2\nexit {FAILING_STATUS}\n").as_bytes());
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, GENEROUS);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(GENEROUS));
     let ToolEnd::Failed(text) = run.end else { panic!("expected a failure, got {:?}", run.end) };
     assert!(text.contains(FAILING_STATUS.to_string().as_str()), "status missing in {text}");
     assert!(text.contains("reason printed on stderr"), "output missing in {text}");
@@ -84,7 +92,7 @@ fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
     let program: PathBuf = root.join("tool");
     executable(program.as_path(), format!("#!/bin/sh\nexec sleep {SLOW_SECONDS}\n").as_bytes());
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, BRIEF);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(BRIEF));
     assert_eq!(run.end, ToolEnd::TimedOut);
     assert!(run.millis < u128::from(SLOW_SECONDS) * 1000, "the run waited {} ms for a program stopped at its limit", run.millis);
     remove(&root);
@@ -95,7 +103,7 @@ fn stops_a_program_that_shows_no_sign_of_work_for_its_window() {
 fn reports_a_program_that_cannot_start() {
     let root: PathBuf = fixture("runs-unstartable");
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(root.join("absent").as_path(), &command, GENEROUS);
+    let run: ToolRun = run_tool(root.join("absent").as_path(), &command, limits(GENEROUS));
     assert!(matches!(run.end, ToolEnd::Failed(_)), "got {:?}", run.end);
     remove(&root);
 }
@@ -122,8 +130,52 @@ fn a_program_that_keeps_working_is_never_stopped_however_long_it_runs() {
         format!("#!/bin/sh\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n").as_bytes(),
     );
     let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
-    let run: ToolRun = run_tool(program.as_path(), &command, WORKING_WINDOW);
+    let run: ToolRun = run_tool(program.as_path(), &command, limits(WORKING_WINDOW));
     assert_eq!(run.end, ToolEnd::Succeeded);
     assert!(run.millis > WORKING_WINDOW.as_millis() * 2, "the fixture ran only {} ms", run.millis);
+    remove(&root);
+}
+
+/// The ceiling of the control below: well past the quiet window, well short of the fixture's length.
+const SHORT_CEILING: Duration = Duration::from_secs(2);
+
+/// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a tool that keeps printing is ended at the ceiling, with its whole
+/// process group, though it is never quiet. The fixture starts a helper that prints too, so a stop of the leader alone would leave
+/// output flowing and the control would see the helper outlive the run.
+#[test]
+fn a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_group() {
+    let root: PathBuf = fixture("runs-ceiling");
+    let program: PathBuf = root.join("tool");
+    let helper_record: PathBuf = root.join("helper-pid");
+    let rounds: u32 = 100;
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\n(echo $$ > '{record}'; n=0; while [ $n -lt {rounds} ]; do echo helper; sleep 0.2; n=$((n + 1)); done) &\nn=0\nwhile [ $n -lt {rounds} ]; do echo progress; sleep 0.2; n=$((n + 1)); done\n",
+            record = helper_record.display()
+        )
+        .as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: WORKING_WINDOW, ceiling: SHORT_CEILING });
+    assert_eq!(run.end, ToolEnd::CeilingReached(SHORT_CEILING), "ran {} ms", run.millis);
+    assert!(run.millis >= SHORT_CEILING.as_millis() && run.millis < u128::from(SLOW_SECONDS) * 1000 / 2, "the run lasted {} ms against a ceiling of {SHORT_CEILING:?}", run.millis);
+    let helper: String = std::fs::read_to_string(&helper_record).expect("the helper recorded its process number");
+    let helper_pid: i32 = helper.trim().parse().expect("a process number");
+    // SAFETY: `kill` with signal 0 only asks whether the process exists.
+    let alive: bool = unsafe { libc::kill(helper_pid, 0) } == 0;
+    assert!(!alive, "the helper of the tool outlived the stop of its group");
+    remove(&root);
+}
+
+/// A tool that finishes before the ceiling is not touched by it.
+#[test]
+fn a_program_that_finishes_before_its_ceiling_succeeds() {
+    let root: PathBuf = fixture("runs-under-ceiling");
+    let program: PathBuf = root.join("tool");
+    executable(program.as_path(), b"#!/bin/sh\necho done\n");
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let run: ToolRun = run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: GENEROUS });
+    assert_eq!(run.end, ToolEnd::Succeeded);
     remove(&root);
 }

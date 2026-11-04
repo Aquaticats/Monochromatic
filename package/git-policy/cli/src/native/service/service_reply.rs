@@ -67,6 +67,26 @@ fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
 /// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (!write(m ?? heartbeat)) return; }
 /// ```
 pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMessage>, every: Duration) {
+    write_until_answered_noting(stream, messages, every, &mut || { return None; });
+}
+
+/// What:
+///  `write_until_answered`, where `note` is asked for a message whenever the beat is due, and what it returns is written before the
+///  beat.
+/// Why:
+///   A client queued behind a write that never ends is told what the service is stuck in (`service_busy.rs`); the beat is the
+///  one moment this thread has nothing queued to write, so the notice rides on it and is asked for at most once a beat.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (m === undefined) { const n = note(); if (n && !write(n)) return; } if (!write(m ?? heartbeat)) return; }
+/// ```
+pub fn write_until_answered_noting(
+    stream: &UnixStream,
+    messages: &Receiver<ServiceMessage>,
+    every: Duration,
+    note: &mut dyn FnMut() -> Option<ServiceMessage>,
+) {
     loop {
         match messages.recv_timeout(every) {
             Ok(message) => {
@@ -75,6 +95,11 @@ pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMess
                 }
             }
             Err(RecvTimeoutError::Timeout) => {
+                if let Some(notice) = note()
+                    && !write_line(stream, &notice)
+                {
+                    return;
+                }
                 if !write_line(stream, &ServiceMessage::Heartbeat) {
                     return;
                 }
