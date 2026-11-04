@@ -65,3 +65,21 @@ fn a_helper_whose_descriptor_closing_fails_is_reported_to_the_launcher() {
     assert_eq!(code, Some(SETUP_FAILED), "the helper's setup failure reaches the caller");
     assert!(!ran, "the entry never ran");
 }
+
+/// Review 10a section 3D: a ready byte returned success even when the intermediate child had not been reaped; paused after its second
+/// fork, it still held every inherited lock and pipe description. The launch accounts for the intermediate child too: it kills and reaps
+/// a first child that does not leave in time, and returns success only with no child of the launcher left unreaped.
+#[test]
+fn a_ready_helper_does_not_make_the_launch_succeed_while_the_intermediate_child_is_unreaped() {
+    let code: Option<i32> = in_single_threaded_process(|| {
+        inject_launch_fault(Some(LaunchFault::FirstChildHangs));
+        let launched: i32 = launch_code(launch_detached(|| { return 0; }));
+        if launched != 0 {
+            return launched;
+        }
+        // SAFETY: `waitpid` with a null status asks only whether any child is left: -1 with `ECHILD` means none, 0 means one still runs.
+        let left: libc::pid_t = unsafe { libc::waitpid(-1, std::ptr::null_mut(), libc::WNOHANG) };
+        return if left == -1 { 0 } else { 40 };
+    });
+    assert_eq!(code, Some(0), "the launch left its intermediate child unreaped");
+}

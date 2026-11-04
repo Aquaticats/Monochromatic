@@ -77,20 +77,98 @@ fn a_receipt_that_joins_after_the_error_listing_is_recorded() {
     assert_eq!(names.iter().filter(|name| { return name.as_str() == "x"; }).count(), 1, "and one record: {:?}", names);
 }
 
-/// Review 9a section 4: the release window with a real second flusher. A receipt that cannot be forced (a dangling link) is created in
-/// the window and a launched flusher takes the free lock; the first flusher hands over, and the record of the failure is the second
-/// flusher's.
+thread_local! {
+    /// The lane and the joiner of the launch-window controls, for their fault-point callback.
+    static LAUNCH_WINDOW: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+/// The fault point after the launcher read the helper's report and before it lets go of its copy of the lock: waits (bounded) for any
+/// helper that does not wait for the launcher to have recorded the first receipt's failure, then lets a client X create a receipt that
+/// cannot be forced and launch a flusher (it finds the lock held).
+fn client_joins_in_the_launch_window(name: &str) {
+    if name != "launch:after-report" {
+        return;
+    }
+    let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
+    let deadline: Instant = Instant::now() + Duration::from_millis(300);
+    while !recorded(&lane).iter().any(|name| { return name == "r1"; }) && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
+    let joined = launch_flusher(&lane).expect("client X's launch");
+    assert_eq!(joined, git_policy_cli::commit_flusher::Launched::LockHeld, "X found the lock held by the launcher's description");
+}
+
+/// Review 10a section 3A, healthy path: the helper reported ready; the launcher still holds its copy of the lock. A helper that did not
+/// wait for the launcher to let go finished, released its description and exited, and client X, finding the lock held by the launcher's
+/// copy, started nothing: no executor and no record. The helper now waits for the launcher's handover before it works, so X's receipt is
+/// in the sweep it runs.
 #[test]
-fn a_flusher_launched_in_the_release_window_carries_the_receipt_the_first_hands_over() {
-    let lane: PathBuf = lane_with("flusher-real-handover", &["r1"]);
-    let dangling: PathBuf = lane.join(RECEIPT_DIR).join("r2");
+fn a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor() {
+    let lane: PathBuf = lane_with("flusher-launch-window", &[]);
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
+    let launch_lane: PathBuf = lane.clone();
+    let launched: Option<i32> = in_single_threaded_process(move || {
+        LAUNCH_WINDOW.with(|cell| { *cell.borrow_mut() = Some(launch_lane.clone()); });
+        set_fault_point(Some(client_joins_in_the_launch_window));
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    assert_eq!(launched, Some(0));
+    let deadline: Instant = Instant::now() + Duration::from_secs(5);
+    while !recorded(&lane).iter().any(|name| { return name == "x"; }) {
+        assert!(Instant::now() < deadline, "client X has no executor and no record: {:?}", recorded(&lane));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Review 10a section 3A, failed setup: clients that joined while the launcher held the lock for a helper whose setup then failed started
+/// nothing. The launcher drops the lock and records every receipt it finds, joiners included, as unforced.
+#[test]
+fn a_client_that_joined_a_launch_whose_setup_failed_is_recorded() {
+    let lane: PathBuf = lane_with("flusher-launch-failed", &["r1"]);
+    let launch_lane: PathBuf = lane.clone();
+    let launched: Option<i32> = in_single_threaded_process(move || {
+        LAUNCH_WINDOW.with(|cell| { *cell.borrow_mut() = Some(launch_lane.clone()); });
+        git_policy_cli::commit_helper_launch::inject_launch_fault(Some(git_policy_cli::commit_helper_launch::LaunchFault::Streams));
+        set_fault_point(Some(client_joins_in_the_failed_launch));
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    assert_eq!(launched, Some(14), "the launch failed in the helper's setup");
+    let names: Vec<String> = recorded(&lane);
+    assert!(names.iter().any(|name| { return name == "x"; }), "the joiner has no record: {:?}", names);
+    assert!(names.iter().any(|name| { return name == "r1"; }), "the launching client's own receipt has no record: {:?}", names);
+}
+
+/// The joiner of the failed launch: a receipt created and a launch that finds the lock held.
+fn client_joins_in_the_failed_launch(name: &str) {
+    if name != "launch:after-report" {
+        return;
+    }
+    let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
+    fs::write(lane.join(RECEIPT_DIR).join("x"), b"receipt").expect("client X's receipt");
+    let joined = launch_flusher(&lane).expect("client X's launch");
+    assert_eq!(joined, git_policy_cli::commit_flusher::Launched::LockHeld);
+}
+
+/// Review 10a section 4 and 9a section 4: the real handover, deterministic. The second executor is pinned across the handover decision
+/// (its forcing of a FIFO receipt blocks until the test opens a writer), so the first flusher finds the lock held, returns `Handed`, and the
+/// second then does its own work and records what it cannot force.
+#[test]
+fn a_second_executor_pinned_across_the_handover_decision_carries_the_receipt() {
+    let lane: PathBuf = lane_with("flusher-pinned-handover", &["r1"]);
+    let fifo: PathBuf = lane.join(RECEIPT_DIR).join("r2");
     let launch_lane: PathBuf = lane.clone();
     let mut launched: Option<i32> = None;
     let outcome: Flushed = flush_lane_with(
         &lane,
         &mut |_: &Path| { return Ok(()); },
         &mut || {
-            std::os::unix::fs::symlink(launch_lane.join("nowhere"), &dangling).expect("a receipt that cannot be forced");
+            {
+                use std::os::unix::ffi::OsStrExt;
+                let path = std::ffi::CString::new(fifo.as_os_str().as_bytes()).expect("a path without NUL");
+                // SAFETY: `mkfifo` takes a NUL-terminated path and a mode.
+                assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0, "mkfifo");
+            }
             let lane_for_child: PathBuf = launch_lane.clone();
             launched = in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&lane_for_child)); });
         },
@@ -98,9 +176,12 @@ fn a_flusher_launched_in_the_release_window_carries_the_receipt_the_first_hands_
     .expect("flush");
     assert_eq!(launched, Some(0), "the launch");
     assert_eq!(outcome, Flushed::Handed { forced: 1 });
+    // The pinned executor's `open` of the FIFO returns once a writer exists; forcing a FIFO then fails and the failure is recorded.
+    let writer = fs::OpenOptions::new().read(true).write(true).open(&fifo).expect("a writer releases the pinned executor");
     let deadline: Instant = Instant::now() + Duration::from_secs(10);
     while !recorded(&lane).iter().any(|name| { return name == "r2"; }) {
-        assert!(Instant::now() < deadline, "the second flusher recorded nothing: {:?}", recorded(&lane));
+        assert!(Instant::now() < deadline, "the second executor recorded nothing: {:?}", recorded(&lane));
         std::thread::sleep(Duration::from_millis(5));
     }
+    drop(writer);
 }

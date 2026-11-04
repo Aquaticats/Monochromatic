@@ -43,6 +43,8 @@ pub enum LaunchFault {
     Streams,
     /// The helper's descriptors cannot be closed.
     Descriptors,
+    /// The first child stalls (and is killed by its own alarm) after its second fork, before it exits.
+    FirstChildHangs,
 }
 
 #[cfg(feature = "test-seams")]
@@ -51,7 +53,7 @@ static FAULT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 /// Makes the next launches of this process (and of the children it forks) fail at `fault`; `None` clears it.
 #[cfg(feature = "test-seams")]
 pub fn inject_launch_fault(fault: Option<LaunchFault>) {
-    let code: u8 = match fault { None => 0, Some(LaunchFault::SecondFork) => 1, Some(LaunchFault::Streams) => 2, Some(LaunchFault::Descriptors) => 3 };
+    let code: u8 = match fault { None => 0, Some(LaunchFault::SecondFork) => 1, Some(LaunchFault::Streams) => 2, Some(LaunchFault::Descriptors) => 3, Some(LaunchFault::FirstChildHangs) => 4 };
     FAULT.store(code, std::sync::atomic::Ordering::SeqCst);
 }
 
@@ -341,6 +343,12 @@ pub fn launch_detached_keeping<F: FnOnce() -> i32>(keep: &[libc::c_int], entry: 
                 libc::_exit(2);
             }
             if second > 0 {
+                if injected(4) {
+                    libc::alarm(20);
+                    loop {
+                        libc::pause();
+                    }
+                }
                 libc::_exit(0);
             }
         }
@@ -355,8 +363,9 @@ pub fn launch_detached_keeping<F: FnOnce() -> i32>(keep: &[libc::c_int], entry: 
     FORKED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     // SAFETY: the launcher's copy of the write end is closed so that end of input means every writer is gone.
     unsafe { libc::close(write_end) };
-    let deadline: Instant = Instant::now() + LAUNCH_CONFIRM_LIMIT;
+    let deadline: Instant = Instant::now() + if injected(4) { Duration::from_millis(200) } else { LAUNCH_CONFIRM_LIMIT };
     let report = read_report(read_end, deadline);
+    super::commit_identity::fault_point("launch:after-report");
     // SAFETY: the read end is this call's own.
     unsafe { libc::close(read_end) };
     let (byte, timed_out) = report?;

@@ -223,3 +223,24 @@ fn many_clients_start_one_helper_and_it_holds_the_lock() {
     assert_eq!(forked, Some(1), "one helper for all the clients");
     assert!(holds, "the helper holds the lock while it works");
 }
+
+/// Review 10a section 3C: a launch from a process whose descriptor 0 is closed. The lock opens as descriptor 0, the helper redirects its
+/// standard streams over it, and its lock description is gone while it believes it holds the lock. The lock is moved above the standard
+/// streams when it is taken, so the helper holds it for as long as it works.
+#[test]
+fn a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock() {
+    let lane: PathBuf = lane_with("flusher-closed-zero", &[]);
+    fifo_receipt(&lane, "r1");
+    let launch_lane: PathBuf = lane.clone();
+    let launched: Option<i32> = in_single_threaded_process(move || {
+        // SAFETY: closing descriptor 0 of this one-thread copy of the test process; nothing else reads it.
+        unsafe { libc::close(0) };
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    let holds: bool = FlusherLock::try_acquire(&lane).expect("lock").is_none();
+    let opened = fs::OpenOptions::new().read(true).write(true).open(lane.join(RECEIPT_DIR).join("r1"));
+    wait_for_lock_free(&lane);
+    drop(opened);
+    assert_eq!(launched, Some(0));
+    assert!(holds, "the helper's lock description was overwritten by its standard-stream setup");
+}
