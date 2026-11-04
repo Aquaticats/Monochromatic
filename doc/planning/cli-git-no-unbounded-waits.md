@@ -811,8 +811,9 @@ named fixes. Each finding, with its disposition and its test (red first unless s
   `symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs`.
   The reflog setting must be the last `-c` of its key (the key is not case-sensitive and `--config-env` of it is refused), and the
   `init` form is the exact argv of `shadow_create.rs`; those two controls were written after their code and not run red first.
-  `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists, so the proof for
-  `refs/cli-git/kept/<seq>` rests on the sequence number being new at each use (noted beside `is_side_ref`).
+  `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists. The first answer to
+  that was that the proof rests on the sequence number being new at each use; the round 3 review rejected it (an earlier release or
+  another writer may have made the log), and round 4 replaced it with a check (below).
 - Unbounded capture read (sol-1 P1, sol-2 A). The output is read once as a snapshot of the last `STEP_OUTPUT_LIMIT` bytes of the
   sizes found when the read began, with a note for what was left out and for a read that failed; the files are emptied after the
   read and when the command stops waiting for a step. Tests in `output_capture_tests.rs`
@@ -924,3 +925,53 @@ decision rules out for branch writes.
 D over B because D loses at worst one cut write that the journal recovery is built to settle, where B can report a landed commit as
 dropped with no recovery at all, and only a change to releases that are already published could make it safe.
 The choice is the owner's: it is between "Commits should never fail." (D, and B if it were safe) and "never discard user data" (A, C).
+
+## Round 4, 2026-11-04: the findings of the cross-vendor review of round 3
+
+Review: `/var/home/user/temp/agent/reviews/branch-write-r3-sol.txt` ("correct after named fixes"). Each finding, its fix and its test:
+
+- A, P1. Withdrawal confirmations were not tied to a decision generation. The decision now reads `withdrawn:<token>` and its
+  confirmation is `<id>.<token>.cancelled`; a withdrawer acknowledges another's decision only when the confirmation with that
+  decision's token exists. The retention moved to the landing thread (`end_group`), so there is one pruner, and it removes a decision
+  only while it still carries the token of the confirmation it removes, so a replacement from a stale listing stays. The comment about
+  the order of the two removals was wrong (the decision first leaves the confirmation standing alone) and is replaced by the rule above.
+  Tests: `a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision` (the reviewer's schedule: failed when the
+  confirmation was shared by the id again) and `the_retention_never_removes_a_decision_that_replaced_the_one_it_listed`.
+- B, P1. An existing reflog defeats the side-ref proof. `step_bound_checked` asks `git reflog exists <ref>` at the start of the write,
+  on either ref backend, and the write keeps its ceiling only when Git answers that there is none; Git that cannot be asked is no
+  proof. Test: `a_side_ref_that_has_a_reflog_keeps_no_ceiling` (files and reftable repositories, both side-ref shapes, set and
+  delete, and a missing repository).
+- C, P1. A foreign-owner refusal could follow mutations. Every owner is now judged once before anything changes: the journals and the
+  stage claims and temporaries of a worktree copy (`judge_stage_owners`, `reap_judged_stages`), and the records of the merge recovery.
+  `token_owner_is_dead` reads the item's age once and propagates the expiry; it no longer calls `is_alive`, which read it again and
+  whose refusal was swallowed. Tests: `an_expired_foreign_journal_after_a_dead_one_stops_recovery_before_the_dead_one_is_touched`,
+  `an_expired_foreign_claim_stops_the_sweep_before_any_stage_is_removed`,
+  `an_expired_foreign_temporary_stops_the_sweep_before_any_temporary_is_removed`,
+  `an_old_record_of_another_namespace_after_a_dead_one_stops_recovery_before_the_dead_one_is_settled`, and
+  `an_owner_of_another_namespace_is_judged_from_one_reading_of_its_item` (counts the lookups). An item that is young when judged and
+  expires during the run is acted on as judged; it is refused by the next command.
+- D, P1. The review timeout could wait for ever after the worker released the runner and stalled before its send. The caller now waits
+  for the value at most `SHORT_EXTRA_WAIT` and reports the ceiling otherwise. Test:
+  `a_worker_that_stalls_between_its_release_and_its_send_does_not_hold_the_caller` (with a deadline of its own; the unbounded receive
+  fails it after thirty seconds), and the controlled `a_runner_with_a_running_job_admits_no_other`.
+- E, P2. The notes of the snapshot reach the person (the failure text of a repair tool) and the result (`ToolRun::notes`); the
+  `cargo metadata` of a repair refuses cut output; `output_of` and the stop path of `run_tool` release the pages. Tests:
+  `output_past_the_snapshot_is_disclosed_to_the_person`, `the_output_of_a_step_is_released_once_it_is_read`, and
+  `a_stopped_tool_is_reaped_through_the_budgeted_reaper_after_its_output_is_released` (a reaper is given to `run_tool_reaping`).
+- `init`. The first round 3 report said `init` came out different in 64 of 64 cuts with 57 second runs failing. That run gave the step
+  an absolute path in the template directory, so it measured a shared directory; it is withdrawn (see "The cut experiment"). With the
+  path relative to each copy: in place, 50 of 104 cuts differ and every second run exits zero; with the partial directory discarded
+  and a fresh one made, 104 of 104 are identical. `init_with_git` discards and starts again, at most `SHADOW_CREATION_ATTEMPTS` (2)
+  times, also when the system refused the start, and `init` is no longer in the allow-list of steps run again in place. Tests:
+  `a_shadow_whose_init_was_cut_is_made_again_in_a_fresh_directory`,
+  `a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_nothing`, `only_the_shadow_creation_init_keeps_a_ceiling`.
+- Tests the reviewer called too weak: the snapshot control appends after every chunk the reader takes
+  (`the_snapshot_reads_the_length_it_found_and_no_more`); the failed-write control fails inside `decide`
+  (`a_decision_whose_write_fails_leaves_no_temporary_file`); the 10 ms helper control is kept for what it proves (the run does not
+  wait for a helper) and the snapshot boundary is proven by the control above, since a loop that writes fast enough to outrun a reader
+  is a busy loop, which the synthetic-load rule forbids. Not written: a binary test that a busy legacy service and its Git children are
+  untouched when the legacy socket is stopped. It needs a legacy-socket client and a service held in a landing, which the harness has
+  no helper for; the recorder controls (`an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`)
+  and the fake-bus call order in `binary_service_provision_tests.rs` cover the wrapper's calls.
+- Legacy retirement: the reviewer calls failing (retryable) the correct safety direction; the options for the owner are in
+  "Retirement of the single service of the earlier releases".

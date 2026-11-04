@@ -691,11 +691,10 @@ fn has_global_setting(arguments: &[OsString], setting: &str) -> bool {
 }
 
 /// Whether `word` names a side ref the wrapper makes for itself: `refs/cli-git/kept/<number>` or
-///  `refs/worktree/cli-git-service/<number>`. The number is all digits, so no `..` and no further path can stand in it. The sequence
-///  number is new at each use, so the ref has no reflog file yet: `core.logAllRefUpdates=false` stops a reflog from being created
-///  but does not stop an append to one that exists, so reusing a number would void the proof. That the ref
-///  is a plain ref and has no reflog is not assumed: the classifier requires `--no-deref` and `NO_REFLOG_SETTING` on the exact
-///  argv (`is_proven_to_run_twice`).
+///  `refs/worktree/cli-git-service/<number>`. The number is all digits, so no `..` and no further path can stand in it. That the ref is a plain ref and
+///  has no reflog is not assumed: the classifier requires `--no-deref` and `NO_REFLOG_SETTING` on the exact argv
+///  (`is_proven_to_run_twice`), and `step_bound_checked` asks Git whether a reflog exists for the ref at the start of the write,
+///  because `core.logAllRefUpdates=false` does not stop an append to a log that exists, whatever the sequence number.
 fn is_side_ref(word: &str) -> bool {
     return ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"]
         .iter()
