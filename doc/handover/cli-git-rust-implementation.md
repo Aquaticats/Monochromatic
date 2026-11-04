@@ -309,7 +309,7 @@ Done since the last list:
   components items 3.5 to 3.7 and removal of unused legacy modules.
 - #6260 merged into the base.
 
-Started at 2026-11-04T03:40-05:00 from main `05c16d73d2`,
+Started before 2026-11-04T03:34:02-05:00 (the commit `372828457c` that records them) from main `05c16d73d2`,
 each in its own worktree:
 - Latency round 3,
   `perf/git-policy-cli-less-foreground-work`:
