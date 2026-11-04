@@ -3547,6 +3547,35 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     and the models agent was told.
   The first two are built on `fix/git-policy-cli-branch-write-and-tool-ceilings`,
   with the never-run follow-up of shipped-limits pick 7 (re-derive the one-hour namespace-record block from the 10-minute lock ceiling).
+  Built (tip `607e568e7d`,
+  gate r3 4780/4780,
+  clippy clean,
+  not merged,
+  no cross-vendor review yet):
+  `update-ref` and the other in-place writers have no step ceiling;
+  queued commits are told what the service is stuck in and withdrawn at their own ceiling;
+  `FOREIGN_OWNER_PATIENCE` is 1200 s (twice `LOCK_CEILING`);
+  repair tool 18 min (whole process group),
+  Markdown linter 4 min,
+  review call 1 min,
+  whole review 2 min,
+  each five times the longest measured run (warm stores only).
+  Follow-up sent to the agent (`aa0fee0c2cf70bb31`),
+  decided by the owner's own wording:
+  the commit inside the stuck write returns at its own bound plus the short extra wait ("a few more seconds,
+  a constant to be measured"),
+  not at the 10-minute `WITHDRAW_CEILING`;
+  a step keeps its ceiling exactly when it can run twice,
+  decided per step by cutting it on a throwaway repository and comparing with an uncut run;
+  every step without a ceiling still lets the person's command return at its own bound with a not-known error,
+  the step left running;
+  the service never restarts itself out of a stuck write;
+  cold-store `pnpm install` and Cargo stage measured before the ceilings are fixed.
+  Asked of the owner:
+  the multiple for the tool ceilings and the length of the short extra wait.
+  Then the cross-vendor review of the whole branch,
+  merge,
+  and release 0.5.31.
   - Every other live pick in `doc/planning/cli-git-delegated-picks-status.md`,
     asked in seven grouped questions,
     each answered "Keep all (Recommended)":
@@ -3667,9 +3696,20 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     (measured: `unshare --time --boottime 7200` moves the same process's field 22 by 720000 ticks);
     the shim test now asserts the delegated scope,
     the consumed `ContainmentStopStuck` fault and the not-quiescent refusal.
-    Change review running:
-    `cargo-shadow-sol-14.txt` (prompt `cargo-shadow-prompt-14.txt`,
-    contract snapshot `cargo-shadow-guarantees-2530e617f4.md`).
+    Change review `cargo-shadow-sol-14.txt`:
+    "Does not meet the list for the changes; not ready for the certification pass":
+    the distinct-time-namespace schedule and the shim evidence are closed;
+    namespace inode numbers are recycled,
+    and a writer's current time namespace can differ from its children's,
+    so a recorded number can name a later namespace and a live launcher reads as gone;
+    the shifted-start prerequisite accepts a read error,
+    and the recovery assertion does not name its refusal.
+    Round 15 sent to the agent (`ae0fbdf78c31bd757`):
+    a namespace-independent launcher identity (suggested:
+    the pidfs inode of the launcher's pidfd,
+    to be verified from the kernel source),
+    else Unknown on any start mismatch whose basis is unproven;
+    both test assertions tightened.
     Queued after a change review with no defect:
     a certification pass that attaches the test bodies the map names,
     split by row group under 250 KB per review,
