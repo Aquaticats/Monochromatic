@@ -106,6 +106,14 @@ const INBOX: &str = "inbox";
 /// other retained file, however well formed, is not evidence that a request or saved content was settled.
 pub const LANE_LEDGER: &str = "ledger";
 
+/// The line prefix with which a document names a file of the lane that it depends on: `cli-git-needs <hex of the relative path>`.
+const NEEDS_PREFIX: &str = "cli-git-needs ";
+
+/// The line a document carries to name `path` (relative to the lane) as a dependency; the line ends with a newline.
+pub fn needs_line(path: &Path) -> String {
+    return format!("{}{}\n", NEEDS_PREFIX, super::commit_integrity::hex(path.as_os_str().as_encoded_bytes()));
+}
+
 /// The directory of the lane that holds immutable saved content, one file per content, named by the SHA-256 of its bytes.
 const SAVED: &str = "saved";
 

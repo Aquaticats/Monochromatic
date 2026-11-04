@@ -728,3 +728,59 @@ fn r15_recovery_reaches_a_retirement_record_after_the_disposal_removed_the_conte
     std::fs::remove_file(&saved).expect("the disposal removes the content");
     assert_eq!(read(&state).expect("recovery reaches the retirement record").expect("state"), (3, b"s is disposed".to_vec()));
 }
+
+/// A document that names `paths` as its dependencies and says `text`.
+fn document_needing(text: &str, paths: &[&std::path::Path]) -> Vec<u8> {
+    let mut document: String = String::from(text);
+    document.push('\n');
+    for path in paths {
+        document.push_str(&git_policy_cli::commit_state_log::needs_line(path));
+    }
+    return document.into_bytes();
+}
+
+/// Writes one raw record the way the log encodes it, bypassing the writer: what a crash, an older version or a damaged disk could leave.
+fn raw_record(generation: u64, previous: &str, payload: &[u8]) -> (Vec<u8>, String) {
+    let header: String = format!("rec {} {} {}\n", generation, previous, payload.len());
+    let mut material: Vec<u8> = previous.as_bytes().to_vec();
+    material.extend_from_slice(header.as_bytes());
+    material.extend_from_slice(payload);
+    let hash: String = git_policy_cli::commit_integrity::sha256_hex(&material);
+    let mut bytes: Vec<u8> = header.into_bytes();
+    bytes.extend_from_slice(payload);
+    bytes.extend_from_slice(format!("\nhash {}\n", hash).as_bytes());
+    return (bytes, hash);
+}
+
+/// Review 9a section 2A: a checkpoint (or an append) took a document and an independently supplied list. A durable record retaining nothing,
+/// then a request R that is visible and not durable, then a checkpoint whose document requires R and passes no items: no dependency was
+/// forced, the predecessor was removed, and after R was lost recovery accepted the document. A document names what it depends on, and a set
+/// that does not cover it is refused at the writer.
+#[test]
+fn r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it() {
+    let (lane, state, envelope) = lane_with_envelope("r15-document-bound");
+    append(&state, 1, b"first").expect("a durable record that retains nothing");
+    let relative: PathBuf = PathBuf::from("inbox").join(envelope.file_name().expect("name"));
+    let document: Vec<u8> = document_needing("requires the request", &[&relative]);
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    assert!(writer.begin_checkpoint(2, &document, &[]).is_err(), "a checkpoint whose document needs a request was accepted with no items");
+    assert!(writer.append_with(2, &document, &[]).is_err(), "an append whose document needs a request was accepted with no items");
+    assert_eq!(rotation_number(&state).expect("listing"), Some(1), "no candidate segment was started");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    writer.checkpoint(2, &document, std::slice::from_ref(&request)).expect("the covered document is accepted");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+}
+
+/// Recovery enforces the same rule on bytes the writer did not produce: a record whose document names a dependency that its own set does
+/// not cover is not selected, and the previous record is.
+#[test]
+fn r15_recovery_does_not_select_a_document_whose_needs_its_set_does_not_cover() {
+    let (_lane, state, envelope) = lane_with_envelope("r15-document-bound-recovery");
+    let relative: PathBuf = PathBuf::from("inbox").join(envelope.file_name().expect("name"));
+    let (first, hash) = raw_record(1, &"0".repeat(64), b"first");
+    let (second, _) = raw_record(2, &hash, &document_needing("requires the request", &[&relative]));
+    let mut bytes: Vec<u8> = first;
+    bytes.extend_from_slice(&second);
+    std::fs::write(state.join("state.log.1"), bytes).expect("a log the writer did not produce");
+    assert_eq!(read(&state).expect("readable").expect("state"), (1, b"first".to_vec()));
+}
