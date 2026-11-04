@@ -3057,6 +3057,10 @@ Kept, each with its reason in the code and here:
 - The mutex on the pending bytes of the journal's stream (`journald_native.rs`):
   a stream may take a line in parts and two lines must never run together, so the unfinished rest of a line and the write that
   finishes it are one critical section of one non-blocking write; the waiter waits for one system call, never for the journal.
+- The reclaim of a stale `index.lock`:
+  one reclaimer at a time, by a non-blocking `flock` on the stale lock's own file (`service_index_reclaim.rs`) or, where the file system
+  refuses `flock`, by the claim chain of placed files and process-identity judgements (`service_index_claim.rs`, reason in `take_claim`);
+  the claim chain has no lock primitive for the scan above to find, so it is listed here and nowhere else (see "One reclaimer per stale lock").
 - The claim and its lease on work items (`work_item.rs`, `service_claim_renewal.rs`):
   rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
 
@@ -3171,11 +3175,13 @@ batches, and the wait of a landing) goes through `reclaim_if`, which opens the l
 a non-blocking exclusive `flock` on it, checks that the name still refers to that file (device and inode), and only then
 unlinks the name.
 Nothing is moved aside, so a live lock is never off its name.
-Where the `flock` answers anything but "held by another reclaimer" or "try again" (`EWOULDBLOCK`, `EINTR`, and `ENOMEM` from the
-kernel's lock record are the back-offs), the same steps run under the claim chain instead of the `flock`
-(`service_index_claim.rs`; "The claim chain" below). A file system gives no `flock` only when it defines the operation and refuses
-it (NFS, 9p, CIFS and FUSE do; `fs/locks.c` takes a local lock for every file system that defines none), so a local file system
-always takes the `flock` path.
+Where the `flock` answers that the file system gives none (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`, `EBADF`: what the file systems
+that define the operation return in `fs/nfs/file.c`, `fs/9p/vfs_file.c` and `fs/smb/client/file.c`), the same steps run under the claim chain
+instead of the `flock` (`service_index_claim.rs`; "The claim chain" below). `EWOULDBLOCK`, `EINTR` and `ENOMEM` (the kernel's lock record)
+are back-offs. Any other error (an I/O error from a lock manager, a timeout) is neither: another reclaimer may hold the `flock` while
+this call fails, a claim beside it would not keep the two apart, so the answer is Unguarded. A local file system always takes the `flock`
+path: `fs/locks.c` takes a local lock for every file system that defines no `flock` operation of its own, and only file systems that
+define one (for example NFS, 9p, CIFS, Ceph, and FUSE when its daemon refuses) can refuse.
 There are six answers, and each has its own consequence:
 
 - Removed: the stale file was removed, or was already gone; the placement is tried again.
@@ -3196,11 +3202,16 @@ There are six answers, and each has its own consequence:
 #### The claim chain
 
 Used instead of the `flock` on the stale file when the file system refuses it, and it needs no `flock` anywhere.
-A claim is a file named `<lock>.cli-reclaim-<device>-<inode>-<slot>`, with the device and inode of the stale file (the reclaimer
-holds it open, so no other file has that pair while a claim of it is in use) and a slot counted from zero. It holds the
-service marker of its maker, is written to a staging file and placed whole by a rename that does not replace (else a hard link),
-and is judged as a lock holder is (`holder_state_in`): a maker that is gone is passed over; a maker that runs or cannot be
-judged makes the reclaimer back off (`Busy`).
+A claim is a file named `<lock>.cli-reclaim-<key>-<slot>`, where the key is made from the marker of the stale lock (its batch, process,
+and the birth identity in hexadecimal), so that every reclaimer reaching the file by any mount derives one name: the device number of
+one remote tree can differ between two mounts of it. The process that marker names is gone and places no further lock with that marker,
+so a claim left under a key is inert; a marker that names no process (an earlier release's) falls back to the device and inode.
+A claim is mode 0644 whatever the umask, so that a reclaimer of another account can read it (one that cannot read a claim takes its
+maker to run). It holds the service marker of its maker with a random token in the batch field, is written to a staging file and placed
+whole by a rename that does not replace (else a hard link), and is judged as a lock holder is (`holder_state_in`): a maker that is gone
+is passed over; a maker that runs, cannot be judged or whose claim cannot be read makes the reclaimer back off (`Busy`). A placement
+that answers with an error although it took effect (a network file system can lose the answer) is recognised by the claim's text
+and is the reclaimer's own.
 The reclaimer places its claim at the first slot not taken by a running claimer, then reads every slot below its own again: all
 must still exist and name a gone maker, or it removes its own claim and backs off. It then runs the same name check and unlink as
 under the `flock`, and removes the claims from zero to its own once the name no longer refers to the stale file; when the unlink
@@ -3208,13 +3219,14 @@ fails it removes only its own.
 A claim of a dead maker is never removed while the stale file stands at its name, so a slot read as gone stays gone and in
 place, and no reclaimer can be placed below it; two holders would need one slot to be read as gone by the other, which its own
 claim or the exclusive placement prevents. The rule needs no birth time of the file, because a claim left by an earlier file with
-the same pair is a gone claim at a low slot and is passed over. A file at a claim's name that holds no whole marker is passed
+the same key is a gone claim at a low slot and is passed over. A file at a claim's name that holds no whole marker is passed
 over too, since a placed claim is whole.
 Limits: a claimer killed after the unlink and before its cleanup leaves inert `<lock>.cli-reclaim-*` files, which the next reclaim of
-a file with that pair removes and which a person may remove with `rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*`
+a file with that key removes and which a person may remove with `rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*`
 once no commit of the service runs (an alternate index: the directory of that index); a claimer alive on another host over a shared
-file system reads as gone, as a lock holder does (a boot ID that differs reads as gone); two mounts of one file system on one machine,
-one with `flock` and one without, are not kept apart, because neither path sees the other; and a claim cannot be placed on a full disk,
+file system reads as gone, as a lock holder does (a boot ID that differs reads as gone); a reclaimer on the `flock` path and one on the claim path of one file system are not kept apart, because neither path sees the other (it
+takes two mounts of one file system that differ in `flock` support, or a lock manager that answers "no locks" to one call and grants the
+next; an I/O error or timeout is not read as "no `flock`" for this reason); and a claim cannot be placed on a full disk,
 where the landing's own lock cannot be either.
 
 The lock is the one that `doc/planning/cli-git-one-reclaimer-per-index.md` argues for: the unit is the one file being

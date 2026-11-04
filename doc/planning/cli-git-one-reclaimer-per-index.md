@@ -185,7 +185,8 @@ needs no `flock` at all.
   always gives `flock`. Only file systems that define the operation can refuse: NFS (`nfs_flock` in `fs/nfs/file.c`, a byte-range
   emulation that needs a lock manager), 9p (`v9fs_file_flock_dotl` in `fs/9p/vfs_file.c`, returns `ENOLCK` unless converted),
   CIFS (`cifs_flock` in `fs/smb/client/file.c`, `ENOLCK` or `EOPNOTSUPP`), and FUSE (`fuse_file_flock` in `fs/fuse/file.c`, which
-  falls back to a local lock when the server has no lock support). Fetched from the kernel tree on 2026-11-04.
+  falls back to a local lock only when the server has no lock support, so a daemon that answers the lock request can refuse it;
+  Ceph and others define one too). Fetched from the kernel tree on 2026-11-04.
   A fixture with a real file system that refuses `flock` needs a mount of one of these, which a rootless container cannot make,
   so the controls stand in the refusal through `Platform::flock`.
 - Transient errors: the local `flock` can fail with `ENOMEM` when the lock record cannot be allocated (`fs/locks.c`); that says
@@ -199,9 +200,13 @@ needs no `flock` at all.
 
 ### The claim chain
 
-Used only when the `flock` on the stale file answers anything but "held by another" or "try again". All claims are files beside
-the lock, named `<lock>.cli-reclaim-<device>-<inode>-<slot>`, with the device and inode of the stale file (the reclaimer holds it
-open, so the inode number cannot be reused while any claim of that name is in use), and a slot number counted from zero.
+Used only when the `flock` on the stale file answers that the file system gives none (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`,
+`EBADF`). `EWOULDBLOCK`, `EINTR` and `ENOMEM` are back-offs, and any other error is `Unguarded` (see the cross-vendor review below).
+All claims are files beside the lock, named `<lock>.cli-reclaim-<key>-<slot>`, with a key made from the stale lock's marker (batch,
+process, birth identity in hexadecimal) and a slot number counted from zero. The first design keyed on the device and inode of the
+stale file; the review found that two mounts of one remote tree can give one file different device numbers, so two reclaimers would
+place at different names. The marker is the file's own content, the process it names is gone and places no further lock with that
+marker, and so no later lock carries the key.
 A claim holds the service marker of its claimer (batch zero, process, birth identity, boot, PID namespace), so
 `holder_state_in` judges a claimer exactly as it judges a lock holder. It is made like the lock: written to a staging file,
 then placed by a rename that does not replace, else a hard link (`place_marked`), so a claim is never visible half written.
@@ -225,8 +230,8 @@ slot behind it. Two holders would need slots a and b with a below b; b's step 2 
 (then b backs off) or a's live claim (b backs off). Two reclaimers placing at one slot are kept apart by the exclusive
 placement. A dead claimer's claim is neither judged nor removed by a race, because nobody removes it before the stale file is
 gone, and after that nothing destructive is left to guard: every later holder fails the check of the name.
-That is also why the rule needs no birth time of the file: an orphan claim left by an earlier file with the same device and
-inode is a gone claim at a low slot and is passed over.
+That is also why the rule needs no birth time of the file: an orphan claim left under the same key is a gone claim at a low slot and
+is passed over.
 
 Leftovers: a claimer killed between the unlink and the removal of claims leaves `<lock>.cli-reclaim-*` files. They are inert,
 passed over by every later reclaim of a file with that key, and removed by the first reclaim that finishes one. To remove them by
@@ -239,12 +244,16 @@ rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*
 ```
 
 What this does not close, with the schedule:
-- The mixed case: reclaimer one's `flock` works and holds, reclaimer two's `flock` on the same file answers "not there"
-  (two mounts of one file system on one machine, one with lock support and one without). One holds the `flock` and no
-  claim, the other a claim and no `flock`, and they do not see each other. No call closes it without making every reclaimer take
-  both (two locks on every reclaim, against the owner's "Use as few locks as possible"); it needs two different mounts of
-  one file system, and the errors are mapped so that no transient error takes the second path.
-- A claimer that is alive on another host reads as gone (boot ID differs), as a lock holder does: the existing cross-host limit.
+- The mixed case: reclaimer one's `flock` works and holds, reclaimer two's `flock` on the same file answers "not there". One holds the
+  `flock` and no claim, the other a claim and no `flock`, and they do not see each other. It takes two mounts of one file system that
+  differ in lock support, or a lock manager that answers `ENOLCK` to one call and grants the next. No call closes it without making
+  every reclaimer take the claim chain (the reviewer's fix: drop the `flock` fast path, which the owner said to keep: "I'm not banning
+  flock."); the errors are mapped so that a back-off errno (`EWOULDBLOCK`, `EINTR`, `ENOMEM`) never takes the claim path and an error
+  that does not say "no `flock` here" (`EIO`, a timeout) leaves the lock and says so.
+- A claimer that is alive on another host reads as gone (boot ID differs), as a lock holder does: the existing cross-host limit. The
+  same reading makes a reclaimer on another host judge a live claim gone, and then two reclaimers can both pass the name check. The
+  alternative, reading an incomparable identity as unknown, would stop recovery after a reboot of a shared file system, which
+  `holder_state_in` is written to allow; not changed here, and listed as open.
 - A claimer that is alive but cannot be judged (another PID namespace, an unreadable `/proc`) makes reclaimers back off to the
   ceiling of the wait, as for any holder that cannot be judged; no commit waits without bound.
 - A person's `rm index.lock` between the name check and the unlink, as in every variant.
@@ -281,6 +290,14 @@ build's behaviour (`a_failed_flock_never_has_the_stale_lock_removed`, and the la
 there (`a_stale_lock_is_removed_where_flock_is_not_available`, `a_landing_takes_a_stale_lock_where_flock_is_not_available_without_waiting`),
 and the ceiling and notice controls now refuse the placement of claims as well, since `Unguarded` is what remains when neither
 the `flock` nor a claim is possible.
+
+### The cross-vendor review of the claim chain
+
+`/var/home/user/temp/agent/reviews/claim-chain-sol-1.txt` (2026-11-04): no break of the core interleavings; a backed-off claim,
+a slot read as gone long before, and the cleanup against a reused inode were each attacked and held. Findings folded in: the key
+from the device and inode (above); an unreadable claim must not read as gone (it never did: only a successful read of text that is
+no marker does; a claim is now mode 0644 so another account can read it); an ambiguous placement answer (the claim carries a random
+token, and a file at the slot with this attempt's text is its own); the mixed case and the remote live claimer (above, kept open).
 
 ## A busy stale lock
 
