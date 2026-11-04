@@ -3651,7 +3651,17 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   a threaded launcher,
   the memory or process cap,
   the transient-unit route until built).
-  The coordinator places the scope paragraph in the design file when the agent sends it.
+  Applied at tip `249589f623` (442 model tests passed;
+  map unchanged at 64,
+  17,
+  9,
+  17);
+  the scope paragraph and the two picks are in the design (`f8f129af86` on `fix/git-policy-cli-commits-never-fail`,
+  section "Acceptance target").
+  Cross-vendor reviews running:
+  `commit-models-sol-10a.txt` (components,
+  launch and flusher) and `commit-models-sol-10b.txt` (models and map),
+  prompts `commit-models-prompt-10a.txt` and `-10b.txt`.
 - #6261 native-layer move:
   "Defer until branches merge (Recommended)".
 - Fallback to the installed real Git (four picks):
