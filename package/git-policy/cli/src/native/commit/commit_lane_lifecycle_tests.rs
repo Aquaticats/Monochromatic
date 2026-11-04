@@ -159,7 +159,7 @@ fn the_syncer_retries_recorded_errors_and_clears_the_record_only_when_forced() {
     fs::remove_file(&dangling).expect("the cause is gone");
     fs::write(&dangling, b"receipt").expect("a receipt that can be forced");
     let pass = syncer_pass(&lane).expect("the pass");
-    assert_eq!(pass.retried, 1);
+    assert_eq!(pass.retried, 2, "both recorded lines, the one for the receipt that is gone included");
     assert!(!lane.join(RECEIPT_ERRORS).exists() && !lane.join(RETRYING).exists(), "the record is cleared once its receipts are forced");
 }
 
