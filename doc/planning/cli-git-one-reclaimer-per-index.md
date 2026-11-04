@@ -336,22 +336,16 @@ always did. Every caller of the boot comparison was searched for: `holder_state_
 `work_item_recovery.rs`) already compare the machine ID; the reference-lock judge reads the boot time by the wall clock only.
 Machines cloned with one machine ID cannot be told apart and are judged as one machine.
 
-Release overlap: the release before this one reclaims under the `flock` and this one under claims, and the two do not see each other.
-The service of one worktree never runs two releases at once (an upgrade retires the old release first, `SPEC.md`, "One marker-writing
-taker at a time"), so the overlap needs two worktrees sharing one alternate index across an upgrade, or a host that runs both releases
-on one repository; stop the older service first, as `SPEC.md` says for a downgrade.
+Release overlap: closed by the marker format, see "The third cross-vendor review" below (an earlier release reads no marker in a lock of
+this release, and this release leaves every lock in the earlier format).
 
-Where this does not hold, in addition: an earlier release's reader on another machine still reads the marker of this release as gone (the
-boot comparison comes first in the earlier code); a claim name `<lock>.cli-reclaim-<key>-<slot>` is the lock's file name plus about a
-hundred more bytes (the birth identity is written as it is), so a lock whose own name is near the limit of a file name (255 bytes) cannot have
-a claim placed beside it and the reclaim answers `Unguarded`; the control covers a 45-byte lock name.
 
 Strictness of the machine ID: `is_machine_id` also governs the claims of work (`claim_time.rs`), so an uppercase or all-zero machine ID there
 now reads as none. That is safe: `machine-id(5)` specifies 32 lowercase hexadecimal digits and says an all-zero value is not valid, so no
 real host is affected, and a reading with no machine ID falls back to the wall clock, as before for hosts without one.
 
-Where this does not hold: a service on another machine whose marker carries no machine ID (written by a release before this one, or by a
-host with no valid machine ID) is read as before, so over a shared file system a live holder of that kind can still read as gone.
+Where this still does not hold: a service on another machine whose host has no valid machine ID writes a marker with none, and a reader
+that also has none keeps the earlier reading, so between two such hosts over a shared file system a live holder can still read as gone.
 No Linux call can tell a process of another machine from a gone one by the marker alone; the machine ID is the only evidence.
 
 ## The third cross-vendor review (2026-11-04)
