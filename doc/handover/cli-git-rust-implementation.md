@@ -246,6 +246,29 @@ two delegate agents and four cross-vendor reviews running:
   Review 17b (the whole design) running.
   Revisions 12 to 17 each drew new P1s;
   the next round narrows its scope before it starts.
+  Review 17c (`commits-never-fail-sol-17c.txt`,
+  the convergence question):
+  R17a-1,
+  R17a-2 and R17a-4 are rule gaps;
+  R17a-3 and R17a-5 mixed (rule parts:
+  the detached flusher's survival and handoff contract;
+  abandoned-worker late-effect fencing and the blanket slow-I/O exemption);
+  "Yes:
+  a finite,
+  conditional acceptance contract is possible",
+  given as properties and controls by transition group,
+  with "A new counterexample may reopen one of these properties;
+  it should not silently introduce a new acceptance criterion.";
+  the three literal rule conflicts (a foreign lock that never frees,
+  a departure sync that never returns,
+  a power cut before the only copy is durable) are already ranked by decisions 4,
+  5 and 14 and the outside-cause list,
+  so no new owner question.
+  Revision 18 started (the design agent resumed):
+  only those rule gaps,
+  the acceptance target written into the design as its fixed list,
+  the conflicts section,
+  and R17a-10's question 8 edits.
   Models round 12 started (the models agent resumed):
   the P1s of components 8,
   models 6a and 6b,
