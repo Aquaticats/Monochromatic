@@ -31,6 +31,10 @@ pub mod worktree_copy_compare;
 /// The private, validated stage of one source's ignored state beside a destination worktree.
 pub mod worktree_copy_stage;
 
+/// The copying of a staged snapshot's files and links into the stage, one worker per slice of the manifest.
+#[cfg(unix)]
+pub mod worktree_copy_stage_leaf_copying;
+
 /// The exclusive creation of one destination entry from the stage, and the identity captured after it.
 #[cfg(unix)]
 pub mod worktree_copy_install_entry;

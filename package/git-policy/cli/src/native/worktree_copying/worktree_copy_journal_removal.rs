@@ -15,7 +15,7 @@ use crate::scoped_start::start_or_run;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::write_journal;
 use crate::worktree_copy_journal_encoding_and_validation::{Journal, PendingJournal, Phase, TEMPORARY_SUFFIX};
-use crate::worktree_copy_stage::PARALLEL_COPY_MAX_WORKERS;
+use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use std::path::{Path, PathBuf};
 
 /// What:

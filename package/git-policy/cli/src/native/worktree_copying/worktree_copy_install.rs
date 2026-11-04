@@ -16,7 +16,7 @@ use crate::scoped_start::start_or_run;
 use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::parallel_budget::{HostResources, sliced_workers};
-use crate::worktree_copy_stage::PARALLEL_COPY_MAX_WORKERS;
+use crate::worktree_copy_stage_leaf_copying::PARALLEL_COPY_MAX_WORKERS;
 use crate::worktree_copy_install_entry::{
     InstalledPath, capture_installed_path, create_selected_entry, ensure_parents_remembering,
 };

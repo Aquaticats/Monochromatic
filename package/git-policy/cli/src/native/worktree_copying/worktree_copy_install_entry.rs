@@ -18,7 +18,7 @@ use crate::worktree_copy_compare::lstat_or_absent;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry};
 use crate::worktree_copy_selection::filesystem_path;
-use crate::worktree_copy_stage::copy_file_exclusive;
+use crate::worktree_copy_stage_leaf_copying::copy_file_exclusive;
 use crate::json_record::quote;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
