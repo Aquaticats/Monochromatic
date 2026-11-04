@@ -3631,6 +3631,12 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     no row added.
     Round 13 running (suggested fix:
     one pinned procfs directory descriptor and `openat2` with `RESOLVE_NO_XDEV`).
+    Owner,
+    asked whether deliberate tampering with `/proc` and mounts by a program running as the user is in scope (rounds 10 to 12 each found a deeper such schedule):
+    "Out of scope, keep cheap guards (Recommended)";
+    assumption a is extended to exclude it,
+    cheap guards stay,
+    and the reviews judge against that premise.
 - 0.5.30 published (crates.io 2026-11-04T14:27:24Z,
   run 41846701765) and installed (`5c2fb3a5b2`):
   it ships the claim chain;
