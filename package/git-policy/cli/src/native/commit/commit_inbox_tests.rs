@@ -15,7 +15,7 @@
 
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{set_fault_point, start_events, take_events};
-use git_policy_cli::commit_inbox::{Accepted, accept, decode_inbox_file, depart, depart_closure, encode_inbox_file, init_lane_directories, with_identity};
+use git_policy_cli::commit_inbox::{Accepted, accept, decode_inbox_file, Departure, Disposition, InboxRepairer, encode_inbox_file, init_lane_directories, with_identity};
 use git_policy_cli::commit_integrity::sha256_hex;
 use git_policy_cli::commit_request::{Change, Operation, Request};
 use git_policy_cli::commit_state_log;
@@ -98,7 +98,7 @@ fn a_departure_syncs_the_promised_records_in_dependency_order_before_it_returns(
     accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
     state_append(&lane.join("state"), 1, b"adopted").expect("state");
     start_events();
-    depart(&lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).expect("depart");
+    Departure::new(Disposition::Saved, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).run().expect("depart");
     let events: Vec<String> = take_events();
     assert_eq!(
         events,
@@ -193,7 +193,7 @@ fn a_departure_forces_the_whole_closure_including_state_names_order_and_ledger()
     std::fs::write(&ledger, b"ledger line
 ").expect("ledger");
     start_events();
-    depart_closure(&lane.join("inbox"), std::slice::from_ref(&request.id), Some(&order), &state, Some(&ledger)).expect("depart");
+    Departure::new(Disposition::Terminal, &lane.join("inbox"), std::slice::from_ref(&request.id), &state).with_order(&order).with_ledger(&ledger).run().expect("depart");
     let events: Vec<String> = take_events();
     let expect = |kind: &str, path: &std::path::Path| -> String { return format!("{}:{}", kind, path.display()); };
     assert_eq!(
@@ -307,7 +307,10 @@ fn a_departure_accepts_bare_relative_order_and_ledger_names() {
     std::fs::write(lane.join("order"), b"adopt line\n").expect("order");
     std::fs::write(lane.join("ledger"), b"ledger line\n").expect("ledger");
     std::env::set_current_dir(&lane).expect("enter the lane");
-    depart_closure(&lane.join("inbox"), &[], Some(std::path::Path::new("order")), &lane.join("state"), Some(std::path::Path::new("ledger")))
+    Departure::new(Disposition::Terminal, &lane.join("inbox"), &[], &lane.join("state"))
+        .with_order(std::path::Path::new("order"))
+        .with_ledger(std::path::Path::new("ledger"))
+        .run()
         .expect("bare relative names");
 }
 
@@ -366,10 +369,11 @@ fn a_torn_final_is_quarantined_and_the_resend_is_accepted() {
     let (request, new_files, old_files) = one_path_request();
     accept(&inbox, INSTANCE, &request, &new_files, &old_files).expect("accept");
     let whole: Vec<u8> = std::fs::read(inbox.join(&request.id)).expect("read");
-    assert!(git_policy_cli::commit_inbox::quarantine_damaged(&inbox, &request.id).is_err(), "a decoding file is not moved");
+    let mut repairer: InboxRepairer = InboxRepairer::acquire(&inbox).expect("the repairer");
+    assert!(repairer.quarantine(&request.id).is_err(), "a decoding file is not moved");
     std::fs::write(inbox.join(&request.id), &whole[..whole.len() / 2]).expect("tear");
     assert!(matches!(accept(&inbox, INSTANCE, &request, &new_files, &old_files), Err(git_policy_cli::commit_inbox::InboxError::DamagedFinal)));
-    let moved: PathBuf = git_policy_cli::commit_inbox::quarantine_damaged(&inbox, &request.id).expect("quarantine");
+    let moved: PathBuf = repairer.quarantine(&request.id).expect("quarantine");
     assert_eq!(std::fs::read(&moved).expect("kept"), whole[..whole.len() / 2].to_vec());
     assert_eq!(accept(&inbox, INSTANCE, &request, &new_files, &old_files).expect("resend"), Accepted::Created);
 }
@@ -390,18 +394,13 @@ fn a_departure_forces_the_stop_first_and_alone_then_the_closure_and_the_ancestry
     let saved: PathBuf = lane.join("saved-commit");
     std::fs::write(&saved, b"objects").expect("saved");
     start_events();
-    git_policy_cli::commit_inbox::Departure {
-        inbox: &lane.join("inbox"),
-        ids: std::slice::from_ref(&request.id),
-        order: None,
-        state_dir: &lane.join("state"),
-        ledger: None,
-        stop: Some(&mark),
-        closure: &[saved.as_path()],
-        anchor: Some(&root),
-    }
-    .run()
-    .expect("departure");
+    let acknowledgment = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state"))
+        .with_stop(&mark)
+        .with_closure(&[saved.as_path()])
+        .with_anchor(&root)
+        .run()
+        .expect("departure");
+    assert!(acknowledgment.stop_forced && acknowledgment.state.generation == 1);
     let events: Vec<String> = take_events();
     assert_eq!(events[0], format!("file-sync:{}", mark.display()), "the stop receipt is forced first");
     assert_eq!(events[1], format!("dir:{}", decision.display()), "and alone with its own directory entry");
@@ -411,10 +410,10 @@ fn a_departure_forces_the_stop_first_and_alone_then_the_closure_and_the_ancestry
     assert!(events.iter().any(|event| { return *event == format!("dir:{}", root.display()); }), "the ancestry reaches the anchor");
 }
 
-/// Components 8, 2.4 (P1): the helper `depart_closure` is a caller-assembled flush list. A withdrawal's mark sits in `decision/`; the
-/// departure returns success and never forced it, so a power loss can remove the prohibition on later attempts.
+/// Components 8, 2.4 (P1, was red against the flush-list helper): a withdrawal's departure cannot be built without its stop receipt, the stop
+/// is forced and acknowledged, and an acknowledgment whose forced state prefix does not reach the record that names the saved item is refused.
 #[test]
-fn p1_a_departure_for_a_withdrawal_forces_the_mark() {
+fn p1_a_departure_for_a_withdrawal_forces_the_mark_and_cannot_omit_it() {
     let root: PathBuf = scratch("p1-departure-mark");
     let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
     let (request, new_files, old_files) = one_path_request();
@@ -423,10 +422,18 @@ fn p1_a_departure_for_a_withdrawal_forces_the_mark() {
     let mark: PathBuf = lane.join("decision").join(&request.id);
     std::fs::create_dir(lane.join("decision")).expect("decision");
     std::fs::write(&mark, b"").expect("the mark");
+    let ids = std::slice::from_ref(&request.id);
+    let without = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), ids, &lane.join("state")).run();
+    assert!(matches!(without, Err(git_policy_cli::commit_inbox::DepartureError::MissingPromise(_))), "a withdrawal without its stop was built");
+    let unresolved = Departure::new(Disposition::Unresolved, &lane.join("inbox"), ids, &lane.join("state")).run();
+    assert!(matches!(unresolved, Err(git_policy_cli::commit_inbox::DepartureError::MissingPromise(_))));
     start_events();
-    git_policy_cli::commit_inbox::depart_closure(&lane.join("inbox"), std::slice::from_ref(&request.id), None, &lane.join("state"), None).expect("depart");
+    let acknowledgment = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), ids, &lane.join("state")).with_stop(&mark).run().expect("depart");
     let events: Vec<String> = take_events();
-    assert!(events.contains(&format!("file-sync:{}", mark.display())), "the mark was not forced: {:?}", events);
+    assert_eq!(events[0], format!("file-sync:{}", mark.display()), "the stop is forced first: {:?}", events);
+    assert!(acknowledgment.stop_forced && acknowledgment.forced[0] == mark);
+    let too_late = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), ids, &lane.join("state")).with_stop(&mark).naming_generation(2).run();
+    assert!(matches!(too_late, Err(git_policy_cli::commit_inbox::DepartureError::StateNotCovering { needed: 2, forced: 1 })));
 }
 
 /// Components 8, 2.5 (P1): quarantine is an unowned destructive mutation. Q1 inspects the torn final and pauses; the file is replaced by a
@@ -450,8 +457,32 @@ fn p1_a_quarantine_never_moves_a_file_it_did_not_inspect() {
     std::fs::write(inbox.join(&request.id), &whole[..whole.len() / 2]).expect("tear");
     *REPLACEMENT.lock().expect("lock") = Some((inbox.join(&request.id), whole.clone()));
     set_fault_point(Some(replace_the_final));
-    let outcome = git_policy_cli::commit_inbox::quarantine_damaged(&inbox, &request.id);
+    let outcome = InboxRepairer::acquire(&inbox).expect("the repairer").quarantine(&request.id);
     set_fault_point(None);
     assert!(outcome.is_err(), "the accepted request was moved into damaged/");
     assert_eq!(std::fs::read(inbox.join(&request.id)).expect("the accepted request is still in place"), whole);
+    assert!(std::fs::read_dir(inbox.join("damaged")).map_or(true, |mut entries| { return entries.next().is_none(); }), "nothing was archived");
+}
+
+/// Components 8, 2.5: repair is owner-only. A second repairer is refused at once; a name that is not an identity (`../notes`) and a file
+/// with an unsupported version are never moved; the archived entry is forced with its directory and the inbox directory.
+#[test]
+fn repair_is_owner_only_keeps_unsupported_versions_and_forces_the_archive() {
+    let root: PathBuf = scratch("v-repairer");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let inbox: PathBuf = lane.join("inbox");
+    let mut repairer: InboxRepairer = InboxRepairer::acquire(&inbox).expect("first repairer");
+    assert!(matches!(InboxRepairer::acquire(&inbox), Err(git_policy_cli::commit_inbox::InboxError::Io(error)) if error.kind() == std::io::ErrorKind::WouldBlock));
+    assert!(matches!(repairer.quarantine("../notes"), Err(git_policy_cli::commit_inbox::InboxError::Invalid(_))));
+    let id: String = "a".repeat(32);
+    std::fs::write(inbox.join(&id), b"cli-git-inbox 2
+from a newer build").expect("an unsupported version");
+    assert!(matches!(repairer.quarantine(&id), Err(git_policy_cli::commit_inbox::InboxError::Unsupported)));
+    assert!(inbox.join(&id).exists(), "an unsupported version is left alone");
+    std::fs::write(inbox.join(&id), b"torn").expect("a torn final");
+    start_events();
+    let moved: PathBuf = repairer.quarantine(&id).expect("quarantine");
+    let events: Vec<String> = take_events();
+    assert!(events.contains(&format!("file-sync:{}", moved.display())), "{:?}", events);
+    assert!(events.contains(&format!("dir:{}", inbox.join("damaged").display())) && events.contains(&format!("dir:{}", inbox.display())));
 }

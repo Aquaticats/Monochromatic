@@ -17,7 +17,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{fault_point, record_event_lazy, sync_directory, sync_file};
+use super::commit_identity::{fault_point, record_event_lazy, sync_chain, sync_directory, sync_file};
 use super::commit_integrity::sha256_hex;
 
 /// The chain hash before the first record of a file.
@@ -126,6 +126,134 @@ fn valid_prefix(bytes: &[u8]) -> Option<(u64, Vec<u8>, String, usize)> {
     return last;
 }
 
+/// The first line of a checkpoint's first record: a payload that starts with it is a replacement-root authority, and any other payload
+/// is a plain document (the first root of a lane, or a record appended later).
+const AUTHORITY_MAGIC: &str = "cli-git-authority 1\n";
+
+/// What kind of content a closure entry is: an opaque file, or a request envelope that must decode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntryKind {
+    /// Any file: its length and checksum must match.
+    Opaque,
+    /// An inbox request envelope: its length and checksum must match and it must decode (a torn envelope at an existing path is not a
+    /// satisfied dependency).
+    InboxEnvelope,
+}
+
+/// One entry of a checkpoint's live closure: a file of the lane, bound to the identity of its content.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClosureEntry {
+    /// The path relative to the lane directory (the parent of the state directory).
+    pub path: PathBuf,
+    /// How the content is validated.
+    pub kind: EntryKind,
+    /// The content's length in bytes.
+    pub length: u64,
+    /// The SHA-256 of the content, hexadecimal.
+    pub sha256: String,
+}
+
+impl ClosureEntry {
+    /// Captures the identity of the file at `path` (under `lane`) by reading it, and refuses a file that does not satisfy its kind.
+    pub fn capture(lane: &Path, path: &Path, kind: EntryKind) -> io::Result<ClosureEntry> {
+        let relative: PathBuf = path.strip_prefix(lane).map(PathBuf::from).map_err(|_| { return io::Error::new(io::ErrorKind::InvalidInput, "a closure entry lies under the lane"); })?;
+        if relative.components().any(|part| { return !matches!(part, std::path::Component::Normal(_)); }) {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "a closure entry path has only normal components"));
+        }
+        let bytes: Vec<u8> = fs::read(path)?;
+        let entry: ClosureEntry = ClosureEntry { path: relative, kind, length: bytes.len() as u64, sha256: sha256_hex(&bytes) };
+        validate_entry(lane, &entry)?;
+        return Ok(entry);
+    }
+}
+
+/// Reads the entry's file and checks its identity and its kind.
+fn validate_entry(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
+    let bytes: Vec<u8> = fs::read(lane.join(&entry.path))?;
+    if bytes.len() as u64 != entry.length || sha256_hex(&bytes) != entry.sha256 {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "a closure entry's content is not the content that was captured"));
+    }
+    if entry.kind == EntryKind::InboxEnvelope && super::commit_inbox::decode_inbox_file(&bytes).is_err() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "a closure entry is not a valid request envelope"));
+    }
+    return Ok(());
+}
+
+/// A decoded replacement-root authority: its document, its closure and the segments it authorizes for reclamation.
+struct Authority {
+    document: Vec<u8>,
+    closure: Vec<ClosureEntry>,
+    reclaims: Vec<u64>,
+}
+
+fn encode_authority(document: &[u8], closure: &[ClosureEntry], reclaims: &[u64]) -> Vec<u8> {
+    let mut text: String = String::from(AUTHORITY_MAGIC);
+    for entry in closure {
+        let kind: &str = if entry.kind == EntryKind::InboxEnvelope { "envelope" } else { "opaque" };
+        text.push_str(&format!("entry {} {} {} {}\n", kind, entry.length, entry.sha256, super::commit_integrity::hex(entry.path.as_os_str().as_encoded_bytes())));
+    }
+    let numbers: Vec<String> = reclaims.iter().map(|number| { return number.to_string(); }).collect();
+    text.push_str(&format!("reclaims {}\n", numbers.join(",")));
+    text.push_str(&format!("document {}\n", document.len()));
+    let mut bytes: Vec<u8> = text.into_bytes();
+    bytes.extend_from_slice(document);
+    return bytes;
+}
+
+/// Decodes an authority payload; `None` for a plain document and for a damaged authority.
+fn decode_authority(payload: &[u8]) -> Option<Authority> {
+    let body: &[u8] = payload.strip_prefix(AUTHORITY_MAGIC.as_bytes())?;
+    let mut at: usize = 0;
+    let mut closure: Vec<ClosureEntry> = Vec::new();
+    let mut reclaims: Vec<u64> = Vec::new();
+    loop {
+        let end: usize = at + body[at..].iter().position(|byte| { return *byte == b'\n'; })?;
+        let line: &str = std::str::from_utf8(&body[at..end]).ok()?;
+        at = end + 1;
+        if let Some(rest) = line.strip_prefix("entry ") {
+            let parts: Vec<&str> = rest.split(' ').collect();
+            if parts.len() != 4 {
+                return None;
+            }
+            let kind: EntryKind = if parts[0] == "envelope" { EntryKind::InboxEnvelope } else { EntryKind::Opaque };
+            let raw: Vec<u8> = super::commit_integrity::unhex(parts[3])?;
+            use std::os::unix::ffi::OsStringExt;
+            closure.push(ClosureEntry { path: PathBuf::from(std::ffi::OsString::from_vec(raw)), kind, length: parts[1].parse().ok()?, sha256: parts[2].to_string() });
+        } else if let Some(rest) = line.strip_prefix("reclaims ") {
+            for number in rest.split(',').filter(|piece| { return !piece.is_empty(); }) {
+                reclaims.push(number.parse().ok()?);
+            }
+        } else {
+            // The last line: the document, whose length is stated; any other line is not part of the grammar.
+            let rest: &str = line.strip_prefix("document ")?;
+            let length: usize = rest.parse().ok()?;
+            let document: &[u8] = body.get(at..at.checked_add(length)?)?;
+            return Some(Authority { document: document.to_vec(), closure, reclaims });
+        }
+    }
+}
+
+/// The first record of a log file: its generation, payload and total length, when it validates.
+fn first_record(bytes: &[u8]) -> Option<(u64, Vec<u8>, usize)> {
+    let line_end: usize = bytes.iter().position(|byte| { return *byte == b'\n'; })?;
+    let header: &str = std::str::from_utf8(&bytes[..line_end]).ok()?;
+    let parts: Vec<&str> = header.split(' ').collect();
+    if parts.len() != 4 || parts[0] != "rec" || parts[2] != genesis() {
+        return None;
+    }
+    let generation: u64 = parts[1].parse().ok()?;
+    let length: usize = parts[3].parse().ok()?;
+    let start: usize = line_end + 1;
+    let end: usize = start.checked_add(length)?;
+    let total: usize = end.checked_add(1 + 5 + 64 + 1)?;
+    let payload: &[u8] = bytes.get(start..end)?;
+    let (expected, _) = encode_record(generation, &genesis(), payload);
+    if bytes.get(..total)? != &expected[..] {
+        return None;
+    }
+    return Some((generation, payload.to_vec(), total));
+}
+
 /// The file a recovery uses and what it holds: its number, the generation and payload of its last valid record, the chain hash there and
 /// the length of its valid prefix.
 #[derive(Debug)]
@@ -149,12 +277,25 @@ pub struct Selected {
 pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
     let all: Vec<u64> = numbers(dir)?;
     let highest: Option<u64> = all.last().copied();
+    let lane: PathBuf = lane_of(dir);
     let mut saw_bytes: bool = false;
     let mut best: Option<Selected> = None;
     for number in all.into_iter().rev() {
         let bytes: Vec<u8> = fs::read(log_path(dir, number))?;
         saw_bytes = saw_bytes || !bytes.is_empty();
-        if let Some((generation, payload, hash, length)) = valid_prefix(&bytes) {
+        if let Some((generation, mut payload, hash, length)) = valid_prefix(&bytes) {
+            // Activation: a segment that starts with a replacement-root authority is a root only when recovery's own validation of its whole
+            // closure passes. Being written, or made durable by a background sync, does not make it authoritative.
+            if let Some((_, first_payload, first_length)) = first_record(&bytes)
+                && let Some(authority) = decode_authority(&first_payload)
+            {
+                if authority.closure.iter().any(|entry| { return validate_entry(&lane, entry).is_err(); }) {
+                    continue;
+                }
+                if length == first_length {
+                    payload = authority.document;
+                }
+            }
             match &best {
                 // The newest generation wins, and a tie goes to the higher file when the documents agree; a lower file holding a newer
                 // generation than a higher one means the higher one is a rollback and is not the root.
@@ -168,6 +309,11 @@ pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
         return Err(StateError::Damaged);
     }
     return Ok(best);
+}
+
+/// The lane directory a state directory belongs to: the closure's paths are relative to it, and it is the durable anchor of their ancestry.
+fn lane_of(dir: &Path) -> PathBuf {
+    return dir.parent().map_or_else(|| { return PathBuf::from("."); }, PathBuf::from);
 }
 
 /// The newest valid state (see `select`): its generation and payload.
@@ -244,7 +390,7 @@ pub struct Candidate {
     pub hash: String,
 }
 
-fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8]) -> io::Result<Candidate> {
+fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[ClosureEntry]) -> io::Result<Candidate> {
     let selected: Option<Selected> = select(dir).map_err(to_io)?;
     if let Some(chosen) = &selected {
         if generation < chosen.generation {
@@ -257,42 +403,56 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8]) -> io::Result<
             return Err(io::Error::new(io::ErrorKind::InvalidData, "an earlier checkpoint candidate does not validate"));
         }
     }
-    let next: u64 = rotation_number(dir)?
+    // The closure is validated now, by reading each entry; the authority names the segments it will authorize for reclamation.
+    let lane: PathBuf = lane_of(dir);
+    for entry in closure {
+        validate_entry(&lane, entry)?;
+    }
+    let existing: Vec<u64> = numbers(dir)?;
+    let next: u64 = existing
+        .last()
         .map_or(Some(1), |number| { return number.checked_add(1); })
         .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the segment numbers are exhausted"); })?;
-    let (record, hash) = encode_record(generation, &genesis(), document);
+    let (record, hash) = encode_record(generation, &genesis(), &encode_authority(document, closure, &existing));
     let mut file: File = OpenOptions::new().create_new(true).write(true).open(log_path(dir, next))?;
     file.write_all(&record)?;
     return Ok(Candidate { number: next, generation, hash });
 }
 
-/// Completes exactly `candidate`: it must still be the recovery root with the identity it was started with; every live external
-/// dependency its document names (`dependencies`, files that must exist) is forced to disk with its parent directory; the candidate and its
-/// directory entry are made durable; and only then are older files removed. Anything else leaves every older file in place.
-fn complete_checkpoint(dir: &Path, candidate: &Candidate, dependencies: &[&Path]) -> io::Result<()> {
+/// Completes exactly `candidate`: it must still be the recovery root with the identity it was started with (so recovery's validation of
+/// its whole closure passes now); every closure entry is forced to disk with its complete name chain through the lane directory (the
+/// durable anchor); the candidate and its directory entry are made durable; and only then are the segments the authority names removed.
+/// Anything else leaves every older file in place.
+fn complete_checkpoint(dir: &Path, candidate: &Candidate) -> io::Result<()> {
     let all: Vec<u64> = numbers(dir)?;
     let selected: Selected = select(dir).map_err(to_io)?.ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
     let same: bool = selected.number == candidate.number && selected.generation == candidate.generation && selected.hash == candidate.hash;
     if !same || all.last() != Some(&candidate.number) {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "the candidate is not the recovery root with the identity it was started with; the older files are kept"));
     }
+    let bytes: Vec<u8> = fs::read(log_path(dir, candidate.number))?;
+    let (_, first_payload, _) = first_record(&bytes).ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the candidate has no valid first record"); })?;
+    let authority: Authority = decode_authority(&first_payload).ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the candidate is not a replacement-root authority"); })?;
     for number in all.iter().filter(|number| { return **number != candidate.number; }) {
         let older: Vec<u8> = fs::read(log_path(dir, *number))?;
         if valid_prefix(&older).is_some_and(|(generation, _, _, _)| { return generation > selected.generation; }) {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "an older file holds a newer generation than the candidate; it is kept"));
         }
     }
-    // The new root replaces old log history, not the external content its document names: that content must be durable first.
-    for dependency in dependencies {
-        let file: File = File::open(dependency)?;
-        sync_file(&file, dependency)?;
-        sync_directory(dependency.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")))?;
+    // The new root replaces old log history, not the external content its closure names: that content is durable, with its ancestry,
+    // before the candidate is made durable and before any predecessor is removed.
+    let lane: PathBuf = lane_of(dir);
+    for entry in &authority.closure {
+        let path: PathBuf = lane.join(&entry.path);
+        let file: File = File::open(&path)?;
+        sync_file(&file, &path)?;
+        sync_chain(path.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")), &lane)?;
     }
     let path: PathBuf = log_path(dir, candidate.number);
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
     sync_directory(dir)?;
-    for number in all.into_iter().filter(|number| { return *number != candidate.number; }) {
+    for number in all.into_iter().filter(|number| { return *number != candidate.number && authority.reclaims.contains(number); }) {
         let old: PathBuf = log_path(dir, number);
         fs::remove_file(&old)?;
         record_event_lazy(|| { return format!("remove:{}", old.display()); });
@@ -338,20 +498,22 @@ impl StateWriter {
         return append(&self.dir, generation, payload);
     }
 
-    /// Starts a checkpoint: writes `document` as the first record of the next segment and returns the candidate to complete.
-    pub fn begin_checkpoint(&mut self, generation: u64, document: &[u8]) -> io::Result<Candidate> {
-        return begin_checkpoint(&self.dir, generation, document);
+    /// Starts a checkpoint: writes `document` and its validated live `closure` as the first record of the next segment and returns the
+    /// candidate to complete. The candidate is not a root until recovery's validation of the closure passes.
+    pub fn begin_checkpoint(&mut self, generation: u64, document: &[u8], closure: &[ClosureEntry]) -> io::Result<Candidate> {
+        return begin_checkpoint(&self.dir, generation, document, closure);
     }
 
-    /// Completes exactly `candidate` after forcing the live external `dependencies` its document names; older files stay on any refusal.
-    pub fn complete_checkpoint(&mut self, candidate: &Candidate, dependencies: &[&Path]) -> io::Result<()> {
-        return complete_checkpoint(&self.dir, candidate, dependencies);
+    /// Completes exactly `candidate` after forcing its closure with the ancestry; the segments it authorizes are removed last, and every
+    /// older file stays on any refusal.
+    pub fn complete_checkpoint(&mut self, candidate: &Candidate) -> io::Result<()> {
+        return complete_checkpoint(&self.dir, candidate);
     }
 
     /// Seals the current segment and replaces it by a checkpoint in one owner step; future appends go to the new segment.
-    pub fn checkpoint(&mut self, generation: u64, document: &[u8], dependencies: &[&Path]) -> io::Result<u64> {
-        let candidate: Candidate = begin_checkpoint(&self.dir, generation, document)?;
-        complete_checkpoint(&self.dir, &candidate, dependencies)?;
+    pub fn checkpoint(&mut self, generation: u64, document: &[u8], closure: &[ClosureEntry]) -> io::Result<u64> {
+        let candidate: Candidate = begin_checkpoint(&self.dir, generation, document, closure)?;
+        complete_checkpoint(&self.dir, &candidate)?;
         return Ok(candidate.number);
     }
 }

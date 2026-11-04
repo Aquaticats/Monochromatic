@@ -14,7 +14,7 @@
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{start_events, take_events};
 use git_policy_cli::commit_identity::set_fault_point;
-use git_policy_cli::commit_state_log::{Candidate, Prefix, StateError, StateWriter, read, rotation_number, sync_prefix};
+use git_policy_cli::commit_state_log::{Candidate, ClosureEntry, EntryKind, Prefix, StateError, StateWriter, read, rotation_number, sync_prefix};
 use std::path::PathBuf;
 
 /// Appends as the state's writer (the only way to mutate the log).
@@ -24,12 +24,12 @@ fn append(dir: &std::path::Path, generation: u64, payload: &[u8]) -> std::io::Re
 
 /// Starts a checkpoint as the writer.
 fn rotate(dir: &std::path::Path, generation: u64, document: &[u8]) -> std::io::Result<Candidate> {
-    return StateWriter::acquire(dir)?.begin_checkpoint(generation, document);
+    return StateWriter::acquire(dir)?.begin_checkpoint(generation, document, &[]);
 }
 
 /// Completes `candidate` as the writer, with no external dependency.
 fn finish(dir: &std::path::Path, candidate: &Candidate) -> std::io::Result<()> {
-    return StateWriter::acquire(dir)?.complete_checkpoint(candidate, &[]);
+    return StateWriter::acquire(dir)?.complete_checkpoint(candidate);
 }
 
 /// The number of syncs in `events`.
@@ -320,62 +320,123 @@ fn a_fifo_at_the_lock_path_is_refused_without_blocking() {
     assert!(outcome.is_err());
 }
 
-/// Review 7, 2.3: completion forces the live external dependency its document names before it removes the older root, and refuses (older
-/// files kept) when the dependency is missing.
-#[test]
-fn a_checkpoint_forces_its_live_dependencies_first_and_refuses_a_missing_one() {
-    let dir: PathBuf = scratch("log-dependency");
-    let inbox: PathBuf = scratch("log-dependency-inbox");
-    let request: PathBuf = inbox.join("request-file");
-    std::fs::write(&request, b"the request the document names").expect("write");
-    append(&dir, 1, b"first").expect("append");
-    let mut writer: StateWriter = StateWriter::acquire(&dir).expect("writer");
-    let missing: Candidate = writer.begin_checkpoint(2, b"document naming a request").expect("begin");
-    let absent: PathBuf = inbox.join("not-there");
-    assert!(writer.complete_checkpoint(&missing, &[absent.as_path()]).is_err());
-    assert!(dir.join("state.log.1").exists(), "the older root stays when a live dependency is missing");
-    start_events();
-    writer.complete_checkpoint(&missing, &[request.as_path()]).expect("complete");
-    let events: Vec<String> = take_events();
-    let dependency_sync: usize = events.iter().position(|event| { return event == &format!("file-sync:{}", request.display()); }).expect("the dependency was forced");
-    let removal: usize = events.iter().position(|event| { return event.starts_with("remove:"); }).expect("the older file was removed");
-    assert!(dependency_sync < removal, "{:?}", events);
+/// A lane with a state directory and a request envelope that decodes, for the closure tests.
+fn lane_with_envelope(label: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let lane: PathBuf = scratch(label);
+    let state: PathBuf = lane.join("state");
+    std::fs::create_dir(&state).expect("state directory");
+    let envelope: PathBuf = lane.join("request");
+    let bytes: Vec<u8> = {
+        use git_policy_cli::commit_inbox::{encode_inbox_file, with_identity};
+        use git_policy_cli::commit_request::{Change, Operation, Request};
+        let request: Request = with_identity(
+            "0123456789abcdef0123456789abcdef",
+            Request {
+                id: "0".repeat(32),
+                branch: b"main".to_vec(),
+                base: "b".repeat(40),
+                message: b"m".to_vec(),
+                operation: Operation::Commit,
+                nonce: vec![1; 16],
+                changes: vec![Change {
+                    path: b"f.txt".to_vec(),
+                    mode: "100644".to_string(),
+                    sha256: git_policy_cli::commit_integrity::sha256_hex(b"new bytes"),
+                    old_mode: "000000".to_string(),
+                    old_sha256: "-".to_string(),
+                }],
+            },
+        )
+        .expect("identity");
+        encode_inbox_file(&request, &[b"new bytes".to_vec()], &[Vec::new()]).expect("encode")
+    };
+    std::fs::write(&envelope, bytes).expect("write the envelope");
+    return (lane, state, envelope);
 }
 
-/// Components 8, 2.1 (P1): a path that exists and is forced is not a satisfied dependency. The checkpoint adopts a request whose envelope is
-/// torn; the caller supplies that exact path; opening and syncing it succeed. Completion must refuse (the envelope does not decode) and keep
-/// the older root.
+/// Review 7, 2.3 and review 8, 2.1: completion forces the closure entry (with its ancestry) before it removes the older root, and a closure
+/// entry that is not the captured content, or is gone, is refused: the candidate is not a root and the older files stay.
+#[test]
+fn a_checkpoint_validates_and_forces_its_closure_first_and_refuses_a_missing_entry() {
+    let (lane, state, envelope) = lane_with_envelope("log-dependency");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    let candidate: Candidate = writer.begin_checkpoint(2, b"document naming a request", std::slice::from_ref(&entry)).expect("begin");
+    std::fs::remove_file(&envelope).expect("the V envelope is lost");
+    assert!(writer.complete_checkpoint(&candidate).is_err());
+    assert!(state.join("state.log.1").exists(), "the older root stays when a closure entry is missing");
+}
+
+/// Review 8, 2.1 (P1, was red against the path-list API): a path that exists and is forced is not a satisfied dependency. A torn envelope
+/// cannot be captured as an envelope entry, and an entry hand-built from its bytes does not validate: the checkpoint is refused.
 #[test]
 fn p1_a_torn_envelope_named_as_a_dependency_is_not_a_satisfied_dependency() {
-    let dir: PathBuf = scratch("p1-torn-dependency");
-    let torn: PathBuf = scratch("p1-torn-dependency-inbox").join("request");
-    std::fs::write(&torn, b"cli-git-inbox 1\nrecord 40\ntorn").expect("write a torn envelope");
-    append(&dir, 1, b"first").expect("append");
-    let mut writer: StateWriter = StateWriter::acquire(&dir).expect("writer");
-    let candidate: Candidate = writer.begin_checkpoint(2, b"document adopting the request").expect("begin");
-    let outcome = writer.complete_checkpoint(&candidate, &[torn.as_path()]);
-    assert!(outcome.is_err(), "completion forced a torn envelope and removed the fallback");
-    assert!(dir.join("state.log.1").exists());
+    let (lane, state, envelope) = lane_with_envelope("p1-torn-dependency");
+    let whole: Vec<u8> = std::fs::read(&envelope).expect("read");
+    std::fs::write(&envelope, &whole[..whole.len() / 2]).expect("tear the envelope");
+    assert!(ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).is_err(), "a torn envelope is not captured as an envelope");
+    let torn: Vec<u8> = std::fs::read(&envelope).expect("read");
+    let forged: ClosureEntry =
+        ClosureEntry { path: PathBuf::from("request"), kind: EntryKind::InboxEnvelope, length: torn.len() as u64, sha256: git_policy_cli::commit_integrity::sha256_hex(&torn) };
+    append(&state, 1, b"first").expect("append");
+    let outcome = StateWriter::acquire(&state).expect("writer").begin_checkpoint(2, b"document adopting the request", &[forged]);
+    assert!(outcome.is_err(), "a checkpoint whose closure has a torn envelope was written");
+    assert!(state.join("state.log.1").exists());
 }
 
-/// Components 8, 2.2 (P1): a dependency under a name chain that is only visible. `root/saved` exists and its name in `root` was never synced;
-/// completion syncs the dependency and `saved` but must also sync `root` (the chain through the durable anchor), after `saved`.
+/// Review 8, 2.2 (P1, was red): a closure entry under a name chain that is only visible. `lane/saved` was created and its name in `lane`
+/// never synced; completion syncs the entry, `saved`, and then `lane` (the chain through the durable anchor).
 #[test]
 fn p1_a_dependency_under_an_unsynced_name_chain_is_forced_through_the_anchor() {
-    let root: PathBuf = scratch("p1-ancestry");
-    let dir: PathBuf = root.join("state");
-    std::fs::create_dir(&dir).expect("state directory");
-    let saved: PathBuf = root.join("saved");
-    std::fs::create_dir(&saved).expect("saved directory whose name in the root was never synced");
+    let lane: PathBuf = scratch("p1-ancestry");
+    let state: PathBuf = lane.join("state");
+    std::fs::create_dir(&state).expect("state directory");
+    let saved: PathBuf = lane.join("saved");
+    std::fs::create_dir(&saved).expect("saved directory whose name in the lane was never synced");
     let input: PathBuf = saved.join("input");
     std::fs::write(&input, b"a valid dependency").expect("write");
-    append(&dir, 1, b"first").expect("append");
-    let mut writer: StateWriter = StateWriter::acquire(&dir).expect("writer");
-    let candidate: Candidate = writer.begin_checkpoint(2, b"document").expect("begin");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &input, EntryKind::Opaque).expect("capture");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    let candidate: Candidate = writer.begin_checkpoint(2, b"document", std::slice::from_ref(&entry)).expect("begin");
     start_events();
-    writer.complete_checkpoint(&candidate, &[input.as_path()]).expect("complete");
+    writer.complete_checkpoint(&candidate).expect("complete");
     let events: Vec<String> = take_events();
     let saved_sync: usize = events.iter().position(|event| { return *event == format!("dir:{}", saved.display()); }).expect("saved synced");
-    let root_sync: Option<usize> = events.iter().position(|event| { return *event == format!("dir:{}", root.display()); });
-    assert!(root_sync.is_some_and(|at| { return at > saved_sync; }), "the root was not synced after saved: {:?}", events);
+    let lane_sync: Option<usize> = events.iter().position(|event| { return *event == format!("dir:{}", lane.display()); });
+    assert!(lane_sync.is_some_and(|at| { return at > saved_sync; }), "the lane was not synced after saved: {:?}", events);
+}
+
+/// Review 8, 2.3 (P1) and the sixteenth review's control 13: a candidate is not a root because it was written or because a background sync
+/// made it durable. Here the sync selects and flushes it, a power loss removes the envelope, and recovery's validation of the closure makes it
+/// lose to its predecessor.
+#[test]
+fn p1_a_background_synced_candidate_with_a_lost_dependency_loses_to_its_predecessor() {
+    let (lane, state, envelope) = lane_with_envelope("p1-activation");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let bytes: Vec<u8> = std::fs::read(&envelope).expect("read");
+    StateWriter::acquire(&state).expect("writer").begin_checkpoint(2, b"document adopting the request", std::slice::from_ref(&entry)).expect("begin");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2, "with its closure present the candidate is the root");
+    sync_prefix(&state).expect("the background sync flushes whatever recovery selects");
+    std::fs::remove_file(&envelope).expect("power loss removes the envelope");
+    assert_eq!(read(&state).expect("readable").expect("state"), (1, b"first".to_vec()), "the candidate must lose to its predecessor");
+    std::fs::write(&envelope, bytes).expect("the envelope comes back");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+}
+
+/// Review 8, 2.1: completion removes only the segments the authority names. A segment created after the candidate was begun is not named.
+#[test]
+fn a_completion_removes_only_the_segments_the_authority_names() {
+    let lane: PathBuf = scratch("log-reclaims");
+    let state: PathBuf = lane.join("state");
+    std::fs::create_dir(&state).expect("state directory");
+    append(&state, 1, b"first").expect("append");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    let candidate: Candidate = writer.begin_checkpoint(2, b"second", &[]).expect("begin");
+    std::fs::copy(state.join("state.log.1"), state.join("state.log.0")).expect("an unrelated older-numbered file the authority does not name");
+    writer.complete_checkpoint(&candidate).expect("complete");
+    assert!(!state.join("state.log.1").exists(), "the named predecessor is removed");
+    assert!(state.join("state.log.0").exists(), "a segment the authority does not name is kept");
 }
