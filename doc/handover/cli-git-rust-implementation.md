@@ -3431,6 +3431,29 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the owner was told a copy older than 30 days or past 1 GiB is deleted even if it is the only copy.
   "Prune by both age and size." therefore stands over "never discard user data" for saved copies;
   the numbers stay as cited and are set from measurement once saves exist (option O3).
+- cargo-shadow's six picks (delegated scope with the acknowledged weaker path,
+  verified-absent scope as proof,
+  same-machine reboot clears liveness,
+  assumptions a to e,
+  forcing at exit only,
+  the `user.delegate` route dropped):
+  "Keep all (Recommended)".
+- Commit design level 2 on the path where its eligibility cannot be shown:
+  "Keep level 2 off (Recommended)".
+- Index reclamation:
+  the owner answered in the question's free text,
+  "Must work perfectly even when flock isn't available. Do better."
+  So the shipped behavior on a file system with no `flock` (never remove,
+  wait to the lock limit,
+  stop naming the file) is rejected:
+  reclaiming a stale `index.lock` must work there as it does with `flock`.
+  The other two picks (the `flock` on the stale lock's own inode with the device and inode check;
+  `.aside-*` leftovers documented,
+  not swept) were not addressed and stand.
+  Work started on `fix/git-policy-cli-index-lock-reclaim-without-flock`.
+- Commit-speed picks (no `fast-import` pack flush unless `core.fsync` names loose objects;
+  `sync_ms` renamed `index_update_ms`):
+  "Keep both (Recommended)".
 
 ### Nothing waits forever
 
