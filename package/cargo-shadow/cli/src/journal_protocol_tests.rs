@@ -930,11 +930,30 @@ fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
     let anchor = root.path().join("a").join("b");
     fs::create_dir_all(&anchor).expect("a pre-existing anchor");
     let kept_dir = anchor.join("c").join("d");
+    // Links and barriers in one ordered log (certification group 3): the kept entry must be made durable after its own link, and the
+    // barriers of the new directory chain made before it do not do that.
     let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
-    let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
+    let events: RefCell<Vec<Event>> = RefCell::new(Vec::new());
+    let record = |directory: &Path| -> std::io::Result<()> {
+        synced.borrow_mut().push(directory.to_path_buf());
+        events.borrow_mut().push(Event::Barrier(directory.to_path_buf(), true));
+        return Ok(());
+    };
+    let logging_link = |existing: &Path, new: &Path| -> std::io::Result<()> {
+        real_link(existing, new)?;
+        events.borrow_mut().push(Event::Linked(new.to_path_buf()));
+        return Ok(());
+    };
 
-    replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
+    replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &logging_link, &real_sync_file, &record).expect("replaces");
 
+    let log = events.borrow();
+    let preserved_at: usize = log.iter().position(|event| { return matches!(event, Event::Linked(name) if name.starts_with(&kept_dir)); }).unwrap_or_else(|| { panic!("no link made a name in the kept directory: {log:?}"); });
+    let resolved_kept: PathBuf = fs::canonicalize(&kept_dir).expect("resolves");
+    assert!(
+        log[preserved_at..].iter().any(|event| { return matches!(event, Event::Barrier(directory, true) if *directory == kept_dir || *directory == resolved_kept); }),
+        "no successful barrier of the kept directory came after the link that preserved the file: {log:?}"
+    );
     let calls = synced.borrow();
     let resolved_anchor: PathBuf = fs::canonicalize(&anchor).expect("resolves");
     for needed in [kept_dir.clone(), anchor.join("c"), anchor.clone()] {
