@@ -2747,6 +2747,41 @@ section "Owner questions for revision 12"):
   as with native Git).
   The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
 
+### Commit protocol revision 13 answers
+
+The owner,
+through the question tool,
+answered before the commit that records this entry
+(design revision 13,
+`cc5e0822dc`,
+section "Owner questions for revision 13"):
+- Staged content differing from the file at a merge:
+  "Carry the file, save staged (Recommended)"
+  (the file as seen is carried;
+  the staged-only version is saved to `saved/<path>.staged` and named in a line).
+- A slow force at leaving:
+  "Short wait, then say unconfirmed (Recommended)"
+  (wait up to a named,
+  measured limit,
+  then exit saying the saved copy is not yet confirmed on disk while the wrapper keeps forcing it).
+- How long to watch for a late `git switch` after a merge:
+  "A measured span, then stop (Recommended)"
+  (after the span the merge's files stay as changes,
+  nothing lost,
+  and the merge's message names how to undo them).
+
+### Issues the owner raised are active work
+
+The owner,
+2026-11-03 at about 20:40-05:00:
+"Why are you still not doing gh issue 6260 and 6261?"
+#6260 was fixed and merged into the 0.5.28 base but the issue had no comment;
+#6261 had been queued by the coordinator behind 0.5.28 without asking.
+Both are now active:
+#6260 has a status comment,
+and #6261 runs on `refactor/git-policy-cli-subsystem-directories` (from `f89fa63f10`) in slices,
+families no running branch touches first.
+
 ### Host pressure is never an excuse
 
 The owner,
