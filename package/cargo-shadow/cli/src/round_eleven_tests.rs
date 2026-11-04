@@ -19,7 +19,7 @@ use crate::acknowledge::acknowledge;
 use crate::bounded_run::{Bound, output_within};
 use crate::cgroup_test_support::{delegated_route, scope_directory_of, start_in_scope, wait_until};
 use crate::contain_counterexample_tests::wait_for_file;
-use crate::control_group::{ControlGroup, LauncherState, Record, Route, launcher_state, parse_record, pid_namespace_id, process_start, view_of};
+use crate::control_group::{ControlGroup, LauncherState, Record, Route, launcher_state, parse_record, pid_namespace_id, process_start, time_namespace_id, view_of};
 use crate::crates::LockSnapshot;
 use crate::journal::{begin, recover};
 use crate::journal_recover::survivor_note;
@@ -95,7 +95,7 @@ impl HeldLauncher {
 
     /// The record the wrapper would have appended for this process and the scope.
     fn record(&self, scope: &Path) -> Record {
-        return Record::Launcher { pid: self.pid(), start: process_start(self.pid()).expect("the start time"), pid_namespace: pid_namespace_id().expect("the namespace"), path: scope.to_path_buf() };
+        return Record::Launcher { pid: self.pid(), start: process_start(self.pid()).expect("the start time"), pid_namespace: pid_namespace_id().expect("the namespace"), time_namespace: Some(time_namespace_id().expect("the time namespace")), path: scope.to_path_buf() };
     }
 
     /// Ends it and reaps it, so the process id is gone.
@@ -129,7 +129,7 @@ fn route_inside(holder: &Path, route: &Route) -> Route {
 /// Contract A1 (round 11): the record names the launcher, reads back as written, and a damaged one is not understood.
 #[test]
 fn a_launcher_record_reads_back_and_a_damaged_one_is_not_understood() {
-    let record: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
+    let record: Record = Record::Launcher { pid: 4242, start: 987_654, pid_namespace: 4_026_531_836, time_namespace: Some(4_026_531_834), path: PathBuf::from("/sys/fs/cgroup/a b/c.scope") };
     assert_eq!(parse_record(&record.to_string()), Ok(record));
     for damaged in ["launcher", "launcher 4242", "launcher 4242 5 6", "launcher 0 5 6 /x", "launcher -4 5 6 /x", "launcher x 5 6 /x", "launcher 4 y 6 /x", "launcher 4 5 z /x"] {
         assert!(parse_record(damaged).is_err(), "{damaged:?} was understood");
@@ -144,19 +144,20 @@ fn the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie
     let directory = scratch();
     let mut held: HeldLauncher = HeldLauncher::start(directory.path());
     let (pid, start, namespace): (i32, u64, u64) = (held.pid(), process_start(held.pid()).expect("start"), pid_namespace_id().expect("namespace"));
-    assert_eq!(launcher_state(pid, start, namespace), LauncherState::Alive);
-    assert_eq!(launcher_state(pid, start + 1, namespace), LauncherState::Gone, "a reused process id (another start time) was read as the launcher");
-    assert!(matches!(launcher_state(pid, start, namespace + 1), LauncherState::Unknown(_)), "another process id namespace was read as an answer");
+    let time: Option<u64> = time_namespace_id().ok();
+    assert_eq!(launcher_state(pid, start, namespace, time), LauncherState::Alive);
+    assert_eq!(launcher_state(pid, start + 1, namespace, time), LauncherState::Gone, "a reused process id (another start time) was read as the launcher");
+    assert!(matches!(launcher_state(pid, start, namespace + 1, time), LauncherState::Unknown(_)), "another process id namespace was read as an answer");
     held.end();
-    assert_eq!(launcher_state(pid, start, namespace), LauncherState::Gone);
+    assert_eq!(launcher_state(pid, start, namespace, time), LauncherState::Gone);
 
     let mut zombie: Child = Command::new("true").spawn().expect("starts");
     let zombie_pid: i32 = i32::try_from(zombie.id()).expect("a process id");
     let zombie_start: u64 = process_start(zombie_pid).expect("start");
     wait_until("the process to end and wait for its reaping", &|| { return fs::read_to_string(format!("/proc/{zombie_pid}/stat")).is_ok_and(|text| { return text.rsplit(')').next().is_some_and(|rest| { return rest.trim_start().starts_with('Z'); }); }); });
-    assert_eq!(launcher_state(zombie_pid, zombie_start, namespace), LauncherState::Alive, "an unreaped zombie was read as gone");
+    assert_eq!(launcher_state(zombie_pid, zombie_start, namespace, time), LauncherState::Alive, "an unreaped zombie was read as gone");
     let _ = zombie.wait();
-    assert_eq!(launcher_state(zombie_pid, zombie_start, namespace), LauncherState::Gone);
+    assert_eq!(launcher_state(zombie_pid, zombie_start, namespace, time), LauncherState::Gone);
 }
 
 /// Acceptance rows A1, V2 (round 11): a launcher that is alive keeps blocking, whatever the scope looks like, and no acknowledgement
@@ -212,10 +213,10 @@ fn a_gone_launcher_lets_the_recovery_read_the_scope_as_final() {
     let planned: ControlGroup = ControlGroup::plan(&inside).expect("a scope name");
     let root = repository();
     let record: Record = held.record(planned.directory());
-    let Record::Launcher { pid, start, pid_namespace, path } = record.clone() else {
+    let Record::Launcher { pid, start, pid_namespace, time_namespace, path } = record.clone() else {
         panic!("a launcher record");
     };
-    let reused: Record = Record::Launcher { pid, start: start + 1, pid_namespace, path };
+    let reused: Record = Record::Launcher { pid, start: start + 1, pid_namespace, time_namespace, path };
     let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n{reused}\n", planned.record()));
     let reused_note: Option<String> = survivor_note(&journal);
 
@@ -271,12 +272,12 @@ fn what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement() {
     let directory = scratch();
     let mut held: HeldLauncher = HeldLauncher::start(directory.path());
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let Record::Launcher { pid, start, pid_namespace, .. } = held.record(planned.directory()) else {
+    let Record::Launcher { pid, start, pid_namespace, time_namespace, .. } = held.record(planned.directory()) else {
         panic!("a launcher record");
     };
     held.end();
-    let other_namespace: Record = Record::Launcher { pid, start, pid_namespace: pid_namespace + 1, path: planned.directory().to_path_buf() };
-    let elsewhere: Record = Record::Launcher { pid, start, pid_namespace, path: planned.directory().with_file_name("another.scope") };
+    let other_namespace: Record = Record::Launcher { pid, start, pid_namespace: pid_namespace + 1, time_namespace, path: planned.directory().to_path_buf() };
+    let elsewhere: Record = Record::Launcher { pid, start, pid_namespace, time_namespace, path: planned.directory().with_file_name("another.scope") };
     let cases: Vec<(&str, String)> = vec![
         ("another process id namespace", format!("{}\n{other_namespace}\n", planned.record())),
         ("no launcher record", format!("{}\n", planned.record())),
@@ -370,7 +371,7 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
         return fs::read_to_string(&groups).is_ok_and(|text| { return text.ends_with('\n') && text.lines().any(|line| { return matches!(parse_record(line), Ok(Record::Launcher { .. })); }); });
     });
     let record: String = fs::read_to_string(&groups).expect("the records");
-    let Some(Ok(Record::Launcher { pid, start, pid_namespace, path })) = record.lines().map(parse_record).find(|parsed| { return matches!(parsed, Ok(Record::Launcher { .. })); }) else {
+    let Some(Ok(Record::Launcher { pid, start, pid_namespace, time_namespace, path })) = record.lines().map(parse_record).find(|parsed| { return matches!(parsed, Ok(Record::Launcher { .. })); }) else {
         panic!("no launcher record in {record:?}");
     };
     wrapper.kill().expect("kill the wrapper while its program waits");
@@ -385,7 +386,7 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
     crate::cgroup_test_support::assert_ran_in_recorded_scope(&groups, &fs::read_to_string(root.path().join("payload-cgroup")).expect("the program's own cgroup"), &crate::cgroup_test_support::wrapper_group());
     let while_running: Option<String> = survivor_note(&journal);
     fs::write(root.path().join("release"), "go").expect("release the program");
-    wait_until("the launcher to be gone", &|| { return launcher_state(pid, start, pid_namespace) == LauncherState::Gone; });
+    wait_until("the launcher to be gone", &|| { return launcher_state(pid, start, pid_namespace, time_namespace) == LauncherState::Gone; });
     wait_until("the manager to collect the scope", &|| { return !scope.exists(); });
     let after: Option<String> = survivor_note(&journal);
     let messages: Vec<String> = recover(root.path(), &refusing);

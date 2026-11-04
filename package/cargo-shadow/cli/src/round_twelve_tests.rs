@@ -177,11 +177,11 @@ fn procfs_namespace_fixture() {
     // An arbitrary start time stands for a launcher recorded earlier; in a consistent procfs a live process has another start time
     // only if it is another process, and in an inconsistent one nothing can be said.
     let arbitrary: u64 = recorded_start.as_ref().map_or(1, |start| { return start + 1; });
-    let against_other_start: String = format!("{:?}", launcher_state(pid, arbitrary, namespace));
-    let against_own_start: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
+    let against_other_start: String = format!("{:?}", launcher_state(pid, arbitrary, namespace, crate::control_group::time_namespace_id().ok()));
+    let against_own_start: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace, crate::control_group::time_namespace_id().ok())); });
     let _ = launcher.kill();
     let _ = launcher.wait();
-    let after_end: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace)); });
+    let after_end: String = recorded_start.as_ref().map_or_else(|_| { return "no start".to_string(); }, |start| { return format!("{:?}", launcher_state(pid, *start, namespace, crate::control_group::time_namespace_id().ok())); });
     fs::write(
         root.join("fixture-result"),
         format!(
