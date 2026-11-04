@@ -141,13 +141,14 @@ pub fn start_lane_service(lane: &Path, interval: Duration) -> io::Result<()> {
 /// One pass of the loop: the syncer's pass, then the interrupted disposals the person authorized (a writer that was busy at an earlier try
 /// is tried again here, on every pass).
 fn pass(lane: &Path, state: &Path) {
-    match syncer_pass(lane) {
-        Ok(_) => crate::service_log!("lane pass complete {}", lane.display()),
-        Err(error) => crate::service_error!("a pass over {} failed: {error:?}", lane.display()),
+    if let Err(error) = syncer_pass(lane) {
+        crate::service_error!("a pass over {} failed: {error:?}", lane.display());
     }
     if let Err(error) = super::commit_disposal::resume_disposals(lane, state) {
         crate::service_error!("the interrupted disposals of {} could not be finished: {error}", lane.display());
     }
+    // Said whether or not the pass succeeded: a pass that recorded an error for a receipt it could not force is a pass that ran.
+    crate::service_log!("lane pass complete {}", lane.display());
 }
 
 /// The loop of the lane service.

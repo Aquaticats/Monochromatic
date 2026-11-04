@@ -24,7 +24,7 @@ use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind, LaneDocument, St
 use std::cell::{Cell, RefCell};
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// The exit status of a child that died at its crash point.
@@ -78,8 +78,6 @@ fn seen() -> Vec<String> {
 /// The longest a test waits for something to happen.
 const WAIT: Duration = Duration::from_secs(10);
 
-/// What a bound is allowed to overshoot by on a loaded host.
-const SCHEDULING_ALLOWANCE: Duration = Duration::from_secs(3);
 
 /// A lane with a request and saved content retained by a first checked record. Returns the lane, the state directory and the content name.
 fn lane_with_saved(label: &str) -> (PathBuf, PathBuf, String) {
