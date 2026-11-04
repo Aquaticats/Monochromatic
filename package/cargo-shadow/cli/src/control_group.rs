@@ -696,7 +696,7 @@ fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
 /// still join its scope.
 /// Why:
 /// The launcher becomes the program, and a process that is gone cannot be attached to a scope later (round 11).
-/// It is gone only when this process is in the namespace of the record and no process with that id and that start time exists,
+/// It is gone only when this process is in the process id and time namespaces of the record and no process with that id and that start time exists,
 /// read through a procfs that numbers processes as this namespace does (`start_of`, round 12);
 /// a different namespace, another namespace's procfs, a hidden or unreadable process and a state that is not understood are
 /// "unknown", never "gone".
@@ -706,12 +706,21 @@ fn parse_stat(pid: i32, text: &str) -> io::Result<(u64, char)> {
 /// export function launcherState(pid: number, start: number, pidNamespace: number): 'gone' | 'alive' | { unknown: string }
 /// ```
 pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64, time_namespace: Option<u64>) -> LauncherState {
-    // Scaffold of round 14: the time namespace is passed and not used yet.
-    let _ = time_namespace;
+
     match pid_namespace_id() {
         Ok(found) if found == pid_namespace => {}
         Ok(_) => return LauncherState::Unknown(format!("the launcher {pid} was recorded in another process id namespace than this process is in")),
         Err(error) => return LauncherState::Unknown(format!("the process id namespace of this process cannot be identified ({error})")),
+    }
+    // The start time is relative to the boot-time offset of the reader's time namespace, so a different start time means a reused id
+    // only when the record was made in the reader's own time namespace (round 14); without that proof the answer is unknown.
+    match (time_namespace, time_namespace_id()) {
+        (Some(recorded), Ok(here)) if recorded == here => {}
+        (Some(recorded), Ok(here)) => {
+            return LauncherState::Unknown(format!("the launcher {pid} was recorded in time namespace {recorded} and this process is in {here}, so the start times cannot be compared"));
+        }
+        (None, _) => return LauncherState::Unknown(format!("the record of the launcher {pid} has no time namespace (a line of an older version), so its start time cannot be compared")),
+        (Some(_), Err(error)) => return LauncherState::Unknown(format!("the time namespace of this process cannot be identified ({error})")),
     }
     return match start_of(pid) {
         StartOf::Gone => LauncherState::Gone,
