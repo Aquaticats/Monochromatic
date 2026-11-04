@@ -108,11 +108,6 @@ const DISCOVERY_BOUND: Duration = Duration::from_secs(10);
 /// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 const DISCOVERY_POLL: Duration = Duration::from_millis(5);
 
-/// How long a killed discovery program is given to be reaped.
-/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
-const DISCOVERY_REAP: Duration = Duration::from_secs(2);
-
 /// How many random bytes make a scope name unique.
 /// 16 bytes are 128 bits, so a name repeated by chance is not a case to plan for.
 const TOKEN_BYTES: usize = 16;
@@ -507,33 +502,35 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
         };
     }
     let mut child = command.spawn().map_err(|error| { return format!("{program} could not be started ({error})"); })?;
+    // One deadline for the reading, the killing and the reaping (contract V6; round 10, 9a D3).
+    let deadline: Instant = Instant::now() + bound;
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let (Some(out_pipe), Some(err_pipe)) = (child.stdout.take(), child.stderr.take()) else {
         let _ = child.kill();
-        reap_within(&mut child);
-        return Err(format!("{program} has no output pipes"));
+        let reaped: bool = reap_within(&mut child, deadline);
+        return Err(format!("{program} has no output pipes{}", unreaped_note(reaped)));
     };
     let out_reader = crate::bounded_io::collect(OwnedFd::from(out_pipe), Arc::clone(&cancel));
     let err_reader = crate::bounded_io::collect(OwnedFd::from(err_pipe), Arc::clone(&cancel));
-    let deadline: Instant = Instant::now() + bound;
-    // Every exit from here ends the readers, kills a child that is still running, and reaps it within a bound.
-    let ended = |running: &mut std::process::Child, readers: &Arc<AtomicBool>| {
+    // Every exit from here ends the readers, kills a child that is still running, and reaps it within what is left of the deadline.
+    // It returns the text that says so when the child was not reaped in time.
+    let ended = |running: &mut std::process::Child, readers: &Arc<AtomicBool>| -> &'static str {
         readers.store(true, Ordering::Relaxed);
         let _ = running.kill();
-        reap_within(running);
+        return unreaped_note(reap_within(running, deadline));
     };
     let status = loop {
         match child.try_wait() {
             Ok(Some(found)) => break found,
             Ok(None) => {}
             Err(error) => {
-                ended(&mut child, &cancel);
-                return Err(format!("{program} could not be waited for ({error})"));
+                let note: &str = ended(&mut child, &cancel);
+                return Err(format!("{program} could not be waited for ({error}){note}"));
             }
         }
         if Instant::now() >= deadline {
-            ended(&mut child, &cancel);
-            return Err(format!("{program} did not answer within {bound:?}"));
+            let note: &str = ended(&mut child, &cancel);
+            return Err(format!("{program} did not answer within {bound:?}{note}"));
         }
         std::thread::sleep(DISCOVERY_POLL);
     };
@@ -542,16 +539,16 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
     let out: Vec<u8> = match out_reader.recv_timeout(out_wait) {
         Ok(Ok(bytes)) => bytes,
         _ => {
-            ended(&mut child, &cancel);
-            return Err(format!("{program} did not answer within {bound:?} (its output was not closed)"));
+            let note: &str = ended(&mut child, &cancel);
+            return Err(format!("{program} did not answer within {bound:?} (its output was not closed){note}"));
         }
     };
     let err_wait: Duration = deadline.saturating_duration_since(Instant::now());
     let err: Vec<u8> = match err_reader.recv_timeout(err_wait) {
         Ok(Ok(bytes)) => bytes,
         _ => {
-            ended(&mut child, &cancel);
-            return Err(format!("{program} did not answer within {bound:?} (its error output was not closed)"));
+            let note: &str = ended(&mut child, &cancel);
+            return Err(format!("{program} did not answer within {bound:?} (its error output was not closed){note}"));
         }
     };
     cancel.store(true, Ordering::Relaxed);
@@ -563,26 +560,46 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
 }
 
 /// What:
-/// `fn reap_within(child: &mut std::process::Child)` waits for a killed child for at most `DISCOVERY_REAP`.
+/// `fn unreaped_note(reaped: bool) -> &'static str` is the text that a discovery adds to its failure when its killed program was
+/// not reaped before the deadline.
 /// Why:
-/// `Child::wait` has no deadline (contract V6).
+/// The failure is conservative: the capability is missing, and the message says that a process may still exist.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function reapWithin(child: ChildProcess): void
+/// function unreapedNote(reaped: boolean): string
 /// ```
-fn reap_within(child: &mut std::process::Child) {
-    let deadline: Instant = Instant::now() + DISCOVERY_REAP;
+fn unreaped_note(reaped: bool) -> &'static str {
+    return if reaped { "" } else { "; the killed program could not be reaped before the deadline" };
+}
+
+/// What:
+/// `fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool` waits for a killed child until `deadline` and says
+/// whether it was reaped.
+/// Why:
+/// `Child::wait` has no deadline (contract V6), and the discovery's one deadline covers its reading, its killing and its reaping:
+/// a reaping with a budget of its own would end after the promised time (round 10, 9a D3).
+/// One non-blocking attempt is made even when the deadline has passed, so a child that is already reapable is reaped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reapWithin(child: ChildProcess, deadline: number): boolean
+/// ```
+fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool {
     // A test makes the killed child look unreapable for as long as the budget lasts.
     #[cfg(test)]
     let stuck: bool = crate::failpoints::fires(crate::failpoints::Point::ReapStuck);
     #[cfg(not(test))]
     let stuck: bool = false;
-    while Instant::now() < deadline {
+    loop {
         if !stuck && !matches!(child.try_wait(), Ok(None)) {
-            return;
+            return true;
         }
-        std::thread::sleep(DISCOVERY_POLL);
+        let now: Instant = Instant::now();
+        if now >= deadline {
+            return false;
+        }
+        std::thread::sleep(DISCOVERY_POLL.min(deadline - now));
     }
 }
 
