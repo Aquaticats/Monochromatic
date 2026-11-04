@@ -513,20 +513,32 @@ fn a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_
     let Some(route) = delegated_route() else {
         return;
     };
-    let root = repository();
-    let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let Record::Scope { namespace, parent_view, path } = planned.record() else {
-        panic!("a scope record");
-    };
-    let wrong: Record = Record::Scope { namespace, parent_view: View { mount: parent_view.mount + 1, inode: parent_view.inode }, path };
-    let journal: PathBuf = journal_with_records(root.path(), &format!("{wrong}\nsettled {}\n", planned.directory().display()));
+    // The mount id and the inode of the parent are each changed on their own (fifth certification pass): a check of only one of them
+    // is red for the other; the unchanged view is the control, which is read as ended.
+    for (label, mount_step, inode_step) in [("an unchanged view", 0_u64, 0_u64), ("another mount id", 1, 0), ("another inode", 0, 1)] {
+        let root = repository();
+        let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
+        let Record::Scope { namespace, parent_view, path } = planned.record() else {
+            panic!("a scope record");
+        };
+        let seen: Record = Record::Scope { namespace, parent_view: View { mount: parent_view.mount + mount_step, inode: parent_view.inode + inode_step }, path };
+        let journal: PathBuf = journal_with_records(root.path(), &format!("{seen}\nsettled {}\n", planned.directory().display()));
 
-    let note: String = survivor_note(&journal).expect("a different parent view blocks");
-    let messages: Vec<String> = recover(root.path(), &refusing);
+        let note: Option<String> = survivor_note(&journal);
+        let messages: Vec<String> = recover(root.path(), &refusing);
 
-    assert!(note.contains("recorded path may lead somewhere else"), "{note}");
-    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{messages:?}");
-    assert!(journal.exists());
+        if mount_step == 0 && inode_step == 0 {
+            assert_eq!(note, None, "{label}: the control did not read the settled, absent scope as ended: {messages:?}");
+            assert!(!journal.exists(), "{label}: the control journal was not recovered: {messages:?}");
+        } else {
+            let text: String = note.unwrap_or_else(|| { panic!("{label}: a different parent view did not block"); });
+            assert!(text.contains("recorded path may lead somewhere else"), "{label}: {text}");
+            assert!(messages.iter().any(|message| { return message.contains("recorded path may lead somewhere else"); }), "{label}: the recovery did not give the reason: {messages:?}");
+            assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{label}: {messages:?}");
+            assert!(journal.exists(), "{label}: the journal was removed");
+            assert!(begin(root.path(), &[snapshot("second")], false).is_err(), "{label}: a transaction was admitted beside a journal whose parent view differs");
+        }
+    }
 }
 
 /// The helper process of the mount-view test:
