@@ -3171,13 +3171,18 @@ batches, and the wait of a landing) goes through `reclaim_if`, which opens the l
 a non-blocking exclusive `flock` on it, checks that the name still refers to that file (device and inode), and only then
 unlinks the name.
 Nothing is moved aside, so a live lock is never off its name.
-There are five answers, and each has its own consequence:
+There are six answers, and each has its own consequence:
 
 - Removed: the stale file was removed, or was already gone; the placement is tried again.
 - Changed: the name refers to another file than the one judged (the stale lock was reclaimed and a live one placed); nothing is
   removed, and the placement is tried again.
-- Busy: another reclaimer holds the stale file; a landing waits as for any held lock (the watch wakes when the lock is gone,
-  the notice timer looks again if that reclaimer died, and the ceiling ends the wait), and a restart leaves the batch open.
+- Busy: another reclaimer holds the stale file (or the call was interrupted); a landing waits as for any held lock and looks
+  again after the poll pause, because the end of a hold leaves no event in the directory, and the ceiling ends the wait; a
+  restart leaves the batch open.
+- Unguarded: the hold could not be taken for any other reason (no `flock` on the file system, the kernel refused it). Nothing is
+  removed, because an unlink without the hold could remove a live lock. A landing waits as for any held lock to its ceiling and
+  withdraws the commit to its side ref; its notice names the lock, the batch and the dead process, and says to remove the lock
+  by hand once no git command runs. A restart leaves the batch open.
 - Kept: the file is not a stale lock of the service (a live holder's, Git's, or unreadable); it is left where it is.
 - Stuck: the file is stale and cannot be removed; the log says why, and the landing fails as before.
 
@@ -3188,8 +3193,10 @@ It is on the lock inventory (`source_guard/service_lock_inventory_tests.rs`) wit
 Two reclaimers, and a reclaimer against a landing, are kept apart; Git takes no part and never reclaims.
 What stays open: a person's `rm index.lock` between the check of the name and the unlink, when Git then places its own lock in
 the two system calls between, because no system call unlinks a name only if it still names a given file; a file system that
-gives no `flock` (the reclaim then goes on unguarded, and the log says so); and reclaimers on different hosts over a shared
-file system, which `flock` does not reach.
+gives no `flock` (the stale lock is then left for the person, and the log says so); and reclaimers on different hosts over a
+shared file system, which `flock` does not reach.
+The files an earlier release's reclaim left at a taken-aside name (`<lock>.aside-<process>-<time>`) are removed after a placement
+when they have no other name and no process has them open; the log line holds what they held.
 
 #### A violation fails loudly
 

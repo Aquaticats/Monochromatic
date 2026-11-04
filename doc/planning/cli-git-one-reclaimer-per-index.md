@@ -70,8 +70,8 @@ Pros of B (both variants):
 Cons of B (both variants):
 - a lock, against "Use as few locks as possible."; its reason is written beside it in the code and the lock inventory
   (`service_lock_inventory_tests.rs`) lists the file;
-- `flock` is a hold of this kernel: reclaimers on different hosts over a shared filesystem are not serialized, and a
-  filesystem that gives no `flock` leaves the reclaim unguarded with a line in the log (the same state as today);
+- `flock` is a hold of this kernel: reclaimers on different hosts over a shared filesystem are not serialized, and on a
+  filesystem that gives no `flock` the stale lock is not removed at all (see "No `flock`" below);
 - Git does not take it, but Git never reclaims, so it is not a party.
 
 #### B1: the `flock` is on the stale lock file's own inode
@@ -157,4 +157,56 @@ Controls in `service_index_reclaim_tests.rs`:
 Each guard was shown to matter: with the `flock` result ignored, the controls for the backed-off reclaimer and the landing's
 wait fail; with the inode comparison always true, the controls for a replaced file fail.
 
-Not exercised: a file system that gives no `flock` (`Hold::Unavailable`), which no fixture on this host can be made to have.
+Added after the cross-vendor review of `9db8794047` (`/var/home/user/temp/agent/reviews/one-reclaimer-sol-1.txt`, verdict
+"correct after named fixes"): the three fixes in the next sections, and the sweep of aside files.
+
+## No `flock`
+
+The first build removed the stale lock anyway when the `flock` failed for a reason other than another reclaimer holding it. The
+review showed that this route deletes a live lock: two reclaimers without the hold both pass the inode check, one removes the
+stale lock and a landing places its own, and the other then unlinks the name, which is the live lock; Git can then create its own
+lock beside a landing that has passed its ownership check. Every error but `WouldBlock` took that route, not only a file system
+without `flock`; an NFS client that emulates `flock` with byte-range locks can refuse a lock on a read-only descriptor.
+
+Pick (the coordinator's, under the owner's delegation "Pick options as if I had picked them and invite veto"; veto open): a
+reclaimer that cannot take the hold never removes the lock (`Reclaimed::Unguarded`). A landing treats the lock as a held lock:
+the ordinary wait to `LOCK_CEILING`, then the withdrawal that keeps the commit on its side ref. Its notice names the stale
+lock's path, the batch and the dead process from its marker, and says to remove it by hand with `rm` once no git command runs
+there, as native Git leaves a stale `index.lock` to the person. A restart leaves the batch open.
+An interrupted call is not a refusal: it is treated as a hold by another reclaimer and asked again by the wait.
+
+Alternatives considered:
+- Remove anyway, as the first build did. Rejected: the interleaving above deletes a live lock, and it needs no manual `rm`.
+- Fall back to the old rename aside and put-back where there is no `flock`. Rejected: it brings back the empty-name window in
+  which Git takes the name and the live lock is stranded, for exactly the file systems that cannot be tested here.
+- Fail the landing at once. Rejected: "Commits should never fail."; the bounded wait lets the person remove the lock and the
+  commit land, and the withdrawal keeps the commit on its side ref.
+- Land the commit and leave the index update for a later recovery when the lock cannot be had. Not taken: the update needs the
+  lock to be safe, and the replay gate would have to accept a batch with no lock ever held; a larger design change.
+- Retry the `flock` on a descriptor opened for writing, for NFS emulation. Not built: opening another account's lock file for
+  writing may fail, and the case is unexercised here; it would narrow the set of file systems that wait for a person.
+
+Ranking: not removing > failing at once > falling back to the aside window > removing anyway.
+
+## A busy stale lock
+
+A `Busy` answer leaves no event in the directory when the other reclaimer lets go without unlinking (it died, or its file was
+already replaced), so the wake of the wait on the directory would come only with the notice timer. The wait now looks again after
+`POLL_PAUSE` while the last answer was `Busy`, inside the same acquisition and under the same ceiling.
+The review also asked whether the holder classifier ends the wait at once for a stale marker: it does not for a service marker,
+which has no pid file, and the control `a_landing_takes_the_stale_lock_when_the_other_reclaimers_hold_is_dropped` shows the
+acquisition succeeding with no dead-holder announcement.
+
+## The control for the old aside window
+
+`a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name` watches the directory with inotify while a reclaimer works
+on a live lock, and fails on any rename, removal or creation of the lock's name, so it needs no hook at a point inside the
+reclaimer. Run against the code of `dd37f0c462` (a throwaway worktree, since removed) it fails with the rename of `index.lock`
+to its `.aside-` name in the events; against the current code it passes.
+
+## Aside files an earlier release left
+
+`remove_stranded_asides` runs after each placement, beside the sweep of dead staging files. It removes
+`<lock>.aside-<process>-<time>` files that have no other name and that no process has open (a live holder keeps its file open),
+and writes what each held into the log line. They are lock files, not user data. A scan that stopped at its time bound leaves them.
+The descriptors of other accounts' processes cannot be listed; a holder of these files is a service of this account.
