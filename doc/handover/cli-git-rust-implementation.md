@@ -3620,9 +3620,17 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     map 14 shown,
     2 partly;
     the writer-side sync fault and a real interrupted publication now tested).
-    Cross-vendor reviews running:
-    `cargo-shadow-sol-12a.txt` and `cargo-shadow-sol-12b.txt`,
-    inputs from `2c20baf0e6`.
+    Reviews returned:
+    `cargo-shadow-sol-12a.txt` "Does not meet the list for this part" (the pidfd fdinfo check is not bound to the later stat read: a `/proc` replaced or overmounted between them makes a live launcher read as gone;
+    a changed positive number after a failed stat read as gone;
+    boot-id,
+    reap and view-header fixes accepted)
+    and `cargo-shadow-sol-12b.txt` "Meets it after named fixes" (scope comparison circular,
+    procfs fixture not discriminating,
+    publication control without completion);
+    no row added.
+    Round 13 running (suggested fix:
+    one pinned procfs directory descriptor and `openat2` with `RESOLVE_NO_XDEV`).
 - 0.5.30 published (crates.io 2026-11-04T14:27:24Z,
   run 41846701765) and installed (`5c2fb3a5b2`):
   it ships the claim chain;
