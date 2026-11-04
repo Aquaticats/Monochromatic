@@ -129,6 +129,7 @@ await describe({
           trustPolicy: 'off',
           trustPolicyExclude: [],
           trustPolicyExcludePrune: false,
+          trustLockfile: false,
         },);
       },
     },),
@@ -149,6 +150,7 @@ await describe({
           'trustPolicyExclude = ["clap@4.6.7"]',
           'trustPolicyExcludePrune = true',
           'trustPolicyIgnoreAfter = 525600',
+          'trustLockfile = true',
           '[catalog]',
         ],);
         expect(settings,).toEqual({
@@ -162,6 +164,7 @@ await describe({
           trustPolicyExclude: ['clap@4.6.7',],
           trustPolicyExcludePrune: true,
           trustPolicyIgnoreAfter: 525_600,
+          trustLockfile: true,
         },);
       },
     },),
@@ -270,6 +273,7 @@ await describe({
           'minimumReleaseAgeStrict = "yes"',
           'trustPolicy = "trust-everyone"',
           'trustPolicyIgnoreAfter = 1.5',
+          'trustLockfile = "yes"',
           '[catalog]',
         ],),).toEqual([
           'minimumReleaseAge',
@@ -277,6 +281,7 @@ await describe({
           'minimumReleaseAgeExclude',
           'minimumReleaseAgeStrict',
           'trustPolicy',
+          'trustLockfile',
         ],);
       },
     },),

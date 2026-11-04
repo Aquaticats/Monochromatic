@@ -31,15 +31,19 @@ on 2026-09-25 for `monochromatic-jsonc-edit` 0.1.0:
    and a freshly minted token is a secret that policy keeps out of the agent conversation.
 
 Division of labor after this runbook:
-you create the token,
-sign cargo in,
-and configure Trusted Publishing in the crates.io dashboard.
-Everything else,
+you create one token with the scopes `publish-new`,
+`publish-update` and `trusted-publishing`,
+and sign cargo in with it (`cargo login` in your own terminal).
+That is the whole owner part.
+Everything else is agent work:
 the real `cargo publish`,
 registry verification,
 a disposable consumer build against the published crate,
-and the workflow dispatch that proves the OIDC route,
-is agent work.
+creating the Trusted Publishing configuration through the crates.io API with the same token
+(`Agent: create the Trusted Publishing configuration`),
+and the workflow dispatch that proves the OIDC route.
+The dashboard route (steps 12 to 16 of `Steps`) is only a fallback when the token lacks the `trusted-publishing` scope.
+This flow is how `monochromatic-search-shadow` and `monochromatic-mpm-shadow` were published on 2026-10-29.
 
 ## Crate and version covered
 
@@ -113,12 +117,17 @@ TODO
    Expected outcome:
    the form shows the chosen expiry.
    A bootstrap token never needs to live longer than the publish.
-5. Select the **publish-new** scope and the **publish-update** scope.
+5. Select the **publish-new**,
+   **publish-update** and **trusted-publishing** scopes.
    Expected outcome:
-   both scopes are checked,
+   those three scopes are checked,
    and no other scope is.
    `publish-new` creates the crate;
-   `publish-update` is needed if the first attempt fails partway and you retry.
+   `publish-update` is needed if the first attempt fails partway and you retry;
+   `trusted-publishing` lets the agent create the crate's Trusted Publishing configuration through the API,
+   so you never open the crate's settings page.
+   Under **Crates**,
+   restrict the token to the crate names being published when the form offers it.
 6. Click **Generate Token**.
    Expected outcome:
    the new token appears in the list and its secret value is shown once,
@@ -150,7 +159,13 @@ TODO
     If you prefer to publish yourself,
     run `cargo publish --no-verify` in `package/jsonc-edit/core-rust`;
     expected outcome is `Uploading monochromatic-jsonc-edit v0.1.0` with no error line.
-12. Open <https://crates.io/crates/monochromatic-jsonc-edit/settings>.
+    The agent then creates the Trusted Publishing configuration itself
+    (`Agent: create the Trusted Publishing configuration`, after `Steps`),
+    so steps 12 to 16 are skipped when the token carries the `trusted-publishing` scope;
+    go on with step 17 once the agent reports the configuration.
+12. Fallback only,
+    when the token lacks the `trusted-publishing` scope:
+    open <https://crates.io/crates/monochromatic-jsonc-edit/settings>.
     Expected outcome:
     the crate's settings page,
     which only exists once step 11 succeeded.
@@ -189,6 +204,42 @@ TODO
     Expected outcome:
     the token disappears from the list.
     From now on the workflow authenticates with a 30-minute OIDC token instead.
+
+### Agent: create the Trusted Publishing configuration
+
+Status:
+TODO for each new crate;
+done this way for `monochromatic-search-shadow` (config 29473) and `monochromatic-mpm-shadow` (config 29493).
+
+After the publish,
+with the owner's token from `cargo login` still in `~/.cargo/credentials.toml`:
+
+1. Read the token from the credential file inside the script that makes the request,
+   never on a command line,
+   in an environment variable another process can read,
+   or in any output;
+   print only HTTP statuses and the returned ids.
+2. `POST https://crates.io/api/v1/trusted_publishing/github_configs`
+   with the token in the `Authorization` header,
+   a `User-Agent` naming the tool,
+   and the body
+   `{"github_config": {"crate": "<name>", "repository_owner": "Aquaticats", "repository_name": "Monochromatic",
+   "workflow_filename": "cargo-publish.yml", "environment": null}}`.
+   Expected outcome:
+   HTTP 200 with a `github_config` whose `repository_owner_id` is `343218767`.
+   crates.io's handler requires the token's `trusted-publishing` endpoint scope and that the token's owner owns the crate,
+   has a verified email and a linked GitHub account
+   (`src/controllers/trustpub/github_configs/create.rs`,
+   `.with_endpoint_scope(EndpointScope::TrustedPublishing)`,
+   at [rust-lang/crates.io `e0edaf98`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/src/controllers/trustpub/github_configs/create.rs#L51-L57),
+   read 2026-11-04);
+   the body fields are `NewGitHubConfig` in
+   [`crates/crates_io_api_types/src/trustpub.rs`](https://github.com/rust-lang/crates.io/blob/e0edaf98831e94b4a6d0969b957bda0094a45f3d/crates/crates_io_api_types/src/trustpub.rs#L27-L39).
+   A crate holds at most five GitHub configurations.
+3. List it back with `GET https://crates.io/api/v1/trusted_publishing/github_configs?crate=<name>`;
+   `DELETE .../github_configs/<id>` removes a wrong one.
+4. Prove the route with the two dispatches in `What to check` item 5,
+   then tell the owner the token can be revoked (step 17).
 
 ### What to check
 

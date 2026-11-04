@@ -19,15 +19,15 @@
 //! takeClaim(platform, lock, staleFile, marked) // 'held' | 'busy' | { foreign: { file, marked } } | { unavailable: error }
 //! ```
 
-use crate::service_index_marker::{Marked, holder_is_elsewhere, holder_is_gone, marker_text, parse_marker};
+use crate::service_index_marker::{Marked, holder_is_elsewhere, holder_is_gone, holder_is_running, marker_text, parse_marker};
 use crate::service_index_placement::{Platform, place_marked};
 use crate::service_index_staging::stage_marker;
 use std::io::Read;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-/// What follows the lock's file name in the name of a claim file.
-pub const CLAIM_INFIX: &str = ".cli-reclaim-";
+/// What every claim file's name starts with (after the lock's directory).
+pub const CLAIM_INFIX: &str = "cli-reclaim-";
 
 /// The longest claim this reader looks at, as long as the longest marker it reads from a lock.
 const CLAIM_READ_LIMIT: u64 = 512;
@@ -44,6 +44,8 @@ pub enum Claim {
     Busy,
     /// A claim in the way was made by a service on another machine: it is not proven gone, so it stays and is named.
     Foreign { file: PathBuf, marked: Marked },
+    /// A claim in the way cannot be judged (its maker is in another PID namespace, or it cannot be read): it stays and is named.
+    Unjudged { file: PathBuf, marked: Option<Marked> },
     /// A claim could not be placed or this process cannot name itself: nothing is removed, and the caller says so.
     Unavailable(std::io::Error),
 }
@@ -56,8 +58,11 @@ enum Slot {
     /// A claim whose maker is gone, or a file that holds no whole marker (a power loss left it, or a stranger placed it; a
     ///  running claimer's file is placed whole): passed over, never removed while the stale file stands.
     Dead,
-    /// A claim whose maker runs or cannot be judged, or a file that could not be read.
+    /// A claim whose maker is proven to run.
     Live,
+    /// A claim whose maker cannot be judged here (another PID namespace, a `/proc` that does not agree), or a claim that cannot be
+    ///  read at all (then without a marker): neither gone nor proven running, and not a contention that passes.
+    Unjudged(Option<Marked>),
     /// A claim whose maker is on another machine, or on one this machine cannot be compared with.
     Elsewhere(Marked),
 }
@@ -91,12 +96,30 @@ impl Drop for ClaimHold {
     }
 }
 
-/// The name of the claim at `slot` for the stale file with the identity `key`, beside `lock`.
+/// What:
+///  The name of the claim at `slot` for the stale lock with the identity `key`, in the lock's directory.
+/// Why:
+///   A claim name of the lock's own name with the whole identity appended would pass the limit of a file name (255 bytes) beside
+///  a lock with a long name, and no claim could be placed. The name is a fixed-length digest of the lock's name and the key (the
+///  first sixteen bytes of SHA-256, which the index writer already carries), so two different locks of one directory and two
+///  different stale files of one lock never share a name, and every reclaimer derives it alike.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// join(dirname(lock), `cli-reclaim-${sha256(basename(lock) + '\0' + key).slice(0, 16).toString('hex')}-${slot}`)
+/// ```
 pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
-    let mut name = lock.as_os_str().to_os_string();
-    name.push(format!("{CLAIM_INFIX}{key}-{slot}"));
-    return PathBuf::from(name);
+    use std::os::unix::ffi::OsStrExt;
+    let mut input: Vec<u8> = lock.file_name().map_or_else(Vec::new, |name| { return name.as_bytes().to_vec(); });
+    input.push(0);
+    input.extend_from_slice(key.as_bytes());
+    let digest: [u8; 32] = crate::subvolume_sha::sha256(input.as_slice());
+    let hex: String = digest.iter().take(CLAIM_DIGEST_BYTES).map(|byte| { return format!("{byte:02x}"); }).collect();
+    return lock.with_file_name(format!("{CLAIM_INFIX}{hex}-{slot}"));
 }
+
+/// How many bytes of the digest name a claim: 128 bits, far past any chance of two stale locks of one directory sharing a name.
+const CLAIM_DIGEST_BYTES: usize = 16;
 
 /// What:
 ///  The identity of the stale lock that names its claims: the batch and process its marker names, from the marker's own text.
@@ -134,7 +157,7 @@ fn remove_claim(path: &Path) {
     }
 }
 
-/// What the file at `path` is as a claim: absent, a gone maker's, or a running (or unjudgeable, or unreadable) maker's.
+/// What the file at `path` is as a claim: absent, a gone maker's, a running maker's, or one that cannot be judged.
 fn look_at(path: &Path) -> Slot {
     // No link is followed and no pipe waited on, so a stranger's file of this name cannot hang the reclaimer.
     let opened = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path);
@@ -142,8 +165,8 @@ fn look_at(path: &Path) -> Slot {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Slot::Free,
         Err(error) => {
-            crate::service_error!("the claim file {} of a reclaim cannot be opened ({error}), so its maker is taken to run", path.display());
-            return Slot::Live;
+            crate::service_error!("the claim file {} of a reclaim cannot be opened ({error}), so its maker is not judged", path.display());
+            return Slot::Unjudged(None);
         }
     };
     let mut text: String = String::new();
@@ -152,24 +175,55 @@ fn look_at(path: &Path) -> Slot {
         // Bytes that are not text are no marker: the file is a stranger's.
         Err(error) if error.kind() == std::io::ErrorKind::InvalidData => return Slot::Dead,
         Err(error) => {
-            crate::service_error!("the claim file {} of a reclaim cannot be read ({error}), so its maker is taken to run", path.display());
-            return Slot::Live;
+            crate::service_error!("the claim file {} of a reclaim cannot be read ({error}), so its maker is not judged", path.display());
+            return Slot::Unjudged(None);
         }
     }
     return match parse_marker(text.as_str()) {
         Some(marked) if holder_is_gone(marked.holder.as_ref()) => Slot::Dead,
         Some(marked) if holder_is_elsewhere(marked.holder.as_ref()) => Slot::Elsewhere(marked),
-        Some(_) => Slot::Live,
+        Some(marked) if holder_is_running(marked.holder.as_ref()) => Slot::Live,
+        Some(marked) => Slot::Unjudged(Some(marked)),
         None => Slot::Dead,
     };
 }
 
-/// The text of the claim file at `path`, when it can be read as text.
-fn text_of(path: &Path) -> Option<String> {
-    let file = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path).ok()?;
+/// What reading the claim file at `path` as text gave: its text, nothing because there is no such file, or an error because it
+///  could not be read (then whether it is this attempt's claim is not known).
+fn text_of(path: &Path) -> std::io::Result<Option<String>> {
+    let file = match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
     let mut text: String = String::new();
-    file.take(CLAIM_READ_LIMIT).read_to_string(&mut text).ok()?;
-    return Some(text);
+    return match file.take(CLAIM_READ_LIMIT).read_to_string(&mut text) {
+        Ok(_) => Ok(Some(text)),
+        // A file that is not text is not this attempt's claim, which is text.
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Ok(None),
+        Err(error) => Err(error),
+    };
+}
+
+thread_local! {
+    /// The claims this thread placed whose placement answered with an error and which could not be read back to be recognised,
+    ///  with the marker text each was written from. A later attempt of the thread resolves them first. Per thread, so another
+    ///  thread's attempt in the same process is never taken for an abandoned one (the process number is the same for both).
+    static ABANDONED: std::cell::RefCell<Vec<(PathBuf, String)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Removes the claims this thread abandoned: a file that still holds exactly the text the thread wrote is the thread's own claim,
+///  and goes; one that holds other text, or is gone, was never the thread's claim or is no more, and is forgotten; one that still
+///  cannot be read stays on the list for the next attempt.
+fn resolve_abandoned() {
+    let pending: Vec<(PathBuf, String)> = ABANDONED.with(|list| { return std::mem::take(&mut *list.borrow_mut()); });
+    for (path, text) in pending {
+        match text_of(path.as_path()) {
+            Ok(Some(found)) if found == text => remove_claim(path.as_path()),
+            Ok(_) => {}
+            Err(_) => ABANDONED.with(|list| { list.borrow_mut().push((path, text)); }),
+        }
+    }
 }
 
 /// A number no other attempt has: 64 bits of the system's random source.
@@ -205,6 +259,7 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
     //  is a few system calls long, is one file per reclaimer (never the repository or the directory), and a dead reclaimer's
     //  claim is passed over, never waited for, because its maker's marker says it is gone.
     let key: String = claim_key(marked);
+    resolve_abandoned();
     // The batch field of a claim's marker is a token of this attempt alone: a placement whose answer was lost (an error after a
     //  link or rename took effect, as a network file system can answer) is told from another attempt's claim by the whole text.
     let token: u64 = match attempt_token() {
@@ -234,7 +289,21 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
         //  is this attempt's claim, which it owns and removes.
         let ours: bool = match &placed {
             Ok(()) => true,
-            Err(_) => text_of(path.as_path()).is_some_and(|text| { return text == marker; }),
+            Err(_) => {
+                // A control reaches here to make the claim unreadable at this moment.
+                crate::service_fault::reach("reclaim-claim-unread");
+                match text_of(path.as_path()) {
+                    Ok(found) => found.is_some_and(|text| { return text == marker; }),
+                    Err(error) => {
+                        // Whether the placement took effect is not known: the attempt remembers the claim it may have made, and
+                        //  the next attempt of this thread removes it if it is there, so a claim of a running process is not
+                        //  left to block every reclaimer.
+                        crate::service_error!("the claim file {} of a reclaim cannot be read back ({error}); the next attempt resolves it", path.display());
+                        ABANDONED.with(|list| { list.borrow_mut().push((path.clone(), marker.clone())); });
+                        break Claim::Busy;
+                    }
+                }
+            }
         };
         if ours {
             // A control reaches here to act as another reclaimer would between the placement and the look below.
@@ -253,6 +322,7 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
                 Slot::Dead => slot += 1,
                 Slot::Live | Slot::Free => break Claim::Busy,
                 Slot::Elsewhere(theirs) => break Claim::Foreign { file: path, marked: theirs },
+                Slot::Unjudged(theirs) => break Claim::Unjudged { file: path, marked: theirs },
             },
             // An interrupted call, or one that found no memory, is not a refusal of the file system: asked again by the wait.
             Err(error) if matches!(error.kind(), std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock | std::io::ErrorKind::OutOfMemory) => break Claim::Busy,

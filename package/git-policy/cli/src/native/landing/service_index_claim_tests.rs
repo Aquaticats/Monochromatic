@@ -29,7 +29,8 @@ pub(super) fn gone_marker(seq: u64) -> String {
     let mut child = std::process::Command::new("true").spawn().expect("a short process");
     let pid: i64 = i64::from(child.id());
     child.wait().expect("reaped");
-    return format!("{LOCK_MARKER}{seq} {pid} gone\n");
+    // The format of this release: the claim chain reclaims no other.
+    return format!("{LOCK_MARKER}{}{seq} {pid} gone\n", crate::service_index_marker::MARKER_VERSION);
 }
 
 /// This process's marker, which names a holder that runs.
@@ -423,7 +424,7 @@ const NAME_LIMIT: usize = 255;
 #[test]
 fn a_claim_name_for_a_real_identity_fits_beside_a_long_lock_name() {
     let identity: String = own_identity().expect("an identity");
-    let marked = Marked { seq: u64::MAX, holder: Some((i64::from(i32::MAX), identity)) };
+    let marked = Marked { seq: u64::MAX, holder: Some((i64::from(i32::MAX), identity)), current: true };
     let root: PathBuf = fixture("claim-long-name");
     let file_name: String = "i".repeat(40) + ".lock";
     let lock: PathBuf = root.join(file_name);
@@ -451,4 +452,144 @@ fn the_claim_name_of_a_marker_without_a_holder_does_not_depend_on_the_file() {
     };
     assert_eq!(key_of(&first), key_of(&second));
     remove(root.as_path());
+}
+
+/// Allowed: a claim is placed, and the stale lock removed, beside a lock whose own name is far longer than any identity, because the
+///  claim's name is a fixed-length digest and not the lock's name with the whole identity appended.
+#[test]
+fn a_claim_is_placed_beside_a_lock_with_a_very_long_name() {
+    crate::claim_time::test_machine::inject("0123456789abcdef0123456789abcdef");
+    let root: PathBuf = fixture("claim-very-long-name");
+    let lock: PathBuf = root.join("i".repeat(LONG_LOCK_NAME) + ".lock");
+    // A gone process with a whole identity (boot, namespace and machine), so that the identity is as long as a real one.
+    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let boot: &str = crate::claim_time::current_boot_id();
+    let text: String = gone_marker(5).replacen("gone", &format!("gone#{boot}#{scope}#0123456789abcdef0123456789abcdef"), 1);
+    std::fs::write(&lock, text).expect("a stale lock");
+    let seen = std::rc::Rc::new(std::cell::Cell::new(0_usize));
+    let (hook_lock, hook_seen) = (lock.clone(), std::rc::Rc::clone(&seen));
+    hooks::set("reclaim-held", std::rc::Rc::new(move || { hook_seen.set(claim_at(&hook_lock, 0).file_name().map_or(0, |name| { return name.len(); })); }));
+    assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed);
+    assert!(seen.get() > 0 && seen.get() <= NAME_LIMIT, "the claim name is {} bytes", seen.get());
+    assert_eq!(std::fs::read_dir(&root).expect("listing").count(), 0, "nothing is left");
+    remove(root.as_path());
+}
+
+/// The length of a lock's name before `.lock`: the staging file of a lock adds about a hundred bytes to its name, so this leaves it
+///  within the limit while the earlier claim name (the lock's name, the identity and a slot) is not.
+const LONG_LOCK_NAME: usize = 150;
+
+/// A marker for a process of another PID namespace on this boot: its maker cannot be judged here, and it is not another machine's.
+fn claim_text_of_an_unjudgeable_maker() -> String {
+    let boot: &str = crate::claim_time::current_boot_id();
+    return format!("{LOCK_MARKER}{}0 4242 linux:1#{boot}#1\n", crate::service_index_marker::MARKER_VERSION);
+}
+
+/// Refused and told: a claim whose maker cannot be judged (another PID namespace) is neither passed over nor removed, and it is
+///  not passing contention: the answer names the claim, so the person can remove it.
+#[test]
+fn a_claim_that_cannot_be_judged_is_named_and_not_taken_for_contention() {
+    let (root, _index, lock) = index_in("claim-unjudged");
+    let claim: PathBuf = claim_at(&lock, 0);
+    let text: String = claim_text_of_an_unjudgeable_maker();
+    std::fs::write(&claim, &text).expect("a claim of a maker that cannot be judged");
+    match reclaim(&SYSTEM, &lock) {
+        Reclaimed::Unjudged { file, marked } => {
+            assert_eq!(file, claim);
+            assert_eq!(marked.map(|found| { return found.seq; }), Some(0));
+        }
+        other => panic!("expected the claim to be named: {other:?}"),
+    }
+    assert!(lock.exists(), "the stale lock stays");
+    assert_eq!(std::fs::read_to_string(&claim).expect("the claim stands"), text);
+    remove(root.as_path());
+}
+
+/// The words for a claim that cannot be judged name the file and the maker and give the removal.
+#[test]
+fn the_words_for_a_claim_that_cannot_be_judged_give_the_removal() {
+    let marked = parse_marker(claim_text_of_an_unjudgeable_maker().as_str()).expect("a marker");
+    let words: String = unjudged_words(Path::new("/repo/it's here/cli-reclaim-x-0"), Some(&marked));
+    for needed in ["/repo/it's here/cli-reclaim-x-0", "process 4242", "cannot", "rm -- '/repo/it'\\''s here/cli-reclaim-x-0'"] {
+        assert!(words.contains(needed), "missing {needed}: {words}");
+    }
+}
+
+/// A landing that meets such a claim waits to its ceiling and names the claim in its notice.
+#[test]
+fn a_landing_names_the_claim_that_cannot_be_judged() {
+    let (root, index, lock) = index_in("claim-unjudged-landing");
+    let claim: PathBuf = claim_at(&lock, 0);
+    std::fs::write(&claim, claim_text_of_an_unjudgeable_maker()).expect("a claim");
+    let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
+    let said = std::cell::RefCell::new(Vec::<String>::new());
+    let failure = acquire_within(&SYSTEM, &index, 9, ceiling, &|announce| {
+        if let Announce::Waiting(line) = announce {
+            said.borrow_mut().push(line);
+        }
+    })
+    .expect_err("the lock is not taken");
+    assert_eq!(failure.code, FailureCode::IndexInUse);
+    let lines: String = said.borrow().join("\n");
+    assert!(lines.contains(claim.to_string_lossy().as_ref()) && lines.contains("rm --"), "{lines}");
+    remove(root.as_path());
+}
+
+/// Allowed: a placement whose answer was lost (it took effect, `EINTR`) and whose claim could not be read back to be recognised
+///  (`EACCES` at that moment) is not forgotten: the next attempt of this thread finds its own abandoned claim by its text and
+///  removes it, instead of meeting a live-looking claim of its own process for ever.
+#[test]
+fn an_abandoned_claim_of_this_thread_is_resolved_by_its_next_attempt() {
+    let (root, _index, lock) = index_in("claim-abandoned");
+    let claim: PathBuf = claim_at(&lock, 0);
+    let lost = |from: &Path, to: &Path| -> std::io::Result<()> {
+        rename_noreplace(from, to)?;
+        return Err(std::io::Error::from_raw_os_error(libc::EINTR));
+    };
+    let (hook_claim, done) = (claim.clone(), std::rc::Rc::new(std::cell::Cell::new(false)));
+    hooks::set("reclaim-claim-unread", std::rc::Rc::new(move || {
+        if !done.replace(true) {
+            // The claim cannot be read at this moment.
+            std::fs::set_permissions(&hook_claim, std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("the claim is unreadable");
+        }
+    }));
+    let first: Platform = Platform { rename: &lost, ..SYSTEM };
+    assert_eq!(reclaim(&first, &lock), Reclaimed::Busy, "the placement's answer is lost and the claim cannot be recognised");
+    assert!(claim.exists(), "the claim took effect");
+    std::fs::set_permissions(&claim, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
+    assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed, "the next attempt resolves its own abandoned claim and goes on");
+    assert_eq!(names_in(&root), vec![String::from("index")]);
+    remove(root.as_path());
+}
+
+/// Refused: a stale lock written in the format of an earlier release is left, because that release's reclaimers (a `flock`) and
+///  this release's (claims) cannot keep each other apart; the answer carries the file and words that say so.
+#[test]
+fn a_stale_lock_of_an_earlier_releases_format_is_left_and_named() {
+    let (root, _index, lock) = index_in("claim-legacy");
+    let legacy: String = gone_marker(5).replacen(crate::service_index_marker::MARKER_VERSION, "", 1);
+    std::fs::write(&lock, &legacy).expect("a legacy lock");
+    match reclaim(&SYSTEM, &lock) {
+        Reclaimed::Foreign { file, marked } => {
+            assert_eq!(file, lock);
+            assert!(!marked.current);
+            let words: String = foreign_words(file.as_path(), &marked);
+            assert!(words.contains("earlier release") && words.contains("rm --"), "{words}");
+        }
+        other => panic!("expected the legacy lock to be left: {other:?}"),
+    }
+    assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), legacy);
+    assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "no claim was placed");
+    remove(root.as_path());
+}
+
+/// Refused: a marker of this release is not one an earlier release's reader reads as a marker at all: it reads the lock as a lock it
+///  does not know, which it leaves, so an earlier release's reclaimers never act on a lock of this release.
+#[test]
+fn an_earlier_releases_reader_finds_no_marker_in_a_marker_of_this_release() {
+    let text: String = marker_text(7, &own_identity).expect("a marker");
+    // The earlier release's reader: the prefix, then a batch number, then a holder.
+    let after_prefix: &str = text.strip_prefix(LOCK_MARKER).expect("the prefix");
+    let first_word: &str = after_prefix.split(' ').next().expect("a word");
+    assert!(first_word.parse::<u64>().is_err(), "an earlier release would read {first_word:?} as a batch number");
 }

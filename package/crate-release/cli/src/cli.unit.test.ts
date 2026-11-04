@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import {
@@ -17,6 +18,10 @@ import {
   systemdRunProgram,
   usageExitCode,
 } from './constants.ts';
+import {
+  loadCrateRegistry,
+  registryCrateNames,
+} from './crate-registry.ts';
 import { requestFileName } from './push-run.ts';
 import {
   createStubFixture,
@@ -47,6 +52,22 @@ const awaitBin = resolve(import.meta.dirname, '..', 'bin', 'await-release.ts');
  Path of the push executable.
  */
 const pushBin = resolve(import.meta.dirname, '..', 'bin', 'push-release.ts');
+
+/**
+ The package's own registry, which the executables read whatever `--root` names.
+ */
+const packageRegistry = await loadCrateRegistry({
+  packageDirectory: resolve(import.meta.dirname, '..'),
+  readText: async function readText(path) {
+    return readFile(path, 'utf8');
+  },
+});
+
+/**
+ Crate names as the unknown-crate message lists them, so adding a crate to the registry changes no test.
+ */
+const listedCrateNames = registryCrateNames(packageRegistry)
+  .join(', ');
 
 /**
  Note that holds every character a shell treats as syntax.
@@ -392,7 +413,7 @@ await describe({
               'n',
             ], { env: fixture.environment(), encoding: 'utf8' });
             expect(child.status).toBe(usageExitCode);
-            expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
+            expect(child.stderr).toContain(listedCrateNames);
             expect(await fixture.calls()).toEqual([]);
           },
         }),
@@ -515,7 +536,7 @@ await describe({
               'n',
             ], { env: fixture.environment(), encoding: 'utf8' });
             expect(child.status).toBe(usageExitCode);
-            expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
+            expect(child.stderr).toContain(listedCrateNames);
             expect(await fixture.calls()).toEqual([]);
           },
         }),
@@ -828,7 +849,7 @@ await describe({
               `${fixture.directory}/scratch`,
             ], { env: fixture.environment(), encoding: 'utf8' });
             expect(child.status).toBe(usageExitCode);
-            expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
+            expect(child.stderr).toContain(listedCrateNames);
             expect(await fixture.calls()).toEqual([]);
           },
         }),

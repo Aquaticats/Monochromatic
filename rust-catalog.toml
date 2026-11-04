@@ -32,6 +32,10 @@ trustPolicyExcludePrune = true
 # 365 days in minutes (owner decision, 2026-10-29): a release more than a year old cannot be a fresh takeover,
 # and minimumReleaseAge already holds back new ones.
 trustPolicyIgnoreAfter = 525600
+# pnpm's trustLockfile, true by the owner's decision of 2026-10-29 (doc/decision/rust-dependency-catalog.md, "Update and tightening"):
+# the owner never accepts pull requests that change a lockfile, so committed lockfiles are part of the trusted base, and the CI
+# check covers only registry versions that no Cargo.lock held at the base revision.
+trustLockfile = true
 
 [catalog]
 aho-corasick = ">=1.1.4"
@@ -94,6 +98,7 @@ regex = ">=1.12.4"
 regex-automata = ">=0.4.14"
 rfd = ">=0.17.2"
 ringbuf = ">=0.5.3"
+rustix = ">=1.1.6"
 schemars = ">=1.2.3"
 serde = ">=1.0.229"
 serde_json = ">=1.0.154"

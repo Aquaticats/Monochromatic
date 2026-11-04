@@ -21,7 +21,7 @@
 
 use crate::service_index_lock::lock_path_of;
 use crate::service_index_claim::{Claim, ClaimHold, take_claim};
-use crate::service_index_marker::{LOCK_MARKER, Marked, holder_is_elsewhere, holder_is_gone, marker_of_file};
+use crate::service_index_marker::{LOCK_MARKER, MARKER_VERSION, Marked, holder_is_elsewhere, holder_is_gone, marker_of_file};
 use crate::service_index_placement::{Platform, SYSTEM};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
@@ -47,6 +47,10 @@ pub enum Reclaimed {
     ///  machine cannot be compared with this one: nothing proves its maker gone, so it is left where it is and the person is
     ///  told how to remove it. It carries the marker read from the file.
     Foreign { file: PathBuf, marked: Marked },
+    /// A claim in the way cannot be judged (its maker is in another PID namespace, or the claim cannot be read): it is not removed,
+    ///  not passed over and not a passing contention, and the person is told which file it is. It carries the marker when one
+    ///  could be read.
+    Unjudged { file: PathBuf, marked: Option<Marked> },
 }
 
 /// What:
@@ -95,11 +99,21 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
         }
         return Reclaimed::Kept;
     }
+    // A lock in the format of an earlier release is reclaimed by that release's reclaimers (a `flock`), which cannot see the claims
+    //  of this one: removing it here could be a second removal of the same file. It is left, and the person is told.
+    if !marked.current {
+        crate::service_error!("{}", foreign_words(lock, &marked));
+        return Reclaimed::Foreign { file: lock.to_path_buf(), marked };
+    }
     crate::service_fault::reach("reclaim-judged");
     // The exclusion this reclaimer is under until it is done.
     let claim: ClaimHold = match take_claim(platform, lock, &marked) {
         Claim::Held(held) => held,
         Claim::Busy => return Reclaimed::Busy,
+        Claim::Unjudged { file: in_the_way, marked: theirs } => {
+            crate::service_error!("{}", unjudged_words(in_the_way.as_path(), theirs.as_ref()));
+            return Reclaimed::Unjudged { file: in_the_way, marked: theirs };
+        }
         Claim::Foreign { file: in_the_way, marked: theirs } => {
             crate::service_error!("{}", foreign_words(in_the_way.as_path(), &theirs));
             return Reclaimed::Foreign { file: in_the_way, marked: theirs };
@@ -154,6 +168,11 @@ fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
     return Ok(named.dev() == open.dev() && named.ino() == open.ino());
 }
 
+/// A path as one word for a shell: in single quotes, a quote inside it closed, escaped and opened again.
+pub fn shell_quote(path: &Path) -> String {
+    return format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
+}
+
 /// What:
 ///  The words for a stale lock that was not removed: which lock, which batch and process left it, how to tell it is still that
 ///  lock, and how to remove it.
@@ -165,46 +184,77 @@ fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `The index lock ${lock} was left by cli-git-service batch ${seq} (process ${pid}, gone). ... remove it yourself: rm ${lock}`
+/// `The index lock ${lock} was left by cli-git-service batch ${seq} (process ${pid}, gone). ... remove it yourself: rm -- ${quote(lock)}`
 /// ```
 pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
     let (who, first_line): (String, String) = match marked.holder.as_ref() {
         Some((pid, birth)) => (
             format!("cli-git-service batch {} (process {pid}, which is gone)", marked.seq),
-            format!("{LOCK_MARKER}{} {pid} {birth}", marked.seq),
+            format!("{LOCK_MARKER}{}{} {pid} {birth}", if marked.current { MARKER_VERSION } else { "" }, marked.seq),
         ),
         None => (format!("cli-git-service batch {}", marked.seq), format!("{LOCK_MARKER}{}", marked.seq)),
     };
     return format!(
         "The index lock {} was left by {who} and is not removed here, because no claim file that makes its removal safe could be placed beside it on this file system. \
          The commit waits as for any held lock. Once no git command and no commit of this service is running in this repository, and the first line of the file \
-         still reads `{first_line}`, remove it yourself (`rm {}`).",
+         still reads `{first_line}`, remove it yourself (`rm -- {}`).",
         lock.display(),
-        lock.display()
+        shell_quote(lock)
     );
 }
 
 /// What:
-///  The words for a file left because its maker is on another machine: the file, the batch and process, why it stays, and how to
-///  remove it.
+///  The words for a file left because its maker is not proven gone on this machine: the file, the batch and process, why it
+///  stays, and how to remove it.
 /// Why:
-///   A boot ID that differs says nothing about a service on another machine, which may be running and holding the file, so the
-///  file is neither removed nor called stale; the person who knows that machine's service is gone can remove it, and needs the
-///  notice alone to do so. `marked` is the marker read from the file itself.
+///   A boot ID that differs says nothing about a service on another machine, which may be running and holding the file; a marker
+///  of an earlier release names no machine (or no process) and cannot say whether it was written here; and a lock in an earlier
+///  release's format is reclaimed by that release's own exclusion, which this release cannot join. So the file is neither removed
+///  nor called stale; the person who knows that service is gone can remove it, and needs the notice alone to do so. `marked` is
+///  the marker read from the file itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `The file ${file} was written by cli-git-service batch ${seq} (process ${pid}) on another machine ... remove it yourself: rm ${file}`
+/// `The file ${file} was written by cli-git-service batch ${seq} (process ${pid}) ... remove it yourself: rm -- ${quote(file)}`
 /// ```
 pub fn foreign_words(file: &Path, marked: &Marked) -> String {
     let who: String = match marked.holder.as_ref() {
         Some((pid, _)) => format!("cli-git-service batch {} (process {pid})", marked.seq),
         None => format!("cli-git-service batch {}", marked.seq),
     };
+    let why: &str = if marked.current {
+        "on another machine, or on one this machine cannot compare itself with, so that service is not proven gone"
+    } else {
+        "in the format of an earlier release, whose own stale-lock removal cannot keep this release's apart from it and whose marker \
+         does not say which machine wrote it, so this release does not remove it"
+    };
     return format!(
-        "The file {} was written by {who} on another machine, or on one this machine cannot compare itself with, so that service is not proven gone and the file is not removed here. \
-         The commit waits as for any held lock. If that service is not running and no git command and no commit of any service runs in this repository, remove it yourself (`rm {}`).",
+        "The file {} was written by {who} {why}. The commit waits as for any held lock. \
+         If that service is not running and no git command and no commit of any release's service runs in this repository, remove it yourself (`rm -- {}`).",
         file.display(),
-        file.display()
+        shell_quote(file)
+    );
+}
+
+/// What:
+///  The words for a claim that cannot be judged: the file, the maker if it could be read, why it stays, and how to remove it.
+/// Why:
+///   A claim whose maker is in another PID namespace, or that cannot be read, is neither gone nor proven running; it blocks every
+///  reclaim of the stale lock for as long as it stands, so the wait must name it and not call it passing contention.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `The claim ${file} (made by batch ${seq}, process ${pid}) cannot be judged ... remove it yourself: rm -- ${quote(file)}`
+/// ```
+pub fn unjudged_words(file: &Path, marked: Option<&Marked>) -> String {
+    let who: String = match marked.and_then(|found| { return found.holder.as_ref().map(|(pid, _)| { return (found.seq, *pid); }); }) {
+        Some((seq, pid)) => format!("made by cli-git-service batch {seq} (process {pid}) "),
+        None => String::new(),
+    };
+    return format!(
+        "The claim file {} {who}cannot be judged here (its maker is in another PID namespace, or the file cannot be read), so it is neither removed nor passed over, and it keeps the stale index lock from being reclaimed. \
+         The commit waits as for any held lock. If that reclaimer is gone and no git command and no commit of any service runs in this repository, remove it yourself (`rm -- {}`).",
+        file.display(),
+        shell_quote(file)
     );
 }

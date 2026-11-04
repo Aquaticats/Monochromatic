@@ -36,6 +36,7 @@ on:
         required: true
         options:
         - forbidden-strings
+        - monochromatic-cargo-shadow
         - monochromatic-git-policy-cli
         - monochromatic-mpm-shadow
       from:

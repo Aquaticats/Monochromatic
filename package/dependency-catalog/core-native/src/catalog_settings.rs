@@ -183,6 +183,7 @@ pub fn read_settings(root: &dyn TableLike, issues: &mut Vec<CatalogIssue>) -> Se
         false,
         issues,
     );
+    let trust_lockfile: bool = read_boolean("trustLockfile", root.get("trustLockfile"), false, issues);
     return Settings {
         catalog_prune,
         minimum_release_age: explicit_age.unwrap_or(DEFAULT_MINIMUM_RELEASE_AGE),
@@ -194,5 +195,6 @@ pub fn read_settings(root: &dyn TableLike, issues: &mut Vec<CatalogIssue>) -> Se
         trust_policy_exclude: trust_exclude,
         trust_policy_exclude_prune: trust_exclude_prune,
         trust_policy_ignore_after: ignore_after,
+        trust_lockfile,
     };
 }

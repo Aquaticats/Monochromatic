@@ -10,6 +10,13 @@
     "checkBins": ["forbidden-strings"],
     "lockDirs": ["package/git-policy/cli.fuzz"]
   },
+  "monochromatic-cargo-shadow": {
+    "crateDir": "package/cargo-shadow/cli",
+    "scope": "cargo-shadow/cli",
+    "pinFiles": [],
+    "checkBins": ["cargo-shadow"],
+    "lockDirs": []
+  },
   "monochromatic-git-policy-cli": {
     "crateDir": "package/git-policy/cli",
     "scope": "git-policy/cli",
