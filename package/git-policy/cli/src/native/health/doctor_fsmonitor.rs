@@ -15,9 +15,9 @@
 //! const text = renderFsmonitor(parseFsmonitorEntries(await git(['config', '--list', '--show-origin', '--show-scope', '-z'])));
 //! ```
 
-use super::config_snapshot::canonical_bool;
-use super::diagnostic_log::debug;
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::config_snapshot::canonical_bool;
+use crate::diagnostic_log::debug;
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::path::Path;
 
 /// The key this section reads, as `git config --list` prints it (section and variable in lower case).

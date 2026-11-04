@@ -16,9 +16,9 @@
 //! const section = renderSection(await gatherFacts(mainCheckoutRoot)); // '' when no checkout was found
 //! ```
 
-use super::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
-use super::fs_mount_options::read_mount_facts;
-use super::shell_quote::shell_quote;
+use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use crate::fs_mount_options::read_mount_facts;
+use crate::shell_quote::shell_quote;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 

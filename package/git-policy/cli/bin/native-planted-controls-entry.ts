@@ -97,7 +97,7 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   },
   {
     name: 'a hook switched off by name is reported',
-    file: 'src/native/external_hooks.rs',
+    file: 'src/native/health/external_hooks.rs',
     from: 'Lookup::Found(false)',
     to: 'Lookup::Found(true)',
     failing: 'external_hooks::tests::a_hook_switched_off_by_name_is_not_reported',

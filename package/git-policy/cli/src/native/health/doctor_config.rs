@@ -11,12 +11,12 @@
 //! const findings = await configFindings({ context, cwd }); // { hooks: [...], retiredHooksKey, retiredIndexLockKey, retiredLandingKey }
 //! ```
 
-use super::config_file::load_repository_config;
-use super::config_schema::{CliGitConfig, ConcurrencyConfig};
-use super::discarded_prune::Limits;
-use super::config_snapshot::read_config_snapshot;
-use super::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::config_file::load_repository_config;
+use crate::config_schema::{CliGitConfig, ConcurrencyConfig};
+use crate::discarded_prune::Limits;
+use crate::config_snapshot::read_config_snapshot;
+use crate::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::path::{Path, PathBuf};
 
 /// What:

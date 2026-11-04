@@ -16,16 +16,16 @@
 //! ```
 
 /// Debug logging of a stream that refused the warning.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The warning's JSONL rendering, shared with the other configuration warnings.
-use super::diagnostics::render_configuration_warning;
+use crate::diagnostics::render_configuration_warning;
 /// The configuration the commit read once.
-use super::config_snapshot::ConfigSnapshot;
+use crate::config_snapshot::ConfigSnapshot;
 /// The name of the absent hooks directory the wrapper's own overrides use.
-use super::hooks_off::NO_HOOKS_DIRECTORY;
-use super::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
+use crate::hooks_off::NO_HOOKS_DIRECTORY;
+use crate::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
 /// How the wrapper names its transaction directories.
-use super::random_id::is_canonical_uuid;
+use crate::random_id::is_canonical_uuid;
 /// A stream the warning is written to.
 use std::io::Write;
 /// `OsStr` is operating-system text; `Path` is a borrowed filesystem path.

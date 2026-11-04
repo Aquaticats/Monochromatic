@@ -21,16 +21,16 @@
 //! ```
 
 /// The decision this command ends in.
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
 /// Configured external hooks and the retired `hooks` key.
-use super::discarded_prune::doctor_section;
-use super::doctor_config::{ConfigFindings, config_findings, render_hook_lines, render_notes};
+use crate::discarded_prune::doctor_section;
+use crate::doctor_config::{ConfigFindings, config_findings, render_hook_lines, render_notes};
 /// Whether Git's own fsmonitor is off, or which setting turns it on.
-use super::doctor_fsmonitor::fsmonitor_report;
+use crate::doctor_fsmonitor::fsmonitor_report;
 /// Lexical path normalization, so one directory named two ways is scanned once.
-use super::lexical_path::normalized_path;
+use crate::lexical_path::normalized_path;
 /// One required Git start with the caller's context.
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// `ErrorKind` tells a missing hooks directory from one that cannot be read.
 use std::io::ErrorKind;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.

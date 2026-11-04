@@ -15,11 +15,11 @@
 //! ```
 
 /// Debug logging of a stream that refused the warning.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// The warning's JSONL rendering, shared with the other configuration warnings.
-use super::diagnostics::render_configuration_warning;
+use crate::diagnostics::render_configuration_warning;
 /// The configuration the command read once.
-use super::config_snapshot::{ConfigSnapshot, Lookup};
+use crate::config_snapshot::{ConfigSnapshot, Lookup};
 /// A stream the warning is written to.
 use std::io::Write;
 
