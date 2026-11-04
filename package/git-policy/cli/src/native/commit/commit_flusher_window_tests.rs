@@ -354,3 +354,155 @@ fn a_client_that_arrives_after_a_launch_that_could_not_reap_its_intermediate_chi
         std::thread::sleep(Duration::from_millis(5));
     }
 }
+
+/// Marks `name` in `dir` (a file that a process of a probe-window control writes to tell another one something).
+fn mark(dir: &Path, name: &str) {
+    fs::write(dir.join(name), b"x").expect("a mark");
+}
+
+/// Waits up to `limit` for the mark `name` in `dir`; whether it appeared.
+fn marked(dir: &Path, name: &str, limit: Duration) -> bool {
+    let deadline: Instant = Instant::now() + limit;
+    while Instant::now() < deadline {
+        if dir.join(name).exists() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    return dir.join(name).exists();
+}
+
+thread_local! {
+    /// The lane of the probe-window controls (one per process of a control).
+    static PROBE_LANE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    /// What the control's marks are written in.
+    static PROBE_MARKS: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+/// The probe owner D of the controls of review 14: when it holds its probe it says so, waits for the release mark (bounded) and dies
+/// before it forks anything.
+fn probe_owner_dies_before_launch(name: &str) {
+    if name != "flusher:probe-held" {
+        return;
+    }
+    let Some(marks) = PROBE_MARKS.with(|cell| { return cell.borrow().clone(); }) else { return };
+    mark(&marks, "d-holds");
+    marked(&marks, "d-may-die", Duration::from_secs(3));
+    // SAFETY: `_exit` takes an integer; the probe owner dies here, before it dropped the probe or forked a helper.
+    unsafe { libc::_exit(0) };
+}
+
+/// A helper paused before its acquisition (it waits for D's announcement, bounded) and that says so when it lost the lock.
+fn helper_waits_for_the_probe(name: &str) {
+    let Some(marks) = PROBE_MARKS.with(|cell| { return cell.borrow().clone(); }) else { return };
+    match name {
+        "flusher:helper-before-acquire" => {
+            marked(&marks, "d-holds", Duration::from_millis(600));
+        }
+        "flusher:helper-lost-the-lock" => mark(&marks, "hc-done"),
+        _ => {}
+    }
+}
+
+/// Runs `body` in a single-threaded process on a thread of the test, so that the test goes on while it runs.
+fn spawn_process<F: FnOnce() -> i32 + Send + 'static>(body: F) -> std::thread::JoinHandle<Option<i32>> {
+    return std::thread::spawn(move || { return in_single_threaded_process(body); });
+}
+
+/// A lane with the receipt `c` that cannot be forced, and a directory for the marks.
+fn probe_lane(label: &str) -> (PathBuf, PathBuf) {
+    let lane: PathBuf = lane_with(label, &[]);
+    let marks: PathBuf = scratch(&format!("{}-marks", label));
+    return (lane, marks);
+}
+
+/// Waits until every name in `wanted` is recorded in the lane's error record.
+fn wait_recorded(lane: &Path, wanted: &[&str]) {
+    let deadline: Instant = Instant::now() + Duration::from_secs(6);
+    while !wanted.iter().all(|name| { return recorded(lane).iter().any(|recorded_name| { return recorded_name == name; }); }) {
+        assert!(Instant::now() < deadline, "a surviving client's receipt has no executor and no record: wanted {:?}, recorded {:?}", wanted, recorded(lane));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Review 14 section 2, the smallest schedule: D holds its successful probe, E creates a receipt, sees the lock held and starts nothing,
+/// and D dies before it launches. A probe is not an executor, so no client treats a held lock as proof of one: E's receipt is forced or
+/// recorded.
+#[test]
+fn a_client_that_sees_a_probe_hold_the_lock_still_has_an_executor_when_the_probe_owner_dies() {
+    let (lane, marks) = probe_lane("flusher-probe-smallest");
+    let (d_lane, d_marks) = (lane.clone(), marks.clone());
+    let d = spawn_process(move || {
+        PROBE_MARKS.with(|cell| { *cell.borrow_mut() = Some(d_marks.clone()); });
+        set_fault_point(Some(probe_owner_dies_before_launch));
+        return flusher_launch_code(launch_flusher(&d_lane));
+    });
+    marked(&marks, "d-holds", Duration::from_secs(2));
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("e")).expect("E's receipt that cannot be forced");
+    let e_lane: PathBuf = lane.clone();
+    let e: Option<i32> = in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&e_lane)); });
+    mark(&marks, "d-may-die");
+    let _ = d.join();
+    assert_eq!(e, Some(0), "E's launch");
+    wait_recorded(&lane, &["e"]);
+}
+
+/// Review 14 section 1: a helper launched for C is paused before its acquisition; D acquires its probe; the helper's acquisition fails
+/// against the probe and it ends; E, arriving meanwhile, sees the lock held; D dies. Neither c nor e may be left to a probe.
+#[test]
+fn a_helper_that_loses_the_lock_to_a_probe_and_a_client_that_sees_it_do_not_leave_receipts_to_the_probe_owner() {
+    let (lane, marks) = probe_lane("flusher-probe-helper");
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("c")).expect("C's receipt that cannot be forced");
+    let (c_lane, c_marks) = (lane.clone(), marks.clone());
+    let c = spawn_process(move || {
+        PROBE_MARKS.with(|cell| { *cell.borrow_mut() = Some(c_marks.clone()); });
+        set_fault_point(Some(helper_waits_for_the_probe));
+        return flusher_launch_code(launch_flusher(&c_lane));
+    });
+    std::thread::sleep(Duration::from_millis(100));
+    let (d_lane, d_marks) = (lane.clone(), marks.clone());
+    let d = spawn_process(move || {
+        PROBE_MARKS.with(|cell| { *cell.borrow_mut() = Some(d_marks.clone()); });
+        set_fault_point(Some(probe_owner_dies_before_launch));
+        return flusher_launch_code(launch_flusher(&d_lane));
+    });
+    marked(&marks, "hc-done", Duration::from_millis(1500));
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("e")).expect("E's receipt that cannot be forced");
+    let e_lane: PathBuf = lane.clone();
+    let e: Option<i32> = in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&e_lane)); });
+    mark(&marks, "d-may-die");
+    let _ = d.join();
+    let _ = c.join();
+    assert_eq!(e, Some(0), "E's launch");
+    wait_recorded(&lane, &["c", "e"]);
+}
+
+/// Review 14 section 2, the release and recheck takeover window: the flusher releases the lock after its last empty sweep, a client's
+/// receipt appears, a client D holds a probe when the flusher rechecks and tries to take the lock again, and D dies. The failed
+/// reacquisition is not a handover to a probe: the receipt is forced or recorded.
+#[test]
+fn a_recheck_that_loses_the_lock_to_a_probe_does_not_leave_the_receipt_to_the_probe_owner() {
+    let (lane, marks) = probe_lane("flusher-probe-recheck");
+    fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt that can be forced");
+    let (hook_lane, hook_marks) = (lane.clone(), marks.clone());
+    let mut d: Option<std::thread::JoinHandle<Option<i32>>> = None;
+    let _ = flush_lane_with(
+        &lane,
+        &mut |path: &Path| { return fs::File::open(path).and_then(|file| { return file.sync_all(); }); },
+        &mut || {
+            std::os::unix::fs::symlink(hook_lane.join("nowhere"), hook_lane.join(RECEIPT_DIR).join("z")).expect("a receipt that cannot be forced");
+            let (d_lane, d_marks) = (hook_lane.clone(), hook_marks.clone());
+            d = Some(spawn_process(move || {
+                PROBE_MARKS.with(|cell| { *cell.borrow_mut() = Some(d_marks.clone()); });
+                set_fault_point(Some(probe_owner_dies_before_launch));
+                return flusher_launch_code(launch_flusher(&d_lane));
+            }));
+            marked(&hook_marks, "d-holds", Duration::from_millis(800));
+        },
+    );
+    mark(&marks, "d-may-die");
+    if let Some(handle) = d {
+        let _ = handle.join();
+    }
+    wait_recorded(&lane, &["z"]);
+}

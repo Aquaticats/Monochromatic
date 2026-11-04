@@ -353,13 +353,23 @@ pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
     // nothing during the launch; the helper takes the lock itself, and a client that arrives meanwhile finds it free or held by the
     // helper that works (which lists after it took the lock, so after every receipt created before the probe).
     match FlusherLock::try_acquire(lane).map_err(FlusherLaunchError::Lock)? {
-        Some(probe) => drop(probe),
+        Some(probe) => {
+            fault_point("flusher:probe-held");
+            drop(probe);
+        }
         None => return Ok(Launched::LockHeld),
     }
     let owned: PathBuf = lane.to_path_buf();
     let lane_for_helper: PathBuf = lane.to_path_buf();
     return match launch_detached_preparing(
-        move || { return FlusherLock::try_acquire(&lane_for_helper).map_err(|error| { return io::Error::other(format!("{:?}", error)); }); },
+        move || {
+            fault_point("flusher:helper-before-acquire");
+            let acquired = FlusherLock::try_acquire(&lane_for_helper).map_err(|error| { return io::Error::other(format!("{:?}", error)); });
+            if matches!(acquired, Ok(None)) {
+                fault_point("flusher:helper-lost-the-lock");
+            }
+            return acquired;
+        },
         move |acquired| {
             // When someone else holds the lock by now, that holder took it after this client's receipt existed and sweeps it.
             return match acquired {
