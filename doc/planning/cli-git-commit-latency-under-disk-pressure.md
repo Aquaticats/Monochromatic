@@ -13,7 +13,90 @@ This note records what was measured on the 0.5.28 base (`e7e304ffd6`), which def
 with a red control first, and what is left to the owner.
 Branch: `fix/git-policy-cli-commits-fast-under-disk-pressure`.
 
-## Result first
+## Result of the second round
+
+The branch now holds the 0.5.28 base tip `f89fa63f10` (every wait has a bound), the index recovery round 5 branch
+`b47467ebd1` (a witness of the index file, flush at release), and the owner's rule for the commit protocol,
+2026-11-03:
+"Force at leaving, else background" ("No forced write while you wait. Here: that attempt is lost on the power cut,
+exactly as
+with native Git; your staged changes and files are intact, so you run the commit again. Anything the command already
+promised
+when it left (an error with a kept side ref, a hand-over to the service) was forced to disk first and survives.").
+
+- The person waits for no sync of the wrapper's own records in a landing that publishes (a signed commit, which Git
+  builds, or
+  an unsigned one): a trace of five signed landings shows 36 syncs, all made by the background thread, none by the
+  landing
+  thread and none by a Git child; five unsigned landings show 41, of which the 5 by Git children are `fast-import`'s
+  pack sync
+  (Git's own, see "What Git does by default"). A landing that publishes nothing syncs what it wrote before it returns.
+- Waited syncs per landing, by build and path: base 12 (11 of the wrapper, 1 of Git's pack); 0.5.27 about 4; the
+  first-round
+  tip 11; the merge of the two branches before this rule 8 of the wrapper (+1 of Git on the unsigned route); this
+  tip 0 of the
+  wrapper on the publishing paths (+1 of Git on the unsigned route only), 7 queued; with `core.fsync=added` in the
+  repository 1
+  (the index, as native Git flushes it); a withdrawal at the lock ceiling 3 (the intent file, its directory, the
+  lock marker),
+  forced.
+- Paired deltas, nineteen warm rounds, two alternations, median of the wrapped minus the native time of the same
+  round:
+  signed, tip 89 and 87 ms (native 118 ms, wrapped 207 and 205 ms, so 1.75 times native); the first-round tip 127
+  and 133 ms;
+  0.5.27 179 and 175 ms; base 326 and 336 ms. Unsigned, tip 54 and 50 ms (native 115 and 113 ms, wrapped 171 and 162
+  ms, 1.45
+  times native); first-round tip 111 and 108 ms; 0.5.27 138 and 137 ms; base 258 and 251 ms.
+- The service's landing, median: tip 35 and 36 ms (signed), 34 and 32 ms (unsigned), `journal_ms` 0, `sync_ms` 19 to
+  20 ms;
+  0.5.27 55 and 55 ms (signed), `sync_ms` 25 ms.
+- A pair above one second still occurs on every build when the host stalls (tip: 1,525 and 1,888 ms signed, 1,536
+  and 1,640 ms
+  unsigned; base: 6,219 ms signed and 3,403 ms unsigned). In the tip's runs the landing was not what stalled: the
+  phases of the
+  slow pairs show the client's `prepare` (1,517 ms) or `build` (914 ms), with the landing at 37 to 60 ms. A 1.5 s
+  pause after
+  each sample did not remove them (zp1: 1,714 and 1,681 ms of 12 pairs).
+  The largest pair of the base in these runs, 6,219 ms, is over the owner's 5 s bound; no pair of the tip is.
+
+## The merges of the second round
+
+- `f89fa63f10` (every wait has a bound) merged without a conflict. Its `Clock::check` holds both this branch's first
+  look
+  (the child alone, then the whole tree) and its connected-silence window; `push_progress_tests.rs` holds both sets
+  of controls.
+- `b47467ebd1` (index recovery round 5) conflicted in four files, each resolved keeping both intents:
+  - `service_land_copy.rs`: round 5's design replaces this branch's `PrivateCopy::make_durable`; the copy has no
+    flush of its
+    own, and the release flushes a changed copy that the update did not already flush (and installs an unchanged one
+    not at
+    all). Removed with it: this branch's flush after Git's `reset` in `build_index` and in `reset_file` for an empty
+    list.
+  - `service_journal.rs`: the start record is round 5's witness, written with no sync (the `sync-start-*` names are
+    gone).
+  - `service_land.rs`: round 5's imports, with `acquire_noting_wait_within` of the bound branch.
+  - `service_index_lock_tests.rs`: `a_live_service_holders_lock_is_never_taken_over` keeps round 5's version, which
+    is the
+    stronger of the two: the waiting thread lets go of the lock (as this branch's fix did) and the main thread asks
+    again
+    until the waiter has let go, within 30 s, so it also holds when the first ask fails.
+  - Two controls changed with the merge: `a_read_step_ended_at_its_ceiling...` switches the in-process readers off
+    so that its
+    hanging `rev-parse` is still started (the landing now reads the branch in process), and the list of syncs of a
+    landing
+    lost the start record's and the copy's.
+- Round 5's note that the `.git` directory sync averaged 94 ms against 6.5 ms on the base: two traces of five signed
+  landings
+  here show the directory sync at a mean of 62 ms (max 279 ms) on the base and 109 ms (max 456 ms) on the
+  first-round tip
+  where the copy's own flush was gone, and the flushes of the copy and the directory together rose from about 84 to
+  122 ms,
+  which is consistent with the dropped flush moving its cost into the directory sync (five landings each; not a
+  proof).
+  The syncs are off the wait now, so what a directory sync costs only matters to the next commit that shares the
+  file system.
+
+## Result of the first round
 
 The 0.5.28 base is worse than the installed 0.5.27, in two ways.
 Warm, its commits take longer (below).
@@ -215,48 +298,78 @@ Each change has a control that was seen to fail first, then pass; the commit of 
 
 ## Left to the owner
 
-None of these was implemented, because each drops or moves a sync that protects a person's committed or staged data,
-or changes what the wrapper promises.
-The ranking weighs the worst wait the person sees, then the risk to data, then the work.
+The owner has decided the sync question for the commit protocol (see "Result of the second round"): the options A to
+E of the
+first round are replaced by that rule. What it leaves open is below.
 
-### The ten syncs that remain on the foreground path
+### What Git does by default, and what this follows
 
-What each protects, from `service_journal.rs`, `service_index_hold.rs`, `index_reset_publish.rs`: the intent
-(`sync-intent-file`, `sync-intent-dir`) lets a restart finish a batch whose branch moved; the lock marker
-(`sync-lock-marker`) lets a restart reclaim the service's own stale lock; the start record (`sync-start-file`,
-`sync-start-dir`) stops a replay from resetting paths another session staged; the replacement file
-(`sync-index-publish`) and the Git directory (`sync-index-dir`) make the installed index durable; the completion
-record (`sync-indexed-file`, `sync-indexed-dir`) stops a replay over what was staged after the lock was given up;
-the journal directory (`sync-journal-dir`) makes the done mark durable before the record is removed.
-Native Git forces none of these (measured: no sync call in a traced native commit on the fixture).
-All of them matter only for a power loss or a kernel crash; a killed process leaves the page cache intact.
+Read for Git 2.56.0, the installed manual page and the source at tag `v2.56.0` (`environment.c`
+`parse_fsync_components`,
+`write-or-die.h`):
 
-- Option A, keep all ten: no risk, and the worst wait stays the longest stall of the disk times ten (production:
-  `sync_ms` up to 119 s).
-- Option B, make the done mark durable after the answer: the rename that marks the batch done and its directory sync
-  (`sync-journal-dir`) come after the reply, still before the next request on that journal.
-  Pro: one sync leaves the wait with no change to what is protected, because the intent stays durable before the
-  branch
-  moves, the completion record stays durable before the index lock is given up, and a restart finishes an open batch.
-  Con: only one sync of ten; a kill between the reply and the sync leaves a batch the restart finishes again, which
-  is the
-  case it already handles, and the window needs a control.
-- Option C, overlap independent syncs on threads (the intent write with the lock placement, whose marker is flushed
-  too).
-  Pro: waits overlap, so a stall is paid once and not twice or three times.
-  Con: the order the landing documents must be reproduced, and every kill point control has to be extended.
-- Option D, drop the directory syncs where the file system makes the file's sync cover its directory entry (btrfs
-  logs the parent directory of a file created and renamed since the last commit when the file is synced).
-  Pro: four syncs leave.
-  Con: this reading of btrfs is from memory, not from the kernel source, and must be checked in
-  `fs/btrfs/tree-log.c` before anyone relies on it; it also depends on the file system.
-- Option E, native-equal: none of the ten, with the journal written in the page cache only.
-  Pro: nothing waits on the disk.
-  Con: a power loss can lose a landing's bookkeeping, so a replay can reset paths another session staged.
-- Ranking: C > B > D > A > E.
-  C shortens the worst wait the most without changing what is protected, at the price of a larger change than B; B is
-  small and safe but removes one sync; D removes more but rests on an unverified reading of a file system; A is the
-  status quo; E removes the protection the journal exists for.
+- `core.fsyncMethod` defaults to `fsync` (`writeout-only` only on macOS).
+- `core.fsync` defaults to `FSYNC_COMPONENTS_DEFAULT`, which is `(objects | derived-metadata) & ~loose-object`:
+  `pack`,
+  `pack-metadata` and `commit-graph`. Loose objects, references and the index are not flushed by default. (The
+  manual page
+  says "equivalent to `core.fsync=committed,-loose-object`" and "`committed` is currently equivalent to `objects`";
+  the
+  source defines `committed` as `objects | reference`, which the page does not say. Only the index matters here, and
+  `index`, `added` and `all` are the only components that include it.)
+- A `core.fsync` value starts again from that default at each entry, so the last entry decides alone; `none` clears
+  the set
+  only when it is the whole rest of the value; a word names every component it is a prefix of; the set is the default
+  without the words with a `-`, plus the words without one.
+- The service follows this for the index it writes in process (`ConfigSnapshot::hardens_index`): no flush by
+  default, and
+  the flush before the rename on the person's wait when the repository's `core.fsync` names the index.
+  Git's own writes (`fast-import`'s pack, `update-ref`'s reference, the scratch repository's loose objects) follow the
+  configuration because the service passes none of its own; the pack sync of `fast-import` is therefore still on the
+  wait of an
+  unsigned commit, 6 to 8 ms idle.
+
+### Which recovery cases now match native Git on a power cut
+
+The rule changes nothing for a killed process: the page cache keeps every write, so the journal's recovery runs as
+before. On
+a power cut, a landing's records may be lost in any suffix of their order, as native Git loses its last writes:
+
+- The intent may be lost while the branch moved: the restart has nothing to finish, and the index may be behind the
+  branch;
+  the person's next command sees a branch that has the commit and an index that does not stage it (as after a native
+  commit
+  whose index write was lost), and nothing of their files is touched.
+- The lock marker may be lost: a stale `index.lock` without the service's marker is a foreign lock to the next
+  landing, which
+  waits at the ceiling and withdraws with the commit kept on a side ref; the person removes the lock as after a
+  power cut in
+  native Git.
+- The completion record may be lost while the index is installed: the restart finds the witness of the index file
+  different
+  (round 5), resets nothing and logs a notice; no staged path is overwritten.
+- The done mark may be lost: the restart finishes the batch again, idempotently.
+- The index file may be short or empty (its flush is native's, none by default): the same as for native Git.
+- Withdrawals and errors at a bound keep their promise: the records they wrote, and the kept side ref's journal
+  entry, are
+  synced before the command returns (`a_withdrawal_forces_the_records_it_wrote`).
+- A power cut during the sync of a landing that was already answered loses that landing's commit as native Git would
+  lose it;
+  the person runs the commit again.
+
+### The queue and the next commit
+
+The syncs of a landing run after its answer, on one thread, all handles of a landing at once. A commit started while
+they run
+shares the file system with them; on a loaded disk it may wait behind them (a sync that commits the file system's
+log). The
+second round of every fresh run was the slowest pair in several runs of the tip (1,007 and 1,525 ms signed), but a
+1.5 s pause
+between samples did not remove it, and the slow phase was the client's `prepare` or `build`, so the link is not
+shown. If it
+is shown, the next step is a cap on queued landings (the service holds a landing's answer until the queue is under
+it), which
+is the owner's to weigh against the 5 s rule.
 
 ### Git's pack sync in `fast-import`
 
@@ -323,6 +436,16 @@ The evidence that bears on it:
   A bound of "native plus 5 s" can hold only if the syncs leave the waiting path (options B to E above); keeping all
   of them means the bound holds only while the disk's stall is under 5 s.
   Raising the number would not fix that, since the stall is not bounded; moving the syncs does.
+
+Update after the owner's answer: the syncs that were the only reason for "no finite bound" are now off the wait on a
+landing
+that publishes (none are waited for on the signed route), so the argument for a raise from them is gone. What
+remains that the
+person waits for and a stalled disk can lengthen: Git's own pack sync of an unsigned commit's `fast-import` (6 to 8
+ms idle),
+the reads the client and the service make (cold: native 274 to 295 ms against the base's 394 and 382 ms of delta
+before the
+second round), and the writes of the private index copies. None was measured above 5 s after the work.
 
 ## Every pair
 
@@ -399,6 +522,77 @@ c2f commit-signed-service
   delta   1937 2548 268 219 267 223 266 221 264 220 272 223
 ```
 
+The second round (same fixture, same scopes, nineteen warm rounds plus the first round of each run): `y*` unsigned
+and `z*`
+signed; `b` is the base, `o` the installed 0.5.27, `p` the first-round tip (`ce711b0379`), `f` the tip of this round.
+
+```text
+y1b commit-service
+  direct  166 111 112 113 119 115 123 113 113 114 116 115 110 112 109 116 112 114 110 120
+  wrapped 861 429 365 397 394 358 361 372 371 370 363 358 368 339 365 371 372 375 378 3523
+  delta   695 318 253 284 275 244 237 259 258 256 247 244 258 227 256 255 260 260 268 3403
+y1o commit-service
+  direct  175 112 115 115 112 112 110 113 112 112 116 110 113 111 113 112 114 112 111 116
+  wrapped 377 257 246 253 252 250 248 254 254 249 247 238 249 250 251 250 250 3069 254 259
+  delta   202 145 131 138 140 138 137 142 142 137 131 128 136 140 138 138 136 2957 142 142
+y1p commit-service
+  direct  189 113 115 120 111 114 118 120 117 114 113 113 114 113 115 117 115 115 117 122
+  wrapped 359 1505 221 245 226 223 299 257 225 222 226 227 232 223 226 224 219 226 228 223
+  delta   171 1392 106 125 115 109 181 137 108 107 113 114 118 110 111 107 104 111 111 100
+y1f commit-service
+  direct  169 115 118 114 114 109 110 116 115 115 114 117 113 115 116 114 122 114 116 113
+  wrapped 332 1651 267 175 159 178 162 168 168 183 165 171 166 168 171 172 163 466 167 184
+  delta   162 1536 149 60 46 69 52 51 52 68 50 54 53 53 54 58 42 351 51 71
+y2b commit-service
+  direct  173 114 115 122 118 120 116 111 114 115 117 116 112 119 116 114 117 114 112 119
+  wrapped 516 1046 368 359 425 368 366 358 367 366 367 358 365 366 2049 361 372 385 366 368
+  delta   343 932 253 238 307 248 250 247 253 251 250 243 252 247 1934 246 254 271 254 249
+y2o commit-service
+  direct  167 119 118 117 119 114 115 113 112 115 116 111 112 114 113 112 113 114 114 113
+  wrapped 369 253 285 256 264 2612 249 250 254 245 249 245 250 253 252 247 256 249 246 248
+  delta   202 135 167 138 144 2498 134 137 142 130 133 134 138 139 138 135 143 135 132 134
+y2p commit-service
+  direct  165 113 112 110 112 108 108 110 114 111 110 114 113 114 114 111 114 113 109 114
+  wrapped 343 1903 212 224 223 216 218 218 219 789 223 219 220 218 218 221 221 227 226 220
+  delta   178 1790 100 114 111 108 110 108 105 678 113 105 107 105 104 110 107 113 116 106
+y2f commit-service
+  direct  162 114 112 113 114 119 112 113 116 112 111 116 109 110 115 113 108 113 118 114
+  wrapped 317 1744 159 180 155 162 161 645 160 1752 161 163 159 161 162 174 159 163 163 164
+  delta   155 1631 48 67 41 43 48 532 44 1640 50 46 51 51 46 62 51 49 45 50
+z1b commit-signed-service
+  direct  175 121 120 120 121 120 118 118 119 123 121 117 114 119 120 129 119 131 129 131
+  wrapped 668 476 435 446 437 430 435 445 441 451 451 424 432 435 469 519 537 706 2169 530
+  delta   493 355 316 326 316 310 317 326 322 328 330 307 318 316 349 390 417 575 2040 400
+z1o commit-signed-service
+  direct  172 122 117 116 121 126 123 125 125 119 122 127 119 118 122 128 126 124 124 118
+  wrapped 417 302 295 302 302 299 297 308 300 299 297 296 299 299 318 300 307 329 298 292
+  delta   244 179 178 186 181 173 174 183 175 180 176 169 180 181 196 173 181 206 174 174
+z1p commit-signed-service
+  direct  168 124 124 118 117 124 121 121 123 116 118 122 117 118 118 119 118 118 120 120
+  wrapped 518 298 245 238 245 325 510 240 253 253 250 243 247 242 245 245 243 251 245 251
+  delta   350 174 122 120 127 201 389 119 131 136 133 122 130 123 127 125 124 133 125 132
+z1f commit-signed-service
+  direct  169 119 124 119 113 123 122 120 118 119 117 118 118 115 117 121 116 118 118 118
+  wrapped 346 1644 208 205 209 213 204 205 207 215 208 199 196 204 208 207 202 203 209 224
+  delta   176 1525 84 86 95 91 82 86 89 96 91 80 77 89 91 86 87 85 91 106
+z2b commit-signed-service
+  direct  427 117 116 115 123 122 120 122 123 118 114 119 118 129 118 123 124 121 119 131
+  wrapped 2800 492 434 438 438 445 456 453 443 448 454 452 446 487 528 636 927 532 867 6350
+  delta   2373 376 317 323 315 324 336 331 320 330 339 333 329 358 411 512 803 411 748 6219
+z2o commit-signed-service
+  direct  172 118 116 488 123 125 123 127 120 120 121 120 120 122 124 120 119 120 124 127
+  wrapped 421 289 295 295 423 298 294 301 299 298 298 293 290 356 299 292 302 292 305 299
+  delta   249 171 179 -193 299 173 171 175 179 179 177 173 169 234 175 173 183 173 180 172
+z2p commit-signed-service
+  direct  175 121 116 118 120 120 115 120 119 123 121 123 169 126 122 121 120 120 138 120
+  wrapped 511 273 240 250 248 247 252 295 308 260 308 330 771 247 244 245 242 253 1783 245
+  delta   336 152 124 132 128 127 137 175 189 138 187 207 602 122 122 124 121 133 1645 124
+z2f commit-signed-service
+  direct  165 130 125 118 118 121 118 120 119 118 119 118 121 124 122 116 116 118 118 117
+  wrapped 338 1137 203 217 199 217 198 202 202 205 198 207 202 205 207 203 2004 422 462 234
+  delta   172 1007 78 98 81 96 80 81 83 88 79 89 82 81 85 87 1888 305 343 116
+```
+
 The earlier alternating runs at load 40 to 66, before the fixtures refreshed their index (base against 0.5.27,
 unsigned, nineteen warm rounds): base 518 and 520 ms of median delta (maxima 2,202 and 3,028 ms), 0.5.27 247 and 280
 ms (maxima 1,328 and 1,898 ms).
@@ -414,11 +608,16 @@ median delta, the build 269 and 264 ms, with native at 274 to 295 ms in all four
 
 ## Controls that failed intermittently, not by this work
 
-- `service_index_lock::tests::a_live_service_holders_lock_is_never_taken_over` aborted after the 120 s of the test runner
-  (`SIGABRT`) in 4 of 8 runs of its module on the branch tip, in 1 of 4 on an earlier tip, in 1 of 5 after the base sources
-  (`e7e304ffd6`) were checked out over it, and in 2 of 3 container gate runs; the first gate run of this work passed it.
-  A stack of a hung run (`gdb -p`) shows the test thread polling in `wait_and_place` and the thread that raced it for the
-  lock already ended: the thread returned its `IndexLock`, which lives until the join, so when it won the race the other
+- `service_index_lock::tests::a_live_service_holders_lock_is_never_taken_over` aborted after the 120 s of the test
+  runner
+  (`SIGABRT`) in 4 of 8 runs of its module on the branch tip, in 1 of 4 on an earlier tip, in 1 of 5 after the base
+  sources
+  (`e7e304ffd6`) were checked out over it, and in 2 of 3 container gate runs; the first gate run of this work passed
+  it.
+  A stack of a hung run (`gdb -p`) shows the test thread polling in `wait_and_place` and the thread that raced it
+  for the
+  lock already ended: the thread returned its `IndexLock`, which lives until the join, so when it won the race the
+  other
   acquisition waited for ever.
   It is a defect of the control, present on the base.
   The control now drops the lock in the thread; the module then passed 8 runs of 8.
@@ -433,7 +632,9 @@ median delta, the build 269 and 264 ms, with native at 274 to 295 ms in all four
 
 ## Gate
 
-The container gate (`native:test:container`) on the branch tip passed: 4622 tests run, 4622 passed, 7 skipped, exit status 0
+The container gate (`native:test:container`) on the branch tip passed: 4622 tests run, 4622 passed, 7 skipped, exit
+status 0
 (unit `gpc-gate-commits-fast-under-disk-pressure-20261103T160833-0500`).
-The three gate runs before it failed on the two intermittent controls above and, once, on a clippy finding in this work
+The three gate runs before it failed on the two intermittent controls above and, once, on a clippy finding in this
+work
 (`chunks_exact` with a constant size, fixed).
