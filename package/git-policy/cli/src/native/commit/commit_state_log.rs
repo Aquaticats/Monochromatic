@@ -114,6 +114,24 @@ pub fn needs_line(path: &Path) -> String {
     return format!("{}{}\n", NEEDS_PREFIX, super::commit_integrity::hex(path.as_os_str().as_encoded_bytes()));
 }
 
+/// The lane-relative paths `document` names as dependencies through its `needs` lines; `None` when a line starts as one and does not decode,
+/// so a malformed obligation is never read as no obligation.
+fn document_needs(document: &[u8]) -> Option<Vec<PathBuf>> {
+    use std::os::unix::ffi::OsStringExt;
+    let mut needs: Vec<PathBuf> = Vec::new();
+    for line in document.split(|byte| { return *byte == b'\n'; }) {
+        let Some(rest) = line.strip_prefix(NEEDS_PREFIX.as_bytes()) else { continue };
+        let raw: Vec<u8> = super::commit_integrity::unhex(std::str::from_utf8(rest).ok()?)?;
+        needs.push(PathBuf::from(std::ffi::OsString::from_vec(raw)));
+    }
+    return Some(needs);
+}
+
+/// Whether the retained `items` cover every dependency `document` names.
+fn document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool {
+    return document_needs(document).is_some_and(|needs| { return needs.iter().all(|need| { return items.iter().any(|entry| { return entry.path == *need; }); }); });
+}
+
 /// The directory of the lane that holds immutable saved content, one file per content, named by the SHA-256 of its bytes.
 const SAVED: &str = "saved";
 
@@ -439,7 +457,7 @@ fn eligible(lane: &Path, bytes: &[u8]) -> Option<(Vec<Rec>, usize, Vec<u8>, Vec<
         {
             break;
         }
-        if items.iter().all(|entry| { return validate_entry(lane, entry).is_ok(); }) {
+        if document_is_covered(&document, &items) && items.iter().all(|entry| { return validate_entry(lane, entry).is_ok(); }) {
             last_document = document;
             last_items = items.clone();
             count = index + 1;
@@ -581,6 +599,9 @@ fn append(dir: &Path, generation: u64, document: &[u8], items: &[ClosureEntry], 
         }
         None => (1, genesis(), 0),
     };
+    if !document_is_covered(document, items) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the document names a dependency that the retained set does not cover"));
+    }
     for entry in items {
         validate_entry(&lane, entry)?;
     }
@@ -666,6 +687,9 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
     let existing: Vec<u64> = numbers(dir)?;
     // The closure is validated now, by reading each entry, and may not contain a file the authority will delete (aliases included).
     let canonical_state: PathBuf = fs::canonicalize(dir)?;
+    if !document_is_covered(document, closure) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the document names a dependency that the closure does not cover"));
+    }
     for entry in closure {
         validate_entry(&lane, entry)?;
         if fs::canonicalize(lane.join(&entry.path))?.starts_with(&canonical_state) {
