@@ -369,7 +369,7 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
 /// not a file put over it.
 /// Why:
 /// A bind mount can replace `/proc/sys/kernel/random/boot_id` without a reboot (measured in a disposable user and mount namespace on
-/// 2026-11-04T09:20-05:00), and `systemd-nspawn` does it on purpose to give each container its own id
+/// 2026-11-04T08:36:57-05:00), and `systemd-nspawn` does it on purpose to give each container its own id
 /// (`src/nspawn/nspawn.c`, `setup_boot_id`).
 /// The kernel serves the file from procfs; a file of another file system, or a file that is itself the root of a mount
 /// (`STATX_ATTR_MOUNT_ROOT`), is a replacement.

@@ -126,9 +126,40 @@ fn a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run
     assert!(blocked.contains("did not record its end"), "{blocked}");
 }
 
-/// A process in a process group of its own, which is alive until the test kills it.
-fn live_group() -> Child {
-    return Command::new("sleep").arg("600").process_group(0).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a live group");
+/// A process in a process group of its own, which is alive until the test ends, however it ends.
+struct LiveGroup(
+    /// The process that leads the group.
+    Child,
+);
+
+/// The methods of the guard.
+impl LiveGroup {
+    /// The process id, which is the group's number.
+    fn id(&self) -> u32 {
+        return self.0.id();
+    }
+}
+
+/// How the guard cleans up.
+impl Drop for LiveGroup {
+    /// What:
+    /// `fn drop(&mut self)` kills and reaps the process.
+    /// Why:
+    /// A failed assertion must not leave a `sleep` behind.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose](): void
+    /// ```
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// Starts a live process group.
+fn live_group() -> LiveGroup {
+    return LiveGroup(Command::new("sleep").arg("600").process_group(0).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().expect("a live group"));
 }
 
 /// This machine's identity with its boot id changed in one hexadecimal digit, as a real reboot would change it.
@@ -153,7 +184,7 @@ fn set_identity_lines(journal: &Path, lines: &str) {
 #[test]
 fn a_malformed_recorded_identity_is_not_a_reboot() {
     let root = repository();
-    let mut group = live_group();
+    let group = live_group();
     let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
     let now: Identity = current_identity().expect("an identity");
     let other: Identity = after_a_reboot();
@@ -176,8 +207,6 @@ fn a_malformed_recorded_identity_is_not_a_reboot() {
     // The record says another boot than the one running now: the machine is the same, so a reboot ended the group.
     set_identity_lines(&journal, &boot_line(&other.boot));
     let cleared: Option<String> = survivor_note(&journal);
-    let _ = group.kill();
-    let _ = group.wait();
     assert_eq!(cleared, None, "the control: a well-formed record of another boot did not clear the group, so the probe cannot move");
 }
 
@@ -186,7 +215,7 @@ fn a_malformed_recorded_identity_is_not_a_reboot() {
 #[test]
 fn a_malformed_current_identity_is_not_a_reboot() {
     let root = repository();
-    let mut group = live_group();
+    let group = live_group();
     let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
     let now: Identity = current_identity().expect("an identity");
     let cases: Vec<(&str, Identity)> = vec![
@@ -199,8 +228,6 @@ fn a_malformed_current_identity_is_not_a_reboot() {
         use_identity_for_test(None);
         assert!(note.is_some_and(|text| { return text.contains("still running"); }), "{label}: cleared a live process group");
     }
-    let _ = group.kill();
-    let _ = group.wait();
 }
 
 /// The files the current identity is read from must have the format of an id (9a D2): each malformed file is an error.
@@ -283,7 +310,7 @@ fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
     for (mode, replaced) in [("baseline", false), ("file", true), ("uuid", true), ("tmpfs-directory", true), ("masked-directory", false)] {
         let root = repository();
         fs::write(root.path().join("fake-boot-id"), &replacement).expect("write the replacement");
-        let mut group = live_group();
+        let group = live_group();
         let _journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
         let status = Command::new("unshare")
             .args(["--user", "--map-root-user", "--mount", "--"])
@@ -293,8 +320,6 @@ fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
             .env(FIXTURE_MODE, mode)
             .status()
             .expect("unshare must be installed and allowed to make a user and mount namespace for this test");
-        let _ = group.kill();
-        let _ = group.wait();
 
         assert!(status.success(), "{mode}: the helper process failed: {status:?}");
         let said: String = fs::read_to_string(root.path().join("fixture-result")).expect("the helper's result");

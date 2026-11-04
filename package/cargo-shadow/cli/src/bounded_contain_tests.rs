@@ -97,7 +97,9 @@ fn a_writer_in_another_session_is_stopped_at_the_bound() {
     let (workspace, transaction) = recorded_transaction();
     let journal = journal_dirs(workspace.path()).into_iter().next().expect("a journal");
 
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(1)));
+    // The bound covers the record's sync and the manager's start as well, so it is long enough for a loaded disk (the release gate
+    // ran this test beside the whole suite); the writer is started in the first moments and the script then waits for the bound.
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(8)));
     let writer = writer_pid(directory.path());
     crate::cgroup_test_support::assert_scope_record(&journal.join("groups").display().to_string());
     drop(transaction);
