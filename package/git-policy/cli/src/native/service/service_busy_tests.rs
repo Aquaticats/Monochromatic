@@ -127,3 +127,65 @@ fn a_new_board_removes_what_an_earlier_service_left() {
     let second: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
     assert!(!second.marker("old", "flight").exists());
 }
+
+/// Fails closed (sol-1, P1): when the record cannot be written, a withdrawal is never answered "withdrawn" and a request is never
+/// taken as admitted on a marker that was not made. The record's directory is made a plain file, so every marker operation fails.
+#[test]
+fn a_record_that_cannot_be_written_never_answers_withdrawn() {
+    let record: Arc<LandingBoard> = board();
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    assert!(matches!(record.withdraw_early("works"), EarlyAnswer::Withdrawn(_)), "the control that must move");
+    // The directory stays readable (the step file can still be read) but takes no new file, as a full disk or a refused write leaves it.
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("make the directory read-only");
+    let answer: EarlyAnswer = record.withdraw_early("later");
+    let admission: Vec<String> = record.begin_group(ids(&["later"]).as_slice());
+    std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
+    assert_eq!(answer, EarlyAnswer::Queued, "no cancellation was established, so none is confirmed");
+    assert!(admission.is_empty(), "a request is not dropped on a marker that was not made");
+}
+
+/// A withdrawal is a tombstone with the identity of a normal one (sol-1, P1): every copy of the request that reaches a group after
+/// it, replays and duplicates included, is dropped, and not only the first.
+#[test]
+fn every_copy_of_a_withdrawn_request_is_dropped_not_only_the_first() {
+    let record: Arc<LandingBoard> = board();
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)));
+    for copy in 0..3 {
+        assert_eq!(record.begin_group(ids(&["r"]).as_slice()), ids(&["r"]), "copy {copy} is dropped");
+        record.end_group(ids(&["r"]).as_slice());
+    }
+    assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "and the same answer to a repeated withdrawal");
+}
+
+/// The landing and a withdrawal race for the same requests: whichever way each interleaving falls, a request answered "withdrawn" is
+/// never admitted, and one admitted is never answered "withdrawn" (sol-1, P1). The two sides start together behind a barrier,
+/// repeatedly, on fresh identities.
+#[test]
+fn admission_and_early_withdrawal_never_both_succeed() {
+    let record: Arc<LandingBoard> = board();
+    use_on_this_thread(Arc::clone(&record));
+    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    std::thread::sleep(A_MOMENT);
+    for round in 0..200 {
+        let id: String = format!("race-{round}");
+        let barrier: Arc<std::sync::Barrier> = Arc::new(std::sync::Barrier::new(2));
+        let withdrawer = {
+            let (record, barrier, id) = (Arc::clone(&record), Arc::clone(&barrier), id.clone());
+            std::thread::spawn(move || { barrier.wait(); return record.withdraw_early(id.as_str()); })
+        };
+        barrier.wait();
+        let dropped: Vec<String> = record.begin_group(&[id.clone()]);
+        let answer: EarlyAnswer = withdrawer.join().expect("withdrawer");
+        match answer {
+            EarlyAnswer::Withdrawn(_) => assert_eq!(dropped, vec![id.clone()], "round {round}: answered withdrawn, so it must not land"),
+            EarlyAnswer::Queued | EarlyAnswer::Landed(_) => assert!(dropped.is_empty() || answer == EarlyAnswer::Queued, "round {round}"),
+        }
+        record.end_group(&[id]);
+    }
+}
