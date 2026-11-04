@@ -797,9 +797,9 @@ fn r15_a_raw_file_in_the_saved_directory_is_not_saved_content_and_the_component_
     assert!(ClosureEntry::capture(&lane, &raw, EntryKind::Opaque).is_err(), "and with a writable descriptor open too");
     drop(kept);
     std::fs::remove_file(&raw).expect("the stray file is removed: unknown content in saved/ would hold up a reclaiming checkpoint");
-    let made: PathBuf = saved_content(&lane, b"objects of b");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create");
+    let made: PathBuf = lane.join(content.path());
     assert!(std::fs::OpenOptions::new().write(true).open(&made).is_err(), "the component's saved content was opened for writing");
-    let content: ClosureEntry = ClosureEntry::capture(&lane, &made, EntryKind::Opaque).expect("capture what the component made");
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
     StateWriter::acquire(&state).expect("writer").checkpoint(2, b"retains s", &[request, content]).expect("checkpoint");
     assert_eq!(read(&state).expect("readable").expect("state").0, 2);

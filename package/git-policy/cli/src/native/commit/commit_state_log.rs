@@ -246,8 +246,13 @@ impl ClosureEntry {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "the declared kind is not the kind the path has: envelopes live in inbox/, immutable content in saved/<sha256>, anything else is an append-only prefix"));
         }
         if kind == EntryKind::Opaque {
-            check_saved_content_sealed(path)?;
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "saved content entries come from create_saved_content only: an existing file, read-only or not, may have a writer that still holds a descriptor"));
         }
+        return Self::build(lane, relative, kind, path);
+    }
+
+    /// Reads the file at `path` and builds its validated entry; the callers decide whether the file may be admitted at all.
+    fn build(lane: &Path, relative: PathBuf, kind: EntryKind, path: &Path) -> io::Result<ClosureEntry> {
         let bytes: Vec<u8> = fs::read(path)?;
         let entry: ClosureEntry = ClosureEntry { path: relative, kind, length: bytes.len() as u64, sha256: sha256_hex(&bytes) };
         validate_entry(lane, &entry)?;
@@ -347,15 +352,15 @@ fn fill_and_seal(file: &mut File, bytes: &[u8]) -> io::Result<()> {
 }
 
 /// What:
-///  Creates saved content from `bytes` as `lane/saved/<sha256 of bytes>` and returns its captured entry. The file is written, forced and
-///  made read-only (0444) before it has its final name, then linked in without replacing anything, the directory chain is forced up to
-///  the lane, and the only descriptor is closed before the function returns. With `O_TMPFILE` the file has no name until it is complete;
-///  without it the file is staged under a random name in the lane's 0700 `saved-staging` directory.
+///  Creates saved content from `bytes` as `lane/saved/<sha256 of bytes>` and returns its entry, the only way an `Opaque` entry exists.
+///  The file is written, forced and made read-only (0444) under a private name in the lane's 0700 `saved-staging` directory (unnamed
+///  until complete where `O_TMPFILE` exists), then renamed over the final name, the directories are forced up to the lane, and the only
+///  descriptor is closed before the function returns.
 /// Why:
 ///  A checksum name detects a change; it does not stop a writer. Saved content enters the store only through here, from bytes and never as
-///  an existing file, so no other descriptor to it can be writable: the only way to write it afterwards is a deliberate same-user `chmod`,
-///  the premise of the lane (as for every file the lane keeps: an owner who chmods and rewrites its own files defeats any scheme).
-///  Content that already exists under its name is accepted only when it is the same bytes and read-only.
+///  an existing file, and an existing file at the name is replaced and never adopted (its creator is not known, and mode 0444 is not
+///  provenance), so no other descriptor to what the lane retains can be writable: the only way to write it afterwards is a deliberate
+///  same-user `chmod`, the premise of the lane (as for every file the lane keeps).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -365,33 +370,33 @@ pub fn create_saved_content(lane: &Path, bytes: &[u8]) -> io::Result<ClosureEntr
     let directory: PathBuf = lane.join(SAVED);
     fs::create_dir_all(&directory)?;
     let name: PathBuf = directory.join(sha256_hex(bytes));
-    if name.exists() {
-        return ClosureEntry::capture(lane, &name, EntryKind::Opaque).and_then(|entry| {
-            return if entry.sha256 == sha256_hex(bytes) { Ok(entry) } else { Err(io::Error::new(io::ErrorKind::InvalidData, "saved content under this name has other bytes")) };
-        });
-    }
-    let linked: bool = match unnamed_file(&directory)? {
+    let staging: PathBuf = ensure_staging(lane)?;
+    let temporary: PathBuf = super::commit_identity::temporary_name(&staging)?;
+    let linked: bool = match unnamed_file(&staging)? {
         Some(mut file) => {
             fill_and_seal(&mut file, bytes)?;
-            match link_unnamed(&file, &name) {
-                Ok(done) => done,
-                Err(error) if error.raw_os_error() == Some(libc::EEXIST) => true,
-                Err(error) => return Err(error),
-            }
+            link_unnamed(&file, &temporary)?
         }
         None => false,
     };
     if !linked {
-        stage_and_link(lane, &name, bytes)?;
+        stage_file(&temporary, bytes)?;
+    }
+    // The fresh inode takes the name over whatever was there: an existing file at the name is never adopted, because its creator is not
+    // known and may still hold a writable descriptor. A holder of the replaced inode writes into a file nothing refers to.
+    if let Err(error) = fs::rename(&temporary, &name) {
+        let _ = fs::remove_file(&temporary);
+        return Err(error);
     }
     sync_chain(&directory, lane)?;
-    return ClosureEntry::capture(lane, &name, EntryKind::Opaque);
+    sync_directory(&staging)?;
+    let relative: PathBuf = PathBuf::from(SAVED).join(sha256_hex(bytes));
+    return ClosureEntry::build(lane, relative, EntryKind::Opaque, &name);
 }
 
-/// The fallback of `create_saved_content`: a random private name in `lane/saved-staging` (0700), sealed, hard-linked to `name` without
-/// replacing, then removed.
-fn stage_and_link(lane: &Path, name: &Path, bytes: &[u8]) -> io::Result<()> {
-    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
+/// The lane's private staging directory (0700), created if missing.
+fn ensure_staging(lane: &Path) -> io::Result<PathBuf> {
+    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
     let staging: PathBuf = lane.join(SAVED_STAGING);
     match fs::DirBuilder::new().mode(0o700).create(&staging) {
         Ok(()) => sync_chain(&staging, lane)?,
@@ -402,18 +407,19 @@ fn stage_and_link(lane: &Path, name: &Path, bytes: &[u8]) -> io::Result<()> {
         }
         Err(error) => return Err(error),
     }
-    let temporary: PathBuf = super::commit_identity::temporary_name(&staging)?;
-    let mut file: File = OpenOptions::new().create_new(true).write(true).mode(0o600).open(&temporary)?;
-    let outcome: io::Result<()> = fill_and_seal(&mut file, bytes).and_then(|()| {
-        return match fs::hard_link(&temporary, name) {
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
-            other => other,
-        };
-    });
+    return Ok(staging);
+}
+
+/// The fallback of `create_saved_content` without `O_TMPFILE`: a new file at the private `temporary` name, written, forced and sealed.
+fn stage_file(temporary: &Path, bytes: &[u8]) -> io::Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file: File = OpenOptions::new().create_new(true).write(true).mode(0o600).open(temporary)?;
+    let outcome: io::Result<()> = fill_and_seal(&mut file, bytes);
     drop(file);
-    let removed: io::Result<()> = fs::remove_file(&temporary);
-    outcome?;
-    return removed;
+    if outcome.is_err() {
+        let _ = fs::remove_file(temporary);
+    }
+    return outcome;
 }
 
 /// What:
