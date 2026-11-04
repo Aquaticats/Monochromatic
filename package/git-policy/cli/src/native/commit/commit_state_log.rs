@@ -16,6 +16,7 @@
 //! // appendFileSync(newestLog, record(g, prevHash, payload)); // no fsync; recovery = longest valid hash-chained prefix
 //! ```
 
+pub use super::commit_lane_state::{Consumption, ConsumptionKind, LaneState, Marker, RequestPhase, RequestState, RESUME_MAX};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -105,6 +106,23 @@ const BODY_MAGIC: &str = "cli-git-body 2\n";
 /// The directory of the lane that holds request envelopes, one file per identity.
 const INBOX: &str = "inbox";
 
+/// The directory of the lane that holds decision marks, empty files named by the request identity and a suffix.
+const DECISION: &str = "decision";
+
+/// The suffixes of a decision mark: a withdrawal, and a withdrawal during which the attempt in flight was the one the owner had recorded.
+const MARK_SUFFIXES: [&str; 2] = [".withdraw", ".withdraw-unresolved"];
+
+/// The lane's adoption order, relative to the lane: an append-only file whose extent a checked document relies on.
+pub const LANE_ORDER: &str = "order";
+
+/// The request identity a decision mark name carries: the name must be an identity followed by one of the mark suffixes.
+fn mark_identity(name: &str) -> Option<&str> {
+    return MARK_SUFFIXES
+        .iter()
+        .find_map(|suffix| { return name.strip_suffix(suffix); })
+        .filter(|identity| { return super::commit_integrity::is_identity(identity); });
+}
+
 /// The lane's authoritative ledger, relative to the lane: the only append-only file whose lines discharge a retained item. A line in any
 /// other retained file, however well formed, is not evidence that a request or saved content was settled.
 pub const LANE_LEDGER: &str = "ledger";
@@ -145,9 +163,12 @@ fn checked_document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool 
     }
     let Some(parsed) = LaneDocument::parse(document) else { return false };
     let held = |directory: &str, name: &str| -> bool { return items.iter().any(|entry| { return entry.path == Path::new(directory).join(name); }); };
+    let extent_held = |file: &str, length: Option<u64>| -> bool { return length.is_none_or(|wanted| { return items.iter().any(|entry| { return entry.path == Path::new(file) && entry.length >= wanted; }); }); };
     return parsed.requests.iter().all(|id| { return held(INBOX, id); })
         && parsed.saved.iter().all(|name| { return held(SAVED, name); })
-        && parsed.ledger_length.is_none_or(|length| { return items.iter().any(|entry| { return entry.path == Path::new(LANE_LEDGER) && entry.length >= length; }); });
+        && parsed.marks.iter().all(|name| { return held(DECISION, name); })
+        && extent_held(LANE_LEDGER, parsed.ledger_length)
+        && extent_held(LANE_ORDER, parsed.order_length);
 }
 
 /// What:
@@ -166,7 +187,7 @@ fn checked_document_is_covered(document: &[u8], items: &[ClosureEntry]) -> bool 
 /// ```
 fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<()> {
     let refuse = |what: &str| -> io::Error { return io::Error::new(io::ErrorKind::InvalidInput, format!("the closure does not hold {} that the lane holds", what)); };
-    for (directory, kind) in [(INBOX, EntryKind::InboxEnvelope), (SAVED, EntryKind::Opaque)] {
+    for (directory, kind) in [(INBOX, EntryKind::InboxEnvelope), (SAVED, EntryKind::Opaque), (DECISION, EntryKind::Mark)] {
         let entries = match fs::read_dir(lane.join(directory)) {
             Ok(entries) => entries,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
@@ -177,6 +198,7 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
             let Some(text) = name.to_str() else { continue };
             let obligation: bool = match kind {
                 EntryKind::InboxEnvelope => super::commit_integrity::is_identity(text),
+                EntryKind::Mark => mark_identity(text).is_some(),
                 _ => text.len() == 64 && super::commit_integrity::unhex(text).is_some(),
             };
             if !obligation {
@@ -184,23 +206,32 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
             }
             let path: PathBuf = Path::new(directory).join(text);
             let held: bool = closure.iter().any(|entry| { return entry.path == path; });
-            let key: String = if kind == EntryKind::Opaque { text.chars().take(32).collect() } else { text.to_string() };
+            let key: String = match kind {
+                EntryKind::Opaque => text.chars().take(32).collect(),
+                EntryKind::Mark => mark_identity(text).unwrap_or(text).to_string(),
+                _ => text.to_string(),
+            };
             let outcome: Option<&str> = if kind == EntryKind::Opaque { Some("disposed") } else { None };
             if !held && !ledger_prefix_has(lane, closure, &key, outcome) {
-                return Err(refuse(if kind == EntryKind::Opaque { "saved content" } else { "a request" }));
+                return Err(refuse(match kind {
+                    EntryKind::Opaque => "saved content",
+                    EntryKind::Mark => "a decision mark",
+                    _ => "a request",
+                }));
             }
         }
     }
-    let ledger: PathBuf = lane.join(LANE_LEDGER);
-    match fs::metadata(&ledger) {
-        Ok(metadata) => {
-            let held: bool = closure.iter().any(|entry| { return entry.path == Path::new(LANE_LEDGER) && entry.length == metadata.len(); });
-            if !held {
-                return Err(refuse("the ledger up to its length now (capture it again)"));
+    for (file, what) in [(LANE_LEDGER, "the ledger up to its length now (capture it again)"), (LANE_ORDER, "the order file up to its length now (capture it again)")] {
+        match fs::metadata(lane.join(file)) {
+            Ok(metadata) => {
+                let held: bool = closure.iter().any(|entry| { return entry.path == Path::new(file) && entry.length == metadata.len(); });
+                if !held {
+                    return Err(refuse(what));
+                }
             }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
         }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
     }
     return Ok(());
 }
@@ -209,17 +240,27 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
 const LANE_DOCUMENT_MAGIC: &str = "cli-git-lane-document 1\n";
 
 /// What:
-///  The checked representation of a state document: the requests it adopts, the saved content it holds and the extent of the lane ledger it
-///  relies on, and nothing else. Its dependencies are exactly these references, so the component can derive and check them against the
-///  lane. Only a document in this representation can be checkpointed with reclamation; any other document is opaque to the component and
-///  its checkpoints never remove a predecessor.
+///  The checked representation of a state document, in two halves. The references are the files of the lane the document depends on: the
+///  requests it adopts, the saved content it holds, the decision marks of its live requests, and the extents of the lane ledger and the
+///  adoption order it relies on. The state is everything with no file behind it (`LaneState`): the marker, the logical head and tail, the
+///  state of every live request and the consumption map. Only a document in this representation can be checkpointed with reclamation; any
+///  other document is opaque to the component and its checkpoints never remove a predecessor.
 /// Why:
-///  A document's dependencies cannot be read out of opaque bytes (a dependency outside the places the component knows, an order file, say,
-///  has no line to omit and no scan that finds it). A representation that cannot express such a dependency cannot hide one.
+///  A document's dependencies cannot be read out of opaque bytes (a dependency outside the places the component knows has no line to omit
+///  and no scan that finds it). A representation that cannot express such a dependency cannot hide one. The split is the classification of
+///  the design's state document (`doc/planning/cli-git-commits-never-fail.md`, "State document, the revision counter and the marker"):
+///  a request file, a saved content, a mark and the two append-only files are retained by the closure and checked against the lane; the
+///  marker, head, tail, request states and consumption map are superseded by the next generation, so a reclaiming checkpoint compares only
+///  the references and does not require a newer document to contain the older state.
+///  What is not retained: the spool and the attempt directories of a request. The state log does not delete them, so no reclamation can
+///  orphan them; the request's own protocol step creates and removes them, and a later step that wants them kept names them as references.
+///  A mark is discharged when a ledger line for its request lies inside the new closure: the design ends a request by publishing its
+///  outcome to the ledger (T0) before it leaves the document, and the withdrawal mark has no further effect after that (rule V, stop
+///  disposition).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LaneDocument = { requests: string[]; saved: string[]; ledgerLength: number | null };
+/// type LaneDocument = { requests: string[]; saved: string[]; marks: string[]; ledgerLength: number | null; orderLength: number | null; state: LaneState };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LaneDocument {
@@ -227,13 +268,19 @@ pub struct LaneDocument {
     requests: Vec<String>,
     /// Saved content names (the checksum), sorted.
     saved: Vec<String>,
+    /// Decision mark names (`<identity>.withdraw` and `<identity>.withdraw-unresolved`), sorted.
+    marks: Vec<String>,
     /// The length of the lane ledger the document relies on.
     ledger_length: Option<u64>,
+    /// The length of the adoption order the document relies on.
+    order_length: Option<u64>,
+    /// The state with no file behind it.
+    state: LaneState,
 }
 
 impl LaneDocument {
-    /// The document that names exactly what `closure` holds; `None` when the closure holds an append-only file that is not the lane ledger,
-    /// which this representation cannot express.
+    /// The document that names exactly what `closure` holds, with no state; `None` when the closure holds an append-only file that is neither
+    /// the lane ledger nor the adoption order, which this representation cannot express.
     pub fn from_closure(closure: &[ClosureEntry]) -> Option<LaneDocument> {
         let mut document: LaneDocument = LaneDocument::default();
         for entry in closure {
@@ -241,13 +288,32 @@ impl LaneDocument {
             match entry.kind {
                 EntryKind::InboxEnvelope => document.requests.push(name),
                 EntryKind::Opaque => document.saved.push(name),
+                EntryKind::Mark => document.marks.push(name),
                 EntryKind::AppendPrefix if entry.path == Path::new(LANE_LEDGER) => document.ledger_length = Some(entry.length),
+                EntryKind::AppendPrefix if entry.path == Path::new(LANE_ORDER) => document.order_length = Some(entry.length),
                 EntryKind::AppendPrefix => return None,
             }
         }
         document.requests.sort();
         document.saved.sort();
+        document.marks.sort();
         return Some(document);
+    }
+
+    /// This document with `state` in place of its state; the references stay.
+    pub fn with_state(mut self, state: LaneState) -> LaneDocument {
+        self.state = state;
+        return self;
+    }
+
+    /// The state with no file behind it.
+    pub fn state(&self) -> &LaneState {
+        return &self.state;
+    }
+
+    /// The references alone: the document a closure names. A reclaiming checkpoint compares these with its closure and nothing else.
+    pub fn references(&self) -> LaneDocument {
+        return LaneDocument { state: LaneState::default(), ..self.clone() };
     }
 
     /// The document's bytes.
@@ -259,13 +325,22 @@ impl LaneDocument {
         for saved in &self.saved {
             text.push_str(&format!("saved {}\n", saved));
         }
+        for mark in &self.marks {
+            text.push_str(&format!("mark {}\n", mark));
+        }
         if let Some(length) = self.ledger_length {
             text.push_str(&format!("ledger {}\n", length));
         }
+        if let Some(length) = self.order_length {
+            text.push_str(&format!("order {}\n", length));
+        }
+        self.state.encode_into(&mut text);
         return text.into_bytes();
     }
 
-    /// Reads `bytes` as a document in this representation; `None` for anything else (an opaque document, extra lines, a repeated line).
+    /// Reads `bytes` as a document in this representation; `None` for anything else (an opaque document, extra lines, a repeated line, lines
+    /// out of order, a state that names a request the document does not adopt, a mark whose request it does not adopt). A document is read
+    /// only if encoding what was read gives back exactly these bytes, so no variant of the bytes is a second spelling of the same document.
     pub fn parse(bytes: &[u8]) -> Option<LaneDocument> {
         let text: &str = std::str::from_utf8(bytes).ok()?.strip_prefix(LANE_DOCUMENT_MAGIC)?;
         let mut document: LaneDocument = LaneDocument::default();
@@ -274,12 +349,17 @@ impl LaneDocument {
             match key {
                 "request" => document.requests.push(value.to_string()),
                 "saved" => document.saved.push(value.to_string()),
+                "mark" => document.marks.push(value.to_string()),
                 "ledger" if document.ledger_length.is_none() => document.ledger_length = Some(value.parse().ok()?),
-                _ => return None,
+                "order" if document.order_length.is_none() => document.order_length = Some(value.parse().ok()?),
+                _ => document.state.apply_line(key, value)?,
             }
         }
-        let canonical: bool = document.requests.windows(2).all(|pair| { return pair[0] < pair[1]; }) && document.saved.windows(2).all(|pair| { return pair[0] < pair[1]; });
-        return if canonical { Some(document) } else { None };
+        let strictly_sorted = |names: &[String]| -> bool { return names.windows(2).all(|pair| { return pair[0] < pair[1]; }); };
+        let marks_ok: bool = document.marks.iter().all(|name| { return mark_identity(name).is_some_and(|identity| { return document.requests.binary_search(&identity.to_string()).is_ok(); }); });
+        let canonical: bool = strictly_sorted(&document.requests) && strictly_sorted(&document.saved) && strictly_sorted(&document.marks) && marks_ok;
+        let consistent: bool = document.state.is_consistent(&document.requests, document.order_length);
+        return if canonical && consistent && document.encode() == bytes { Some(document) } else { None };
     }
 }
 
@@ -295,6 +375,9 @@ pub enum EntryKind {
     Opaque,
     /// An inbox request envelope, `inbox/<id>`: its length and checksum must match and it must decode with the identity of its name.
     InboxEnvelope,
+    /// An empty decision mark, `decision/<identity>.withdraw` or `decision/<identity>.withdraw-unresolved`: its existence is its content, so
+    /// the length is zero and the name must carry a request identity and a mark suffix.
+    Mark,
     /// An append-only file anywhere else (a ledger, the order file): the identified prefix must still be there; later lines are allowed.
     AppendPrefix,
 }
@@ -561,6 +644,8 @@ fn kind_of_path(relative: &Path) -> io::Result<EntryKind> {
         Some(INBOX) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "inbox/ holds envelopes directly")),
         Some(SAVED) if is_direct_child => EntryKind::Opaque,
         Some(SAVED) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "saved/ holds content directly")),
+        Some(DECISION) if is_direct_child => EntryKind::Mark,
+        Some(DECISION) => return Err(io::Error::new(io::ErrorKind::InvalidInput, "decision/ holds marks directly")),
         _ => EntryKind::AppendPrefix,
     });
 }
@@ -575,6 +660,7 @@ fn validate_entry(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     let identity_ok: bool = match entry.kind {
         EntryKind::AppendPrefix => usize::try_from(entry.length).ok().and_then(|length| { return bytes.get(..length); }).is_some_and(|prefix| { return sha256_hex(prefix) == entry.sha256; }),
         EntryKind::Opaque | EntryKind::InboxEnvelope => bytes.len() as u64 == entry.length && sha256_hex(&bytes) == entry.sha256,
+        EntryKind::Mark => bytes.is_empty() && entry.length == 0 && sha256_hex(&bytes) == entry.sha256,
     };
     if !identity_ok {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "a closure entry's content is not the content that was captured"));
@@ -590,6 +676,11 @@ fn validate_entry(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
         EntryKind::Opaque => {
             if named != Some(entry.sha256.as_str()) {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "saved content is not named by its checksum"));
+            }
+        }
+        EntryKind::Mark => {
+            if !named.is_some_and(|name| { return mark_identity(name).is_some(); }) {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "a mark's name is not a request identity and a mark suffix"));
             }
         }
         EntryKind::AppendPrefix => {}
@@ -622,6 +713,7 @@ fn kind_word(kind: EntryKind) -> &'static str {
     return match kind {
         EntryKind::Opaque => "saved",
         EntryKind::InboxEnvelope => "request",
+        EntryKind::Mark => "mark",
         EntryKind::AppendPrefix => "prefix",
     };
 }
@@ -695,6 +787,7 @@ fn parse_item(rest: &str) -> Option<ClosureEntry> {
     let kind: EntryKind = match parts[0] {
         "request" => EntryKind::InboxEnvelope,
         "saved" => EntryKind::Opaque,
+        "mark" => EntryKind::Mark,
         "prefix" => EntryKind::AppendPrefix,
         _ => return None,
     };
@@ -900,6 +993,7 @@ fn retirement_key(entry: &ClosureEntry) -> Option<String> {
     return match entry.kind {
         EntryKind::InboxEnvelope => Some(name.to_string()),
         EntryKind::Opaque => Some(name.chars().take(32).collect()),
+        EntryKind::Mark => mark_identity(name).map(str::to_string),
         EntryKind::AppendPrefix => None,
     };
 }
@@ -919,7 +1013,7 @@ fn check_non_drop(lane: &Path, previous: &[ClosureEntry], new: &[ClosureEntry], 
                         entry.length >= old.length
                             && fs::read(lane.join(&entry.path)).ok().and_then(|bytes| { return usize::try_from(old.length).ok().and_then(|length| { return bytes.get(..length).map(sha256_hex); }); }).is_some_and(|hash| { return hash == old.sha256; })
                     }
-                    EntryKind::Opaque | EntryKind::InboxEnvelope => entry.length == old.length && entry.sha256 == old.sha256,
+                    EntryKind::Opaque | EntryKind::InboxEnvelope | EntryKind::Mark => entry.length == old.length && entry.sha256 == old.sha256,
                 };
         });
         if kept {
@@ -1069,8 +1163,13 @@ fn segment_is_contained(dir: &Path, number: u64, lane: &Path, closure: &[Closure
             let key: String = name.chars().take(32).collect();
             return new.saved.contains(name) || ledger_prefix_has(lane, closure, &key, Some("disposed"));
         });
-        let ledger_kept: bool = old.ledger_length.is_none_or(|length| { return new.ledger_length.is_some_and(|newer| { return newer >= length; }); });
-        if !(requests_kept && saved_kept && ledger_kept) {
+        let marks_kept: bool = old.marks.iter().all(|name| {
+            return new.marks.contains(name) || mark_identity(name).is_some_and(|identity| { return ledger_prefix_has(lane, closure, identity, None); });
+        });
+        let extent_kept = |older: Option<u64>, newer: Option<u64>| -> bool { return older.is_none_or(|length| { return newer.is_some_and(|longer| { return longer >= length; }); }); };
+        let ledger_kept: bool = extent_kept(old.ledger_length, new.ledger_length);
+        let order_kept: bool = extent_kept(old.order_length, new.order_length);
+        if !(requests_kept && saved_kept && marks_kept && ledger_kept && order_kept) {
             return Ok(false);
         }
     }
@@ -1088,7 +1187,7 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
     }
     let checked: Option<LaneDocument> = if reclaiming {
         let parsed: LaneDocument = LaneDocument::parse(document).ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidInput, "a reclaiming checkpoint needs a document in the checked representation"); })?;
-        if LaneDocument::from_closure(closure).as_ref() != Some(&parsed) {
+        if LaneDocument::from_closure(closure).as_ref() != Some(&parsed.references()) {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "a reclaiming checkpoint's document must name exactly what its closure holds, and the closure may hold only what the representation expresses"));
         }
         check_lane_obligations(&lane, closure)?;
@@ -1277,6 +1376,13 @@ impl StateWriter {
     /// every other segment stays.
     pub fn begin_checkpoint_reclaiming(&mut self, generation: u64, document: &LaneDocument, closure: &[ClosureEntry]) -> io::Result<Candidate> {
         return begin_checkpoint(&self.dir, generation, &document.encode(), closure, &[], true);
+    }
+
+    /// Starts a reclaiming checkpoint that also retires: `retired` names the request identities (a request's mark is retired with it) and the
+    /// saved-content names the writer says are discharged, and each must be proven by a ledger line inside `closure`. Without it a reclaiming
+    /// checkpoint could never drop a request, a mark or saved content, because the non-drop check accepts only what the writer names.
+    pub fn begin_checkpoint_reclaiming_retiring(&mut self, generation: u64, document: &LaneDocument, closure: &[ClosureEntry], retired: &[String]) -> io::Result<Candidate> {
+        return begin_checkpoint(&self.dir, generation, &document.encode(), closure, retired, true);
     }
 
     /// A reclaiming checkpoint in one owner step.

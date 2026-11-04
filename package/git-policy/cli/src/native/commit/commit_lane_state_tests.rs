@@ -156,7 +156,6 @@ fn r23_a_mark_is_retained_until_its_request_is_discharged_by_the_ledger() {
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.append_with(1, &document_with(&both, LaneState::default()).encode(), &both).expect("a record that promises the mark");
     let promised = sync_prefix(&state).expect("acknowledged");
-    std::fs::remove_file(lane.join("decision").join(format!("{}.withdraw", id))).expect("the mark is gone");
     let only: Vec<ClosureEntry> = vec![request.clone()];
     assert!(writer.begin_checkpoint_reclaiming(2, &document_with(&only, LaneState::default()), &only).is_err(), "a checkpoint dropped a mark that no ledger line discharges");
     assert!(state.join("state.log.1").exists(), "the segment whose record promised the mark was reclaimed");
@@ -164,7 +163,11 @@ fn r23_a_mark_is_retained_until_its_request_is_discharged_by_the_ledger() {
     std::fs::write(lane.join("ledger"), ledger_line_of(&id, "withdrawn")).expect("a ledger line that discharges the request");
     let ledger: ClosureEntry = ClosureEntry::capture(&lane, &lane.join("ledger"), EntryKind::AppendPrefix).expect("capture the ledger");
     let discharged: Vec<ClosureEntry> = vec![ledger];
-    writer.checkpoint_reclaiming(3, &document_with(&discharged, LaneState::default()), &discharged).expect("a checkpoint that discharges the request");
+    assert!(writer.begin_checkpoint_reclaiming(3, &document_with(&discharged, LaneState::default()), &discharged).is_err(), "a retirement the writer did not name was accepted");
+    let candidate = writer
+        .begin_checkpoint_reclaiming_retiring(3, &document_with(&discharged, LaneState::default()), &discharged, std::slice::from_ref(&id))
+        .expect("a checkpoint that names and proves the discharge of the request");
+    writer.complete_checkpoint(&candidate).expect("completion");
     assert!(!state.join("state.log.1").exists(), "a discharged request still held its segment");
     assert!(state_covers(&state, &promised).expect("readable"), "the checkpoint that discharged the request did not cover the acknowledgment");
 }

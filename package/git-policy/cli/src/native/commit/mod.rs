@@ -113,6 +113,10 @@ pub mod commit_replay;
 #[cfg(target_os = "linux")]
 pub mod commit_inbox;
 
+/// The state fields of the lane's real state document: marker, logical head and tail, request states and the consumption map.
+#[cfg(target_os = "linux")]
+pub mod commit_lane_state;
+
 /// Revision 13's hash-chained append-only state log with checkpoint rotation (unused by the live protocol).
 #[cfg(target_os = "linux")]
 pub mod commit_state_log;
