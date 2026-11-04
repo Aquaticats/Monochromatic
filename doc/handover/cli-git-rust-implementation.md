@@ -3599,10 +3599,20 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     clippy clean;
     map 14 shown,
     2 partly).
-    Cross-vendor reviews running:
-    `cargo-shadow-sol-11a.txt` (production and docs) and `cargo-shadow-sol-11b.txt` (tests),
-    prompts `cargo-shadow-prompt-11a.txt` and `-11b.txt`,
-    inputs from `16249ffe94` covering rounds 10 and 11.
+    Cross-vendor reviews returned:
+    `cargo-shadow-sol-11a.txt` "Does not meet the list for this part" (the launcher check's `kill` and `/proc/<pid>/stat` can address different processes when the mounted procfs serves another PID namespace;
+    the boot-id authority check follows symlinks and races with the read;
+    a `try_wait` error counted as a reap;
+    the `view` header not validated)
+    and `cargo-shadow-sol-11b.txt` "Meets it after named fixes" (D3 tolerance,
+    K2 barrier order,
+    real-launcher identity not compared,
+    missing gone-launcher-with-member case,
+    reboot control,
+    byte-prefix cuts,
+    discovery handshake);
+    no row added.
+    Round 12 running on both.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
