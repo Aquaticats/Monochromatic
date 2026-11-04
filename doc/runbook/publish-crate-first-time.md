@@ -209,7 +209,11 @@ TODO
 
 Status:
 TODO for each new crate;
-done this way for `monochromatic-search-shadow` (config 29473) and `monochromatic-mpm-shadow` (config 29493).
+done this way for `monochromatic-search-shadow` (config 29473),
+`monochromatic-mpm-shadow` (config 29493)
+and `monochromatic-cargo-shadow` (config 30988,
+with `/var/home/user/temp/agent/trustpub-create.ts <crate>`,
+which reads the token in-process and prints only statuses and publisher fields).
 
 After the publish,
 with the owner's token from `cargo login` still in `~/.cargo/credentials.toml`:
@@ -519,6 +523,65 @@ as measured:
   exists. The equivalent is `cargo binstall --no-confirm --root <dir> --version <version> monochromatic-mpm-shadow`,
   which `mpm-shadow install` runs for every cargo-binstall tool (`package/mpm-shadow/cli/README.md`,
   "Cargo tool installs"); a fresh machine takes the archive row of the `mpm-shadow` tool in `toolchain.lock.json`.
+
+## monochromatic-cargo-shadow 0.1.0
+
+Status:
+0.1.0 published and released on 2026-11-04;
+Trusted Publishing configured and exercised by CI.
+Owner action remaining:
+revoke the `cargo login` token made for this publish,
+then the agent runs `cargo logout` to remove the dead credential from `~/.cargo/credentials.toml`.
+
+Crate `monochromatic-cargo-shadow`,
+version `0.1.0`,
+path `package/cargo-shadow/cli`,
+license `LGPL-3.0-or-later`.
+Workflow jobs:
+`cgs-detect`,
+`cgs-publish-crate`,
+`cgs-release-state`,
+`cgs-build-binary`,
+`cgs-create-release`.
+
+What happened,
+as measured:
+
+- Release wiring for later versions (`releasable-crates.json`,
+  the crate choice in `crate-release.yml`,
+  `release` and `release:wait` in the package's `mise.toml`) landed on main as `651fc7b9a5` before the publish.
+- `mise run //package/cargo-shadow/cli:publish:dry-run` packaged and verified,
+  then `mise run //package/cargo-shadow/cli:publish` uploaded `0.1.0` with the owner's token.
+  Its dependency `monochromatic-dependency-catalog` 0.2.0 was already on crates.io,
+  published by `cargo-publish.yml` when the cargo-shadow merge reached main.
+  crates.io lists `0.1.0` with `LGPL-3.0-or-later`,
+  `crate_size` 556333 and a description.
+- Trusted Publishing was created through the API:
+  `POST https://crates.io/api/v1/trusted_publishing/github_configs` with owner `Aquaticats`,
+  repository `Monochromatic`,
+  workflow `cargo-publish.yml` and no environment returned config `30988` with `repository_owner_id` 343218767,
+  and `GET` with `?crate=monochromatic-cargo-shadow` lists it.
+- A dispatched dry run (run `41893310452`) passed `cgs-detect`,
+  `cgs-release-state`,
+  `cgs-publish-crate` and both `cgs-build-binary` targets,
+  and skipped `cgs-create-release`.
+- The dispatch with dry-run off (run `41893318423`) authenticated through Trusted Publishing
+  (`rust-lang/crates-io-auth-action`),
+  skipped the upload that exists,
+  built both archives,
+  and created the immutable release `monochromatic-cargo-shadow-v0.1.0` with
+  the x86_64 and aarch64 archives and `monochromatic-cargo-shadow-0.1.0-sha256sums.txt`.
+- Consumer checks in a disposable directory (`/var/home/user/temp/agent/cgs-consumer-check.ts`):
+  `sha256sum --check` on the x86_64 archive passed;
+  `gh attestation verify --format json` returned SLSA provenance v1 for the archive
+  (sha256 `b4be3d8a28b62b9f0a4e8a52742a89504408845ae358fe14035c8c15a7b4ba4e`),
+  signed by `.github/workflows/cargo-publish.yml@refs/heads/main`
+  (the plain form exits 0 and prints nothing);
+  `cargo binstall --no-confirm --root <dir> --version 0.1.0 monochromatic-cargo-shadow` with a fresh `CARGO_HOME`
+  and `.cache/toolchain-bin` on PATH installed a binary whose SHA-256 equals the archive's
+  (`eedc1c513266f2d83b7f69a7a7e646306c70a5ac0fb30355db5d94eaa3faa009`),
+  so binstall used the release and did not compile,
+  and `cargo-shadow --version` printed `cargo-shadow 0.1.0`.
 
 ## The five file-enforcer crates 0.1.0
 
