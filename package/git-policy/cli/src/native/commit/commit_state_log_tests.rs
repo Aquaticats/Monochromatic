@@ -393,12 +393,8 @@ fn p1_a_dependency_under_an_unsynced_name_chain_is_forced_through_the_anchor() {
     let state: PathBuf = lane.join("state");
     std::fs::create_dir(&state).expect("state directory");
     let saved: PathBuf = lane.join("saved");
-    std::fs::create_dir(&saved).expect("saved directory whose name in the lane was never synced");
-    let input: PathBuf = saved.join(git_policy_cli::commit_integrity::sha256_hex(b"a valid dependency"));
-    std::fs::write(&input, b"a valid dependency").expect("write");
-    std::fs::set_permissions(&input, std::os::unix::fs::PermissionsExt::from_mode(0o444)).expect("sealed, as the component leaves saved content");
+    let entry: ClosureEntry = create_saved_content(&lane, b"a valid dependency").expect("create");
     append(&state, 1, b"first").expect("append");
-    let entry: ClosureEntry = ClosureEntry::capture(&lane, &input, EntryKind::Opaque).expect("capture");
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     let candidate: Candidate = writer.begin_checkpoint(2, b"document", std::slice::from_ref(&entry)).expect("begin");
     start_events();
@@ -599,8 +595,8 @@ fn r14_a_later_record_that_retains_new_saved_content_is_not_selected_without_it(
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.checkpoint(2, b"adopts a", std::slice::from_ref(&request)).expect("checkpoint");
-    let saved: PathBuf = saved_content(&lane, b"objects of b");
-    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
+    let saved: PathBuf = lane.join(content.path());
     writer.append_with(3, b"requires a and s", &[request.clone(), content.clone()]).expect("append with the complete set");
     assert_eq!(read(&state).expect("readable").expect("state").0, 3);
     std::fs::remove_file(&saved).expect("a power loss takes the saved content");
@@ -614,8 +610,8 @@ fn r14_a_record_cannot_omit_what_the_previous_record_retained() {
     let (lane, state, envelope) = lane_with_envelope("r14-omit");
     append(&state, 1, b"first").expect("append");
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
-    let saved: PathBuf = saved_content(&lane, b"objects of b");
-    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
+    let saved: PathBuf = lane.join(content.path());
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.checkpoint(2, b"adopts a and s", &[request.clone(), content.clone()]).expect("checkpoint");
     assert!(writer.append_with(3, b"forgets s", std::slice::from_ref(&request)).is_err(), "saved content was dropped without disposal");
@@ -688,8 +684,8 @@ fn r15_a_disposal_line_in_an_unrelated_prefix_file_does_not_discharge_saved_cont
     let (lane, state, envelope) = lane_with_envelope("r15-unrelated-ledger");
     append(&state, 1, b"first").expect("append");
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
-    let saved: PathBuf = saved_content(&lane, b"objects of b");
-    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
+    let saved: PathBuf = lane.join(content.path());
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.checkpoint(2, b"adopts a and s", &[request.clone(), content]).expect("checkpoint");
     let name: String = discharge_name(&saved);
@@ -710,8 +706,8 @@ fn r15_a_disposal_line_in_an_unrelated_prefix_file_does_not_discharge_saved_cont
 fn r15_recovery_reaches_a_retirement_record_after_the_disposal_removed_the_content() {
     let (lane, state, envelope) = lane_with_envelope("r15-retirement-recovery");
     append(&state, 1, b"first").expect("append");
-    let saved: PathBuf = saved_content(&lane, b"objects of b");
-    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
+    let saved: PathBuf = lane.join(content.path());
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
     let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
     writer.checkpoint(2, b"retains a and s", &[request.clone(), content]).expect("checkpoint");
@@ -847,18 +843,44 @@ fn r15_saved_content_created_without_tmpfile_ends_sealed_and_leaves_no_staging_f
     assert_eq!(staging_mode & 0o077, 0, "the staging directory is private to its owner");
 }
 
-/// Creating the same bytes twice returns the same entry and replaces nothing; a writable file that already holds the name is not accepted.
+/// Review 10a section 2B, the adoption boundary: an existing read-only inode at the checksum name is not adopted. A raw creator wrote the
+/// bytes under their name, kept its writable descriptor and changed the file to 0444; the old creation found the name, accepted the
+/// matching bytes and mode, a checkpoint retained it, and a write through the kept descriptor made the only root unrecoverable.
+/// Creation now always installs its own fresh inode over the name, so the raw creator's descriptor writes into an inode that nothing
+/// refers to; capture of saved content is refused for any existing file and entries come from creation only.
 #[test]
-fn r15_creating_saved_content_twice_replaces_nothing_and_a_writable_occupant_is_refused() {
+fn r16_an_existing_read_only_inode_at_the_name_is_replaced_and_never_adopted() {
+    let (lane, state, envelope) = lane_with_envelope("r16-adoption");
+    // The reviewer's condition: a file system or account where the read lease is unavailable, so that nothing but provenance can tell.
+    inject_lease_errno(Some(libc::ENOTSUP));
+    append(&state, 1, b"first").expect("append");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
+    std::fs::create_dir_all(lane.join("saved")).expect("saved directory");
+    let raw: PathBuf = lane.join("saved").join(git_policy_cli::commit_integrity::sha256_hex(b"objects of b"));
+    std::fs::write(&raw, b"objects of b").expect("the raw creator writes the bytes under their name");
+    let mut kept = std::fs::OpenOptions::new().write(true).open(&raw).expect("and keeps a writable descriptor");
+    std::fs::set_permissions(&raw, std::os::unix::fs::PermissionsExt::from_mode(0o444)).expect("then seals the file");
+    assert!(ClosureEntry::capture(&lane, &raw, EntryKind::Opaque).is_err(), "an existing read-only file was captured as saved content");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("creation");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"retains a and s", &[request, content]).expect("checkpoint");
+    std::io::Write::write_all(&mut kept, b"tampered").expect("the kept descriptor still writes, into an inode nothing refers to");
+    inject_lease_errno(None);
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2, "the root was invalidated through an adopted inode");
+}
+
+/// Creating the same bytes twice returns the same entry, and a writable occupant of the name is replaced by the component's own sealed
+/// file and not refused or adopted.
+#[test]
+fn r15_creating_saved_content_twice_returns_the_same_entry_and_a_writable_occupant_is_replaced() {
     let (lane, _state, _envelope) = lane_with_envelope("r15-saved-twice");
     let first: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("first");
-    let inode_before = std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(lane.join(first.path())).expect("metadata"));
     let second: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("second");
     assert_eq!(first, second);
-    assert_eq!(std::os::unix::fs::MetadataExt::ino(&std::fs::metadata(lane.join(second.path())).expect("metadata")), inode_before, "the file was not replaced");
     let raw: PathBuf = lane.join("saved").join(git_policy_cli::commit_integrity::sha256_hex(b"other bytes"));
     std::fs::write(&raw, b"other bytes").expect("a writable occupant written by a raw creator");
-    assert!(create_saved_content(&lane, b"other bytes").is_err(), "a writable occupant of the name was accepted");
+    let made: ClosureEntry = create_saved_content(&lane, b"other bytes").expect("the occupant is replaced");
+    let mode = std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(lane.join(made.path())).expect("metadata").permissions());
+    assert_eq!(mode & 0o222, 0, "the file at the name is the component's sealed one");
 }
 
 /// Review 10a section 2A: a document that omits its `needs` line passed the declared-dependency check, and the reclaiming checkpoint
@@ -873,8 +895,8 @@ fn r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_docu
     assert!(writer.begin_checkpoint(2, b"a document that declares nothing", &[]).is_err(), "a visible request R was left out of a reclaiming checkpoint");
     assert!(state.join("state.log.1").exists());
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
-    let saved: PathBuf = saved_content(&lane, b"objects of b");
-    let content: ClosureEntry = ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
+    let saved: PathBuf = lane.join(content.path());
     assert!(writer.begin_checkpoint(2, b"declares nothing", std::slice::from_ref(&request)).is_err(), "saved content S was left out");
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, ledger_line_of(&"1".repeat(32), "conflicted")).expect("a ledger line");
