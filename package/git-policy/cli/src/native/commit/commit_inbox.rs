@@ -12,6 +12,7 @@
 //! // writeFile(tmp, bytes); link(tmp, `inbox/${id}`); unlink(tmp); // no fsync until a departure
 //! ```
 
+use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -458,6 +459,11 @@ pub struct Departure<'a> {
     names_generation: Option<u64>,
 }
 
+/// The identity a forced item is accounted under: its path, and the length and checksum of what was forced.
+fn identity_of_entry(entry: &ClosureEntry) -> (PathBuf, u64, String) {
+    return (entry.path().to_path_buf(), entry.length(), entry.sha256().to_string());
+}
+
 /// What a departure has forced and what failed, so that one failure does not end the other saves.
 struct Saves {
     forced: Vec<PathBuf>,
@@ -646,11 +652,14 @@ impl<'a> Departure<'a> {
     /// recorded and the next item is still attempted.
     fn force_state_with_items(&self, forced: &mut Vec<PathBuf>, failures: &mut Vec<(String, io::Error)>) -> Option<Prefix> {
         let lane: &Path = self.lane();
+        // What was forced is accounted by identity (the path, and for an append-only file the extent of the prefix and its checksum), not
+        // by path: a ledger forced at one length is not forced at the longer length a later state record retains.
+        let mut identities: BTreeSet<(PathBuf, u64, String)> = BTreeSet::new();
         // Each pass forces the items of the state recovery selects now; a record appended meanwhile can retain more, so the prefix the sync
         // captured is checked against what was forced and another pass runs when it names more. A fixed pass count bounds the wait.
         for _ in 0..LIVE_FORCE_PASSES {
             match select(self.state_dir) {
-                Ok(Some(selected)) => self.force_each(lane, &selected.items, forced, failures),
+                Ok(Some(selected)) => self.force_each(lane, &selected.items, &mut identities, forced, failures),
                 Ok(None) => {}
                 Err(error) => {
                     failures.push((format!("state {}", self.state_dir.display()), io::Error::other(format!("{:?}", error))));
@@ -665,27 +674,30 @@ impl<'a> Departure<'a> {
                     return None;
                 }
             };
-            if prefix.items.iter().all(|entry| { return forced.contains(&lane.join(entry.path())); }) {
+            if prefix.items.iter().all(|entry| { return identities.contains(&identity_of_entry(entry)); }) {
                 return Some(prefix);
             }
-            self.force_each(lane, &prefix.items, forced, failures);
+            self.force_each(lane, &prefix.items, &mut identities, forced, failures);
         }
         failures.push((format!("state {}", self.state_dir.display()), io::Error::other("the state kept retaining new items while it was forced")));
         return None;
     }
 
-    /// Forces each item not yet forced, recording failures, then the inbox directory when an envelope was among them.
-    fn force_each(&self, lane: &Path, items: &[ClosureEntry], forced: &mut Vec<PathBuf>, failures: &mut Vec<(String, io::Error)>) {
+    /// Forces each item whose identity is not yet forced, recording failures, then the inbox directory when an envelope was among them.
+    fn force_each(&self, lane: &Path, items: &[ClosureEntry], identities: &mut BTreeSet<(PathBuf, u64, String)>, forced: &mut Vec<PathBuf>, failures: &mut Vec<(String, io::Error)>) {
         let mut any_envelope: bool = false;
         for entry in items {
             let path: PathBuf = lane.join(entry.path());
-            if forced.contains(&path) {
+            if identities.contains(&identity_of_entry(entry)) {
                 continue;
             }
             match force_item(lane, entry) {
                 Ok(()) => {
                     any_envelope = any_envelope || entry.kind() == EntryKind::InboxEnvelope;
-                    forced.push(path);
+                    identities.insert(identity_of_entry(entry));
+                    if !forced.contains(&path) {
+                        forced.push(path);
+                    }
                 }
                 Err(error) => failures.push((format!("retained item {}", path.display()), error)),
             }
