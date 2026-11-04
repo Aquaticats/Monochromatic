@@ -76,7 +76,7 @@ use std::process::{Command, ExitStatus};
 /// Imports the fixed values.
 use crate::constants::{EXEC_FAILED_EXIT_CODE, INSTALL_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports the loop guard.
-use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, MAX_HOPS, format_guard, is_meant_for, parse_guard};
+use crate::guard::{GUARD_VARIABLE, Guard, GuardKind, format_guard, is_meant_for, parse_guard};
 /// Imports the notice handshake.
 use crate::notice_marker::{claim_marker_in, leave_marker_in, runtime_dir};
 /// Imports the PATH lookup.
@@ -159,6 +159,7 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     // `Command::new(program).args(arguments)` builds the command; the guard, when there is one, is added to its environment
     // only (this process's own environment is untouched). `.status()` starts it with the standard streams inherited from
     // this process and waits for it; `?` leaves the function with the `Err` when the start failed.
+    crate::real_binary::refuse_if_ourselves(program).map_err(std::io::Error::other)?;
     let mut command: Command = Command::new(program);
     command.args(arguments);
     if let Some(value) = guard_value {
@@ -166,19 +167,6 @@ pub fn run_program(program: &Path, arguments: &[OsString], guard_value: Option<&
     }
     let status: ExitStatus = command.status()?;
     return Ok(exit_code_of(status));
-}
-
-/// What:
-/// `fn path_display_text(path: &Path) -> String` prints one path as text.
-/// Why:
-/// The loop-guard message lists the `cargo` candidates that led back to this shadow.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const pathDisplayText = (path: string) => path;
-/// ```
-fn path_display_text(path: &Path) -> String {
-    return path.display().to_string();
 }
 
 /// What:
@@ -195,25 +183,19 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // The loop guard (`guard.rs`): a value an earlier shadow instance left for the process its candidate started. It counts
     // only when it was left for this very process, so a script that the real cargo runs never inherits it.
     let mut skipped: Vec<PathBuf> = Vec::new();
-    let mut hops: u32 = 0;
+    let hops: u32 = 0;
     // The process id of the shadow instance that started this one as a child, when there is one (a spawn guard).
-    let mut outer_pid: Option<u32> = None;
+    let outer_pid: Option<u32> = None;
+    // A guard meant for this process says that another cargo-shadow chose the file this process runs as the real cargo: this one is
+    // that second start. It stops at once, before doing any work, with the message that tells a reader with no context what happened and
+    // what to type (owner decision of 2026-11-04, option A); there is no second try with another file.
     if let Ok(text) = env::var(GUARD_VARIABLE)
         && let Some(guard) = parse_guard(&text)
         && is_meant_for(&guard, std::process::id(), std::os::unix::process::parent_id())
     {
-        if guard.kind == GuardKind::Spawn {
-            outer_pid = Some(guard.pid);
-        }
-        skipped = guard.skipped;
-        hops = guard.hops;
-    }
-    if hops >= MAX_HOPS {
-        eprintln!(
-            "cargo-shadow: stopped after {hops} hops: the {SHADOWED_NAME} found on PATH keeps leading back to this shadow (tried {})",
-            skipped.iter().map(PathBuf::as_path).map(path_display_text).collect::<Vec<String>>().join(", ")
-        );
-        return EXEC_FAILED_EXIT_CODE;
+        let own: PathBuf = env::current_exe().unwrap_or_default();
+        eprint!("{}", crate::arrival::arrival_message(&guard, &own, &env::var("PATH").unwrap_or_default()));
+        return crate::arrival::ARRIVAL_EXIT_CODE;
     }
 
     // The treatment of the command line (`verb.rs`). Only the first instance acts: an instance started by an earlier one
@@ -307,6 +289,10 @@ pub fn run_shim(mut arguments: Vec<OsString>) -> i32 {
     // execvp(program, args);  // never returns on success; Node has no exec, this is the POSIX call
     // ```
     if will_exec {
+        if let Err(reason) = crate::real_binary::refuse_if_ourselves(&program) {
+            eprintln!("cargo-shadow: {reason}");
+            return EXEC_FAILED_EXIT_CODE;
+        }
         let error: std::io::Error = Command::new(&program).args(&arguments).env(GUARD_VARIABLE, &guard_value).exec();
         eprintln!("cargo-shadow: could not start {}: {error}", program.display());
         return EXEC_FAILED_EXIT_CODE;

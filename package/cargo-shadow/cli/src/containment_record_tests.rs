@@ -229,12 +229,31 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     let marker = plain.path().join("late");
     let ready = plain.path().join("writer-ready");
     // A writer of the process group is running and ready (a handshake) before the bound passes; it would write after the stop.
-    let script: String = format!("(: > {ready}; sleep 2; : > {late}) & while [ ! -e {ready} ]; do sleep 0.02; done; sleep 30", ready = ready.display(), late = marker.display());
-
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &Bound { limit: Duration::from_millis(1500), ..bound() });
+    // The bound counts the start of the run, so an attempt whose bound ended before the writer was ready is repeated with a doubled
+    // bound, and the writer's own delay follows the bound (a second after it) so that it still writes only after the stop.
+    let writer_file = plain.path().join("writer-pid");
+    let started = std::time::Instant::now();
+    let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
+        Duration::from_millis(1500),
+        &|| { let _ = fs::remove_file(&ready); let _ = fs::remove_file(&marker); },
+        &|| { return ready.exists(); },
+        &mut |limit| {
+            let delay: f64 = limit.as_secs_f64() + 0.5;
+            let script: String = format!("(: > {ready}; sleep {delay}; : > {late}) & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; sleep 600", ready = ready.display(), late = marker.display(), pid = writer_file.display());
+            return output_within(Command::new("sh").args(["-c", &script]), None, &Bound { limit, ..bound() });
+        },
+    );
     use_route_settings_for_test(None);
     let ready_before: bool = ready.exists();
-    std::thread::sleep(Duration::from_millis(2_700));
+    // The run ended at its bound and not long after it (the stop and the reaping have their own small allowances), and the writer is
+    // gone the moment it returned (fourth certification pass).
+    let elapsed: Duration = started.elapsed();
+    let writer: i32 = crate::contain_counterexample_tests::read_pid(&writer_file);
+    let alive_at_return: bool = crate::contain_counterexample_tests::is_running(writer);
+    std::thread::sleep(limit + Duration::from_millis(1_200));
+    assert!(!alive_at_return, "the writer of the process group still ran when the run returned");
+    assert!(elapsed < limit * 8 + crate::bounded_run::QUIESCE_BOUND * 2, "the run returned after {elapsed:?}, long after its bound of {limit:?}");
+    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
 
     // The result is the timeout (certification group 3), the writer started, and the run was the weaker path.
     assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the run should have passed its bound: {result:?}");
@@ -293,7 +312,7 @@ fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
     let pid_file = plain.path().join("writer-pid");
     // The writer closes its inherited pipes (so the runner's drain does not wait for it) and keeps running after the payload exits.
     let script: String = format!(
-        "(echo $$ > {pid}; : > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        "(: > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
         pid = pid_file.display(),
         ready = ready.display(),
         late = marker.display()
@@ -302,8 +321,13 @@ fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound());
     use_route_settings_for_test(None);
     let ready_before: bool = ready.exists();
+    // The writer is judged the moment the run returned (fourth certification pass), through the fail-closed oracle: a runner that
+    // returned with the writer alive and let a later cleanup kill it before its write would leave no marker and pass the check below.
+    let writer: i32 = crate::contain_counterexample_tests::read_pid(&pid_file);
+    let alive_at_return: bool = crate::contain_counterexample_tests::is_running(writer);
     std::thread::sleep(Duration::from_millis(2_700));
 
+    assert!(!alive_at_return, "the writer of the process group still ran when the run returned: the exit cleanup of the group was not done by then");
     assert!(result.is_ok_and(|output| { return output.status.success(); }), "the payload should have exited successfully");
     assert!(ready_before, "the writer never ran, so its absence proves nothing");
     assert!(!marker.exists(), "a member of the process group wrote after the run returned: the exit cleanup of the group is missing");
@@ -399,10 +423,20 @@ fn an_acknowledgement_does_not_override_a_live_group_or_unrelated_validation() {
     acknowledge(&live).expect("acknowledges");
 
     let note: Option<String> = survivor_note(&live);
+    // The real recovery and admission hold the acknowledged journal too while the group lives (fourth certification pass); the group is
+    // stopped only afterwards.
+    let held: Vec<String> = recover(root.path(), &refusing);
+    let admitted = begin(root.path(), &[snapshot("second")], false);
+    let held_lock: String = live_lock(root.path());
+    let kept: bool = live.exists();
     let _ = orphan.kill();
     let _ = orphan.wait();
 
     assert!(note.is_some_and(|text| { return text.contains("still running"); }), "a live recorded group was overridden");
+    assert!(held.iter().any(|message| { return message.contains("still running"); }), "the recovery did not name the live group: {held:?}");
+    assert_eq!(held_lock, LEFT_BY_THE_KILLED_RUN, "an acknowledged recovery went ahead beside a live group: {held:?}");
+    assert!(kept, "the acknowledged journal was removed while its group lives");
+    assert!(admitted.is_err(), "a transaction was admitted beside an acknowledged live group");
 
     let other = repository();
     let invalid: PathBuf = journal_with_records(other.path(), "pgroup starting\n");
@@ -480,20 +514,32 @@ fn a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_
     let Some(route) = delegated_route() else {
         return;
     };
-    let root = repository();
-    let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let Record::Scope { namespace, parent_view, path } = planned.record() else {
-        panic!("a scope record");
-    };
-    let wrong: Record = Record::Scope { namespace, parent_view: View { mount: parent_view.mount + 1, inode: parent_view.inode }, path };
-    let journal: PathBuf = journal_with_records(root.path(), &format!("{wrong}\nsettled {}\n", planned.directory().display()));
+    // The mount id and the inode of the parent are each changed on their own (fifth certification pass): a check of only one of them
+    // is red for the other; the unchanged view is the control, which is read as ended.
+    for (label, mount_step, inode_step) in [("an unchanged view", 0_u64, 0_u64), ("another mount id", 1, 0), ("another inode", 0, 1)] {
+        let root = repository();
+        let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
+        let Record::Scope { namespace, parent_view, path } = planned.record() else {
+            panic!("a scope record");
+        };
+        let seen: Record = Record::Scope { namespace, parent_view: View { mount: parent_view.mount + mount_step, inode: parent_view.inode + inode_step }, path };
+        let journal: PathBuf = journal_with_records(root.path(), &format!("{seen}\nsettled {}\n", planned.directory().display()));
 
-    let note: String = survivor_note(&journal).expect("a different parent view blocks");
-    let messages: Vec<String> = recover(root.path(), &refusing);
+        let note: Option<String> = survivor_note(&journal);
+        let messages: Vec<String> = recover(root.path(), &refusing);
 
-    assert!(note.contains("recorded path may lead somewhere else"), "{note}");
-    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{messages:?}");
-    assert!(journal.exists());
+        if mount_step == 0 && inode_step == 0 {
+            assert_eq!(note, None, "{label}: the control did not read the settled, absent scope as ended: {messages:?}");
+            assert!(!journal.exists(), "{label}: the control journal was not recovered: {messages:?}");
+        } else {
+            let text: String = note.unwrap_or_else(|| { panic!("{label}: a different parent view did not block"); });
+            assert!(text.contains("recorded path may lead somewhere else"), "{label}: {text}");
+            assert!(messages.iter().any(|message| { return message.contains("recorded path may lead somewhere else"); }), "{label}: the recovery did not give the reason: {messages:?}");
+            assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{label}: {messages:?}");
+            assert!(journal.exists(), "{label}: the journal was removed");
+            assert!(begin(root.path(), &[snapshot("second")], false).is_err(), "{label}: a transaction was admitted beside a journal whose parent view differs");
+        }
+    }
 }
 
 /// The helper process of the mount-view test:
@@ -715,4 +761,52 @@ fn a_started_child_whose_process_group_was_never_recorded_is_a_possible_survivor
     let note = survivor_note(&journal);
 
     assert!(note.is_some_and(|text| { return text.contains("never recorded"); }), "a recovery would restore files a child may still be writing");
+}
+
+/// The environment variable that tells the notice-concurrency helper process to run.
+const FIXTURE_NOTICE_RACE: &str = "CARGO_SHADOW_NOTICE_RACE_FIXTURE";
+
+/// The helper process of the notice-concurrency test (a fresh process, because the notice is given once per process): the first
+/// weaker-path run wins the notice and is held inside its emission; a second weaker-path run on another thread must complete while
+/// the winner is still held. Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_run_does_not_wait_for_another_runs_slow_notice"]
+fn notice_concurrency_fixture() {
+    use std::sync::atomic::Ordering;
+    if std::env::var(FIXTURE_NOTICE_RACE).is_err() {
+        return;
+    }
+    let plain = scratch();
+    let settings = RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() };
+    let gate = crate::bounded_run::NOTICE_GATE.lock().expect("the gate");
+    let first_settings = settings.clone();
+    let first = std::thread::spawn(move || {
+        use_route_settings_for_test(Some(first_settings));
+        return output_within(Command::new("sh").args(["-c", "echo first"]), None, &bound());
+    });
+    crate::cgroup_test_support::wait_until("the first run to be inside its notice", &|| { return crate::bounded_run::NOTICE_ENTERED.load(Ordering::SeqCst); });
+    let second = crate::round_sixteen_tests::answers_within("the second weaker-path run", Duration::from_secs(20), move || {
+        use_route_settings_for_test(Some(settings));
+        return output_within(Command::new("sh").args(["-c", "echo second"]), None, &bound());
+    });
+    assert!(second.is_ok_and(|output| { return output.status.success(); }), "the second run did not complete");
+    drop(gate);
+    assert!(first.join().expect("first thread").is_ok_and(|output| { return output.status.success(); }));
+}
+
+/// Acceptance rows V6 and "Weaker path" (fifth certification pass): the weaker-path notice, given once per process, does not make
+/// another run wait for the winner's slow write. A helper process holds the winner inside the emission and requires the second run to
+/// answer; the notice is on standard error exactly once.
+#[test]
+fn a_run_does_not_wait_for_another_runs_slow_notice() {
+    let output = Command::new(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "containment_record_tests::notice_concurrency_fixture", "--nocapture"])
+        .env(FIXTURE_NOTICE_RACE, "1")
+        .output()
+        .expect("the helper");
+
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "the helper failed: {stderr}");
+    let notices: usize = stderr.lines().filter(|line| { return line.starts_with("cargo-shadow: no delegated control group"); }).count();
+    assert_eq!(notices, 1, "the notice was not given exactly once: {stderr}");
 }

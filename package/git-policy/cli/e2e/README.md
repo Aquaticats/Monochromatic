@@ -420,17 +420,41 @@ Design scenarios exercise the accepted concurrent-commit design:
   0 to 5 ms later, inside the batch, then restarts it.
   `service-killed-with-agents-waiting` fails when every agent had its answer before the kill.
 - `sigkill-service-during-work`:
-  the service is killed once it claimed the landed commit's push record, then restarted.
+  the service is killed once it claimed the landed commit's push record, then restarted, and a follow-up commit is made.
   The dead service's claims stay out of reach until their lease (`CLAIM_LEASE`, 120 s,
   `src/native/landing/service_work.rs`) runs out, because a service that is still running renews its claims
   and a claim's holder is never told by process ID.
   The restarted service looks at the repository again when the lease is over (`work_loop`,
   `src/native/service/service_server.rs`), requeues the claims and runs them.
-  The scenario therefore waits the lease plus a margin (`CLAIM_RECOVERY_BUDGET_MS`) for the records to settle,
-  and `killed-service-claims-recovered-within-lease` fails when they do not;
-  the generic 30 s settle wait of the observation is shorter than the lease and would report the claims as unfinished.
+  The scenario therefore waits the lease plus a margin (`CLAIM_RECOVERY_BUDGET_MS`, counted from the kill)
+  for the records to settle,
+  and `killed-service-claims-recovered-within-lease` fails when they are not settled by then,
+  however late the wait observes it.
+  The generic 30 s settle wait of the observation is shorter than the lease and would report the claims as unfinished.
   `service-kill-lease.unit.test.ts` reads the lease from the Rust source and fails when the fixture's value drifts.
   The scenario runs just over the lease, 121 s on 2026-11-04 (seed 1).
+  Execution evidence, not remote state:
+  `service-killed-holding-the-push-claim` requires the push record of the landed commit to be in `claimed`
+  right after the kill (the upkeep record may still be pending, because the service claims its items one after another),
+  and `claimed-work-settled-once-by-the-successor` requires each item to be a single file in `done`,
+  and for each item that was claimed at the kill a `tries` of one or more.
+  The service writes `tries` into an item each time it takes the item back from a holder that did not renew it,
+  so the count shows that the dead service's claim was recovered and run by the successor.
+  Neither the empty work directories nor a remote that holds the commit show that,
+  because the push of a later commit carries its ancestors.
+  What no record can show is a second run of the same side effect:
+  a holder killed after it pushed and before it settled is run again by design,
+  and a push that was made twice leaves the same remote state.
+- `sigkill-service-then-idle`:
+  the same kill and restart with nobody committing afterwards:
+  no wrapper command runs and no wake reaches the restarted service,
+  so the claims can be run only by the service's own look at the repositories it was woken for
+  (`src/native/landing/service_claim_watch.rs`).
+  It answers the objection that the recovery of `sigkill-service-during-work` might depend on the follow-up commit's wake,
+  and it fails with the claims left in `claimed` on a service without that look (2026-11-04).
+  It runs just over the lease, like the scenario above, and both stay under the 180 s limit of a scenario's workload.
+  That limit bounds the workload (`run`) only: the observation that follows it, with its own 30 s settle wait, is outside it,
+  so a failing run of these scenarios takes the budget plus that wait, about 180 s (measured 180585 ms on 2026-11-04).
 - `replay-unavailable-fails-fast`,
   on 2.39.5 only:
   a commit held in its editor while another lands must exit `1`
@@ -673,6 +697,12 @@ so they detect the regression.
   so a scenario that freezes it must reach its resume without long waits in between.
 - `sigkill-offset` kills at a seeded time, and a kill that comes after the agent exited kills nothing;
   `sigkill-after-landing` and `sigkill-queued` are the exact kills.
+- A claim that a killed service held delays its backup push by up to the lease, 120 s after the kill,
+  because the lease is the only proof that a holder died;
+  commits themselves never wait for it.
+  A shorter lease would need a harness-only lease control, and the release executable has none.
+- The container gate (`native:test:container`) runs nextest and clippy, not this suite,
+  so these scenarios are run on their own with `test:e2e:concurrent:native --scenario <name>`.
 - A kill while the service pushes is pinned only by `sigkill-service-during-work`, which waits for the claim;
   the push to the local remote is too short to hold, so that kill can land after the push finished.
 - The lint-staged scenarios run in a linked worktree,

@@ -253,8 +253,25 @@ fn kill_with_everything_it_started(child: &mut Child) {
     let _waited = child.wait();
 }
 
-/// The resident service program Cargo built for this test run.
-const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_cli-git-service");
+/// The executable Cargo built for this test run, which is the wrapper and, started with the service mode words, the resident
+///  service.
+const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_cli-git-native");
+
+/// What:
+///  The command that starts the resident service of this build: the one executable followed by the words of its service mode.
+/// Why:
+///   The service is a mode of the wrapper's executable (`service_main.rs`), so every control that starts one names these words
+///  first and its own options after them.
+pub fn service_command() -> Command {
+    let mut command: Command = Command::new(SERVICE_PROGRAM);
+    command.args(git_policy_cli::service_main::SERVICE_WORDS);
+    return command;
+}
+
+/// The path of the executable that runs as the service when started with the service mode words.
+pub const fn service_executable() -> &'static str {
+    return SERVICE_PROGRAM;
+}
 
 /// Numbers the runtime directories of one test process.
 static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -344,10 +361,10 @@ impl FixtureService {
         let mut command: Command = match launch.prefix.split_first() {
             Some((program, rest)) => {
                 let mut prefixed: Command = Command::new(program);
-                prefixed.args(rest).arg(SERVICE_PROGRAM);
+                prefixed.args(rest).arg(SERVICE_PROGRAM).args(git_policy_cli::service_main::SERVICE_WORDS);
                 prefixed
             }
-            None => Command::new(SERVICE_PROGRAM),
+            None => service_command(),
         };
         command
             .args(["--journal"])

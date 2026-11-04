@@ -17,6 +17,7 @@ use crate::test_support::{fixture, git, git_context, git_text, remove, repositor
 use crate::work_item::enqueue;
 use std::os::unix::fs::PermissionsExt;
 use crate::push_retry::PLAN_DIRECTORY;
+use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::service_retry::RETRY_SLACK;
 use crate::service_server::work_loop;
 use std::sync::mpsc::{Sender, channel};
@@ -223,7 +224,7 @@ const RESTART_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturati
 /// Run `work_loop` on a thread, as the service does, and give the way to wake it; dropping the sender stops it.
 fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     let (sender, receiver) = channel::<Wake>();
-    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(PAUSE, plans)); });
+    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::in_memory()); });
     return (sender, running);
 }
 
@@ -412,5 +413,119 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
     let named = entries.iter().find(|entry| { return entry.message.contains("a reason this release does not know"); }).expect("the journal names the rejection");
     assert_eq!(named.priority, Priority::Warning);
     assert!(named.message.contains("[remote rejected] main -> main (deny updating a hidden ref)"), "{}", named.message);
+    remove(stage.root.as_path());
+}
+
+/// The directories a service of this instance was woken for, as the journal of a service that ended holds them.
+fn watched_by_an_earlier_service(stage: &Stage) -> PathBuf {
+    let store: PathBuf = stage.root.join("journal").join(WATCH_DIRECTORY);
+    ClaimWatch::restored(store.as_path()).remember(stage.repo.join(".git").as_path());
+    return store;
+}
+
+/// Lets the stage's hook accept pushes, as it does after its first stall.
+fn let_pushes_through(stage: &Stage) {
+    std::fs::write(stage.root.join("stalled-once"), b"").expect("the marker that makes the hook accept");
+}
+
+/// Moves the item of `commit` to `claimed` as a service would have claimed it `age` ago, and gives the claim's path.
+fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> PathBuf {
+    let work: PathBuf = work_directory(stage.repo.join(".git").as_path());
+    let id: String = format!("push-{commit}");
+    let last_renewal: ClaimTime = ClaimTime::read().rewound(age);
+    let claimed: PathBuf = work.join("claimed").join(crate::work_item::claim_file_name(id.as_str(), "0123456789abcdef0123456789abcdef", &last_renewal));
+    std::fs::create_dir_all(work.join("claimed")).expect("the claimed directory");
+    std::fs::rename(work.join("pending").join(id), claimed.as_path()).expect("claimed by the service that died");
+    return claimed;
+}
+
+/// Run `work_loop` on a thread as a service that has just started: the plan and the watch are read from the journal, and no wake is sent.
+fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+    let (sender, receiver) = channel::<Wake>();
+    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::restored(watched)); });
+    return (sender, running);
+}
+
+/// A service killed while it holds a claim is followed by one that runs the claim without any wake: nobody commits after the kill,
+///  no wrapper command runs, and the service started in its place looks at the repository an earlier service was woken for, finds
+///  the claim held by a holder that does not renew it, and pushes once the lease is over.
+#[test]
+fn a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake() {
+    let stage: Stage = stage("push-claim-no-wake");
+    let_pushes_through(&stage);
+    let store: PathBuf = watched_by_an_earlier_service(&stage);
+    let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), crate::service_work::CLAIM_LEASE - Duration::from_secs(2));
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
+        assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the successor pushed the claimed commit although nothing woke it");
+        assert!(wait_until(&|| { return !claimed.exists(); }), "the claim was settled");
+        drop(sender);
+        running.join().expect("the service ends");
+    });
+    assert!(work_directory(stage.repo.join(".git").as_path()).join("done").join(format!("push-{}", stage.landed)).exists(), "settled as done");
+    remove(stage.root.as_path());
+}
+
+/// The wake of a repository is written down by the worker before it drains, so that a service killed in the middle of the first
+///  claim is followed by one that knows where to look; a service that restarts finds the file.
+#[test]
+fn a_wake_writes_the_repository_down_for_the_next_service() {
+    let stage: Stage = stage("push-claim-wake-written");
+    let_pushes_through(&stage);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let store: PathBuf = stage.root.join("journal").join(WATCH_DIRECTORY);
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    assert!(ClaimWatch::restored(store.as_path()).directories().is_empty(), "a new journal watches nothing");
+    std::thread::scope(|scope| {
+        let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
+        sender.send((git_dir.clone(), None)).expect("the service takes the wake");
+        assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the wake was run");
+        drop(sender);
+        running.join().expect("the service ends");
+    });
+    assert_eq!(ClaimWatch::restored(store.as_path()).directories(), vec![git_dir], "the next service looks at the repository by itself");
+    remove(stage.root.as_path());
+}
+
+/// The service that starts in place of another runs what is pending at once but leaves a claim whose holder renewed it a moment
+///  ago alone: the lease decides that a holder is dead, never the start of a successor, so the work is not run twice.
+#[test]
+fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
+    let stage: Stage = stage("push-claim-live-holder");
+    let_pushes_through(&stage);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let store: PathBuf = watched_by_an_earlier_service(&stage);
+    // The landed commit is claimed by a holder that renewed a moment ago; a newer commit is pending.
+    std::fs::write(stage.repo.join("a.txt"), b"three\n").expect("file");
+    git(stage.repo.as_path(), &["commit", "--quiet", "--all", "--message=three"]);
+    let newer: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: stage.repo.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: newer.clone(),
+        parent: stage.landed.clone(),
+        created: String::from("2026-11-04T05:40:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work_directory(git_dir.as_path()).as_path(), &item).expect("enqueue");
+    let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), Duration::ZERO);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
+        assert!(wait_until(&|| { return remote_tip(&stage) == newer; }), "the pending push was run at the start");
+        assert!(wait_until(&|| { return work_directory(git_dir.as_path()).join("done").join(format!("push-{newer}")).exists(); }), "the pending push was settled");
+        assert!(claimed.exists(), "the claim of a holder that renewed a moment ago was not taken");
+        drop(sender);
+        running.join().expect("the service ends");
+    });
     remove(stage.root.as_path());
 }

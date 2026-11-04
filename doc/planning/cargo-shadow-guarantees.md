@@ -678,6 +678,11 @@ the tests that discriminate; the planted regressions that turned the old asserti
 to judge them again: no row is certified by this map.
 The shared helper `journal_dirs` now stops on every listing error except the initial absence of the journal directory
 (`the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty`, red against the old helper).
+Suite counts at the round 19 code tip (written 2026-11-04T16:13:00-05:00): the release gate (`mise run //package/cargo-shadow/cli:test`, run
+in a scope with the installed shadow first on PATH, as on main) ran 648 tests: 648 passed, 0 failed, 16 skipped (the `#[ignore]`
+helper entries, three more than before for the syscall and notice helpers); `lint:clippy` with warnings denied is clean; logs
+`/home/user/temp/agent/r19-gate-final.log`, `r19-gate-busy.log` (the same gate under an I/O pressure of 31 to 38 percent: 647 passed in
+17 s), `r19-clippy.log`.
 Suite counts at the round 18 code tip `c82ee474fc` (written 2026-11-04T15:22:00-05:00): the debug run and the release gate each ran
 634 tests: 634 passed, 0 failed, 14 skipped (the thirteen `#[ignore]` helper entries of before and the helper of
 `each_missing_capability_class_prints_the_notice_on_the_real_standard_error`); `lint:clippy` with warnings denied is clean; logs
@@ -1143,6 +1148,111 @@ No row is certified by this map.
 - **Host qualifications.**
   A delegated test returns early when no delegated route exists and `CARGO_SHADOW_ALLOW_NO_CGROUP` is set; `a_higher_ancestor_the_user_cannot_open_is_never_touched`
   and the permission-based failed-restore test skip when the user can bypass permissions. The logs of this host show them running.
+
+### Round 19 additions (fourth certification pass and the gate, 2026-11-04T16:12:00-05:00)
+
+The fourth certification pass (`cargo-shadow-cert4-sol-1.txt` to `-11.txt`) certified the group of A2 and R4 after one named fix and
+found two production defects and evidence gaps elsewhere. The release gate on main also failed once for a reason in the tests.
+Each item names its test and says whether a planted regression turned it red.
+No row is certified by this map.
+
+- **A2, R4.**
+  `an_update_whose_run_cannot_show_quiescence_stops_without_rollback_or_acceptance_and_keeps_the_journal` joins the separate update
+  path: cargo wrote a lockfile, its run reports that a descendant may remain, and the update fails terminally with the produced bytes
+  live, the journal unfinished and no later cargo call (red with the guard of `update.rs` bypassed, planted).
+- **Launcher.**
+  Production defect: the identity of the running executable came from its installed pathname, which an installer can replace while
+  the shadow runs. The identity is now taken from the open image (`/proc/self/exe` opened as a file) and joins the skip set
+  (`a_hard_link_of_the_running_image_is_skipped_after_the_installed_path_was_replaced`, with the control that the schedule is real; red
+  with the image identity dropped, planted); `a_launcher_chain_that_ends_at_a_hard_linked_alias_of_the_shadow_is_skipped` applies the
+  identity at every hop. Found by the use of the shadow as `cargo` in the gate of another package:
+  `a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_is_not` (a crate in a directory that git ignores has
+  no committed lockfile, so every locked version counted as newly locked and was refused; such a crate is now left to cargo; red with
+  the ignore question answering no, planted).
+- **K1.**
+  Production defect: an inventory that could not be read (an entry that cannot be examined) looked below the threshold and printed
+  nothing. It now prints that the number kept is unknown
+  (`an_inventory_that_could_not_be_read_is_reported_as_unknown_and_never_taken_as_small`, red with the old condition, planted; the test
+  stops with a message for a user whom permissions do not stop).
+- **A1.**
+  The process oracle reads `ESRCH` of the stat file as gone as it reads `ENOENT`
+  (`a_stat_read_that_fails_with_enoent_or_esrch_names_an_absent_process`). A successful stop is observed going through the
+  authoritative emptiness proof (`scope proved empty` or `scope proved absent` in the trace, asserted by both zombie-leader tests; red
+  with a stop that returns after the kill without the population check, planted).
+- **A3, A4, V5.**
+  The output barrier `make_durable` has failpoints at its file sync and its directory sync
+  (`a_failed_output_file_or_directory_sync_of_the_ordinary_finish_is_mandatory_and_publishes_no_marker`), and it is observed at the
+  system call under `strace` (`the_output_barrier_syncs_the_file_and_then_its_directory_as_the_kernel_sees_it`; red with the
+  `sync_all` call removed, planted, where the in-process trace test stayed green: the in-process trace cannot show a dropped
+  syscall). `the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_real_barrier` fails the real barriers of the
+  recovery on a kept root and observes both outputs made durable before completion (red with the loops removed, planted), and
+  `an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_report` carries the unready branch's flags (red with the
+  flags dropped, planted). The failed-root test decides its permission prerequisite while the directory is read-only.
+- **V3, V4.**
+  `a_record_that_is_written_only_in_part_starts_no_program` (a real short write; red with the length check dropped, planted) and
+  `the_record_sync_is_given_to_the_kernel_after_the_write` (under `strace`; red with the `fsync` removed, planted).
+  The kept partial journals of the preparation cuts are checked as the same journals with their snapshot and index.
+- **V2, amended c, and the weaker path.**
+  A populated scope whose launcher is gone, and an acknowledged live process group, now block the real recovery and admission
+  (`a_gone_launcher_does_not_clear_a_scope_with_a_member` with a control after the member stops,
+  `an_acknowledgement_does_not_override_a_live_group_or_unrelated_validation`; each red with acknowledged journals excluded from the
+  liveness check, planted); `an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended` keeps the journal and refuses
+  admission (red with the scope-appears shortcut, planted); a repeated boot field is refused in both orders (red with last-wins,
+  planted); the weaker-path cleanup tests judge the writer at return; the refused-scope test requires its stand-in to have run.
+  The reaping fault tests assert consumption and have a fault-free control.
+- **The gate on main (certification of the suite, 2026-11-04).**
+  Cause: the suite's journal protocol makes durable writes (an `fsync` of a file or a directory per step; a full run does hundreds), and
+  the disk under the build directory is a SATA SSD under the BFQ scheduler that other sessions' work, an image build among them,
+  keeps busy; the I/O pressure of the host (`/proc/pressure/io`) was 26 to 40 percent over the last ten seconds, and a test that takes
+  0.24 s on a quiet disk took 11 s. Two kinds of test turned that into failures: waits that followed the clock (a helper that is ready
+  in a tenth of a second was waited for thirty seconds) and bounds shorter than the start of a scope (a run bounded at 400 ms ended
+  while its scope was still being made, before the payload existed). Waits now follow the helper (a child of the test that is alive;
+  a missing file with no helper left fails at once), and a bound that ended in startup is retried with a doubled bound until the
+  payload really started (`a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_bound_and_then_judged`, red with a
+  single attempt). The gate passed under that pressure.
+- **Not done in this round** (named by the fourth pass; the map claims them neither shown nor planted): R2 fallback-link fault and
+  reported stranded path; K2 retry after a failed parent-entry barrier; the listing faults routed through the real operation results
+  (V1); the mandatory-finish refusal through a real shim run (A3); the acknowledgement writer's successful ordering; the reboot-related
+  refusals through the recovery and admission entry points; the blocked-feeder handshake of the input-ignoring timeout test.
+
+### Round 20 additions (fifth certification pass, 2026-11-04T16:43:15-05:00)
+
+The fifth pass (`cargo-shadow-cert5-sol-1.txt` to `-15.txt`) judged all groups not certified. Some groups ran without the manifest because
+the packet and the manifest together passed the input cap, and some lacked bodies the manifest assigned; the packets are rebuilt below
+the cap with the manifest attached and with production items listed apart from tests. Substantive findings and their state:
+
+- **Launcher.**
+  `a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_in_the_production_lookup` runs a real process from an
+  installed path, replaces that path with a rename while a hard link stays on PATH, and asks the production lookup (no identity is
+  injected); it covers a direct alias and a recorded chain that ends at the alias (red with the image identity dropped, planted).
+  Production race: the chosen path was a mutable pathname between the choice and the start. `refuse_if_ourselves` repeats the check
+  right before each of the three starts (`a_chosen_path_that_names_the_running_image_at_the_start_is_refused`). That shrinks the
+  window to the instants between the check and the start; it does not close it. Closing it means executing an opened descriptor,
+  which breaks scripts and proxies that open their own path, so it is not done and needs an owner decision.
+  Owner decision of 2026-11-04 (option A): a launcher with no record that leads back no longer gets a bounded fallback; the second
+  cargo-shadow stops at once with exit status 2 and a message a reader with no context can follow
+  (`an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied`, which runs
+  both printed fixes and shows the command then works; red with the stop removed, planted).
+- **Weaker path, V6.**
+  Production defect: the once-per-process notice used `Once::call_once`, so a second run waited with no deadline for the first run's
+  write to standard error. It is a flag won with a swap now (`a_run_does_not_wait_for_another_runs_slow_notice`, a fresh process that
+  holds the winner inside its emission; red with the old `Once`, planted).
+- **A2, R4.**
+  The install and shim uncertainty tests require the journal to stay unfinished, not only present (no plant).
+- **K1.**
+  `a_completed_run_warns_exactly_past_the_count_and_not_at_or_below_it` (below, at, past).
+- **Scope lifecycle.**
+  The parent view's mount id and inode are changed on their own, with an unchanged control, through recovery and admission (red with
+  only the mount compared, planted).
+- **V2.**
+  A member after a reboot is refused by the real recovery and admission under the same identity (no plant).
+- **V6 retries.**
+  The retried tests measure the judged attempt and require the timeout itself.
+- **Not done in this round.**
+  V1 injections still return before the real handling of the operation results; R2 sibling-fallback fault and stranded path; K2 retry
+  after a failed parent-entry barrier; admission checks for the other boot-related and unreadable-record schedules; the acknowledgement
+  writer's successful ordering; the mandatory-finish refusal through a real shim run; the blocked-feeder handshake; the assertion that
+  the start-time error line names the namespace; the actual spawned child's id for the reap check.
 
 ### What the map does not claim
 

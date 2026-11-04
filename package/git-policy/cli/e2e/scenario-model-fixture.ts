@@ -203,9 +203,9 @@ export type ScenarioResult = Readonly<{
 const NOTE_LENGTH = 400;
 
 /**
- Upper bound for one scenario's workload.
+ Upper bound for one scenario's workload, in milliseconds.
  */
-const SCENARIO_TIMEOUT_MS = 180_000;
+export const SCENARIO_TIMEOUT_MS = 180_000;
 
 /**
  Decides a scenario's verdict.

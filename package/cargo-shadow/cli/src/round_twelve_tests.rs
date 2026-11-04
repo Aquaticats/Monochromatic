@@ -331,3 +331,14 @@ fn a_procfs_whose_nspid_lists_two_namespaces_is_refused_even_when_the_numbers_co
     assert!(coinciding.is_err_and(|reason| { return reason.contains("ancestor"); }), "an ancestor procfs with coinciding numbers was accepted");
     assert!(nspid_shows_own_namespace("NSpid:\t9001\t77\t1\n").is_err(), "a deeper nesting was accepted");
 }
+
+/// Fourth certification pass: a failed read of a process's stat file shows the process gone for `ENOENT` and for `ESRCH` (the process
+/// ended between the open and the read), and for no other error.
+#[test]
+fn a_stat_read_that_fails_with_enoent_or_esrch_names_an_absent_process() {
+    use crate::control_group::names_an_absent_process;
+    assert!(names_an_absent_process(&std::io::Error::from_raw_os_error(rustix::io::Errno::NOENT.raw_os_error())));
+    assert!(names_an_absent_process(&std::io::Error::from_raw_os_error(rustix::io::Errno::SRCH.raw_os_error())));
+    assert!(!names_an_absent_process(&std::io::Error::from_raw_os_error(rustix::io::Errno::ACCESS.raw_os_error())));
+    assert!(!names_an_absent_process(&std::io::Error::other("anything else")));
+}

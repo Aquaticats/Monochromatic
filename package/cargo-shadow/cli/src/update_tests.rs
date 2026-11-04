@@ -1804,3 +1804,66 @@ fn an_update_without_breaking_never_calls_the_manifest_sync() {
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(*syncer.calls.borrow(), 0);
 }
+
+/// A cargo whose update writes the given lockfile, reports that a descendant could not be stopped (the innermost run's scope is
+/// marked lost, as a failed shutdown does), and counts every call so that a later cargo operation is visible.
+struct CargoThatLeavesWriters {
+    /// The lockfile text its update writes.
+    after: String,
+    /// Every call, as its arguments joined by spaces.
+    calls: RefCell<Vec<String>>,
+}
+
+/// How the fake runs.
+impl CargoRunner for CargoThatLeavesWriters {
+    fn run(&self, cwd: &Path, args: &[String]) -> Result<CargoOutcome, String> {
+        self.calls.borrow_mut().push(args.join(" "));
+        let resolves: bool = args[0] == "update" || args.iter().any(|argument| { return argument == "generate-lockfile"; });
+        if resolves && !args.iter().any(|argument| { return argument == "--locked"; }) {
+            fs::write(cwd.join("Cargo.lock"), &self.after).map_err(|error| { return error.to_string(); })?;
+            crate::bounded_run::mark_scope_lost_for_test();
+            return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    }
+}
+
+/// Acceptance rows A2 and R4 (certification, fourth pass): the separate update path stops with the lockfiles neither rolled back nor
+/// accepted when a run cannot show that its writers stopped. Cargo wrote a lockfile different from its snapshot and its run reports
+/// that a descendant may remain: `update_rust_lockfiles` fails terminally, the produced bytes are still live (no rollback), the
+/// journal is kept unfinished, and cargo is asked nothing after the failed update.
+#[test]
+fn an_update_whose_run_cannot_show_quiescence_stops_without_rollback_or_acceptance_and_keeps_the_journal() {
+    let world = world(&lock_with("0.9.0"), "");
+    let runner = CargoThatLeavesWriters { after: lock_with("1.0.0"), calls: RefCell::new(Vec::new()) };
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::new() };
+    let request: UpdateRequest = UpdateRequest {
+        root: world.root.path(),
+        crate_dirs: &world.dirs,
+        dry_run: false,
+        now: now(),
+        settings: &settings(),
+        catalog_path: &world.catalog,
+        runner: &runner,
+        registry: &registry,
+        forward: &[],
+        syncer: &RecordingSyncer { calls: RefCell::new(0) },
+        prune_catalog: false,
+        lock_base: None,
+    };
+
+    let result = update_rust_lockfiles(&request, &UpdateKind::Full);
+
+    let error: UpdateError = match result {
+        Err(found) => found,
+        Ok(report) => panic!("an update whose writers may remain must fail, got {report:?}; cargo was asked {:?}", runner.calls.borrow()),
+    };
+    assert!(error.to_string().contains("could not be stopped") && error.to_string().contains("journal"), "{error}");
+    assert_eq!(lock_of(&world), lock_with("1.0.0"), "the produced lockfile was rolled back or changed under a writer that may still write it");
+    let journals = crate::journal_support::journal_dirs(world.root.path());
+    assert_eq!(journals.len(), 1, "the journal was finished or removed: {journals:?}");
+    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done: {journals:?}");
+    let calls: Vec<String> = runner.calls.borrow().clone();
+    assert_eq!(calls.len(), 1, "cargo was asked something after the failed resolution, or never asked: {calls:?}");
+    assert!(calls[0].contains("generate-lockfile") || calls[0].starts_with("update"), "the resolution never ran, so the test shows nothing: {calls:?}");
+}

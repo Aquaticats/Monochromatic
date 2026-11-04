@@ -55,8 +55,8 @@ use std::process::{Child, Command, ExitStatus, Output, Stdio};
 /// Imports `std::rc::Rc` for this file.
 use std::rc::Rc;
 
-/// Imports `std::sync::{Arc, Once}` for this file.
-use std::sync::{Arc, Once};
+/// Imports `std::sync::Arc` for this file.
+use std::sync::Arc;
 
 /// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -120,7 +120,18 @@ pub(crate) const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 const READER_GRACE: Duration = Duration::from_secs(2);
 
 /// Makes the one-line notice of the weaker path appear once per process.
-static WEAKER_NOTICE: Once = Once::new();
+/// It is a flag that one caller wins with a swap, not a `Once`: a caller that loses returns at once, where `Once::call_once` would make
+/// it wait, with no deadline, for the winner's write to standard error (fifth certification pass, V6: no wait the runner controls may
+/// depend on another run's slow write).
+static WEAKER_NOTICE_GIVEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// A test holds this lock to keep the winner of the notice inside its emission, so that another run can show it does not wait for it.
+#[cfg(test)]
+pub(crate) static NOTICE_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Set when the winner of the notice reached its emission (a test build only).
+#[cfg(test)]
+pub(crate) static NOTICE_ENTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 thread_local! {
     /// The command the user ran,
@@ -417,7 +428,7 @@ fn append_record(log: &Path, record: &Record) -> io::Result<()> {
 /// ```ts
 /// function appendRecordWith(log: string, record: Record, sync: boolean): void
 /// ```
-fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()> {
+pub(crate) fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()> {
     let file: OwnedFd = open(log, OFlags::WRONLY | OFlags::APPEND | OFlags::CLOEXEC | OFlags::NONBLOCK | OFlags::NOFOLLOW, Mode::empty()).map_err(io::Error::from)?;
     let kind: FileType = FileType::from_raw_mode(fstat(&file).map_err(io::Error::from)?.st_mode);
     if kind != FileType::RegularFile {
@@ -436,7 +447,12 @@ fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()>
     if crate::failpoints::fires(crate::failpoints::Point::RecordWrite) {
         return Err(io::Error::other("injected failure to write the containment record"));
     }
-    let written: usize = rustix::io::write(&file, line.as_bytes()).map_err(io::Error::from)?;
+    // A test cuts the write short (only the first half of the line reaches the file), as a full disk would partway through the line.
+    #[cfg(test)]
+    let to_write: &[u8] = if crate::failpoints::fires(crate::failpoints::Point::RecordShortWrite) { &line.as_bytes()[..line.len() / 2] } else { line.as_bytes() };
+    #[cfg(not(test))]
+    let to_write: &[u8] = line.as_bytes();
+    let written: usize = rustix::io::write(&file, to_write).map_err(io::Error::from)?;
     if written != line.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "the containment record was cut short"));
     }
@@ -677,7 +693,14 @@ fn contain() -> Containment {
     let weaker = |unavailable: GroupUnavailable| -> Containment {
         // The notice this run is given is part of the trace, so a test sees the notice of the run and not a text it formats itself.
         trace(|| { return format!("notice {}", weaker_notice(&unavailable)); });
-        WEAKER_NOTICE.call_once(|| { eprintln!("{}", weaker_notice(&unavailable)); });
+        if !WEAKER_NOTICE_GIVEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            #[cfg(test)]
+            {
+                NOTICE_ENTERED.store(true, std::sync::atomic::Ordering::SeqCst);
+                drop(NOTICE_GATE.lock());
+            }
+            eprintln!("{}", weaker_notice(&unavailable));
+        }
         return Containment::ProcessGroup;
     };
     return match find_route() {

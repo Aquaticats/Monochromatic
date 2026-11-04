@@ -617,7 +617,7 @@
     },
     "cargo:monochromatic-cargo-shadow": {
       "request": "cargo:monochromatic-cargo-shadow@latest",
-      "version": "0.1.1",
+      "version": "0.1.3",
       "route": "cargo-binstall",
       "bins": [
         "cargo-shadow"
@@ -729,7 +729,7 @@
     },
     "cargo:monochromatic-file-enforcer-cli": {
       "request": "cargo:monochromatic-file-enforcer-cli@latest",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "route": "cargo-binstall",
       "bins": [
         "file-enforcer"
@@ -1525,5 +1525,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:52d224f2e908f02f70f0fe07e4b94cdc833818c413025d3b421ae60ca1789ee7"
+  "digest": "sha256:084708529622847c87d99a6a9732cc5f2e75a63620b1dd385f5d5384e97a68de"
 }

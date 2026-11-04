@@ -37,7 +37,9 @@ use super::context::{Context, Host};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::exposure`.
-use super::exposure::{rebuild_exposure, run_postinstall_commands, run_postinstall_links, unresolvable_bins};
+use super::exposure::{rebuild_exposure, run_postinstall_commands, unresolvable_bins};
+/// Imports `sync_postinstall_links` from `super::postinstall_links`.
+use super::postinstall_links::sync_postinstall_links;
 /// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
 /// Imports `install_tool` from `super::install`.
@@ -146,6 +148,9 @@ pub struct SyncReport {
     /// The cleanup of old copies of this repository's tools:
     /// one sentence per link re-pointed and per old copy removed.
     pub old_copies: Vec<String>,
+    /// One sentence per postinstall link an earlier run made and this run removed
+    /// because the lock no longer declares it.
+    pub retired_links: Vec<String>,
     /// The environment variable names the generated mise fragment holds after this run
     /// (empty when the lock declares none, or for a partial sync that leaves the fragment alone).
     pub exported_env: Vec<String>,
@@ -234,8 +239,12 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
         }
     }
-    if let Err(error) = run_postinstall_links(ctx, &entries) {
-        report.failed.push(("postinstall links".to_string(), error.message));
+    match sync_postinstall_links(ctx, &entries) {
+        Ok(notices) => {
+            report.retired_links = notices.retired;
+            report.warnings.extend(notices.warnings);
+        }
+        Err(error) => report.failed.push(("postinstall links".to_string(), error.message)),
     }
     if let Err(error) = rebuild_exposure(ctx, &entries) {
         report.failed.push(("exposure directory".to_string(), error.message));
@@ -546,6 +555,9 @@ pub fn format_sync_report(report: &SyncReport) -> String {
         report.failed.len()
     ));
     text.push_str(&old_copy_lines_text(report));
+    for line in &report.retired_links {
+        text.push_str(&format!("toolchain install: {line}\n"));
+    }
     if !report.exported_env.is_empty() {
         text.push_str(&format!("toolchain install: exported to mise: {}\n", report.exported_env.join(", ")));
     }

@@ -247,3 +247,174 @@ fn a_launcher_record_that_names_a_hard_linked_alias_of_the_shadow_is_skipped() {
 
     assert_eq!(found, Some(expected), "a launcher whose record names a hard link of the shadow was taken for the real cargo");
 }
+
+/// Fourth certification pass (the launcher row): the identity of the running image is taken from the open image, so an installer that
+/// atomically replaces the installed path while the shadow runs does not hide a hard link of that image on PATH.
+/// The image is opened first (its identity is what `/proc/self/exe` gives), the installed path is then replaced by another file with a
+/// rename, the skip set built from the installed path now names the new file, and the hard-linked alias of the old image must still be
+/// skipped.
+#[test]
+fn a_hard_link_of_the_running_image_is_skipped_after_the_installed_path_was_replaced() {
+    use std::os::unix::fs::MetadataExt;
+    use crate::real_binary::find_in_path_with_image;
+    let installed_directory = scratch();
+    let alias_directory = scratch();
+    let real_directory = scratch();
+    let installed: PathBuf = installed_directory.path().join(NAME);
+    std::fs::write(&installed, "#!/bin/sh\n# image A\n").expect("image A");
+    std::fs::set_permissions(&installed, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    let alias: PathBuf = alias_directory.path().join(NAME);
+    std::fs::hard_link(&installed, &alias).expect("a hard link of image A");
+    let running = std::fs::File::open(&installed).expect("the running image stays open");
+    let image = running.metadata().map(|found| { return (found.dev(), found.ino()); }).expect("the image identity");
+    // The installer replaces the installed path with image B atomically.
+    let replacement: PathBuf = installed_directory.path().join("new-image");
+    std::fs::write(&replacement, "#!/bin/sh\n# image B\n").expect("image B");
+    std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    std::fs::rename(&replacement, &installed).expect("replace the installed path");
+    assert_ne!(std::fs::metadata(&installed).expect("examines").ino(), image.1, "the installed path must now name another file");
+    let expected: PathBuf = write_program(real_directory.path(), EXECUTABLE_MODE);
+    // What the pathname-based skip list holds after the replacement: the installed path, which names image B.
+    let skip: Vec<PathBuf> = vec![installed.clone()];
+
+    let by_path_only = find_in_path_with_image(NAME, &path_value(&[installed_directory.path(), alias_directory.path(), real_directory.path()]), &skip, None);
+    let with_the_image = find_in_path_with_image(NAME, &path_value(&[installed_directory.path(), alias_directory.path(), real_directory.path()]), &skip, Some(image));
+
+    assert_eq!(by_path_only, Some(alias), "the control: without the image identity the alias is the candidate, so the schedule is real");
+    assert_eq!(with_the_image, Some(expected), "a hard link of the running image was taken for the real cargo after the installed path was replaced");
+    drop(running);
+}
+
+/// The identity of the running image can be read in a test process: it is the test executable's own file.
+#[test]
+fn the_running_image_identity_is_the_identity_of_the_test_executable() {
+    use std::os::unix::fs::MetadataExt;
+    let found = crate::real_binary::running_image_identity().expect("the image can be opened");
+    let executable = std::env::current_exe().expect("this test executable");
+    let by_path = std::fs::metadata(executable).map(|metadata| { return (metadata.dev(), metadata.ino()); }).expect("examines");
+    assert_eq!(found, by_path);
+}
+
+/// Fourth certification pass: an outer launcher whose record names an inner launcher whose record names a hard-linked alias of the
+/// shadow is skipped; identity is applied at every hop, not only at the first.
+#[test]
+fn a_launcher_chain_that_ends_at_a_hard_linked_alias_of_the_shadow_is_skipped() {
+    let tree = scratch();
+    let alias_directory = scratch();
+    let inner_directory = scratch();
+    let outer_directory = scratch();
+    let links = scratch();
+    let real_directory = scratch();
+    let shadow: PathBuf = tree.path().join("cargo-shadow");
+    std::fs::write(&shadow, "shadow").expect("the shadow binary");
+    let alias: PathBuf = alias_directory.path().join("alias-of-the-shadow");
+    std::fs::hard_link(&shadow, &alias).expect("a hard link of the shadow");
+    let skip: Vec<PathBuf> = vec![std::fs::canonicalize(&shadow).expect("resolves")];
+    let expected: PathBuf = write_program(real_directory.path(), EXECUTABLE_MODE);
+    let unused_links = scratch();
+    // The inner launcher names the alias; the outer launcher names the inner launcher.
+    write_launcher_link(inner_directory.path(), unused_links.path(), "inner", &alias);
+    write_launcher_link(outer_directory.path(), links.path(), "outer", &inner_directory.path().join("inner"));
+
+    let found = find_in_path(NAME, &path_value(&[links.path(), real_directory.path()]), &skip);
+
+    assert_eq!(found, Some(expected), "a launcher chain that ends at a hard link of the shadow was taken for the real cargo");
+}
+
+/// The environment variable that gives the running-image helper its directory.
+const FIXTURE_IMAGE_ROOT: &str = "CARGO_SHADOW_IMAGE_FIXTURE_ROOT";
+
+/// The helper process of the running-image test: it is started from the installed path of an image, tells the test it runs, waits for
+/// the test to replace that installed path, and then asks the production lookup (`find_in_path`, which takes the identity of the
+/// image it runs from `/proc/self/exe`) for the real cargo twice: with a hard-linked alias of its own image on PATH, and with a
+/// recorded launcher chain that ends at that alias. It writes both answers to files. Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_in_the_production_lookup"]
+fn running_image_lookup_fixture() {
+    let Ok(root_text) = std::env::var(FIXTURE_IMAGE_ROOT) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(root_text);
+    std::fs::write(root.join("started"), "x").expect("announce the start");
+    let waited = std::time::Instant::now();
+    while !root.join("go").exists() {
+        assert!(waited.elapsed() < std::time::Duration::from_secs(120), "the test never replaced the installed path");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let own: PathBuf = crate::real_binary::own_real_path();
+    let direct = find_in_path(NAME, &path_value(&[&root.join("alias"), &root.join("real")]), std::slice::from_ref(&own));
+    let chain = find_in_path(NAME, &path_value(&[&root.join("links"), &root.join("real")]), std::slice::from_ref(&own));
+    std::fs::write(root.join("direct.answer"), direct.map(|found| { return found.display().to_string(); }).unwrap_or_default()).expect("write the direct answer");
+    std::fs::write(root.join("chain.answer"), chain.map(|found| { return found.display().to_string(); }).unwrap_or_default()).expect("write the chain answer");
+}
+
+/// Fifth certification pass (the launcher row), a real process: an image is started from its installed path, an installer replaces
+/// that path (a rename of another file over it) while a hard link of the image stays on PATH, and the production lookup of the running
+/// process still skips the alias, directly and at the end of a recorded launcher chain. The test injects no identity: it is the
+/// helper's own `/proc/self/exe`, so a lookup that took the identity from the installed pathname, or passed none, returns the alias.
+#[test]
+fn a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_in_the_production_lookup() {
+    let root = scratch();
+    let installed: PathBuf = root.path().join("installed");
+    let alias: PathBuf = root.path().join("alias");
+    let real: PathBuf = root.path().join("real");
+    let launchers: PathBuf = root.path().join("launchers");
+    let links: PathBuf = root.path().join("links");
+    for directory in [&installed, &alias, &real, &launchers, &links] {
+        std::fs::create_dir_all(directory).expect("a directory");
+    }
+    let image: PathBuf = std::env::current_exe().expect("this test executable");
+    std::fs::hard_link(&image, installed.join(NAME)).expect("the installed image");
+    std::fs::hard_link(&image, alias.join(NAME)).expect("a hard link of the image");
+    let expected: PathBuf = write_program(&real, EXECUTABLE_MODE);
+    // A recorded chain: the outer launcher names the inner one, which names the alias.
+    let inner: PathBuf = launchers.join("inner");
+    std::fs::write(&inner, "#!/bin/sh\n").expect("the inner launcher");
+    std::fs::set_permissions(&inner, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    std::fs::write(launchers.join("inner.launch"), launch_record(&alias.join(NAME))).expect("the inner record");
+    write_launcher_link(&launchers, &links, "outer", &inner);
+
+    let mut child = std::process::Command::new(installed.join(NAME))
+        .args(["--ignored", "--exact", "real_binary_tests::running_image_lookup_fixture", "--nocapture"])
+        .env(FIXTURE_IMAGE_ROOT, root.path())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("start the image from its installed path");
+    let waited = std::time::Instant::now();
+    while !root.path().join("started").exists() {
+        assert!(child.try_wait().expect("polls").is_none() && waited.elapsed() < std::time::Duration::from_secs(120), "the helper did not start");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    // The installer replaces the installed path atomically while the image runs; the alias keeps the old image.
+    let replacement: PathBuf = root.path().join("replacement");
+    std::fs::write(&replacement, "#!/bin/sh\n# another image\n").expect("another image");
+    std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    std::fs::rename(&replacement, installed.join(NAME)).expect("replace the installed path");
+    std::fs::write(root.path().join("go"), "x").expect("let the helper go on");
+    let status = child.wait().expect("the helper ends");
+
+    assert!(status.success(), "the helper failed: {status:?}");
+    let direct: String = std::fs::read_to_string(root.path().join("direct.answer")).expect("the direct answer");
+    let chain: String = std::fs::read_to_string(root.path().join("chain.answer")).expect("the chain answer");
+    assert_eq!(direct, expected.display().to_string(), "the lookup returned a hard link of the running image as the real cargo");
+    assert_eq!(chain, expected.display().to_string(), "the lookup followed a recorded chain to a hard link of the running image");
+}
+
+/// Fifth certification pass: a path chosen as the real cargo that names the shadow at the moment of the start is refused, and a path that
+/// names another program is not. The path is a hard link of the running image (swapped in after the choice, in the schedule), checked
+/// by the same check the three start sites make.
+#[test]
+fn a_chosen_path_that_names_the_running_image_at_the_start_is_refused() {
+    let directory = scratch();
+    let chosen: PathBuf = directory.path().join(NAME);
+    write_program(directory.path(), EXECUTABLE_MODE);
+    assert!(crate::real_binary::refuse_if_ourselves(&chosen).is_ok(), "a program that is not the shadow was refused");
+
+    // The installer swaps a hard link of the running image over the chosen path after it was chosen.
+    std::fs::remove_file(&chosen).expect("remove the chosen program");
+    std::fs::hard_link(std::env::current_exe().expect("this test executable"), &chosen).expect("swap in a hard link of the image");
+
+    let refused = crate::real_binary::refuse_if_ourselves(&chosen);
+    assert!(refused.is_err_and(|reason| { return reason.contains("names this program itself"); }), "a path that names the running image was started");
+}

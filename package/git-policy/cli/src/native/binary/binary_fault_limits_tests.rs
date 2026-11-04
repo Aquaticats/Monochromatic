@@ -201,10 +201,9 @@ struct StartOutcome {
 ///  limits at which a service can run, and the fixture waited for services that had ended. Only a greeting proves the
 ///  service runs, and a service that ended without one does not start at this limit.
 fn start_service_under(kind: LimitKind, limit: u64, directory: &Path) -> StartOutcome {
-    let service: &str = env!("CARGO_BIN_EXE_cli-git-service");
     let name: String = format!("cli-git-limit-probe-{}-{limit}-{}", std::process::id(), START_COUNTER.fetch_add(1, Ordering::SeqCst));
     let journal: PathBuf = directory.join(name.as_str());
-    let mut command: Command = Command::new(service);
+    let mut command: Command = super::support::service_command();
     command.args(["--journal"]).arg(&journal).args(["--abstract", name.as_str()]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
     let hard: u64 = kind.current_hard();
     // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs.

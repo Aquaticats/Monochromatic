@@ -289,6 +289,13 @@
     // worktree: `cargo --version` and `cargo metadata` exited 0, the link and the shadow each ran once per command, and
     // the real cargo ran through `.cache/toolchain-bin/cargo` (the rustup proxy); the worktree stayed clean. Linux only:
     // the release publishes x86_64 and aarch64 Linux archives.
+    // The `cargo` link is off again since 2026-11-04T16:10-05:00: with 0.1.1 as `cargo`, the wrapper gate's
+    // `cargo vendor --manifest-path <staged copy outside the work tree>` (package/git-policy/cli/bin/native-scanner-snapshot.ts)
+    // counted all 281 locked versions of an unchanged lockfile as new and refused 4 on trust level, so no wrapper gate
+    // could run. 0.1.2 passes a crate in a git-ignored directory to cargo untouched; the link came back on
+    // 2026-11-04 after the launcher trace (`~/temp/agent/cgs-installed-launcher-trace.ts`, the repository's own
+    // launcher as `cargo` in a throwaway worktree) passed again: `cargo --version` and `cargo metadata` exited 0, the
+    // link and the shadow each ran once per command, and the real cargo ran only through `.cache/toolchain-bin/cargo`.
     "cargo:monochromatic-cargo-shadow": {
       "request": "cargo:monochromatic-cargo-shadow@latest",
       "route": "cargo-binstall",

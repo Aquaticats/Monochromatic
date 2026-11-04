@@ -141,10 +141,12 @@ Write only the real task or a bare sentinel;
  re-derive actions + stop conditions from user instructions + state.
 
 QWD:
- Saying work is queued,
+ Before saying work is queued,
  deferred,
- or waiting for a free slot means writing it to the handover in the same turn;
- an unwritten queue item is lost at compaction.
+ or waiting for a free slot,
+ try it now;
+ only a failed try defers it,
+ and deferring means writing it to the handover in the same turn.
 
 DCK:
  After corrections,
@@ -809,6 +811,11 @@ SLW:
  make it cheaper,
  or move it off the waiting path.
 
+SUF:
+ A test that passes alone but fails in its suite is a contention or ordering defect until measured otherwise;
+ report the measured cause,
+ never host load.
+
 NHP:
  Normal here,
  never excuses:
@@ -886,9 +893,11 @@ CM6:
  nothing type-checks automatically.
 
 CM7:
- Install tools only from `toolchain.lock.json` (`mise run toolchain:install`;
- in containers and CI use its row's archive and sha256);
- never `cargo install` or compile a locked tool.
+ Install tools only via `mise run toolchain:install`
+ (containers, CI: the lock row's archive and sha256);
+ never compile a locked tool this repo publishes;
+ mpm-shadow can still compile a third-party one
+ when no archive fits.
 
 ## Before editing code
 

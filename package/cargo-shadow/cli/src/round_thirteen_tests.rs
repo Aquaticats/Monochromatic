@@ -133,12 +133,23 @@ fn a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservative
         wait_for_file(&root.path().join("reached"));
         wrapper.kill().expect("kill the wrapper at the step");
         let _ = wrapper.wait();
-        let before: usize = journal_dirs(root.path()).len();
+        let before_dirs: Vec<PathBuf> = journal_dirs(root.path());
+        let before: usize = before_dirs.len();
 
         let messages: Vec<String> = recover(root.path(), &refusing);
 
         assert_eq!(before, 1, "{step}: the cut left {before} journals");
         assert_eq!(journal_dirs(root.path()).is_empty(), removed, "{step}: the journal's fate is not the conservative one: {messages:?}");
+        // The kept journal is the partial journal itself with its recovery payload (fourth certification pass), not some other entry
+        // of the journal directory: the same path stays, with the snapshot it took and, from the index cut on, the index.
+        if !removed {
+            let journal: &PathBuf = &before_dirs[0];
+            assert!(journal.exists(), "{step}: the partial journal {} is gone: {messages:?}", journal.display());
+            assert_eq!(fs::read_to_string(journal.join("0.lock")).expect("the snapshot"), "original", "{step}: the snapshot of the partial journal was lost or changed");
+            if step == "index" {
+                assert!(journal.join("index.txt").exists(), "{step}: the index of the partial journal was lost");
+            }
+        }
         let expected: &str = if restored { "original" } else { LEFT_BY_THE_KILLED_RUN };
         assert_eq!(live_lock(root.path()), expected, "{step}: the live lockfile is not the expected one: {messages:?}");
     }
@@ -242,6 +253,7 @@ fn a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command() {
     let journals: Vec<PathBuf> = journal_dirs(&root.path().join("repository"));
     // The helper's run used a delegated scope (13 section 1): the journal's record names one, and the weaker path's notice is absent.
     assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    assert!(!journals[0].to_string_lossy().ends_with(".done"), "the journal was marked done although the run could not show quiescence: {journals:?}");
     crate::cgroup_test_support::assert_scope_record(&journals[0].join("groups").display().to_string());
     assert!(!said.contains("no delegated control group"), "the helper fell back to the weaker path: {said}");
     // The intended containment fault was reached and is the refusal: the writers-may-remain refusal of a run that could not be shown

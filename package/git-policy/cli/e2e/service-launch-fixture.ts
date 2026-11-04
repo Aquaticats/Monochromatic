@@ -13,9 +13,20 @@ import { realpath, } from 'node:fs/promises';
 //region Constants
 
 /**
- The service program, installed beside the wrapper by the image build.
+ The service program: the wrapper's own executable, installed by the image build. The service is its mode, selected by the
+ words of `SERVICE_MODE_WORDS` first in the arguments (`src/native/service/service_main.rs`).
  */
-const SERVICE_PROGRAM = '/opt/native/cli-git-service';
+const SERVICE_PROGRAM = '/opt/native/cli-git-native';
+
+/**
+ The words, first in the arguments, that select the service mode of the executable. A Rust control
+ (`src/native/service/service_main_tests.rs`) reads this declaration and fails when it differs from `SERVICE_WORDS`.
+ */
+export const SERVICE_MODE_WORDS = [
+  'cli-git',
+  'service',
+  'run',
+] as const;
 
 /**
  The Git the service runs: the image's installed Git.
@@ -154,6 +165,7 @@ export function spawnService({
   return spawn(
     SERVICE_PROGRAM,
     [
+      ...SERVICE_MODE_WORDS,
       '--journal',
       journal,
       '--git',

@@ -24,6 +24,7 @@ use crate::private_storage::remove_tree;
 use crate::service_instance::instance_of;
 use crate::claim_time::ClaimTime;
 use crate::service_retry::RetrySchedule;
+use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
 use crate::service_work::{GitHandlers, Wake, run_round};
 use crate::service_busy::{EarlyAnswer, GroupAdmission, LandingBoard};
@@ -133,6 +134,12 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
             Ok(unsafe { UnixListener::from_raw_fd(INHERITED_DESCRIPTOR) })
         }
     };
+}
+
+/// Whether the service manager passed this process a listening socket: the variables `LISTEN_PID` and `LISTEN_FDS` of this
+///  process's environment name this process and at least one descriptor.
+pub fn socket_passed_in() -> bool {
+    return ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id()).is_ok();
 }
 
 /// What:
@@ -589,7 +596,10 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
 /// Why:
 ///   Draining claims everything pending, so a burst of wakes for one repository is one pass. The instance that held a claim
 ///  may have died, and nothing but this loop would then wake the work: it waits for a wake no longer than the first lease still
-///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder. The same
+///  running, and the service counts itself busy meanwhile, so it does not exit idle with work claimed by a dead holder. A
+///  service that has just started has had no wake yet, so the loop looks at every repository an earlier service of this instance
+///  was woken for (`ClaimWatch`), after the schedule's slack, and the claims or pending work it finds are run or waited for as
+///  after any wake: a kill is followed by the work being run with no commit needed. The same
 ///  holds for a push the service stopped: the loop owns the plan of its new tries (`PushRetries`), each round hands the workers
 ///  what is due and applies what they ask, and the wake for the earliest plan is kept in the same schedule as the lease wakes, so
 ///  the service neither forgets the plan nor exits idle while a try is pending.
@@ -598,16 +608,23 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
 /// ```ts
 /// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 /// ```
-pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries) {
+pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries, mut watch: ClaimWatch) {
     let mut retries: RetrySchedule = RetrySchedule::default();
     let mut counted_waiting: bool = false;
     // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.
     let started: Instant = Instant::now();
-    let restored: Vec<(PathBuf, Duration)> = push_retries
+    let mut restored: Vec<(PathBuf, Duration)> = push_retries
         .directories()
         .into_iter()
         .filter_map(|directory| { return push_retries.next_wait(directory.as_path(), started).map(|wait| { return (directory, wait); }); })
         .collect();
+    // A repository an earlier service was woken for may hold pending work or a claim its holder left: it is looked at without a
+    //  wake, at once unless a push plan already names it with a later time.
+    for directory in watch.directories() {
+        if !restored.iter().any(|(planned, _)| { return *planned == directory; }) {
+            restored.push((directory, Duration::ZERO));
+        }
+    }
     retries.replace(&[], restored, started);
     if !retries.is_empty() {
         busy.fetch_add(1, Ordering::SeqCst);
@@ -629,6 +646,11 @@ pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &Atomi
         let mut wakes: Vec<Wake> = first.into_iter().chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })).collect();
         wakes.extend(retries.take_due(Instant::now()).into_iter().map(|directory| { return (directory, None); }));
         let mut ran: Vec<PathBuf> = wakes.iter().map(|(directory, _)| { return directory.clone(); }).collect();
+        // Written down before the first claim of a repository, so that a service killed while it holds the claim is followed by one
+        //  that knows where to look. This thread does it, never the one that lands commits.
+        for directory in &ran {
+            watch.remember(directory.as_path());
+        }
         let asked: Vec<(PathBuf, Duration)> = run_round(wakes, handlers, &mut push_retries, &ClaimTime::read());
         // A directory the round named for its plan alone (the common directory of a bare repository) replaces its old entry too.
         ran.extend(asked.iter().map(|(directory, _)| { return directory.clone(); }));
@@ -682,7 +704,9 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let connection_board: Arc<LandingBoard> = Arc::clone(&board);
     // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.
     let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);
-    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path())); });
+    // The repositories this instance was woken for are kept in the journal the same way, so a restarted service looks at them.
+    let watch_directory: PathBuf = context.journal.join(WATCH_DIRECTORY);
+    start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path())); });
     let announced_release: String = settings.release.clone();
     let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     let instance: Option<String> = settings.instance.clone();

@@ -389,29 +389,65 @@ fn output_within(command: &mut Command, seconds: u64) -> Option<Output> {
 }
 
 #[test]
-fn a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs() {
+fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied() {
     let world = make_world();
     write_lock(&world, STALE);
     let (launcher_directory, count) = write_launcher(&world);
+    let launcher: PathBuf = launcher_directory.join("cargo");
     let path: String = path_of(&[&world.shadow_directory, &launcher_directory, &world.fake_directory]);
-    let mut command = Command::new(world.shadow_directory.join("cargo"));
-    command
-        .args(["check", "-q"])
-        .current_dir(world.repository.join(CRATE_DIR))
-        .env("PATH", path)
-        .env("CI", "")
-        .env("FAKE_CARGO_LOG", &world.log);
+    let run = || -> Output {
+        let mut command = Command::new(world.shadow_directory.join("cargo"));
+        command
+            .args(["check", "-q"])
+            .current_dir(world.repository.join(CRATE_DIR))
+            .env("PATH", &path)
+            .env("CI", "")
+            .env("FAKE_CARGO_LOG", &world.log);
+        return output_within(&mut command, 20).expect("the command timed out: the shadow keeps leading back into the launcher");
+    };
 
-    let output = output_within(&mut command, 20).expect("the command timed out: the shadow keeps leading back into the launcher");
+    let output = run();
 
-    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(read_lock(&world), SATISFIED);
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
-    // This launcher has no `.launch` record, so the PATH search cannot know it leads back; the process-bound guard is what ends the
-    // chain, and the append-only counter (a shell builtin, so PATH does not matter) shows it ended within a bounded number of runs.
-    // The skipping of a launcher with a record is `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`.
+    // The second start stops before doing any work, with status 2: no lockfile was touched, and no cargo ran.
+    let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert_eq!(output.status.code(), Some(2), "{said}");
     let runs: usize = std::fs::read_to_string(&count).unwrap_or_default().lines().count();
-    assert!((1..=6).contains(&runs), "the launcher ran {runs} times: the guard did not end the chain within a bounded number of runs");
+    // The first shadow reaches the launcher once for each real-cargo start it makes (the install step's calls, then the command itself);
+    // every one of those starts is a second cargo-shadow that stopped at once, so no cargo ran and nothing was changed.
+    assert!(runs >= 1, "the launcher never ran, so the schedule was not built");
+    assert_eq!(read_lock(&world), STALE, "the second start touched the lockfile");
+    assert!(log_lines(&world).is_empty(), "a cargo ran: {:?}", log_lines(&world));
+    assert!(said.matches("snapshotted").count() <= 1, "a second start began an install step: {said}");
+    // The message names what is real for this fixture: the launcher it chose, the shadow it is, the PATH it saw, and the real cargo.
+    assert!(said.contains(&launcher.display().to_string()), "the launcher is not named: {said}");
+    assert!(said.contains(&path), "the PATH it saw is not shown: {said}");
+    assert!(said.contains(&world.fake_directory.join("cargo").display().to_string()), "the real cargo is not listed: {said}");
+    assert!(said.contains("cargo --version") && said.contains("Fix A") && said.contains("Fix B"), "{said}");
+
+    // Fix A, copied as printed: the export line puts the real cargo's folder first, and the command then reaches the real cargo.
+    let export: &str = said.lines().map(str::trim).find(|line| { return line.starts_with("export PATH="); }).expect("an export line");
+    let fixed_path: String = {
+        let shown = Command::new("/bin/sh").arg("-c").arg(format!("{export}; printf %s \"$PATH\"")).env("PATH", &path).output().expect("runs the export line");
+        assert!(shown.status.success(), "the export line does not run as printed: {export}");
+        String::from_utf8_lossy(&shown.stdout).into_owned()
+    };
+    assert!(fixed_path.starts_with(&world.fake_directory.display().to_string()), "the export line did not put the real cargo's folder first: {fixed_path}");
+    let mut fixed = Command::new(world.shadow_directory.join("cargo"));
+    fixed.args(["check", "-q"]).current_dir(world.repository.join(CRATE_DIR)).env("PATH", &fixed_path).env("CI", "").env("FAKE_CARGO_LOG", &world.log);
+    let after_a = output_within(&mut fixed, 20).expect("the fixed command timed out");
+    assert_eq!(after_a.status.code(), Some(0), "{}", String::from_utf8_lossy(&after_a.stderr));
+    assert_eq!(String::from_utf8_lossy(&after_a.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
+
+    // Fix B, copied as printed: the record command writes the launcher's `.launch` file, after which the original PATH works.
+    let record_command: &str = said.lines().map(str::trim).find(|line| { return line.starts_with("printf '{"); }).expect("a record line");
+    let written = Command::new("/bin/sh").arg("-c").arg(record_command).output().expect("runs the record line");
+    assert!(written.status.success(), "the record line does not run as printed: {record_command}: {}", String::from_utf8_lossy(&written.stderr));
+    assert!(launcher_directory.join("cargo.launch").exists(), "the record line did not write the record beside the launcher");
+    std::fs::remove_file(&world.log).ok();
+    write_lock(&world, STALE);
+    let after_b = run();
+    assert_eq!(after_b.status.code(), Some(0), "{}", String::from_utf8_lossy(&after_b.stderr));
+    assert_eq!(String::from_utf8_lossy(&after_b.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
 }
 
 /// Review finding (recursion guard kind):
@@ -424,7 +460,7 @@ fn a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_numbe
 /// the hop count restarts,
 /// and the chain never reaches the cap.
 #[test]
-fn a_launcher_that_leads_back_to_the_shadow_is_skipped_for_add_which_the_shadow_starts_as_a_child() {
+fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2() {
     let world = make_world();
     // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
     // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
@@ -505,10 +541,11 @@ fn a_launcher_that_leads_back_to_the_shadow_is_skipped_for_add_which_the_shadow_
     // console.error(text);   // eprintln!
     // [a, b]            // vec![a, b]
     // ```
-    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
-    // Borrow `&output.stdout`: lends the value without copying or giving it away.
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} add serde"));
+    // The shadow started `cargo add` as a child of itself (it stays alive to warn afterwards), so the second start is a spawn guard:
+    // it stops at once with status 2 and the message, and the real cargo never ran (owner decision of 2026-11-04, option A).
+    assert_eq!(output.status.code(), Some(2), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("because cargo-shadow was started by cargo-shadow"), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(log_lines(&world).is_empty(), "the real cargo ran after the second start: {:?}", log_lines(&world));
 }
 
 /// A toolchain-style launcher (certification of 0.1.0 behind the repository's launcher, 2026-11-04):
@@ -625,4 +662,65 @@ fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_ke
             assert!(after.contains(kept), "run {run}: the kept file {} was deleted, replaced or changed", kept.0.display());
         }
     }
+}
+
+/// A catalog repository that is a real git repository, with `ignored/` ignored by git, a tracked crate and, in the ignored directory, a
+/// staged copy of that crate (as a gate's disposable build context is). Both lockfiles are stale, so a command that the shadow takes on
+/// updates the lock to satisfied, and one it leaves alone does not.
+fn make_git_world() -> World {
+    let world = make_world();
+    let git = |arguments: &[&str]| {
+        let status = Command::new("/usr/bin/git").args(arguments).current_dir(&world.repository).env("GIT_CONFIG_GLOBAL", "/dev/null").env("GIT_CONFIG_SYSTEM", "/dev/null").status().expect("git runs");
+        assert!(status.success(), "git {arguments:?} failed");
+    };
+    std::fs::write(world.repository.join(".gitignore"), "ignored/\n").expect("gitignore");
+    write_lock(&world, STALE);
+    git(&["init", "--quiet"]);
+    git(&["add", "--", ".gitignore", "rust-catalog.toml", "package"]);
+    git(&["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "--quiet", "--message", "base"]);
+    let staged: PathBuf = world.repository.join("ignored").join("context").join(CRATE_DIR);
+    std::fs::create_dir_all(&staged).expect("the staged crate");
+    for name in ["Cargo.toml", "Cargo.lock"] {
+        std::fs::copy(world.repository.join(CRATE_DIR).join(name), staged.join(name)).expect("copy the crate");
+    }
+    return world;
+}
+
+/// A cargo command whose manifest is a staged copy under a directory that git ignores is not the repository's lockfile: the shadow does
+/// not take it on (no update of the staged lock, only the user's command reaches cargo), where the same command on the tracked crate is
+/// taken on. Found by `cargo vendor --manifest-path` of the git-policy gate, which counted every locked version of the staged copy as
+/// newly locked (no committed lockfile at its path) and refused versions nobody added.
+#[test]
+fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_is_not() {
+    let world = make_git_world();
+    let staged_manifest: PathBuf = world.repository.join("ignored/context").join(CRATE_DIR).join("Cargo.toml");
+    let staged_lock: PathBuf = world.repository.join("ignored/context").join(CRATE_DIR).join("Cargo.lock");
+    // The system directories are on PATH so that the shadow finds `git`, as it does outside this test.
+    let path: String = path_of(&[&world.shadow_directory, &world.fake_directory, Path::new("/usr/bin")]);
+    let run = |manifest: &Path| -> Output {
+        return Command::new(world.shadow_directory.join("cargo"))
+            .args(["vendor", "--manifest-path"])
+            .arg(manifest)
+            .arg("--offline")
+            .current_dir(&world.repository)
+            .env("PATH", &path)
+            .env("CI", "")
+            .env("FAKE_CARGO_LOG", &world.log)
+            .output()
+            .expect("start the shadow");
+    };
+
+    let staged = run(&staged_manifest);
+
+    assert_eq!(staged.status.code(), Some(0), "{}", String::from_utf8_lossy(&staged.stderr));
+    assert_eq!(std::fs::read_to_string(&staged_lock).expect("the staged lock"), STALE, "the shadow took on a staged copy in an ignored directory");
+    let calls: Vec<String> = log_lines(&world);
+    assert_eq!(calls.len(), 1, "cargo was asked more than the user's command for the staged copy: {calls:?}");
+    assert!(calls[0].starts_with("vendor"), "{calls:?}");
+    assert!(!String::from_utf8_lossy(&staged.stderr).contains("comparing lockfiles"), "the shadow compared the lockfiles of a staged copy: {}", String::from_utf8_lossy(&staged.stderr));
+
+    // The control: the same command on the tracked crate is taken on (its stale lock is updated before the command).
+    let tracked = run(&world.repository.join(CRATE_DIR).join("Cargo.toml"));
+    assert_eq!(tracked.status.code(), Some(0), "{}", String::from_utf8_lossy(&tracked.stderr));
+    assert_eq!(read_lock(&world), SATISFIED, "the tracked crate was not taken on, so the staged copy's passing proves nothing");
 }

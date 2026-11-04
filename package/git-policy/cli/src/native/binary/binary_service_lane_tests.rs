@@ -16,11 +16,10 @@ use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
-const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
 /// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
@@ -75,7 +74,7 @@ fn start(fixture: &Fixture, name: &str, worktrees: &Worktrees) -> Services {
     let mut sockets: Vec<PathBuf> = Vec::new();
     for git_dir in [&worktrees.main_git_dir, &worktrees.linked_git_dir] {
         let socket: PathBuf = socket_for(services.runtime.as_path(), git_dir.as_path());
-        let child: Child = Command::new(SERVICE)
+        let child: Child = super::support::service_command()
             .args(["--journal"])
             .arg(fixture.root.join("journal"))
             .arg("--path")
