@@ -175,6 +175,45 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   it merges to main when that gate passes.
 - QWD tightened as the owner chose ("Tighten QWD (Recommended)",
   `3abcbf585e`).
+- Leak to main:
+  the one-executable and mpm-shadow branches were created with `git worktree add -b <branch> <path> origin/main`,
+  which set `origin/main` as their upstream,
+  and the wrapper's auto-push sends commits to the upstream when the names differ,
+  so `9b360150c0` (service as a mode of `cli-git-native`,
+  not gated),
+  the mpm-shadow never-compile commits (`ae2f2210bc`,
+  `0154f65dea`,
+  package tests 546/546) and its link retirement (`5b7213a46a`,
+  `c71ad82ba1`) reached origin/main.
+  Both upstreams were removed at 2026-11-04T16:20-05:00.
+  Owner (question tool):
+  "A: keep, gate first (Recommended)":
+  the one-executable branch is gated before merge and before 0.5.35.
+  Future briefs start branches from a commit hash or local `main`,
+  or pass `--no-track`.
+- Owner on cargo-binstall's quick-install (question tool,
+  after a clarification):
+  "A: one flag, our crates (Recommended)":
+  crates this repository publishes get `--disable-strategies compile,quick-install`,
+  third-party crates keep the defaults;
+  owner's note:
+  "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
+  Sent to the mpm-shadow agent.
+  Its audit:
+  only wrapper 0.5.34 among repository rows fails with compile disabled (archive lacks `cli-git-service`);
+  release mpm-shadow after 0.5.35 is locked.
+- cargo-shadow round 19 merged to main (`bc671de431`;
+  gate 648/648;
+  staged copies in ignored directories go to cargo untouched;
+  running-image identity from `/proc/self/exe`;
+  K1 unreadable inventory reported as unknown);
+  next:
+  release 0.1.2,
+  relock,
+  launcher trace,
+  put the `cargo` link back,
+  then the fifth certification pass (bundles `~/temp/agent/reviews/cargo-shadow-cert5-*.txt`,
+  15 groups).
 
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,
