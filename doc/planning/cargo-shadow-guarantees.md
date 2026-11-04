@@ -637,7 +637,7 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written NOW against the tip that carries it (round 13); the round 12 text it replaces was written at 2026-11-04T09:32:35-05:00.
+Written 2026-11-04T09:48:48-05:00 against the tip that carries it (round 13); the round 12 text it replaces was written at 2026-11-04T09:32:35-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
 No row is certified by this map: the cross-vendor review of round 13 has not run, and the reviews of rounds 10 to 12 said that the
@@ -649,8 +649,8 @@ command creates a sentinel file, a second run of the install step that cannot sh
 install-failed code, the sentinel is absent, the lock cargo wrote is neither rolled back nor accepted, the journal is kept) and
 `a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively` (a real wrapper killed after each step of `begin`:
 directory, record, view, owner, snapshot, index, ready).
-Suite counts at the round 13 code tip `CODETIP`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran COUNT tests: COUNT passed, 0 failed, 10 skipped; `lint:clippy` with warnings
+Suite counts at the round 13 code tip `1403e21768`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran 588 tests: 588 passed, 0 failed, 10 skipped; `lint:clippy` with warnings
 denied is clean.
 The 10 skipped are the `#[ignore]` helper entries that ten other tests start as child processes (their names are in the `ignore`
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,

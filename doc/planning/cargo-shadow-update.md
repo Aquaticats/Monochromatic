@@ -1153,13 +1153,13 @@ the review then judges against that premise."
 
 ### Result
 
-The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 10 skipped (the `#[ignore]` helper
+The coverage map of the contract carries the counts: 588 tests, 588 passed, 0 failed, 10 skipped (the `#[ignore]` helper
 entries), for the debug run and the release gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own
 criterion, none certified.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r13-debug1.log`, `r13-gate1.log`, `r13-clippy2.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 13, rewritten TIMESTAMP after the gate)
+## Resume point (round 13, rewritten 2026-11-04T09:48:48-05:00 after the gate)
 
 Done: rounds 10 to 13 (the sections above).
 The review inputs of round 13 are `/var/home/user/temp/agent/reviews/cargo-shadow-13*.diff`, cut from `a8c7fbf8c2`.
