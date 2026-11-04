@@ -89,7 +89,7 @@ fn machine(name: &str) -> Machine {
         runtime_dir: root.join("run"),
         user_unit_dir: Some(root.join("config/systemd/user")),
         bus: root.join("run/bus"),
-        service_binary: root.join("programs/cli-git-service"),
+        service_binary: root.join("programs/cli-git-native"),
         git: PathBuf::from("/usr/bin/git"),
         instance: String::from(INSTANCE),
         retirement_wait: std::time::Duration::from_millis(400),
@@ -264,7 +264,7 @@ fn a_moved_program_rewrites_the_service_unit_and_reloads() {
     let mut machine: Machine = machine("provision-moved-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     let socket_before: String = written(&machine, SOCKET_UNIT_NAME);
-    machine.host.service_binary = machine.root.join("upgraded/cli-git-service");
+    machine.host.service_binary = machine.root.join("upgraded/cli-git-native");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));

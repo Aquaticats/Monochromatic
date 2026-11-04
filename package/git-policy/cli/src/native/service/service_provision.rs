@@ -11,7 +11,7 @@
 //!  left behind in the home directory and the next first use provisions again. Every step is idempotent (a file is written,
 //!  by temporary file and rename, only when its content differs), so several commits racing to provision agree without any
 //!  lock. Every commit that goes to the service compares the two installed templates with what this wrapper would write
-//!  (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the service program the template
+//!  (two small reads) before it touches the bus, so an upgrade or a downgrade, which moves the executable the template
 //!  names, is repaired by the first commit that follows it: templates rewritten, manager reloaded, failed state cleared,
 //!  the worktree's socket started. The single service of the earlier releases (`cli-git.socket` and `cli-git.service`, one
 //!  socket for every worktree) is asked to retire and stopped, and its units and socket file are removed, by the first
@@ -50,9 +50,6 @@ pub const LEGACY_SOCKET_UNIT_NAME: &str = "cli-git.socket";
 /// File name of the service unit of the single service every worktree shared until one service per worktree.
 pub const LEGACY_SERVICE_UNIT_NAME: &str = "cli-git.service";
 
-/// Name of the service program, next to the wrapper.
-pub const SERVICE_PROGRAM: &str = "cli-git-service";
-
 /// The words that mark a unit file as written by this wrapper: the marker its units carry now, and the descriptions the
 ///  units of earlier releases carried.
 pub const OWN_MARKERS: [&str; 3] =
@@ -70,7 +67,8 @@ pub struct ProvisionHost {
     pub user_unit_dir: Option<PathBuf>,
     /// The session bus socket.
     pub bus: PathBuf,
-    /// The service program.
+    /// The program the service unit starts: the wrapper's own executable, which runs the service when the words after it ask
+    ///  for that (`service_main.rs`).
     pub service_binary: PathBuf,
     /// The real Git the service runs.
     pub git: PathBuf,

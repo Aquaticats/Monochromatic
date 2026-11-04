@@ -26,7 +26,10 @@ import { connect } from 'node:net';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 
-import { instanceOf } from '../e2e/service-launch-fixture.ts';
+import {
+  instanceOf,
+  SERVICE_MODE_WORDS,
+} from '../e2e/service-launch-fixture.ts';
 import {
   straceArguments,
   timed,
@@ -148,7 +151,7 @@ async function waitUntilListening({
  connection; the benchmark has no manager, so `serve` starts the instance of one worktree and waits until it listens at
  the socket the wrapper derives from that worktree's Git directory, as the fixtures of the binary tests do.
 
- @param program - path of the `cli-git-service` program built beside the measured wrapper
+ @param program - path of the measured wrapper's own executable, which runs the service when it is given the service mode words
 
  @param root - scratch root of the run, which holds the services' journal and their `home`
 
@@ -283,6 +286,7 @@ export async function makeService({
             )),
             program,
           ]),
+        ...SERVICE_MODE_WORDS,
         '--journal',
         join(
           root,
