@@ -440,3 +440,64 @@ fn a_completion_removes_only_the_segments_the_authority_names() {
     assert!(!state.join("state.log.1").exists(), "the named predecessor is removed");
     assert!(state.join("state.log.0").exists(), "a segment the authority does not name is kept");
 }
+
+/// Components 9, P1 (caller-selected authority): the previous torn-envelope counterexample through the public API. The torn envelope is
+/// captured with the kind `Opaque`; its length and checksum match, so capture and the checkpoint succeed, completion forces the torn bytes and
+/// removes the predecessor. The kind must not be the caller's choice: content that is an inbox envelope is validated as one.
+#[test]
+fn p9_a_torn_envelope_captured_as_opaque_is_not_replacement_authority() {
+    let (lane, state, envelope) = lane_with_envelope("p9-opaque-torn");
+    let whole: Vec<u8> = std::fs::read(&envelope).expect("read");
+    std::fs::write(&envelope, &whole[..whole.len() / 2]).expect("tear the envelope");
+    append(&state, 1, b"first").expect("append");
+    let outcome = ClosureEntry::capture(&lane, &envelope, EntryKind::Opaque).and_then(|entry| {
+        let mut writer: StateWriter = StateWriter::acquire(&state)?;
+        let candidate: Candidate = writer.begin_checkpoint(2, b"document adopting the request", std::slice::from_ref(&entry))?;
+        return writer.complete_checkpoint(&candidate);
+    });
+    assert!(outcome.is_err(), "the torn envelope was accepted as an opaque dependency and the fallback removed");
+    assert!(state.join("state.log.1").exists());
+}
+
+/// Components 9, P1 (later appends): after a checkpoint whose closure holds request A, an append whose document no longer lists A is a
+/// drop of a live request. It is refused; selection would otherwise return a document that A no longer supports.
+#[test]
+fn p9_a_later_append_cannot_drop_a_live_request_of_the_checkpoint() {
+    let (lane, state, envelope) = lane_with_envelope("p9-append-drops");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document adopting A", std::slice::from_ref(&entry)).expect("checkpoint");
+    assert!(append(&state, 3, b"a document that does not mention A").is_err(), "an append dropped the checkpoint's live request");
+}
+
+/// Components 9, P1 (completion deletes its dependency): a closure entry that is the predecessor segment itself. The authority names the
+/// same file as a live dependency and as a deletion, completion validates, forces and deletes it, and the new root can no longer validate.
+#[test]
+fn p9_completion_cannot_delete_a_dependency_it_validated_and_forced() {
+    let lane: PathBuf = scratch("p9-self-dependency");
+    let state: PathBuf = lane.join("state");
+    std::fs::create_dir(&state).expect("state directory");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &state.join("state.log.1"), EntryKind::Opaque).expect("capture the predecessor segment");
+    let outcome = StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry));
+    assert!(outcome.is_err(), "completion succeeded and removed the file its own closure requires");
+    assert!(state.join("state.log.1").exists());
+    assert!(read(&state).expect("readable").is_some());
+}
+
+/// Components 9, P1 (mutable dependency): a ledger is captured, the checkpoint completes, and the ledger's writer legitimately appends a
+/// line. A whole-file identity then fails and recovery, with the predecessor gone, reports the lane damaged.
+#[test]
+fn p9_an_append_to_a_captured_ledger_does_not_invalidate_the_root() {
+    let lane: PathBuf = scratch("p9-mutable");
+    let state: PathBuf = lane.join("state");
+    std::fs::create_dir(&state).expect("state directory");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, b"line one\n").expect("ledger");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &ledger, EntryKind::Opaque).expect("capture");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry)).expect("checkpoint");
+    let appended = std::fs::OpenOptions::new().append(true).open(&ledger).and_then(|mut file| { return std::io::Write::write_all(&mut file, b"line two\n"); });
+    // Either the append is refused by an enforced lifetime rule, or it succeeds and the root stays valid. Both keep the lane recoverable.
+    assert!(appended.is_err() || read(&state).is_ok(), "the lane is damaged by a legitimate append: {:?}", read(&state).err());
+}

@@ -486,3 +486,57 @@ from a newer build").expect("an unsupported version");
     assert!(events.contains(&format!("file-sync:{}", moved.display())), "{:?}", events);
     assert!(events.contains(&format!("dir:{}", inbox.join("damaged").display())) && events.contains(&format!("dir:{}", inbox.display())));
 }
+
+/// Components 9, P1 (departure validates presence): an unrelated regular file satisfies the stop requirement of a withdrawal.
+#[test]
+fn p9_a_withdrawal_with_an_unrelated_stop_file_is_refused() {
+    let root: PathBuf = scratch("p9-stop-unrelated");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    let unrelated: PathBuf = lane.join("notes.txt");
+    std::fs::write(&unrelated, b"not a mark").expect("write");
+    let outcome = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).with_stop(&unrelated).run();
+    assert!(outcome.is_err(), "an unrelated file was acknowledged as the stop receipt");
+}
+
+/// Components 9, P1: a terminal departure accepts any ledger file, whether or not it holds a terminal line for the request.
+#[test]
+fn p9_a_terminal_departure_needs_the_terminal_line_of_its_request() {
+    let root: PathBuf = scratch("p9-terminal-line");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, b"some other line\n").expect("ledger without the request's line");
+    let outcome = Departure::new(Disposition::Terminal, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).with_ledger(&ledger).run();
+    assert!(outcome.is_err(), "a ledger without the request's terminal line was acknowledged");
+}
+
+/// Components 9, P1 (acknowledged state not recoverable): a checkpoint's closure holds requests R and X. A departure for X forces X and the
+/// state; R stays visible only. The state the departure acknowledges is not a recoverable promise: the departure must force the whole
+/// closure of the state it acknowledges.
+#[test]
+fn p9_a_departure_forces_the_whole_closure_of_the_state_it_acknowledges() {
+    use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind};
+    let root: PathBuf = scratch("p9-closure-ack");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept x");
+    let mut other = request.clone();
+    other.nonce = vec![9; 16];
+    let other = git_policy_cli::commit_inbox::with_identity(INSTANCE, other).expect("identity");
+    accept(&lane.join("inbox"), INSTANCE, &other, &new_files, &old_files).expect("accept r");
+    state_append(&lane.join("state"), 1, b"first").expect("append");
+    let entries: Vec<ClosureEntry> = [&request.id, &other.id]
+        .iter()
+        .map(|id| { return ClosureEntry::capture(&lane, &lane.join("inbox").join(id), EntryKind::InboxEnvelope).expect("capture"); })
+        .collect();
+    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").checkpoint(2, b"adopts both", &entries).expect("checkpoint");
+    start_events();
+    Departure::new(Disposition::Saved, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).run().expect("depart for x");
+    let events: Vec<String> = take_events();
+    assert!(events.contains(&format!("file-sync:{}", lane.join("inbox").join(&other.id).display())), "r was not forced: {:?}", events);
+}
