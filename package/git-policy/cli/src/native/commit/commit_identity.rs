@@ -85,6 +85,14 @@ pub fn record_event(name: &str) {
     let _ = name;
 }
 
+/// Records one event built only when a test is recording; the argument is never built in a production build.
+pub fn record_event_lazy(build: impl FnOnce() -> String) {
+    #[cfg(feature = "test-seams")]
+    record_event(&build());
+    #[cfg(not(feature = "test-seams"))]
+    let _ = build;
+}
+
 /// Calls this thread's fault point callback with the name of the decision point reached; an empty function in a production build.
 pub fn fault_point(name: &str) {
     #[cfg(feature = "test-seams")]
@@ -99,14 +107,14 @@ pub fn fault_point(name: &str) {
 /// components goes through here, so a test can count them.
 pub fn sync_file(file: &File, path: &Path) -> io::Result<()> {
     file.sync_all()?;
-    record_event(&format!("file-sync:{}", path.display()));
+    record_event_lazy(|| { return format!("file-sync:{}", path.display()); });
     return Ok(());
 }
 
 /// Syncs a directory so entries made in it survive power loss. The event `dir:<path>` is recorded after the sync succeeded.
 pub fn sync_directory(directory: &Path) -> io::Result<()> {
     File::open(directory)?.sync_all()?;
-    record_event(&format!("dir:{}", directory.display()));
+    record_event_lazy(|| { return format!("dir:{}", directory.display()); });
     return Ok(());
 }
 
@@ -214,6 +222,11 @@ pub fn create_dir_all_durable(anchor: &Path, path: &Path) -> io::Result<Vec<Path
 /// function initRoot(knownDurableParent: string, root: string): string;
 /// ```
 pub fn init_root(known_durable_parent: &Path, root: &Path) -> io::Result<PathBuf> {
+    // The same lexical rule as descendant creation: a `..` spelling is refused before anything is created.
+    let dotdot = |path: &Path| { return path.components().any(|part| { return matches!(part, std::path::Component::ParentDir); }); };
+    if dotdot(known_durable_parent) || dotdot(root) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "a root path with a parent-directory component is refused"));
+    }
     let absolute_parent: PathBuf = std::path::absolute(known_durable_parent)?;
     let absolute_root: PathBuf = std::path::absolute(root)?;
     if parent_of(&absolute_root).as_deref() != Some(absolute_parent.as_path()) {

@@ -24,7 +24,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_chain, sync_directory, sync_file};
+use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file};
 use super::commit_integrity::{crc32, is_identity, is_object_name};
 
 /// What:
@@ -247,7 +247,7 @@ fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
             return Err(LedgerError::Io(error));
         }
     }
-    record_event(&format!("read-bytes:{}", bytes.len()));
+    record_event_lazy(|| { return format!("read-bytes:{}", bytes.len()); });
     let (valid_end, damaged_middle) = scan(&bytes);
     if let Some(number) = damaged_middle {
         return Err(LedgerError::DamagedLine(number));
@@ -261,7 +261,7 @@ fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
         fault_point("ledger:before-truncate");
         let file: File = OpenOptions::new().write(true).open(ledger)?;
         file.set_len(valid_end as u64)?;
-        record_event(&format!("truncate:{}", ledger.display()));
+        record_event_lazy(|| { return format!("truncate:{}", ledger.display()); });
         sync_file(&file, ledger)?;
     }
     return Ok(Repair { kept: valid_end as u64, cut: cut as u64 });
@@ -292,7 +292,7 @@ fn clean_tail(ledger: &Path) -> Result<Option<Repair>, LedgerError> {
     file.seek(SeekFrom::Start(length - window))?;
     let mut tail: Vec<u8> = vec![0; window as usize];
     file.read_exact(&mut tail)?;
-    record_event(&format!("read-bytes:{}", tail.len()));
+    record_event_lazy(|| { return format!("read-bytes:{}", tail.len()); });
     if tail.last() != Some(&b'\n') {
         return Ok(None);
     }
@@ -437,7 +437,15 @@ impl LedgerOwner {
     pub fn acquire(ledger: &Path) -> Result<LedgerOwner, LedgerError> {
         let mut name: std::ffi::OsString = ledger.as_os_str().to_os_string();
         name.push(".owner");
-        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).open(PathBuf::from(name))?;
+        let lock_path: PathBuf = PathBuf::from(name);
+        // A foreign FIFO at the lock path would block the open before `try_lock` could refuse; only a regular file (or nothing) is opened.
+        if let Ok(metadata) = fs::symlink_metadata(&lock_path)
+            && !metadata.file_type().is_file()
+        {
+            return Err(LedgerError::InvalidField("the owner lock path is not a regular file"));
+        }
+        let lock: File = std::os::unix::fs::OpenOptionsExt::custom_flags(OpenOptions::new().create(true).write(true).truncate(false), libc::O_NONBLOCK)
+            .open(lock_path)?;
         match lock.try_lock() {
             Ok(()) => {
                 // The one full validation of this owner's lifetime: every append behind it reads only the tail, which is sound because
@@ -448,6 +456,16 @@ impl LedgerOwner {
             Err(std::fs::TryLockError::WouldBlock) => return Err(LedgerError::OwnedElsewhere),
             Err(std::fs::TryLockError::Error(error)) => return Err(LedgerError::Io(error)),
         }
+    }
+
+    /// Makes the ledger's parent chain durable through `anchor` (a fresh lane has none yet), then takes the owner lock.
+    pub fn acquire_in(anchor: &Path, ledger: &Path) -> Result<LedgerOwner, LedgerError> {
+        let parent: PathBuf = match ledger.parent() {
+            Some(directory) if !directory.as_os_str().is_empty() => directory.to_path_buf(),
+            _ => PathBuf::from("."),
+        };
+        create_dir_all_durable(anchor, &parent)?;
+        return LedgerOwner::acquire(ledger);
     }
 
     /// Whether `ledger` is the ledger this owner owns; an owner of one ledger may not touch another.

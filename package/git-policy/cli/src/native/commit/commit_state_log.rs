@@ -17,7 +17,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{fault_point, record_event, sync_directory, sync_file};
+use super::commit_identity::{fault_point, record_event_lazy, sync_directory, sync_file};
 use super::commit_integrity::sha256_hex;
 
 /// The chain hash before the first record of a file.
@@ -35,6 +35,8 @@ fn log_path(dir: &Path, number: u64) -> PathBuf {
 pub enum StateError {
     /// A log file exists with bytes and no valid first record, and no older file holds a valid state.
     Damaged,
+    /// Two valid files hold the same generation with different documents: neither is the root.
+    Conflict,
     /// A file or the directory could not be read or written.
     Io(io::Error),
 }
@@ -46,6 +48,15 @@ impl From<io::Error> for StateError {
 }
 
 /// The numbers of the log files in `dir`, ascending; a directory that does not exist has none, any other listing failure is an error.
+/// The error as an `io::Error`, for the writer's methods.
+fn to_io(error: StateError) -> io::Error {
+    return match error {
+        StateError::Io(inner) => inner,
+        StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged; its bytes are kept"),
+        StateError::Conflict => io::Error::new(io::ErrorKind::InvalidData, "two state files hold one generation with different documents"),
+    };
+}
+
 fn numbers(dir: &Path) -> io::Result<Vec<u64>> {
     let mut found: Vec<u64> = Vec::new();
     let entries = match fs::read_dir(dir) {
@@ -144,10 +155,12 @@ pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
         let bytes: Vec<u8> = fs::read(log_path(dir, number))?;
         saw_bytes = saw_bytes || !bytes.is_empty();
         if let Some((generation, payload, hash, length)) = valid_prefix(&bytes) {
-            // The newest generation wins, and a tie goes to the higher file; a lower file holding a newer generation than a higher one
-            // means the higher one is a rollback and is not the root.
-            if best.as_ref().is_none_or(|chosen| { return generation > chosen.generation; }) {
-                best = Some(Selected { number, generation, payload, hash, length, highest: Some(number) == highest });
+            match &best {
+                // The newest generation wins, and a tie goes to the higher file when the documents agree; a lower file holding a newer
+                // generation than a higher one means the higher one is a rollback and is not the root.
+                Some(chosen) if generation == chosen.generation && payload != chosen.payload => return Err(StateError::Conflict),
+                Some(chosen) if generation <= chosen.generation => {}
+                _ => best = Some(Selected { number, generation, payload, hash, length, highest: Some(number) == highest }),
             }
         }
     }
@@ -162,23 +175,11 @@ pub fn read(dir: &Path) -> Result<Option<(u64, Vec<u8>)>, StateError> {
     return Ok(select(dir)?.map(|selected| { return (selected.generation, selected.payload); }));
 }
 
-/// What:
-///  Appends a record holding the whole document to the newest log file (the first file when there is none), chained to the file's last
-///  valid record, with no sync. Bytes after the file's valid prefix (a torn record) are cut first so the chain stays contiguous.
-/// Why:
-///  The waiting path of a plain commit makes no sync; the log is the only copy of the state, so it is never overwritten in place.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function append(dir: string, generation: number, payload: Uint8Array): void;
-/// ```
-pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
-    let selected: Option<Selected> = select(dir).map_err(|error| {
-        return match error {
-            StateError::Io(inner) => inner,
-            StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged; its bytes are kept"),
-        };
-    })?;
+/// Appends a record holding the whole document to the newest log file (the first file when there is none), chained to the file's last
+/// valid record, with no sync. Bytes after the valid prefix (a torn record) are cut first so the chain stays contiguous. Private: the
+/// only way to call it is through the `StateWriter` that holds the state's lock.
+fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
+    let selected: Option<Selected> = select(dir).map_err(to_io)?;
     let (number, previous, keep): (u64, String, usize) = match &selected {
         Some(chosen) => {
             if generation <= chosen.generation {
@@ -195,7 +196,6 @@ pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
     let (record, _) = encode_record(generation, &previous, payload);
     let mut file: File = OpenOptions::new().create(true).write(true).truncate(false).open(&path)?;
     if keep as u64 != file.metadata()?.len() {
-        // Bytes after the valid prefix are a torn record; they are cut so the chain stays contiguous.
         file.set_len(keep as u64)?;
     }
     io::Seek::seek(&mut file, io::SeekFrom::Start(keep as u64))?;
@@ -203,15 +203,7 @@ pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
     return Ok(());
 }
 
-/// What:
-///  Syncs the newest log file and then the directory that holds its name (a departure barrier's step for the state).
-/// Why:
-///  A synced file whose name is not durable can vanish with its directory entry; the state's name is part of what a departure forces.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function syncNewestLog(dir: string): void;
-/// ```
+/// Syncs the file recovery selects and its directory; see `sync_prefix`, which also says what it acknowledges.
 pub fn sync_newest_log(dir: &Path) -> io::Result<()> {
     sync_prefix(dir)?;
     return Ok(());
@@ -228,25 +220,10 @@ pub struct Prefix {
     pub generation: u64,
 }
 
-/// What:
-///  Syncs the file that recovery would select (not the highest filename), then its directory, and returns the prefix that was captured
-///  before the sync began: records appended while the sync ran are not claimed.
-/// Why:
-///  A promise names a state, and a flush that reports "everything visible when I returned" would claim bytes it never covered.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function syncPrefix(dir: string): { number: number; length: number; generation: number };
-/// ```
+/// Syncs the file that recovery would select (not the highest filename), then its directory, and returns the prefix captured before the
+/// sync began: records appended while the sync ran are not claimed by it.
 pub fn sync_prefix(dir: &Path) -> io::Result<Prefix> {
-    let selected: Selected = select(dir)
-        .map_err(|error| {
-            return match error {
-                StateError::Io(inner) => inner,
-                StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged"),
-            };
-        })?
-        .ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
+    let selected: Selected = select(dir).map_err(to_io)?.ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
     // The prefix is fixed here; records appended while the sync runs are not claimed by it.
     fault_point("state:after-capture");
     let path: PathBuf = log_path(dir, selected.number);
@@ -256,120 +233,125 @@ pub fn sync_prefix(dir: &Path) -> io::Result<Prefix> {
     return Ok(Prefix { number: selected.number, length: selected.length as u64, generation: selected.generation });
 }
 
-/// What:
-///  Starts a checkpoint: a new log file `state.log.<k+1>` whose first record is a full document; returns its number. The old file stays.
-/// Why:
-///  A rotation never destroys the only valid log; until the new file is durable the previous file is the fallback.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function rotate(dir: string, generation: number, document: Uint8Array): number;
-/// ```
-pub fn rotate(dir: &Path, generation: u64, document: &[u8]) -> io::Result<u64> {
-    let selected: Option<Selected> = select(dir).map_err(|error| {
-        return match error {
-            StateError::Io(inner) => inner,
-            StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged"),
-        };
-    })?;
+/// A checkpoint candidate the writer started: its file number, generation and chain hash, so completion acts on exactly this file.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Candidate {
+    /// The new segment's number.
+    pub number: u64,
+    /// The generation of its first record.
+    pub generation: u64,
+    /// The chain hash after its first record.
+    pub hash: String,
+}
+
+fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8]) -> io::Result<Candidate> {
+    let selected: Option<Selected> = select(dir).map_err(to_io)?;
     if let Some(chosen) = &selected {
         if generation < chosen.generation {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "a checkpoint must not hold an older generation than the log"));
+        }
+        if generation == chosen.generation && document != chosen.payload.as_slice() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "a checkpoint at the log's generation must hold the log's document"));
         }
         if !chosen.highest {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "an earlier checkpoint candidate does not validate"));
         }
     }
-    let next: u64 = rotation_number(dir)?.map_or(1, |number| { return number + 1; });
-    let (record, _) = encode_record(generation, &genesis(), document);
+    let next: u64 = rotation_number(dir)?
+        .map_or(Some(1), |number| { return number.checked_add(1); })
+        .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the segment numbers are exhausted"); })?;
+    let (record, hash) = encode_record(generation, &genesis(), document);
     let mut file: File = OpenOptions::new().create_new(true).write(true).open(log_path(dir, next))?;
     file.write_all(&record)?;
-    return Ok(next);
+    return Ok(Candidate { number: next, generation, hash });
 }
 
-/// What:
-///  Finishes a rotation: syncs the new file, then the directory (its entry), and only then removes the older files.
-/// Why:
-///  Recovery falls back to the previous file when the newest does not validate, so the previous file may go only after the new one is D.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function completeRotation(dir: string): void;
-/// ```
-pub fn complete_rotation(dir: &Path) -> io::Result<()> {
+/// Completes exactly `candidate`: it must still be the recovery root with the identity it was started with; every live external
+/// dependency its document names (`dependencies`, files that must exist) is forced to disk with its parent directory; the candidate and its
+/// directory entry are made durable; and only then are older files removed. Anything else leaves every older file in place.
+fn complete_checkpoint(dir: &Path, candidate: &Candidate, dependencies: &[&Path]) -> io::Result<()> {
     let all: Vec<u64> = numbers(dir)?;
-    let Some(newest) = all.last().copied() else { return Ok(()) };
-    // The candidate must itself be the recovery root: it validates, and no older file holds a newer generation. Otherwise nothing is
-    // deleted, so the older valid roots stay.
-    let selected: Selected = select(dir)
-        .map_err(|error| {
-            return match error {
-                StateError::Io(inner) => inner,
-                StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged"),
-            };
-        })?
-        .ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
-    if selected.number != newest {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "the checkpoint candidate does not validate; the older files are kept"));
+    let selected: Selected = select(dir).map_err(to_io)?.ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
+    let same: bool = selected.number == candidate.number && selected.generation == candidate.generation && selected.hash == candidate.hash;
+    if !same || all.last() != Some(&candidate.number) {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "the candidate is not the recovery root with the identity it was started with; the older files are kept"));
     }
-    for number in all.iter().filter(|number| { return **number != newest; }) {
+    for number in all.iter().filter(|number| { return **number != candidate.number; }) {
         let older: Vec<u8> = fs::read(log_path(dir, *number))?;
         if valid_prefix(&older).is_some_and(|(generation, _, _, _)| { return generation > selected.generation; }) {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "an older file holds a newer generation than the candidate; it is kept"));
         }
     }
-    let path: PathBuf = log_path(dir, newest);
+    // The new root replaces old log history, not the external content its document names: that content must be durable first.
+    for dependency in dependencies {
+        let file: File = File::open(dependency)?;
+        sync_file(&file, dependency)?;
+        sync_directory(dependency.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")))?;
+    }
+    let path: PathBuf = log_path(dir, candidate.number);
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
     sync_directory(dir)?;
-    for number in all.into_iter().filter(|number| { return *number != newest; }) {
+    for number in all.into_iter().filter(|number| { return *number != candidate.number; }) {
         let old: PathBuf = log_path(dir, number);
         fs::remove_file(&old)?;
-        record_event(&format!("remove:{}", old.display()));
+        record_event_lazy(|| { return format!("remove:{}", old.display()); });
     }
     return Ok(());
 }
 
-/// What:
-///  The single writer of a state directory, proved by a non-blocking exclusive lock on `state.writer` that lives as long as the value.
-///  Appends and checkpoints take `&mut self`, so one owner cannot interleave them, and a second owner is refused at once.
-/// Why:
-///  An append that selected a segment, a checkpoint that snapshotted it and a completion that deletes it must not interleave: a
-///  transition appended to the old segment after the snapshot is lost when the old segment goes (the cutover race).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class StateWriter { static acquire(dir: string): StateWriter; append(g: number, p: Uint8Array): void; checkpoint(g: number, d: Uint8Array): number; }
-/// ```
+/// The single writer of a state directory, proved by a non-blocking exclusive lock on `state.writer` that lives as long as the value.
+/// Appends and checkpoints take `&mut self`, so one owner cannot interleave them, a second owner is refused at once, and no free function
+/// of this module can mutate the log: this is the only way. The directory is stored absolute, so a later change of the working directory
+/// cannot point the writer at a directory its lock does not cover.
 #[derive(Debug)]
 pub struct StateWriter {
     /// The locked file; dropping the writer releases the lock.
     _lock: File,
-    /// The state directory.
+    /// The absolute state directory.
     dir: PathBuf,
 }
 
 impl StateWriter {
-    /// Takes the writer lock without waiting; `WouldBlock` when another writer holds it.
+    /// Takes the writer lock without waiting; `WouldBlock` when another writer holds it. The lock path must be a regular file: a
+    /// foreign special file there is refused without being opened for a blocking write.
     pub fn acquire(dir: &Path) -> io::Result<StateWriter> {
-        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).open(dir.join("state.writer"))?;
+        use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
+        let absolute: PathBuf = std::path::absolute(dir)?;
+        let path: PathBuf = absolute.join("state.writer");
+        if let Ok(metadata) = fs::symlink_metadata(&path)
+            && !metadata.file_type().is_file()
+        {
+            let kind = if metadata.file_type().is_fifo() { "a FIFO" } else { "not a regular file" };
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("the state writer lock path is {}", kind)));
+        }
+        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK).open(&path)?;
         match lock.try_lock() {
-            Ok(()) => return Ok(StateWriter { _lock: lock, dir: dir.to_path_buf() }),
+            Ok(()) => return Ok(StateWriter { _lock: lock, dir: absolute }),
             Err(std::fs::TryLockError::WouldBlock) => return Err(io::Error::new(io::ErrorKind::WouldBlock, "another writer holds the state")),
             Err(std::fs::TryLockError::Error(error)) => return Err(error),
         }
     }
 
-    /// Appends a record as `append` does, as the only writer.
+    /// Appends a record as the only writer.
     pub fn append(&mut self, generation: u64, payload: &[u8]) -> io::Result<()> {
         return append(&self.dir, generation, payload);
     }
 
-    /// Seals the current segment and replaces it by a checkpoint in one owner step: the document is written as the first record of the
-    /// next segment, validated, made durable, and only then are older segments removed. Future appends go to the new segment.
-    pub fn checkpoint(&mut self, generation: u64, document: &[u8]) -> io::Result<u64> {
-        let number: u64 = rotate(&self.dir, generation, document)?;
-        complete_rotation(&self.dir)?;
-        return Ok(number);
+    /// Starts a checkpoint: writes `document` as the first record of the next segment and returns the candidate to complete.
+    pub fn begin_checkpoint(&mut self, generation: u64, document: &[u8]) -> io::Result<Candidate> {
+        return begin_checkpoint(&self.dir, generation, document);
+    }
+
+    /// Completes exactly `candidate` after forcing the live external `dependencies` its document names; older files stay on any refusal.
+    pub fn complete_checkpoint(&mut self, candidate: &Candidate, dependencies: &[&Path]) -> io::Result<()> {
+        return complete_checkpoint(&self.dir, candidate, dependencies);
+    }
+
+    /// Seals the current segment and replaces it by a checkpoint in one owner step; future appends go to the new segment.
+    pub fn checkpoint(&mut self, generation: u64, document: &[u8], dependencies: &[&Path]) -> io::Result<u64> {
+        let candidate: Candidate = begin_checkpoint(&self.dir, generation, document)?;
+        complete_checkpoint(&self.dir, &candidate, dependencies)?;
+        return Ok(candidate.number);
     }
 }

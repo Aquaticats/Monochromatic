@@ -16,7 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_directory, sync_file, temporary_name};
+use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::sha256_hex;
 use super::commit_request::{Request, RequestError, decode, encode};
 use super::commit_state_log::sync_newest_log;
@@ -38,9 +38,15 @@ pub enum InboxError {
     Invalid(&'static str),
     /// The file is torn or damaged (its checksum or its structure fails).
     Damaged,
-    /// The identity names a file with other bytes.
+    /// The identity names a file with other bytes that are a valid record: a different request under one identity.
     Conflict,
-    /// A file system call failed.
+    /// The identity names a file that does not decode (a torn or damaged final file): its bytes are the only evidence, so nothing was
+    /// overwritten; `quarantine_damaged` moves it aside and the resend may then be accepted.
+    DamagedFinal,
+    /// The request may already be in place and its status could not be read (the link found the name and the read failed): the caller
+    /// must not run native Git beside it until the status is known.
+    StatusUnknown(io::Error),
+    /// A file system call failed before any request could have been exposed.
     Io(io::Error),
 }
 
@@ -228,7 +234,7 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
             if existing == bytes {
                 return Ok(Accepted::AlreadyPresent);
             }
-            return Err(InboxError::Conflict);
+            return Err(if decode_inbox_file(&existing).is_err() { InboxError::DamagedFinal } else { InboxError::Conflict });
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(InboxError::Io(error)),
@@ -251,15 +257,43 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
         }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             if let Err(cleanup_error) = cleanup {
-                record_event(&format!("accept:cleanup-failed:{:?}", cleanup_error.kind()));
+                record_event_lazy(|| { return format!("accept:cleanup-failed:{:?}", cleanup_error.kind()); });
             }
-            if fs::read(&target)? == bytes {
+            let existing: Vec<u8> = fs::read(&target).map_err(InboxError::StatusUnknown)?;
+            if existing == bytes {
                 return Ok(Accepted::AlreadyPresent);
             }
-            return Err(InboxError::Conflict);
+            return Err(if decode_inbox_file(&existing).is_err() { InboxError::DamagedFinal } else { InboxError::Conflict });
         }
         Err(error) => return Err(InboxError::Io(error)),
     }
+}
+
+/// What:
+///  Moves a final inbox file that does not decode (a torn or damaged record) to `inbox/damaged/<id>.<unique>`, keeping its bytes, so a
+///  resend of the same identity can be accepted. A file that decodes is never moved.
+/// Why:
+///  Treating a torn final as "never written" must not destroy the evidence, and it must not strand the identity as a conflict.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function quarantineDamaged(inbox: string, id: string): string;
+/// ```
+pub fn quarantine_damaged(inbox: &Path, id: &str) -> Result<PathBuf, InboxError> {
+    let target: PathBuf = inbox.join(id);
+    let existing: Vec<u8> = fs::read(&target)?;
+    if decode_inbox_file(&existing).is_ok() {
+        return Err(InboxError::Invalid("the file decodes; it is a request and is not moved"));
+    }
+    let directory: PathBuf = inbox.join("damaged");
+    match fs::create_dir(&directory) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(InboxError::Io(error)),
+    }
+    let moved: PathBuf = temporary_name(&directory)?;
+    fs::rename(&target, &moved)?;
+    return Ok(moved);
 }
 
 /// The directory that holds `path`; a bare relative name has the empty parent, which is the current directory.
@@ -285,32 +319,77 @@ pub fn depart(inbox: &Path, ids: &[String], state_dir: &Path) -> io::Result<()> 
     return depart_closure(inbox, ids, None, state_dir, None);
 }
 
+/// The departure barrier of a request and its optional order and ledger files; see `Departure` for the stop receipt and the closure.
+pub fn depart_closure(inbox: &Path, ids: &[String], order: Option<&Path>, state_dir: &Path, ledger: Option<&Path>) -> io::Result<()> {
+    return Departure { inbox, ids, order, state_dir, ledger, stop: None, closure: &[], anchor: None }.run();
+}
+
 /// What:
-///  The departure barrier with its whole closure, in the order of the dependency chain: each promised request file, the `inbox/`
-///  directory, the order file (when the exit promises an adoption) and its directory, the newest state log file and the state
-///  directory (the state's name), then the ledger file (when it promises a terminal outcome) and its directory.
+///  One exit's departure, bound to its disposition: the stop receipt (the mark file), forced first and alone; the request files and the
+///  `inbox/` directory; the saved content the exit names (`closure`, files forced with their directories); the order file, the state
+///  and the ledger; and, when an `anchor` is given, the directory chain above each parent through that known-durable anchor, so a name
+///  is durable and not only the file under it.
 /// Why:
-///  A saving exit promises everything it depends on: a synced file under a directory entry that a power loss can remove promises nothing.
+///  A saving exit promises the prohibition on later attempts separately from the saved copy: the stop must be durable before anything
+///  else is waited for, and a synced file under an unsynced ancestor promises nothing. Decision 14 removes the timeout from this barrier:
+///  it runs to completion, and a sync that never completes is an outside cause.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function departClosure(inbox: string, ids: string[], order: string | undefined, stateDir: string, ledger: string | undefined): void;
+/// type Departure = { inbox; ids; order?; stateDir; ledger?; stop?; closure; anchor? }; function run(d: Departure): void;
 /// ```
-pub fn depart_closure(inbox: &Path, ids: &[String], order: Option<&Path>, state_dir: &Path, ledger: Option<&Path>) -> io::Result<()> {
-    for id in ids {
-        let path: PathBuf = inbox.join(id);
-        let file: File = File::open(&path)?;
-        sync_file(&file, &path)?;
+pub struct Departure<'a> {
+    /// The inbox directory.
+    pub inbox: &'a Path,
+    /// The promised request identities.
+    pub ids: &'a [String],
+    /// The order file, when the exit promises an adoption.
+    pub order: Option<&'a Path>,
+    /// The state directory.
+    pub state_dir: &'a Path,
+    /// The ledger file, when the exit promises a terminal outcome.
+    pub ledger: Option<&'a Path>,
+    /// The stop receipt (the mark file), forced first and alone.
+    pub stop: Option<&'a Path>,
+    /// Saved content the exit names.
+    pub closure: &'a [&'a Path],
+    /// A known-durable ancestor through which each parent chain is synced.
+    pub anchor: Option<&'a Path>,
+}
+
+impl Departure<'_> {
+    /// Runs the barrier to completion.
+    pub fn run(&self) -> io::Result<()> {
+        if let Some(stop) = self.stop {
+            self.force_with_name(stop)?;
+        }
+        for id in self.ids {
+            let path: PathBuf = self.inbox.join(id);
+            let file: File = File::open(&path)?;
+            sync_file(&file, &path)?;
+        }
+        sync_directory(self.inbox)?;
+        for saved in self.closure {
+            self.force_with_name(saved)?;
+        }
+        if let Some(path) = self.order {
+            self.force_with_name(path)?;
+        }
+        sync_newest_log(self.state_dir)?;
+        if let Some(path) = self.ledger {
+            self.force_with_name(path)?;
+        }
+        return Ok(());
     }
-    sync_directory(inbox)?;
-    if let Some(path) = order {
+
+    /// Forces a file, its directory, and (with an anchor) the chain above the directory.
+    fn force_with_name(&self, path: &Path) -> io::Result<()> {
         sync_file(&File::open(path)?, path)?;
-        sync_directory(parent_directory(path))?;
+        let parent: &Path = parent_directory(path);
+        sync_directory(parent)?;
+        if let Some(anchor) = self.anchor {
+            sync_chain(parent, anchor)?;
+        }
+        return Ok(());
     }
-    sync_newest_log(state_dir)?;
-    if let Some(path) = ledger {
-        sync_file(&File::open(path)?, path)?;
-        sync_directory(parent_directory(path))?;
-    }
-    return Ok(());
 }

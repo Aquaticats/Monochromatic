@@ -48,6 +48,11 @@ fn one_path_request() -> (Request, Vec<Vec<u8>>, Vec<Vec<u8>>) {
     return (request, vec![b"new bytes".to_vec()], vec![Vec::new()]);
 }
 
+/// Appends to a state directory as its writer.
+fn state_append(dir: &std::path::Path, generation: u64, payload: &[u8]) -> std::io::Result<()> {
+    return commit_state_log::StateWriter::acquire(dir)?.append(generation, payload);
+}
+
 /// The number of syncs (file syncs and directory syncs) in `events`.
 fn syncs(events: &[String]) -> usize {
     return events.iter().filter(|event| { return event.starts_with("file-sync:") || event.starts_with("dir:"); }).count();
@@ -62,8 +67,8 @@ fn the_waiting_path_of_a_plain_commit_makes_no_sync() {
     let (request, new_files, old_files) = one_path_request();
     start_events();
     let accepted: Accepted = accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
-    commit_state_log::append(&lane.join("state"), 1, b"adopted").expect("state");
-    commit_state_log::append(&lane.join("state"), 2, b"ready").expect("state");
+    state_append(&lane.join("state"), 1, b"adopted").expect("state");
+    state_append(&lane.join("state"), 2, b"ready").expect("state");
     let events: Vec<String> = take_events();
     assert_eq!(syncs(&events), 0, "{:?}", events);
     assert_eq!(accepted, Accepted::Created);
@@ -91,7 +96,7 @@ fn a_departure_syncs_the_promised_records_in_dependency_order_before_it_returns(
     let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
     let (request, new_files, old_files) = one_path_request();
     accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
-    commit_state_log::append(&lane.join("state"), 1, b"adopted").expect("state");
+    state_append(&lane.join("state"), 1, b"adopted").expect("state");
     start_events();
     depart(&lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).expect("depart");
     let events: Vec<String> = take_events();
@@ -160,12 +165,11 @@ fn successive_unsynced_state_transitions_then_a_power_cut() {
     let root: PathBuf = scratch("v-powercut");
     let log: PathBuf = root.join("log");
     std::fs::create_dir_all(&log).expect("dir");
-    commit_state_log::append(&log, 1, b"one").expect("append");
-    commit_state_log::rotate(&log, 2, b"the checkpoint document").expect("rotate");
-    commit_state_log::complete_rotation(&log).expect("durable checkpoint");
+    state_append(&log, 1, b"one").expect("append");
+    commit_state_log::StateWriter::acquire(&log).expect("writer").checkpoint(2, b"the checkpoint document", &[]).expect("durable checkpoint");
     let durable: u64 = std::fs::metadata(log.join("state.log.2")).expect("size").len();
     for generation in 3..6 {
-        commit_state_log::append(&log, generation, b"unsynced transition").expect("append");
+        state_append(&log, generation, b"unsynced transition").expect("append");
     }
     let bytes: Vec<u8> = std::fs::read(log.join("state.log.2")).expect("read");
     std::fs::write(log.join("state.log.2"), &bytes[..durable as usize + 7]).expect("the power cut tears the first unsynced record");
@@ -181,7 +185,7 @@ fn a_departure_forces_the_whole_closure_including_state_names_order_and_ledger()
     let (request, new_files, old_files) = one_path_request();
     accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
     let state: PathBuf = lane.join("state");
-    commit_state_log::append(&state, 1, b"adopted").expect("append");
+    state_append(&state, 1, b"adopted").expect("append");
     let order: PathBuf = lane.join("queue").join("order");
     std::fs::write(&order, b"adopt line
 ").expect("order");
@@ -211,10 +215,10 @@ fn a_departure_forces_the_whole_closure_including_state_names_order_and_ledger()
 #[test]
 fn the_state_log_requires_increasing_generations() {
     let dir: PathBuf = scratch("v-generations");
-    commit_state_log::append(&dir, 5, b"five").expect("append");
-    assert!(commit_state_log::append(&dir, 5, b"again").is_err());
-    assert!(commit_state_log::append(&dir, 4, b"older").is_err());
-    commit_state_log::append(&dir, 6, b"six").expect("append");
+    state_append(&dir, 5, b"five").expect("append");
+    assert!(state_append(&dir, 5, b"again").is_err());
+    assert!(state_append(&dir, 4, b"older").is_err());
+    state_append(&dir, 6, b"six").expect("append");
 }
 
 /// The inbox directory whose temporary name the fault point below turns into a directory.
@@ -299,10 +303,110 @@ fn a_read_failure_at_the_target_is_not_taken_for_absence() {
 fn a_departure_accepts_bare_relative_order_and_ledger_names() {
     let root: PathBuf = scratch("v-relative");
     let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
-    commit_state_log::append(&lane.join("state"), 1, b"adopted").expect("append");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
     std::fs::write(lane.join("order"), b"adopt line\n").expect("order");
     std::fs::write(lane.join("ledger"), b"ledger line\n").expect("ledger");
     std::env::set_current_dir(&lane).expect("enter the lane");
     depart_closure(&lane.join("inbox"), &[], Some(std::path::Path::new("order")), &lane.join("state"), Some(std::path::Path::new("ledger")))
         .expect("bare relative names");
+}
+
+/// Review 7, 4.3 and 3.4: when the link finds the name and the read of the final then fails, the request may be in place and its status is
+/// unknown: `StatusUnknown`, never a plain error that reads as "not accepted". The pause at `accept:before-link` makes the directory
+/// appear at the target after the early read and before the link.
+#[test]
+fn a_link_that_finds_the_name_and_cannot_read_it_reports_an_unknown_status() {
+    static TARGET: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+    fn occupy(point: &str) {
+        if point == "accept:before-link" {
+            let target: PathBuf = TARGET.lock().expect("lock").clone().expect("target");
+            std::fs::create_dir(&target).expect("occupy the name with a directory");
+        }
+    }
+    let root: PathBuf = scratch("v-status-unknown");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    *TARGET.lock().expect("lock") = Some(lane.join("inbox").join(&request.id));
+    set_fault_point(Some(occupy));
+    let outcome = accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files);
+    set_fault_point(None);
+    assert!(matches!(outcome, Err(git_policy_cli::commit_inbox::InboxError::StatusUnknown(_))), "{:?}", outcome);
+}
+
+/// Review 7, 3.4: the early-error path writes no temporary file. The regression is observed by whether the pre-link point is reached
+/// (the old path reached it), with a positive control that a fresh acceptance does reach it.
+#[test]
+fn an_early_read_failure_never_reaches_the_link_and_a_fresh_acceptance_does() {
+    static REACHED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    fn count(point: &str) {
+        if point == "accept:before-link" {
+            REACHED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let root: PathBuf = scratch("v-early-failure");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    set_fault_point(Some(count));
+    std::fs::create_dir(lane.join("inbox").join(&request.id)).expect("a directory at the target");
+    assert!(accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).is_err());
+    assert_eq!(REACHED.load(std::sync::atomic::Ordering::SeqCst), 0, "the early failure reached the link");
+    std::fs::remove_dir(lane.join("inbox").join(&request.id)).expect("clear");
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("fresh");
+    set_fault_point(None);
+    assert_eq!(REACHED.load(std::sync::atomic::Ordering::SeqCst), 1, "the positive control: a fresh acceptance reaches the link");
+}
+
+/// Review 7, 4.4: a torn final is `DamagedFinal` (not `Conflict`), `quarantine_damaged` keeps its bytes aside, and the resend is then
+/// accepted. A file that decodes is never moved.
+#[test]
+fn a_torn_final_is_quarantined_and_the_resend_is_accepted() {
+    let root: PathBuf = scratch("v-torn-final");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let inbox: PathBuf = lane.join("inbox");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&inbox, INSTANCE, &request, &new_files, &old_files).expect("accept");
+    let whole: Vec<u8> = std::fs::read(inbox.join(&request.id)).expect("read");
+    assert!(git_policy_cli::commit_inbox::quarantine_damaged(&inbox, &request.id).is_err(), "a decoding file is not moved");
+    std::fs::write(inbox.join(&request.id), &whole[..whole.len() / 2]).expect("tear");
+    assert!(matches!(accept(&inbox, INSTANCE, &request, &new_files, &old_files), Err(git_policy_cli::commit_inbox::InboxError::DamagedFinal)));
+    let moved: PathBuf = git_policy_cli::commit_inbox::quarantine_damaged(&inbox, &request.id).expect("quarantine");
+    assert_eq!(std::fs::read(&moved).expect("kept"), whole[..whole.len() / 2].to_vec());
+    assert_eq!(accept(&inbox, INSTANCE, &request, &new_files, &old_files).expect("resend"), Accepted::Created);
+}
+
+/// Review 7, 2.5 and 3.2: a departure bound to a disposition forces the stop receipt first and alone, then the request, the saved content
+/// the exit names, and (with an anchor) the chain above each parent.
+#[test]
+fn a_departure_forces_the_stop_first_and_alone_then_the_closure_and_the_ancestry() {
+    let root: PathBuf = scratch("v-departure");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    let decision: PathBuf = lane.join("decision");
+    std::fs::create_dir(&decision).expect("decision directory");
+    let mark: PathBuf = decision.join("mark");
+    std::fs::write(&mark, b"").expect("the empty mark file");
+    let saved: PathBuf = lane.join("saved-commit");
+    std::fs::write(&saved, b"objects").expect("saved");
+    start_events();
+    git_policy_cli::commit_inbox::Departure {
+        inbox: &lane.join("inbox"),
+        ids: std::slice::from_ref(&request.id),
+        order: None,
+        state_dir: &lane.join("state"),
+        ledger: None,
+        stop: Some(&mark),
+        closure: &[saved.as_path()],
+        anchor: Some(&root),
+    }
+    .run()
+    .expect("departure");
+    let events: Vec<String> = take_events();
+    assert_eq!(events[0], format!("file-sync:{}", mark.display()), "the stop receipt is forced first");
+    assert_eq!(events[1], format!("dir:{}", decision.display()), "and alone with its own directory entry");
+    let request_sync: usize = events.iter().position(|event| { return event.starts_with("file-sync:") && event.ends_with(&request.id); }).expect("request");
+    let saved_sync: usize = events.iter().position(|event| { return event == &format!("file-sync:{}", saved.display()); }).expect("saved content");
+    assert!(2 <= request_sync && request_sync < saved_sync, "{:?}", events);
+    assert!(events.iter().any(|event| { return *event == format!("dir:{}", root.display()); }), "the ancestry reaches the anchor");
 }

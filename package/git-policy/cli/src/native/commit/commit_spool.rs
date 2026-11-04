@@ -16,7 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_chain, sync_directory, sync_file, temporary_name};
+use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::Request;
 
@@ -138,7 +138,7 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
     // A failed cleanup after a successful link does not make the file absent; only the stale temporary name remains.
     let cleanup: io::Result<()> = fs::remove_file(&temporary);
     if let Err(cleanup_error) = &cleanup {
-        record_event(&format!("spool:cleanup-failed:{:?}", cleanup_error.kind()));
+        record_event_lazy(|| { return format!("spool:cleanup-failed:{:?}", cleanup_error.kind()); });
     }
     match linked {
         Ok(()) => return Ok(()),

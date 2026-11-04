@@ -14,8 +14,23 @@
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{start_events, take_events};
 use git_policy_cli::commit_identity::set_fault_point;
-use git_policy_cli::commit_state_log::{Prefix, StateError, StateWriter, append, complete_rotation, read, rotate, rotation_number, sync_prefix};
+use git_policy_cli::commit_state_log::{Candidate, Prefix, StateError, StateWriter, read, rotation_number, sync_prefix};
 use std::path::PathBuf;
+
+/// Appends as the state's writer (the only way to mutate the log).
+fn append(dir: &std::path::Path, generation: u64, payload: &[u8]) -> std::io::Result<()> {
+    return StateWriter::acquire(dir)?.append(generation, payload);
+}
+
+/// Starts a checkpoint as the writer.
+fn rotate(dir: &std::path::Path, generation: u64, document: &[u8]) -> std::io::Result<Candidate> {
+    return StateWriter::acquire(dir)?.begin_checkpoint(generation, document);
+}
+
+/// Completes `candidate` as the writer, with no external dependency.
+fn finish(dir: &std::path::Path, candidate: &Candidate) -> std::io::Result<()> {
+    return StateWriter::acquire(dir)?.complete_checkpoint(candidate, &[]);
+}
 
 /// The number of syncs in `events`.
 fn syncs(events: &[String]) -> usize {
@@ -70,7 +85,8 @@ fn a_rotation_interrupted_at_each_step_keeps_a_valid_log() {
     let dir: PathBuf = scratch("log-rotate");
     append(&dir, 1, b"first").expect("append");
     append(&dir, 2, b"second").expect("append");
-    assert_eq!(rotate(&dir, 3, b"the whole document").expect("rotate"), 2);
+    let candidate: Candidate = rotate(&dir, 3, b"the whole document").expect("rotate");
+    assert_eq!(candidate.number, 2);
     let new_path: PathBuf = dir.join("state.log.2");
     let complete: Vec<u8> = std::fs::read(&new_path).expect("read");
     for cut in 0..complete.len() {
@@ -81,7 +97,7 @@ fn a_rotation_interrupted_at_each_step_keeps_a_valid_log() {
     assert_eq!(read(&dir).expect("readable").expect("new log"), (3, b"the whole document".to_vec()));
     assert!(dir.join("state.log.1").exists(), "the old file stays until the new one is durable");
     start_events();
-    complete_rotation(&dir).expect("complete");
+    finish(&dir, &candidate).expect("complete");
     let events: Vec<String> = take_events();
     assert_eq!(
         events,
@@ -145,11 +161,11 @@ fn a_torn_newest_file_still_falls_back_to_the_previous_one() {
 fn completion_refuses_a_torn_candidate_and_keeps_the_older_root() {
     let dir: PathBuf = scratch("log-torn-candidate");
     append(&dir, 1, b"first").expect("append");
-    rotate(&dir, 2, b"the checkpoint").expect("rotate");
+    let candidate: Candidate = rotate(&dir, 2, b"the checkpoint").expect("rotate");
     let full: Vec<u8> = std::fs::read(dir.join("state.log.2")).expect("read");
     for cut in 0..full.len() {
         std::fs::write(dir.join("state.log.2"), &full[..cut]).expect("a failed rotation left a partial candidate");
-        assert!(complete_rotation(&dir).is_err(), "cut {}", cut);
+        assert!(finish(&dir, &candidate).is_err(), "cut {}", cut);
         assert!(dir.join("state.log.1").exists(), "cut {}", cut);
         assert_eq!(read(&dir).expect("readable").expect("older root"), (1, b"first".to_vec()), "cut {}", cut);
     }
@@ -162,7 +178,7 @@ fn a_checkpoint_of_an_older_generation_is_refused() {
     append(&dir, 10, b"ten").expect("append");
     assert!(rotate(&dir, 9, b"nine").is_err());
     assert_eq!(rotation_number(&dir).expect("listing"), Some(1));
-    assert_eq!(rotate(&dir, 10, b"ten again, as a checkpoint").expect("the same generation may be preserved"), 2);
+    assert_eq!(rotate(&dir, 10, b"ten").expect("the same document may be preserved at its generation").number, 2);
 }
 
 /// Review 6, 2.1: an older file holding a newer generation than the candidate is kept (completion refuses): the candidate would be a
@@ -176,7 +192,7 @@ fn completion_keeps_an_older_file_that_holds_a_newer_generation() {
     append(&other, 10, b"ten").expect("append");
     std::fs::copy(other.join("state.log.1"), dir.join("state.log.2")).expect("a candidate that holds only generation ten");
     assert_eq!(read(&dir).expect("readable").expect("the newer generation is the root").0, 11, "recovery does not roll back to the candidate");
-    assert!(complete_rotation(&dir).is_err());
+    assert!(finish(&dir, &Candidate { number: 2, generation: 10, hash: String::new() }).is_err());
     assert!(dir.join("state.log.1").exists() && dir.join("state.log.2").exists());
 }
 
@@ -227,7 +243,7 @@ fn one_writer_owns_the_state_and_a_checkpoint_does_not_lose_later_appends() {
     assert_eq!(StateWriter::acquire(&dir).expect_err("a second writer").kind(), std::io::ErrorKind::WouldBlock);
     writer.append(1, b"one").expect("append");
     writer.append(2, b"two").expect("append");
-    assert_eq!(writer.checkpoint(2, b"the document at two").expect("checkpoint"), 2);
+    assert_eq!(writer.checkpoint(2, b"two", &[]).expect("checkpoint"), 2);
     writer.append(3, b"three").expect("append after the cutover");
     assert!(!dir.join("state.log.1").exists());
     assert_eq!(read(&dir).expect("readable").expect("state"), (3, b"three".to_vec()));
@@ -252,4 +268,76 @@ fn a_length_field_near_the_maximum_is_damage_not_a_panic() {
     let header: String = format!("rec 1 {} {}\n", "0".repeat(64), usize::MAX);
     std::fs::write(dir.join("state.log.1"), header.as_bytes()).expect("write");
     assert!(matches!(read(&dir), Err(StateError::Damaged)));
+}
+
+/// Review 7, 2.2: a checkpoint at the log's own generation must hold the log's document; another document at one generation would make two
+/// roots, and recovery refuses to pick one (`Conflict`) when two valid files disagree.
+#[test]
+fn two_documents_at_one_generation_are_a_conflict_not_a_root() {
+    let dir: PathBuf = scratch("log-same-generation");
+    append(&dir, 5, b"five").expect("append");
+    assert!(rotate(&dir, 5, b"a different document").is_err());
+    let other: PathBuf = scratch("log-same-generation-other");
+    append(&other, 5, b"another five").expect("append");
+    std::fs::copy(other.join("state.log.1"), dir.join("state.log.2")).expect("a second valid file at the same generation");
+    assert!(matches!(read(&dir), Err(StateError::Conflict)));
+    assert!(append(&dir, 6, b"six").is_err(), "nothing is appended beside a conflict");
+}
+
+/// Review 7, 3.2: the highest possible segment number neither panics nor wraps; the checkpoint is refused and nothing is removed.
+#[test]
+fn an_exhausted_segment_number_is_an_error_not_a_wrap() {
+    let dir: PathBuf = scratch("log-number-overflow");
+    append(&dir, 1, b"first").expect("append");
+    std::fs::rename(dir.join("state.log.1"), dir.join(format!("state.log.{}", u64::MAX))).expect("rename to the largest number");
+    assert!(rotate(&dir, 2, b"second").is_err());
+    assert_eq!(read(&dir).expect("readable").expect("state"), (1, b"first".to_vec()));
+}
+
+/// Review 7, 3.1: the writer stores its directory absolute, so a later change of the working directory leaves it writing under the lock.
+#[test]
+fn a_writer_keeps_its_directory_when_the_working_directory_changes() {
+    let dir: PathBuf = scratch("log-absolute");
+    let relative: PathBuf = dir.strip_prefix(std::env::current_dir().expect("cwd")).map(PathBuf::from).unwrap_or_else(|_| { return dir.clone(); });
+    let mut writer: StateWriter = StateWriter::acquire(&relative).expect("acquire");
+    std::env::set_current_dir(&dir).expect("move away");
+    writer.append(1, b"one").expect("append");
+    assert_eq!(read(&dir).expect("readable").expect("state"), (1, b"one".to_vec()));
+}
+
+/// Review 7, 4.6: a FIFO at the writer's lock path is refused at once; the open that would block before `try_lock` is never made. The
+/// call runs on a thread and the test waits for it with a deadline, so a regression fails instead of hanging.
+#[test]
+fn a_fifo_at_the_lock_path_is_refused_without_blocking() {
+    let dir: PathBuf = scratch("log-fifo-lock");
+    let path = std::ffi::CString::new(dir.join("state.writer").to_string_lossy().as_bytes()).expect("path");
+    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode; the path outlives the call.
+    assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let worker_dir: PathBuf = dir.clone();
+    std::thread::spawn(move || { let _ = sender.send(StateWriter::acquire(&worker_dir).map(|_| ())); });
+    let outcome = receiver.recv_timeout(std::time::Duration::from_secs(5)).expect("acquire returned within the deadline");
+    assert!(outcome.is_err());
+}
+
+/// Review 7, 2.3: completion forces the live external dependency its document names before it removes the older root, and refuses (older
+/// files kept) when the dependency is missing.
+#[test]
+fn a_checkpoint_forces_its_live_dependencies_first_and_refuses_a_missing_one() {
+    let dir: PathBuf = scratch("log-dependency");
+    let inbox: PathBuf = scratch("log-dependency-inbox");
+    let request: PathBuf = inbox.join("request-file");
+    std::fs::write(&request, b"the request the document names").expect("write");
+    append(&dir, 1, b"first").expect("append");
+    let mut writer: StateWriter = StateWriter::acquire(&dir).expect("writer");
+    let missing: Candidate = writer.begin_checkpoint(2, b"document naming a request").expect("begin");
+    let absent: PathBuf = inbox.join("not-there");
+    assert!(writer.complete_checkpoint(&missing, &[absent.as_path()]).is_err());
+    assert!(dir.join("state.log.1").exists(), "the older root stays when a live dependency is missing");
+    start_events();
+    writer.complete_checkpoint(&missing, &[request.as_path()]).expect("complete");
+    let events: Vec<String> = take_events();
+    let dependency_sync: usize = events.iter().position(|event| { return event == &format!("file-sync:{}", request.display()); }).expect("the dependency was forced");
+    let removal: usize = events.iter().position(|event| { return event.starts_with("remove:"); }).expect("the older file was removed");
+    assert!(dependency_sync < removal, "{:?}", events);
 }

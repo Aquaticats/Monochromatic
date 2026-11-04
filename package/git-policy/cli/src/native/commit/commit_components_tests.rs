@@ -482,3 +482,37 @@ fn no_valid_line_is_longer_than_the_tail_window() {
     let too_long: LedgerEntry = LedgerEntry { time: "t".repeat(TIME_MAX + 1), ..longest };
     assert!(matches!(encode_line(&too_long), Err(LedgerError::InvalidField("time"))));
 }
+
+/// Review 7, 4.6: a FIFO at the ledger's owner-lock path is refused at once; the blocking open before `try_lock` is never made. A deadline
+/// on a worker thread turns a regression into a failure and not a hang.
+#[test]
+fn a_fifo_at_the_ledger_owner_lock_path_is_refused_without_blocking() {
+    let directory: PathBuf = scratch("ledger-fifo-lock");
+    let ledger: PathBuf = directory.join("ledger");
+    let lock = std::ffi::CString::new(format!("{}.owner", ledger.display())).expect("path");
+    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode; the path outlives the call.
+    assert_eq!(unsafe { libc::mkfifo(lock.as_ptr(), 0o600) }, 0);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || { let _ = sender.send(LedgerOwner::acquire(&ledger).map(|_| ())); });
+    let outcome = receiver.recv_timeout(std::time::Duration::from_secs(5)).expect("acquire returned within the deadline");
+    assert!(outcome.is_err());
+}
+
+/// Review 7, 4.1: a fresh lane has no parent for the owner lock; `acquire_in` makes the chain durable through the anchor first.
+#[test]
+fn a_fresh_lane_ledger_can_be_acquired_through_its_anchor() {
+    let root: PathBuf = scratch("ledger-fresh-lane");
+    let ledger: PathBuf = root.join("ledgers").join(identity('1')).join("ledger");
+    assert!(LedgerOwner::acquire(&ledger).is_err(), "without the parent the plain acquire fails");
+    let mut owner: LedgerOwner = LedgerOwner::acquire_in(&root, &ledger).expect("acquire through the anchor");
+    owner.append(&root, &ledger, &entry('1', "published")).expect("append");
+}
+
+/// Review 7, 4.6: a root spelled with a parent-directory component is refused before anything is created.
+#[test]
+fn a_root_with_a_parent_component_is_refused_before_creation() {
+    let parent: PathBuf = scratch("root-dotdot");
+    let spelled: PathBuf = parent.join("a").join("..").join("state");
+    assert!(git_policy_cli::commit_identity::init_root(&parent, &spelled).is_err());
+    assert!(!parent.join("a").exists() && !parent.join("state").exists());
+}
