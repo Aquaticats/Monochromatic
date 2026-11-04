@@ -346,6 +346,10 @@ Picked by the coordinator under the owner's delegation, veto open, 2026-11-03:
   exactly as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`, staging unchanged,
   lock given up, and the
   error names the step). Hooks are still never ended by the wrapper.
+  Amended 2026-11-04T09:35:19-05:00 by the owner ("Never cut a branch write (Recommended)"): the reference update, and every other
+  write in place that is not safe to run twice, has no ceiling; `REFERENCE_STEP_CEILING` and the read of the branch after an ended
+  update are gone (see "Branch write and tool ceilings, 2026-11-04T09:35:19-05:00" below). The reasoning above, that a hung
+  write holds the landing thread for good, is the con the owner accepted.
 - B: A, exempt: the wait for the person's own Git command and hooks is the person's, as with native Git.
 - C: B, 150 s as built.
 - D: A, the withdrawal at the lock ceiling as built.
@@ -355,3 +359,164 @@ Picked by the coordinator under the owner's delegation, veto open, 2026-11-03:
   progress now prints "The push is queued: the commit service keeps it in its retry plan and tries it again."
   (`PUSH_QUEUED_LINE`),
   and a test reads that line from the output.
+
+## Branch write and tool ceilings, 2026-11-04T09:35:19-05:00
+
+The owner answered two questions through the question tool on 2026-11-04.
+They amend the pick of option set A above (every step class has a ceiling, the reference update's being 60 seconds)
+and the outcome of pick 9 of `doc/planning/cli-git-shipped-limits-audit.md` (tools and checks end only on no progress).
+Paths are relative to `package/git-policy/cli`.
+
+### The owner's answers
+
+"Never cut a branch write (Recommended)".
+The option read:
+"Steps that can safely run twice keep their ceilings; the branch write is never ended.
+Your command still returns at its bound with "result not yet known" and the `git log -1` and side-ref hint
+(your "Short extra wait" answer).
+Con: a truly hung write keeps the service busy,
+and later commits fail at their own 20-minute ceiling with an error naming it."
+
+"Silence plus a ceiling (Recommended)".
+The option read:
+"Keep ending on silence, and add a generous overall ceiling per tool, measured from real runs,
+after which it's ended with an error naming the tool.
+Con: an extremely slow but working run on a huge repository can hit the ceiling."
+It covers the non-Git tools of `git worktree add` and the review: package repair, the Markdown linter,
+the standards-review call and the whole review.
+
+Also carried out, from the follow-up of pick 7 of the audit that was recorded and never run:
+`FOREIGN_OWNER_PATIENCE` is twice `LOCK_CEILING`, 20 minutes, derived in code (see the audit).
+
+### What changed for the branch write
+
+`REFERENCE_STEP_CEILING` (60 seconds) is deleted.
+`src/native/transaction/transaction_git.rs` `step_ceiling` returns no ceiling for a write in place that is not safe to run twice.
+That is `!may_be_rerun(request)` and a subcommand named in `WRITES_IN_PLACE`:
+`update-ref` (every form the landing uses, the move, the kept side ref and the deletion of the scratch branch),
+`reset`, `read-tree`, `update-index` and `add` on the real index (the same commands on a private index may be run twice
+and keep their ceiling), `checkout-index`, `clean`, `stash`, `merge`, `checkout`, `switch`, `restore` and the writes of `config`.
+Identified from `may_be_rerun` and `RERUNNABLE` (the code's own list of steps safe to run twice),
+from the Git subcommands the crate starts through `run_git` (a search of the callers' literal first arguments),
+and from the 2026-11-03 pick above, which named "a reference update, a commit Git builds" as the steps never ended for being quiet.
+Left out on purpose, so they keep the ceiling of their class:
+the readers `RERUNNABLE` does not name (`rev-list`, `merge-base`, `log`, `ls-tree`, `status`, `var`, `diff-files`, `check-attr`,
+`check-ignore`, `stripspace`, `fmt-merge-msg`), which change nothing,
+and the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`),
+whose second run writes the same content-addressed bytes and whose partial result no reference names.
+The landing's branch move no longer reads the branch after an ended update:
+that arm of `service_land.rs` is gone with the ceiling that produced it.
+
+What the clients are told, because the single landing thread also answers every withdrawal between two landings:
+
+- `src/native/service/service_busy.rs` is the shared record of what the landing thread is doing.
+  The Git runner writes into it when a step with no ceiling begins, and the landing adds what it knows
+  (the branch and commit the update moves, the scratch ref that holds the commit until the update ends).
+- After `NEVER_ENDED_STEP_SLOW_AFTER` (60 seconds, 17 times the longest of 2,093 reference updates, `ref_ms` 3,438 ms) the thread
+  that reads each connection sends a `waiting` message naming the write, again whenever the whole-minute count changes.
+  The client prints it, and keeps it as the blocker its error names (`StillWithService`, and now `WithdrawalUnconfirmed`).
+- A `withdraw` for a request that is not in the group being landed is answered by the connection thread
+  (`withdrawn`, or `landed` when the journal says so) while the record shows a stuck write;
+  the request is remembered and dropped when its group would begin, under the same lock that marks a group as in flight.
+  So a later commit ends at its own `ANSWER_CEILING` (20 minutes), not 10 minutes after it, and the error names the write.
+- The request inside the stuck write is not withdrawn that way:
+  its commit may be made by the write.
+  Its client waits `WITHDRAW_CEILING` (10 minutes) for the landing, then ends with the failure that says it is not known
+  whether the commit was made, names the write and the scratch ref, and gives `git log -1` and `git status`.
+- Protocol messages and the protocol version are unchanged.
+
+Tests (red first where the behavior existed):
+`a_branch_write_that_outlasts_the_step_ceiling_is_not_ended` (red at `afad55b58d`: `StepTooSlow`, the old arm ended the write at the
+shortened ceiling and withdrew the commit),
+`a_write_in_place_has_no_ceiling_and_every_other_step_keeps_one`, `a_shortened_ceiling_never_reaches_a_write_in_place`,
+`a_step_with_no_ceiling_is_waited_for_until_it_ends_by_itself`,
+the board's controls in `service_busy_tests.rs`,
+and in `landing/service_land_hung_write_tests.rs` two controls against a real `serve` with a Git whose `update-ref --stdin` waits for a
+release file: `a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_its_ceiling_naming_the_write`
+(shown to fail with the early answer disabled, in 49 s, then restored)
+and `the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_known_and_lands_when_the_write_returns`.
+The two controls that encoded the removed behavior (`a_reference_update_ended_after_it_renamed_the_branch_reports_landed`,
+`a_reference_update_ended_before_it_renamed_the_branch_withdraws_the_commit`) are deleted.
+
+### What changed for the tools
+
+Each tool keeps its silence window and gains a ceiling on its whole run.
+The windows are unchanged: the owner chose ceilings, not new windows.
+
+- `REPAIR_TOOL_CEILING` 18 minutes: `run_tool` ends the program with its whole process group
+  (`ToolEnd::CeilingReached`); the finding names the tool, what it was doing, the seconds, and the command to run by hand.
+  Test: `a_program_that_keeps_working_is_ended_at_its_ceiling_with_its_whole_process_group`
+  (red on the unfixed code, observed before the fix and committed with it in `95c46239e7`: the tool, which printed all the time, ran to its end, 20.2 s; the control also checks that a helper of the tool is gone).
+- `LINT_CEILING` 4 minutes: the Markdown check runs on a thread that cannot be stopped from outside,
+  so the ceiling abandons it, as the quiet window does, and the reason names the tool, the file and the ceiling.
+  Test: `a_job_that_keeps_working_is_abandoned_at_its_ceiling` (red at `af74896d85`: the guard never answered while the job worked, and the run was ended by the unit-test timeout at 120 s).
+- `REVIEW_CALL_CEILING` 1 minute: `ureq`'s `global` timeout; the sentence names the call, the ceiling and
+  `SHADOW_REVIEW_SHA=<commit> mise run shadow-review`.
+  Test: `a_reply_that_keeps_arriving_is_ended_at_the_ceiling` (red at `6f439cb4a1`: the reply was read whole).
+- `REVIEW_CEILING` 2 minutes: `run_contained` waited with `recv()` and no bound at all, so the local write of the log entry
+  was unjudged; it now stops waiting at the ceiling and the item fails with the sentence of `ceiling_reason`.
+  Test: `the_runner_stops_waiting_for_a_job_at_its_ceiling` (no red run: the old runner had no ceiling to test against,
+  and the control would have waited for ever).
+- The owner's message names a call window of 10 seconds and a review of 30 seconds.
+  The shipped values are a 10 second window in the service (`CALL_QUIET_WINDOW`) and 30 seconds as the script's default
+  (`SCRIPT_QUIET_WINDOW`), and the whole review had no deadline since pick 9, so the review's ceiling is new, not a replacement.
+
+### Measurements
+
+Read on 2026-11-04 between 09:00 and 09:35 (-05:00), read-only, on this host under the load it had
+(load average 3.7 on 28 threads at the start of the linter timing).
+The scripts are `/var/home/user/temp/agent/ceiling-measure/measure.ts`, `measure-lint.ts`, `quiet-names.ts` and `commits.ts`.
+
+- Worktree add timing log, `.git/cli-git-worktree-add-timing.jsonl`: 79 adds,
+  2026-11-03T08:55:46Z to 2026-11-04T13:53:17Z, releases 0.5.20 to 0.5.29; 69 records hold the per-tool `work` figures.
+  A stage is one `work` entry with its call count, so a figure with many calls is a total.
+  Longest stage: `repairPnpm` 53.1 s (one call), `repairToolchain` (`mpm-shadow install`) 30.0 s (one call),
+  `repairCargo` 211.2 s (the whole Cargo stage, which holds every `cargo metadata` and `cargo clean` of the add,
+  34 workspaces at most, so it bounds any one of them).
+  Longest add 539.7 s.
+- Quiet gaps of the add log (`quiet`, 12 records, resolution 500 ms): `cargo clean` 30.3 s, `mpm-shadow install` 7.6 s,
+  `cargo metadata` 0.5 s, `pnpm install` 0.5 s.
+  The 600 second window is 19.8 times the longest.
+  Too small a sample to change the window, and unchanged.
+- Commit timing logs (`cli-git-commit-timing.jsonl` and `.1`): 1,838 commits, longest `gateMs` 38,551 ms (99th percentile 943 ms),
+  longest `totalMs` 750,604 ms; quiet gap of the Markdown linter (`quietMs`, 116 records) at most 404 ms,
+  so the 60 second window is 149 times the longest.
+- The Markdown linter program on the four largest Markdown files of the repository (188 kB to 748 kB), five runs each,
+  through standard input, with and without `--fix`: 8 ms to 43 ms, run-to-run spread at most 25 ms (a cold first run).
+  This is the command-line program, not the thread the wrapper links; the gate figure is the one that covers the thread.
+- Standards-review log, `.git/cli-git/standards-review-shadow.md`: 1,598 calls to the decisions endpoint
+  (2026-10-31T01:38:57Z to 2026-11-04T13:57:13Z): median 0.9 s, 99th percentile 2.6 s, longest 9.8 s.
+  (20 older entries went through the `pi` route and took 48 s to 251 s; they are not this call.)
+- User journal, `review_ms` of 1,764 completed reviews (2026-11-01T12:19:57-05:00 to 2026-11-04T09:01:52-05:00):
+  median 668 ms, 99th percentile 2,351 ms, longest 18,208 ms.
+  Reference updates, 2,093 `answered` lines: `ref_ms` median 3 ms, 99th percentile 47 ms, longest 3,438 ms.
+- Margin: the smallest whole number of minutes that is at least five times the longest figure,
+  the factor `SERVICE_HOLD_CEILING` and `WITHDRAW_CEILING` use.
+  Repair: 5 times 211.2 s is 1,056 s, so 18 minutes.
+  Lint: 5 times 38.6 s is 192.8 s, so 4 minutes.
+  Call: 5 times 9.8 s is 49 s, so 1 minute.
+  Review: 5 times 18.2 s is 91 s, so 2 minutes.
+  The factor is the coordinator's reading of "generous", open to the owner's veto.
+- Limits of the sample: one repository, two days, warm package stores.
+  No `pnpm install` from an empty store was logged, so the repair ceiling is the one most likely to be reached by a first install of a
+  large dependency graph.
+  The linter and review samples hold small files; a very large Markdown file with many linked images, which the linter hashes, is not in them.
+
+### Left to the owner
+
+- The "Short extra wait" is not a separate constant in the shipped client.
+  What the shipped client does at its bound is withdraw, then wait `WITHDRAW_CEILING` (10 minutes) for the landing in progress,
+  then say that the result is not known.
+  A few seconds would need the service to tell the client that its own request is inside the branch write,
+  which is a new message and a protocol version.
+  Options: A, keep the 10 minutes, which waits out a slow but healthy landing (the longest landing in the journal is 119.8 s);
+  B, add the message and a measured constant (the longest branch write is 3.4 s, so 60 seconds would be 17 times it) for a request
+  that is inside the write only, keeping `WITHDRAW_CEILING` for every other case.
+  Ranking: B > A, because B is what the owner chose and A makes the person wait ten minutes for an answer that is already known;
+  B costs a protocol change, which A does not.
+- Whether a service stuck in a write should ever end itself so the manager restarts it, and recovery settles the batch.
+  A, never (built); B, after a long time, with recovery deciding by the branch.
+  Ranking: A > B, because ending the process ends the write in the middle, which is what the owner declined, and the error already
+  names the restart command for the person to run when no program uses the repository.
+- The readers `RERUNNABLE` does not name are not run again after a quiet window although they are safe to run twice.
+  Not changed here.

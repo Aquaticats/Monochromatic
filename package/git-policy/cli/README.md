@@ -1066,7 +1066,7 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
   query step,
    300 seconds for a bulk step; both unmeasured), and is quiet again when run a second time. A step that works is
    never ended
-   for being slow, and a step that may not be run twice (a reference update) is waited for.
+   for being slow, and a step that may not be run twice (a reference update) is waited for, with no end of its own: only you end it.
 - The commit service does not start: a start the manager reports as under way is waited for until `START_CEILING` (60
   seconds),
    a start it reports failed ends the wait at once ("commit service did not start"),
@@ -1339,12 +1339,20 @@ and the
 wrapper never waits without saying so. Every bound is in `src/native/service/wait_ceilings.rs` with its measurement,
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
-A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
-Every Git step the wrapper starts is ended at a ceiling of its class (reads 120 seconds, bulk steps 10 minutes,
-reference updates
-60 seconds) whatever it shows; a reference update ended after it renamed the branch reports the commit as landed,
-and one ended before
-it withdraws the commit as at the lock ceiling. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+A process that works is waited for until its ceiling; a quiet window ends a wait for quiet, a ceiling ends a wait for length, and
+the one step that is never ended is a write in place that is not safe to run twice.
+Every Git step the wrapper starts that can safely run twice, or only adds objects nothing refers to, is ended at a ceiling of
+its class (reads 120 seconds, bulk steps 10 minutes) whatever it shows. The steps that write your repository in place and are not
+safe to run twice have no ceiling: the branch write (`git update-ref`) above all, and the same kind of step on the real index, the
+worktree or the configuration (`reset`, `read-tree`, `update-index` and `add` without a private index, `checkout-index`, `clean`,
+`stash`, `merge`, `checkout`, `switch`, `restore`, `config` writes). The owner's answer of 2026-11-04: "Never cut a branch write
+(Recommended)", which read "Steps that can safely run twice keep their ceilings; the branch write is never ended. Your command
+still returns at its bound with "result not yet known" and the `git log -1` and side-ref hint. Con: a truly hung write keeps the
+service busy, and later commits fail at their own 20-minute ceiling with an error naming it." So a commit that waits behind a
+write that does not return is told what the service is stuck in after a minute (`NEVER_ENDED_STEP_SLOW_AFTER`), and is withdrawn at
+its own `ANSWER_CEILING` with an error that names the write and the way out (`journalctl`, and a restart of the service when no
+program uses the repository). The commit inside the stuck write waits `WITHDRAW_CEILING` more and then reports that it is not
+known whether it was made, with `git log -1`, `git status` and the write named. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
 the commit service's answer until `ANSWER_CEILING` (20 minutes),
 a start until `START_CEILING` (60 seconds), the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
 (10 minutes), and a push whose connection is open and silent until `CONNECTED_PUSH_QUIET_WINDOW` (150 seconds, then the
@@ -1380,15 +1388,23 @@ fractional or non-numeric value is ignored.
   Setting the variable gives every class the same window.
   A step that is safe to run twice and shows no sign of work for the window is ended and run once more;
    if it is quiet again, the command reports which step, its class, the window and how to go on.
-  A step that may not be run twice (a reference update, a commit Git builds) is announced and waited for as long as it
-  lives.
+  A step that may not be run twice and writes in place (a reference update above all) is announced and waited for as long as it
+  lives; it has no ceiling either.
   No hook of yours runs below a step the wrapper starts, and the stop never reaches a process beside the step.
 - The tools and checks that are not Git end on the same rule, with windows that are not measured:
    a package-manager tool of the worktree repair after 600 seconds with no sign of work (with its whole process group),
    the Markdown linter after 60 seconds in which its thread shows none,
    and the standards-review call after 10 seconds of silence on its connection (30 seconds for the script's default).
-  A tool that works, such as an install that downloads for a long time, is never reported as having run past a limit.
-  The 20 second budget around the whole review is gone.
+  Each also has a ceiling on its whole run, whatever it shows (owner, 2026-11-04: "Silence plus a ceiling (Recommended)", which
+   read "Keep ending on silence, and add a generous overall ceiling per tool, measured from real runs, after which it's ended with
+   an error naming the tool. Con: an extremely slow but working run on a huge repository can hit the ceiling."):
+   18 minutes for one repair tool (`REPAIR_TOOL_CEILING`, ended with its whole process group, and the line names the tool, what it
+   was doing and the command to run by hand), 4 minutes for the Markdown check of one file (`LINT_CEILING`, abandoned as a quiet one
+   is), 1 minute for the standards-review call (`REVIEW_CALL_CEILING`) and 2 minutes for the whole review of a commit
+   (`REVIEW_CEILING`, with the command `SHADOW_REVIEW_SHA=<commit> mise run shadow-review` that reviews it again).
+  Each ceiling is the smallest whole number of minutes that is at least five times the longest run measured on this host
+   (`src/native/service/wait_ceilings.rs` has the figures and the method).
+  The ceilings are not variables you can set.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints"),
