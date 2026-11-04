@@ -188,26 +188,6 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_stale_lock() {
     remove(root.as_path());
 }
 
-/// Allowed without the hold: a file system that gives no `flock` (the call fails with `ENOLCK`, as on a network file system
-///  that does not lock) still has its stale lock removed, so the commit does not fail for it; the log says the hold was missing.
-///  A hold another reclaimer has taken (`WouldBlock`) is the refused case (`a_reclaimer_that_backed_off_can_reclaim_once_the_hold_is_dropped`).
-#[test]
-fn a_file_system_with_no_flock_still_has_its_stale_lock_removed() {
-    let (root, index) = index_in("reclaim-no-flock");
-    let lock: PathBuf = lock_path_of(&index);
-    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
-    let tried = std::cell::Cell::new(0_usize);
-    let refusing = |_: &std::fs::File| -> std::io::Result<()> {
-        tried.set(tried.get() + 1);
-        return Err(std::io::Error::from_raw_os_error(libc::ENOLCK));
-    };
-    let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
-    assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed);
-    assert_eq!(tried.get(), 1, "the hold was asked for once");
-    assert!(!lock.exists());
-    remove(root.as_path());
-}
-
 /// The hold the platform reports as taken by another reclaimer is a back-off whatever the file system is.
 #[test]
 fn a_hold_reported_as_taken_by_another_reclaimer_is_a_back_off() {
@@ -218,5 +198,122 @@ fn a_hold_reported_as_taken_by_another_reclaimer_is_a_back_off() {
     let platform: Platform = Platform { flock: &held, ..SYSTEM };
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Busy);
     assert!(lock.exists());
+    remove(root.as_path());
+}
+
+/// A `flock` that fails for any reason but a hold by another reclaimer (no `flock` on the file system, `ENOLCK`) never has the
+///  stale lock removed: the unlink that follows the name check is not safe without the hold, because a second reclaimer without
+///  it could remove the stale lock and a live landing could place its own in between, and the unlink would remove that.
+#[test]
+fn a_failed_flock_never_has_the_stale_lock_removed() {
+    let (root, index) = index_in("reclaim-no-flock");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
+    let tried = std::cell::Cell::new(0_usize);
+    let refusing = |_: &std::fs::File| -> std::io::Result<()> {
+        tried.set(tried.get() + 1);
+        return Err(std::io::Error::from_raw_os_error(libc::ENOLCK));
+    };
+    let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
+    let outcome: Reclaimed = reclaim(&platform, &lock);
+    assert_ne!(outcome, Reclaimed::Removed, "the stale lock was removed without the hold");
+    assert_eq!(tried.get(), 1, "the hold was asked for once");
+    assert!(lock.exists(), "the stale lock stays");
+    remove(root.as_path());
+}
+
+/// A landing on a file system with no `flock` treats the stale lock as a held lock: it waits to its ceiling, withdraws the
+///  commit with the index in use, leaves the lock where it is, and tells the person which lock it is, whose batch and process
+///  left it, and how to remove it.
+#[test]
+fn a_landing_with_no_flock_waits_to_its_ceiling_and_names_the_stale_lock() {
+    let (root, index) = index_in("reclaim-landing-no-flock");
+    let lock: PathBuf = lock_path_of(&index);
+    let text: String = stale_lock_text(5);
+    std::fs::write(&lock, &text).expect("stale lock");
+    let refusing = |_: &std::fs::File| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(libc::ENOLCK)); };
+    let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
+    let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
+    let said = std::cell::RefCell::new(Vec::<String>::new());
+    let began: std::time::Instant = std::time::Instant::now();
+    let failure = acquire_within(&platform, &index, 9, ceiling, &|announce| {
+        if let Announce::Waiting(line) = announce {
+            said.borrow_mut().push(line);
+        }
+    })
+    .expect_err("the lock is not taken");
+    assert_eq!(failure.code, FailureCode::IndexInUse);
+    assert!(began.elapsed() >= ceiling, "the wait ended before its ceiling");
+    assert_eq!(std::fs::read_to_string(&lock).expect("the stale lock stays"), text);
+    let lines: String = said.borrow().join("\n");
+    assert!(lines.contains(lock.to_string_lossy().as_ref()), "the notice names the lock: {lines}");
+    assert!(lines.contains("remove it"), "the notice says how to remove it: {lines}");
+    assert!(lines.contains("batch 5"), "the notice names the batch that left it: {lines}");
+    remove(root.as_path());
+}
+
+/// A landing that meets a stale lock another reclaimer holds waits in the same acquisition and takes the lock once the hold is
+///  dropped without the file being unlinked: the hold leaves no event in the directory, so the wait looks again at the poll pace.
+#[test]
+fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_hold_is_dropped() {
+    let (root, index) = index_in("reclaim-landing-wakes");
+    let lock: PathBuf = lock_path_of(&index);
+    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
+    let hold: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 3;
+    let ceiling: std::time::Duration = hold * 40;
+    let (taken_tx, taken_rx) = std::sync::mpsc::channel::<()>();
+    let hook_lock: PathBuf = lock.clone();
+    let reclaimer = std::thread::spawn(move || {
+        let holding = std::fs::File::open(&hook_lock).expect("the other reclaimer's descriptor");
+        // SAFETY: `flock` takes an open descriptor, which `holding` keeps open for the call.
+        let taken: i32 = unsafe { libc::flock(std::os::fd::AsRawFd::as_raw_fd(&holding), libc::LOCK_EX | libc::LOCK_NB) };
+        assert_eq!(taken, 0, "the control plays the other reclaimer");
+        taken_tx.send(()).expect("the landing is waiting for the hold");
+        std::thread::sleep(hold);
+        drop(holding);
+    });
+    taken_rx.recv().expect("the hold is taken");
+    let holders = std::cell::RefCell::new(Vec::<String>::new());
+    let began: std::time::Instant = std::time::Instant::now();
+    let taken = acquire_within(&SYSTEM, &index, 9, ceiling, &|announce| {
+        if let Announce::Holder(who) = announce {
+            holders.borrow_mut().push(who);
+        }
+    })
+    .expect("the stale lock is reclaimed in the same acquisition once the hold is dropped");
+    assert!(began.elapsed() < ceiling, "the acquisition took the whole ceiling");
+    assert!(holders.borrow().is_empty(), "a held stale lock is no dead holder to give up on: {:?}", holders.borrow());
+    drop(taken);
+    reclaimer.join().expect("the other reclaimer ends");
+    remove(root.as_path());
+}
+
+/// The old sequence took a live lock aside by a rename, so the lock's name was empty for a while and Git could take it. The
+///  directory is watched while a reclaimer works on a live lock, and no event may name the lock: no rename, no removal, no
+///  creation. The scheduling is the kernel's own, so the control needs no hook inside the reclaimer and fails against the old
+///  sequence behind the same call.
+#[test]
+fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
+    let (root, index) = index_in("reclaim-live-no-event");
+    let lock: PathBuf = lock_path_of(&index);
+    let live = try_acquire(&index, 7).expect("the live holder places its lock");
+    // SAFETY: `inotify_init1` takes flags only.
+    let watch: i32 = unsafe { libc::inotify_init1(libc::IN_NONBLOCK | libc::IN_CLOEXEC) };
+    assert!(watch >= 0, "an inotify descriptor");
+    let directory = std::ffi::CString::new(std::os::unix::ffi::OsStrExt::as_bytes(root.as_os_str())).expect("a path");
+    let events: u32 = libc::IN_MOVED_FROM | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_CREATE;
+    // SAFETY: both arguments outlive the call.
+    let added: i32 = unsafe { libc::inotify_add_watch(watch, directory.as_ptr(), events) };
+    assert!(added >= 0, "a watch on the directory");
+    let _outcome = reclaim(&SYSTEM, &lock);
+    let mut buffer: Vec<u8> = vec![0; 4096];
+    // SAFETY: the buffer is writable for its whole length.
+    let read: isize = unsafe { libc::read(watch, buffer.as_mut_ptr().cast(), buffer.len()) };
+    // SAFETY: the descriptor was opened above and is closed once.
+    unsafe { libc::close(watch) };
+    let seen: String = if read > 0 { String::from_utf8_lossy(&buffer[..read as usize]).into_owned() } else { String::new() };
+    assert!(!seen.contains("index.lock"), "the live lock's name saw events: {seen:?}");
+    assert_eq!(std::fs::read_to_string(&lock).expect("the live lock stands"), marker_text(7, &crate::service_index_marker::own_identity).expect("this process has an identity"));
+    drop(live);
     remove(root.as_path());
 }
