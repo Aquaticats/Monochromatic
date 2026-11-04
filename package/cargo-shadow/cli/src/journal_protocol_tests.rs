@@ -934,9 +934,15 @@ fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
     // barriers of the new directory chain made before it do not do that.
     let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
     let events: RefCell<Vec<Event>> = RefCell::new(Vec::new());
+    // What each barrier's directory listed at the moment of the barrier (certification, second pass, K2): a barrier of a parent
+    // makes the entry of a new child durable only if the child already exists in it.
+    let listed: RefCell<Vec<(usize, PathBuf, Vec<String>)>> = RefCell::new(Vec::new());
     let record = |directory: &Path| -> std::io::Result<()> {
         synced.borrow_mut().push(directory.to_path_buf());
+        let position: usize = events.borrow().len();
         events.borrow_mut().push(Event::Barrier(directory.to_path_buf(), true));
+        let names: Vec<String> = fs::read_dir(directory).map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); }).unwrap_or_default();
+        listed.borrow_mut().push((position, directory.to_path_buf(), names));
         return Ok(());
     };
     let logging_link = |existing: &Path, new: &Path| -> std::io::Result<()> {
@@ -954,6 +960,27 @@ fn the_walk_stops_at_the_first_directory_that_existed_before_the_transaction() {
         log[preserved_at..].iter().any(|event| { return matches!(event, Event::Barrier(directory, true) if *directory == kept_dir || *directory == resolved_kept); }),
         "no successful barrier of the kept directory came after the link that preserved the file: {log:?}"
     );
+    // Each new child directory entry is published and then covered, before the file is linked into the kept directory, by a barrier of
+    // its parent that already lists it: `c` in the anchor, `d` in `c`. A parent that is synchronized only before the child exists
+    // leaves the child's entry unprotected, and the climb after the link is a second, separate protection.
+    let barriers = listed.borrow();
+    for (parent, child) in [(anchor.clone(), "c"), (anchor.join("c"), "d")] {
+        let resolved_parent: PathBuf = fs::canonicalize(&parent).expect("resolves");
+        assert!(
+            barriers.iter().any(|(position, directory, names)| { return *position < preserved_at && (*directory == parent || *directory == resolved_parent) && names.iter().any(|name| { return name == child; }); }),
+            "no barrier of {} came after {child} was created in it and before the link: {barriers:?}",
+            parent.display()
+        );
+    }
+    // The climb after the preservation link covers the kept directory and every new directory above it up to the anchor.
+    for needed in [kept_dir.clone(), anchor.join("c"), anchor.clone()] {
+        let resolved: PathBuf = fs::canonicalize(&needed).expect("resolves");
+        assert!(
+            log[preserved_at..].iter().any(|event| { return matches!(event, Event::Barrier(directory, true) if *directory == needed || *directory == resolved); }),
+            "no barrier of {} came after the link that preserved the file: {log:?}",
+            needed.display()
+        );
+    }
     let calls = synced.borrow();
     let resolved_anchor: PathBuf = fs::canonicalize(&anchor).expect("resolves");
     for needed in [kept_dir.clone(), anchor.join("c"), anchor.clone()] {
@@ -1394,7 +1421,10 @@ fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name
         let total: usize = *calls.borrow();
         total
     };
-    assert!(counted >= 4, "the chain should have several barriers: {counted}");
+    // Independent of the implementation's own count: the chain makes three new directories (b, c, d under the existing a), and each is
+    // synchronized itself and listed by a synchronized parent, before the kept file is linked and synchronized.
+    let new_directories: usize = 3;
+    assert!(counted >= 2 * new_directories, "the chain should have a barrier for each new directory and for its parent: {counted}");
     let mut reported_preserved: usize = 0;
     for failing in 0..counted {
         let root = repository("expected");
