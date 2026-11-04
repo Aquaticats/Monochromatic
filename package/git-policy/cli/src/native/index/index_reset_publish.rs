@@ -103,7 +103,10 @@ fn create_beside(steps: &Steps<'_>, target: &Path, shared: i32) -> std::io::Resu
             Err(error) => return Err(error),
         };
         if shared != 0 {
-            let changed: std::io::Result<()> = (steps.mode)(&file).and_then(|gits_file| { return (steps.chmod)(&file, shared_mode(shared, gits_file) & 0o7777); });
+            let changed: std::io::Result<()> = match (steps.mode)(&file) {
+                Ok(gits_file) => (steps.chmod)(&file, shared_mode(shared, gits_file) & 0o7777),
+                Err(error) => Err(error),
+            };
             if let Err(error) = changed {
                 let _removed = std::fs::remove_file(&temporary);
                 return Err(error);
@@ -148,7 +151,14 @@ fn write_all_with(steps: &Steps<'_>, file: &mut std::fs::File, bytes: &[u8]) -> 
 /// The input and output error of the step that failed.
 pub fn publish_with(steps: &Steps<'_>, target: &Path, bytes: &[u8], shared: i32) -> std::io::Result<()> {
     let (mut file, temporary) = create_beside(steps, target, shared)?;
-    let written: std::io::Result<()> = write_all_with(steps, &mut file, bytes).and_then(|()| { return (steps.sync)(&file); }).and_then(|()| { return (steps.rename)(&temporary, target); });
+    // Each step runs only when the one before it succeeded, as `and_then` did.
+    let mut written: std::io::Result<()> = write_all_with(steps, &mut file, bytes);
+    if written.is_ok() {
+        written = (steps.sync)(&file);
+    }
+    if written.is_ok() {
+        written = (steps.rename)(&temporary, target);
+    }
     if written.is_err() {
         let _removed = std::fs::remove_file(&temporary);
     }

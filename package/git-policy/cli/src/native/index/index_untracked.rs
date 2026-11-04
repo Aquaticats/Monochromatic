@@ -12,6 +12,7 @@
 //! cache.invalidatePath(path); // clears `valid` and the listing of each affected directory
 //! ```
 
+use crate::index_byte_search::first_index_of_byte;
 use crate::index_stat::StatData;
 
 /// The directory-flags bit that makes the cache list untracked directories as a whole (`DIR_SHOW_OTHER_DIRECTORIES`).
@@ -92,7 +93,7 @@ impl UntrackedDir {
 
     /// Invalidate along `path`; whether the parent directory must be invalidated too (`invalidate_one_component`).
     fn invalidate_component(&mut self, path: &[u8], show_other: bool, hash_length: usize) -> bool {
-        let Some(slash) = path.iter().position(|byte| { return *byte == b'/'; }) else {
+        let Some(slash) = first_index_of_byte(path, b'/') else {
             self.invalidate_one();
             return show_other;
         };

@@ -11,6 +11,7 @@
 //! const index: FullIndex | undefined = parseFullIndex(bytes, hashLength); // undefined: ask Git
 //! ```
 
+use crate::index_byte_search::first_index_of_byte;
 use crate::index_cache_tree::CacheTree;
 use crate::index_fsmonitor::{Fsmonitor, read_fsmonitor};
 use crate::index_resolve_undo::ResolveUndo;
@@ -120,12 +121,12 @@ fn read_entry(bytes: &[u8], at: usize, end: usize, version: u32, hash_length: us
         let (strip, after) = crate::index_stat::decode_varint(bytes.get(name_start..end)?)?;
         let keep: usize = previous.len().checked_sub(usize::try_from(strip).ok()?)?;
         let cursor: usize = end - after.len();
-        let terminator: usize = after.iter().position(|byte| { return *byte == 0; })?;
+        let terminator: usize = first_index_of_byte(after, 0)?;
         let mut joined: Vec<u8> = previous[..keep].to_vec();
         joined.extend_from_slice(&after[..terminator]);
         (joined, cursor + terminator + 1)
     } else {
-        let terminator: usize = bytes.get(name_start..end)?.iter().position(|byte| { return *byte == 0; })?;
+        let terminator: usize = first_index_of_byte(bytes.get(name_start..end)?, 0)?;
         (bytes[name_start..name_start + terminator].to_vec(), at.checked_add((head + terminator + 8) & !7)?)
     };
     // Only the intent-to-add and skip-worktree bits are defined, and Git canonicalizes other modes.
@@ -153,13 +154,18 @@ pub fn parse_full_index(bytes: &[u8], hash_length: usize) -> Option<FullIndex> {
     let mut entries: Vec<FullEntry> = Vec::with_capacity(count.min(1 << 20));
     let mut at: usize = HEADER_LENGTH;
     for _ in 0..count {
-        let previous: &[u8] = entries.last().map_or(&[], |entry| { return entry.path.as_slice(); });
+        let previous: &[u8] = match entries.last() {
+            Some(entry) => entry.path.as_slice(),
+            None => &[],
+        };
         let (entry, next) = read_entry(bytes, at, end, version, hash_length, previous)?;
         entries.push(entry);
         at = next;
     }
-    if entries.windows(2).any(|pair| { return (pair[0].path.as_slice(), pair[0].stage()) >= (pair[1].path.as_slice(), pair[1].stage()); }) {
-        return None;
+    for pair in entries.windows(2) {
+        if (pair[0].path.as_slice(), pair[0].stage()) >= (pair[1].path.as_slice(), pair[1].stage()) {
+            return None;
+        }
     }
     let mut index: FullIndex = FullIndex { version, entries, cache_tree: None, resolve_undo: None, untracked: None, fsmonitor: None };
     while at < end {

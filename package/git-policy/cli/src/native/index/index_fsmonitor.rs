@@ -11,6 +11,7 @@
 //! const { token, dirty } = readFsmonitor(bytes); const out = writeFsmonitor(token, dirtyPositions);
 //! ```
 
+use crate::index_byte_search::first_index_of_byte;
 use crate::index_ewah::Ewah;
 use crate::index_stat::be32;
 
@@ -37,7 +38,7 @@ pub fn read_fsmonitor(data: &[u8], entries: usize) -> Option<Fsmonitor> {
         let stamp: u64 = u64::from_be_bytes(data.get(4..12)?.try_into().ok()?);
         (stamp.to_string().into_bytes(), 12)
     } else if version == VERSION_TEXT_TOKEN {
-        let nul: usize = data.get(4..)?.iter().position(|byte| { return *byte == 0; })?;
+        let nul: usize = first_index_of_byte(data.get(4..)?, 0)?;
         (data[4..4 + nul].to_vec(), 4 + nul + 1)
     } else {
         return None;
