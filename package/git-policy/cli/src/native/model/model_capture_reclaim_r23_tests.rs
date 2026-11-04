@@ -139,6 +139,7 @@ fn without_the_non_drop_rule_a_returned_departure_loses_the_support_it_retained(
     let (message, trace) = red(Rules::NoNonDrop);
     assert!(message.contains("does not keep the support"), "{}", message);
     assert!(trace.iter().any(|label| { return label == DROPPING; }), "{:?}", trace);
+    assert!(!trace.iter().any(|label| { return label == REMOVES; }), "the counterexample needs no removal of the old segment: {:?}", trace);
 }
 
 /// The reclaimer removes the segment only after the candidate is durable: the control that removes it at once leaves a log with neither the

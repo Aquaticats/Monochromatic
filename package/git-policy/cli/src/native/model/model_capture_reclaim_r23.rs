@@ -13,6 +13,8 @@
 //!  unrelated to the record may legitimately supersede it (a later state) as long as it retains the support. Recapture gives progress before
 //!  the return; it does not preserve anything after it. What preserves after the return is the non-drop rule plus the durable publication of
 //!  the candidate and the forcing of the dependencies.
+//!  The support never undergoes an authorized removal in this model, although the component allows one (a disposal discharges saved content
+//!  with a ledger proof): that is the disposal model's business, and the two models are not composed.
 //!  Excluded on purpose, and covered elsewhere: more than one replacement of the segment (the component test
 //!  `an_acknowledgment_survives_two_successive_seals`), the interleavings of the file force and the directory force (the component tests
 //!  count and order the syncs), and a recapture budget larger than the model's.
@@ -60,10 +62,13 @@ pub enum Rules {
     /// Control, a combined weakening (it allows a return straight from the capture and replaces the confirmation against the selected root
     /// and the forcing by the visible cover): the departure returns without forcing anything.
     ReturnsOnVisibleCover,
-    /// Control: the departure confirms against the root a power loss would leave and not the root selected now, so it returns while an
-    /// unpublished unrelated candidate is already selected (review of step 2, part B).
+    /// Not an invariant-red control: the departure confirms against the root a power loss would leave and not the root selected now, so it
+    /// returns while an unpublished unrelated candidate is already selected. That candidate keeps the support, so no property is violated;
+    /// the control shows only that the model separates the two roots (the return is enabled here and not under the checked rule).
     ConfirmsAgainstDurableRoot,
-    /// Control: no non-drop rule: the reclaimer may write a candidate that drops the promised support, and the old segment goes after it.
+    /// Control: no non-drop rule, and nothing else changed (the removal rule is the checked one): the reclaimer may write a candidate that
+    /// drops the promised support. The counterexample needs no removal of the old segment: the durable candidate is the root and does not
+    /// keep the support.
     NoNonDrop,
     /// The departure has a single attempt: the bounded error exit is reachable (a positive control for it).
     OneAttempt,
@@ -289,8 +294,8 @@ fn reclaimer_steps(state: &State, found: &mut Vec<(String, State)>) {
     }
     let durable_candidate: bool = state.world.durable & CANDIDATE != 0 && state.world.durable & CANDIDATE_NAME != 0;
     let allowed: bool = match state.rules {
-        Rules::Checked | Rules::NoSubstitution | Rules::ReturnsOnVisibleCover | Rules::ConfirmsAgainstDurableRoot | Rules::OneAttempt => durable_candidate && state.candidate == Candidate::Descends,
-        Rules::ReclaimsAnyCandidate | Rules::NoNonDrop => durable_candidate,
+        Rules::Checked | Rules::NoSubstitution | Rules::ReturnsOnVisibleCover | Rules::ConfirmsAgainstDurableRoot | Rules::OneAttempt | Rules::NoNonDrop => durable_candidate && state.candidate == Candidate::Descends,
+        Rules::ReclaimsAnyCandidate => durable_candidate,
         Rules::RemovesBeforeCandidateDurable => state.candidate == Candidate::Descends,
     };
     if allowed && state.world.visible & REMOVED == 0 {

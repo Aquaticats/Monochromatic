@@ -49,6 +49,9 @@ pub enum Rules {
     RecheckOnly,
     /// Control: retirement of the request removes its saved content, with no authorization from the person.
     RetirementRemoves,
+    /// Control (review of step 2, part B): the checked skip rule is there but nothing serializes the seal with the disposal, so a seal that
+    /// began capturing before the line was appended publishes its earlier closure over the replacement root, which names the item again.
+    NoSerialization,
 }
 
 /// The model's state.
@@ -64,13 +67,19 @@ pub struct State {
     pub requested: bool,
     /// The owner read the current root before the unlink and found it without the item (the recheck of a stale token); a read, not a hold.
     pub checked: bool,
+    /// A seal has begun capturing and has not published (it holds the state writer under the serialized rules).
+    pub seal_in_flight: bool,
+    /// The seal's captured closure includes the item.
+    pub seal_saw_item: bool,
+    /// A disposal has appended its line and has not published its replacement root (it holds the state writer under the serialized rules).
+    pub disposal_in_flight: bool,
     /// Power losses so far.
     pub losses: u8,
 }
 
 /// The start state: the item is saved, the root names it, nothing is authorized.
 pub fn initial(rules: Rules) -> State {
-    return State { rules, world: World { visible: 0, durable: 0 }, authorized: false, requested: false, checked: false, losses: 0 };
+    return State { rules, world: World { visible: 0, durable: 0 }, authorized: false, requested: false, checked: false, seal_in_flight: false, seal_saw_item: false, disposal_in_flight: false, losses: 0 };
 }
 
 /// Whether recovery after a power loss has an eligible root: the old root is eligible only while the item's file exists, and the root
@@ -112,9 +121,11 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.requested = true;
         push_step(&mut found, "person: disposes of the saved content explicitly", after);
     }
-    if state.requested && state.world.visible & LINE == 0 {
+    let serialized: bool = state.rules != Rules::NoSerialization;
+    if state.requested && state.world.visible & LINE == 0 && !(serialized && state.seal_in_flight) {
         let mut after: State = state.clone();
         after.world = make_visible(after.world, LINE);
+        after.disposal_in_flight = true;
         push_step(&mut found, "owner: appends the disposed line to the ledger", after);
     }
     if state.world.visible & LINE != 0 && state.world.durable & LINE == 0 {
@@ -126,6 +137,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
     if line_ready && state.world.visible & DROPPED == 0 && state.world.visible & LINE != 0 {
         let mut after: State = state.clone();
         after.world = make_visible(after.world, DROPPED);
+        after.disposal_in_flight = false;
         push_step(&mut found, "owner: checkpoints a root that no longer names the item", after);
     }
     if state.world.visible & DROPPED != 0 && state.world.durable & DROPPED == 0 {
@@ -133,32 +145,46 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.world = sync(after.world, DROPPED);
         push_step(&mut found, "owner: forces the root without the item", after);
     }
-    // A seal captures the lane. The checked rule skips an item whose `disposed` line exists (the line is appended before the replacement
-    // root, so from then on no seal names the item); the controls do not.
-    let seal_sees_the_item: bool = match state.rules {
-        Rules::Ordered | Rules::RetirementRemoves | Rules::RemovesBeforeRootDurable | Rules::RemovesOnRootWithoutLineProof => state.world.visible & LINE == 0,
-        Rules::SealRescansRetired | Rules::RecheckOnly => true,
-    };
-    if seal_sees_the_item && state.world.visible & GONE == 0 && state.world.visible & DROPPED != 0 && state.world.visible & RETAINED == 0 {
+    // A seal captures the lane and publishes what it captured, in two steps. The checked rule skips an item whose `disposed` line exists
+    // (the line is appended before the replacement root, so from then on no seal captures the item); the serialization keeps a seal that
+    // began earlier from publishing after the line: the writer is held from the capture to the publication, by the seal and by the disposal.
+    let skips_disposed: bool = !matches!(state.rules, Rules::SealRescansRetired | Rules::RecheckOnly);
+    let sees_the_item: bool = !skips_disposed || state.world.visible & LINE == 0;
+    if !state.seal_in_flight && state.world.visible & GONE == 0 && !(serialized && state.disposal_in_flight) {
         let mut after: State = state.clone();
-        after.world = make_visible(after.world, RETAINED);
-        push_step(&mut found, "owner: a seal captures the lane and its root names the item again", after);
+        after.seal_in_flight = true;
+        after.seal_saw_item = sees_the_item;
+        push_step(&mut found, "owner: a seal starts capturing the lane", after);
     }
-    let recheck: bool = matches!(state.rules, Rules::Ordered | Rules::RetirementRemoves | Rules::RecheckOnly);
+    if state.seal_in_flight {
+        let mut after: State = state.clone();
+        after.seal_in_flight = false;
+        if state.seal_saw_item && state.world.visible & DROPPED != 0 && state.world.visible & RETAINED == 0 {
+            after.world = make_visible(after.world, RETAINED);
+            push_step(&mut found, "owner: the seal publishes a root that names the item again", after);
+        } else {
+            push_step(&mut found, "owner: the seal publishes a root", after);
+        }
+    }
+    let recheck_atomic: bool = matches!(state.rules, Rules::Ordered | Rules::RetirementRemoves | Rules::NoSerialization);
     let removal_gates: bool = match state.rules {
-        Rules::Ordered | Rules::RetirementRemoves | Rules::SealRescansRetired | Rules::RecheckOnly => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
+        Rules::Ordered | Rules::RetirementRemoves | Rules::SealRescansRetired | Rules::RecheckOnly | Rules::NoSerialization => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
         Rules::RemovesBeforeRootDurable => state.world.durable & LINE != 0,
         Rules::RemovesOnRootWithoutLineProof => state.world.durable & DROPPED != 0,
     };
     // The recheck is a read of the current root at one moment; the unlink is a later step, and a seal can publish between the two.
-    if recheck && removal_gates && !state.checked && state.world.visible & RETAINED == 0 && state.world.visible & GONE == 0 {
+    if state.rules == Rules::RecheckOnly && removal_gates && !state.checked && state.world.visible & RETAINED == 0 && state.world.visible & GONE == 0 {
         let mut after: State = state.clone();
         after.checked = true;
         push_step(&mut found, "owner: reads the current root before the unlink and finds it without the item", after);
     }
-    let removal_ready: bool = (!recheck || state.checked)
+    // Under the serialized rules the unlink holds the writer: no seal is between its capture and its publication, and the revalidation and
+    // the unlink are one step. Under `RecheckOnly` the read and the unlink are two steps with no hold between them.
+    let removal_ready: bool = (state.rules != Rules::RecheckOnly || state.checked)
+        && (!recheck_atomic || state.world.visible & RETAINED == 0)
+        && !(serialized && state.rules != Rules::RecheckOnly && state.seal_in_flight)
         && match state.rules {
-            Rules::Ordered | Rules::RetirementRemoves | Rules::SealRescansRetired | Rules::RecheckOnly => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
+            Rules::Ordered | Rules::RetirementRemoves | Rules::SealRescansRetired | Rules::RecheckOnly | Rules::NoSerialization => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
             Rules::RemovesBeforeRootDurable => state.world.durable & LINE != 0,
             Rules::RemovesOnRootWithoutLineProof => state.world.durable & DROPPED != 0,
         };
