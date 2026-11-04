@@ -79,14 +79,14 @@ const ACCEPTANCE: [(u8, &str, &str); 24] = [
     (2, "model_bound_r14_tests.rs", "exposure_before_the_client_lock_lets_the_owner_decide_a_live_command_as_clientless"),
     (3, "model_bound_r14_tests.rs", "fourteen_takes_the_lock_before_the_link_and_exits_on_both_sides_are_clean"),
     (4, "model_barrier_r13_tests.rs", "thirteen_a_timed_departure_can_lose_only_the_mark"),
-    (5, "model_barrier_r13_tests.rs", "fourteen_with_a_bounded_stop_has_the_stated_residue"),
+    (5, "model_barrier_r13_tests.rs", "fifteen_the_barrier_runs_to_completion_and_every_exit_keeps_its_stop"),
     (6, "model_pipe_r13_tests.rs", "no_writer_between_instructions_aborts_the_transaction_unless_the_owner_keeps_the_end"),
     (7, "model_pipe_r13_tests.rs", "failed_closing_writes_queue_nothing_and_an_abort_may_not_be_enqueued"),
     (8, "model_discharge_r14_tests.rs", "a_reclaimed_request_does_not_drop_the_later_adoption"),
     (9, "model_discharge_r14_tests.rs", "a_checkpoint_survives_the_deletion_of_its_predecessor"),
     (10, "commit_state_log_tests.rs", "one_writer_owns_the_state_and_a_checkpoint_does_not_lose_later_appends"),
     (11, "commit_state_log_tests.rs", "a_sync_acknowledges_only_the_captured_prefix"),
-    (12, "model_discharge_r14_tests.rs", "a_checkpoint_with_an_absent_transitive_dependency_is_not_trusted"),
+    (12, "model_discharge_r14_tests.rs", "a_checkpoint_before_its_live_dependency_is_not_a_root_and_the_predecessor_remains"),
     (13, "model_capture_r13_tests.rs", "a_mark_that_appears_between_the_samples_repeats_the_capture"),
     (14, "model_w1_r13_tests.rs", "a_late_positive_failure_after_the_unresolved_exit_records_withdrawn"),
     (15, "model_merge_r14_tests.rs", "a_plain_commit_of_an_old_based_edit_keeps_the_merge_change"),
@@ -98,8 +98,15 @@ const ACCEPTANCE: [(u8, &str, &str); 24] = [
     (21, "model_barrier_r13_tests.rs", "thirteen_a_named_commit_whose_parent_was_not_forced_is_lost"),
     (22, "model_w1_r13_tests.rs", "a_query_during_the_unresolved_mark_never_says_nothing_can_land"),
     (0, "model_watch_r13_tests.rs", "the_watch_is_checked_for_every_answer_of_the_open_questions"),
-    (0, "model_barrier_r13_tests.rs", "fourteen_with_a_background_stop_gives_up_the_power_cut_protection"),
+    (0, "model_register_r13_tests.rs", "fifteen_every_entry_is_bounded_except_the_final_save_which_is_exempt_by_decision"),
 ];
+
+/// Without the seams feature the state-log controls would be listed and never run, so the manifest refuses that configuration.
+#[cfg(not(feature = "test-seams"))]
+#[test]
+fn the_acceptance_manifest_needs_the_seams_feature() {
+    panic!("the acceptance manifest is checked only in the configuration that runs its controls (--features test-seams)");
+}
 
 /// Every control of the manifest has a test of that name in the file named (control 0 rows are the owner-question matrices).
 #[test]

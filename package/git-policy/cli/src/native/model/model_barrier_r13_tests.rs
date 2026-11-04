@@ -61,17 +61,19 @@ fn thirteen_a_named_commit_whose_parent_was_not_forced_is_lost() {
     assert!(fourteen.violation.is_none() && fourteen.exhausted);
 }
 
-/// Revision 14 with question 6a answered B (the stop is waited for without a limit): green for every scenario. This is one answer's
+/// Historical control (owner decision 14 supersedes question 6a): revision 14 with question 6a answered B (the stop is waited for without a limit): green for every scenario. This is one answer's
 /// result, not the design's; the other answers follow.
 #[test]
 fn fourteen_with_an_unbounded_stop_keeps_every_promise() {
-    for (index, scenario) in SCENARIOS.iter().enumerate() {
+    // The terminal ledger line depends on the log record that names it, so "the stop forced first and alone" is not enough for those
+    // exits: they are the reason decision 14 asks for the complete barrier, and they are outside this historical option's claim.
+    for (index, scenario) in SCENARIOS.iter().enumerate().filter(|(_, scenario)| { return scenario.stop & crate::model_barrier_r13::LEDGER_LINE == 0; }) {
         let report: Report = check(Rules::Fourteen(StopPolicy::Unbounded), index);
         assert!(report.violation.is_none() && report.exhausted, "{}: {:?}", scenario.name, report.violation.map(|found| { return found.message; }));
     }
 }
 
-/// Question 6a answered A (wait up to `WAIT_STOP`, then leave and say the stop is not confirmed): every scenario without a stop is green,
+/// Historical control: question 6a answered A (wait up to `WAIT_STOP`, then leave and say the stop is not confirmed): every scenario without a stop is green,
 /// and the scenarios with a stop have exactly the residue the question states, a power loss inside the window loses the mark. The
 /// residue is shown reachable; the model does not call it green and does not call the answer chosen.
 #[test]
@@ -88,7 +90,7 @@ fn fourteen_with_a_bounded_stop_has_the_stated_residue() {
     }
 }
 
-/// Question 6a answered C (the background forces the stop; the command does not): red for the scenarios with a stop, which is the
+/// Historical control: question 6a answered C (the background forces the stop; the command does not): red for the scenarios with a stop, which is the
 /// option's stated cost ("gives up the power-cut protection of the stop").
 #[test]
 fn fourteen_with_a_background_stop_gives_up_the_power_cut_protection() {
@@ -173,7 +175,7 @@ fn a_terminal_outcome_is_reported_only_when_its_line_and_entry_are_durable() {
         &["client: writes the next fact", "client: writes the next fact", "client: the departure bound passed; answers saved and not confirmed", "environment: power is lost"],
     );
     assert_eq!(unconfirmed.answer, Answer::NotConfirmed);
-    assert_eq!(invariant(&unconfirmed), None, "an unconfirmed answer promises nothing");
+    assert!(invariant(&unconfirmed).is_some_and(|message| { return message.contains("stop disposition"); }), "an unconfirmed answer still forbids a new attempt, so the terminal line must survive");
 }
 
 /// F7 reopened against the inbox file: client A links `inbox/<id>` (visible, not durable), client B sends the same bytes, its link finds
@@ -182,10 +184,62 @@ fn a_terminal_outcome_is_reported_only_when_its_line_and_entry_are_durable() {
 #[test]
 fn a_resend_that_finds_the_file_linked_must_still_force_it_before_it_promises() {
     let resend: usize = SCENARIOS.iter().position(|scenario| { return scenario.name.starts_with("a resend that finds"); }).expect("the scenario");
-    let skips: Report = check(Rules::SkipsExisting, resend);
-    assert!(skips.violation.is_some(), "skipping the existing record loses the request at a power loss");
-    let twelve: Report = check(Rules::Twelve, resend);
-    assert!(twelve.violation.is_some());
-    let thirteen: Report = check(Rules::Thirteen, resend);
-    assert!(thirteen.violation.is_none() && thirteen.exhausted, "{:?}", thirteen.violation.map(|found| { return found.message; }));
+    let skips: Report = check(Rules::FifteenSkipsExisting, resend);
+    let violation = skips.violation.expect("skipping the existing record loses the request at a power loss");
+    assert!(violation.message.contains("promise"), "the loss is the saved request and not the stop: {}", violation.message);
+    assert!(check(Rules::Twelve, resend).violation.is_some());
+    assert!(check(Rules::Thirteen, resend).violation.is_some(), "revision 13's timed exit also loses the stop");
+    let fifteen: Report = check(Rules::Fifteen, resend);
+    assert!(fifteen.violation.is_none() && fifteen.exhausted, "{:?}", fifteen.violation.map(|found| { return found.message; }));
+}
+
+/// Owner decision 14 ("Assume the final disk save would never be cut short."), the current rule: the departure barrier runs to completion
+/// for every scenario, the stop receipt first and alone, and the command answers only when every applicable fact is durable. Green over every
+/// interleaving of writes, write-back and one power loss, including the terminal exits and the resend whose dispositions also forbid a new
+/// attempt. The green rests on the stated assumption that a sync always completes; a sync that never completes is an outside cause and is not a
+/// step the command can take.
+#[test]
+fn fifteen_the_barrier_runs_to_completion_and_every_exit_keeps_its_stop() {
+    for (index, scenario) in SCENARIOS.iter().enumerate() {
+        let report: Report = check(Rules::Fifteen, index);
+        assert!(report.violation.is_none() && report.exhausted, "{}: {:?}", scenario.name, report.violation.map(|found| { return found.message; }));
+    }
+}
+
+/// Decision 14 also means the model offers no timed exit: in no state of any scenario does the command have a step that answers "not
+/// confirmed" (the historical escape exists under the earlier rules, so the absence is shown against them).
+#[test]
+fn fifteen_offers_no_timed_exit_where_the_earlier_rules_do() {
+    let offers = |rules: Rules, scenario: usize| -> bool {
+        let mut state = initial(rules, scenario);
+        let mut guard: usize = 0;
+        // Take the command's own writes and the first forced fact, then look for the escape step.
+        while guard < 12 {
+            let own: Vec<(String, State)> = steps(&state).into_iter().filter(|step| { return step.0.starts_with("client:"); }).collect();
+            if own.iter().any(|step| { return step.0.contains("not confirmed"); }) {
+                return true;
+            }
+            match own.into_iter().next() {
+                Some(next) => state = next.1,
+                None => break,
+            }
+            guard += 1;
+        }
+        return false;
+    };
+    let w1: usize = SCENARIOS.iter().position(|scenario| { return scenario.name == "W1 withdrawn"; }).expect("scenario");
+    assert!(offers(Rules::Thirteen, w1), "revision 13 offers the timed exit");
+    assert!(!offers(Rules::Fifteen, w1), "decision 14 removes it");
+}
+
+/// The terminal exits carry the same stop requirement as the marked ones (fifth review of the models, 5a finding 2B): a terminal ledger
+/// disposition forbids a new attempt, so losing it with the request still live is a defect whatever the wording of the answer. Revision 13 is
+/// red for each of them (the earlier test skipped them with `stop: 0`).
+#[test]
+fn thirteen_a_lost_terminal_disposition_leaves_the_request_live() {
+    for name in ["conflicted", "rewritten-away", "W1 finds a terminal outcome"] {
+        let index: usize = SCENARIOS.iter().position(|scenario| { return scenario.name == name; }).expect("the scenario");
+        let violation = check(Rules::Thirteen, index).violation.unwrap_or_else(|| { panic!("{} must be red under 13", name) });
+        assert!(violation.message.contains("stop disposition"), "{}", violation.message);
+    }
 }

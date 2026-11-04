@@ -107,7 +107,7 @@ pub const SCENARIOS: [Scenario; 10] = [
         promise: BUILT | LOG_RECORD | LEDGER_LINE | LEDGER_NAME,
         deps: &[(LOG_RECORD, BUILT), (LEDGER_LINE, LOG_RECORD | LEDGER_NAME)],
         preexisting: 0,
-        stop: 0,
+        stop: LEDGER_LINE | LEDGER_NAME,
         closure: 0,
     },
     Scenario {
@@ -117,7 +117,7 @@ pub const SCENARIOS: [Scenario; 10] = [
         promise: BUILT | LOG_RECORD | LEDGER_LINE | LEDGER_NAME,
         deps: &[(LOG_RECORD, BUILT), (LEDGER_LINE, LOG_RECORD | LEDGER_NAME)],
         preexisting: 0,
-        stop: 0,
+        stop: LEDGER_LINE | LEDGER_NAME,
         closure: 0,
     },
     Scenario {
@@ -127,7 +127,7 @@ pub const SCENARIOS: [Scenario; 10] = [
         promise: LEDGER_LINE | LEDGER_NAME,
         deps: &[(LEDGER_LINE, LEDGER_NAME)],
         preexisting: 0,
-        stop: 0,
+        stop: LEDGER_LINE | LEDGER_NAME,
         closure: 0,
     },
     Scenario {
@@ -167,7 +167,7 @@ pub const SCENARIOS: [Scenario; 10] = [
         promise: REQUEST | INBOX_NAME | LOG_RECORD | MARK | MARK_NAME,
         deps: &[(LOG_RECORD, REQUEST), (REQUEST, INBOX_NAME), (MARK, MARK_NAME)],
         preexisting: REQUEST | INBOX_NAME,
-        stop: 0,
+        stop: MARK | MARK_NAME,
         closure: 0,
     },
     Scenario {
@@ -191,14 +191,19 @@ pub enum Rules {
     Thirteen,
     /// Control: revision 13 whose barrier forgets the last directory entry of the D-set.
     MissesLastName,
-    /// Control: revision 13 whose barrier skips the facts another actor linked first (the resend's `EEXIST` fast path).
-    SkipsExisting,
     /// Revision 14: the stop receipt is forced first and alone, the closure of a named built commit is forced with the request, and
     /// what happens when the stop cannot be confirmed in time is the owner's answer to question 6a (the parameter), never assumed.
     Fourteen(StopPolicy),
+    /// Revision 15 with the owner's decision 14 ("Assume the final disk save would never be cut short."): the departure barrier always
+    /// runs to completion, the stop first and alone, and the command answers only when every applicable fact is durable. There is no timed
+    /// exit. A sync that never completes is an outside cause (stated, and not modelled as a step the command can take).
+    Fifteen,
+    /// Control: revision 15 whose barrier skips the facts another actor linked first (the resend's `EEXIST` fast path).
+    FifteenSkipsExisting,
 }
 
-/// The owner's answer to question 6a (forcing the stop mark when the disk is slow); the model is run for each, never for one assumed.
+/// The owner's answer to question 6a, kept as a historical control: decision 14 ("Assume the final disk save would never be cut short.")
+/// supersedes the question, and the current rule is `Rules::Fifteen`. Options A and C are retained only to show what they would cost.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum StopPolicy {
     /// Option A: wait up to `WAIT_STOP`, then leave and say the stop is not confirmed on disk.
@@ -263,7 +268,12 @@ fn gated(scenario: &Scenario) -> bool {
 fn barrier(state: &State) -> Vec<u32> {
     let scenario: Scenario = SCENARIOS[state.scenario];
     let mut facts: Vec<u32> = scenario.d_set.to_vec();
-    if let Rules::Fourteen(policy) = state.rules {
+    let policy_in_force: Option<StopPolicy> = match state.rules {
+        Rules::Fourteen(policy) => Some(policy),
+        Rules::Fifteen | Rules::FifteenSkipsExisting => Some(StopPolicy::Unbounded),
+        _ => None,
+    };
+    if let Some(policy) = policy_in_force {
         // The stop receipt first and alone; then the closure the exit names; then the rest of the D-set.
         let stop_facts: Vec<u32> = facts.iter().copied().filter(|fact| { return scenario.stop & *fact != 0; }).collect();
         let rest: Vec<u32> = facts.iter().copied().filter(|fact| { return scenario.stop & *fact == 0; }).collect();
@@ -284,7 +294,7 @@ fn barrier(state: &State) -> Vec<u32> {
     if state.rules == Rules::MissesLastName {
         facts.pop();
     }
-    if state.rules == Rules::SkipsExisting {
+    if state.rules == Rules::FifteenSkipsExisting {
         facts.retain(|fact| { return scenario.preexisting & *fact == 0; });
     }
     return facts;
@@ -335,6 +345,8 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         let may_leave_unconfirmed: bool = match state.rules {
             // Option B waits for the stop without a limit; only the saved copy has a bound.
             Rules::Fourteen(StopPolicy::Unbounded) => stop_forced,
+            // Decision 14: the departure runs to completion; there is no timed exit.
+            Rules::Fifteen | Rules::FifteenSkipsExisting => false,
             _ => true,
         };
         if state.answer == Answer::No && ready && state.rules != Rules::Twelve && state.synced < barrier_len(state) && may_leave_unconfirmed {
@@ -410,10 +422,11 @@ pub fn invariant(state: &State) -> Option<String> {
     return None;
 }
 
-/// The command (or the lane) has not finished its scenario.
+/// The command (or the lane) has not finished its scenario: it has not answered and the gated step has not happened. The departure barrier
+/// is part of the wait (decision 14 makes it run to completion, so it is a phase the command is in, and every state of it has a step of the
+/// command's own).
 pub fn waiting(state: &State) -> bool {
-    let scenario: Scenario = SCENARIOS[state.scenario];
-    return !state.crashed && state.written < scenario.writes.len();
+    return !state.crashed && state.answer == Answer::No && !state.gated_done;
 }
 
 /// Steps the waiting command takes itself: its writes and its forced facts.
@@ -428,6 +441,6 @@ pub fn limits() -> Limits {
 
 /// Explores one scenario under `rules`: every interleaving of writes, forced facts, write-back and one power loss.
 pub fn check(rules: Rules, scenario: usize) -> Report {
-    let bound: usize = SCENARIOS[scenario].writes.len() + SCENARIOS[scenario].d_set.len() + 1;
+    let bound: usize = SCENARIOS[scenario].writes.len() + SCENARIOS[scenario].d_set.len() + 2;
     return explore_bounded_by(vec![initial(rules, scenario)], steps, invariant, waiting, is_own, bound, limits());
 }

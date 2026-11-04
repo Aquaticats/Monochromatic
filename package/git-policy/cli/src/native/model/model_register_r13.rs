@@ -31,6 +31,10 @@ pub enum Stage {
     /// The command's own operation: it succeeds, fails, or blocks (a filesystem call that does not return); the command's own deadline
     /// is the independently executable escape from a block.
     Local,
+    /// The departure barrier's forcing of the final save (owner decision 14: it is assumed never to be cut short). Completes by the disk's
+    /// answer only; under revision 15 it has no escape and is not counted as a wait, and a sync that never completes is an outside cause.
+    /// Under the earlier rules it behaves as a foreign stage with its own bound.
+    Barrier,
     /// A local operation whose failure or block means the stop authority was not recorded: the request may still land, and the exit must
     /// say that and not only that the save is unconfirmed (revision 14).
     Authority,
@@ -79,7 +83,7 @@ pub const ENTRIES: [Entry; 19] = [
             ("W1 creates the withdrawal mark", Stage::Authority),
             ("W1 writes abort to an open attempt", Stage::Local),
             ("W1 waits for W2 to record the withdrawal (WAIT_WITHDRAW)", Stage::Foreign),
-            ("W1 forces the D-set (WAIT_DEPART)", Stage::Foreign),
+            ("W1 forces the D-set (the final save)", Stage::Barrier),
             ("W1 looks the identity up again", Stage::Local),
         ],
     },
@@ -92,12 +96,12 @@ pub const ENTRIES: [Entry; 19] = [
         continues: false,
         stages: &[
             ("creates the mark withdraw-unresolved a", Stage::Authority),
-            ("forces the D-set (WAIT_DEPART)", Stage::Foreign),
+            ("forces the D-set (the final save)", Stage::Barrier),
             ("exits non-zero: the instruction was submitted and its result is not known", Stage::Local),
         ],
     },
     Entry { name: "WITHDRAW", waits: true, retries: false, continues: true, stages: &[("W2 records the withdrawal (WAIT_WITHDRAW)", Stage::Foreign)] },
-    Entry { name: "DEPART", waits: true, retries: false, continues: false, stages: &[("the syncer forces the D-set (WAIT_DEPART)", Stage::Foreign)] },
+    Entry { name: "DEPART", waits: true, retries: false, continues: false, stages: &[("the syncer forces the D-set (the final save)", Stage::Barrier)] },
     Entry {
         name: "REAP",
         waits: true,
@@ -130,7 +134,7 @@ pub const ENTRIES: [Entry; 19] = [
     },
     Entry { name: "ACQUIRE-RECOVERY-HELPER", waits: false, retries: false, continues: false, stages: &[("reports lost and exits", Stage::Local)] },
     Entry { name: "SIGNER", waits: true, retries: false, continues: true, stages: &[("keeps waiting as in FOREGROUND (the person's signer)", Stage::Local)] },
-    Entry { name: "STOP", waits: true, retries: false, continues: false, stages: &[("forces the stop receipt: the mark file and lane/decision/ (WAIT_STOP)", Stage::Foreign)] },
+    Entry { name: "STOP", waits: true, retries: false, continues: false, stages: &[("forces the stop receipt: the mark file and lane/decision/", Stage::Barrier)] },
     Entry {
         name: "MATERIALIZE",
         waits: true,
@@ -161,6 +165,9 @@ pub enum Rules {
     /// Revision 14: Revision 13 plus the entries STOP and MATERIALIZE and an exit that says the request may still land when the stop
     /// authority could not be recorded.
     Fourteen,
+    /// Revision 15 with owner decision 14: the departure barrier (the stop receipt and the D-set) runs to completion and is not a bounded
+    /// wait; every other entry is as under revision 14.
+    Fifteen,
     /// Control only: revision 13 whose exit wording ignores failed stages (the abstraction the third models review rejected).
     IgnoresFailures,
 }
@@ -302,10 +309,10 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             let has_escape: bool = match state.rules {
                 Rules::Twelve => false,
                 Rules::Thirteen => !(entry.name == "STOP" || entry.name == "MATERIALIZE"),
-                Rules::Fourteen | Rules::IgnoresFailures => true,
+                Rules::Fourteen | Rules::Fifteen | Rules::IgnoresFailures => true,
             };
             match kind {
-                Stage::Local | Stage::Authority if state.stalled => {
+                Stage::Local | Stage::Authority | Stage::Barrier if state.stalled => {
                     if has_escape {
                         let mut escaped: State = after_stage(state, index);
                         escaped.stalled = false;
@@ -324,9 +331,9 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
                     blocked.stalled = true;
                     push_step(&mut found, "client: the operation blocks and does not return", blocked);
                 }
-                Stage::Foreign => {
+                Stage::Foreign | Stage::Barrier => {
                     push_step(&mut found, "environment: the other party completes the stage", after_stage(state, index));
-                    if has_escape {
+                    if has_escape && !(kind == Stage::Barrier && state.rules == Rules::Fifteen) {
                         let mut escaped: State = after_stage(state, index);
                         escaped.unconfirmed = true;
                         push_step(&mut found, "client: the stage's own bound is reached and the command goes on unconfirmed", escaped);
@@ -338,7 +345,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
             let mut after: State = state.clone();
             after.phase = Phase::Done;
             after.claims_confirmed = state.rules == Rules::IgnoresFailures || !state.unconfirmed;
-            after.says_may_land = state.authority_lost && state.rules == Rules::Fourteen;
+            after.says_may_land = state.authority_lost && matches!(state.rules, Rules::Fourteen | Rules::Fifteen);
             after.promised_landing = state.rules == Rules::Twelve && state.path[state.pos] == COMMITTING;
             push_step(&mut found, "client: the command exits", after);
         }
@@ -361,10 +368,20 @@ pub fn invariant(state: &State) -> Option<String> {
     return None;
 }
 
-/// The command has not ended.
+/// The command has not ended and is not in the departure barrier under revision 15: the final save is assumed to complete (decision 14),
+/// so waiting for the disk is not a wait the register bounds. Every other phase of every entry is.
 pub fn waiting(state: &State) -> bool {
+    if let Phase::Acting(index) = state.phase
+        && state.rules == Rules::Fifteen
+        && entry_of(state).stages[index].1 == Stage::Barrier
+    {
+        return false;
+    }
     return state.phase != Phase::Done;
 }
+
+/// The entries whose barrier stage is exempt from the bound by owner decision 14, for the report.
+pub const BARRIER_ENTRIES: [&str; 4] = ["FOREGROUND", "COMMITTING", "DEPART", "STOP"];
 
 /// Whether a step is the command's own (its timer included).
 pub fn is_own(label: &str) -> bool {

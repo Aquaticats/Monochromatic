@@ -13,7 +13,7 @@
 
 use crate::model_explore::{Report, replay};
 use crate::model_register_r13::{
-    BUDGET, CAPTURE, COMMITTING, DEPART, ENTRIES, EXEMPT, FOREGROUND, MATERIALIZE, Phase, Rules, STOP, Stage, State, WITHDRAW, check, check_exempt,
+    BUDGET, CAPTURE, COMMITTING, DEPART, ENTRIES, EXEMPT, FOREGROUND, BARRIER_ENTRIES, MATERIALIZE, Phase, Rules, STOP, Stage, State, WITHDRAW, check, check_exempt,
     entry_bound, initial, invariant, path_bound, steps,
 };
 
@@ -203,4 +203,36 @@ fn the_entries_with_no_bound_are_listed_apart_and_are_unbounded() {
     assert!(names.contains(&"FORWARDED-MAINTENANCE") && names.contains(&"PERSON-PROGRAMS"));
     assert!(ENTRIES.iter().all(|entry| { return !names.contains(&entry.name); }), "no exempt entry also has a bound");
     assert_eq!(check_exempt().violation.expect("unbounded by decision 9").message, STUCK);
+}
+
+/// Owner decision 14: under revision 15 every entry reaches an exit within its bound except while the departure barrier forces the final
+/// save, which has no bound and no escape (a sync that never completes is an outside cause). The report names the exemption instead of
+/// claiming a bounded return through the final save.
+#[test]
+fn fifteen_every_entry_is_bounded_except_the_final_save_which_is_exempt_by_decision() {
+    for (index, entry) in ENTRIES.iter().enumerate() {
+        let report: Report = check(Rules::Fifteen, single(index));
+        assert!(report.violation.is_none() && report.exhausted, "{}: {:?}", entry.name, report.violation.map(|found| { return found.message; }));
+    }
+    for name in BARRIER_ENTRIES {
+        let index: usize = ENTRIES.iter().position(|entry| { return entry.name == name; }).expect("entry");
+        assert!(ENTRIES[index].stages.iter().any(|stage| { return stage.1 == Stage::Barrier; }), "{} has a barrier stage", name);
+    }
+}
+
+/// Decision 14 removes the timeout from the barrier: in a barrier stage the command has no step of its own to leave it, while the
+/// earlier revisions give it one.
+#[test]
+fn fifteen_gives_the_final_save_no_escape_where_fourteen_does() {
+    let depart: usize = DEPART;
+    let at_barrier = |rules: Rules| -> State {
+        return replay(
+            initial(rules, single(depart)),
+            steps,
+            &["timer: the monotonic clock advances one tick", "timer: the monotonic clock advances one tick", "client: the deadline is reached and the action starts"],
+        );
+    };
+    let own = |state: &State| -> usize { return steps(state).iter().filter(|step| { return step.0.starts_with("client:"); }).count(); };
+    assert_eq!(own(&at_barrier(Rules::Fifteen)), 0);
+    assert!(own(&at_barrier(Rules::Fourteen)) > 0);
 }
