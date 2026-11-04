@@ -2036,7 +2036,7 @@ Guard removals of this round (`/var/home/user/temp/agent/r26/mutations-round6-a.
   spool closure reads (the verification ahead of it reads the same files with the guard), saving content through the name instead of the
   descriptor (the directory open ahead of it refuses a link), the stale-token end of the authorization and the recovery lapse (each hides the other;
   two controls were added afterwards for each alone and were not re-shown red with the guard removed, because of the pause), the unlink's own
-  pending check (defensive, no control), and the second-name check of the append (a control was added after the run, not re-shown red).
+  pending check (defensive, no control), and the second-name check of the append (a control was added after the run, not re-shown red). The run also ended with: the inbox acceptance read after a link (no control reaches it), the ledger owner lock's no-follow (the regular-file check ahead of it refuses a link), and the end line after the unlink (recovery's lapse writes the same line before the assertion that would show it). Thirty-six planted in all (thirty-five of the list plus the repaired race control); every survivor is named here.
 
 Open, not started (the owner paused everything but layout and lint work):
 1. Review A of step3c, the rest: `next_due` is shown by its calculation, not by the loop propagating `more` (no loop-level control); the
