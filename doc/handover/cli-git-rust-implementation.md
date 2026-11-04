@@ -3883,7 +3883,13 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     lost-record evidence stopping at classification,
     a notice formatted but not observed,
     writer-side acknowledgement durability untested);
-    the fixes go to the agent once groups 2 and 3 return;
+    group 2:
+    R1 shown;
+    A1/V3,
+    R2 (circular EROFS inventory,
+    conflict and undo preservation failures unexercised),
+    V3/V4 and V5 partly;
+    the fixes go to the agent once group 3 returns;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
