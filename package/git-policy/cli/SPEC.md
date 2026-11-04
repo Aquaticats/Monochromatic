@@ -3207,7 +3207,7 @@ Used by every reclaim, on every file system, and it needs no `flock` anywhere.
 A claim is a file named `<lock>.cli-reclaim-<key>-<slot>`, where the key is made from the marker of the stale lock (its batch, process,
 and the birth identity, with the bytes a file name cannot hold escaped), so that every reclaimer reaching the file by any mount derives one name: the device number of
 one remote tree can differ between two mounts of it. The process that marker names is gone and places no further lock with that marker,
-so a claim left under a key is inert; a marker that names no process (an earlier release's) falls back to the device and inode.
+so a claim left under a key is inert; a marker that names no process (an earlier release's) is keyed on its batch number alone.
 A claim is mode 0644 whatever the umask, so that a reclaimer of another account can read it (one that cannot read a claim takes its
 maker to run). It holds the service marker of its maker with a random token in the batch field, is written to a staging file and placed
 whole by a rename that does not replace (else a hard link), and is judged as a lock holder is (`holder_state_in`): a maker that is gone

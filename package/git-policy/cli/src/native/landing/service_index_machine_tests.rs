@@ -179,6 +179,7 @@ fn a_landing_names_the_lock_of_another_machine() {
     std::fs::write(&lock, lock_text_on(other_machine(), crate::claim_time::current_boot_id())).expect("a lock of another machine");
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
     let said = std::cell::RefCell::new(Vec::<String>::new());
+    let began: std::time::Instant = std::time::Instant::now();
     let failure = acquire_within(&SYSTEM, &index, 9, ceiling, &|announce| {
         if let Announce::Waiting(line) = announce {
             said.borrow_mut().push(line);
@@ -186,6 +187,7 @@ fn a_landing_names_the_lock_of_another_machine() {
     })
     .expect_err("the lock is not taken");
     assert_eq!(failure.code, FailureCode::IndexInUse);
+    assert!(began.elapsed() >= ceiling, "the wait ended before its ceiling, as for a dead owner");
     assert!(lock.exists());
     let lines: String = said.borrow().join("\n");
     assert!(lines.contains("another machine") && lines.contains(&format!("rm {}", lock.display())), "{lines}");

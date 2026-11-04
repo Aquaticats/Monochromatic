@@ -23,7 +23,7 @@ use crate::service_index_marker::{Marked, holder_is_elsewhere, holder_is_gone, m
 use crate::service_index_placement::{Platform, place_marked};
 use crate::service_index_staging::stage_marker;
 use std::io::Read;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// What follows the lock's file name in the name of a claim file.
@@ -104,25 +104,25 @@ pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
 ///   Every reclaimer of one stale lock must derive the same name, whichever way it reached the file: the device number of one
 ///  remote tree can differ between two mounts of it, but the marker is the file's own content. The process the marker names is
 ///  gone, and a gone process places no further lock with that marker, so no later lock carries the key and a claim left under
-///  it is inert. The birth identity is written as it is, with the bytes a file name cannot hold escaped, so that two different identities never share a name. A marker
-///  that names no process (an earlier release's) falls back to the device and inode of the open file.
+///  it is inert. The birth identity is written as it is, with the bytes a file name cannot hold escaped, so that two different
+///  identities never share a name. A marker that names no process (an earlier release's) is keyed on its batch number alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `${seq.toString(16)}-${pid.toString(16)}-${escape(birth)}`
 /// ```
-pub fn claim_key(stale: &std::fs::File, marked: &Marked) -> std::io::Result<String> {
+pub fn claim_key(marked: &Marked) -> String {
     return match marked.holder.as_ref() {
         Some((pid, birth)) => {
             // Only the bytes a file name cannot hold (`/`, NUL) and the escape itself are written as `%` and two hexadecimal digits, so two
             //  different identities never share a name and the name stays short.
             let escaped: String = birth.bytes().map(|byte| { return if matches!(byte, b'/' | 0 | b'%') { format!("%{byte:02x}") } else { String::from(char::from(byte)) }; }).collect();
-            Ok(format!("{:x}-{pid:x}-{escaped}", marked.seq))
+            format!("{:x}-{pid:x}-{escaped}", marked.seq)
         }
-        None => {
-            let identity = stale.metadata()?;
-            Ok(format!("{:x}-n-{:x}-{:x}", marked.seq, identity.dev(), identity.ino()))
-        }
+        // A marker that names no process is an earlier release's; its key comes from the marker alone too, because the device number
+        //  of one remote tree differs between two mounts of it. A repeated batch number of such a marker would only meet a gone
+        //  claim at a low slot, which is passed over.
+        None => format!("{:x}-n", marked.seq),
     };
 }
 
@@ -185,7 +185,7 @@ fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
 }
 
 /// What:
-///  Takes the claim for the stale file `stale`, which the caller has open and judged stale, at the lowest slot not taken by a
+///  Takes the claim for the stale lock whose marker is `marked`, which the caller has judged stale, at the lowest slot not taken by a
 ///  claimer that runs; `Busy` when a claimer that runs is ahead.
 /// Why:
 ///   Two reclaimers of one stale file must not both unlink its name. A claim is placed whole (`place_marked`), so a placed
@@ -199,15 +199,12 @@ fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
 /// while (!(await place(slot))) { if (await look(slot) !== 'dead') return 'busy'; slot++ }
 /// return allBelowDead(slot) ? held : (remove(slot), 'busy')
 /// ```
-pub fn take_claim(platform: &Platform, lock: &Path, stale: &std::fs::File, marked: &Marked) -> Claim {
+pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
     // Lock kept: two reclaimers of one stale lock must not both unlink its name, and no system call unlinks a name only if it
     //  still names a given file. The claim is a file placed whole beside the lock, named from the stale lock's marker; the hold
     //  is a few system calls long, is one file per reclaimer (never the repository or the directory), and a dead reclaimer's
     //  claim is passed over, never waited for, because its maker's marker says it is gone.
-    let key: String = match claim_key(stale, marked) {
-        Ok(key) => key,
-        Err(error) => return Claim::Unavailable(error),
-    };
+    let key: String = claim_key(marked);
     // The batch field of a claim's marker is a token of this attempt alone: a placement whose answer was lost (an error after a
     //  link or rename took effect, as a network file system can answer) is told from another attempt's claim by the whole text.
     let token: u64 = match attempt_token() {

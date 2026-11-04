@@ -90,16 +90,20 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
     if !is_stale(&marked) {
         // A holder on another machine is not proven gone and not proven running: the person is told, not the lock removed.
         if holder_is_elsewhere(marked.holder.as_ref()) {
+            crate::service_error!("{}", foreign_words(lock, &marked));
             return Reclaimed::Foreign { file: lock.to_path_buf(), marked };
         }
         return Reclaimed::Kept;
     }
     crate::service_fault::reach("reclaim-judged");
     // The exclusion this reclaimer is under until it is done.
-    let claim: ClaimHold = match take_claim(platform, lock, &file, &marked) {
+    let claim: ClaimHold = match take_claim(platform, lock, &marked) {
         Claim::Held(held) => held,
         Claim::Busy => return Reclaimed::Busy,
-        Claim::Foreign { file: in_the_way, marked: theirs } => return Reclaimed::Foreign { file: in_the_way, marked: theirs },
+        Claim::Foreign { file: in_the_way, marked: theirs } => {
+            crate::service_error!("{}", foreign_words(in_the_way.as_path(), &theirs));
+            return Reclaimed::Foreign { file: in_the_way, marked: theirs };
+        }
         Claim::Unavailable(why) => {
             crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: no claim file could be placed beside it to keep two reclaimers apart ({why}), so a removal could take a live lock; \
                  remove it by hand once no git command runs in this repository",

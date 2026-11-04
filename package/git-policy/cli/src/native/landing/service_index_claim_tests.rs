@@ -50,7 +50,7 @@ pub(super) fn index_in(name: &str) -> (PathBuf, PathBuf, PathBuf) {
 pub(super) fn claim_at(lock: &Path, slot: usize) -> PathBuf {
     let file = std::fs::File::open(lock).expect("the stale lock");
     let marked = marker_of_file(&file).expect("a marker");
-    let key: String = claim_key(&file, &marked).expect("its identity");
+    let key: String = claim_key(&marked);
     return claim_path(lock, key.as_str(), slot);
 }
 
@@ -306,7 +306,7 @@ fn the_claim_name_comes_from_the_marker_and_not_from_the_files_device_and_inode(
     let key_of = |path: &Path| -> String {
         let file = std::fs::File::open(path).expect("the lock");
         let marked = marker_of_file(&file).expect("a marker");
-        return claim_key(&file, &marked).expect("a key");
+        return claim_key(&marked);
     };
     assert_eq!(key_of(&first), key_of(&second));
     remove(root.as_path());
@@ -428,9 +428,27 @@ fn a_claim_name_for_a_real_identity_fits_beside_a_long_lock_name() {
     let file_name: String = "i".repeat(40) + ".lock";
     let lock: PathBuf = root.join(file_name);
     std::fs::write(&lock, "x").expect("a file");
-    let key: String = claim_key(&std::fs::File::open(&lock).expect("open"), &marked).expect("a key");
+    let key: String = claim_key(&marked);
     let claim: PathBuf = claim_path(&lock, key.as_str(), usize::MAX);
     let length: usize = claim.file_name().expect("a name").len();
     assert!(length <= NAME_LIMIT, "the claim name is {length} bytes: {claim:?}");
+    remove(root.as_path());
+}
+
+/// Allowed: the claim name of a marker that names no process (a release before the holder field wrote it) comes from the marker
+///  too, since two mounts of one remote tree give one file different device numbers there as well.
+#[test]
+fn the_claim_name_of_a_marker_without_a_holder_does_not_depend_on_the_file() {
+    let root: PathBuf = fixture("claim-key-holderless");
+    let (first, second) = (root.join("first"), root.join("second"));
+    std::fs::write(&first, format!("{LOCK_MARKER}5\n")).expect("a lock");
+    std::fs::write(&second, format!("{LOCK_MARKER}5\n")).expect("the same lock seen by another mount");
+    let key_of = |path: &Path| -> String {
+        let file = std::fs::File::open(path).expect("the lock");
+        let marked = marker_of_file(&file).expect("a marker");
+        assert!(marked.holder.is_none());
+        return claim_key(&marked);
+    };
+    assert_eq!(key_of(&first), key_of(&second));
     remove(root.as_path());
 }
