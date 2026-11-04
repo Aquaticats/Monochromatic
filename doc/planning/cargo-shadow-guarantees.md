@@ -1,9 +1,13 @@
 # What cargo-shadow promises and what it assumes
 
 Status:
-draft for the cross-vendor reviewer's finite acceptance list, written 2026-11-04T04:45:55-05:00 after the round 7 re-review
-(`cargo-shadow-sol-7a.txt`, `-7b.txt`, `-7c.txt`, all "not closed").
-No product code changed in this step.
+written 2026-11-04T04:45:55-05:00 after the round 7 re-review (`cargo-shadow-sol-7a.txt`, `-7b.txt`, `-7c.txt`, all "not closed"),
+amended after the cross-vendor review of this contract (`cargo-shadow-sol-contract-1.txt`, "fit after the named edits"), which also
+supplied the acceptance list below.
+This file specifies transaction safety (acceptance, rollback, kept copies, recovery).
+It does not specify the policy semantics, which are the catalog and pnpm specification:
+`doc/decision/rust-dependency-catalog.md` (what is checked, and when) and `doc/planning/cargo-shadow-update.md` (the mapping of
+`cargo update` to `pnpm update` and the pnpm oracle).
 The assumptions and the weaker-path rule are the coordinator's picks under the owner's delegation
 ("Pick options as if I had picked them and invite veto when I say I'm back", handover "Picks made under the owner's delegation"),
 veto open.
@@ -27,8 +31,16 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
 
 - **A1.**
   A lockfile that a run left is accepted (left live, journal finished, command allowed to run) only after the wrapper has shown
-  that every process the run started has stopped: the kernel reported `populated 0` for the run's group, and the direct child
-  was reaped.
+  that every process the run started has stopped: the direct child was reaped, and either the kernel reported `populated 0` for
+  the run's scope, or the scope is verifiably absent.
+  Verified absence is proof under amended assumption c and one invariant of the manager:
+  systemd removes a scope only when it is empty or after stopping its members
+  (probed: a scope whose program exited stayed observable with `populated 1` while a descendant lived, and vanished 2991 ms later
+  when that descendant ended).
+  Absence is verified when the cgroup file system is the one the run recorded (assumption c), the directory that held the scope
+  still exists with the recorded mount id and inode, and the scope's name is absent from it.
+  A scope name carries a 128-bit random token and is never derived from the process id or the clock, so no journal that can
+  reference a name can see another scope appear under it.
   Test: `a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns` and
   `a_writer_in_another_session_is_stopped_before_a_normal_exit_returns` exist;
   `probe_2_a_thread_group_with_an_exited_leader_stays_populated_until_it_is_stopped` exists.
@@ -57,7 +69,10 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
 - **A4.**
   The outputs a run leaves (lockfiles, journaled manifests) are on disk before the completion marker, the marker is durable before
   the journal is removed ("Force at leaving").
-  Nothing else is synced ("else background" has no carrier in a command that exits).
+  No periodic or background syncing is required ("else background" has no carrier in a command that exits);
+  every durability barrier the protocol mandates remains required:
+  the outputs, the completion marker and its directory, the publication of a record before the child it describes, the entries of
+  a kept copy (K2), and an acknowledgement (weaker path).
   Test: `finish_makes_the_outputs_durable_before_the_done_marker` exists.
 
 ### Rollback
@@ -86,14 +101,17 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
 ### Kept copies
 
 - **K1.**
-  Kept copies are never deleted and never cause a refusal;
+  Kept copies are never deleted by the tool.
+  Their existence, count or size never causes a refusal;
   past a count every run prints the count, the total size and the folder.
+  The inability to preserve a newly displaced file safely still stops the operation (R2, R3).
   Test: `a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_refuses` exists;
   the inventory of kept names beside their target and of stranded temporaries is queued for round 8 (7b P2).
 - **K2.**
   A kept copy's directory entries are durable when preservation reports success (assumption b below).
-  Test: `every_ancestor_of_the_kept_directory_is_synced_up_to_the_mount_root` exists and is to be replaced by
-  `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction` (to be written) when the stop rule changes;
+  Test: `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction`,
+  `a_directory_left_unsynced_by_a_failed_attempt_is_not_taken_as_durable`,
+  `a_failing_directory_barrier_is_not_reported_as_preserved`;
   the bind-mount schedule of 7b P1-1 is not a counterexample under that rule and has no test of its own.
 
 ### Recovery
@@ -123,7 +141,13 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   and finishes with the same three phases as A3.
   Test: the existing recovery tests of `journal_recover_tests.rs` and `journal_protocol_tests.rs`.
 - **V6.**
-  Every wait is bounded and every lock is tried, never waited for.
+  Every wait that cargo-shadow controls has a deadline:
+  the start and the stop of the manager's scope, the lifetime of a command, the draining of its pipes, the reaping of its direct
+  child, and every lock (a busy workspace lock or internal lock returns at once with the holder, it does not wait).
+  A shutdown that did not succeed within its deadline produces uncertainty (`NotQuiescent`), not a longer wait.
+  Ordinary blocking kernel and file-system calls (a `read`, `write`, `fsync`, `rename`) have no deadline of their own;
+  they are covered by the progress assumption d below, which mirrors the owner's "Assume the final disk save would never be cut
+  short."
   Test: `a_child_that_outlives_its_bound_is_stopped_and_named`, `recovery_defers_while_a_live_transaction_holds_the_workspace`
   exist.
 
@@ -141,28 +165,42 @@ Each assumption is a pick under the delegation, open to the owner's veto.
 A finding that attacks one of them is not a finding while the assumption stands.
 Assumptions the code already made are listed last, so the list is finite.
 
-### a. No same-user process deliberately leaves its group or acts adversarially
+### a. Run writers stay inside the containment and write the workspace only through it
 
-A process of the same user that runs inside a run (a build script, a proc macro, a selected executable) is assumed to act as an
-ordinary program does:
-it may fork, daemonize, call `setsid`, close its streams and outlive its parent, and the group still holds it.
-It is assumed not to write its id into another group's `cgroup.procs`, not to ask the user manager to move it,
-and not to do anything else whose purpose is to defeat the wrapper.
+The processes of a run (a build script, a proc macro, a selected executable) are assumed to behave in this way, whether the
+reason is malice or an accident:
+they do not migrate outside the recorded containment (no write of their own id into another group's `cgroup.procs`, no request to
+a manager that moves them), and they do not arrange writes to the workspace through a service outside the containment
+(a daemon started by another user session, a job queued with an outside scheduler, a request to a build server that already runs).
+Ordinary behavior stays covered:
+`fork`, threads, double forks, `setsid`, closed standard streams, and a descendant that outlives its parent are all inside the
+scope and are stopped with it.
+The manager is assumed not to migrate surviving members of a scope outside the recorded scope either.
 
 Reason:
-a same-user adversary can write `Cargo.lock` directly after the run, and no wrapper can prevent that, so a containment that tried
+a same-user process can write `Cargo.lock` directly after the run, and no wrapper can prevent that, so a containment that tried
 to resist it would claim a guarantee the wrapper cannot give.
+The assumption is about behavior, not intent:
+a tool that hands the write to an outside service breaks it as surely as one that means to.
 Probe 3 of round 7 (`probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_the_stated_limit`) shows the move is possible
 and stays as the evidence of the limit.
 This retires 7a F5 and 7c F2 as findings, and the cgroup namespace closer as work.
 
-### b. Directories that existed before the transaction began are durable
+### b. A pre-existing directory and its path are durably reachable
 
 The directory-entry sync of a kept copy walks up from the kept directory to the first directory that existed before the
 transaction began, syncs it, and stops.
 A directory this transaction created is synced with the directory that lists it, as `create_directories_synced` does.
-Directories that existed before the transaction began are assumed durable:
-their own entries were committed by whoever made them, or by an earlier transaction of this tool, which synced what it created.
+A pre-existing directory, and the reachability of its path from the root of its file system, are assumed durable:
+their entries were committed by whoever made them, or by an earlier transaction of this tool, which synced what it created.
+
+The exception is knowledge.
+A directory that the tool knows it left unsynchronized in an earlier failed attempt (a directory whose own sync, or whose parent's
+sync, returned an error) is not treated as durable merely because it exists now;
+the walk continues through it and syncs it.
+The tool knows this for the lifetime of its process (a registry of the directories whose sync failed).
+It does not know it across processes: a directory left unsynced by a killed or failed earlier process is a pre-existing directory,
+and the premise applies to it.
 
 Reason:
 the tool cannot know the durability history of a directory it did not make, and walking to a device boundary or to `/` rests on
@@ -170,21 +208,33 @@ a different, unprovable premise (a bind mount, a subvolume, an overlay root).
 The rule replaces the round 7 stop at the first parent on another device (7b P1-1).
 It also removes the failure of preservation on an unreadable ancestor above the workspace.
 
-### c. The journal resolves to the same mount and inode in recovery as in the run
+### c. The journal and the recorded containment resolve to the same mount and inode in recovery as in the run
 
-When a journal is created, the wrapper records the mount id and inode of the journal directory
-(`statx`, `STATX_MNT_ID` and `STATX_INO`).
-A recovery compares them with what the same path gives in the recovery process, and refuses, naming the journal, when either differs.
+When a journal is created, the wrapper records the mount id and inode of the journal directory (`statx`, `STATX_MNT_ID` and
+`STATX_INO`).
+When a child is recorded, the record also holds the cgroup namespace and the mount id and inode of the directory that holds the
+recorded scope (its parent in the cgroup file system).
+A recovery compares both with what the same paths give in the recovery process, and refuses, naming the journal and the view that
+differs, when anything differs.
+Only when they are equal is a recorded scope that is absent read as gone.
 
 Reason:
-a recovery in another mount namespace, or on a path that now leads somewhere else, cannot read an absent recorded group as "gone"
-(7a F6).
-Proposed addition, for the coordinator's amendment (not part of the pick as sent):
-the same record also holds the mount id and inode of the directory that holds the recorded control group
-(its parent in the cgroup file system), because the 7a F6 schedule is a different view of `/sys/fs/cgroup`, not of the journal;
-the journal check alone would not see it.
-Test: `a_recovery_in_another_mount_view_refuses_instead_of_reading_a_missing_group_as_gone` to be written
-(a bind-mounted other view of the group's parent and of the journal directory).
+a recovery in another mount namespace, or on a path that now leads somewhere else, cannot read an absent recorded scope as "gone"
+(7a F6); the 7a F6 schedule is a different view of `/sys/fs/cgroup`, not of the journal, which is why both checks exist
+(the coordinator adopted the second check on 2026-11-04).
+Tests: `a_recovery_in_another_mount_view_of_the_journal_refuses` and
+`a_recovery_in_another_mount_view_of_the_cgroup_parent_refuses_instead_of_reading_a_missing_scope_as_gone`
+(bind-mounted other views, same cgroup namespace), both asserting the reason and that the journal is retained.
+
+### d. Ordinary operating-system calls make progress
+
+A blocking kernel or file-system call that cargo-shadow makes (`read`, `write`, `open`, `fsync`, `rename`, `unlink`) returns
+in finite time.
+Reason:
+no deadline can be put on such a call from inside the process without isolating it behind a supervised helper, and the owner's own
+rule is the same premise for the disk: "Assume the final disk save would never be cut short."
+The assumption does not weaken V6: the waits that cargo-shadow controls are bounded (V6), and the calls this assumption covers are
+not waits that cargo-shadow chooses.
 
 ### Assumptions the code already makes
 
@@ -218,15 +268,24 @@ The refusal message names the journal directory and the command that acknowledge
 cargo-shadow acknowledge <journal directory>
 ```
 
+The acknowledgement asserts that every process or worker of this run that is capable of modifying the workspace has stopped.
+"No cargo is running" is not enough:
+a descendant, a build script or a worker that cargo started counts.
 The acknowledgement:
 
-- is a decision of a person that no cargo of that run is still running;
-  nothing acknowledges by itself, by age or by the absence of the recorded group;
-- is written durably into the journal under the workspace lock
-  (a file `acknowledged` with the time and the process id of the acknowledging command),
-  and a recovery then settles the journal as it settles any ready journal;
+- is a decision of a person; nothing acknowledges by itself, by age or by the absence of the recorded group;
+- overrides the uncertainty of the containment context only:
+  a weaker-path record, a record that is missing, unreadable or not understood, a recorded containment that cannot be examined,
+  and a mount or namespace view that differs;
+- does not override a failed enumeration of the journals, an invalid or missing snapshot, a failed mandatory durability barrier,
+  or a recorded group that is positively observed to have a member;
+- is written durably into the journal under the workspace lock (a file `acknowledged` published by an atomic rename, with the time
+  and the process id of the acknowledging command), and a recovery then settles the journal as it settles any ready journal,
+  including all of its own validation;
 - is per journal, so one acknowledgement never covers another journal, and a new transaction beside an unacknowledged journal
-  of the weaker path is refused with the same message.
+  of the weaker path is refused with the same message;
+- if its publication is interrupted, leaves the journal unacknowledged (an unreadable or partial `acknowledged` file does not
+  count).
 
 This reverses the part of the earlier pick that let weaker-path recovery go ahead when the recorded group had no member.
 It closes 7c F1 and 7a F4.
@@ -239,27 +298,36 @@ the message names a command that the reader accepts.
 ### A failed assumption
 
 - Assumption a fails:
-  the wrapper may accept or restore a lockfile that a process then rewrites;
-  that is the same state as any same-user process writing `Cargo.lock`, and no message is promised.
+  the wrapper may accept or restore a lockfile that a process then rewrites, or may read a scope as empty while a writer lives
+  elsewhere; that is the same state as any same-user process writing `Cargo.lock`, and no message is promised.
 - Assumption b fails:
-  a kept copy's directory entry may not survive a power failure; the kept inode is never unlinked before its other names are durable
-  as far as the walk reached, so a live copy remains.
+  the runtime guarantee stays (no inode loses its last name while the process runs, R2), and every crash-durability guarantee
+  about the directory entries of a kept copy is withdrawn: after a power failure the entry, and the copy it names, may be missing.
+- Assumption d fails:
+  a call blocks without end, and so does the command; nothing in this file promises otherwise.
 - Assumption c fails:
   recovery refuses and names the journal; a person resolves it by acknowledging, as above.
 
 ## The spawn route
 
-Picked before this file, recorded here so the code builds to it.
-
-1. **Default: a transient user scope with `Delegate=yes`.**
+1. **The only route to a control group: a transient user scope with `Delegate=yes`.**
    systemd's own rule (systemd.io/CGROUP_DELEGATION, read 2026-11-04):
    "Never create your own cgroups below arbitrary cgroups systemd manages, i.e cgroups you haven't set `Delegate=` in."
-   cargo-shadow starts the program as `systemd-run --user --scope --unit=<unique name> --property=Delegate=yes --collect --quiet
-   -- <program> <arguments>` (or the equivalent `StartTransientUnit` call), so that the manager, not a thread of cargo-shadow, puts
-   the program in the new scope.
-2. **A child of the own group only where that group carries the `user.delegate` extended attribute**
-   (systemd sets it on delegated cgroups; checked below: `user@1000.service` carries it).
-   Otherwise the weaker path.
+   cargo-shadow starts the program as `systemd-run --user --scope --unit=<name> --slice=<slice> --property=Delegate=yes --collect
+   --quiet -- <program> <arguments>`, so that the manager, not a thread of cargo-shadow, puts the program in the new scope.
+   (The equivalent `StartTransientUnit` call is not used: it needs a bus client, and `systemd-run` has the same effect.)
+   The manager's real hierarchy is discovered, not assumed: the slice's group is
+   `systemctl --user show <slice> --property=ControlGroup --value`, asked once per process, and the scope's group is that path plus
+   `/<name>.scope`.
+   The name is `cargo-shadow-<128-bit random token>` and is never derived from the process id or the clock.
+   The direct child is killed and reaped before the scope is stopped, so that no process of cargo-shadow's own can still become the
+   program after the stop.
+2. **A child of the own group is not built.**
+   The earlier pick (a child of the own group where it carries `user.delegate`) needs a way to start a process inside a group
+   without a thread of cargo-shadow writing `cgroup.procs`; the only such way is `clone3` with `CLONE_INTO_CGROUP`, which
+   neither `std` nor `rustix` 1.1.6 offers.
+   Where the scope route is unavailable, the run takes the weaker path.
+   (Coordinator's amendment to be confirmed: route 2 dropped, not queued.)
 3. No route moves the wrapper, or any thread of it, between groups.
    This removes the spawn lock and the shared-process migration of 7a F1 and F2 by construction.
 
@@ -278,12 +346,14 @@ Result: the route works as the contract needs.
 - **The 7a F1 schedule does not occur.**
   An ordinary child started from a second thread of the parent while the scope spawn ran stayed in the parent's group.
 - **The scope path is predictable before the start.**
-  With `--unit=<name>`, the scope is `<user manager group>/app.slice/<name>.scope`, where the manager group is the prefix of the
-  own group up to `user@<uid>.service`.
+  With `--unit=<name> --slice=app.slice`, the scope is `<ControlGroup of app.slice>/<name>.scope`; `systemctl --user show app.slice
+  --property=ControlGroup --value` gave `/user.slice/user-1000.slice/user@1000.service/app.slice`, equal to the prefix of the own
+  group up to `user@<uid>.service` plus `/app.slice`, but the contract uses the answer of the manager, not the prefix.
   The predicted path existed and matched the program's group, so the record can be written and synced before the program starts
   (V3).
-  The inode of the scope is known only after the start, so the record carries the path of a unique name (never reused while the
-  unit is loaded; a second start of the same name failed with "Unit ... was already loaded or has a fragment file"), not an inode.
+  The inode of the scope is known only after the start, so the record carries the path of a unique name (a second start of a name that was
+  still loaded failed with "Unit ... was already loaded or has a fragment file", and the random token makes a repeated name
+  impossible in practice), not an inode.
 - **The program replaces `systemd-run`: same process, same pipes, same exit status.**
   `exit 7` in the program gave status 7; stdout was the program's.
 - **Descendants stay in the scope.**
@@ -310,16 +380,98 @@ Result: the route works as the contract needs.
   attribute, and a scope is made through point 1.
   Whether any other delegated cgroup in the wild carries the attribute was not probed.
 
+Probe 2 (2026-11-04T05:10-05:00): a scope whose program exited while a `setsid` descendant lived stayed observable with
+`populated 1` and the descendant's process id, and vanished about 3 s later when the descendant ended.
+That is the invariant A1 relies on for verified absence.
+
 Not probed, so the code does not rely on it:
-what systemd does with a delegated scope started with `--collect` when the program ends while a member remains
-(the probe killed the group while the program lived),
-and the behavior on a host with a user manager but a read-only `/sys/fs/cgroup`.
+the behavior on a host with a user manager but a read-only `/sys/fs/cgroup`.
 
 ## Finding mapping
 
-- Retired by an assumption: 7a F5, 7c F2 (a), 7b P1-1 (b), 7a F6 (c, with the proposed addition).
+- Retired by an assumption: 7a F5, 7c F2 (a), 7b P1-1 (b); answered by assumption c with its two checks: 7a F6.
 - Closed by the weaker-path rule: 7c F1, 7a F4.
 - Closed by the spawn route, once built: 7a F1, 7a F2.
-- Bugs regardless of the contract, to fix after the reviewer's list: 7a F3 (A2) and 7b P1-2 (V1).
+- Bugs regardless of the contract: 7a F3 (A2) and 7b P1-2 (V1).
 - Test-evidence notes of the three reviews (handshakes instead of sleeps, entry-level injection, real rename and sync failures,
   crash-test assertions): to be applied with the tests named above.
+
+## Acceptance list
+
+This is the cross-vendor reviewer's finite checklist (`cargo-shadow-sol-contract-1.txt`, section 4), copied verbatim in substance.
+The rule that comes with it:
+**a new counterexample may reopen a row of this list, but it does not add a row.**
+Concurrency tests need handshakes at the relevant boundary, not elapsed sleeps.
+Strong-path tests must establish that they actually used delegated containment.
+These are acceptance tests, not a claim that finite testing mathematically proves every execution.
+
+- **A1.**
+  Zombie leader with a live writer thread; pipe-closing `setsid` or double-fork writer; normal exit and timeout.
+  Acceptance occurs only after the specified emptiness proof and direct-child reap.
+- **A1, V3 (spawn isolation).**
+  Overlap two bounded starts and an unrelated ordinary spawn inside startup.
+  The wrapper stays in its original group; runs have separate boundaries; unrelated work survives cleanup.
+  Exercise every supported spawn route.
+- **A1, A2 (scope lifecycle).**
+  Direct command exits while a descendant remains.
+  The scope either remains observable or the manager stops that descendant without moving it elsewhere.
+  Also exercise rapid empty-scope collection and the chosen valid-absence rule.
+- **A2, R4 (7a F3).**
+  Start the child and a writer, then fail containment or startup completion, membership inspection, or stopping.
+  Also simulate a member that cannot be stopped within the bound.
+  Require `NotQuiescent`, writer uncertainty, retained journal, no acceptance, no rollback, and no user command.
+  No post-start downgrade to ordinary operational failure.
+- **A3, A4.**
+  Approved, refused and operational-error outcomes; fail output synchronization, the actual completion rename, and the actual
+  completion-parent sync.
+  Mandatory failures stop shim fallback and preserve applicable diagnostics.
+  Verify outputs, then marker, then marker-directory barrier, then removal ordering.
+  Cleanup-only failure is a warning only after durable completion.
+- **R1.**
+  Another writer changes the lockfile before rollback and at the replacement or conflict boundary.
+  Its result remains intact, with a warning; rollback does not silently install the snapshot over it.
+- **R2.**
+  Fault every preservation or link stage with the queued `EMLINK`, `ENOSPC` and `EXDEV` cases, plus relevant rename and sync
+  failures.
+  Inventory the displaced and replacement inodes after each failure: neither loses its last protected name; stranded locations are
+  reported.
+- **R3, R5.**
+  Both refused output and cargo failure followed by rollback failure must stop the command, including `--locked` fallback.
+  With multiple roots, fail one restore while another restores and emits warnings; preserve all diagnostics and continue
+  independent restores.
+- **K1.**
+  Below, at and above the warning threshold, across repeated runs: correct count, size and directory; no count-based refusal or
+  deletion.
+  Inventory kept names, colliding names and stranded temporaries.
+- **K2.**
+  Create nested kept directories beneath a pre-existing anchor.
+  Verify every required directory barrier through that anchor, and no traversal above it, including an unreadable higher ancestor.
+  Fail each required barrier: do not report preservation success or discard the remaining protected name.
+- **V1 (7b P1-2).**
+  Fail opening, iteration and entry inspection independently.
+  In particular, accumulate a live journal, then inject an entry-level `NotFound` for another entry.
+  Both recovery and `begin` must stop without discarding the partial listing.
+  Initial absence of the journal directory remains a separate positive case.
+- **V2, amended c.**
+  A survivor in one journal blocks recovery and admission involving another.
+  Exercise unreadable, malformed and missing records beside other files.
+  Independently change the journal view and the recorded cgroup-parent view, including the same-cgroup-namespace bind-mount
+  schedule: refuse with the intended reason and retain the journal.
+- **V3, V4.**
+  Fail each record-publication or durability step: no payload starts.
+  Kill the wrapper in preparation and start windows and verify conservative recovery.
+  A genuinely empty journal is removable; a nonempty journal lacking required records is not treated as empty.
+- **V5.**
+  Recover multiple roots with their manifests and lockfiles kept together.
+  Preserve refused leftovers without overwriting an existing `Cargo.lock.refused`.
+  Exercise prepared, ready and done states, repeated recovery, and the same mandatory-finish versus cleanup distinctions as A3 and A4.
+- **V6.**
+  Bound manager startup, command lifetime, pipe draining, shutdown and reaping, including descendants holding pipes open.
+  Busy workspace and internal locks return rather than wait.
+  Unsuccessful shutdown produces uncertainty, not an unbounded wait.
+- **Weaker path (A2, V2, V3, V5, V6).**
+  Each unavailable-capability class produces the promised notice and the pre-start weaker-path record.
+  Both `pgroup starting` and completed-but-gone records block recovery and admission without acknowledgement.
+  The advertised CLI command works, uses the workspace lock, durably acknowledges exactly one journal, survives interrupted
+  publication conservatively, and cannot bypass unrelated validation failures.
+  Acknowledging one of two journals leaves the other blocking.
