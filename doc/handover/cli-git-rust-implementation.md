@@ -245,7 +245,12 @@ Done since the last list:
   remove what revision 13 still leaves unused,
   after it lands.
   Reviews:
-  `commit-components-sol-5.txt` running;
+  `commit-components-sol-5.txt` "Not correct as submitted" (the state pair loses its checkpoint across successive unsynced transitions;
+  the departure barrier omits state-name durability and the order and ledger lines;
+  equal payloads get one identity),
+  each answered by a revision 13 mechanism (state log,
+  D-sets,
+  invocation nonce) and sent to models round 8;
   `commit-models-sol-3a.txt` "sound after named fixes" (liveness semantics and truncation of `explore_eventually`;
   historical greens kept out of approval evidence);
   `commit-models-sol-3b.txt` "Not sound as verification of revision 12" (recovery still infallible,
