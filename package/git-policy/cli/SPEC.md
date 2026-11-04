@@ -1386,11 +1386,7 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   criterion the rule for every step: a step keeps its ceiling exactly when it can run twice, decided by cutting it at every
   mutating system call with `SIGKILL` and `SIGTERM`, running it again, and comparing the end state with an uncut run's
   (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The rule is a whitelist of the exact forms the experiment
-  ran, parsed by their options and words, so a form it did not run has no ceiling: `update-ref` set or delete of one numbered side
-  ref (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`) only with `--no-deref` and with
-  `-c core.logAllRefUpdates=false` on the same argv as the last setting of that key (Git takes the last; `--config-env` of the key is refused too), which the wrapper passes at each of its call sites in
-  `src/native/landing/service_land.rs` (the repository's own `core.logAllRefUpdates=always` and a side ref that is a symbolic ref
-  were both run), `stash list
+  ran, parsed by their options and words, so a form it did not run has no ceiling: `stash list
   --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index` with only `--refresh`, only `--index-info` (and
   `-z`), or `--add --cacheinfo <triple>`, `add` with `--update` or `--all`, `checkout-index --all --force`, `restore` with
   `--staged`, `--worktree`, `--source=` and paths after `--`, `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key>
@@ -1404,10 +1400,14 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the wrapper made, as a write
   of one name to one target with no option (identical in the experiment). `init` is never run again in place (a cut leaves reftable
   tables the second run does not replace: 50 of 104 cuts differed); its one form, the argv `shadow_create.rs` runs on a shadow
-  request, keeps its ceiling because `init_with_git` discards the partial directory and starts a fresh one, at most
+  request, keeps its ceiling because `init_with_git` discards the partial directory and starts a fresh one when the start was cut, refused as a finished command, or refused before the command ran (`EAGAIN`; other I/O errors are not retried), at most
   `SHADOW_CREATION_ATTEMPTS` (2) times, which the experiment found identical to an uncut run in 104 of 104 cuts; a shadow whose `init`
-  is cut every time fails its transaction. A side-ref write also keeps its ceiling only while `git reflog exists` says the ref has no
-  reflog, asked at the start of the write: `core.logAllRefUpdates=false` does not stop an append to a log that exists. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
+  is cut every time fails its transaction. No `update-ref` keeps a ceiling, the write of a side ref included
+  (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`, written by `keep_unlanded` and the scratch deletions in
+  `src/native/landing/service_land.rs`): a reflog that another Git creates between any check and the write is appended to twice by a
+  cut write and its rerun, `core.logAllRefUpdates=false` does not stop an append to a log that exists, and nothing the wrapper holds
+  excludes an ordinary Git. The wrapper still passes `--no-deref` and that setting at those call sites, as hygiene and not as a proof.
+  Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
   `checkout`, `switch`, `config --add`, `gc` and the rest, is never ended. On the commit service's landing thread such a step is
   announced at the usual interval and waited for as long as it lives. Any other command stops waiting at the bound of the step's
   class plus `SHORT_EXTRA_WAIT` (7 seconds; the owner's "Class ceiling + 7 s (Recommended)") and exits non-zero with an error that
@@ -1600,7 +1600,8 @@ What happens at the bound, on the commit path:
   cancellation that is later undone. A confirmation belongs to one decision: one that outlives its decision confirms nothing of the
   decision that replaces it. A `withdrawn` decision with its confirmation stays as a tombstone, so every copy of the request that
   reaches a group is dropped (kept for as many withdrawals as the journal keeps finished batches, forgotten oldest first by the landing
-  thread alone, between two groups, which removes a decision only while it still carries the token of the confirmation it removes; the
+  thread alone, between two groups, and while it is stuck in a write the record holds at most twice that number: past it the connection
+  threads leave withdrawals to the landing thread, which removes a decision only while it still carries the token of the confirmation it removes; the
   memory is cleared when the service starts like the service's own memory of withdrawals); a `landing` decision is removed when its group is
   done, after the batch is in the journal, and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
   request the journal names. A request that a batch still open names is left to the landing thread. Whatever cannot be established
@@ -1697,6 +1698,12 @@ of a conversion claim (`single_owner_claim.rs`), and the journals and stage clai
   release of the state runs from a guard when the job's thread unwinds, so a review that panics after its timeout leaves nothing
   outstanding. The look at the review's log runs inside the contained job. A caller whose wait ran out and who finds the job released waits for
   its value at most `SHORT_EXTRA_WAIT` (7 seconds): the release does not prove the value was sent.
+- Threads that cannot start. A thread is only a way to do work sooner, so no shipped site panics when the system gives none
+  (`Scope::spawn` did, since 0.5.28: on the service's thread it took the service down and the commit could not land). A scoped start
+  (`src/native/foundation/scoped_start.rs`, `start_or_run`) runs the work on the calling thread when the thread is refused, and logs
+  it once for the syncs of a landing; the second-pass input thread of a reconcile reports and stops its command instead, because
+  writing the input in turn could block on a full pipe. The sites and their controls are listed in
+  `doc/planning/cli-git-no-unbounded-waits.md`, "Round 5".
 - Releases that meet. The protocol version stays 7 and no message changes: `waiting` with `"inside_write": true`, `withdraw` and
   `withdrawn` are the messages of 0.5.31 and 0.5.33. A service of 0.5.31 or 0.5.32 (0.5.32 changed the lock claims only) keeps what
   it was released with: a classifier by the name of the step, a decision race between landing and withdrawal that this release
@@ -1709,7 +1716,7 @@ of a conversion claim (`single_owner_claim.rs`), and the journals and stage clai
   with "The commit service that is running was started from another release of this git wrapper and did not stop when ..." and can be run again. The single service of the releases before one service per
   worktree is asked to retire and given `retirement_wait` to leave before the manager is asked to stop it, because the manager's
   stop ends the whole unit and with it a Git step that cannot run twice; one that is still there fails the commit with the stop
-  named for the person to run when no commit is running. Test: `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
+  named for the person to run when no commit is running. The owner chose this on 2026-11-04 ("A: fail, retry (Recommended)"). Test: `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
 
 
 #### Commands that add commits

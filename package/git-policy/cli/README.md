@@ -1377,8 +1377,8 @@ and side-ref hint. Con: a truly hung write keeps the service busy, and later com
 error naming it."). A command that started such a step stops waiting at the step's class bound plus 7 seconds (`SHORT_EXTRA_WAIT`; the owner's
 "Class ceiling + 7 s (Recommended)" and "7 s (Recommended)") and exits non-zero saying the result is not known, naming the step and
 what to check; the step is left running, with its output in files that outlive the command. Only the exact forms the cut experiment
-ran (the table in `doc/planning/cli-git-no-unbounded-waits.md`) keep a ceiling; any other form of a writing step has none. A side-ref
-write keeps one only with `--no-deref` and `-c core.logAllRefUpdates=false` on its command line, and `git fast-import` has none.
+ran (the table in `doc/planning/cli-git-no-unbounded-waits.md`) keep a ceiling; any other form of a writing step has none. No `git update-ref`
+keeps one (a reflog another Git creates between a check and the write would be appended to twice), and `git fast-import` has none.
 The commit service's landing thread waits for it, and a commit that waits behind it is told what the service is stuck in after a
 minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
 (`journalctl`, and a restart of the service when no program uses the repository). The commit inside the stuck write waits 7 seconds
