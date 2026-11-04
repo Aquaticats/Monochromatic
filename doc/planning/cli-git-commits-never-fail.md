@@ -256,7 +256,7 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     6a and 6b are not asked, and decision 12 ("Short wait, then say unconfirmed") is superseded by this decision. A
     sync that never completes is a disk I/O error, disk full or read-only remount, which the owner's list of causes
     outside our control names; the register says so and the rest of "nothing should ever wait forever or indefinitely"
-    is unchanged. Decision 14 was recorded by commit RECORD3_COMMIT, whose time is RECORD3_TIME.
+    is unchanged. Decision 14 was recorded by commit d2682fb03f, whose time is 2026-11-03T22:13:12-05:00.
     2026-11-03T21:47:28-05:00.
 
 
@@ -278,7 +278,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 15, first committed REV15_TIME)
+### Normative state machine (revision 15, first committed 2026-11-03T22:13:12-05:00 in d2682fb03f)
 
 Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea, and revision 13 at
 2026-11-03T20:22:09-05:00 in 4a7bea95a2.
