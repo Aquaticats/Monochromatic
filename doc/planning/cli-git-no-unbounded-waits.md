@@ -859,9 +859,17 @@ that was cut is never parsed as a whole result.
 
 ### Retirement of the single service of the earlier releases: options for an owner question, 2026-11-04
 
-The coordinator asked for these options on 2026-11-04 (round 4). Decided by the owner on 2026-11-04 through the question tool, verbatim
-choice: "A: fail, retry (Recommended)". It is built (the stop of the service goes only to a service that has left, and a service still
-there after `RETIREMENT_WAIT` fails the commit with a retryable sentence); the options below are kept as the record of what was weighed.
+The coordinator asked for these options on 2026-11-04 (round 4).
+Decided by the owner on 2026-11-04 through the question tool,
+verbatim
+choice:
+"A:
+fail,
+retry (Recommended)".
+It is built (the stop of the service goes only to a service that has left,
+and a service still
+there after `RETIREMENT_WAIT` fails the commit with a retryable sentence);
+the options below are kept as the record of what was weighed.
 
 What exists today:
 
@@ -924,9 +932,13 @@ A over C because A never makes a commit wait for a landing it cannot see the end
 person pay in full before the same failure.
 C over D because C keeps every landing whole and costs only time, where D cuts a write that cannot run twice, which the owner's
 decision rules out for branch writes.
-D over B because D loses at worst one cut write that the journal recovery is built to settle, where B can report a landed commit as
-dropped with no recovery at all, and only a change to releases that are already published could make it safe.
-The owner chose A: it puts "never discard user data" before "Commits should never fail." for this one case.
+D over B because D loses at worst one cut write that the journal recovery is built to settle,
+where B can report a landed commit as
+dropped with no recovery at all,
+and only a change to releases that are already published could make it safe.
+The owner chose A:
+it puts "never discard user data" before "Commits should never fail."
+for this one case.
 
 ## Round 4, 2026-11-04: the findings of the cross-vendor review of round 3
 
@@ -980,46 +992,136 @@ Review: `/var/home/user/temp/agent/reviews/branch-write-r3-sol.txt` ("correct af
 
 ## Round 5, 2026-11-04: the findings of the cross-vendor review of round 4, and the shipped thread-start panic
 
-Review: `/var/home/user/temp/agent/reviews/branch-write-r4-sol.txt` ("correct after named fixes"; B "still lacks a valid safety proof").
+Review:
+`/var/home/user/temp/agent/reviews/branch-write-r4-sol.txt` ("correct after named fixes";
+B "still lacks a valid safety proof").
 
-- B, P1. The probe of `git reflog exists` was not atomic with the write: another Git can create the log between them, and a cut write
-  then appends twice on its rerun. No write of a side ref keeps a ceiling any more (the absence probe, the argv classification and the
-  `reflog` read form are removed); on the landing thread they are waited for like the branch write. The call sites keep `--no-deref`
-  and the reflog setting as hygiene. Red shown: `a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state`
+- B,
+  P1.
+  The probe of `git reflog exists` was not atomic with the write:
+  another Git can create the log between them,
+  and a cut write
+  then appends twice on its rerun.
+  No write of a side ref keeps a ceiling any more (the absence probe,
+  the argv classification and the
+  `reflog` read form are removed);
+  on the landing thread they are waited for like the branch write.
+  The call sites keep `--no-deref`
+  and the reflog setting as hygiene.
+  Red shown:
+  `a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state`
   failed with the side-ref forms in its "differs" list while the classifier still ended them ("came out different after a second run
   and has no ceiling").
-- `init`, direct refusal. A start refused before the command ran reaches `init_with_git` as an I/O error of kind `WouldBlock`
-  (`EAGAIN`); it is now discarded and started again in a fresh directory like a cut or a refused-as-finished start, and other I/O
-  errors are not retried. Test `only_a_cut_or_refused_start_of_init_is_retried` (red with the `WouldBlock` arm removed).
-- E, the wait error. A failed wait for a repair tool returned before the group was stopped, the pages released and the leader reaped.
-  It is now a stop. Test `a_wait_that_fails_stops_the_tool_and_releases_its_output` (red first: the reaper was never called). The stop
+- `init`,
+  direct refusal.
+  A start refused before the command ran reaches `init_with_git` as an I/O error of kind `WouldBlock`
+  (`EAGAIN`);
+  it is now discarded and started again in a fresh directory like a cut or a refused-as-finished start,
+  and other I/O
+  errors are not retried.
+  Test `only_a_cut_or_refused_start_of_init_is_retried` (red with the `WouldBlock` arm removed).
+- E,
+  the wait error.
+  A failed wait for a repair tool returned before the group was stopped,
+  the pages released and the leader reaped.
+  It is now a stop.
+  Test `a_wait_that_fails_stops_the_tool_and_releases_its_output` (red first:
+  the reaper was never called).
+  The stop
   control now first establishes that the tool had written.
-- A, regression. The record of confirmed withdrawals was no longer bounded while the landing thread was stuck (only it prunes).
-  Past `WITHDRAWALS_CEILING` (twice the retained number) the connection threads leave withdrawals to the landing thread. Test
-  `the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck` (red first: 2058 withdrawn against 2048).
-- C and D, test strength. A cross-category test (dead journal, expired foreign stage claim), temporaries judged in name order, and a
+- A,
+  regression.
+  The record of confirmed withdrawals was no longer bounded while the landing thread was stuck (only it prunes).
+  Past `WITHDRAWALS_CEILING` (twice the retained number) the connection threads leave withdrawals to the landing thread.
+  Test
+  `the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck` (red first:
+  2058 withdrawn against 2048).
+- C and D,
+  test strength.
+  A cross-category test (dead journal,
+  expired foreign stage claim),
+  temporaries judged in name order,
+  and a
   handoff control that forces the release before the caller gives up.
-- The thread-start panic (shipped since 0.5.28, found by the gate of 2026-11-04, test
-  `a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`, 4873 of 4874). `landing/service_durable.rs`
-  made the syncs of a landing with `Scope::spawn`, which panics when the system gives no thread; on the service's main thread
-  (`force`) that took the service down, so the commit could not land. The measured cause: the test lowers the address space of the
-  service until a start fails, and the two places that start threads for the syncs were the first to be refused; the panic is in the
-  program, not in the load. `foundation/scoped_start.rs` starts a scoped thread and runs the work on the calling thread when the start
-  is refused (the closure is handed through a slot, because `spawn_scoped` consumes it even when it fails). Every production site:
-  - `landing/service_durable.rs` `sync_batch` and `force`: fixed; test `a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_not_panic`
-    (a child with a process limit of one; red against the old code with the exact panic).
-  - `foundation/parallel_runner.rs`, `repair/package_repair.rs`, `repair/package_repair_cargo.rs`, `repair/package_repair_tree_clone.rs`,
-    `worktree/worktree_clean.rs`, `worktree/worktree_snapshot_source.rs`, `worktree_copying/worktree_copy_compare.rs`,
-    `worktree_copy_install.rs`, `worktree_copy_journal.rs`, `worktree_copy_stage.rs`: fixed the same way. Controls: a child refused
-    every thread for the parallel runner, the cargo `map_concurrent`, the tree clone, the install, the final check, the removal and the
-    stage copy; the seam of `scoped_start` for the clean check and the repair, whose scenarios start Git. The snapshot source has no
-    scenario of its own that runs without a btrfs fixture, so its two starts are covered by the mechanism's tests only.
-  - `push/auto_push_reconcile.rs`: the input thread of a second-pass command was a plain `std::thread::spawn`; a refusal now stops the
-    command and reports, since writing the input here could block on a full pipe. Test
-    `a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported` (the seam; no plant is possible against a plain spawn).
-  - Already handled, unchanged: `landing/service_index_prestage.rs` (no marker made ahead), `landing/service_claim_renewal.rs` (no
-    renewal, claims expire), `push/bounded_push.rs`, `process/thread_quiet.rs`, `push/child_watch.rs` watch thread, `markdown/markdown_linter_guard.rs`
-    (`GuardFailure::Start`), `repair/package_repair_command.rs` reaper (the leader is left to init), and `push/child_watch.rs` left-running
-    waiter, which reports that no thread could be started to wait for the step. `testing/test_support.rs` watchdog: failure ignored.
-  Planted proof: with the fallback replaced by the panic of `Scope::spawn`, 8 of 8 child controls and the durable control failed, and the
+- The thread-start panic (shipped since 0.5.28,
+  found by the gate of 2026-11-04,
+  test
+  `a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  4873 of 4874).
+  `landing/service_durable.rs`
+  made the syncs of a landing with `Scope::spawn`,
+  which panics when the system gives no thread;
+  on the service's main thread
+  (`force`) that took the service down,
+  so the commit could not land.
+  The measured cause:
+  the test lowers the address space of the
+  service until a start fails,
+  and the two places that start threads for the syncs were the first to be refused;
+  the panic is in the
+  program,
+  not in the load.
+  `foundation/scoped_start.rs` starts a scoped thread and runs the work on the calling thread when the start
+  is refused (the closure is handed through a slot,
+  because `spawn_scoped` consumes it even when it fails).
+  Every production site:
+  - `landing/service_durable.rs` `sync_batch` and `force`:
+    fixed;
+    test `a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_not_panic`
+    (a child with a process limit of one;
+    red against the old code with the exact panic).
+  - `foundation/parallel_runner.rs`,
+    `repair/package_repair.rs`,
+    `repair/package_repair_cargo.rs`,
+    `repair/package_repair_tree_clone.rs`,
+    `worktree/worktree_clean.rs`,
+    `worktree/worktree_snapshot_source.rs`,
+    `worktree_copying/worktree_copy_compare.rs`,
+    `worktree_copy_install.rs`,
+    `worktree_copy_journal.rs`,
+    `worktree_copy_stage.rs`:
+    fixed the same way.
+    Controls:
+    a child refused
+    every thread for the parallel runner,
+    the cargo `map_concurrent`,
+    the tree clone,
+    the install,
+    the final check,
+    the removal and the
+    stage copy;
+    the seam of `scoped_start` for the clean check and the repair,
+    whose scenarios start Git.
+    The snapshot source has no
+    scenario of its own that runs without a btrfs fixture,
+    so its two starts are covered by the mechanism's tests only.
+  - `push/auto_push_reconcile.rs`:
+    the input thread of a second-pass command was a plain `std::thread::spawn`;
+    a refusal now stops the
+    command and reports,
+    since writing the input here could block on a full pipe.
+    Test
+    `a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported` (the seam;
+    no plant is possible against a plain spawn).
+  - Already handled,
+    unchanged:
+    `landing/service_index_prestage.rs` (no marker made ahead),
+    `landing/service_claim_renewal.rs` (no
+    renewal,
+    claims expire),
+    `push/bounded_push.rs`,
+    `process/thread_quiet.rs`,
+    `push/child_watch.rs` watch thread,
+    `markdown/markdown_linter_guard.rs`
+    (`GuardFailure::Start`),
+    `repair/package_repair_command.rs` reaper (the leader is left to init),
+    and `push/child_watch.rs` left-running
+    waiter,
+    which reports that no thread could be started to wait for the step.
+    `testing/test_support.rs` watchdog:
+    failure ignored.
+  Planted proof:
+    with the fallback replaced by the panic of `Scope::spawn`,
+    8 of 8 child controls and the durable control failed,
+    and the
   two seam controls failed.

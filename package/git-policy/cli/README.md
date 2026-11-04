@@ -1367,19 +1367,46 @@ and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
 A process that works is waited for until its ceiling; a quiet window ends a wait for quiet, a ceiling ends a wait for length, and
 the one step that is never ended is a write in place that is not safe to run twice.
-A Git step the wrapper starts keeps a ceiling of its class (reads 120 seconds, bulk steps 10 minutes) exactly when it can run twice:
-the owner's criterion, decided by cutting each step at every mutating system call, running it again and comparing the end state
-(`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The branch write (`git update-ref`), `git merge`,
-`git reset --hard`, `git checkout`, `git switch`, `git stash store` and `git read-tree -m` came out different and are never ended
-(the owner, 2026-11-04: "Never cut a branch write (Recommended)", whose option read "Steps that can safely run twice keep their
-ceilings; the branch write is never ended. Your command still returns at its bound with "result not yet known" and the `git log -1`
-and side-ref hint. Con: a truly hung write keeps the service busy, and later commits fail at their own 20-minute ceiling with an
-error naming it."). A command that started such a step stops waiting at the step's class bound plus 7 seconds (`SHORT_EXTRA_WAIT`; the owner's
-"Class ceiling + 7 s (Recommended)" and "7 s (Recommended)") and exits non-zero saying the result is not known, naming the step and
-what to check; the step is left running, with its output in files that outlive the command. Only the exact forms the cut experiment
-ran (the table in `doc/planning/cli-git-no-unbounded-waits.md`) keep a ceiling; any other form of a writing step has none. No `git update-ref`
-keeps one (a reflog another Git creates between a check and the write would be appended to twice), and `git fast-import` has none.
-The commit service's landing thread waits for it, and a commit that waits behind it is told what the service is stuck in after a
+A Git step the wrapper starts keeps a ceiling of its class (reads 120 seconds,
+bulk steps 10 minutes) exactly when it can run twice:
+the owner's criterion,
+decided by cutting each step at every mutating system call,
+running it again and comparing the end state
+(`doc/planning/cli-git-no-unbounded-waits.md`,
+"The cut experiment").
+The branch write (`git update-ref`),
+`git merge`,
+`git reset --hard`,
+`git checkout`,
+`git switch`,
+`git stash store` and `git read-tree -m` came out different and are never ended
+(the owner,
+2026-11-04:
+"Never cut a branch write (Recommended)",
+whose option read "Steps that can safely run twice keep their
+ceilings;
+the branch write is never ended.
+Your command still returns at its bound with "result not yet known" and the `git log -1`
+and side-ref hint.
+Con:
+a truly hung write keeps the service busy,
+and later commits fail at their own 20-minute ceiling with an
+error naming it.").
+A command that started such a step stops waiting at the step's class bound plus 7 seconds (`SHORT_EXTRA_WAIT`;
+the owner's
+"Class ceiling + 7 s (Recommended)" and "7 s (Recommended)") and exits non-zero saying the result is not known,
+naming the step and
+what to check;
+the step is left running,
+with its output in files that outlive the command.
+Only the exact forms the cut experiment
+ran (the table in `doc/planning/cli-git-no-unbounded-waits.md`) keep a ceiling;
+any other form of a writing step has none.
+No `git update-ref`
+keeps one (a reflog another Git creates between a check and the write would be appended to twice),
+and `git fast-import` has none.
+The commit service's landing thread waits for it,
+and a commit that waits behind it is told what the service is stuck in after a
 minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
 (`journalctl`, and a restart of the service when no program uses the repository). The commit inside the stuck write waits 7 seconds
 past its `ANSWER_CEILING` and then reports that it is not known whether it was made, with `git log -1`, `git status` and the write
