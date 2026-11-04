@@ -132,7 +132,12 @@ classification is the author's until a review accepts it.
   counterparts assert the receipts recorded
   (the_fixed_launch_gives_a_client_an_executor_whatever_another_client_does,
   the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock); the earlier round 20 controls did not
-  establish their interleavings and are superseded; the other controls (
+  establish their interleavings and are superseded; two limits of the controls: the negative controls observe
+  the absence of a record for 1.5 s only (an executor acts within milliseconds, which is observed and not
+  proven), and the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock does not force a failed
+  recheck acquisition (whether the recheck wins or loses the lock depends on scheduling), so it is not
+  deterministic evidence of that branch, which
+  a_second_executor_pinned_across_the_recheck_decision_carries_the_receipt pins; the other controls (
   (a_slow_launcher_that_then_dies_leaves_every_receipt_with_an_executor,
   a_client_that_arrives_after_a_launch_that_could_not_reap_its_intermediate_child_has_an_executor,
   a_launcher_that_dies_right_after_the_helper_is_ready_leaves_no_receipt_without_an_executor,
@@ -252,12 +257,11 @@ classification is the author's until a review accepts it.
   `only_a_positive_failure_allows_the_next_attempt` in `model_w1_r13_tests.rs`.
 - Covered, property: unresolved departure permits only the submitted attempt:
   `a_query_during_the_unresolved_mark_never_says_nothing_can_land` in `model_w1_r13_tests.rs`.
-- Narrower, control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend):
+- Covered, control: disposable Git experiments (actual FIFO, hook phases, diagnostics, backend, packed refs,
+  linked worktrees, the side-ref transaction, creation, deletion and symbolic-ref updates, the client-lock and
+  submission handoffs, the order of the ref and the answer, a kill at each persistence boundary), Git 2.56.0,
+  files and reftable, a local file system:
   `a_fifo_transaction_prepares_holds_through_a_pause_and_commits_on_commit` in `model_git_experiments_tests.rs`.
-  Not shown: every supported invocation beyond `update-ref --stdin` with an update (creation, deletion, symbolic
-  refs, the side-ref transaction), packed refs, linked worktrees, and Git versions other than the installed
-  2.56.0; the neighbouring tests cover abort, end of input, buffered commit, ENXIO, hook phases, a hook refusal
-  and two diagnostics on both the files and reftable backends.
 
 ### P2c, receipt forcing, L2 and L4, shutdown
 
@@ -1401,3 +1405,129 @@ leaky tests, the stalled children that their alarms end); `native:clippy` and `n
 (`/var/home/user/temp/agent/r20/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has 64 covered,
 17 narrower, 9 historical and 18 not yet.
+
+## Round 22 state
+
+Round 22 follows the review of round 21 ("yes for the claimed, explicitly limited coverage; not approval of the
+live protocol").
+
+### Two limits recorded in the map
+
+- The negative probe controls observe the absence of a record for 1.5 s only; an executor acts within milliseconds,
+  which is
+  observed and not proven.
+- `the_fixed_launch_leaves_no_receipt_to_a_recheck_that_loses_the_lock` does not force a failed recheck acquisition
+  (the hook
+  runs once and whether the recheck wins or loses depends on scheduling), so it is not deterministic evidence of
+  that branch;
+  `a_second_executor_pinned_across_the_recheck_decision_carries_the_receipt` pins it.
+
+### Disposable Git experiments for the supported scope
+
+Each runs on a throwaway repository under the build's temporary directory, in the capped scope of the model run,
+with the real Git
+(`/usr/bin/git`, version 2.56.0 here), on the files and the reftable backends unless noted, on a local file system.
+They are in
+`model/model_git_experiments_tests.rs` (21 tests). Results:
+
+- Packed refs (`a_fifo_transaction_updates_creates_and_deletes_packed_refs`, files backend): after
+  `pack-refs --all` every branch is
+  in `packed-refs`; one transaction updates a packed ref, deletes another and creates a third, and the deleted ref
+  is gone from
+  `packed-refs` too. The reftable backend has no `packed-refs` file.
+- Creation and deletion (`creation_and_deletion_through_a_transaction_check_their_expected_values`): a creation
+  with the zero old
+  value, a deletion with the right old value succeed; a deletion with a wrong old value is refused at `prepare`
+  with a diagnostic
+  naming the ref, no `prepare: ok`, and the ref stays.
+- Symbolic references
+  (`symbolic_references_are_created_updated_and_deleted_through_a_transaction_and_head_is_followed`):
+  `symref-create`, `symref-update` and `symref-delete` work in 2.56.0 (`symref-delete` needs
+  `update-ref --no-deref`, otherwise Git
+  answers "cannot operate with deref mode"); `update HEAD` follows the symbolic `HEAD` to the branch it names and
+  `HEAD` stays
+  symbolic.
+- The side-ref transaction (`a_side_ref_is_created_hook_free_and_makes_its_commit_reachable_for_a_prune`): an
+  unreferenced commit is
+  a prune candidate (control), a ref under `refs/cli-git/` keeps it out of an immediate-expiry prune view, the
+  transaction with an
+  empty `core.hooksPath` runs no `reference-transaction` hook, and the same transaction without it runs
+  `preparing`, `prepared`,
+  `committed`.
+- A foreign lock on the branch
+  (`a_foreign_branch_lock_blocks_the_branch_and_not_the_side_ref_on_the_files_backend_but_blocks_both_on_reftable`):
+  on the files backend the branch's own `main.lock` refuses the branch update at `prepare` with a diagnostic naming
+  a lock and does
+  not block a side ref; on the reftable backend the lock is the stack's `tables.list.lock`, one for every ref, so
+  it blocks both.
+  Finding: "save on a side ref" cannot rely on a different lock under reftable; the design already makes the spool
+  the guarantee
+  and the side ref best effort, so nothing changes, and the behaviour is now measured.
+- A torn final instruction (`a_torn_commit_instruction_at_end_of_input_never_commits`): the writer sent a prepared
+  transaction and
+  `comm`, then every writer closed; Git exits with an error that names the torn command, prints no `commit: ok`,
+  and the ref stays.
+- Publication evidence precedence (`the_ref_moves_before_the_commit_answer_is_written`): with a hook that blocks at
+  `committed`, the
+  ref already names the new commit while `commit: ok` has not been written, and the answer appears after the hook
+  returns. The ref
+  is the evidence and the answer line a report of it.
+- Linked worktrees (`a_linked_worktree_shares_branches_and_keeps_refs_worktree_private`): a transaction run from a
+  linked worktree moves
+  a shared branch (even one the main worktree has checked out); `update HEAD` there moves the linked worktree's own
+  branch; a ref
+  under `refs/worktree/` (the scratch ref `refs/worktree/cli-git-service/<seq>` of the decision record) is visible
+  only in the
+  worktree that created it.
+- The client-lock handoff (`the_transaction_child_inherits_no_client_lock_descriptor`): the transaction child holds
+  no descriptor of
+  the client's lock file, and the lock is free once the client lets go although the child lives.
+- The submission handoff (`a_second_writer_keeps_the_transaction_alive_when_the_first_closes`): a second writer
+  opens the FIFO, the
+  first closes, the transaction stays alive and the second commits; only the last writer's close is an end of input.
+- Interruption at the persistence boundaries by a kill of `update-ref`
+  (`killing_update_ref_after_prepare_leaves_the_old_value_and_a_stale_lock_and_after_commit_the_new_value`): after
+  `prepare: ok` the ref
+  is unchanged and Git leaves the lock it held (files: `refs/heads/main.lock`; reftable:
+  `reftable/tables.list.lock`), which a later
+  transaction reports as a lock error; after `commit: ok` the new value is there and no lock remains. Git does not
+  clear the stale lock
+  itself. The design's pick for a ref lock left by an uncatchable kill (the lane never removes it; the person
+  clears it) is
+  consistent with this; nothing was changed.
+- The earlier tests of the same file (the FIFO bootstrap, abort, end of input, buffered commit, `ENXIO`, hook
+  phases, a hook refusal,
+  stale and existing-ref diagnostics, the push exclusion) are unchanged.
+
+Not shown, and why the row is covered only for this scope: Git versions other than 2.56.0 (the owner's decision:
+the tests run on
+the current Git and an older one only warns), a power loss (a kill is not a power loss; durability is the forcing
+rows' business),
+and a file system other than a local one.
+
+The row "disposable Git experiments" is now Covered; the push-exclusion row stays Narrower (the marker the lane
+acknowledges and the
+stacked push path).
+
+### Ordered plan
+
+Written in `doc/planning/cli-git-commits-never-fail.md` on `fix/git-policy-cli-commits-never-fail`, commit
+`a1308f6d8c`, section
+"Ordered plan to the live protocol (round 22)": seven steps (the real state document; lifecycle and continuing
+forcing at the real
+call sites; cutover with a fence; recovery and preservation; installation; whole-command latency and notices; scope
+and enablement),
+each with what it builds, which rows its evidence closes and what it depends on. Four owner questions, none
+decided: the real state
+document and its representation, the launch route (manager-started unit or the fallback only), the cutover fence,
+and the notice
+texts.
+
+### Gates at the tip
+
+The full `native:test:model` run is 490 passed, 0 failed (`/var/home/user/temp/agent/r22/full-model.log`; nextest
+reports four leaky
+tests, the stalled children that their alarms end); `native:clippy` and `native:clippy:seams` are clean
+(`/var/home/user/temp/agent/r22/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
+map has 65 covered,
+16 narrower, 9 historical and 18 not yet.

@@ -91,6 +91,11 @@ struct Transaction {
 }
 
 fn open_transaction(repository: &Repository, extra: &[&str]) -> Transaction {
+    return open_transaction_with(repository, extra, &[]);
+}
+
+/// As `open_transaction`, with `options` given to `update-ref` itself (`--no-deref`, say).
+fn open_transaction_with(repository: &Repository, extra: &[&str], options: &[&str]) -> Transaction {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::io::AsRawFd;
@@ -113,7 +118,9 @@ fn open_transaction(repository: &Repository, extra: &[&str]) -> Transaction {
     command
         .current_dir(&repository.path)
         .args(extra)
-        .args(["update-ref", "--stdin"])
+        .args(["update-ref"])
+        .args(options)
+        .args(["--stdin"])
         .stdin(Stdio::from(reader))
         .stdout(File::create(&out).expect("out"))
         .stderr(File::create(&err).expect("err"));
@@ -415,3 +422,294 @@ fn a_negative_refspec_keeps_the_internal_namespace_off_the_remote_and_a_named_ob
         assert!(git_text(&frozen, &["for-each-ref", "refs/heads/main"]).trim().is_empty(), "{}", backend);
     }
 }
+
+// region: experiments of round 22 for the supported scope: packed refs, linked worktrees, the side-ref transaction, creation, deletion and
+// symbolic-reference updates, a torn instruction, and the order of the ref and the answer (publication evidence)
+
+/// Sends `text` as a whole transaction (start, the instructions, prepare, commit) and returns the finished child's exit status.
+fn run_transaction(repository: &Repository, extra: &[&str], instructions: &str) -> (ExitStatus, String, String) {
+    return run_transaction_with(repository, extra, &[], instructions);
+}
+
+/// As `run_transaction`, with `options` given to `update-ref`.
+fn run_transaction_with(repository: &Repository, extra: &[&str], options: &[&str], instructions: &str) -> (ExitStatus, String, String) {
+    let mut transaction: Transaction = open_transaction_with(repository, extra, options);
+    transaction.send(&format!("start\n{}prepare\ncommit\n", instructions));
+    transaction.close_keeper();
+    let status: ExitStatus = transaction.finish();
+    return (status, transaction.stdout(), transaction.stderr());
+}
+
+/// Packed refs (files backend): after `pack-refs --all` every branch lives in `packed-refs`; one transaction updates a packed ref, deletes
+/// another and creates a third, and the result is exactly that, with the deleted ref gone from `packed-refs` too. The reftable backend has no
+/// `packed-refs` file at all.
+#[test]
+fn a_fifo_transaction_updates_creates_and_deletes_packed_refs() {
+    let files: Repository = repository("packed", "files");
+    git(&files.path, &["update-ref", "refs/heads/topic", &files.first]);
+    git(&files.path, &["pack-refs", "--all"]);
+    let packed: String = fs::read_to_string(files.path.join(".git/packed-refs")).expect("packed-refs");
+    assert!(packed.contains("refs/heads/main") && packed.contains("refs/heads/topic"), "both branches are packed: {}", packed);
+    assert!(!files.path.join(".git/refs/heads/main").exists(), "packed: no loose file for main");
+    let instructions: String = format!(
+        "update refs/heads/main {second} {first}\ndelete refs/heads/topic {first}\ncreate refs/heads/new {second}\n",
+        second = files.second,
+        first = files.first
+    );
+    let (status, _out, err) = run_transaction(&files, &[], &instructions);
+    assert!(status.success(), "{:?} {}", status, err);
+    assert_eq!(files.resolve("refs/heads/main").as_deref(), Some(files.second.as_str()));
+    assert_eq!(files.resolve("refs/heads/topic"), None, "the packed ref is deleted");
+    assert_eq!(files.resolve("refs/heads/new").as_deref(), Some(files.second.as_str()));
+    let after: String = fs::read_to_string(files.path.join(".git/packed-refs")).expect("packed-refs");
+    assert!(!after.contains("refs/heads/topic"), "the deleted ref is gone from packed-refs: {}", after);
+
+    let reftable: Repository = repository("packed", "reftable");
+    git(&reftable.path, &["pack-refs", "--all"]);
+    assert!(!reftable.path.join(".git/packed-refs").exists(), "the reftable backend has no packed-refs file");
+}
+
+/// Creation, deletion and a refused deletion through the transaction, on both backends: a creation with the zero old value, a deletion with
+/// the right old value, and a deletion with a wrong old value that is refused at `prepare` with a diagnostic that names the ref.
+#[test]
+fn creation_and_deletion_through_a_transaction_check_their_expected_values() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("create-delete", backend);
+        let (created, _o, e1) = run_transaction(&repository, &[], &format!("create refs/heads/made {}\n", repository.second));
+        assert!(created.success(), "{}: {}", backend, e1);
+        assert_eq!(repository.resolve("refs/heads/made").as_deref(), Some(repository.second.as_str()), "{}", backend);
+        let mut refused: Transaction = open_transaction(&repository, &[]);
+        refused.send(&format!("start\ndelete refs/heads/made {}\nprepare\n", repository.first));
+        let status: ExitStatus = refused.finish();
+        assert!(!status.success(), "{}: a deletion with a wrong old value is refused", backend);
+        assert!(refused.stderr().contains("refs/heads/made"), "{}: the diagnostic names the ref: {}", backend, refused.stderr());
+        assert!(!refused.stdout().contains("prepare: ok"), "{}", backend);
+        assert_eq!(repository.resolve("refs/heads/made").as_deref(), Some(repository.second.as_str()), "{}: the ref stays", backend);
+        let (deleted, _o2, e2) = run_transaction(&repository, &[], &format!("delete refs/heads/made {}\n", repository.second));
+        assert!(deleted.success(), "{}: {}", backend, e2);
+        assert_eq!(repository.resolve("refs/heads/made"), None, "{}", backend);
+    }
+}
+
+/// Symbolic-reference updates through the transaction (Git 2.56.0 reads `symref-create`, `symref-update` and `symref-delete`), and an
+/// `update HEAD` that follows the symbolic `HEAD` to the branch it names, as the design's publication target says.
+#[test]
+fn symbolic_references_are_created_updated_and_deleted_through_a_transaction_and_head_is_followed() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("symref", backend);
+        let target = |name: &str| -> String { return git_text(&repository.path, &["symbolic-ref", name]).trim().to_string(); };
+        let (created, _o, e) = run_transaction(&repository, &[], "symref-create refs/heads/alias refs/heads/main\n");
+        assert!(created.success(), "{}: {}", backend, e);
+        assert_eq!(target("refs/heads/alias"), "refs/heads/main", "{}", backend);
+        git(&repository.path, &["update-ref", "refs/heads/other", &repository.first]);
+        let (updated, _o2, e2) = run_transaction(&repository, &[], "symref-update refs/heads/alias refs/heads/other\n");
+        assert!(updated.success(), "{}: {}", backend, e2);
+        assert_eq!(target("refs/heads/alias"), "refs/heads/other", "{}", backend);
+        let (deleted, _o3, e3) = run_transaction_with(&repository, &[], &["--no-deref"], "symref-delete refs/heads/alias\n");
+        assert!(deleted.success(), "{}: {}", backend, e3);
+        assert!(!git_output(&repository.path, &["symbolic-ref", "refs/heads/alias"]).status.success(), "{}: the symbolic ref is gone", backend);
+        let before_head: String = target("HEAD");
+        let (moved, _o4, e4) = run_transaction(&repository, &[], &format!("update HEAD {} {}\n", repository.second, repository.first));
+        assert!(moved.success(), "{}: {}", backend, e4);
+        assert_eq!(repository.resolve("refs/heads/main").as_deref(), Some(repository.second.as_str()), "{}: HEAD was followed to the branch", backend);
+        assert_eq!(target("HEAD"), before_head, "{}: HEAD stays symbolic", backend);
+    }
+}
+
+/// The side-ref transaction: an unreferenced commit is pruned by an immediate-expiry prune (the control), and kept once a ref under
+/// `refs/cli-git/` names it; the ref is created by a transaction with an empty hooks path, so the person's `reference-transaction` hook
+/// does not run for it (hook-free internal transactions), while the same transaction without the empty path does run the hook.
+#[test]
+fn a_side_ref_is_created_hook_free_and_makes_its_commit_reachable_for_a_prune() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("side-ref", backend);
+        let tree: String = git_text(&repository.path, &["rev-parse", "HEAD^{tree}"]).trim().to_string();
+        let orphan: String = git_text(&repository.path, &["commit-tree", &tree, "-m", "orphan"]).trim().to_string();
+        let dry = |candidate: &Repository| -> String { return git_text(&candidate.path, &["prune", "--dry-run", "--expire=now"]); };
+        assert!(dry(&repository).contains(&orphan), "{}: the control: an unreferenced commit is a prune candidate", backend);
+        let log: PathBuf = install_hook(&repository, "exit 0");
+        let empty: PathBuf = scratch("side-empty-hooks");
+        let (hook_free, _o, e) = run_transaction(&repository, &["-c", &format!("core.hooksPath={}", empty.display())], &format!("create refs/cli-git/instance/pending/id {}\n", orphan));
+        assert!(hook_free.success(), "{}: {}", backend, e);
+        assert!(phases(&log).is_empty(), "{}: no hook ran for the side ref: {:?}", backend, phases(&log));
+        assert_eq!(repository.resolve("refs/cli-git/instance/pending/id").as_deref(), Some(orphan.as_str()), "{}", backend);
+        assert!(!dry(&repository).contains(&orphan), "{}: a ref under refs/cli-git/ keeps its commit out of the prune view", backend);
+        let (hooked, _o2, e2) = run_transaction(&repository, &[], &format!("create refs/cli-git/instance/pending/second {}\n", orphan));
+        assert!(hooked.success(), "{}: {}", backend, e2);
+        assert_eq!(phases(&log), ["preparing", "prepared", "committed"], "{}: without the empty path the hook runs", backend);
+    }
+}
+
+/// A foreign program holds the lock of the branch. Files backend: the lock is the branch's own `main.lock`, so the update of the branch
+/// fails at `prepare` with a diagnostic that names the lock while the side ref, a different ref, is created. Reftable: the lock is the
+/// stack's `tables.list.lock`, one for every ref, so both fail; "save on a side ref" cannot rely on a different lock there.
+#[test]
+fn a_foreign_branch_lock_blocks_the_branch_and_not_the_side_ref_on_the_files_backend_but_blocks_both_on_reftable() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("foreign-lock", backend);
+        let lock: PathBuf = if backend == "files" { repository.path.join(".git/refs/heads/main.lock") } else { repository.path.join(".git/reftable/tables.list.lock") };
+        fs::write(&lock, b"").expect("a foreign lock");
+        let (branch, _o, branch_error) = run_transaction(&repository, &[], &repository.move_main());
+        assert!(!branch.success(), "{}: the branch update is refused while the lock exists", backend);
+        assert!(branch_error.contains("lock"), "{}: the diagnostic names a lock: {}", backend, branch_error);
+        assert_eq!(repository.resolve("refs/heads/main").as_deref(), Some(repository.first.as_str()), "{}", backend);
+        let (side, _o2, side_error) = run_transaction(&repository, &[], &format!("create refs/cli-git/instance/pending/id {}\n", repository.second));
+        if backend == "files" {
+            assert!(side.success(), "files: the side ref has its own lock: {}", side_error);
+            assert_eq!(repository.resolve("refs/cli-git/instance/pending/id").as_deref(), Some(repository.second.as_str()));
+        } else {
+            assert!(!side.success(), "reftable: one lock covers every ref: {}", side_error);
+        }
+    }
+}
+
+/// A torn final instruction: the writer sent the whole prepared transaction and the first letters of `commit`, then every writer closed.
+/// Git does not commit a partial instruction; the ref stays.
+#[test]
+fn a_torn_commit_instruction_at_end_of_input_never_commits() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("torn", backend);
+        let mut transaction: Transaction = open_transaction(&repository, &[]);
+        transaction.send(&format!("start\n{}prepare\ncomm", repository.move_main()));
+        transaction.close_keeper();
+        let status: ExitStatus = transaction.finish();
+        assert!(!status.success(), "{}: a torn instruction is an error exit: {}", backend, transaction.stderr());
+        assert!(transaction.stderr().contains("comm"), "{}: the diagnostic names the torn command: {}", backend, transaction.stderr());
+        assert!(!transaction.stdout().contains("commit: ok"), "{}: {}", backend, transaction.stdout());
+        assert_eq!(repository.resolve("refs/heads/main").as_deref(), Some(repository.first.as_str()), "{}: a torn commit does not move the ref", backend);
+    }
+}
+
+/// Publication evidence precedence: the ref moves before Git answers `commit: ok`. A `reference-transaction` hook that blocks at the
+/// `committed` phase holds the answer back while the ref already names the new commit, so the ref is the evidence and the answer line is
+/// only a report of it.
+#[test]
+fn the_ref_moves_before_the_commit_answer_is_written() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("evidence", backend);
+        let entered: PathBuf = repository.path.join("entered");
+        let release: PathBuf = repository.path.join("release");
+        let script: String = format!("#!/bin/sh\nif [ \"$1\" = committed ]; then : > '{}'; while [ ! -e '{}' ]; do sleep 0.02; done; fi\ncat >/dev/null\nexit 0\n", entered.display(), release.display());
+        let hook: PathBuf = repository.path.join(".git/hooks/reference-transaction");
+        fs::create_dir_all(hook.parent().expect("hooks directory")).expect("hooks directory");
+        fs::write(&hook, script).expect("hook");
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).expect("executable hook");
+        let mut transaction: Transaction = open_transaction(&repository, &[]);
+        transaction.send(&format!("start\n{}prepare\n", repository.move_main()));
+        transaction.wait_for_answer("prepare: ok");
+        transaction.send("commit\n");
+        let deadline: Instant = Instant::now() + ANSWER_WAIT;
+        while !entered.exists() {
+            assert!(Instant::now() < deadline, "{}: the hook never reached the committed phase", backend);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(repository.resolve("refs/heads/main").as_deref(), Some(repository.second.as_str()), "{}: the ref moved before the answer", backend);
+        assert!(!transaction.stdout().contains("commit: ok"), "{}: the answer is not written yet: {}", backend, transaction.stdout());
+        fs::write(&release, b"").expect("release the hook");
+        transaction.wait_for_answer("commit: ok");
+        transaction.close_keeper();
+        assert!(transaction.finish().success(), "{}", backend);
+    }
+}
+
+/// Linked worktrees: shared refs and per-worktree refs. A transaction run from a linked worktree updates a shared branch (even one that the
+/// main worktree has checked out) and, through `HEAD`, the linked worktree's own branch; a ref under `refs/worktree/` is private to the
+/// worktree that created it, which is where the decision record's scratch ref `refs/worktree/cli-git-service/<seq>` lives.
+#[test]
+fn a_linked_worktree_shares_branches_and_keeps_refs_worktree_private() {
+    for backend in BACKENDS {
+        let main: Repository = repository("worktree", backend);
+        let linked_path: PathBuf = scratch(&format!("worktree-linked-{}", backend)).join("linked");
+        git(&main.path, &["worktree", "add", "--quiet", "-b", "linked-branch", linked_path.to_str().expect("a path"), &main.first]);
+        let linked: Repository = Repository { path: linked_path.clone(), first: main.first.clone(), second: main.second.clone() };
+        let (shared, _o, e) = run_transaction(&linked, &[], &linked.move_main());
+        assert!(shared.success(), "{}: {}", backend, e);
+        assert_eq!(main.resolve("refs/heads/main").as_deref(), Some(main.second.as_str()), "{}: a shared branch moved from the linked worktree", backend);
+        let (own, _o2, e2) = run_transaction(&linked, &[], &format!("update HEAD {} {}\n", main.second, main.first));
+        assert!(own.success(), "{}: {}", backend, e2);
+        assert_eq!(main.resolve("refs/heads/linked-branch").as_deref(), Some(main.second.as_str()), "{}: HEAD in the linked worktree names its own branch", backend);
+        let (private, _o3, e3) = run_transaction(&linked, &[], &format!("create refs/worktree/cli-git-service/1 {}\n", main.second));
+        assert!(private.success(), "{}: {}", backend, e3);
+        assert_eq!(linked.resolve("refs/worktree/cli-git-service/1").as_deref(), Some(main.second.as_str()), "{}: visible in its worktree", backend);
+        assert_eq!(main.resolve("refs/worktree/cli-git-service/1"), None, "{}: not visible from the main worktree", backend);
+    }
+}
+
+/// The client-lock handoff with real Git: the client holds its `flock` on the lane's client file; the transaction child started as the
+/// bootstrap says inherits no descriptor of it, so the lock dies with the client and not with a Git child that may outlive it.
+#[test]
+fn the_transaction_child_inherits_no_client_lock_descriptor() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("client-lock", backend);
+        let lock_path: PathBuf = scratch("client-lock-file").join("client");
+        let client_lock: File = OpenOptions::new().create(true).write(true).truncate(false).open(&lock_path).expect("the client lock file");
+        client_lock.try_lock().expect("the client holds its lock");
+        let mut transaction: Transaction = open_transaction(&repository, &[]);
+        transaction.send(&format!("start\n{}prepare\n", repository.move_main()));
+        transaction.wait_for_answer("prepare: ok");
+        let listing: Vec<PathBuf> = fs::read_dir(format!("/proc/{}/fd", transaction.child.id())).expect("the child's descriptors").flatten().filter_map(|entry| { return fs::read_link(entry.path()).ok(); }).collect();
+        assert!(!listing.iter().any(|target| { return target == &lock_path; }), "{}: the transaction child holds the client lock: {:?}", backend, listing);
+        drop(client_lock);
+        let other: File = OpenOptions::new().write(true).open(&lock_path).expect("the lock file again");
+        assert!(other.try_lock().is_ok(), "{}: the lock is free once the client let go, although the child lives", backend);
+        assert!(transaction.running(), "{}", backend);
+        transaction.send("abort\n");
+        transaction.close_keeper();
+        assert!(transaction.finish().success(), "{}", backend);
+    }
+}
+
+/// The submission handoff of the write end: a second writer opens the FIFO while the first (the keeper) lives, the first closes, and the
+/// transaction stays alive because a writer remains; the second then sends `commit`. Only when the last writer closes does Git read the
+/// end of input.
+#[test]
+fn a_second_writer_keeps_the_transaction_alive_when_the_first_closes() {
+    for backend in BACKENDS {
+        let repository: Repository = repository("handoff", backend);
+        let mut transaction: Transaction = open_transaction(&repository, &[]);
+        transaction.send(&format!("start\n{}prepare\n", repository.move_main()));
+        transaction.wait_for_answer("prepare: ok");
+        let mut second: File = OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(&transaction.fifo).expect("a second writer opens while the reader lives");
+        transaction.close_keeper();
+        std::thread::sleep(QUIET_WAIT);
+        assert!(transaction.running(), "{}: a writer remains, so there is no end of input", backend);
+        second.write_all(b"commit\n").expect("the second writer commits");
+        transaction.wait_for_answer("commit: ok");
+        assert_eq!(repository.resolve("refs/heads/main").as_deref(), Some(repository.second.as_str()), "{}", backend);
+        drop(second);
+        assert!(transaction.finish().success(), "{}", backend);
+    }
+}
+
+/// Interruption at the persistence boundaries by a kill of `update-ref`: after `prepare: ok` the ref is unchanged and the process leaves
+/// the lock it held (files: the branch's own `main.lock`; reftable: the stack's `tables.list.lock`), which a later transaction reports;
+/// after `commit: ok` the new value is there and no lock remains. The stale lock is what the lane's reclaim decision (the owner's decision of
+/// 2026-11-04) is for, and the experiment shows that Git does not clear it itself.
+#[test]
+fn killing_update_ref_after_prepare_leaves_the_old_value_and_a_stale_lock_and_after_commit_the_new_value() {
+    for backend in BACKENDS {
+        let lock_name: &str = if backend == "files" { ".git/refs/heads/main.lock" } else { ".git/reftable/tables.list.lock" };
+        let prepared: Repository = repository("kill-prepared", backend);
+        let mut transaction: Transaction = open_transaction(&prepared, &[]);
+        transaction.send(&format!("start\n{}prepare\n", prepared.move_main()));
+        transaction.wait_for_answer("prepare: ok");
+        assert!(prepared.path.join(lock_name).exists(), "{}: the prepared transaction holds {}", backend, lock_name);
+        transaction.child.kill().expect("kill");
+        let _ = transaction.child.wait();
+        assert_eq!(prepared.resolve("refs/heads/main").as_deref(), Some(prepared.first.as_str()), "{}: the old value", backend);
+        assert!(prepared.path.join(lock_name).exists(), "{}: Git does not clear the lock of a killed process", backend);
+        let (later, _o, error) = run_transaction(&prepared, &[], &prepared.move_main());
+        assert!(!later.success() && error.contains("lock"), "{}: a later transaction reports the stale lock: {}", backend, error);
+
+        let committed: Repository = repository("kill-committed", backend);
+        let mut second: Transaction = open_transaction(&committed, &[]);
+        second.send(&format!("start\n{}prepare\ncommit\n", committed.move_main()));
+        second.wait_for_answer("commit: ok");
+        second.child.kill().expect("kill");
+        let _ = second.child.wait();
+        assert_eq!(committed.resolve("refs/heads/main").as_deref(), Some(committed.second.as_str()), "{}: the new value", backend);
+        assert!(!committed.path.join(lock_name).exists(), "{}: no lock remains after a commit", backend);
+    }
+}
+
+// endregion
