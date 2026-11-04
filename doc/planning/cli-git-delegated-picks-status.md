@@ -30,7 +30,8 @@ Three lines for the answered items above, with the owner's words:
 
 - Branch write: "Never cut a branch write (Recommended)" and "Short extra wait (Recommended)", "7 s (Recommended)".
   Built:
-  no ceiling for a step that cannot be run twice (decided by the cut experiment, `NUW`, "The cut experiment");
+  a ceiling only for the exact forms the cut experiment proved (`NUW`, "The cut experiment"), none for any other form;
+  a person's command inside such a step stops at the step's class bound plus 7 s ("Class ceiling + 7 s (Recommended)");
   the commit inside a stuck branch write returns at its own bound plus `SHORT_EXTRA_WAIT` (7 s) with the not-known error;
   a commit behind it is withdrawn at its own `ANSWER_CEILING` naming the write;
   a service stuck in a write never restarts itself.
