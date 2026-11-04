@@ -585,8 +585,38 @@ and each resume point is committed on its branch):
   README and planning record,
   cut `cargo-shadow-9*.diff`;
   resume point at the end of `doc/planning/cargo-shadow-update.md`.
-- Latency fix round and the planted-control fix:
-  see their reports below this block once they checkpoint.
+- Latency round 3 fix round:
+  `perf/git-policy-cli-less-foreground-work` tip `29770c1021` (main `5328f45ccc` merged in,
+  no conflicts);
+  every finding of `less-foreground-sol-1` fixed with a control (quadratic wide-directory proof,
+  cache-tree hiding a missing root tree,
+  kept-pack flush,
+  history-changing settings sent to `rev-list`,
+  maintenance concurrency written in `SPEC.md`);
+  measured 85 ms unsigned and 123 ms signed over native,
+  within the previous tip's spread;
+  no gate has run on this tip;
+  next:
+  the gate,
+  then merge and release 0.5.29;
+  not done:
+  a built root-commit control;
+  resume point at the end of `doc/planning/cli-git-commit-latency-under-disk-pressure.md` on that branch.
+- Planted controls and the `service_durable.rs` survivors:
+  `fix/git-policy-cli-planted-control-and-durable-survivors` tip `c279110576`,
+  gate 4720/4720 (`gpc-gate-planted-control-and-durable-survivors-20261104T070548-0500`);
+  two stale controls fixed (self-exclusion by identity and content;
+  the deleted `worktree_copy_lock.rs` control replaced by a live-owner journal control in `worktree_copy_recovery.rs`);
+  two tests kill the `index_is_hardened` survivors,
+  but the function has no production caller,
+  so deleting it may beat testing it;
+  next:
+  `native:mutation:planted` with `GIT_POLICY_NATIVE_IMAGE_TAG` set to that gate's tag,
+  as its own capped unit (about 24 minutes),
+  and confirm both edited controls are noticed,
+  then rerun pass 2 of `service_durable.rs` and continue the 0.5.28 scope;
+  resume point in `package/git-policy/cli/doc/planted-control-and-durable-survivors-resume.md` on that branch.
+- No agent process or unit is left in any of the four worktrees (checked 2026-11-04 at about 07:35-05:00).
 - Decision record corrected (`05dc3800a8`,
   owner's "Correct it now."):
   `doc/decision/cli-git-concurrent-commits.md` now says landing writes objects with one `fast-import` (small batches loose,
@@ -616,6 +646,14 @@ the alternative and a ranking:
   the `user.delegate` route dropped.
 - Commit design:
   level 2 disabled on the execution path where its eligibility cannot be shown.
+- Decision record follow-up (needs approval to edit `doc/decision/cli-git-concurrent-commits.md` again):
+  the latency reviewer found that the scratch ref protects new objects only from a collector that reads references after the ref exists,
+  and the branch's `SPEC.md` now says `prune --expire=now`,
+  `gc --prune=now` and `repack -a -d` are not supported while a commit is made;
+  the corrected record says "While the scratch ref exists the new objects are reachable,
+  so `git prune` and `git gc --prune=now` keep them",
+  which is true but can be read as covering a prune that started before the ref existed;
+  ask whether to add that limit to the record.
 - Index reclamation:
   the `flock` on the stale lock's own inode;
   without `flock` the lock is never removed;
