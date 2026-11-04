@@ -421,7 +421,7 @@ fn a_step_that_keeps_working_is_ended_at_its_ceiling() {
     let mut command: Command = Command::new("sh");
     command.args(["-c", "while true; do echo working; sleep 0.05; done"]);
     let began: Instant = Instant::now();
-    let error = output_watched_within(&mut command, "a working step", "a working step", terms(Duration::from_secs(3600), &sink), true, Some(Duration::from_millis(700)))
+    let error = output_watched_within(&mut command, "a working step", "a working step", terms(Duration::from_secs(3600), &sink), true, StepBound::EndAt(Duration::from_millis(700)))
         .expect_err("the ceiling ended it");
     assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
     assert!(is_ceiling(&error), "{error}");
@@ -436,7 +436,7 @@ fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
     let mut command: Command = Command::new("sleep");
     command.arg("600");
     let began: Instant = Instant::now();
-    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(200), &sink), false, Some(Duration::from_millis(700)))
+    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(200), &sink), false, StepBound::EndAt(Duration::from_millis(700)))
         .expect_err("the ceiling ended it");
     assert!(is_ceiling(&error), "{error}");
     assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
@@ -450,7 +450,42 @@ fn a_step_with_no_ceiling_is_waited_for_until_it_ends_by_itself() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sh");
     command.args(["-c", "sleep 2; echo done"]);
-    let output = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_millis(300), &sink), false, None).expect("waited for");
+    let output = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_millis(300), &sink), false, StepBound::Unbounded).expect("waited for");
+    assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("done"));
+}
+
+/// A step left running: the command stops waiting at its bound plus the extra wait and gets the error that says the result is not
+/// known, the step is not ended, and it is reaped when it ends by itself.
+#[test]
+fn a_step_that_outlasts_its_bound_and_the_extra_wait_is_left_running() {
+    let sink: SharedSink = SharedSink::default();
+    let directory: PathBuf = crate::test_support::fixture("child-watch-left-running");
+    let pid_file: PathBuf = directory.join("pid");
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", format!("echo $$ > '{}'; sleep 20", pid_file.display()).as_str()]);
+    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(500), extra: Duration::from_millis(500) };
+    let began: Instant = Instant::now();
+    let error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound).expect_err("the command stopped waiting");
+    let waited: Duration = began.elapsed();
+    assert!(is_not_known(&error) && error.kind() == std::io::ErrorKind::TimedOut, "{error}");
+    assert!(error.to_string().contains("a write") && error.to_string().contains("left running"), "{error}");
+    assert!(waited >= Duration::from_secs(1) && waited < Duration::from_secs(10), "{waited:?}");
+    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    // SAFETY: signal 0 only asks whether the process exists.
+    assert_eq!(unsafe { libc::kill(pid, 0) }, 0, "the step was not ended");
+    // SAFETY: the control ends the process it started, by the number it recorded.
+    let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    crate::test_support::remove(directory.as_path());
+}
+
+/// A step that ends within the extra wait is not an error: its output is the answer.
+#[test]
+fn a_step_that_ends_within_the_extra_wait_returns_its_output() {
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", "sleep 1; echo done"]);
+    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(500), extra: Duration::from_secs(20) };
+    let output = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound).expect("finished within the extra wait");
     assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("done"));
 }
 
@@ -460,7 +495,7 @@ fn a_quiet_step_is_not_reported_as_the_ceiling() {
     let sink: SharedSink = SharedSink::default();
     let mut command: Command = Command::new("sleep");
     command.arg("600");
-    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(300), &sink), true, Some(Duration::from_secs(600)))
+    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(300), &sink), true, StepBound::EndAt(Duration::from_secs(600)))
         .expect_err("the quiet window ended it");
     assert!(!is_ceiling(&error), "{error}");
 }

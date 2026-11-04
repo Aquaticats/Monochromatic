@@ -565,7 +565,36 @@ pub fn output_watched_stopping(
     terms: WatchTerms,
     stoppable: bool,
 ) -> std::io::Result<Output> {
-    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, Some(OBJECT_STEP_CEILING));
+    return output_watched_within(command, waiting_for, ledger_step, terms, stoppable, StepBound::EndAt(OBJECT_STEP_CEILING));
+}
+
+/// What:
+///  How long a watched step is waited for, and what happens at the end.
+/// Why:
+///   A step that can be run twice is ended at a ceiling (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"). A
+///  write in place that cannot be run twice is never ended (owner, 2026-11-04: "Never cut a branch write (Recommended)"): the
+///  command that started it returns at its own bound plus a short extra wait with an error that says the result is not known,
+///  and the step is left running (owner, commit protocol revision 12, "Short extra wait (Recommended)"); only the commit service's
+///  landing thread, whose clients are told through the protocol, waits for it without a bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type StepBound = { kind: 'end-at'; ms } | { kind: 'leave-running'; afterMs; extraMs } | { kind: 'unbounded' };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StepBound {
+    /// The step is ended, with its whole process tree, when it has run this long, whatever it shows.
+    EndAt(Duration),
+    /// The command stops waiting `after` plus `extra` after the step began and returns an error saying the result is not known;
+    ///  the step is left running and reaped when it ends.
+    LeaveRunning {
+        /// The command's own bound.
+        after: Duration,
+        /// The short extra wait for the write the step started.
+        extra: Duration,
+    },
+    /// The step is waited for as long as it lives.
+    Unbounded,
 }
 
 /// The error of a step ended at its ceiling, which tells it apart from a step ended for being quiet: a step that may be run again
@@ -583,6 +612,11 @@ impl std::fmt::Display for CeilingReached {
 }
 
 impl std::error::Error for CeilingReached {}
+
+/// Whether `error` is the error of a step left running because the command stopped waiting for it.
+pub fn is_not_known(_error: &std::io::Error) -> bool {
+    return false;
+}
 
 /// Whether `error` is the error of a step ended at its ceiling.
 pub fn is_ceiling(error: &std::io::Error) -> bool {
@@ -608,8 +642,12 @@ pub fn output_watched_within(
     ledger_step: &str,
     terms: WatchTerms,
     stoppable: bool,
-    ceiling: Option<Duration>,
+    bound: StepBound,
 ) -> std::io::Result<Output> {
+    let ceiling: Option<Duration> = match bound {
+        StepBound::EndAt(limit) => Some(limit),
+        StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
+    };
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);

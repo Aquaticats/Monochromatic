@@ -24,7 +24,7 @@ use crate::forwarding::git_command;
 use crate::repo_read_hook::try_request;
 /// The watched run that announces a step that takes long and stops it at the bound.
 use crate::child_class::{ChildClass, class_of};
-use crate::child_watch::{WatchTerms, output_watched_within};
+use crate::child_watch::{StepBound, WatchTerms, output_watched_within};
 use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 /// Private exclusive files for standard input.
 use crate::private_storage::write_exclusive_scratch;
@@ -603,18 +603,19 @@ pub(crate) fn is_write_in_place(request: &GitRequest) -> bool {
 /// ```ts
 /// function stepCeiling(request): number | undefined { return isWriteInPlace(request) ? undefined : classOf(request).ceiling }
 /// ```
-fn step_ceiling(request: &GitRequest) -> Option<Duration> {
-    if is_write_in_place(request) {
-        return None;
-    }
+fn step_bound(request: &GitRequest) -> StepBound {
     #[cfg(test)]
-    if let Some(shortened) = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get) {
-        return Some(shortened);
-    }
-    return Some(match class_of(request.arguments.as_slice()) {
+    let shortened: Option<Duration> = STEP_CEILING_FOR_THIS_THREAD.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    let shortened: Option<Duration> = None;
+    let class_ceiling: Duration = shortened.unwrap_or(match class_of(request.arguments.as_slice()) {
         ChildClass::Plumbing => PLUMBING_STEP_CEILING,
         ChildClass::Object => OBJECT_STEP_CEILING,
     });
+    if is_write_in_place(request) {
+        return StepBound::Unbounded;
+    }
+    return StepBound::EndAt(class_ceiling);
 }
 
 #[cfg(test)]
@@ -645,15 +646,15 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
     let subject: String = step_subject(request);
     let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
-    let ceiling: Option<Duration> = step_ceiling(request);
+    let bound: StepBound = step_bound(request);
     // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
-    let _recorded = if ceiling.is_none() {
+    let _recorded = if !matches!(bound, StepBound::EndAt(_)) {
         crate::service_busy::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
     } else {
         None
     };
     let output: std::process::Output =
-        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), ceiling)?;
+        output_watched_within(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound)?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

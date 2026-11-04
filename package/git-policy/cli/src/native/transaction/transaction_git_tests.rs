@@ -3,6 +3,7 @@
 use super::*;
 use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository, while_test_lives};
 use crate::child_class::ChildClass;
+use crate::wait_ceilings::{OBJECT_STEP_CEILING, PLUMBING_STEP_CEILING};
 use crate::wait_progress::Cadence;
 
 /// Requests carry their arguments and nothing else by default.
@@ -596,55 +597,89 @@ fn only_harmless_commands_may_be_rerun() {
     assert!(!may(&["-c", "a=b"], false));
 }
 
-/// Owner, 2026-11-04: "Never cut a branch write (Recommended)". The steps without a ceiling are the writes in place that are not
-/// safe to run twice; the readers, the writers of unreferenced objects and the changes of a private index keep the ceiling of their
-/// class, and the ceiling of a step that has one is the shortened one a control sets.
+/// The owner's criterion (2026-11-04): a step keeps its ceiling exactly when it can run twice. Each form below was cut at every
+/// mutating system call, with SIGKILL and with SIGTERM, then run a second time, and its end state compared with an uncut run's
+/// (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). A form that came out identical every time ends at the
+/// ceiling of its class; the others are never ended: the commit service's landing thread waits for them, and any other command
+/// stops waiting at its bound plus the short extra wait and leaves them running.
 #[test]
-fn a_write_in_place_has_no_ceiling_and_every_other_step_keeps_one() {
-    let ceiling = |arguments: &[&str], private_index: bool| -> Option<Duration> {
+fn a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state() {
+    let bound = |arguments: &[&str], private_index: bool| -> StepBound {
         let mut request: GitRequest = GitRequest::new(Path::new("/repo"), arguments);
         if private_index {
             request.index = Some(PathBuf::from("/private.index"));
         }
-        return step_ceiling(&request);
+        return step_bound(&request);
     };
-    // The branch write, every form of it the landing uses.
-    assert_eq!(ceiling(&["update-ref", "--stdin"], false), None);
-    assert_eq!(ceiling(&["-c", "core.hooksPath=/x", "update-ref", "refs/heads/main", "abc", "def"], false), None);
-    assert_eq!(ceiling(&["update-ref", "-d", "refs/worktree/cli-git-service/1"], false), None);
-    // The other writes in place that cannot be run twice: the real index, the worktree, the configuration.
-    for write in [&["reset", "--quiet"][..], &["read-tree", "-u", "-m", "a", "b"], &["update-index", "--refresh"], &["add", "--all"]] {
-        assert_eq!(ceiling(write, false), None, "{write:?} on the real index");
+    let ends = |arguments: &[&str]| { return matches!(bound(arguments, false), StepBound::EndAt(_)); };
+    // Identical after a second run at every cut.
+    for same in [
+        &["update-ref", "refs/cli-git/kept/1", "abc"][..],
+        &["update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        &["stash", "list", "--format=%H"],
+        &["clean", "--force", "-d"],
+        &["read-tree", "--reset", "-u", "abc"],
+        &["update-index", "--refresh"],
+        &["update-index", "-z", "--index-info"],
+        &["update-index", "--add", "--cacheinfo", "100644,abc,x"],
+        &["add", "--update", "--", ":/"],
+        &["add", "--all"],
+        &["config", "--local", "a.b", "c"],
+        &["checkout-index", "--all", "--force"],
+        &["restore", "--staged", "--worktree", "--source=HEAD", "--", "a.txt"],
+        &["reset", "--quiet", "abc", "--", "a.txt"],
+    ] {
+        assert!(ends(same), "{same:?} ran twice to the same state and keeps its ceiling");
     }
-    for write in [&["checkout-index", "--all"][..], &["clean", "--force"], &["stash", "push"], &["merge", "--ff-only", "abc"], &["config", "a.b", "c"]] {
-        assert_eq!(ceiling(write, false), None, "{write:?}");
+    // Different after a second run at some cut, or not in the experiment.
+    for differs in [
+        &["update-ref", "--stdin"][..],
+        &["update-ref", "refs/heads/main", "new", "old"],
+        &["update-ref", "refs/heads/main", "new"],
+        &["update-ref", "-d", "refs/heads/old"],
+        &["update-ref", "refs/cli-git/kept/1", "new", "old"],
+        &["stash", "store", "-m", "message", "abc"],
+        &["stash", "push"],
+        &["merge", "--ff-only", "--no-edit", "abc"],
+        &["reset", "--hard", "--no-recurse-submodules", "abc"],
+        &["reset", "--soft", "abc"],
+        &["read-tree", "-u", "-m", "a", "b"],
+        &["checkout", "--quiet", "other"],
+        &["switch", "--quiet", "other"],
+    ] {
+        assert!(!ends(differs), "{differs:?} came out different after a second run and has no ceiling");
     }
-    // The same changes on a private index may be run twice, so they keep the ceiling of their class.
-    assert_eq!(ceiling(&["add", "--all"], true), Some(OBJECT_STEP_CEILING));
-    assert_eq!(ceiling(&["reset", "--quiet"], true), Some(OBJECT_STEP_CEILING));
-    // Readers, with or without a place on the rerun list.
-    assert_eq!(ceiling(&["rev-parse", "HEAD"], false), Some(PLUMBING_STEP_CEILING));
-    assert_eq!(ceiling(&["for-each-ref"], false), Some(PLUMBING_STEP_CEILING));
-    assert_eq!(ceiling(&["config", "--get", "a.b"], false), Some(PLUMBING_STEP_CEILING));
-    assert_eq!(ceiling(&["rev-list", "--count", "HEAD"], false), Some(PLUMBING_STEP_CEILING), "not on the rerun list, but it changes nothing");
-    assert_eq!(ceiling(&["log", "-1"], false), Some(OBJECT_STEP_CEILING), "not on the rerun list, but it changes nothing");
-    assert_eq!(ceiling(&["merge-base", "a", "b"], false), Some(PLUMBING_STEP_CEILING));
-    // Writers of unreferenced objects: a second run writes the same bytes.
-    assert_eq!(ceiling(&["fast-import", "--done"], false), Some(OBJECT_STEP_CEILING));
-    assert_eq!(ceiling(&["commit-tree", "abc", "-m", "x"], false), Some(OBJECT_STEP_CEILING));
-    assert_eq!(ceiling(&["hash-object", "-w", "--", "a.txt"], false), Some(OBJECT_STEP_CEILING));
+    // The same index changes on a private index, the readers and the object writers are not in question.
+    assert_eq!(bound(&["add", "--all"], true), StepBound::EndAt(OBJECT_STEP_CEILING));
+    assert_eq!(bound(&["rev-parse", "HEAD"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
+    assert_eq!(bound(&["merge-base", "a", "b"], false), StepBound::EndAt(PLUMBING_STEP_CEILING));
+    assert_eq!(bound(&["log", "-1"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
+    assert_eq!(bound(&["fast-import", "--done"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
+    assert_eq!(bound(&["commit-tree", "abc", "-m", "x"], false), StepBound::EndAt(OBJECT_STEP_CEILING));
 }
 
-/// The ceiling a control sets applies to the steps that have one and never to a write in place.
+/// A step that cannot be run twice is left running by the command that started it, which stops waiting at the bound of the step's
+/// class plus the short extra wait; on the commit service's landing thread, whose clients are told through the protocol, it is
+/// waited for without a bound. The control shortens the bound of the class for the thread that runs it, and never the extra wait
+/// of production.
 #[test]
-fn a_shortened_ceiling_never_reaches_a_write_in_place() {
+fn a_step_that_cannot_run_twice_is_left_running_by_a_command_and_waited_for_by_the_landing_thread() {
+    let merge: GitRequest = GitRequest::new(Path::new("/repo"), &["merge", "--ff-only", "abc"]);
+    assert_eq!(step_bound(&merge), StepBound::LeaveRunning { after: OBJECT_STEP_CEILING, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+    let reference: GitRequest = GitRequest::new(Path::new("/repo"), &["update-ref", "--stdin"]);
+    assert_eq!(step_bound(&reference), StepBound::LeaveRunning { after: PLUMBING_STEP_CEILING, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
     let shortened: Duration = Duration::from_secs(3);
     STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(shortened)); });
-    let reader: Option<Duration> = step_ceiling(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"]));
-    let writer: Option<Duration> = step_ceiling(&GitRequest::new(Path::new("/repo"), &["update-ref", "--stdin"]));
+    let ends: StepBound = step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"]));
+    let leaves: StepBound = step_bound(&merge);
     STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    assert_eq!(reader, Some(shortened));
-    assert_eq!(writer, None);
+    assert_eq!(ends, StepBound::EndAt(shortened));
+    assert_eq!(leaves, StepBound::LeaveRunning { after: shortened, extra: crate::wait_ceilings::SHORT_EXTRA_WAIT });
+    // The landing thread is the one that has a record of what it is inside.
+    let board = crate::service_busy::LandingBoard::new(fixture("transaction-git-landing-thread").join("journal"), Duration::from_secs(60));
+    crate::service_busy::use_on_this_thread(board);
+    assert_eq!(step_bound(&reference), StepBound::Unbounded);
+    assert_eq!(step_bound(&GitRequest::new(Path::new("/repo"), &["rev-parse", "HEAD"])), StepBound::EndAt(PLUMBING_STEP_CEILING));
 }
 
 /// A Git that cannot be started at all is the caller's failure with its own kind, not a refusal to retry and not a
