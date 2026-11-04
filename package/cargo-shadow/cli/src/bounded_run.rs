@@ -346,6 +346,22 @@ fn current_scope() -> Option<Rc<ScopeState>> {
 /// function appendRecord(log: string, record: Record): void
 /// ```
 fn append_record(log: &Path, record: &Record) -> io::Result<()> {
+    return append_record_with(log, record, true);
+}
+
+/// What:
+/// `fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()>` appends one line to the journal's `groups` file
+/// and forces it to disk when `sync` is set.
+/// Why:
+/// The launcher record is written without a sync (round 11): it is read only by a recovery after the wrapper was killed (the page
+/// cache keeps it), or after a power loss, where a lost or torn line is read as no proof and the boot rule decides.
+/// The line is one `write`, so a process kill leaves it whole or absent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function appendRecordWith(log: string, record: Record, sync: boolean): void
+/// ```
+fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()> {
     let file: OwnedFd = open(log, OFlags::WRONLY | OFlags::APPEND | OFlags::CLOEXEC | OFlags::NONBLOCK | OFlags::NOFOLLOW, Mode::empty()).map_err(io::Error::from)?;
     let kind: FileType = FileType::from_raw_mode(fstat(&file).map_err(io::Error::from)?.st_mode);
     if kind != FileType::RegularFile {
@@ -359,6 +375,9 @@ fn append_record(log: &Path, record: &Record) -> io::Result<()> {
     let written: usize = rustix::io::write(&file, line.as_bytes()).map_err(io::Error::from)?;
     if written != line.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "the containment record was cut short"));
+    }
+    if !sync {
+        return Ok(());
     }
     // The record is durable before the program it describes can start: a sync that fails stops the start.
     #[cfg(test)]
@@ -901,6 +920,30 @@ fn run_start_hook() {
 fn run_start_hook() {}
 
 /// What:
+/// `fn note_launcher(log: &Path, scope: &Path, child: &Child)` appends the launcher record: the process id, the start time and the
+/// process id namespace of the process that is about to become the program.
+/// Why:
+/// A recovery that finds this process gone knows it can never join the scope, so it can read the scope as final without an
+/// acknowledgement (round 11).
+/// A line that cannot be written is only a missing proof: the journal then waits for an acknowledgement like an older journal, so the
+/// run goes on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function noteLauncher(log: string, scope: string, child: ChildProcess): void
+/// ```
+fn note_launcher(log: &Path, scope: &Path, child: &Child) {
+    let pid: i32 = i32::try_from(child.id()).unwrap_or(0);
+    let noted: io::Result<()> = crate::control_group::process_start(pid).and_then(|start| {
+        let pid_namespace: u64 = crate::control_group::pid_namespace_id()?;
+        return append_record_with(log, &Record::Launcher { pid, start, pid_namespace, path: scope.to_path_buf() }, false);
+    });
+    if let Err(error) = noted {
+        eprintln!("cargo-shadow: warning: the launcher of {} could not be recorded ({error}); if this wrapper is killed, a recovery will ask for an acknowledgement", scope.display());
+    }
+}
+
+/// What:
 /// `fn start_contained(command, containment, scope, has_input, clean_environment) -> Result<Child, RunError>` records the
 /// containment in the journal and starts the child inside it.
 /// Why:
@@ -928,7 +971,11 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             run_start_hook();
             let mut launch: Command = group.launcher(route, command, clean_environment);
             configure_stdio(&mut launch, has_input);
-            return launch.spawn().map_err(RunError::Io);
+            let child: Child = launch.spawn().map_err(RunError::Io)?;
+            if let Some(state) = scope {
+                note_launcher(&state.log, group.directory(), &child);
+            }
+            return Ok(child);
         }
         Containment::ProcessGroup => {
             if let Some(state) = scope {

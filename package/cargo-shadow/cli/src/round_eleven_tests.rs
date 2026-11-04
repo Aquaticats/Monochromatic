@@ -13,7 +13,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::rc::Rc;
 use std::time::Duration;
 
 use crate::acknowledge::acknowledge;
@@ -25,7 +24,6 @@ use crate::crates::LockSnapshot;
 use crate::journal::{begin, recover};
 use crate::journal_recover::survivor_note;
 use crate::journal_support::{journal_dirs, plant};
-use crate::journal_unready::after_query_for_test;
 use crate::test_scratch::scratch;
 
 /// The crate root every case uses.
@@ -167,10 +165,10 @@ fn the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie
 
 /// Acceptance rows A1, V2 (round 11): a launcher that is alive keeps blocking, whatever the scope looks like, and no acknowledgement
 /// overrides it:
-/// the scope is absent (the launcher has not reached the manager), the scope exists and is empty (created, not attached),
-/// and the scope appears between the query and the judgement (the round 10 schedules of 9a D1).
+/// the scope is absent (the launcher has not reached the manager) and the scope exists and is empty (created, not attached),
+/// the two round 10 schedules of 9a D1.
 #[test]
-fn a_live_launcher_blocks_whether_its_scope_is_absent_empty_or_appears_late() {
+fn a_live_launcher_blocks_whether_its_scope_is_absent_or_empty() {
     let Some(route) = delegated_route() else {
         return;
     };
@@ -193,13 +191,7 @@ fn a_live_launcher_blocks_whether_its_scope_is_absent_empty_or_appears_late() {
     let empty: Option<String> = survivor_note(&journal);
     fs::remove_dir(planned.directory()).expect("remove it again");
 
-    let late: PathBuf = planned.directory().to_path_buf();
-    after_query_for_test(Some(Rc::new(move || { fs::create_dir(&late).expect("the scope appears late"); })));
-    let appears: Option<String> = survivor_note(&journal);
-    after_query_for_test(None);
-    let _ = fs::remove_dir(planned.directory());
-
-    for (label, note) in [("absent", absent), ("absent and acknowledged", absent_acknowledged), ("empty", empty), ("appears late", appears)] {
+    for (label, note) in [("absent", absent), ("absent and acknowledged", absent_acknowledged), ("empty", empty)] {
         let text: String = note.unwrap_or_else(|| { panic!("{label}: a live launcher was cleared"); });
         assert!(text.contains("launcher") && text.contains("still running"), "{label}: {text}");
     }

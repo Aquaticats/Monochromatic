@@ -35,7 +35,7 @@ use rustix::process::{Pid, test_kill_process_group};
 use crate::constants::LOCKFILE_NAME;
 
 /// Imports the control group records and queries for this file.
-use crate::control_group::{Identity, Membership, Record, current_identity, parse_record, populated_at, query, read_identity_text, view_of};
+use crate::control_group::{Identity, LauncherState, Membership, Record, current_identity, launcher_state, parse_record, populated_at, query, read_identity_text, view_of};
 
 /// Imports `crate::crates::{LockSnapshot, read_locks}` for this file.
 use crate::crates::{LockSnapshot, read_locks};
@@ -346,19 +346,62 @@ fn assess(directory: &Path) -> Option<Finding> {
     // A "starting" line of the weaker path that no process group line follows: a child may run that no record names.
     let mut announced_without_group: bool = false;
     let mut weaker_path: bool = false;
-    // The scopes of runs that are not settled: the launcher of such a run may not have finished entering its scope.
+    // The scopes of runs that are not settled and have no launcher record that shows the launcher gone: the launcher of such a run may
+    // not have finished entering its scope.
     let mut unsettled: Vec<PathBuf> = Vec::new();
-    for line in text.lines() {
-        match parse_record(line) {
+    // The whole record is read first: the launcher line of a scope comes after the scope line, and a scope is judged by it.
+    let records: Vec<Result<Record, String>> = text.lines().map(parse_record).collect();
+    let settled_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Settled { path }) = record { Some(path) } else { None }; }).collect();
+    let scope_paths: Vec<&PathBuf> = records.iter().filter_map(|record| { return if let Ok(Record::Scope { path, .. }) = record { Some(path) } else { None }; }).collect();
+    for record in &records {
+        if let Ok(Record::Launcher { path, .. }) = record
+            && !scope_paths.contains(&path)
+        {
+            note_uncertain(format!(
+                "{}: the record notes a launcher for the scope {}, which the journal does not list, so what it shows cannot be used; {hint}",
+                directory.display(),
+                path.display()
+            ));
+        }
+    }
+    for record in records.iter().cloned() {
+        match record {
             Err(reason) => note_uncertain(format!(
                 "{}: the record of the containment of the killed run holds a line that is not understood ({reason}), so a child of that run may still be writing; {hint}",
                 directory.display()
             )),
-            Ok(Record::Settled { path: scope_path }) => unsettled.retain(|open| { return *open != scope_path; }),
-            // Scaffold of round 11: the launcher record is parsed and not used yet.
-            Ok(Record::Launcher { .. }) => {}
+            Ok(Record::Settled { .. } | Record::Launcher { .. }) => {}
             Ok(Record::Scope { namespace, parent_view, path: scope_path }) => {
-                unsettled.push(scope_path.clone());
+                // The launcher is asked about before the scope is read (round 11): a launcher that is gone can never join the scope, so
+                // what the scope shows afterwards is final; one that is alive keeps blocking, and no acknowledgement overrides it.
+                let settled: bool = settled_paths.contains(&&scope_path);
+                let launcher: Option<(i32, u64, u64)> = records.iter().rev().find_map(|other| {
+                    return if let Ok(Record::Launcher { pid, start, pid_namespace, path }) = other
+                        && *path == scope_path
+                    {
+                        Some((*pid, *start, *pid_namespace))
+                    } else {
+                        None
+                    };
+                });
+                if !settled {
+                    match launcher.map(|(pid, start, pid_namespace)| { return (pid, launcher_state(pid, start, pid_namespace)); }) {
+                        None => unsettled.push(scope_path.clone()),
+                        Some((pid, LauncherState::Alive)) => {
+                            return Some(Finding::Live(format!(
+                                "{}: the launcher (pid {pid}, which becomes the program) of the scope {} of the killed run is still running; the journal was kept for a later run",
+                                directory.display(),
+                                scope_path.display()
+                            )));
+                        }
+                        Some((pid, LauncherState::Unknown(reason))) => note_uncertain(format!(
+                            "{}: whether the launcher (pid {pid}) of the scope {} is gone cannot be told ({reason}), so it may still join the scope; {hint}",
+                            directory.display(),
+                            scope_path.display()
+                        )),
+                        Some((_, LauncherState::Gone)) => {}
+                    }
+                }
                 match query(namespace, parent_view, &scope_path) {
                     Membership::Gone => {}
                     Membership::Alive => {
@@ -400,9 +443,10 @@ fn assess(directory: &Path) -> Option<Finding> {
         hook();
     }
     for open in unsettled {
-        // The run did not record its end, so nothing shows that its launcher finished entering the scope: an absent scope may not be
-        // made yet, and one that exists and is empty may be waiting for the launcher to be attached. A look at the scope, however
-        // late, does not turn this into a completed lifecycle (round 10, 9a D1); a positively populated scope has already blocked.
+        // The run did not record its end and no record shows its launcher gone, so nothing shows that the launcher finished entering
+        // the scope: an absent scope may not be made yet, and one that exists and is empty may be waiting for the launcher to be
+        // attached. A look at the scope, however late, does not turn this into a completed lifecycle (round 10, 9a D1); a positively
+        // populated scope has already blocked.
         note_uncertain(format!(
             "{}: the run that was to make the scope {} did not record its end, so its launcher may not have finished entering the scope \
              (whether the scope is absent or empty now) and a program may still start in it; {hint}",

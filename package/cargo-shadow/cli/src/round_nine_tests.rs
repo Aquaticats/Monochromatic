@@ -129,7 +129,7 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
 
     let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
     assert_scope_record(&journal.join("groups").display().to_string());
-    assert!(record.lines().nth(1).is_some_and(|line| { return line.starts_with("settled "); }), "the run did not record its end: {record:?}");
+    assert!(record.lines().last().is_some_and(|line| { return line.starts_with("settled "); }), "the run did not record its end: {record:?}");
     // The scope must be collected, not merely empty (9b 3.4): the recovery below then takes the settled-and-absent branch.
     let scope: PathBuf = scope_directory_of(&journal.join("groups").display().to_string());
     wait_until("the manager to collect the scope", &|| { return !scope.exists(); });
