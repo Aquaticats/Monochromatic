@@ -15,12 +15,12 @@
 
 use crate::commit_state_log_tests::lane_with_envelope;
 use crate::model_fixture::{in_single_threaded_process, scratch};
-use git_policy_cli::commit_disposal::{DisposalAuthorization, dispose_saved_content, resume_disposals};
+use git_policy_cli::commit_disposal::{DisposalAuthorization, dispose_saved_content, resume_disposals, retire_saved_content, unlink_retired};
 use git_policy_cli::commit_flusher::{RECEIPT_DIR, flush_lane};
 use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, inject_pending_child, launch_routed, pending_reaps};
 use git_policy_cli::commit_identity::set_fault_point;
-use git_policy_cli::commit_lane_lifecycle::{ClientStep, capture_lane_closure, client_after_accept, create_receipt, seal_for_shutdown, syncer_pass, syncer_pass_with};
-use git_policy_cli::commit_lane_service::{bind_ring, lock_service, ring_running_service, start_lane_service};
+use git_policy_cli::commit_lane_lifecycle::{ClientStep, capture_lane_closure, client_after_accept, create_receipt, departure_acknowledge, seal_for_shutdown, syncer_pass, syncer_pass_with};
+use git_policy_cli::commit_lane_service::{bind_ring, lock_service, next_due, ring_running_service, start_lane_service};
 use git_policy_cli::commit_state_log::{ClosureEntry, LaneDocument, StateWriter, create_saved_content, select};
 use std::cell::{Cell, RefCell};
 use std::ffi::CString;
@@ -126,6 +126,20 @@ fn a_saved_directory_that_is_a_link_is_never_followed_by_a_disposal() {
     std::os::unix::fs::symlink(&second_outside, second_lane.join("saved")).expect("a link in its place");
     assert!(resume_disposals(&second_lane, &second_state).is_err(), "recovery went on through a linked saved directory");
     assert!(second_outside.join(&second_name).exists(), "recovery removed a file outside the lane");
+    // A seal does not read the lane's saved content through a link either.
+    let (third_lane, third_state, _third_name) = lane_with_saved("rev5-saved-link-seal");
+    let third_outside: PathBuf = scratch("rev5-saved-outside-seal").join("saved");
+    fs::rename(third_lane.join("saved"), &third_outside).expect("move the directory out");
+    std::os::unix::fs::symlink(&third_outside, third_lane.join("saved")).expect("a link in its place");
+    assert!(seal_for_shutdown(&third_lane, &third_state).is_err(), "a seal captured the content of a linked saved directory");
+    // The last step alone: a retirement that was made while the directory was the lane's, and an unlink after it became a link.
+    let (fourth_lane, fourth_state, fourth_name) = lane_with_saved("rev5-saved-link-token");
+    let token = retire_saved_content(&fourth_lane, &fourth_state, &DisposalAuthorization::explicit(&fourth_name)).expect("the retirement");
+    let fourth_outside: PathBuf = scratch("rev5-saved-outside-token").join("saved");
+    fs::rename(fourth_lane.join("saved"), &fourth_outside).expect("move the directory out");
+    std::os::unix::fs::symlink(&fourth_outside, fourth_lane.join("saved")).expect("a link in its place");
+    assert!(unlink_retired(token).is_err(), "the unlink went through a link that took the directory's place");
+    assert!(fourth_outside.join(&fourth_name).exists(), "the unlink removed a file outside the lane");
 }
 
 /// Review of step 3 (whole files, 6): a seal over a root that is not in the checked representation published a newer root with an empty
@@ -174,6 +188,7 @@ fn a_doorbell_that_is_a_link_or_open_to_others_is_not_an_answer_and_the_client_l
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(open.join("service.ring"), fs::Permissions::from_mode(0o666)).expect("open to others");
     assert!(!matches!(ring_running_service(&open), Ok(true)), "a doorbell that other accounts can write was taken for the service");
+    assert!(matches!(bind_ring(&open), Err(error) if error.kind() == io::ErrorKind::InvalidInput), "a service bound beside a doorbell that others can write");
     drop(socket);
     let own: PathBuf = scratch("rev5-ring-own");
     let _service = bind_ring(&own).expect("the service's own doorbell");
@@ -481,6 +496,72 @@ fn recovery_finishes_a_disposal_that_a_newer_record_retains_only_in_its_closure(
     assert_eq!(resume_disposals(&lane, &state).expect("the recovery finishes the disposal"), 1);
     assert!(!lane.join("saved").join(&name).exists(), "the item is still there");
     assert_eq!(resume_disposals(&lane, &state).expect("a second recovery"), 0, "nothing is left to finish");
+}
+
+//endregion
+
+//region the due time and the wiring of the reaper
+
+/// The fifth review: the next pass is due an interval after the start of the one that ended, and at once when receipts arrived meanwhile.
+#[test]
+fn the_next_pass_is_due_an_interval_after_the_start_or_at_once_when_receipts_arrived() {
+    let interval: Duration = Duration::from_secs(3_600);
+    let started: std::time::Instant = std::time::Instant::now();
+    assert_eq!(next_due(started, interval, false), started + interval);
+    assert!(next_due(started, interval, true) < started + interval, "a pass that left arrivals waited for the interval");
+}
+
+/// A route that records how many children were pending when it was started, and optionally leaves an ended child in the list.
+struct Recording {
+    pending_at_start: Option<usize>,
+    leaves_a_child: bool,
+}
+
+/// An ended child, as a killed command leaves one.
+fn ended_child() -> std::process::Child {
+    let mut child = std::process::Command::new("true").spawn().expect("a child");
+    child.wait().expect("it ends");
+    return child;
+}
+
+impl ManagerRoute for Recording {
+    fn start(&mut self, _lane: &Path) -> Result<String, ManagerRefused> {
+        self.pending_at_start = Some(pending_reaps());
+        if self.leaves_a_child {
+            inject_pending_child(ended_child());
+        }
+        return Ok("unit".to_string());
+    }
+}
+
+/// The fifth review of the diffs: the launch itself polls the pending list, before the start (children of earlier launches) and after it
+/// (the child this launch's command left); a test that drains the list by hand shows neither.
+#[test]
+fn a_launch_polls_the_pending_children_before_and_after_the_manager_start() {
+    let lane: PathBuf = scratch("rev5-reaper-wiring");
+    inject_pending_child(ended_child());
+    let mut before: Recording = Recording { pending_at_start: None, leaves_a_child: false };
+    launch_routed(&lane, &mut before).expect("a launch");
+    assert_eq!(before.pending_at_start, Some(0), "the launch did not reap an ended child of an earlier launch before the start");
+    let mut after: Recording = Recording { pending_at_start: None, leaves_a_child: true };
+    launch_routed(&lane, &mut after).expect("a launch");
+    assert_eq!(pending_reaps(), 0, "the launch did not reap the ended child its own start left");
+}
+
+//endregion
+
+//region the force of a retained item that became a FIFO
+
+/// The fifth review of the whole files: forcing the retained set opens each item without blocking. A retained request replaced by a FIFO
+/// after the record was written makes the departure's acknowledgment fail, and does not wait for a writer.
+#[test]
+fn forcing_the_retained_set_does_not_wait_on_an_item_that_became_a_fifo() {
+    let (lane, state, _name) = lane_with_saved("rev5-force-fifo");
+    let envelope: PathBuf = fs::read_dir(lane.join("inbox")).expect("inbox").flatten().next().expect("an envelope").path();
+    fs::remove_file(&envelope).expect("remove the envelope");
+    make_fifo(&envelope, 0o600);
+    let outcome: Option<i32> = in_single_threaded_process(move || { return if departure_acknowledge(&state, 1).is_err() { 0 } else { 1 }; });
+    assert_eq!(outcome, Some(0), "the force of the retained set waited on a FIFO (None) or accepted it (1)");
 }
 
 //endregion
