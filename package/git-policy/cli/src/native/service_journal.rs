@@ -13,7 +13,7 @@
 //! ```
 
 use super::repo_read_layout::dot_git_target;
-use super::service_land_start::{StartEntry, decode, encode};
+use super::service_land_start::{IndexWitness, decode, encode};
 use super::service_protocol::Cleanup;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -237,47 +237,46 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
     return synced;
 }
 
-/// The extension of the record of the index entries a batch started from.
+/// The extension of the record of the live index file a batch started from.
 pub const START_EXTENSION: &str = "start";
 
 /// What:
-///  Records durably the entries of the batch's index paths as the landing found them under the index lock.
+///  Records the witness of the live index file as the landing found it under the index lock.
 /// Why:
-///   A replay of the batch resets only the paths still at these entries, so what another session staged since is not
-///  overwritten. It is written after the lock is held and before the branch moves.
+///   A replay of the batch is made only over an index that is still this file (`service_land_start.rs`), so what another session
+///  staged since is never overwritten. It is written after the lock is held and before the branch moves. It is not synced: a
+///  power loss that loses it leaves a batch with no record, which no replay is made for, and a record that is lost is the safe
+///  side, so the landing does not wait for the disk for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeStart(dir, seq, entries)
+/// await writeStart(dir, seq, witness)
 /// ```
-pub fn write_start(dir: &Path, seq: u64, entries: &[StartEntry]) -> std::io::Result<()> {
+pub fn write_start(dir: &Path, seq: u64, witness: &IndexWitness) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
-    file.write_all(format!("{}\n", encode(entries)).as_bytes())?;
-    file.sync_all()?;
-    crate::service_fault::note("sync-start-file");
-    fs::rename(&temporary, batch_path(dir, seq, START_EXTENSION))?;
-    let synced: std::io::Result<()> = File::open(dir)?.sync_all();
-    crate::service_fault::note("sync-start-dir");
-    return synced;
+    file.write_all(format!("{}\n", encode(witness)).as_bytes())?;
+    return fs::rename(&temporary, batch_path(dir, seq, START_EXTENSION));
 }
 
 /// What a batch's start record says.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Started {
-    /// No record: an older batch, or one whose entries could not be read.
+    /// No usable record: an older batch, a landing that could not write one, or a record that is damaged. No replay is made.
     Absent,
-    /// The entries the landing started from.
-    Recorded(Vec<StartEntry>),
-    /// A record exists and cannot be read.
+    /// The index file the landing started from.
+    Recorded(IndexWitness),
+    /// A record exists and cannot be read now, so nothing is decided.
     Unreadable,
 }
 
-/// The start record of the batch `seq`; only a missing file is no record.
+/// The start record of the batch `seq`; a missing file or damaged text is no record, and a file that cannot be read now is
+///  unreadable.
 pub fn read_start(dir: &Path, seq: u64) -> Started {
     return match fs::read_to_string(batch_path(dir, seq, START_EXTENSION)) {
-        Ok(text) => decode(text.trim_end_matches('\n')).map_or(Started::Unreadable, Started::Recorded),
+        Ok(text) => decode(text.trim_end_matches('\n')).map_or(Started::Absent, Started::Recorded),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Started::Absent,
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Started::Absent,
         Err(_) => Started::Unreadable,
     };
 }
