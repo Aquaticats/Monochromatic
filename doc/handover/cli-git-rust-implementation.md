@@ -244,10 +244,16 @@ Done since the last list:
   coordinator's pick (veto open):
   remove what revision 13 still leaves unused,
   after it lands.
-  Reviews running:
-  `commit-components-sol-5.txt`,
-  `commit-models-sol-3a.txt`,
-  `commit-models-sol-3b.txt`.
+  Reviews:
+  `commit-components-sol-5.txt` running;
+  `commit-models-sol-3a.txt` "sound after named fixes" (liveness semantics and truncation of `explore_eventually`;
+  historical greens kept out of approval evidence);
+  `commit-models-sol-3b.txt` "Not sound as verification of revision 12" (recovery still infallible,
+  child progress owner-dependent,
+  the register still assumes timeout completion;
+  F7 `EEXIST` and F9 not retired by rule V).
+  Both were sent to models round 8,
+  which rebuilds the W1 and register models for revision 13.
 - #6260 merged into the base.
 
 Queue,
