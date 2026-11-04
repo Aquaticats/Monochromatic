@@ -404,3 +404,9 @@ mod commit_review3_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_review4_tests.rs"]
 mod commit_review4_tests;
+
+/// Plan steps 2 and 3: the fifth round of review (the names the component opens for writing or removal, the opens and reads that could wait,
+/// the doorbell and the lock, the reaper, the pass).
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_review5_tests.rs"]
+mod commit_review5_tests;

@@ -39,6 +39,12 @@ fn read_regular(path: impl AsRef<Path>) -> io::Result<Vec<u8>> {
     return Ok(bytes);
 }
 
+/// Test seam: `read_regular` on a path.
+#[cfg(feature = "test-seams")]
+pub fn read_regular_for_test(path: &Path) -> io::Result<Vec<u8>> {
+    return read_regular(path);
+}
+
 /// The chain hash before the first record of a file.
 fn genesis() -> String {
     return "0".repeat(64);

@@ -191,6 +191,12 @@ pub fn inject_unreapable_child(on: bool) {
     UNREAPABLE.store(on, std::sync::atomic::Ordering::SeqCst);
 }
 
+/// Test seam: puts a live child in the pending list as a command that was killed and did not end would be.
+#[cfg(feature = "test-seams")]
+pub fn inject_pending_child(child: std::process::Child) {
+    PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }).push(child);
+}
+
 /// How many killed children wait to be reaped.
 pub fn pending_reaps() -> usize {
     return PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }).len();

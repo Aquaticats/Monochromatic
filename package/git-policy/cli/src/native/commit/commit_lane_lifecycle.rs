@@ -85,6 +85,8 @@ pub struct SyncPass {
     pub retried: usize,
     /// Another flusher held the lane's lock, so the pass cleared nothing and the record is kept.
     pub held: bool,
+    /// Receipts arrived while the pass swept, so another pass is due at once.
+    pub more: bool,
 }
 
 /// One syncer pass with a hook between reading the record and forcing (a test writes a late line there).
@@ -103,13 +105,13 @@ pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<Syn
     let retried: usize = read.iter().filter(|byte| { return **byte == b'\n'; }).count();
     after_read();
     match flush_lane(lane)? {
-        Flushed::Held => return Ok(SyncPass { forced: 0, retried: 0, held: true }),
+        Flushed::Held => return Ok(SyncPass { forced: 0, retried: 0, held: true, more: false }),
         Flushed::Finished { forced } | Flushed::Handed { forced } => {
             // A record longer than the read limit was read in part: it is never cleared, so no line goes unretried.
             if retried > 0 && whole {
                 clear_if_unchanged(lane, &read)?;
             }
-            return Ok(SyncPass { forced, retried, held: false });
+            return Ok(SyncPass { forced, retried, held: false, more: false });
         }
     }
 }
