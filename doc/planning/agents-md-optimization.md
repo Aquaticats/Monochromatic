@@ -2380,3 +2380,22 @@ The assessment section passed the repository's scoped Markdown stdin check
 and rendered with Sätteri's installed `markdownToHtml` API.
 Full-file lint identified an unchanged semantic-line-breaks finding in "Concurrent `AGENTS.md` changes";
 its prose line was wrapped without changing content.
+
+## Remove the generic document title: 2026-11-03T20:19:33-05:00
+
+The user identified `# Development guidelines for AI agents` as unnecessary
+and asked what to do.
+Recommend deleting that line and its following blank line from `AGENTS.md`,
+then regenerating `CLAUDE.md` through the existing file-enforcer task.
+The `claude-md` rule in `file-enforcer.config.jsonc` composes the preamble and `AGENTS.md`.
+
+The title repeats the document's purpose without adding a constraint or distinguishing a section.
+The existing [purpose guidance](../philosophy/agents.md#purpose)
+already calls for non-obvious,
+actionable content;
+another always-loaded rule would add unnecessary text.
+Keep the meaningful section headings and historical snapshots.
+The supplied text-fragment link will cease to select the deleted title.
+
+This is a proposal;
+`AGENTS.md` and `CLAUDE.md` remain unchanged pending acceptance.
