@@ -26,8 +26,8 @@
 //! for (const lock of lockPaths(tree)) await acquire(lock, token); ... for (const lock of lockPaths(tree)) await release(lock, token);
 //! ```
 
-use super::subvolume_error::MigrateError;
-use super::subvolume_journal::Journal;
+use crate::subvolume_error::MigrateError;
+use crate::subvolume_journal::Journal;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 

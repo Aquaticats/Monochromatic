@@ -14,13 +14,13 @@
 //! const verdict = await migrate({ platform, root, options, interrupt, say });
 //! ```
 
-use super::process_use::{UseTarget, processes_using};
-use super::subvolume_error::{Interrupt, MigrateError};
-use super::subvolume_index_files::{IndexLock, linked_worktrees_inside, refresh_all_indexes};
-use super::subvolume_lock::{acquire, lock_paths, release_all, token_of};
-use super::subvolume_platform::Platform;
-use super::subvolume_preflight::{Layout, Refusal, layout_of, migrate_refusals};
-use super::subvolume_run::{INDEX_LOCK, Run};
+use crate::process_use::{UseTarget, processes_using};
+use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside, refresh_all_indexes};
+use crate::subvolume_lock::{acquire, lock_paths, release_all, token_of};
+use crate::subvolume_platform::Platform;
+use crate::subvolume_preflight::{Layout, Refusal, layout_of, migrate_refusals};
+use crate::subvolume_run::{INDEX_LOCK, Run};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 

@@ -13,7 +13,7 @@
 //! const isSubvolumeRoot = kind === 'btrfs' && (await stat(path, { bigint: true })).ino === 256n;
 //! ```
 
-use super::fs_primitive_error::{PrimitiveError, c_path};
+use crate::fs_primitive_error::{PrimitiveError, c_path};
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 

@@ -16,8 +16,8 @@
 //! await rm(path, { recursive: true, force: true }); // after chmod u+rwx on every directory, never into a nested subvolume
 //! ```
 
-use super::fs_beneath::{open_directory_widening, remove_at};
-use super::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::fs_beneath::{open_directory_widening, remove_at};
+use crate::subvolume_remove_walk::{empty_directory, verify_below};
 use std::path::Path;
 
 /// What:

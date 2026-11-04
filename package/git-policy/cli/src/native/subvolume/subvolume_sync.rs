@@ -21,12 +21,12 @@
 //! const stats = await syncTree({ platform, source, destination, delete: true, updateOnly: false, excluded: ['.git/index.lock'] });
 //! ```
 
-use super::fs_primitive_error::PrimitiveError;
-use super::subvolume_anchor::Anchor;
-use super::subvolume_error::{Interrupt, MigrateError};
-use super::subvolume_platform::Platform;
-use super::subvolume_remove::remove_tree;
-use super::subvolume_sync_attrs::{
+use crate::fs_primitive_error::PrimitiveError;
+use crate::subvolume_anchor::Anchor;
+use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_platform::Platform;
+use crate::subvolume_remove::remove_tree;
+use crate::subvolume_sync_attrs::{
     AttributeFailure, AttributeLosses, carried_attributes_equal, make_fifo, open_fifo, preserve_on_descriptor, preserve_on_link,
 };
 use std::collections::{HashMap, HashSet};

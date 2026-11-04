@@ -12,13 +12,13 @@
 //! interface Platform { filesystemKind(path): Kind; isSubvolumeRoot(path): boolean; createSubvolume(path): void; ... }
 //! ```
 
-use super::fs_btrfs_ioctl::{subvolume_create_at, subvolume_destroy_at};
-use super::fs_clone_exchange::{clone_file, exchange_paths};
-use super::fs_kind::{FilesystemKind, filesystem_facts, is_subvolume_root};
-use super::fs_mount_options::read_mount_facts;
-use super::fs_primitive_error::PrimitiveError;
-use super::git_system_config::with_real_git;
-use super::worktree_clean_content::ConversionEnvironment;
+use crate::fs_btrfs_ioctl::{subvolume_create_at, subvolume_destroy_at};
+use crate::fs_clone_exchange::{clone_file, exchange_paths};
+use crate::fs_kind::{FilesystemKind, filesystem_facts, is_subvolume_root};
+use crate::fs_mount_options::read_mount_facts;
+use crate::fs_primitive_error::PrimitiveError;
+use crate::git_system_config::with_real_git;
+use crate::worktree_clean_content::ConversionEnvironment;
 use std::ffi::OsString;
 use std::fs::File;
 use std::path::Path;

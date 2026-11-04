@@ -15,7 +15,7 @@
 //! await renameExchange(first, second); // no Node API; the kernel call is renameat2(RENAME_EXCHANGE)
 //! ```
 
-use super::fs_primitive_error::{PrimitiveError, c_path};
+use crate::fs_primitive_error::{PrimitiveError, c_path};
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;

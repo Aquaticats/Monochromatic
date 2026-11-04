@@ -17,7 +17,7 @@
 //! const outcome = rewriteIndexStat(bytes, (path) => lstatFields(join(tree, path))); // { bytes, updated, total } | { skipped }
 //! ```
 
-use super::subvolume_sha::{sha1, sha256};
+use crate::subvolume_sha::{sha1, sha256};
 
 /// The bytes of the header: signature, version and entry count.
 const HEADER: usize = 12;

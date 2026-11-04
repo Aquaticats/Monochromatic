@@ -13,13 +13,13 @@
 //! const root = makeCheckout(parent, 'checkout');
 //! ```
 
-use super::fs_clone_exchange::exchange_paths;
-use super::fs_kind::FilesystemKind;
-use super::fs_primitive_error::PrimitiveError;
-use super::subvolume_arguments::{MigrateArguments, MigrateMode};
-use super::subvolume_command::execute;
-use super::subvolume_error::Interrupt;
-use super::subvolume_platform::Platform;
+use crate::fs_clone_exchange::exchange_paths;
+use crate::fs_kind::FilesystemKind;
+use crate::fs_primitive_error::PrimitiveError;
+use crate::subvolume_arguments::{MigrateArguments, MigrateMode};
+use crate::subvolume_command::execute;
+use crate::subvolume_error::Interrupt;
+use crate::subvolume_platform::Platform;
 use crate::test_support::{fixture, git, git_text, repository};
 use std::collections::HashSet;
 use std::fs::File;
@@ -75,17 +75,17 @@ impl PlainPlatform {
 
 /// The five operations on plain directories.
 impl Platform for PlainPlatform {
-    fn conversion_environment(&self) -> super::worktree_clean_content::ConversionEnvironment {
-        return super::worktree_clean_content::ConversionEnvironment {
-            scope: super::repo_read_config_scan::ScopeEnvironment { no_system: true, ..super::repo_read_config_scan::ScopeEnvironment::default() },
+    fn conversion_environment(&self) -> crate::worktree_clean_content::ConversionEnvironment {
+        return crate::worktree_clean_content::ConversionEnvironment {
+            scope: crate::repo_read_config_scan::ScopeEnvironment { no_system: true, ..crate::repo_read_config_scan::ScopeEnvironment::default() },
             variables: Vec::new(),
-            system_attributes: super::worktree_clean_content::SystemAttributes::Disabled,
+            system_attributes: crate::worktree_clean_content::SystemAttributes::Disabled,
             alternate_attribute_source: None,
         };
     }
 
     fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
-        let (_, real_free) = super::fs_kind::filesystem_facts(path)?;
+        let (_, real_free) = crate::fs_kind::filesystem_facts(path)?;
         return Ok((self.kind, self.free.unwrap_or(real_free)));
     }
 
@@ -126,7 +126,7 @@ impl Platform for PlainPlatform {
 
     fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError> {
         if self.real_clone {
-            return super::fs_clone_exchange::clone_file(source, destination, path);
+            return crate::fs_clone_exchange::clone_file(source, destination, path);
         }
         return Err(PrimitiveError { operation: "FICLONE", path: path.to_path_buf(), errno: libc::EOPNOTSUPP });
     }

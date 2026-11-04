@@ -15,8 +15,8 @@
 //! const journal = await loadJournal(path); await journal.mark('copy', 'started'); ... await journal.mark('copy', 'done');
 //! ```
 
-use super::iso_time::{format_iso_milliseconds, now_iso};
-use super::subvolume_error::MigrateError;
+use crate::iso_time::{format_iso_milliseconds, now_iso};
+use crate::subvolume_error::MigrateError;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::io::Write;

@@ -21,10 +21,10 @@
 //! for (const { adminDirectory, worktree } of linkedWorktrees(root)) refreshIndexFile(join(adminDirectory, 'index'), worktree);
 //! ```
 
-use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use super::parallel_runner::{Event, OrderedRun, run_ordered};
-use super::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StoredStat, rewrite_index_stat_with};
-use super::subvolume_lock::is_ours;
+use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StoredStat, rewrite_index_stat_with};
+use crate::subvolume_lock::is_ours;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
@@ -362,7 +362,7 @@ pub struct InstallSeams<'a> {
 
 /// `install_index_in` with the moments at which a control may move the tree.
 pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn FnMut(&[u8]) -> Option<StatFields>, hash_length: usize, seams: &mut InstallSeams<'_>) -> Result<String, String> {
-    use super::fs_beneath::{create_file_at, entry_metadata_at, identity_of, link_open_file_at};
+    use crate::fs_beneath::{create_file_at, entry_metadata_at, identity_of, link_open_file_at};
     let lock: &OsStr = OsStr::new("index.lock");
     let index: &OsStr = OsStr::new("index");
     let mut created: std::fs::File = match create_file_at(admin, lock, 0o600) {
@@ -373,7 +373,7 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
     let ours = identity_of(&created).map_err(|error| { return format!("the lock cannot be examined ({error})"); })?;
     // Before the publication the lock is ours to remove, but only if the name still holds the file made here.
     let give_up = |reason: String| -> Result<String, String> {
-        let _kept = super::fs_beneath::remove_if_identical(admin, lock, ours);
+        let _kept = crate::fs_beneath::remove_if_identical(admin, lock, ours);
         return Err(reason);
     };
     match entry_metadata_at(admin, index) {
@@ -399,7 +399,7 @@ pub fn install_index_in_with(admin: &std::fs::File, seed: &[u8], stats: &mut dyn
     (seams.after_publish)();
     // The lock name and the index are the same file now; the lock is released only if the name still holds it, so the lock
     // of the next Git command is never removed.
-    let _released = super::fs_beneath::remove_if_identical(admin, lock, ours);
+    let _released = crate::fs_beneath::remove_if_identical(admin, lock, ours);
     return Ok(format!("{updated} of {total} entries refreshed"));
 }
 

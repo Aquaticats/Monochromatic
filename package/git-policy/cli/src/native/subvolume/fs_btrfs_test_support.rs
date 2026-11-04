@@ -12,7 +12,7 @@
 //! const root = await btrfsFixture(name); // throws unless the run acknowledged that btrfs is absent
 //! ```
 
-use super::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::fs_kind::{FilesystemKind, filesystem_kind};
 use crate::test_support::fixture;
 use std::path::PathBuf;
 
@@ -57,7 +57,7 @@ pub(crate) fn btrfs_fixture(name: &str) -> Option<PathBuf> {
 /// const removalAllowed = (await readMountFacts(root))?.hasOption('user_subvol_rm_allowed');
 /// ```
 pub(crate) fn removal_allowed(root: &std::path::Path) -> bool {
-    return super::fs_mount_options::read_mount_facts(root)
+    return crate::fs_mount_options::read_mount_facts(root)
         .ok()
         .flatten()
         .is_some_and(|facts| { return facts.has_option("user_subvol_rm_allowed"); });

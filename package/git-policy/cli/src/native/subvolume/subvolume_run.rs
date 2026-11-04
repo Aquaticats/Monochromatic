@@ -10,12 +10,12 @@
 //! class Run { platform; layout; journal; interrupt; say(line); async pass(label, source, destination, options) { ... } }
 //! ```
 
-use super::subvolume_error::{Interrupt, MigrateError};
-use super::subvolume_journal::Journal;
-use super::subvolume_lock::relative_lock_paths;
-use super::subvolume_platform::Platform;
-use super::subvolume_preflight::Layout;
-use super::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
+use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_journal::Journal;
+use crate::subvolume_lock::relative_lock_paths;
+use crate::subvolume_platform::Platform;
+use crate::subvolume_preflight::Layout;
+use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::Instant;

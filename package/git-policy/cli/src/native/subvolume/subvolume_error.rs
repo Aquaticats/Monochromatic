@@ -12,7 +12,7 @@
 //! const interrupt = { point: undefined as string | undefined, after: 0 }; // tests only
 //! ```
 
-use super::fs_primitive_error::PrimitiveError;
+use crate::fs_primitive_error::PrimitiveError;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

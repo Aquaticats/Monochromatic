@@ -17,7 +17,7 @@
 //! await chown(copy, st.uid, st.gid); await chmod(copy, st.mode & 0o7777); await utimes(copy, st.atime, st.mtime);
 //! ```
 
-use super::fs_primitive_error::c_path;
+use crate::fs_primitive_error::c_path;
 use std::collections::BTreeMap;
 use std::ffi::{CStr, CString};
 use std::fs::{File, Metadata};

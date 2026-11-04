@@ -14,13 +14,13 @@
 //! await rollback(run); await removeOldTree(run, { discardUnreadable });
 //! ```
 
-use super::subvolume_error::MigrateError;
-use super::subvolume_index_files::{IndexLock, refresh_all_indexes};
-use super::subvolume_lock::{release_all, token_of};
-use super::subvolume_preflight::{Refusal, remove_old_refusals, rollback_refusals};
-use super::subvolume_remove::remove_tree;
-use super::subvolume_run::Run;
-use super::subvolume_sync::SyncStats;
+use crate::subvolume_error::MigrateError;
+use crate::subvolume_index_files::{IndexLock, refresh_all_indexes};
+use crate::subvolume_lock::{release_all, token_of};
+use crate::subvolume_preflight::{Refusal, remove_old_refusals, rollback_refusals};
+use crate::subvolume_remove::remove_tree;
+use crate::subvolume_run::Run;
+use crate::subvolume_sync::SyncStats;
 use std::path::{Path, PathBuf};
 
 /// Remove a file, treating "already gone" as done.

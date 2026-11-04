@@ -20,7 +20,7 @@
 //! await btrfsIoctl(parentFd, 'SNAP_CREATE_V2', { fd: sourceFd, flags: 0, name });
 //! ```
 
-use super::fs_primitive_error::PrimitiveError;
+use crate::fs_primitive_error::PrimitiveError;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;

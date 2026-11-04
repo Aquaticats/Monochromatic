@@ -13,15 +13,15 @@
 //! const code = await execute({ platform, args, root, interrupt, say });
 //! ```
 
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE};
-use super::subvolume_arguments::{MIGRATE_HELP, MigrateArguments, MigrateMode};
-use super::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
-use super::subvolume_error::{Interrupt, MigrateError};
-use super::subvolume_migrate::{MigrateOptions, Verdict, migrate};
-use super::subvolume_platform::{LinuxPlatform, Platform};
-use super::subvolume_preflight::{Refusal, layout_of};
-use super::subvolume_rollback::{remove_old_tree, rollback};
-use super::subvolume_run::Run;
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE};
+use crate::subvolume_arguments::{MIGRATE_HELP, MigrateArguments, MigrateMode};
+use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
+use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_migrate::{MigrateOptions, Verdict, migrate};
+use crate::subvolume_platform::{LinuxPlatform, Platform};
+use crate::subvolume_preflight::{Refusal, layout_of};
+use crate::subvolume_rollback::{remove_old_tree, rollback};
+use crate::subvolume_run::Run;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 

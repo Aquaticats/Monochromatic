@@ -15,7 +15,7 @@
 //! await emptyDirectory(top); // checks again at every directory, then unlinks everything below
 //! ```
 
-use super::fs_beneath::{device_of, handle_path, open_directory_widening, remove_at, widen_directory};
+use crate::fs_beneath::{device_of, handle_path, open_directory_widening, remove_at, widen_directory};
 use std::os::unix::fs::MetadataExt;
 use std::ffi::OsString;
 use std::fs::File;

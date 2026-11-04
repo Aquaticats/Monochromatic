@@ -14,12 +14,12 @@
 //! const refusals: { cause: string; remedy: string }[] = preflight({ platform, layout, journal });
 //! ```
 
-use super::fs_kind::FilesystemKind;
-use super::single_owner_claim::live_owner_of;
-use super::subvolume_entry_count::count_entries;
-use super::subvolume_journal::Journal;
-use super::subvolume_lock::{is_ours, token_of};
-use super::subvolume_platform::Platform;
+use crate::fs_kind::FilesystemKind;
+use crate::single_owner_claim::live_owner_of;
+use crate::subvolume_entry_count::count_entries;
+use crate::subvolume_journal::Journal;
+use crate::subvolume_lock::{is_ours, token_of};
+use crate::subvolume_platform::Platform;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
@@ -259,7 +259,7 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
 
 /// The refusal for a conversion of the linked worktree whose administrative directory this is, when its command is running.
 fn conversion_refusal(administrative: &Path) -> Option<Refusal> {
-    return match live_owner_of(administrative, std::ffi::OsStr::new(super::worktree_convert_journal::CLAIM_PREFIX)) {
+    return match live_owner_of(administrative, std::ffi::OsStr::new(crate::worktree_convert_journal::CLAIM_PREFIX)) {
         Ok(None) => None,
         Ok(Some(owner)) => Some(refuse(
             format!("process {} is converting the linked worktree registered in {} to a subvolume (it owns {})", owner.pid, administrative.display(), owner.path.display()),
