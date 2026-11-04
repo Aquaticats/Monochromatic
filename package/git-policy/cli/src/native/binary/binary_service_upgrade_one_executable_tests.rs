@@ -176,8 +176,8 @@ fn upgrade_with(name: &str, old_words: impl FnOnce(&Fixture, &Path, &str) -> Vec
     let checked: std::sync::Arc<std::sync::Mutex<Option<String>>> = std::sync::Arc::new(std::sync::Mutex::new(None));
     let at_start: Box<dyn FnOnce() + Send> = Box::new({
         let unit_path: PathBuf = units.join(SERVICE_UNIT_NAME);
-        let checked = std::sync::Arc::clone(&checked);
-        move || { *checked.lock().expect("lock") = std::fs::read_to_string(unit_path).ok(); }
+        let slot = std::sync::Arc::clone(&checked);
+        move || { *slot.lock().expect("lock") = std::fs::read_to_string(unit_path).ok(); }
     });
     let bus = fake_bus_many(runtime.as_path(), false, 2, at_start);
     let mut first_command: Command = commit_command(&fixture, &repo, "subject", "a.txt", runtime.as_path());

@@ -74,7 +74,7 @@ function binaryJobLines(workflow: string): readonly string[] {
     buildJobEnd,
     start,
   );
-  if ((start < 0) || (end < 0))
+  if ((start === (-1)) || (end === (-1)))
     throw new Error(`cargo-publish.yml has no ${buildJobStart.trim()} job followed by ${buildJobEnd.trim()}`);
   return workflow.slice(
     start,
@@ -93,11 +93,12 @@ function builtAndPackaged(lines: readonly string[]): { readonly built: readonly 
   const built: string[] = [];
   const packaged: string[] = [];
   for (const line of lines) {
-    const words = line.trim().split(/\s+/u);
-    words.forEach(function collect(word, index) {
-      if ((word === '--bin') && (words[index + 1] !== undefined))
-        built.push(words[index + 1]!);
-    });
+    const words = line.trim().split(' ').filter((word) => word !== '');
+    for (const [index, word,] of words.entries()) {
+      const next = words[index + 1];
+      if ((word === '--bin') && (next !== undefined))
+        built.push(next);
+    }
     const trimmed = line.trim();
     if (trimmed.startsWith('bin=\'') && trimmed.endsWith('\''))
       packaged.push(trimmed.slice('bin=\''.length, -1));

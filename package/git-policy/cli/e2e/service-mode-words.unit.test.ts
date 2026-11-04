@@ -36,7 +36,7 @@ const rustSource = readFileSync(
 function rustWords(source: string): readonly string[] {
   const marker = 'pub const SERVICE_WORDS: [&str; 3] = [';
   const start = source.indexOf(marker);
-  if (start < 0)
+  if (start === (-1))
     throw new Error('service_main.rs no longer declares SERVICE_WORDS as three words');
   const list = source.slice(
     start + marker.length,
