@@ -1950,12 +1950,47 @@ see "Merge auto-resolution" under owner decisions in force.
 Current state at 2026-11-04T03:27:12-05:00:
 round 6,
 tip `d206fd5321` (2026-11-03T22:26:12-05:00),
-472 of 472 tests;
-the sixth cross-vendor review runs in four parts (`~/temp/agent/reviews/cargo-shadow-sol-6a.txt`,
+472 of 472 tests.
+Round 6 answered the fifth review (all four parts "not correct").
+Sixth cross-vendor review (`~/temp/agent/reviews/cargo-shadow-sol-6a.txt`,
 `-6b.txt`,
 `-6b2.txt`,
-`-6c.txt`).
-Round 6 answered the fifth review (all four parts "not correct").
+`-6c.txt`):
+all four parts "not correct" again.
+Its P1 findings:
+6a R1 (a zombie leader can have live threads;
+the `/proc` parent map is not a coherent snapshot),
+R2 (crash recovery cannot establish that escaped writers stopped),
+R3 (the process-tree ownership heuristic can kill unrelated work);
+6b 1 (the stopping directory of the directory-entry sync is presumed,
+not shown,
+durable);
+6b2 1 (workspace-wide survivor discovery fails open),
+2 (missing group and readiness records still authorize conflicting work),
+5 ("outputs durable" treated as "only cleanup failed");
+6c R1 (an operational install error bypasses the finish classification),
+R2 (group-only recovery unsafe for escaped descendants).
+Round 5's process group and round 6's subreaper plus `/proc` scan both failed the same proof,
+that every writer cargo started has stopped.
+Coordinator's reversal of the agent's round-6 pick,
+on the reviews' counterexamples:
+containment moves to a delegated control group (membership survives `setsid` and double forks;
+`cgroup.kill` and `cgroup.events` `populated 0` make stop and quiescence atomic;
+a survivor after a crash is a membership query of a recorded group).
+Coordinator's picks under the delegation (veto open,
+for the next batched owner question):
+where no delegated control group can be had (some CI runners and containers),
+cargo-shadow runs with a stated weaker guarantee and a one-line notice naming the missing capability,
+never claiming quiescence it has not shown;
+"Force at leaving,
+else background" has no background carrier in a command that exits,
+so cargo-shadow forces what must be durable at its exit barrier and syncs nothing else;
+each limit's comment cites the delegation record ("Picks made under the owner's delegation") and the owner's quote,
+or a measurement.
+Round 7's bar is the P1 set only,
+each closed with the reviewer's counterexample as a red-then-green test;
+the P2 and P3 findings and the missing-test lists of the four files wait for the round after,
+then a re-review of the P1 set alone.
 Picks open to veto,
 the agent's under the coordinator's delegation:
 one workspace lock (`.cache/cargo-shadow/lock`,
