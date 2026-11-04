@@ -1396,6 +1396,8 @@ impl ControlGroup {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 self.absence_is_verified()?;
+                #[cfg(test)]
+                crate::bounded_run::trace(|| { return "scope proved absent".to_string(); });
                 return Ok(true);
             }
             // The signal pass below does the stopping when the kill file cannot be written.
@@ -1405,12 +1407,18 @@ impl ControlGroup {
             Ok(found) => found,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 self.absence_is_verified()?;
+                #[cfg(test)]
+                crate::bounded_run::trace(|| { return "scope proved absent".to_string(); });
                 return Ok(true);
             }
             Err(error) => return Err(error),
         };
         loop {
             if !populated_through(&events)? && !survivor {
+                // The authoritative proof: the kernel reports the scope unpopulated after the kill (a test build traces it, so a
+                // test sees that a successful stop went through this check and not through a snapshot of the members).
+                #[cfg(test)]
+                crate::bounded_run::trace(|| { return "scope proved empty".to_string(); });
                 return Ok(true);
             }
             self.signal_members()?;

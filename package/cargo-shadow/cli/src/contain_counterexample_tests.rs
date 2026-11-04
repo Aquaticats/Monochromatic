@@ -273,7 +273,12 @@ fn zombie_leader_run(at_the_bound: bool) {
     );
     let limit: Duration = if at_the_bound { Duration::from_secs(8) } else { Duration::from_secs(30) };
 
+    let _ = crate::bounded_run::take_trace_for_test();
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(limit));
+    // The stop went through the authoritative emptiness proof before the run returned (fourth certification pass): the kernel's
+    // `populated 0` after the kill (or a verified absence), not a snapshot of the members that were signalled.
+    let proofs: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("scope proved "); }).collect();
+    assert_eq!(proofs.len(), 1, "the stop did not go through the emptiness proof exactly once (at the bound: {at_the_bound}): {proofs:?}");
 
     let tid: i32 = worker_tid(&ready);
     if at_the_bound {
