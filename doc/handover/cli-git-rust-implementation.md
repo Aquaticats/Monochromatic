@@ -2904,6 +2904,32 @@ section "Owner questions for revision 12"):
   as with native Git).
   The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
 
+### Commit protocol revision 15 answers
+
+The owner,
+through the question tool,
+before the commit that records this entry,
+answered the four questions of revision 15 (`4a6ad9d34a`) as the coordinator worded them after applying the fifteenth review's named edits
+(`commits-never-fail-sol-15.txt` section 3;
+the edited wording was not re-reviewed):
+- Question 5:
+  "Carry the file, save staged (Recommended)".
+- Question 7a:
+  "Clean up automatically (Recommended)"
+  (by value tests within 7b's window under `index.lock`,
+  current version saved first;
+  "possible leftover" when any test fails).
+- Question 7b:
+  "A measured span (Recommended)"
+  (starts when the merge's files are written;
+  at its end no new cleanup starts;
+  the value comes back to the owner before shipping).
+- Question 7c:
+  "Keep a reminder (Recommended)"
+  (dismissing deletes no saved copy).
+These supersede the provisional decisions 12 and 13.
+Sent to the revision 16 agent.
+
 ### The final disk save is never cut short
 
 The owner,
