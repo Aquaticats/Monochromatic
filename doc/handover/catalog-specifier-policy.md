@@ -439,7 +439,7 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
     stay independent of the local wrapper ("Local enforcement remains best-effort fast feedback; CI remains authoritative").
   - `package/git-policy/cli/README.md`, "Policies": the wrapper ships a fixed set of policies and no others; the config keys
     `plugins` and `trust` are refused, so a new policy means a native Rust policy inside that crate
-    (`src/native/policy_registry.rs` and siblings), listed in `cli-git.config.jsonc` where the four optional ones are listed.
+    (`src/native/policy/policy_registry.rs` and siblings), listed in `cli-git.config.jsonc` where the four optional ones are listed.
     `mono/dependent-version-bump` already reads package manifests at commit time and blocks at `error`.
   - A `mono/catalog-specifiers` policy would reject a commit whose staged `package.json` bytes violate the rule, at the point where a
     violation lands, with no directory walk and no PATH-order dependency beyond the git shadow every commit already uses.
@@ -511,7 +511,11 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
   The CI step must land only after the lock names the new wrapper and every runner installs from that lock, because
   `git cli-git check --all --policy mono/catalog-specifiers` fails on a wrapper that predates the policy.
   The wrapper installs into the shared `~/.cargo/bin`, and a worktree whose lock pins an older wrapper downgrades it for every tree
-  on its next sync (`doc/handover/cli-git-rust-implementation.md`, "Shared install downgrade").
+  on its next sync (observed 2026-10-31;
+  the downgrade is now refused by `mpm-shadow`,
+  see
+  `package/mpm-shadow/cli/README.md`,
+  "Repository-published tools keep only the newest version").
   7a's queue holds nothing that touches policy registration.
 - `monochromatic-6e` confirmed 7a owns the cli-git work and added constraints: cli-git will pin `monochromatic-jsonc-edit =0.1.2`
   so that crate must be on crates.io before any new git-policy-cli publish; forbidden-strings releases before cli-git when both change;
@@ -846,7 +850,7 @@ The user confirmed the shared understanding and the order below, after the third
   commands. In a throwaway repository a clean staged `package.json` plus a violating unstaged one made
   `check --all --policy mono/catalog-specifiers` exit 1 (`~/temp/agent/cs-policy-050-probe.ts`, case `violation-unstaged-only`).
   8c confirmed: `check` and `fix` read the worktree files their scope selects; the commit and push paths check the index or
-  commit content (`package/git-policy/cli/src/native/management.rs`). The CI checkout has index equal to worktree, so the
+  commit content (`package/git-policy/cli/src/native/invocation/management.rs`). The CI checkout has index equal to worktree, so the
   workflow is unaffected.
 
 - 2026-11-01, cli-git 0.5.0 landed in the lock and the CI workflow with the policy activation landed (task 3 done):

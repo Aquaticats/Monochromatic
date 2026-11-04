@@ -52,6 +52,11 @@ export const WRAPPER_BIN: string = WRAPPER_BINS[WRAPPER_KIND];
  */
 const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
 
+/**
+ Directory of the image's installed Git, the only Git the suite runs.
+ */
+const SYSTEM_GIT_DIRECTORY = '/usr/bin';
+
 //endregion Constants
 
 
@@ -63,8 +68,6 @@ const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
 
  @param root - empty scenario root
 
- @param gitVersion - Git version under `/opt/git`
-
  @param options - setup options
 
  @param service - the scenario's commit service, whose runtime directory the wrapper environment names
@@ -73,24 +76,22 @@ const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
 
  @example
  ```ts
- await createScenarioRepository({ root: '/work/2.55.0/baseline', gitVersion: '2.55.0', options, service });
+ await createScenarioRepository({ root: '/work/2.56.0/baseline', options, service });
  ```
  */
 export async function createScenarioRepository({
   root,
-  gitVersion,
   options,
   service,
 }: Readonly<{
   root: string;
-  gitVersion: string;
   options: RepositoryOptions;
   service: ScenarioService;
 }>,): Promise<ScenarioRepository> {
   /**
    Directory holding the selected Git.
    */
-  const gitBin = `/opt/git/${gitVersion}/bin`;
+  const gitBin = SYSTEM_GIT_DIRECTORY;
   /**
    Scenario directories.
    */

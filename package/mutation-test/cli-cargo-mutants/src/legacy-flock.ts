@@ -6,13 +6,18 @@
  `slot-<n>.lock` held by the process that ran the gated command. Neither is taken any more (the numbered claim files of
  `src/owner-claim.ts` replace them), but a campaign or gate that started before the change may still be running, and two
  runs must never share one item, whichever release they are. The probe asks without waiting and gives the lock straight back
- (`package/git-policy/cli/src/native/worktree_convert_journal.rs:268`, `legacy_lock_is_held`): a held lock is a live owner,
+ (`package/git-policy/cli/src/native/worktree/worktree_convert_journal.rs:268`, `legacy_lock_is_held`): a held lock is a live owner,
  and a lock file nobody holds is removed while the probe still holds it, so no earlier command can take the name between the
  probe and the removal and the leftover disappears after the upgrade. A file that is absent costs nothing, and a file that is
  not a plain file is left where it is.
 
  The lock belongs to the open file description, which this process keeps open while a short-lived `flock` process, lent the
  descriptor, takes the lock on it and ends. That is the handshake the earlier campaign lock used.
+
+ A gate of the earlier release that is still waiting keeps polling its slot file with `flock --nonblock` and never looks at
+ a claim file, and a campaign of it locks its evidence directory the same way, so a probe that is released again cannot keep
+ such a run out. {@link holdLegacyLock} therefore keeps the lock for as long as the claim is held, and never removes the file,
+ because a probe that removes a file races with a run of the earlier release that has just created and locked a new one.
  */
 import {
   type ChildProcess,
@@ -309,6 +314,151 @@ async function probeOnce({
       throw new CargoMutantsToolingError(`Cannot remove ${path}, the lock file the earlier release left (${String(error)}).`);
   }
   return 'retired';
+}
+
+/**
+ What {@link holdLegacyLock} found: `busy` (a process holds the lock), `absent` (no such path, or one that is not a plain file
+ where a plain file was asked for), or `kept` (this process now holds the lock, which it gives back when `lock` is disposed).
+ */
+export type LegacyHold =
+  | { readonly kind: 'busy' }
+    | { readonly kind: 'absent' }
+    | {
+      readonly kind: 'kept';
+    /**
+     Gives the kernel lock back when disposed.
+     */
+      readonly lock: AsyncDisposable;
+    };
+
+/**
+ Permission bits of a lock file this process creates, before the process mask: what `flock` gives a file it creates.
+ */
+const lockFileMode = 0o666;
+
+/**
+ Open the path for a lock that is kept.
+
+ @param path - the lock file or evidence directory
+
+ @param create - true to create a missing plain lock file, as a poll of the earlier release does
+
+ @returns the open file, or the text `absent` when there is no such path
+
+ @throws CargoMutantsToolingError when the path cannot be opened for any other reason
+
+ @example
+ ```ts
+ await openForHold({ path: '/l/slot-1.lock', create: true });
+ ```
+ */
+async function openForHold({
+  path,
+  create,
+}: {
+  readonly path: string;
+  readonly create: boolean;
+}): Promise<FileHandle | 'absent'> {
+  if (!create)
+    return await openForProbe(path);
+  try {
+    return await open(
+      path,
+      constants.O_RDONLY | constants.O_NONBLOCK
+        | constants.O_NOFOLLOW
+        | constants.O_CREAT,
+      lockFileMode,
+    );
+  }
+  catch (error) {
+    throw new CargoMutantsToolingError(`Cannot open or create ${path} to keep the lock of the earlier release (${String(error)}); nothing was changed.`);
+  }
+}
+
+/**
+ Take the kernel lock a run of the earlier release would take on a path, without waiting, and keep it.
+
+ The file is opened (and created when asked), the lock is taken on the open file description, and the path is checked to still
+ name that file, which it does because nothing here ever removes it. A run of the earlier release that polls the path then finds
+ the lock held and keeps waiting, or refuses, as it does for any holder of its own release.
+
+ @param path - the lock file (`slot-<n>.lock`) or the evidence directory
+
+ @param create - true to create a missing plain lock file (a slot); false to lock only what exists (an evidence directory)
+
+ @param program - the `flock` program; absent to use the one on the search path
+
+ @param attemptsLeft - how many more times this may start over when the path names a new file; absent in use
+
+ @returns `busy` when a process holds the lock, `absent` when there is nothing to lock, or `kept` with the lock to dispose
+
+ @throws CargoMutantsToolingError when the path cannot be opened or `flock` cannot be run or ends unexpectedly, or the path
+ keeps naming new files
+
+ @example
+ ```ts
+ const hold = await holdLegacyLock({ path: '/l/slot-1.lock', create: true });
+ ```
+ */
+export async function holdLegacyLock({
+  path,
+  create,
+  program = flockProgram,
+  attemptsLeft = mostProbeAttempts,
+}: {
+  readonly path: string;
+  readonly create: boolean;
+  readonly program?: string;
+  readonly attemptsLeft?: number;
+}): Promise<LegacyHold> {
+  if (attemptsLeft < 1)
+    throw new CargoMutantsToolingError(`${path} keeps being replaced by another lock file while its lock is taken; nothing was changed. Run the command again.`);
+  /**
+   The path, opened here: this descriptor holds the lock once it is taken.
+   */
+  const opened = await openForHold({
+    path,
+    create,
+  });
+  if (opened === 'absent')
+    return { kind: 'absent' };
+  /**
+   Closes the file, which gives the lock back, unless the lock is kept and the stack moved to the caller.
+   */
+  await using stack = new AsyncDisposableStack();
+  /**
+   The opened file, in the stack.
+   */
+  const file = stack.use(opened);
+  /**
+   What the opened file is.
+   */
+  const status = await file.stat();
+  // A path that is not a plain file is never a lock file the earlier release made (it makes only plain ones); a directory is
+  // wanted only where asked not to create.
+  if (create && (!status.isFile()))
+    return { kind: 'absent' };
+  if (await lockIsHeld({
+    descriptor: file.fd,
+    program,
+  }))
+    return { kind: 'busy' };
+  /**
+   What the path names now.
+   */
+  const onDisk = await statOnDisk(path);
+  if ((onDisk === 'absent') || (onDisk.dev !== status.dev)
+    || (onDisk.ino !== status.ino))
+    return await holdLegacyLock({
+      path,
+      create,
+      program,
+      attemptsLeft: attemptsLeft - 1,
+    });
+  return {
+    kind: 'kept',
+    lock: stack.move(),
+  };
 }
 
 /**

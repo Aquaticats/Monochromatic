@@ -5,7 +5,7 @@
  The service lands a batch in a fixed order: it writes the batch's objects, journals the intent, moves the branch by
  one compare-and-swap, updates the real index, and acknowledges the clients.
  The service ends itself at a named point of that order when `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it
- (`src/native/service_fault.rs`, which the release executable already carries; this suite adds no hook).
+ (`src/native/service/service_fault.rs`, which the release executable already carries; this suite adds no hook).
  The container has no service manager, so the harness restarts the service after it ended, as socket activation
  restarts a crashed unit, and the clients retry with their request identity.
  Whatever the instant, each commit must land exactly once, the index and worktree must agree with the branch,

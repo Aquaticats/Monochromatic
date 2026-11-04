@@ -116,7 +116,7 @@ the entry format is the same in both files.
 
 Nobody runs it by hand.
 The resident service runs one `review` work item per landed commit
-(`package/git-policy/cli/src/native/service_review.rs`),
+(`package/git-policy/cli/src/native/service/service_review.rs`),
 within a 20 s budget on the service's work thread:
 a call deadline of 10 s for the gateway and the Git reads and the write inside the rest.
 The environment of the service carries the settings:
@@ -145,7 +145,7 @@ The steps:
    Append the entry to the live log
    with one append-only write on an `O_APPEND` descriptor, once per commit,
    so entries of several worktrees' services never interleave and no lock is taken
-   (`package/git-policy/cli/src/native/standards_review_append.rs`).
+   (`package/git-policy/cli/src/native/standards_review/standards_review_append.rs`).
    The service creates the directory and the file when missing.
    The tracked `doc/audit/standards-review-gate-shadow.md` is never written.
    The earlier spool and the repair of entries another writer overwrote are gone

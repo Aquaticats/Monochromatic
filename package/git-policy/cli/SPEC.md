@@ -79,7 +79,8 @@ An executable that predates the policy refuses a configuration that lists it,
  so a repository lists the policy only after every checkout runs an executable that ships it.
 `markdown/autofix` runs the `monochromatic-lint` fix engine in-process;
  the executable links the linter library without its semantic engine.
-A panic or a stall past 60 seconds in the linter ends that candidate's check, never the command;
+A panic, or 60 seconds in which the linter thread shows no sign of work, ends that candidate's check, never the command
+(see "Git steps, tools and checks end only on no progress");
 the abandoned thread stays until the command ends, and the command starts no second linter thread.
 A stack overflow or an abort in the linter is not contained and ends the command, so the guard is a hang and
 panic boundary and not a crash boundary.
@@ -221,7 +222,9 @@ An older file that sets one still loads, and the value is checked and ignored.
   non-negative safe integer,
   default `1000`.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
-  The service's bounded wait for a foreign `index.lock` (`CLI_GIT_LOCK_WAIT_SECONDS`) replaced it.
+  The service's wait for a foreign `index.lock` replaced it:
+  a holder proven alive and an owner nothing proves alive are both
+  waited for until the lock ceiling ("Every wait has a bound"), and this key no longer sets anything.
   `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
@@ -248,6 +251,15 @@ An absent config uses the defaults.
   safe integer of at least 1 (bytes) or text such as `"256m"`,
   default one gibibyte,
   the size the folder of saved copies is kept under.
+
+Neither default rests on a measurement of growth yet.
+On 2026-11-03 the folder existed in no repository on the development host and the audit file held no `saved-conflict`
+or `pruned` line, a window of about one day since the feature landed,
+so the defaults stay at the coordinator's earlier values,
+and the coordinator's choice among the options in `doc/planning/cli-git-shipped-limits-audit.md`
+("Defaults for saved conflict copies", open to the owner's veto) is pending.
+A saved copy can be the only copy of a person's work (the worktree file as it was before a side replaced it),
+which is why that choice is open.
 
 The pass that applies them is described under "Conflicted files during a merge, rebase, cherry-pick or revert".
 
@@ -375,6 +387,20 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   `1` when any other hook is found, also when Git LFS shims are present beside it,
   and `2` when Git cannot locate a repository or a scanned directory cannot be read.
   A directory that does not exist holds no hooks.
+- It says on stderr whether Git's own fsmonitor is off (see "Git's own fsmonitor" in `README.md`).
+  It reads one listing, `git config --list --show-origin --show-scope -z`, with the caller's global options,
+  because the configuration snapshot of the commit path names scopes but not files.
+  The last `core.fsmonitor` entry decides, as for `git config --get`.
+  When it is false (`false`, `no`, `off`, `0` or empty) or there is no entry,
+  one line says that Git's fsmonitor is off by the owner's decision of 2026-11-03, with the file and scope of the deciding entry (or "not set"),
+  the reason in one sentence, and `doc/troubleshooting/git-fsmonitor-daemon-start-wait.md`.
+  When it is on (a true word, a number other than zero, a key without a value, or a hook path),
+  one finding names the file, the scope, the same reason and document, and the command that turns it off for that scope
+  (`git config --global core.fsmonitor false` for the global file; `--system`, `--local` and `--worktree` likewise);
+  a value from `-c` or the environment has no file, so the finding says to remove it there.
+  The line or finding comes after the other notes and before the filesystem section.
+  The exit status never depends on it, and doctor never writes configuration.
+  A listing that cannot be read or parsed is said plainly in place of the line.
 - It does not load configuration, recover transactions or take a lock, and it changes nothing.
 
 ## Lifecycle
@@ -533,6 +559,10 @@ Snapshot of a main checkout with uncommitted changes:
 a main checkout whose only trouble is an ordinary change (a staged change, an edited, deleted, renamed or mode-changed
 tracked file, an untracked file that no ignore rule covers, a tracked file the stat data cannot vouch for) is snapshotted
 all the same, and the new worktree is restored to what `git worktree add` makes from a clean checkout.
+Git's status listing nothing is an answer, not a failure: a main checkout whose index was written in the same second as its
+files (a merge, a pull or a landed commit just did that) or whose tracked file was touched without a change is snapshotted
+and restored like any other, and says nothing about left-out changes because there are none.
+Only a status run that ends with a nonzero exit code or cannot start refuses, and the line names the run, its exit code and what Git said.
 Every other refusal stays: an operation in progress or a held `index.lock`; any unmerged, intent-to-add, skip-worktree or
 assume-unchanged entry, or a submodule, found anywhere in the index (not only at the first refusal); a `.gitattributes`
 file among the changes or untracked anywhere; a sparse checkout; a source that is a linked worktree, whose index lies outside
@@ -542,11 +572,14 @@ installs that index as it is (stat data kept, `UNTR` and `FSMN` dropped), so the
 stat data still marks every file that was edited.
 Then, in the stage only and before it is swapped in, two real-Git steps run under the new worktree's Git directory and the
 stage as work tree: `git read-tree --reset -u <new commit>` (the index and the tracked files become the new commit's tree,
-rewriting exactly the paths whose files or entries differ) and `git clean --force -d --quiet` (untracked files that no
+rewriting exactly the paths whose files or entries differ) and `git clean --force -d` (untracked files that no
 ignore rule covers, and empty untracked directories, go; ignored files stay).
+The `clean` carries no `--quiet` (see "Wrapper output and options", the inner runs); it is run captured, in the same stage and
+under the same Git directory as the proof below, and what it says ("Removing <path>" for each untracked file of the stage) is
+kept in the journal and not printed, because those paths belong to a stage the person's command never names.
 These two steps and nothing else are run for the restore.
-They are started as real Git children by the lifecycle's runner, the same path as the `git read-tree -m -u` of a clean
-snapshot, so the wrapper's own guards of a person's `reset` and `clean` do not apply to them: they act on the wrapper's own
+The `read-tree` is started as a real Git child by the lifecycle's runner, the same path as the `git read-tree -m -u` of a clean
+snapshot, and the `clean` the same way as the proof's reads, so the wrapper's own guards of a person's `reset` and `clean` do not apply to them: they act on the wrapper's own
 new snapshot, never on a checkout of the person, and they refuse to start when the stage is the source's directory or the
 Git directory is the source's.
 The stage is then proven: `git diff-index --cached --quiet <new commit>` (the index equals the commit's tree),
@@ -563,7 +596,8 @@ The same words go to the journal as one entry of priority `info` under the `SYSL
 `--quiet`.
 Changes made to the main checkout while the snapshot is taken or restored are out of scope, as for every rung: using the
 command is accepting that risk, and no step defends against it.
-`core.fsmonitor` is left as configured, as everywhere in the wrapper.
+The wrapper passes no `core.fsmonitor` setting here; Git's fsmonitor is off in the person's global configuration
+(owner decision, 2026-11-03; see "Git's own fsmonitor" in `README.md`).
 
 Rung 1 needs a clean source that is a btrfs subvolume root on the destination's filesystem and, for a source that is a
 linked worktree, no nested linked worktree that is an ordinary directory; a snapshot of the main checkout sets such a
@@ -584,7 +618,7 @@ The snapshot carries the whole ignored state of the source, so the ignored-state
 
 Leaving out of a snapshot of the main checkout:
 before the stage is made private and its stubs removed, the wrapper prunes a snapshot whose source is the main checkout
-with the main-checkout rule of `src/native/worktree_copy_prune.rs`.
+with the main-checkout rule of `src/native/worktree_copying/worktree_copy_prune.rs`.
 First it works out what the source's index tracks: every directory above a tracked file, and every directory-valued
 index entry (a gitlink) at its own path. None of those is ever moved, whatever its name.
 A registered nested worktree that is an ordinary directory and holds or is a tracked path cannot be left out, so the
@@ -609,6 +643,11 @@ the item's Git directory; every directory from the worktree down to the trash is
 device; the trash has the recorded identity; and each entry removed is the recorded object (a replacement, a link or
 anything unrecorded is left alone and named in the failure). Nothing is found by scanning the trash parent for names, so a
 directory the main checkout carried there is never touched.
+The recorded entries are separate directories that share only the trash handle, so they are removed side by side within the
+host budget (the threads the process may run less a margin, and the free memory over the estimated peak of one removal, 128
+MiB, the measured peak of removing a directory of a million names rounded up); each
+is still removed only when it is the recorded object, a reason for one entry never stops the others, and the failure names the
+reasons in entry order.
 When no route to the service exists, provisioning fails, or the wake fails, the wrapper empties the trash itself by the same
 rules before the command returns, after one plain line on standard error that names the worktree and says why the service
 could not take it over. The work item stays until the trash is gone: it is withdrawn only after a successful removal.
@@ -628,6 +667,24 @@ A snapshot of the main checkout does not print the copy summary, because no copy
 line to standard error saying the worktree was made as a snapshot of the main checkout and that nested worktrees, caches and
 run records were left out.
 
+Parallel checkout of the new worktree:
+when Git's own checkout makes the new worktree (the person's `git worktree add` run as Git's checkout, and the `git reset --hard`
+that completes a worktree after a snapshot or clone attempt failed), the wrapper puts `-c checkout.workers=0` (one worker per
+logical CPU) before the subcommand, after the global options already there, only when nothing the person controls sets
+`checkout.workers`.
+Anything counts as setting it: an entry of any scope in the configuration Git reads (system, global, local, worktree, `include`d
+files), a `GIT_CONFIG_KEY_<n>` or `GIT_CONFIG_PARAMETERS` variable that names the key, and a `-c` or `--config-env` the person
+typed before the subcommand, whatever the value.
+Then nothing is added and Git uses the person's value.
+The files are read through the one configuration read the wrapper makes for the add (answered in process where the readers
+know the command line); a configuration that cannot be read adds nothing.
+The snapshot and clone rungs run no Git checkout of the whole tree and are not changed.
+Owner decision, 2026-11-03 (question tool, chosen against the coordinator's recommendation): "Pass only if unset".
+Basis: Git's parallel checkout made a 20,000-file checkout faster in all three paired runs another agent measured
+(36.9 s to 4.5 s, 3.1 to 2.3, 7.2 to 1.75).
+The wrapper passes no `core.fsmonitor` setting and does not touch its daemon;
+Git's fsmonitor is off in the person's global configuration (owner decision, 2026-11-03).
+
 Telling why an add was not made as a snapshot:
 when a `git worktree add` that the ladder serves succeeds without being made as a snapshot, and the person could change
 the cause, the wrapper writes one line to standard error unless `--quiet` is given, after Git's own words and before the
@@ -640,8 +697,10 @@ lists, and the first of them, with control characters shown as `?`; the remedy i
 a running Git command in the source (its `index.lock` exists; the remedy is to add again when it has finished);
 an unfinished operation (a merge, cherry-pick, revert, bisect or rebase mark exists; the remedy is to finish or abort it);
 an index entry no reset can undo (skip-worktree, assume-unchanged, intent-to-add, unmerged or a submodule);
-an index that cannot yet vouch for its files although Git lists no change (a file as new as the index, or a size, time or
-inode that differs; the remedy is `git status` once);
+an index that cannot yet vouch for its files although Git lists no change, in a source that is not restored by a snapshot
+(a file as new as the index, or a size, time or inode that differs; the remedy is `git status` once);
+a Git status that failed (the run, its exit code and what Git said; the remedies are to run `git -C <source> status`
+and fix what it names, or to wait for a Git command that is running there);
 a btrfs source that is no subvolume (the remedy is `git cli-git migrate-to-subvolume` for the main checkout and
 `git cli-git convert-worktree-to-subvolume` for a linked worktree);
 a destination on another btrfs filesystem than the source;
@@ -652,15 +711,26 @@ A source or destination that is not on btrfs gets no line, because nothing the p
 A failed add gets no line either; Git's refusal is the thing to read.
 The same words go to the journal as one entry of priority `warning` under the `SYSLOG_IDENTIFIER` `cli-git`, with the
 fields `CLI_GIT_WORKTREE` (the destination), `CLI_GIT_SLOW_CAUSE` (`uncommitted-changes`, `git-running`,
-`operation-unfinished`, `not-restorable`, `stale-index`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
+`operation-unfinished`, `not-restorable`, `stale-index`, `status-failed`, `unproven`, `not-subvolume`, `other-filesystem`, `unsupported` or `snapshot-failed`)
 and `CLI_GIT_SLOW_DETAIL` (the check's reason as the debug log prints it), also under `--quiet`.
 The entry is one datagram on the journal's native socket, sent without waiting; a journal that is absent or full costs the
 command nothing, and `journalctl --identifier=cli-git` lists the entries.
 The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
 
 Converting a nested worktree:
-`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)` converts a registered linked worktree
-that is an ordinary directory into a subvolume at the same path, one at a time.
+`git cli-git convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` converts a registered
+linked worktree that is an ordinary directory into a subvolume at the same path, several worktrees side by side.
+Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
+filesystem and run concurrently within a budget: the threads the process may run less an eighth of them (at least one, none
+when only two), no more than the free memory (the system's available memory and the room left in the process's control
+groups, halved) holds at the peak of one conversion, never more than sixteen (past which the measured speed-up stopped),
+and no more than `--jobs` when given.
+Output is deterministic: each worktree's name, progress lines and verdict come together in input order (`--all` sorts by
+path), the lines of the first unfinished worktree are printed as they happen, and those of the others are held until every
+worktree before them is complete.
+Targets that resolve to one worktree are converted one after another by one worker, so the second finds the first's result.
+A conversion that fails after its journal began keeps the journal and does not stop or alter the others; the closing line
+counts the failures and the status is 2.
 It refuses when the worktree is locked, has an `index.lock`, has an operation in progress, has a modified tracked file, has a
 process with its working directory or an open file inside it, has a worktree registered inside it, or when its converting
 name exists without a journal.
@@ -676,7 +746,8 @@ The attribute sources are the tracked `.gitattributes` files from the root down 
 (`git var GIT_ATTR_SYSTEM`, learned once per executable and cached) and is off under `GIT_ATTR_NOSYSTEM`; it is never derived from
 the system configuration path, and when its place cannot be established the worktree is refused.
 The same holds for the system configuration file: both are learned from the real Git the wrapper forwards to, which the command
-resolves itself (the forward-target variable is in the environment of the Git processes the wrapper starts, never in its own),
+resolves itself (the forward-target variable is in the environment of the Git processes the wrapper starts, never in its own;
+see "The wrapper never starts itself as Git"),
 and the configuration listing reads its environment entries from the same variables the facts were read from. With no real Git
 found the worktree is refused, never guessed.
 Attribute lines, patterns and paths are read as bytes: only space, tab, carriage return and line feed separate tokens, a NUL ends
@@ -693,7 +764,7 @@ before and after the read, and the read is bounded at the limit plus one byte, s
 the one file that was judged.
 The rungs of the add keep the stat-only check.
 A real run takes no lock. It owns the conversion through a numbered claim file in the administrative directory
-(`cli-git-convert.owner.<generation>`, `src/native/single_owner_claim.rs`) that it takes before it reads the journal and gives
+(`cli-git-convert.owner.<generation>`, `src/native/lock/single_owner_claim.rs`) that it takes before it reads the journal and gives
 back when it ends, so two commands never read, write or resume one journal. The file is written whole in a private temporary
 file and published with one exclusive `link` under the next generation number, so the kernel lets exactly one command create a
 generation; the newest generation is the claim and records the owner's process id, process birth identity and PID namespace.
@@ -725,6 +796,9 @@ copy; `Synced` only records that this once held, so every resume before the swap
 It exchanges the two directories (`RENAME_EXCHANGE`), checks that the path is a subvolume root, is the subvolume whose identity
 the journal recorded and holds the same `.git` bytes, and rewrites the index stat fields; a refresh that did not install the new
 index stops the conversion with the old tree kept.
+The rewrite of the indexes of a whole checkout (the migration's, the rollback's) covers the checkout's index and each linked
+worktree's; each is its own file under its own lock describing its own tree, so they are rewritten side by side within the host
+budget and reported in the order of the checkout's index first and then each worktree's by path.
 Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
 with the installed one without changing either: every entry of the old tree must be in the installed tree in the same kind, with
 the same size and modification time for a file and the same target for a link, and none may be on another device (a nested
@@ -770,9 +844,12 @@ never waited for, a foreign one stops the migration with the file named), from b
 index rewrite, because only Git's lock excludes a Git writer from the exchange; that reason is written beside the code in
 `subvolume_lock.rs`, `subvolume_index_files.rs` and `subvolume_migrate.rs`. The rewrite of the index stat fields that runs by
 itself (the worktree add's index, a rollback) takes `index.lock` for one index from the read to the rename.
-The mutation campaign's two kernel locks stay (`package/mutation-test/cli-cargo-mutants`): the per-campaign evidence-directory
-lock is taken without waiting and a second run is refused, and the host-wide slot limiter is a counting limit on CPU that one
-owner per item cannot express; each says why beside its code.
+The mutation campaign's evidence directories and the host-wide gate slots (`package/mutation-test/cli-cargo-mutants`) are owned
+by claim files: a second run on a directory is refused, and a slot is free only when its owner is proven gone, never by age.
+Each also holds the kernel lock that releases before 2026-11-03 waited on, taken once without waiting after the claim and
+released just before it, only so that a gate from an older checkout still sees the slot as taken; the reason is written in
+`gate-slot.ts`, `gate-slot-run.ts`, `legacy-flock.ts` and `campaign-lock.ts`, and the package README names the gap left by
+gates that ran the claim-only source.
 
 Rung 2 needs a clean source on btrfs, XFS or overlayfs, with the source and the destination in one clone domain.
 The same `--no-checkout` run is followed by `FICLONE` of every tracked file (mode and nanosecond times kept; links
@@ -867,7 +944,7 @@ that instant can remove an empty directory at most, never data; that residual is
 Before staging,
 exclude every registered worktree root strictly nested under the source.
 A main-checkout source also applies a leave-out rule of directory names, the same everywhere below the source root,
-implemented in `src/native/worktree_copy_prune.rs`:
+implemented in `src/native/worktree_copying/worktree_copy_prune.rs`:
 a directory that holds a `.git` file or directory is another checkout and is left out whole;
 a cache is left out (`.pnpm-store`, `.gradle`, `.kotlin`, `.cache` anywhere but the repository root,
 and `incremental` and `zig-global-cache` below a `target` directory);
@@ -885,8 +962,11 @@ Stage each destination separately in a mode-`0700` sibling directory so file clo
  on the destination filesystem.
 Copy regular files into the stage with an exclusive copy-on-write request whose unsupported-filesystem behavior falls
 back to a full copy.
-A manifest of at least 4096 entries is copied by up to 8 threads, bounded by the CPUs the process may use,
+A manifest of at least 16 entries (`PARALLEL_BREAK_EVEN_ENTRIES`) is copied by up to 8 threads, bounded by the CPUs the process may use,
 over contiguous slices after every directory exists; the first failure stops the others.
+Both numbers are measured: the copy stage forced to 1, 2, 4 and 8 workers took 1.1, 1.0, 0.7 and 0.7 ms for 30 entries and 397.6,
+222.2, 139.4 and 104.4 ms for 9,301, and cloning 22,718 entries took 1549, 880, 555, 397 and 415 ms at 1, 2, 4, 8 and 16 workers
+(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record"). The install and the clone of a package repair use the same break-even.
 Preserve directory and regular-file permission bits plus exact symbolic-link target text.
 Never follow a symbolic link while classifying source or destination entries.
 
@@ -952,7 +1032,7 @@ A journal is `<id>.<owner>.json`, where `<owner>` is the owner's process id, bir
 text; a stage claim holds the container path on its first line and `owner=<owner>` on its second; every temporary file is
 `<item>.<owner>.<unique>.tmp`.
 An owner is alive when a process with its id and its birth identity exists; one in a PID namespace the reader cannot see is
-alive until its item is older than an hour; one the platform cannot report on is not proven dead, so its item is kept.
+alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`, 20 minutes); one the platform cannot report on is not proven dead, so its item is kept.
 An item that names no owner (a name an earlier release wrote, or a stranger's file) has none to wait for and counts as dead.
 A command that finds a pending journal or stage claim whose owner is alive leaves it whole and goes on: it never waits for
 the owner, because the owner is an add or a copy in progress.
@@ -1016,7 +1096,7 @@ preserve its status after writing the successful copy summary.
 ### Package-manager repair of a new worktree
 
 Design, survey and measurements: `doc/planning/cli-git-main-worktree-ignored-copy.md`, section "Package-manager state of a new worktree".
-Code: `src/native/package_repair*.rs`; the call is in `repair_created` of `src/native/worktree_copy.rs`.
+Code: `src/native/package_repair*.rs`; the call is in `repair_created` of `src/native/worktree_copying/worktree_copy.rs`.
 
 A copy, a clone and a snapshot keep links and build state exactly as the source had them, which is wrong for tools that record the
 place they were installed or built at.
@@ -1070,7 +1150,10 @@ The repairs, which run side by side:
   The owner decided this on 2026-11-03: "The repair should start whatever pnpm is first on path."
 
 Each tool ends in a finding.
-A run longer than the tool limit is stopped with its whole process group.
+A tool that shows no sign of work for the quiet window (600 seconds; the longest quiet gap measured is 30.3 s, see "The quiet
+windows are labelled unmeasured") is stopped with its whole process group, and so is a tool that has run `REPAIR_TOOL_CEILING`
+(18 minutes) whatever it shows (owner, 2026-11-04, "Silence plus a ceiling (Recommended)"); the line names the tool, what it was
+doing, the seconds it ran and the command to run by hand.
 A repair never fails the add: the exit status stays Git's.
 When all repairs worked, one line on standard error names the worktree, each tool's detail and its time, unless `--quiet` was given.
 A repair that did not finish, including a missing tool, prints one line per failure, also under `--quiet`, that names the reason
@@ -1113,6 +1196,438 @@ It is the only pusher of the repositories it serves and runs one push per branch
 so the push takes no lock.
 A failed push never fails the commit:
 the service leaves a notice that the next command in the repository shows.
+
+#### Merges and commits never fail
+
+Owner rules (2026-11-03, verbatim):
+
+- "Auto merging should never fail."
+- "Manual merge should never fail too."
+- "Commits should never fail."
+
+Owner correction (2026-11-03,
+verbatim):
+"never fail doesn't primarily mean retries!"
+A failure that can happen is a design defect to remove by construction (one owner,
+durable hand-over,
+nothing to wait for).
+A retry is at most the last resort for a cause outside the system,
+and then the cause is named and why it cannot be
+designed out is said.
+
+What is outside our control (owner,
+question tool,
+2026-11-03;
+binding):
+the wrapper may stop with a clear message,
+or retry
+where the cause can clear by itself,
+and work already handed over stays on disk and the next run finishes it.
+- network down (no route,
+  DNS,
+  reset,
+  refused);
+- the remote refusing (login or auth,
+  a server hook,
+  GitHub's GH009,
+  branch protection);
+- disk full or quota;
+- disk I/O errors or a read-only remount;
+- a memory or process-count cap set by someone else;
+- a kill (the OOM killer,
+  a person),
+  power loss or a reboot;
+- a corrupt repository (missing objects,
+  a broken index) caused by a disk fault or another tool;
+- the person's signer failing (gpg or ssh-agent).
+
+Not outside,
+so designed out:
+a slow remote;
+other programs' locks (an IDE or `/usr/bin/git` holding `index.lock` or a ref
+lock);
+Git's own crashes or bugs;
+everything not listed above.
+
+Refusals that may still end a commit or merge with an error:
+policy errors at error severity,
+an empty message,
+and a content
+conflict no resolver settles (the merge stops with the conflict recorded).
+A commit that names a conflicted path is not a refusal:
+owner,
+verbatim,
+"Committing a conflicted path is fine.
+Warn and commit
+anyway,
+even if conflict markers will be committed."
+When the owner decides how an amend,
+a conclusion or a revert behaves on a head that other commits moved,
+the result is stacked
+on the new head (owner,
+2026-11-03:
+"Stack on the new head (Recommended)").
+
+Further owner answers of 2026-11-03 (question tool),
+quoted by their chosen labels:
+- a commit that meets a live foreign ref lock:
+  "Save on a side ref (Recommended)";
+- a live foreign `index.lock`:
+  "Same as the ref lock (Recommended)":
+  a commit lands on the branch and exits 0,
+  the index catches up when the lock is free,
+  and the command says so;
+  a merge saves its result on a side ref,
+  exits 0,
+  and finishes the checkout when the lock frees,
+  carrying edits made meanwhile forward;
+- the person's hooks and required filters count as allowed refusals:
+  "Allowed refusals (Recommended)";
+- a merge over unsaved edits:
+  "Carry edits forward (Recommended)";
+- a plain `git commit` with unmerged files lands as the merge commit with the markers and warns per file:
+  "Warn and finish the merge (Recommended)".
+
+The acceptance bar for the merge the auto-push makes to reconcile a rejected push,
+for a `git merge` the person types, and for a `git commit`:
+nothing the machine or other processes do ends them with a nonzero status.
+That covers a held `index.lock`, a branch that moved underneath the command (the auto-push's own reconcile merge included),
+a slow disk, a stopped child and a deadline.
+Such a command waits, bounded and naming what it waits for, retries on the new head,
+or lands as a merge on the moved head.
+It never leaves a half-applied result: the index and the worktree hold either what they held before the command
+or the whole result, and no `MERGE_HEAD` is left behind by a merge that did not finish.
+A content conflict goes through the wrapper's conflict resolution and stops, as Git stops on a conflict
+with the conflicting paths named, only where no resolution exists.
+The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
+
+A `git pull` that is stated to merge (`--no-rebase`, `pull.rebase` or `branch.<name>.rebase` false, or `--ff`
+ or `--no-ff`
+with nothing else stated) and that carries only the options and operands the wrapper reads exactly
+(`src/native/merge/pull_isolation.rs`) is split the way Git splits it (`builtin/pull.c`, `run_fetch` and `run_merge`):
+ the wrapper runs
+`git fetch --update-head-ok` with the pull's fetch options and operands,
+ moves the working tree along when the fetch moved the
+checked-out branch (`git read-tree -u -m`, as `checkout_fast_forward` does),
+ and then runs `git merge <merge options> FETCH_HEAD`
+through the path of a typed merge, so the lock wait, the isolated merge over staged work, the moved-branch rounds
+ and the word-level pass
+all apply to it. The isolated merge takes the one head `FETCH_HEAD` lists for merging (`handle_fetch_head`,
+ `builtin/merge.c`)
+and words the message from the whole file, as `git merge FETCH_HEAD` does. Everything else is native Git's whole pull:
+a rebase, `--ff-only`, `--autostash` and `pull.autostash`, `pull.ff`, submodules, a refspec with a destination,
+ an option that is not
+read by its exact spelling, a repository that is mid-operation or has unmerged entries, an unborn or detached `HEAD`,
+ and a
+`FETCH_HEAD` that lists no head or several (the pull then runs again from its fetch, which is idempotent).
+A pull with nothing stated keeps Git's refusal of divergent branches and its advice.
+
+A merge, the person's or the auto-push's, never runs native Git's stash and never trusts the late ref update:
+the merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, the checkout moves with
+`git merge --ff-only`, and the whole is preceded by a bounded wait for `index.lock`.
+A fast-forward that finds the branch moved leaves the checkout as it was or puts the merge's paths back to the moved head's
+content, and the merge is computed again on the moved head (`src/native/merge/merge_isolation_moved.rs`).
+A push the service stopped or that failed is tried again by the service on its own, with doubling pauses from
+`CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds, until it lands or the person must act (`src/native/push/push_retry.rs`).
+The person must act for a conflict, for a login the service does not have, and for a hook on the server that declined the push
+(owner decision, 2026-11-03: "Offline is retried, but auth and server hook declines stop until your next commit."):
+these stop the retry until the person's next commit, and the failure record says in plain words which one it was.
+Being offline, a stall, an HTTP 5xx answer of the LFS server and a held lock are tried again.
+A rejection by the server with a reason no rule names is tried again, and the journal names its line.
+The classification reads Git's own words, which are cited beside the rules in `src/native/push/push_retry.rs`.
+The plan is owned by the service's work loop alone: a round takes what is due for each repository out of it before the
+repositories are drained side by side, hands it to that repository's worker as a value, and applies the plans and forgets the
+workers return, so the workers share it with no lock (`src/native/landing/service_work.rs`, `src/native/landing/service_round.rs`).
+The plan survives a restart of the service: it is kept on disk, a file per branch, in the instance's own journal
+(`src/native/push/push_retry_store.rs`), rebuilt when the service starts, and the loop wakes for it with no wrapper command.
+
+#### Git steps, tools and checks end only on no progress
+
+The owner decided (2026-11-03, question tool): "End Git, hold hooks (Recommended)" for a stuck step, "Stop only on no
+progress (Recommended)" for a push, and said "never fail doesn't primarily mean retries!", "You should (almost) never be
+waiting." and "Invoke real git as rarely as possible."
+Picks 4 ("Time limits on Git child steps of a commit") and 9 ("Deadlines for tools and checks that are not Git") of
+`doc/planning/cli-git-shipped-limits-audit.md` were made by the coordinator under the owner's delegation ("Pick
+options as if
+I had picked them and invite veto when I say I'm back") and are open to the owner's veto.
+The coordinator added the read-only queries of the auto-push to the same rule.
+
+The rule: no run ends because it has taken long.
+A run ends when it has shown no sign of work for its quiet window.
+The signs are the ones the push reads (`src/native/push/push_progress.rs`): bytes moved by the process and everything it
+started,
+processor time, a task able to run or waiting for the disk, and, for a run that holds a connection to a remote, the open
+connection itself.
+A step that is slow and works is waited for until its ceiling (the owner's later rule, "nothing should ever wait forever or
+indefinitely", and `doc/planning/cli-git-no-unbounded-waits.md`, "Branch write and tool ceilings, 2026-11-04"); a write in place
+that is not safe to run twice has no ceiling.
+The windows are in whole seconds and are not measured (see "The quiet windows are labelled unmeasured").
+Linux only: where `/proc/<pid>/io` cannot be read nothing is measured and a run is never ended, because no wall-clock
+bound
+is the rule.
+
+- A Git step of a commit (`src/native/push/child_watch.rs`, `src/native/transaction/transaction_git.rs`) is judged by the push meter on
+  the
+  process the wrapper started.
+  A step that has shown no sign of work for the window, 60 seconds for a quick query step and 300 seconds for a bulk
+  step or
+  the seconds of `CLI_GIT_CHILD_WAIT_SECONDS`, is asked to end with `SIGTERM`, killed after the grace of a stopped
+  push, and run
+  once more, which is the coordinator's reading of "its step redone" (open to veto).
+  A step that is quiet again in its second run fails with the sentence `<step> showed no sign of work for <n> seconds
+  and was
+  stopped`, which names the variable and what to do.
+  Only a step that is safe to run twice is ended: the reads, the writers of content-addressed objects and the changes
+  of a
+  private index (`may_be_rerun`).
+  A step that cannot be run twice is never ended (`cannot_run_twice` in `src/native/transaction/transaction_git.rs`). The owner decided
+  this for the branch write on 2026-11-04 ("Never cut a branch write (Recommended)"), and the coordinator's follow-up made the
+  owner's criterion the rule for every step: a step keeps its ceiling exactly when it can run twice, decided by cutting it at every
+  mutating system call with `SIGKILL` and `SIGTERM`, running it again, and comparing the end state with an uncut run's
+  (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). Identical every time, so ended at the ceiling of their class:
+  `update-ref` set or delete of a ref under `refs/cli-git/` or `refs/worktree/cli-git-service/`, `stash list`, `clean`,
+  `read-tree --reset`, `update-index` with `--refresh`, `--index-info` or `--cacheinfo`, `add`, `checkout-index`, `restore`,
+  `reset <commit> -- <paths>` and `config` writes. Different at some cut, so never ended: every other `update-ref`, `stash store`,
+  `merge`, `reset --hard`, `reset --soft`, `read-tree -m`, `checkout` and `switch`; a form the experiment did not run counts with
+  them. On the commit service's landing thread such a step is announced at the usual interval and waited for as long as it lives.
+  Any other command stops waiting at the bound of the step's class plus `SHORT_EXTRA_WAIT` (7 seconds) and exits non-zero with an
+  error that names the step and its command line and says it was left running, so the result is not known, with `git status`,
+  `git log -1` and `ps` to check; the step is not ended and is reaped when it ends. The readers `RERUNNABLE` does not name
+  (`rev-list`, `merge-base`, `log`, `ls-tree`, `status`, `var`, `diff-files`, `check-attr`, `check-ignore`, `stripspace`,
+  `fmt-merge-msg`) and the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`) are not run twice after a quiet
+  window but keep the ceiling of their class.
+- The person's hook is never ended.
+  No hook of the person runs below a step the wrapper starts, because every Git the wrapper starts carries
+  `core.hooksPath` below `/dev/null` and the switch of every hook event (`src/native/invocation/hooks_off.rs`), so the watch
+  needs no way
+  to tell a hook from Git.
+  The stop signals the step and the processes it started and never a process beside it.
+  If hooks are ever started below a watched step, a descendant that is a hook must count as work before this rule is
+  true.
+  The pending-commit machinery of `doc/planning/cli-git-commits-never-fail.md` is not built.
+- The long-lived object reader (`git cat-file --batch`) is judged the same way per request; a request that stalls ends
+  the
+  reader and fails with the same sentence. Starting the reader again is not built.
+- A read-only Git query before the push (`src/native/push/bounded_query.rs`) has no wall-clock ceiling: it is judged by the
+  same
+  meter with the push's stall window (`CLI_GIT_PUSH_DEADLINE_SECONDS`), and `QUERY_CEILING` (120 seconds) no longer
+  exists.
+- A package-manager tool of the worktree repair (`src/native/repair/package_repair_command.rs`) is judged on its process
+  group's
+  leader with a window of 600 seconds, and ends with its whole process group; it also ends, with its whole process group, when it
+  has run `REPAIR_TOOL_CEILING` (18 minutes), whatever it shows.
+  An install on a huge repository that works for longer than that is ended and reported with the command to run by hand.
+- The Markdown linter (`src/native/markdown/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
+  of that
+  thread (`src/native/process/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
+  `/proc/self/task/<tid>/`, with a window of 60 seconds. A linter thread that shows none is abandoned as before, and so is one
+  that has been checked one file for `LINT_CEILING` (4 minutes), with a reason that names the tool, the file and the ceiling.
+- The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has one ceiling over the whole
+  call, `REVIEW_CALL_CEILING` (1 minute). Resolving,
+  connecting and
+  each read and write of the connection may also be silent for the window, 10 seconds in the service (`CALL_QUIET_WINDOW`)
+  and 30
+  seconds for the script's own default (`SCRIPT_QUIET_WINDOW`); the transport ends the call itself, and its global timeout ends
+  it at the ceiling with a sentence that names the call and the command that reviews the commit again.
+  The whole review of a commit is waited for `REVIEW_CEILING` (2 minutes) by the service (`run_contained`); its Git reads end on
+  no progress or at their class's ceiling, its call as above, and the local write of the log entry, which has no judge of its
+  own, is covered by the review's ceiling: the service stops waiting and the thread ends with the process.
+- Not changed: the refused-start retry (5 seconds, a process-count cap is on the owner's outside list and a retry is
+  the allowed
+  last resort), the wait for the signal guard (library tests only), and the notice graces (they time a message, not an
+  end).
+
+The longest quiet gap of every Git step and tool a command ran is kept (`src/native/process/quiet_ledger.rs`) and written into
+the
+timing record the command already writes: `longestQuietMs` (the longest among the steps that ended by themselves) and
+`quietMs` (by step name, in milliseconds, a step that was ended for being quiet listed apart under a name that ends in
+` [ended for being quiet]`) in `cli-git-commit-timing.jsonl`, and `quiet` in `cli-git-worktree-add-timing.jsonl`.
+The resolution of a gap is the sampling interval of the meter, 500 milliseconds, and a window below that interval can
+end a
+step that works between two samples, so no window is set below it outside the controls.
+The commit service runs the landing's Git steps in its own process, so its figures go to its journal: the `answered`
+line of
+each request ends with `quiet_ms=<longest among the steps that ended by themselves>` and `quiet_steps="<step>=<ms>;..."`
+(`src/native/service/service_timing.rs`).
+The landings of one service share the ledger, so the first answer after a batch's steps holds their figures and the
+others of
+that batch hold none; a figure is a gap of some step of the service since the previous answer, not of one request.
+The gateway call's total deadline is `ureq`'s `global` timeout, set to `REVIEW_CALL_CEILING`; the transport's other timeouts
+(`per_call`, `send_body`, `recv_response`, `recv_body`) default to none in the locked `ureq` 3.5.0 (`Timeouts::default`,
+`src/config.rs`; only the one second wait for a `100 Continue`, which the call never sends).
+
+##### The quiet windows are labelled unmeasured
+
+No log held a quiet gap before this change: the timing records held whole times, and a whole time is an upper bound of
+a gap,
+never the gap.
+The class numbers (60, 300, 600, 60, 10 and 30 seconds) therefore stay as windows with no citation, labelled so beside
+each
+constant, and now judge quiet time.
+What the existing logs bound is recorded in the audit ("Quiet gaps in the existing logs").
+A measured interval replaces a number only after the records above hold healthy runs, with an owner-approved margin
+recorded
+beside the value; no margin is chosen here.
+
+#### Every wait has a bound
+
+The owner, said in the session at about 2026-11-03T12:37-05:00 (quoted):
+"nothing should ever wait forever or indefinitely".
+It is newer than, and overrides, the unbounded waits of the delegated picks 2 and 6 and their follow-ups,
+and the owner's
+earlier "Wait while connected (Recommended)" for pushes; the coordinator flags that conflict for the owner.
+The owner keeps: "Commits should never fail."; "never fail doesn't primarily mean retries!"; "never discard user data";
+"You should (almost) never be waiting."
+
+The owner answered through the question tool at about 2026-11-03T12:45-05:00, quoted by the options chosen:
+
+- at a wait's bound: "Return with an error" ("The command stops waiting and exits non-zero, naming what blocked it;
+  the saved
+  work stays saved.");
+- whether the saved commit still lands by itself later: "No, keep it for a retry (Recommended)" ("Nothing lands later by
+  itself. Your staged changes stay staged, and the commit is also kept on a side ref.
+  The error names the blocker and the
+  command to run again.");
+- pushes: "Bound it, keep retrying (Recommended)" ("A connected push that stops making progress for a measured time is
+  ended; the service's retry plan keeps the push and tries again; the command returns with a line saying the push is
+  queued.").
+
+The inventory of every wait, with the end behavior of each and the options for the ones not decided, is
+`doc/planning/cli-git-no-unbounded-waits.md`. The bounds,
+in `src/native/service/wait_ceilings.rs` with the measurement beside each:
+
+- `ANSWER_CEILING` 20 minutes: the client's wait for the service's answer,
+  heartbeats or not (3.9 times the longest answer wait
+  in the timing log, 308 s; 1.6 times the longest whole commit, 751 s).
+- `WITHDRAW_CEILING` 10 minutes: the client's wait for the answer to its withdrawal (five times the longest observed
+  landing).
+- `START_CEILING` 60 seconds: a start the service manager reports as under way (58 times the slowest observed start,
+  1.04 s).
+- `LOCK_CEILING` 10 minutes, unmeasured (no log holds a foreign holder): the landing,
+  the merge and the index reconciliation
+  wait for a foreign `index.lock` this long. It is below `ANSWER_CEILING` so the service answers first.
+- `SERVICE_HOLD_CEILING` 10 minutes: a forwarded `git add`, `rm` or `mv` waits for the service's hold,
+  and its whole series of
+  reruns ends, at this (five times the longest of 715 logged holds, 119.7 s).
+- `CONNECTED_PUSH_QUIET_WINDOW` 150 seconds, unmeasured,
+  labelled as the other quiet windows (twice the longest whole push in the
+  journal, 72.4 s): a push whose connection is open and that shows no sign of work for this long is ended as a stall.
+- `PHASE_PATIENCE` 5 minutes: the test marker compiled into the executable ends its pause at the limit of any test.
+- `PLUMBING_STEP_CEILING` 120 seconds and `OBJECT_STEP_CEILING` 10 minutes:
+  the longest one Git
+  step runs, whatever it shows and whether or not it may be ended for being quiet (the longest read step of the
+  service's
+  landings, 9.7 s; the longest client preparation, 250 s).
+  Both are below `ANSWER_CEILING`. `REFERENCE_STEP_CEILING` (60 seconds) is gone: the owner's answer of 2026-11-04, "Never cut a
+  branch write (Recommended)", means no ceiling for the branch write or for any other step that cannot be run twice
+  (`cannot_run_twice`). `NEVER_ENDED_STEP_SLOW_AFTER` (60 seconds, 17 times the longest of 2,093 reference updates, 3.4 s) is
+  not a bound: it is when the service starts telling the clients queued behind such a write what it is stuck in.
+- `REPAIR_TOOL_CEILING` 18 minutes, `LINT_CEILING` 4 minutes, `REVIEW_CALL_CEILING` 1 minute and `REVIEW_CEILING` 2 minutes: the
+  longest one repair tool, one Markdown check, the standards-review call and the whole review of a commit run, whatever they show
+  (owner, 2026-11-04, "Silence plus a ceiling (Recommended)"). Each is the smallest whole number of minutes that is at least five
+  times the longest measured run; the figures, the method and the sample's limits are beside each constant and in
+  `doc/planning/cli-git-no-unbounded-waits.md`, "Branch write and tool ceilings, 2026-11-04".
+- `SHORT_EXTRA_WAIT` 7 seconds: how much longer a command waits for a write it started, after its own bound, before it says the
+  result is not known (twice the longest branch write measured, 3.4 s).
+- `FOREIGN_OWNER_PATIENCE` 20 minutes: twice `LOCK_CEILING`, derived in code (`src/native/process/pid_namespace.rs`), 1.6 times the
+  longest commit measured (751 s) and 2.2 times the longest worktree add (540 s). It was an hour, twice the 30 minute live lock
+  wait of a file that no longer exists.
+
+What happens at the bound, on the commit path:
+
+- The landing waits for a foreign `index.lock` until `LOCK_CEILING`.
+  At the bound the batch is withdrawn before the branch
+  moved: its intent is removed from the journal, so a restart of the service cannot land it;
+  the commit it built is kept on
+  `refs/cli-git/kept/<batch>`; the person's index and worktree are as they were; the client
+  prints the holder (a process proven alive, or an owner nothing proves alive with what was looked at:
+  no process with the lock
+  open, no Git lock PID file), the side ref,
+  and ends with the existing "Another program is using this repository's index"
+  failure; the command to run again is the commit.
+- A client whose wait passes `ANSWER_CEILING` asks the service, on a new connection,
+  to withdraw its request (protocol version 7:
+  `withdraw` and `withdrawn`). The service answers between two landings, on its one landing thread,
+  so a landing in progress
+  finishes first: if the commit landed, the answer is `landed` and the command reports success; if not,
+  the request is dropped
+  and its identity is remembered, so it cannot land even if it reaches the queue after the withdrawal,
+  and the command ends
+  non-zero with "This commit waited N minutes for the commit service and was withdrawn,
+  so it will not land later by itself."
+  A service that does not answer within `WITHDRAW_CEILING` leaves the outcome unknown, and the message says so and gives
+  `git log -1` and `git status`.
+- A Git step of the landing that reaches its ceiling is ended, unless it is a step that cannot be run twice, which
+  has none. The batch is withdrawn as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`,
+  lock given up,
+  failure `step-too-slow` with the step named), and an open
+  intent finishes a batch only when its branch has moved, so nothing lands later. Hooks are never ended by the wrapper.
+- The branch write (`git update-ref --stdin`) is never ended (owner, 2026-11-04, "Never cut a branch write (Recommended)"). While
+  the one landing thread is inside such a write for longer than `NEVER_ENDED_STEP_SLOW_AFTER`, each waiting connection is sent a
+  `waiting` message naming it (the command, the repository, the branch and commit it moves, and the scratch ref that holds the
+  commit until the update ends; a whole new minute count each minute) and the landing thread's record
+  (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
+  not begun to land: the request is remembered, dropped when its group would begin, and answered `withdrawn` (or `landed`, when a
+  finished batch of the journal names it; a request that a batch still open names is left to the landing thread, because that batch
+  may hold its commit on the branch already, and its client ends as the one inside the write does), so a commit queued behind the write ends at its own `ANSWER_CEILING` and not after `WITHDRAW_CEILING`, with
+  the write named in the error and the log and restart commands as the way out. A request of the group in flight is not withdrawn
+  that way, because its commit may be made by the write: the service sends its client the same `waiting` line with one more field,
+  `"inside_write": true` (a client that does not know the field reads a plain `waiting` notice, a service that does not send it
+  leaves a client that does on the older path, and the protocol version stays 7), and that client, at its `ANSWER_CEILING`, does not
+  ask to be withdrawn but listens for the landing for `SHORT_EXTRA_WAIT` (7 seconds: the owner's "7 s (Recommended)", twice the
+  longest of 2,093 reference updates, 3,438 ms) and then ends with the "not known whether the commit was made" failure, which names
+  the write and the scratch ref and says `git log -1` and `git status`; the write is left running and the commit lands when it
+  returns. A client whose bound falls in the first minute of the write, before the service tells it, takes the older path and waits
+  `WITHDRAW_CEILING`. The
+  record holds no lock (the owner: "Use as few locks as possible."): the landing thread alone writes a `step` file by rename and
+  creates `<id>.flight` for each request of its group, a connection thread alone creates `<id>.withdrawn`, each creates its own marker
+  first and then looks for the other's, so a request is withdrawn or landed, never both. The directory is `busy` in the journal
+  and is emptied when the service starts. Protocol messages are unchanged.
+  A client that waits behind a hung write keeps the service busy only as long as the write lasts; nothing in the wrapper ends it.
+- A merge waits for a foreign `index.lock` until `LOCK_CEILING`; at the bound it names the holder and ends the wait,
+  and Git's own
+  refusal ends the merge non-zero with nothing changed.
+  The index reconciliation of a commit with no change left ends the same
+  way. A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
+  then runs and reports what Git says.
+- A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
+  journal
+  command. A unit the manager reports `inactive` after `START_WAIT` is asked to start,
+  again after each further `START_WAIT`.
+- A push that shows no sign of work with an open connection for `CONNECTED_PUSH_QUIET_WINDOW` is ended as a stall and
+  left to the
+  service's retry plan, which keeps the push and tries it again.
+
+Decided by the coordinator under the owner's delegation, veto open (inventory, "Picks"): every step class has a ceiling; the person's
+own Git and hooks are exempt, as with native Git; the connected push window stays 150 seconds; the withdrawal at the lock ceiling
+stays. The withdrawal waits for the landing in progress, so it is answered within the landing's own bounds, and every step of a
+landing now has one.
+
+Kept from the delegated picks, now inside these bounds:
+
+- A holder proven alive and an owner nothing proves alive are waited for the same way until the ceiling,
+  with a line that names
+  what is known (the person's own `git commit` with its editor open holds the lock with no proof);
+  a dead owner (a PID file naming
+  a process that is gone) ends the wait at once with a diagnostic naming it.
+  The key `indexLock.unprovenOwnerTimeoutMs` stays
+  retired.
+- Where no inotify watch can be set the waits poll every `POLL_PAUSE` (50 ms, classed as a poll in the audit).
+- A hold of the service that cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds,
+  from the longest
+  of 715 measured holds); this number awaits the owner's approval.
+- The service sends a heartbeat every second (`HEARTBEAT_EVERY`) to a client whose request is queued or landing;
+  a client that
+  hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
+  and ends with the "stopped
+  answering" failure when the service greets nothing.
+- A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
+  so the sweep never
+  removes the directory of a command that is still waiting; now that every wait ends,
+  no wait outlasts `SCRATCH_STALE_AFTER`
+  either.
+- `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) cover only a lock that was gone by the time it was looked at.
+
 
 #### Commands that add commits
 
@@ -1287,12 +1802,18 @@ in-process reader can) gives every value of the multi-valued keys.
   and branches on the two ancestor questions.
   A remote tip that the branch contains means the rejection was not a divergence and is returned unchanged.
   A remote tip that contains the branch means the commit is delivered, and nothing is pushed.
-  Otherwise `git merge-tree --write-tree --no-messages --name-only` computes the merge from objects alone
-  and `git commit-tree` records it with the branch tip first and the remote tip second,
+  Otherwise `git merge-tree --write-tree --no-messages -z` computes the merge from objects alone
+  (with `GIT_ATTR_SOURCE` naming the branch tip, so its `.gitattributes` applies, see "Word-level second merge pass"),
+  the conflicted files go through that second pass,
+  and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`, never forced.
-  A conflict (merge-tree exit `1`) publishes nothing and names the conflicting paths.
+  A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
+  A merge whose conflicted files all resolved is published with the list of merged parts appended to the merge commit's message
+  (the lines `word-level merge: <path>: part <n> of <m>: ...`),
+  the same lines in the report after the push (each begins with `cli-git: auto-push: `),
+  and one journal entry per merged file after the push succeeded.
   A push that is refused as stale again repeats the fetch, the merge and the push,
   at most `MAX_RECONCILE_ATTEMPTS` (10) times in all,
   because sibling worktrees that keep pushing are contention and not a conflict.
@@ -1316,15 +1837,15 @@ in-process reader can) gives every value of the multi-valued keys.
   which would repeat a push that cannot succeed.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
-- No step of the push waits without a bound.
-  The push is stopped on no progress, under a ceiling.
+- No push without a connection waits without a bound, and no push with an open connection is stopped for time.
+  The push is stopped on no progress and no open connection, and under no ceiling.
   A push is at work, and not stalled, when the push or any process it started shows one of three signs,
   each read from `/proc` twice a second (`SAMPLE_INTERVAL` in `push_progress.rs`):
   it moved bytes, which is `rchar` plus `wchar` of `/proc/<pid>/io` growing;
   it used processor time, which is `utime` plus `stime` of `/proc/<pid>/stat` growing;
   or a task of it is able to run (state `R`) or waiting for the disk (state `D`) at the look,
   read per task in `/proc/<pid>/task/<tid>/stat`, because a thread waits in an `fsync` while the process itself sleeps.
-  Only a tree that shows none of them for the stall window is stalled.
+  Only a tree that shows none of them for the stall window, and holds no open connection to a remote, is stalled.
   The three were chosen by measurement on 2026-11-03:
   a 30 MB push to a local bare remote moved 94 MB of `rchar` and 156 MB of `wchar` over its four processes,
   while `read_bytes` was 64 KB and `write_bytes` arrived late and in bursts from the receiver's disk writes,
@@ -1339,31 +1860,99 @@ in-process reader can) gives every value of the multi-valued keys.
   bytes alone stop a push that is busy on a slow disk, as a gate saw (an `fsync` of 5 seconds after the hook, 13 seconds in all);
   processor time makes a process that spins or polls look alive, at a resolution of one tick;
   state `D` makes a process wedged for ever in the kernel look alive, and state `R` one that only waits for a processor;
-  the ceiling bounds all of these.
-  A server that checks the push before it answers is in state `S` with nothing moving, which cannot be told from a dead peer:
-  a check longer than the stall window is stopped, and raising `CLI_GIT_PUSH_DEADLINE_SECONDS` is the remedy.
-  The ceiling does not help there; it bounds the opposite case, a push that never stalls.
-  Two limits apply, each in whole seconds and each ignored when zero, negative, fractional or non-numeric:
+  no total time bounds them (see "Wait while connected" below).
+  A server that checks the push after the pack arrived (GitHub's pre-receive hooks) is in state `S` with nothing moving.
+  Wait while connected (replaced, same day, by "Bound it, keep retrying (Recommended)": see "Every wait has a bound").
+  Owner decision (2026-11-03), verbatim: "Wait while connected (Recommended)", meaning that bytes on the push's network
+  socket count as progress, and that the push keeps waiting while the connection to the remote is open,
+  with a line naming the wait; the owner accepted that a connection that dies without a reset is noticed only when
+  TCP gives up.
+  Pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`, "Push stall window, ceiling and Git's low-speed abort",
+  option A, "Wait while connected" whole, is the coordinator's under the owner's delegation
+  ("Pick options as if I had picked them and invite veto when I say I'm back", 2026-11-03)
+  and is open to the owner's veto:
+  no stall window for a connected push, no ceiling, no low-speed abort.
+  The sources are the kernel's socket diagnostics, read in the process (`tcp_sockets.rs`, `NETLINK_SOCK_DIAG`,
+  `man 7 sock_diag`): for each connected socket of the machine its state, its inode, and `tcpi_bytes_acked` plus
+  `tcpi_bytes_received` of its `struct tcp_info` (`include/uapi/linux/tcp.h`);
+  the push's sockets are the `socket:[<inode>]` links in `/proc/<pid>/fd` of the push and of each process below it.
+  Growth of those bytes is a fourth sign of work, and counts in `bytes_moved`.
+  What the code observes as "connected" is exactly this: a process of the tree holds a socket in state `ESTABLISHED`.
+  The phase of the push is not consulted
+  (making the pack, pack sent, the server's checks, no answer yet to the first request),
+  because an open connection is a remote that has not closed it, whatever it is doing.
+  What the code cannot observe: a remote that died, or a network that dropped, without a reset or a close leaves the
+  socket `ESTABLISHED` until TCP gives up.
+  TCP gives up by retransmission for unacknowledged data and by keepalive probes for an idle connection;
+  Git's HTTP client turns the probes on (`CURLOPT_TCP_KEEPALIVE`, `http.c` of Git 2.56.0),
+  and `ssh` and `git://` leave them to the kernel's default.
+  No number is invented to tell a dead remote from a slow one.
+  Where the kernel's socket list cannot be read, the connection cannot be seen, and the stall window applies.
+  The wait begins once a tree with an open connection has shown nothing for the stall window,
+  and is said once, as a line that starts with `cli-git: <program> <subcommand> is waiting for the server`
+  (`git push`, `git fetch` or `git-lfs push`) in the run's output and in the diagnostic log.
+  Silence during the wait is not counted against the window, so when the connection closes
+  (no process of the tree holds an established socket) the stall window runs again from that moment,
+  and the run is stopped as before.
+  The rule covers every network run of the auto-push: the push, the reconcile fetch and the Git LFS upload.
+  That scope is the choice of the agent that built the pick, not the coordinator's and not the owner's:
+  the owner's answer named the push, the audit's low-speed entry names the fetch,
+  and the upload runs through the same clock.
+  It is flagged for the coordinator; a second patience without the connected branch, handed to the fetch and the upload,
+  undoes it in a few lines.
+  Measured on 2026-11-03 over HTTP to Git's own `http-backend` with `receive.keepAlive` at 0 ("set to 0 to disable keepalives
+  entirely") and a `pre-receive` hook that sleeps four stall windows: the push is stopped at the first window before this change
+  and lands on its first try after it.
+  Git 2.56.0 sources the reading rests on: `builtin/receive-pack.c` `copy_to_sideband` sends `0005\1` (a sideband packet with no
+  payload) every `receive.keepAlive` seconds, default 5, once the hook phase begins; `send-pack.c` waits in `receive_status`
+  with the demultiplexer reading the sideband after `pack_objects` has returned; `http.c` sets `CURLOPT_TCP_KEEPALIVE` always.
+  Whether GitHub sends keepalives is unknown.
+  Over HTTP the wrapper used to set `GIT_HTTP_LOW_SPEED_LIMIT` (1000 bytes per second)
+  and `GIT_HTTP_LOW_SPEED_TIME` (60 seconds) for the push and for the reconcile fetch unless the person set them.
+  libcurl's `Curl_speedcheck` fails a transfer "Operation too slow" when the speed stays under the limit for the time,
+  which keepalives of five bytes every five seconds do not prevent:
+  a silent check longer than 60 seconds ended in a failed push
+  (measured on 2026-11-03: "curl 28 Operation too slow. Less than 1000 bytes/sec transferred the last 60 seconds").
+  The wrapper now sets neither variable for any run it starts.
+  Git sets neither itself (`http.c`, Git 2.56.0: configuration at lines 453 to 460, environment at 1477 and 1478,
+  libcurl only when both are positive at 1218 to 1223),
+  so the wait ends when the remote answers, the connection closes or TCP gives up.
+  A limit and time the person set in the environment or in `http.lowSpeedLimit` and `http.lowSpeedTime`
+  reach Git unchanged and still apply (`push_slow_server_tests.rs` shows a 2 second setting ending a silent wait).
+  A push to a local path or `file://` has no connection (its hook is a child of the push) and is stopped on a stall as before.
+  There is no ceiling: no total time ends a run that shows progress or holds an open connection (pick 5, above).
+  The cost, which the pick accepts: a process that spins or polls, or sits in state `D` for good,
+  shows a sign of work for ever and holds the service's push of its repository;
+  nothing the code can observe tells that from work.
+  One limit applies, in whole seconds and ignored when zero, negative, fractional or non-numeric:
   the stall window, `CLI_GIT_PUSH_DEADLINE_SECONDS`, 30 by default (`DEFAULT_PUSH_DEADLINE`),
-  is how long the push may show no sign of work;
+  is how long a tree with no open connection may show no sign of work;
   the variable keeps its name, so a setting made for the old fixed deadline now sets the stall window,
   and it is not an alias of anything else.
-  The ceiling, `CLI_GIT_PUSH_CEILING_SECONDS`, 1800 by default (`DEFAULT_PUSH_CEILING`),
-  is how long the push may run in all, however much it moves, so a trickle that never stalls cannot hold the service for good.
+  Citation of the 30 seconds: none determines it.
+  The owner decided the rule ("Stop only on no progress (Recommended)"), not the number.
+  The journal of the commit service (read-only, 2026-10-20 to 2026-11-03: 794 pushes that landed)
+  holds whole-push times of p50 3.5 s, p99 26.4 s and maximum 72.4 s,
+  which include connected time and so do not measure the silence of a push that has no connection;
+  no such silence is logged.
+  It stays an open question for the owner, recorded in the audit.
+  The variable `CLI_GIT_PUSH_CEILING_SECONDS` no longer exists.
   A stop reports the limit that was hit:
   `limit=stall` with `made no progress for <window> seconds`,
-  or `limit=ceiling` with `was still running after <ceiling> seconds, though it kept moving data`,
-  and in both `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
+  and `bytes_moved=<n>` and `elapsed_seconds=<n>` in the line that ends the push's output, which the service journals.
   Where `/proc/<pid>/io` cannot be read (a system without `/proc`, such as macOS, or a kernel without task I/O accounting)
   nothing is measured: the stall window is then a fixed deadline for the whole push, as it was before,
-  the ceiling is not consulted, and the line says `limit=deadline`.
-  Read-only Git queries have no transfer to measure and keep a fixed bound.
+  an open connection cannot be waited for, and the line says `limit=deadline`.
+  Read-only Git queries are judged by the same signs and have no wall-clock bound.
   Past a limit the push is asked to end with `SIGTERM` (its helpers and hooks too),
-  killed after a five second grace,
+  killed after a five second grace (`STOP_GRACE`; citation,
+  partial: the helpers of a stopped push were measured on 2026-11-03
+  to outlive it for 60 seconds, a `git-lfs` that never answers for good, and empty tracking-ref locks appeared about 37
+  seconds after a stop, which justify the kill and the sweep and not five seconds; an open question for the owner),
   and reported as failed with exit code 124.
   The same stop (a catchable request, five seconds, then the kill) ends every Git child the wrapper stops:
   the push, its read-only queries, the reconcile fetch, the Git LFS upload and a Git step of a commit
-  that crosses `CLI_GIT_CHILD_WAIT_SECONDS`.
+  that shows no sign of work for `CLI_GIT_CHILD_WAIT_SECONDS`.
   A stopped Git child leaves none of Git's lock files behind.
   Git removes its own `.lock` files when it ends or is asked to end with a signal it catches,
   so a child that answers the request cleans up after itself.
@@ -1371,45 +1960,49 @@ in-process reader can) gives every value of the multi-valued keys.
   where the request waits and the kill wins) cannot,
   and neither can one whose signal arrives between creating a lock and registering it for removal
   (`tempfile.c` of Git 2.56.0, `create_tempfile_mode` and `activate_tempfile`).
-  Once the child and everything it started are gone, the wrapper removes the lock files that child left,
-  and only these:
-  a lock whose `~pid.lock` file (Git writes it beside every lock under `core.lockfilePid`, which the wrapper turns on for
-  every Git it starts, the commit service's pushes and steps included) names a process of the stopped tree that has ended,
-  together with that pid file;
-  and an empty lock with no pid file that was born after the child started and is still empty after a settle time
-  of one second, while the whole stopped tree has ended.
-  The second kind exists because a child can die between creating a lock and writing its pid file,
-  and an empty file holds nothing;
-  the settle time exists because Git makes a ref lock empty and fills it a moment later,
-  so a lock that a live process just made is not taken for a left one.
-  A lock whose pid file names any other process, a lock with content and no pid file, a lock older than the child,
-  a lock that is filled during the settle time and a lock while any process of the tree still runs are left alone.
+  Once the child and everything it started are gone, the wrapper judges the reference locks of the child's repository
+  with the judgement of "Reference locks left by a Git that was killed" below: a lock is removed only when its holder is
+  proven gone, and otherwise the wrapper says what it found and prints the command that clears it.
+  Releases 0.5.23 to 0.5.26 also removed an empty lock with no pid file that was born after the child started and was
+  still empty after a settle time of one second, and a lock whose pid file named an ended member of the stopped tree.
+  Both are gone: a cross-vendor review (2026-11-03T11:33:50-05:00, finding S-1) showed that a live writer of another Git,
+  which writes no pid file, holds an empty lock with no descriptor open for as long as its transaction lasts, so neither
+  the lifetime of the stopped child, the birth time of the lock nor its being empty ties the lock to that child, and a pid
+  file older than the lock names an earlier holder.
+  A lock whose pid file names a process of the stopped tree that has ended is removed on the wrapper's own proof: the wrapper
+  started that process, stopped it and saw it end, so the number is one of its own PID namespace and names a process that is
+  gone, and this needs no view of the whole machine, which a container lacks (the container gate found the sweep leaving the
+  lock of the wrapper's own stopped child when it required one).
+  The proof holds only when the pid file was born at or after the lock (an older pid file names an earlier holder, and must
+  not vouch for a newer foreign lock), the lock was born after the child started, and nothing in the process table has the
+  number again; it needs no margin, because the holder is known to be gone.
+  A lock whose pid file names any other process is judged by the proofs below, once it is older than the margin; a younger
+  one is judged by the next fetch or push of the repository, which judges first.
+  A lock without a pid file is left, and the notice names it with the command that clears it.
+  Only reference locks are looked at: `index.lock`, `shallow.lock`, object and pack locks are neither removed nor mentioned.
   The repository is the one of the child's working directory or its `GIT_DIR`; a step that names its repository with
-  `-C` or `--git-dir` arguments, or a lock outside the Git directories (a private `GIT_INDEX_FILE`), is not swept,
-  which leaves a lock where one was left and never removes a wrong one.
-  Both the Git directory and the common Git directory are searched, except `hooks` and the loose-object directories.
+  `-C` or `--git-dir` arguments, or a lock outside the Git directories (a private `GIT_INDEX_FILE`), is not looked at.
   A child that the kernel does not release within the grace after the kill, or a stopped tree that has not all ended by
   then (a loaded or stalled host has not yet run the killed processes), is waited for on a thread of its own,
-  and its locks are removed when the whole tree has ended; the push is reported at its deadline and does not wait for it.
-  The removal takes no lock of its own: it looks at files the stopped child created and removes only those.
-  The one case the rules cannot tell apart is a Git that writes no pid files (not started by the wrapper)
-  holding an empty lock for longer than the settle time while a stopped tree ends:
-  its lock is taken for a left one, and that process then fails loudly when it renames its lock.
-  A push whose output grows past 4 MiB is stopped the same way, and only the first 4 MiB are kept.
+  and its locks are judged when the whole tree has ended; the push is reported at its deadline and does not wait for it.
+  The judgement takes no lock of its own.
+  A push whose output grows past 4 MiB (`MAX_PUSH_OUTPUT`) is stopped the same way, and only the first 4 MiB are kept.
+  Citation of the 4 MiB: none; the owner decided "Keep all lines" for push output and no
+  measurement of the size of a push's output is logged; an open question for the owner.
   The commit stays saved.
-  Git's low-speed abort is added to the push's environment
-  (`GIT_HTTP_LOW_SPEED_LIMIT=1000`, `GIT_HTTP_LOW_SPEED_TIME=60`)
-  for each variable the invocation's environment does not set,
-  which also overrides `http.lowSpeedLimit` and `http.lowSpeedTime` from Git configuration.
+  No low-speed abort of the wrapper's own is added to any run it starts (see "Wait while connected" above).
   Each read-only Git query before the push
   (`config`,
   `for-each-ref`,
   `rev-parse`,
   `remote get-url`,
   `merge-base`)
-  stops at the push deadline or 120 seconds,
-  whichever is shorter,
+  stops when it has shown no sign of work for the push's stall window,
+  with no wall-clock ceiling (delegated pick 4, scope added by the coordinator, open to the owner's veto;
+  the 120 seconds of `QUERY_CEILING` are gone, and the journal's `git status` stopped at 2026-11-03T08:28 with
+  `outcome=retrying push_ms=97398` is the case it ends),
   and a stopped query is a failure that names it.
+  Its longest quiet gap is kept in the timing record.
 - A push that lost a race on a pending reference lock (`cannot lock ref` in a push that otherwise delivered)
   is repeated up to three times with growing pauses, because the two worktrees' services share the references.
 - A failed push is reported with its complete output and the note
@@ -1452,14 +2045,286 @@ Pushing history unrelated to every published commit still scans that whole unrel
 Process creation is bounded independently of history length and update count:
 one `git cat-file --batch-check` peels every pushed and prior object,
 one `git for-each-ref` lists remote-tracking refs,
-at most four per-update `git rev-list --stdin` or `git ls-tree` processes run concurrently,
+at most eight per-update local `git rev-list --stdin`, `git cat-file` or `git ls-tree` processes run concurrently
+(`MOST_CONCURRENT_LOCAL_QUERIES`: `git ls-tree -r` took 80 and 50 ms at four and eight at once, `git rev-list` 231 and 190 ms,
+and no less at sixteen) and at most four `git ls-remote` queries, which open a connection to a remote, at a time
+(`MOST_CONCURRENT_REMOTE_QUERIES`, not measured),
 one `git diff-tree --stdin` reads every range commit's delta,
 and one `git cat-file --batch` reads every blob.
 Never spawn one process per commit.
-Not yet met by the native executable: it handles updates one after another,
+Met by the native executable: the `ls-remote` confirmation of each destination (one per push URL of the remote) and the
+ `cat-file` and `rev-list` of each update run side by side, at most eight at once and within the host budget, and their answers are
+used in the order Git printed the destinations and negotiated the updates, the first that fails deciding the error.
+Not yet met by the native executable: it peels each update's object with its own `git cat-file` process,
  runs `git rev-list <local> --not <published>`
 with arguments, and reads each range commit's delta with its own `git diff-tree` process; the handover lists this as an
 open divergence.
+
+### Reference locks left by a Git that was killed
+
+Release 0.5.23 judged the lock files of a Git child that the wrapper itself stopped (the push deadline entry of
+"Auto-push" holds those rules; since the fix of finding S-1 it uses the judgement below and removes nothing of its own).
+A lock that any other killed Git leaves (a terminal closed mid-fetch, the out-of-memory killer, a reboot, a release before
+0.5.23) blocked every later `git fetch` and `git push` of the same reference with "Unable to create ... File exists"
+until someone deleted the file by hand.
+This entry extends the same code (`src/native/lock/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/repo_read/git_directory_roots.rs`
+for the Git directories it shares, `src/native/lock/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
+locks, with one rule: a lock is removed only when its holder is
+**proven** gone, and otherwise the wrapper says what it found and prints the command that clears it.
+
+#### Owner requirements
+
+- "never discard user data"
+- "Use as few locks as possible."
+- "You should (almost) never be waiting."
+- "Invoke real git as rarely as possible."
+- "Fix even pre-existing issues of the pkgs you own."
+- Git's own file-system monitor is off in the person's global configuration, by the owner's decision of 2026-11-03
+  (see the README section "Git's own fsmonitor"; `git cli-git doctor` says so).
+  Nothing here sets, unsets, pins or passes `core.fsmonitor`, and no tier of the judgement counts the daemon's descriptors
+  or working directory as evidence of anything.
+
+#### What Git guarantees about who holds a lock
+
+The source read is Git 2.56.0 (commit `a018953688`, the installed version).
+Git guarantees only that a lock is a file created with `O_CREAT | O_EXCL` (`tempfile.c:142`) and removed by its holder when
+the holder ends or catches `SIGINT`, `SIGHUP`, `SIGTERM`, `SIGQUIT` or `SIGPIPE` (`tempfile.c:93-98`, `tempfile.c:112-120`,
+`sigchain.c:45-52`).
+It does not tell a reader who the holder is, and it never removes a lock it did not create:
+
+- The file holds no process number.
+  The optional companion `<name>~pid.lock` (`core.lockfilePid`, `lockfile.c:112-139`) is created **after** the lock
+  (`lockfile.c:182-184`), so a Git killed between the two leaves a lock with no pid file.
+- The pid file is created with `O_EXCL` and a failure to create it is silent (`lockfile.c:121-123`).
+  A holder that finds an older pid file in the way therefore writes none, and the older file names a process that is not the
+  holder.
+  A pid file is evidence only when it was born at or after the lock.
+- Git itself reads the pid file and probes the process with `kill(pid, 0)` only to word its refusal
+  ("appears to be stale", `lockfile.c:254-300`, with the caveat "PIDs can be reused" in the text), and then removes nothing.
+- The pid file is removed before the rename of the lock (`lockfile.c:352-358`) or its rollback (`lockfile.c:368-371`), so
+  a holder in the middle of a commit may have no pid file either.
+- Reading the descriptors of other processes does **not** find a live holder:
+  - `packed-refs.lock` is taken and the descriptor is closed at once, because the new content goes to a separate
+    temporary file (`refs/packed-backend.c:1254-1261`).
+    A live `packed-refs.lock` is therefore always empty and held by no open descriptor, for as long as the operation lasts.
+  - A reference lock whose reference already has the wanted value, or that is being deleted, is created, never written, and
+    closed to free the descriptor while the transaction goes on (`refs/files-backend.c:2888-2897`).
+  - A reference lock that was written is closed straight after the write (`refs/files-backend.c:2058-2073`) and is
+    renamed into place only in the commit phase, with the `reference-transaction` hook of the user in between
+    (`refs.c:2676`).
+    Its content is the new object name and it has no open descriptor for the whole of that window.
+  - The waits for a held lock are short: `core.filesRefLockTimeout` defaults to 100 ms (`refs.c:992-1005`) and
+    `core.packedRefsTimeout` to 1000 ms (`refs/packed-backend.c:1241-1245`), after which Git gives up.
+
+#### Rejected rule: nothing has the lock open
+
+The rule "a lock is stale when no live process has it open, past a margin after its modification time" is rejected.
+By the facts above it removes a live `packed-refs.lock`, a live lock of a ref that is only being deleted, and a live lock
+that is waiting for its commit phase.
+A live Git whose lock was deleted does not fail safely: its rename moves the lock path onto the reference, and if a second
+Git created a new lock there in the meantime, the first one installs the second one's half-written file as the reference.
+The handover proposal of the 0.5.23 entry (an empty lock with no pid file, past a settle time, that no process has open)
+is rejected for the same reason.
+The open descriptor is kept as one **veto** (a lock that a process has open is held, whatever else is known), never as proof.
+
+#### The rule: a lock is removed only on a proof about its holder
+
+Candidates are reference locks of the Git directory and the common Git directory: `packed-refs.lock`, `HEAD.lock` and every
+`*.lock` under `refs/`.
+`index.lock`, `config.lock`, `shallow.lock`, object and pack locks and every `~pid.lock` file are never candidates (the index
+has its own protocol in this document).
+A candidate is judged without starting Git, from the file system and `/proc`, in this order, and the first answer wins:
+
+1. A candidate that is not a regular file, or that is younger than the margin (`MARGIN`, seven seconds: twice the 3,438 ms
+   longest live reference step of a service journal, rounded up to a whole second), is left and not mentioned.
+   The margin covers a lock that a live Git has just created and not yet filled, whose pid file is not yet written.
+2. A candidate on a file system that is not local (anything not on a fixed list of disk and memory file systems:
+   `btrfs`, `ext4`, `xfs`, `f2fs`, `tmpfs`, `overlay`, `zfs`, `bcachefs`) is unproven, because a Git on another machine is
+   invisible here.
+3. A process of the account that has the candidate open (same device and inode in `/proc/<pid>/fd`) makes it **held**.
+   A process list that cannot be read, or a Git process of the account whose descriptors cannot be read, makes it unproven.
+   A process of the account that is not Git and cannot be read is skipped: on the measured host `systemd --user` and
+   `ssh-agent` are never readable (`CapEff` and set-group-id), so refusing on them would make every proof unreachable, and a
+   program that is not Git does not create Git locks.
+4. A pid file born at or after the lock (Git creates it after the lock, so this is the order of a pid file the holder wrote),
+   naming a process, decides:
+   - a process that is gone, or a zombie, proves the lock stale;
+   - a process that runs, whose command name does not start with `git` **and** that started after the lock was made (its start
+     time from `/proc/<pid>/stat` and `/proc/uptime`, by more than the clock's resolution), proves the number was reused after
+     the holder ended, and the lock stale;
+   - any other running process is taken for the holder, and the lock is **held**: a Git, or a program under another name that
+     started before the lock (a copied Git binary, a launcher), so the two signs must agree to delete.
+   A pid file holds the number its writer had in the writer's own PID namespace, and Git records no namespace.
+   This proof therefore holds only when both of these are true:
+   - The wrapper runs in the initial PID namespace (the link `/proc/self/ns/pid` names `pid:[4026531836]`) and `/proc` has
+     no `hidepid` option, so that the table lists every process of the machine.
+     Anywhere else (a container, a hidden table) the number may belong to a namespace this process cannot see, and the lock
+     is unproven.
+   - No process of the table has the pid file's number as its number inside a PID namespace nested in the wrapper's.
+     The kernel lists every number of a process, outermost first, on the `NSpid` line of `/proc/<pid>/status`
+     (`proc_pid_status(5)`); a process that has the number in any later column may be the writer.
+     A gone or reused number is then unproven, with the process named in the reason, and so is a table whose `status` files
+     cannot all be read.
+     The search is made only when the other signs would have removed the lock.
+5. A lock whose times are earlier than the boot of the kernel is **not** a proof.
+   `btime` of `/proc/stat` is the wall clock minus the uptime, so a forward correction of the clock after the boot moves
+   `btime` and the times of every file alike; a lock that a live Git made before the correction then looks older than the
+   boot, and a margin only moves the size of the correction that fools it.
+   No second sign that is independent of the clock exists (no file carries a boot identifier), so this proof, which
+   releases 0.5.23 to 0.5.26 had, is removed.
+   The notice for a lock that looks older than the boot says so and says why it does not prove anything, beside the
+   command that clears it; a lock that a reboot left with a pid file is still removed by item 4, because the number is
+   gone.
+6. Anything else is unproven: the lock is left, and the wrapper says what it found.
+
+The removal itself takes no lock of the wrapper's own (`Use as few locks as possible.`), and no file is ever removed by
+its path after a separate look at it, because the path may name a different file by the time of the removal.
+Each file goes through one step:
+the identity it had while it was judged (device, inode, size, birth time and modification time) is compared once more
+just before the move, and a file that already differs is not touched;
+then one `renameat2` with `RENAME_NOREPLACE` moves it to a private name in the Git directory itself (a name under `refs/`
+would be read as a reference), so the private name is never written over;
+the identity of what was moved is compared with the judged one;
+a match is removed, and a difference is put back with a hard link, which fails instead of replacing a lock that has been
+created at the path since (that file is then left under its private name and the wrapper says so).
+Two wrappers that judge the same lock at the same time therefore cannot delete a lock that a live Git created between them.
+The step does not make the removal safe against every schedule, and the residue is open for the owner (the ninth design
+review, finding R9-S, 2026-11-03).
+If, between the judgement and the move, another cleaner removes the judged lock and a live Git creates a new one at the path,
+the move takes that live lock away from its path for the moment before the put back.
+A Git that tries to rename that lock into place in that moment fails loudly and loses nothing.
+But if a third Git creates a lock at the path in that moment, the put back fails (it never replaces), two Gits then each
+believe they hold the lock of one reference, and the wrapper only reports the displaced file.
+The second identity check just before the move leaves a window of microseconds instead of the length of the judgement, and
+the schedule needs three writers and another cleaner inside it, but it is not closed: Linux has no removal of a path
+conditional on the file that stands there.
+The choice, made for now under the owner's delegation, is to keep removing on a proof; the owner is to be asked whether
+to leave all removal to the person, with the command, instead.
+The fix of 2026-11-03 for the container (the wrapper's own proof above) does not change the step, so each removal has the
+same residue as before; it makes more removals happen (a container now removes the lock of its own stopped child, and a
+young lock of an ended child is judged without waiting out the margin), so it widens the number of occasions and narrows
+nothing.
+The occasions it adds have the fewest chances of the schedule: the lock is the freshest, and the sweep that judges it is
+the first cleaner to look.
+The pid file, and for `packed-refs.lock` the staging file `packed-refs.new` that Git creates with `O_EXCL` while it holds that
+lock (`refs/packed-backend.c:1398`), are looked at before the lock is judged and go through the same step after the lock has
+been removed, each against that earlier look, so a pid file or staging file that a live Git made at the same paths in
+between is left.
+A killed Git leaves the staging file too, and a later packed-references update fails on it ("unable to create file
+packed-refs.new: File exists") exactly as on the lock, so a lock is cleared together with it, and the command given for a lock
+that is not cleared names it.
+A staging file with no lock beside it (the lock was removed by hand, or by an older release) is an orphan: Git makes it only
+while it holds the lock and renames it away before it releases the lock, so a file older than the margin that is still the same
+file after the lock was looked for and found absent has no live maker, and it is removed by the same set-aside step
+(`Proof::OrphanStaging`).
+
+#### Races, and how each is handled
+
+- A holder that wrote its lock, closed the file and has not yet renamed it: its pid file names a live Git (held), and where
+  there is none the lock is unproven, never stale, because the descriptor scan sees nothing.
+- A holder that is killed between creating the lock and its pid file: there is no pid file, so the lock is unproven.
+  Such a lock is reported with the command that clears it, and a live foreign writer's lock cannot be told from it.
+- An older pid file in front of a live holder (above): ignored because it is older than the lock.
+- A process number reused by another process: a running non-Git process proves the reuse, and a running Git is held.
+  A Git that is not the holder is kept apart from the holder only by its start time, which is not used because the wall
+  clock may step; the cost is one lock left that could have been removed.
+- Another account's process: it cannot be read, but a lock it holds has its pid file naming that process, which a running
+  number never proves stale.
+  A lock with no pid file stays unproven, and the descriptors it cannot see are said in the message.
+- A Git in another PID namespace (a container with the repository mounted in, or a nested namespace on the host):
+  the pid file holds a number of that namespace.
+  A wrapper outside the initial namespace, or with a hidden `/proc`, proves nothing from a pid file.
+  A wrapper in the initial namespace searches the table for a process that has the number as its number inside a nested
+  namespace (`NSpid` of `/proc/<pid>/status`), and a gone or reused number is unproven while one is found, or while the
+  table cannot be read completely.
+  A writer in a sibling namespace that is not a descendant of the wrapper's own (the wrapper in a container) is outside the
+  table and is not seen, which is why a wrapper outside the initial namespace proves nothing.
+  The veto of an open descriptor and the margin are the only protection beyond that.
+- A Git on NFS or another network or user-space file system (including a virtual machine's shared directory): the file
+  system must be on the fixed local list.
+- A clock that steps: the margin and the start time of a process read file times against the current clock, and the boot
+  comparison is only worded, never a proof (item 5).
+  A forward step makes a young lock look old to the margin, which only lets the judgement look at it; what it concludes
+  rests on the pid file and the process table, not on any time.
+  For a reused number a step can only make a process look newer, and the second sign (not a Git) must still agree.
+- Two wrappers removing the same stale lock: handled by setting aside with a rename and checking identity (above).
+- A removal that is raced by a new lock at the same path: the file that was set aside is checked, and put back if it is not
+  the judged one; if the path has been taken again by then, it is left set aside under its private name and the wrapper
+  says so, because deleting it could lose a live holder's update.
+  The same holds for the pid file and the staging file, which release 0.5.26 removed by their paths.
+- A foreign writer that writes no pid file and keeps its lock empty with the descriptor closed (finding S-1): nothing
+  proves it gone, so its lock is left and reported, whether it was born before or during the life of a stopped child.
+
+#### Where it applies
+
+- The wrapper's own pushes and fetches (the commit service's auto-push and its reconcile fetch, the stacked push, the Git LFS
+  upload's pushes) all start through `run_bounded_push`, which judges and clears first (`src/native/lock/push_lock_clearing.rs`).
+  Every repetition of a push starts through it too, so the service's repetitions after a refused tracking reference
+  (`PUSH_LOCK_RETRIES`) clear again before each one; no repetition of its own was added, and nothing waits.
+  These are the commands that run unattended, so a lock that blocks them is repaired with nobody present.
+- The sweep after a stopped child (the push deadline entry of "Auto-push") judges the same locks once the child's tree has
+  ended, removes the provably stale ones, and logs the notice of the rest; it removes nothing the judgement does not prove.
+- A plain forwarded `git fetch` or `git push` replaces the wrapper process with Git, so there is no "after" to look at: the
+  wrapper judges and clears before it hands over, and the notice (standard error) precedes Git's own words
+  (`src/native/lock/forwarded_lock_notice.rs`, called from `stack_if_push` in `entry.rs`).
+  The repository is the one the wrapper's `-C` options and `GIT_DIR` name.
+  A push that the wrapper runs as a child (stacked or with an LFS upload) goes through the first item.
+- The cost on a command with no lock is one walk of `refs/` of the Git directory and the common Git directory plus two file
+  lookups: measured while this entry was written at a median 1.9 ms (25 runs, 1.85 to 2.15 ms) for 5000 loose references in 50 directories,
+  and no change with an unproven lock younger than the margin.
+  A lock old enough to be judged adds one scan of the descriptors of every process: median 53 ms (25 runs, 47 to 63 ms) with
+  1182 processes on the host, paid only when a lock exists.
+  No Git is started.
+- Not covered: `git pull`, `git merge` and every other command (they belong to the merge and index-writer paths); a command that
+  names its repository with `--git-dir` or any global option other than `-C`; the wrapper's own `update-ref` and other ref writes
+  of a commit; locks younger than the margin, which a command meets as Git's own refusal (the next push clears them once they have
+  aged); and the notice of a push that Git delivers and exits 0 for after being refused the tracking
+  reference (`cannot lock ref` in output with exit 0): the service's report shows only `remote:` lines for a push that exits 0,
+  so that notice reaches the service's log and is not shown, the retry loop of `auto_push.rs` being left as it is.
+
+#### Messages as printed
+
+Every line starts with `cli-git: `, and every path is quoted for a shell (a plain name as it is, other printable names in single
+quotes with `'\''` for a quote, names with a control character or a byte that is not UTF-8 as `$'...'`), so the command can be
+pasted and a terminal escape in a file name is never printed raw.
+
+```text
+# A lock the wrapper removed (the process of the pid file ended).
+cli-git: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
+# A lock whose pid number now belongs to a program that is not Git.
+cli-git: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
+# A lock a running Git holds.
+cli-git: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
+# A lock nothing proves stale.
+cli-git: left the reference lock /r/.git/refs/remotes/origin/gone.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open.
+cli-git: it is 0 bytes, made 2026-11-03T11:57:55.882Z (2 seconds ago). If no Git process is running in this repository, clear it with:
+cli-git:   rm -- /r/.git/refs/remotes/origin/gone.lock
+# A lock whose times are earlier than the boot, with no pid file: the times are said, and prove nothing.
+cli-git: left the reference lock /r/.git/refs/heads/c.lock alone: no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing.
+cli-git: Git writes a process number beside its locks only when `core.lockfilePid` is on. The wrapper turns it on for the Git it starts; `git config --global core.lockfilePid true` does it for the rest, so the next lock can be proven.
+```
+
+For `packed-refs.lock` the `rm` line also names `packed-refs.new` and the pid file when they exist.
+Git's own refusal follows these lines unchanged, because the wrapper becomes Git.
+In a process that is not in the initial PID namespace, or whose `/proc` hides processes, the reason of a lock with a pid file is "the
+pid file beside it names process N, but this process runs in a PID namespace of its own, or cannot see every process of the machine,
+so it cannot tell whether N is gone".
+Where a process of a nested namespace has the number, it is "the pid file beside it names process N, and process M is process N of a
+PID namespace of its own, so the writer may be that process".
+The lock is left with the same `rm` line in each case.
+
+#### Measured while this entry was written (see the commit time of the entry)
+
+With real Git 2.56.0 (`git update-ref --stdin` told `start`, three `delete`/`update` lines, `prepare`, then held, and `git fetch
+--prune` held by a `reference-transaction` hook at `prepared`):
+
+- A live Git held four locks (`packed-refs.lock`, three reference locks) and their pid files with **no lock file descriptor open**:
+  its descriptors were its three standard streams and nothing else.
+  Every reference lock was empty, including the one whose reference already had the wanted value.
+- A Git killed with `SIGKILL` in that state left all of them, and `packed-refs.new`.
+- A push that delivers and then cannot lock the tracking reference prints "error: update_ref failed for ref ...: cannot lock ref"
+  and exits 0.
+
 
 ### Real Git starts with traditional hooks off
 
@@ -1470,14 +2335,16 @@ the auto-push, the reconcile and integration pushes, maintenance), carries
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
 The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows, `pre-push` included, so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-`core.fsmonitor` is left as configured, like the other programs Git starts for its own features (filters, editors,
+`core.fsmonitor` is not in this prefix, like the programs Git starts for its own features (filters, editors,
 signing programs, credential helpers): the program it names is not reached by the hooks path or by any event switch
-(measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`), and the built-in monitor daemon keeps
-working.
-This is the owner's decision ("To stop the fsmonitor program - we don't need to.",
-recorded in `doc/handover/cli-git-rust-implementation.md`):
-Git runs its monitor as the configuration says,
-and the wrapper neither stops it, starts it, nor works around it.
+(measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`).
+Owner decisions, in order, quoted with the date each was superseded:
+"To stop the fsmonitor program - we don't need to." (kept the wrapper from stopping the monitor; superseded 2026-11-03),
+and, on 2026-11-03, "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully worked around,
+disable git's fsmonitor globally entirely and make doctor say so."
+(recorded in `README.md`, "Git's own fsmonitor").
+So the setting is off in the person's global configuration, `git cli-git doctor` says so, and the wrapper still neither
+passes `-c core.fsmonitor=...` to a child nor starts or stops a monitor daemon.
 The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
@@ -1507,6 +2374,82 @@ The wrapper injects no hook of its own, so no event is an exception.
 - Measured with Git 2.56.0 only; Git 2.39 was not available on the host.
   A missing `core.hooksPath` directory is the case the shadow commands already rely on (`<shadow>/no-hooks`),
   and the container end-to-end suite runs that on Git 2.39.5.
+
+### The wrapper never starts itself as Git
+
+The wrapper looks for the real Git on `PATH` and starts it; nothing it starts as Git may be a cli-git wrapper.
+The owner's rule: "We should never invoke ourselves recursively." (`doc/planning/cli-git-no-self-invocation.md`, which
+holds the incident of release 0.5.26, 2026-11-03, the cause, the options weighed and the controls.)
+
+- Selection skips a candidate that leads back to cli-git: the running executable through any link, spelling or
+  byte-identical copy, a script that starts the TypeScript wrapper, and a toolchain launcher of the wrapper.
+  A launcher is recognised by the record `<name>.launch` that sits beside it (or beside the file its links reach):
+  the record's `toolId` ends in `monochromatic-git-policy-cli`, or its `real` is this executable.
+  The record is read as JSON, up to 64 KiB, with no process started.
+- Every start of the real Git sets `CLI_GIT_STARTED_AS_GIT` in the environment of the start:
+  the starter's process number, its birth identity and the mode, `replace` when the starter replaces itself with the
+  program (a forwarded command) and `child` for every other start (queries, commit steps, pushes, maintenance, the
+  service's Git work).
+  The builders that set it are `git_command` in `forwarding.rs`, `replace_process_with_real_git`, `git_command` in
+  `auto_push_single_flight.rs`, and the two starts with a cleared environment, `ask_git_var` and `status_git_dir`.
+- A cli-git executable stops before it plans anything when the marker says it is the process of a `replace` starter
+  (same process number, same birth), or the child of a `child` starter (the marker names its parent, same birth).
+  A hook, an alias or an editor that the real Git starts has another process in between, so running an installed
+  wrapper there is not stopped. An identity that cannot be read decides by the numbers.
+- The stop is exit status 2 with one message that names this executable, the starter and how it started this process,
+  the file the starter chose as Git (`CLI_GIT_NATIVE_FORWARD_TARGET`), the `PATH` it saw, why it stops, and what to do:
+  put the directory of the real Git (for example `/usr/bin`) on the `PATH` of the program that started the first
+  cli-git, or remove the entry that leads back to cli-git from that `PATH`.
+- No real Git on `PATH` falls back to the Git the commit service was set up with, when a record names one that passes
+  the same checks (below). Without a usable record it is a stop with exit status 2. The message gives the counts, the
+  `PATH` value, every candidate with its verdict (skipped because it leads back to cli-git, or missing, not executable
+  or unreadable), the record when a unit named one that was refused, and the ways out: install Git, add the real Git's
+  directory to the `PATH` of the program that ran the command, or remove an entry that should not be used. The wrapper
+  does not search outside `PATH` except for the promotion of a conventional location that `PATH` already exposes and
+  this record.
+- `cli-git-service` is never started by the wrapper and refuses a `--git` that is a launcher of the wrapper (a unit
+  written by a release that had the flaw holds such a path); the unit text includes `--git`, so the next wrapper that
+  provisions the unit writes it again. Its Git starts go through the marked builders.
+- Not covered: a user script named `git` that starts the wrapper as a child, with no launch record and no marker
+  string. The parent of the arriving wrapper is the script, not the starter; the message of a wrapper that cannot find
+  Git lists every candidate, which shows the script as the entry to remove.
+
+### The wrapper falls back to the Git its commit service was set up with
+
+Recorded on 2026-11-03T11:26:52-05:00; the pick is the coordinator's, made before the build under the owner's
+delegation ("Pick options as if I had picked them and invite veto when I say I'm back."), open to the owner's veto:
+when no real Git follows the wrapper on `PATH`,
+the wrapper uses the real Git it recorded for its commit service, with a notice, instead of stopping.
+The reason: native Git in that `PATH` would not be found at all,
+but once the wrapper is found the person expects `git` to work; the owner's rules "Commits should never fail." and
+"never leak internal things that could be resolved to the user"
+(`package/git-policy/cli/DESIGN.md`, 2026-11-01). The deliberation is in `doc/planning/cli-git-no-self-invocation.md`,
+section "Falling back to the Git the commit service was set up with".
+
+- The record is the `--git` option on the `ExecStart` line of the unit `cli-git@.service` that the wrapper writes below
+  `$XDG_RUNTIME_DIR/systemd/user` (`service_provision.rs`) when it sets up the commit service. It is read only when
+  `PATH` offers no real Git, only from an absolute `XDG_RUNTIME_DIR`, as text up to 64 KiB, with no process started
+  (`real_git_record.rs`). No other file is read and no location is guessed: with no unit, no `--git` word, a relative
+  path, or an unset runtime directory, there is no record and the stop stays.
+- The recorded path passes the checks of a `PATH` candidate (`classify_candidate`): it must exist and be an executable
+  file, and it is refused when it is this executable, a link or a byte copy of it, a toolchain launcher of it, or a
+  script that starts the TypeScript wrapper. Another release of the wrapper passes the check and is stopped on arrival
+  by the marker. A refusal keeps the stop and adds one line naming the record, the unit and the verdict.
+- The notice is one line on standard error, ahead of anything else the invocation writes, once per planned invocation
+  (the merge push planned inside a stacked push does not repeat it), in this form; an empty or unset `PATH` is printed
+  as `empty or unset`:
+
+  ```text
+  cli-git: no real Git follows this wrapper on PATH (<PATH>); used <path>, the Git recorded in <unit> as the one the commit service starts; to silence this notice, add <directory of path> to the PATH of the program that ran this command.
+  ```
+
+- The same resolution serves every start of the real Git: forwarded commands, the announced queries, the commit steps,
+  the push work, `git cli-git doctor`, the direct commands, `service status` and `convert-worktree-to-subvolume`.
+  The service takes the resolved path in the `--git` of its unit as before; a fallback path is therefore written into
+  the unit it came from, unchanged.
+- Limits: the unit is in the runtime directory, so it exists only after a commit has provisioned the service in this
+  login and is gone after the account's last logout; before that, the stop stays. A `cli-git-service` started with no
+  `--git` still defaults to `/usr/bin/git`; that is a development path, since the wrapper always writes `--git`.
 
 ### Git LFS upload before a push
 
@@ -1591,13 +2534,23 @@ The step:
   The child's standard error goes to a private anonymous file; the wrapper reads it back after each run and relays it
   with the user and password of every `scheme://userinfo@host` URL replaced by `<credentials>` (standard output stays
   the caller's). When that file cannot be made, the push is refused with the ways forward.
-  A run that fails with a server error is run again at most twice, after 2 seconds and after 5 seconds
-  (`RETRY_DELAYS` in `lfs_server_retry.rs`; `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` replaces them in tests). A server
-  error is a line of `git-lfs` with its `Fatal error: ` prefix, which `lfshttp/errors.go` gives only to HTTP 5xx answers
-  other than 501, 507 and 509 (`git-lfs` never repeats them; the text after the prefix is the server's own JSON `message`
-  or `Server error: <url>` or `Server error <url> from HTTP 5xx`), with no line naming a refused credential, a
-  missing or corrupt local object, a client error or locked files. Everything else, a signal and a stop by deadline
-  included, ends the step at once.
+  A run that fails is never run again by the wrapper, whatever the cause:
+  the step ends at once with the program's status and the explanation.
+  An HTTP 5xx answer of the LFS server is classed as outside our control, a server fault like "Network down"
+  (pick 12 of `doc/planning/cli-git-shipped-limits-audit.md`, "LFS server-error retry",
+  the coordinator's under the owner's delegation and open to the owner's veto),
+  and is retried by the commit service's push retry plan alone.
+  A 5xx answer is a line of `git-lfs` with its `Fatal error: ` prefix,
+  which `lfshttp/errors.go` gives only to 5xx answers other than 501, 507 and 509;
+  the text after the prefix is the server's own JSON `message`,
+  or `Server error: <url>`, or `Server error <url> from HTTP 5xx`.
+  The plan tries again every push whose failure it cannot read as final, and nothing in the words of a 5xx is final
+  (`push_retry.rs`, `final_failure`; `an_lfs_server_error_is_tried_again_by_the_plan`).
+  The earlier in-place retries, after 2 seconds and after 5 seconds,
+  and the variable `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` that replaced them in tests, are gone,
+  so there is one retry mechanism.
+  A typed `git push` has no plan: it ends at the first 5xx with `git-lfs`'s own words and the explanation,
+  and the person pushes again.
 - What is uploaded.
   The destinations and refs come from the push's own arguments, read with the same option table as the rest of the
   wrapper, and from the configuration Git would read for what the arguments leave out. The configuration entries
@@ -1656,9 +2609,9 @@ The step:
   A shim never runs through the wrapper (see "Real Git starts with traditional hooks off"), so there is no second
   upload; `git cli-git doctor` explains the shims apart from the unsupported hooks (see "Doctor").
 
-Verified by `src/native/binary_lfs_pre_push_tests.rs`
+Verified by `src/native/binary/binary_lfs_pre_push_tests.rs`
 (a stand-in `git-lfs` that records the arguments, the input and the origin's branch at the moment it ran)
-and `src/native/binary_lfs_server_tests.rs`
+and `src/native/binary/binary_lfs_server_tests.rs`
 (the real `git-lfs` against an LFS server written inline in the test).
 
 ### Direct check
@@ -1952,6 +2905,21 @@ cli-git surfaces complete push output,
 leaves the commit local,
 and preserves the successful commit command's exit code `0`.
 
+### Word merged event
+
+```ts
+export type WordMergedEvent = EventBase & {
+  readonly type: 'word-merged';
+  readonly outcome: 'word-merged';
+  readonly message: string;
+};
+```
+
+This event is emitted when a commit replayed over a branch that moved had files merged by word where Git's line merge
+reported a conflict.
+`message` holds one line per merged part, separated by newlines, each naming the file and the part.
+It does not block the commit and does not change the exit code.
+
 ### Stream and exit contract
 
 Wrapper policy events use stderr.
@@ -2007,6 +2975,19 @@ one instance of the systemd template units `cli-git@.socket` and `cli-git@.servi
 started by the operating system on the first connection (socket activation).
 The wrapper never starts the service itself,
 and it has no other way to land a commit.
+The service unit sets no resource limits of its own
+(no `MemoryMax`,
+`CPUQuota`,
+`TasksMax` or `IOWeight`),
+so the service and the Git processes it starts get systemd's defaults,
+the same resources plain Git gets.
+The limits it once carried had no measurement behind them,
+and the 1 GiB memory cap made the service's Git read the same pack and index pages from disk again
+(on the main checkout 274,736 cap hits and 16,125,924 major page faults by 2026-11-03T08:40:51-05:00).
+Owner, 2026-11-03 (question tool):
+"Remove all three (Recommended)" for the CPU,
+task and disk limits,
+after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
 Each commit passes through three phases:
@@ -2068,12 +3049,13 @@ Each commit passes through three phases:
     A foreign commit that moves the branch while the service waits for the lock makes the compare-and-swap fail,
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
-    bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (thirty minutes by default)
-    with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`;
-    a holder that outlasts the bound ends the commit before the branch moved,
-    removing the batch's intent and scratch branch,
-    with a plain message naming the process.
-    Both variables belong in the environment of the unit that runs the service.
+    with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
+    A holder proven alive and an owner nothing proves alive are waited for until `LOCK_CEILING`,
+    and a dead one not at all;
+    either ends the commit before the branch moved,
+    removing the batch's intent, keeping the built commit on a side ref, and naming the blocker
+    ("Every wait has a bound", in "Merges and commits never fail").
+    The variable belongs in the environment of the unit that runs the service.
 3.  After landing:
     in the wrapper,
     print the one summary line,
@@ -2094,7 +3076,7 @@ A forwarded index writer that finds a foreign `index.lock` ends as native Git en
 
 Concurrency in the service is lock-free first: atomic rename, exclusive creation, one owner per item.
 Every lock that remains covers the smallest unit and has its reason written beside it in the code.
-`src/native/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
+`src/native/source_guard/service_lock_inventory_tests.rs` fails when a lock primitive (a mutex, a read-write lock, a condition variable,
 an `flock`) appears in the service and support sources outside its inventory, or without the reason above its declaration.
 
 Removed:
@@ -2104,7 +3086,9 @@ Removed:
 - The mutex-guarded table of landed captures (`service_captures.rs`):
   the serve loop that lands commits and answers clients owns it, and passes it down.
 - The mutex on the review credentials (`service_work.rs`):
-  the work thread that remembers, reads and forgets them owns the map.
+  the work thread that remembers, reads and forgets them owned the map (commit `52f06fbe12`); since the work consumer drains
+  repositories side by side, a round makes a read-only copy of the handlers that holds the round's credentials as values, the
+  workers only read it, and it is dropped when the round ends, so the map has no owner to wait for and no lock.
 - The mutexes and the condition variable of the claim renewal (`service_claim_renewal.rs`):
   see "Leases of claimed work".
 - The long hold of Git's `index.lock`:
@@ -2118,14 +3102,36 @@ Kept, each with its reason in the code and here:
 - The mutex on the pending bytes of the journal's stream (`journald_native.rs`):
   a stream may take a line in parts and two lines must never run together, so the unfinished rest of a line and the write that
   finishes it are one critical section of one non-blocking write; the waiter waits for one system call, never for the journal.
+- The reclaim of a stale `index.lock`:
+  one reclaimer at a time, by a non-blocking `flock` on the stale lock's own file (`service_index_reclaim.rs`) or, where the file system
+  refuses `flock`, by the claim chain of placed files and process-identity judgements (`service_index_claim.rs`, reason in `take_claim`);
+  the claim chain has no lock primitive for the scan above to find, so it is listed here and nowhere else (see "One reclaimer per stale lock").
 - The claim and its lease on work items (`work_item.rs`, `service_claim_renewal.rs`):
   rename-based, no lock file; a lease is how a later instance learns that a killed holder abandoned a claim (see "Leases of claimed work").
 
 Init-once cells (`OnceLock`) hold values read at first use (a boot ID, the machine ID, the Git release, the process identity) and wait for nothing after.
 
+### Repositories of a round run side by side
+
+The after-commit work of the service (pushes, upkeep, reviews, trash) is drained one repository at a time in releases before this
+one, by the single work thread that commit `52f06fbe12` made the owner of the review credentials.
+The repository owner's answer of 2026-11-03 to whether the service's independent work should run side by side was
+"Parallelize, no locks (Recommended)", so a round of wakes now drains its repositories on workers within the host budget
+(`src/native/landing/service_round.rs`): the threads the process may run less a margin, and the memory free in its control group.
+The commit service's unit sets no CPU, memory, task or disk limit (the owner's decisions, `doc/handover/cli-git-rust-implementation.md`, lines 148 to 160), so the width
+of a round is the host budget: an eighth of the threads left free, and half of the memory available over `REPOSITORY_MEMORY`,
+128 MiB, which is the 90th percentile of the peaks of 28 services rounded up to a power of two
+(`doc/planning/cli-git-shipped-limits-audit.md`, "Measurement record").
+The retry list is reported in the order the directories were named, whichever drain finishes first.
+The directories of one repository (a common directory and its linked worktrees' Git directories) are one lane and are drained one
+after another, because they share a work directory and its upkeep.
+Nothing is shared mutably: the handlers are read-only, every claim is still made by an atomic rename, each drain keeps its own
+renewal of its own claims, and `service_lock_inventory_tests.rs` still forbids a lock in these sources.
+Within one repository the items still run in the order the drain gave them: pushes grouped by branch, then upkeep, trash, reviews.
+
 ### The service's hold on the index lock
 
-`src/native/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
+`src/native/landing/service_index_lock.rs` places `index.lock` with the service's marker in the file from the first instant.
 Its hold,
 ownership check,
 staging files,
@@ -2143,9 +3149,11 @@ A lock is reclaimed only when its marker names a process that is gone or was bor
 
 The reclaim steps (read the marker,
 unlink the lock,
-place a new one) are not one atomic step,
-and no lock of the service's own makes them one.
-They are safe because at most one process that writes this marker takes a given `index.lock` at any moment.
+place a new one) are not one atomic step.
+The removal of a stale lock is kept to one reclaimer per stale file by an exclusive `flock` on that file
+(`service_index_reclaim.rs`; below, "One reclaimer per stale lock");
+placing the new lock is by exclusive creation.
+The rest is safe because at most one process that writes this marker takes a given `index.lock` at any moment.
 Three things enforce that:
 
 1.  Inside one service,
@@ -2202,7 +3210,87 @@ not fixed:
   The cure is the documented one:
   stop `cli-git@*` before committing with the older release.
 - A user who points two worktrees at one index with `GIT_INDEX_FILE` makes two instances take one lock.
-  That is not a path the service ships.
+  That is not a path the service ships; their reclaims of a stale lock of it are kept apart by the `flock` below, and
+  their placements by exclusive creation.
+
+#### One reclaimer per stale lock
+
+Every path that removes a stale `index.lock` of the service (`remove_stale` and `try_acquire` in the recovery of open
+batches, and the wait of a landing) goes through `reclaim_if`, which opens the lock, reads the marker from that open file, takes
+a non-blocking exclusive `flock` on it, checks that the name still refers to that file (device and inode), and only then
+unlinks the name.
+Nothing is moved aside, so a live lock is never off its name.
+Where the `flock` answers that the file system gives none (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`, `EBADF`: what the file systems
+that define the operation return in `fs/nfs/file.c`, `fs/9p/vfs_file.c` and `fs/smb/client/file.c`), the same steps run under the claim chain
+instead of the `flock` (`service_index_claim.rs`; "The claim chain" below). `EWOULDBLOCK`, `EINTR` and `ENOMEM` (the kernel's lock record)
+are back-offs. Any other error (an I/O error from a lock manager, a timeout) is neither: another reclaimer may hold the `flock` while
+this call fails, a claim beside it would not keep the two apart, so the answer is Unguarded. A local file system always takes the `flock`
+path: `fs/locks.c` takes a local lock for every file system that defines no `flock` operation of its own, and only file systems that
+define one (for example NFS, 9p, CIFS, Ceph, and FUSE when its daemon refuses) can refuse.
+There are six answers, and each has its own consequence:
+
+- Removed: the stale file was removed, or was already gone; the placement is tried again.
+- Changed: the name refers to another file than the one judged (the stale lock was reclaimed and a live one placed); nothing is
+  removed, and the placement is tried again.
+- Busy: another reclaimer holds the stale file (or the call was interrupted); a landing waits as for any held lock and looks
+  again after the poll pause, because the end of a hold leaves no event in the directory, and the ceiling ends the wait; a
+  restart leaves the batch open.
+- Unguarded: neither the `flock` nor the claim chain below could be had (no `flock` on the file system and no claim file can be
+  placed, or this process cannot name itself in a claim), or the `flock` failed in a way that does not say the file system has none. Nothing is removed, because an unlink without exclusion could remove a
+  live lock. A landing waits as for any held lock to its ceiling and withdraws the commit to its side ref; its notice is written
+  from the marker of the file that was judged (never a second read of the name, which a live landing may hold by then), names
+  the lock, the batch and the dead process, and says to remove the lock by hand once no git command and no commit of the service
+  is running and the file's first line still reads as quoted. A restart leaves the batch open.
+- Kept: the file is not a stale lock of the service (a live holder's, Git's, or unreadable); it is left where it is.
+- Stuck: the file is stale and cannot be removed; the log says why, and the landing fails as before.
+
+#### The claim chain
+
+Used instead of the `flock` on the stale file when the file system refuses it, and it needs no `flock` anywhere.
+A claim is a file named `<lock>.cli-reclaim-<key>-<slot>`, where the key is made from the marker of the stale lock (its batch, process,
+and the birth identity in hexadecimal), so that every reclaimer reaching the file by any mount derives one name: the device number of
+one remote tree can differ between two mounts of it. The process that marker names is gone and places no further lock with that marker,
+so a claim left under a key is inert; a marker that names no process (an earlier release's) falls back to the device and inode.
+A claim is mode 0644 whatever the umask, so that a reclaimer of another account can read it (one that cannot read a claim takes its
+maker to run). It holds the service marker of its maker with a random token in the batch field, is written to a staging file and placed
+whole by a rename that does not replace (else a hard link), and is judged as a lock holder is (`holder_state_in`): a maker that is gone
+is passed over; a maker that runs, cannot be judged or whose claim cannot be read makes the reclaimer back off (`Busy`). A placement
+that answers with an error although it took effect (a network file system can lose the answer) is recognised by the claim's text
+and is the reclaimer's own.
+The reclaimer places its claim at the first slot not taken by a running claimer, then reads every slot below its own again: all
+must still exist and name a gone maker, or it removes its own claim and backs off. It then runs the same name check and unlink as
+under the `flock`, and removes the claims from zero to its own once the name no longer refers to the stale file; when the unlink
+fails it removes only its own.
+A claim of a dead maker is never removed while the stale file stands at its name, so a slot read as gone stays gone and in
+place, and no reclaimer can be placed below it; two holders would need one slot to be read as gone by the other, which its own
+claim or the exclusive placement prevents. The rule needs no birth time of the file, because a claim left by an earlier file with
+the same key is a gone claim at a low slot and is passed over. A file at a claim's name that holds no whole marker is passed
+over too, since a placed claim is whole.
+Limits: a claimer killed after the unlink and before its cleanup leaves inert `<lock>.cli-reclaim-*` files, which the next reclaim of
+a file with that key removes and which a person may remove with `rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*`
+once no commit of the service runs (an alternate index: the directory of that index); a claimer alive on another host over a shared
+file system reads as gone, as a lock holder does (a boot ID that differs reads as gone); a reclaimer on the `flock` path and one on the claim path of one file system are not kept apart, because neither path sees the other (it
+takes two mounts of one file system that differ in `flock` support, or a lock manager that answers "no locks" to one call and grants the
+next; an I/O error or timeout is not read as "no `flock`" for this reason); and a claim cannot be placed on a full disk,
+where the landing's own lock cannot be either.
+
+The lock is the one that `doc/planning/cli-git-one-reclaimer-per-index.md` argues for: the unit is the one file being
+reclaimed, the hold lasts a few system calls, and the kernel drops it when the descriptor closes or the process dies, so no
+leftover can block a reclaim.
+It is on the lock inventory (`source_guard/service_lock_inventory_tests.rs`) with its reason beside the call.
+Two reclaimers, and a reclaimer against a landing, are kept apart; Git takes no part and never reclaims.
+What stays open: a person's `rm index.lock` between the check of the name and the unlink, when Git then places its own lock in
+the two system calls between, because no system call unlinks a name only if it still names a given file; a file system that
+gives no `flock` and takes no claim file, or a `flock` that fails in an unrecognised way (the stale lock is then left for the person,
+and the log says so); two mounts of
+one file system on one machine that differ in `flock` support; and reclaimers on different hosts over a shared file system, which the
+`flock` does not reach, and the claim chain does not either, because it reads a claimer of another host (another boot ID) as gone.
+Release 0.5.28's reclaim could leave a file at a taken-aside name (`<lock>.aside-<process>-<time>`) beside the lock, when a third
+program took the name while it was off it. This release makes none, and nothing removes the ones already there: a scan of the
+visible processes does not prove that no process holds one, and the file may hold a native Git's pending index. Once no git
+command and no commit of this service is running, list them with `ls -l -- "$(git rev-parse --absolute-git-dir)"/index.lock.aside-*`
+(an alternate index: the directory of that index), keep any whose first line is not `cli-git-service `, and remove the rest with
+`rm` (`doc/planning/cli-git-one-reclaimer-per-index.md`, "Aside files an earlier release left").
 
 #### A violation fails loudly
 
@@ -2431,11 +3519,73 @@ after a power loss the lock can come back with the marker of the boot that ended
 which every reader reads as gone,
 so the next acquisition reclaims it and a wrapped command says the service no longer runs.
 
-The built index is written by Git's own `reset` under the private index file (`service_land_follow.rs`,
-`build_index`),
-so Git's `core.fsync` governs it,
-and the rename that installs it has the durability native Git's has,
-by default and when the user opts in.
+The built index is written without a Git process (`index_reset_file.rs`, called from `build_index` in `service_land_follow.rs`;
+the ported rules are in `doc/planning/cli-git-main-commit-within-native-plus-five.md`, "The landing's index update and the
+index check in process").
+It runs only for the landing that holds the live index lock, and the type system says so: `reset_index_file` and `build_index`
+take a borrow of the held `IndexLock`, so only the holder can call them, and the in-process update takes a `PrivateCopy`,
+a directory this landing created for itself beside the live index (`service_land_copy.rs`),
+owner-only from its creation, named
+`cli-git-private-` and a random identifier, and holding the copy, a marker that names the owning process,
+and whatever Git or
+the in-process update makes for the copy (Git's lock for it, the temporary file of the write).
+No name beside the live index is
+shared, so the copy is never the live index and never another client's file,
+a foreign lock of the same name does not stop a
+landing whose live index is absent, the name does not grow with the live index's,
+and a pile of abandoned copies cannot use up
+names. The copy is created owner-only before its first byte, filled from the live index while the lock is held,
+and given the
+live index's own mode afterwards (the mode Git gave that file, which an index installed without a change keeps).
+The directory
+goes with the value; a landing sweeps the directories of a service that died, recognised by the name,
+the marker and the death
+of the process the marker names, never by the name alone. The lock's release renames the copy over the live index
+(`IndexLock::release_with_record`), after syncing the index's directory.
+The only caller is `follow_up` in `service_land.rs`, which owns the lock; it is reached from the landing with the lock that
+`acquire_noting_wait` gave, and from the restart with the lock that `try_acquire` gave.
+So a foreign `git add` finds the lock taken from the copy to the installation, and what it staged before is in the copy.
+The installed index is recorded in the journal (`<batch>.indexed`, holding the commit, synced) after the rename and before the
+lock is removed, and a record that cannot be made (or an installation whose directory cannot be synced,
+or a panic that unwinds
+through the record) keeps the lock for the restart to reclaim.
+The finished batch is made durable (its journal directory synced)
+before its completion record is removed. A completion record that exists and cannot be read stops the restart,
+which leaves the
+batch open and the index alone, because only a missing record means the update was not installed.
+A restart that finds the record does not replay the index update, which would overwrite what another program staged after the
+lock was given up; it retries only the conclusion state, so a cleanup that failed never makes the index update replayable.
+The checked-out branch is read from the Git directory of the worktree the request recorded (not from the directory the
+index
+sits in), again once the lock is held and before the ref moves (a worktree can switch while the lock is awaited),
+and once more
+after the ref moved, because Git refuses `symref-verify HEAD` beside an update of the branch `HEAD` names ("multiple
+updates
+for 'HEAD'"), so the move cannot verify it in its own transaction;
+a worktree that left the branch in that window keeps its own
+index. A restart that finds the worktree on another branch finishes the batch without touching the worktree's own
+index, still
+finishes an index kept in another file (`GIT_INDEX_FILE`),
+and keeps the batch open until the conclusion state is removed.
+The landing records the entries of its index paths under the lock before the branch moves (`<batch>.start`, synced),
+and a
+restart that has to replay an update that was never installed resets only the paths still at those entries;
+a path staged since
+keeps its staging and a one-line notice says so. A batch with no record (a commit Git built, an older batch,
+an index form the
+entries are not read from) replays every path as before; a record that cannot be read stops the replay.
+The result goes to a temporary file made exclusively beside the copy, given Git's index file mode before any byte is written
+(created as Git creates its lock file, so the mask and any default ACL of the directory apply, then `adjust_shared_perm`'s
+calculation from the mode the file really has), flushed to the disk, and renamed over the copy; an interrupted write is
+tried again, and a run removes only the file it made.
+An entry another session staged in the same second as the copy is racily clean to Git, so the update leaves that landing to Git.
+At most one service removes the stale lock of a physical index at a time, whatever the number of worktrees that share it
+(a shared alternate index included): the reclaim holds an exclusive `flock` on the stale lock file and checks that the name
+still refers to it before it unlinks (`reclaim_if`; "One reclaimer per stale lock"). A reclaimer that finds the file held
+backs off, and a person's `rm index.lock` in the two system calls between the check and the unlink stays open.
+Whatever the update does not reproduce (the list is in the planning section) is left to `git reset --no-refresh` on the same
+private file, so Git's `core.fsync` governs only that fallback; the in-process write always flushes the file, as Git's default does.
+The rename that installs the copy has the durability native Git's has, by default and when the user opts in.
 The index can be rebuilt from `HEAD`,
 and the service syncs the commits and refs.
 
@@ -2508,6 +3658,42 @@ It uses:
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
 
+#### Maintenance that may run while a commit is made
+
+The objects of a commit that has not landed are protected by Git's grace period,
+and from the import on also by a reference.
+What this protects against, and what it does not (the supported concurrency, written 2026-11-04):
+
+- Supported while a commit is prepared and landed: any maintenance that keeps
+  Git's default grace period for unreferenced
+  objects, which are `git gc`, `git gc --auto`, `git maintenance run` (including the
+  `maintenance run --auto` the landing starts
+  after a landing) and `git prune` with the default `gc.pruneExpire`. They
+  remove no unreferenced object younger than the
+  grace period (two weeks by default). `git gc` repacks with `-A`, so unreachable
+  objects of a pack that the import kept become
+  loose objects first and are then subject to the same grace period.
+- Not supported while a commit is prepared or landed: maintenance that drops unreferenced objects at once. That is
+  `git prune --expire=now`, `git gc --prune=now`, any setting of
+  `gc.pruneExpire=now`, and `git repack -a -d` (which discards the
+  unreachable objects of the packs it replaces). Git's own manual says the same of
+  `git gc` run while another process writes
+  ("when git gc runs concurrently with another process, there is a risk of it
+  deleting an object that the other process is using
+  but hasn't created a reference to"; the installed 2.56.0 manual, section NOTES of git-gc).
+- What the wrapper does about the unsupported case is detect it where it can and
+  say so, not prevent it. Before the landing
+  imports anything or moves the branch, the objects the request names are looked up
+  (a blob, a tree, the commit Git built, and
+  for a commit Git built the objects it adds to the branch); a missing one answers that the content is unavailable, the
+  wrapper prepares the commit once more, and a second loss ends the commit with a
+  plain message. An object removed after that
+  look and before the branch moves is not prevented. The reference
+  `refs/worktree/cli-git-service/<batch>` that the import creates
+  is a reachability root for any collector that reads references after it exists;
+  a collector that took its snapshot of the
+  references before it was created and sweeps afterwards is not stopped by it.
+
 When real Git builds the commit,
 it runs in the scratch repository after policy evaluation settles,
 with inherited stdio,
@@ -2553,20 +3739,77 @@ Owner decision (2026-11-03), verbatim:
 "No the wrapper should never append --quiet. Letting native git emit whatever it wants to is expected."
 A `--quiet` or `-q` that the user typed reaches Git untouched, and Git's own standard output and standard error
 reach the user as Git emits them.
+The same holds for every Git run the wrapper or the service starts on its own.
+Owner decision (2026-11-03), verbatim: "Drop it everywhere (Recommended)", answering whether the wrapper's own internal runs
+(maintenance, the auto-push fetch, fast-forward merges, reset, clean, init) should drop `--quiet` too.
+No such run carries `--quiet` or `-q` where the option only hides messages or progress.
+Git's words are not discarded with the capture of the run: the service records them as one entry at priority `info` in
+its log, which the service manager keeps in the journal of its unit, and the wrapper records the words of a run it made while
+carrying out the person's command as one client entry in the journal (`journalctl --identifier=cli-git`); both carry the field
+`CLI_GIT_INNER_COMMAND`, mask the userinfo of URLs, and are made only when the run said something.
+The person's own streams carry what native Git's command prints: the isolated merge's fast-forward says "Updating a..b" and
+"Fast-forward" on standard output, and that goes to the journal, while a warning on its standard error still reaches the person.
+`git reset` without `-q` lists as "Unstaged changes after reset:" every tracked path whose file differs from the index
+(measured on 2026-11-03), so the service's journal now names the paths of other uncommitted work for every landing.
+A `--quiet` stays on a run whose documented effect is the exit status or what is computed, read in the Git 2.56.0 sources:
+`rev-parse --verify --quiet` (`builtin/rev-parse.c`, `die_no_single_rev` exits 1 where it dies with 128),
+`symbolic-ref --quiet` (`builtin/symbolic-ref.c`, returns 1 where it dies), and `diff-index --quiet` and `diff-files --quiet`
+(`diff.c`: exit with status, no renames, an early quit).
+`doc/planning/cli-git-slow-server-and-inner-quiet.md` lists every use and the line that decided it.
 Consequently a commit that real Git builds prints Git's own summary (`[<branch> <name>] <subject>` and the change lines)
 from the scratch repository, and the wrapper prints no summary of its own for it.
 A commit the service builds itself, with no `git commit` run, still prints the one summary line the wrapper writes
 once the branch has moved.
 A commit that Git builds again because the branch moved prints Git's summary for each build,
 so the line of a build that did not land can precede the line of the commit that did.
+Owner decision (2026-11-03), verbatim: "Add a wrapper note (Recommended)".
+Git's output stays untouched; once the commit has landed, the wrapper adds one line to standard error
+that names every build that did not land and the commit that did, by the names Git's summary lines carry:
+`cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.`
+Several builds that did not land are joined with commas and `and`.
+A commit that was not built again prints no note.
 
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
 A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
 A pathspec commit during a revert or a cherry-pick, which Git accepts,
-and during a merge or a conflicted cherry-pick, which Git refuses with `cannot do a partial commit`,
 behaves as real Git does,
 including paths named like options (`--quiet`, `-o`, `-dash.txt`) and `--pathspec-from-file`.
+During a merge or a stopped cherry-pick, which Git refuses with `cannot do a partial commit`,
+the owner's rule "Commits should never fail." (2026-11-03) applies instead:
+the commit of the named paths is built in a scratch repository that holds none of the conclusion state,
+so it is an ordinary commit of those paths on `HEAD`;
+the worktree's `MERGE_HEAD` (or `CHERRY_PICK_HEAD`), message and staged result stay,
+and the commit without paths that concludes the merge sits on the new head.
+A named path in conflict is committed too (owner, 2026-11-03, verbatim: "Committing a conflicted path is fine. Warn and commit anyway,
+even if conflict markers will be committed."):
+the commit takes the bytes the worktree holds, conflict markers included,
+and once it has landed standard error says in plain words that the path still has conflict markers,
+that they were committed, and how to fix them in a follow-up commit.
+That claim is made only for a path whose committed blob holds a marker line as Git writes it
+(`conflict_markers.rs`: the size of `conflict-marker-size` from the attributes, seven by default, equal `<`
+ or `>` characters
+followed by white space, as Git's `is_conflict_marker` reads a line); a path the person resolved by editing,
+ with no marker line
+left, is counted as resolved and nothing is said about markers for it.
+Whenever a commit of named paths leaves a merge or a cherry-pick in progress, with markers committed or not,
+ standard error
+carries one more line that says so and names how to finish it: stage any file still unmerged,
+ then `git commit` with no paths,
+or `git merge --continue` (`git cherry-pick --continue`);
+ a follow-up commit of the path alone never finishes the operation.
+The merge stays unfinished, and the index entry of that path is the committed one.
+A plain `git commit` that names no paths while files are still unmerged finishes the merge (owner, 2026-11-03, question tool:
+"Warn and finish the merge (Recommended)"):
+Git refuses it (`builtin/commit.c:348`, `refresh_cache_or_die`: "Committing is not possible because you have unmerged files"),
+and the service instead stages the working copy of each unmerged file in the commit's private index, as `git add --all` stages it,
+and builds the merge commit Git would build for a resolved merge (the parents, the message and the removal of the merge state
+are Git's).
+The markers in those files are committed, and the same warning as for a named path names each file and says how to fix it in a
+follow-up commit.
+`git commit -a` over unmerged files does the same: it stages the working copy of every tracked file, so it commits their markers and warns for each
+such file in the same words (owner: "Committing a conflicted path is fine. Warn and commit anyway").
+Options that select the whole index (`--all`, `--no-only`, `--include`, `--interactive`, `--patch`) keep concluding it.
 
 #### Scratch repository layout
 
@@ -2781,7 +4024,9 @@ and the executable does not read the name it was started under.
 The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
 not the git directory, not the environment.
 The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
-wrapper's, and stay, `core.fsmonitor` included; a program that is a hook event is switched off.
+wrapper's, and stay; a program that is a hook event is switched off.
+`core.fsmonitor` is among them, and the wrapper does not set it: it is off in the person's global configuration
+(owner decision, 2026-11-03), and `git cli-git doctor` says so.
 `cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
 (`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
 What a hook checked belongs in a cli-git policy.
@@ -2879,6 +4124,143 @@ each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
 A cleanup that fails cannot be redone once the wrapper has removed its scratch directory.
 
+### Word-level second merge pass
+
+Git's line merge reports a conflict where two changes touch (one ends where the other begins):
+a line edited on one side and lines inserted right after it on the other.
+The owner decided on 2026-11-03 (`doc/planning/cli-git-merge-auto-resolution.md`) that the wrapper re-merges only the conflicted
+parts word by word, the way Jujutsu merges with `merge.hunk-level = "word"`, accepts a file only when every part resolves,
+and lists each merged part on standard error and in the journal; and that the wrapper's own unattended merges
+(the auto-push reconcile merge, the commit replay merge) and the isolated merge use the same pass.
+
+The merge is `src/native/merge/word_merge.rs`: line hunks first, then every line hunk both sides changed is diffed by word
+and by the bytes between words (the `similar` crate, Myers algorithm, no other feature of it), and kept only when every part of
+the hunk resolves; a file is resolved only when every hunk resolves.
+The controls hold it to the stored results of Jujutsu 0.46.0 on a corpus of real and measured inputs
+(`src/native/merge/word_merge_corpus/`): the same verdict on every input and the same bytes on every resolved one.
+It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
+which the owner accepted; it never drops a byte that either side added or kept, and it never orders two insertions at one point,
+so both sides appending different text at one place stays a conflict.
+
+A conflicted file is a candidate only when all three stages exist with one mode that is a plain file, none holds a NUL byte in its
+first 8000 bytes (Git's `FIRST_FEW_BYTES`, `xdiff-interface.c` line 197), none is larger than 8 MiB, and the `merge` attribute is unspecified, set or `text`
+(a driver, `-merge` and `merge=binary` keep the merge to their setting).
+Git's own limit is `MAX_XDIFF_SIZE`, 1023 MiB (`xdiff-interface.h` line 14), above which its merge calls a file binary
+(`merge-ll.c` lines 117 to 122); the pass takes the smaller of that and 8 MiB, which is measured: texts that share no line took
+0.08 s and 45 MB at 1 MiB, 0.73 s and 352 MB at 8 MiB, 4.12 s and 1320 MB at 32 MiB, so Git's limit would not bound the cost.
+Anything else is left exactly as Git left it, with the reason in the debug log.
+
+Merges a person runs (`merge`, `rebase`, `cherry-pick`, `revert` and `pull` forwarded to Git):
+a conflicted merge computed from objects with another session's staged work gets the pass from objects
+ (`merge_isolation.rs`,
+`merge_tree`); with a clean index the conflict is native Git's, which stops and writes the markers,
+ and the pass then runs on the
+stopped merge here, because the ending commit then goes through the wrapper's commit path and its policies (the control
+`the_ending_commit_is_judged_by_the_repositorys_policies` pins that for the stopped path;
+ whether a merge completed from objects is
+judged by the same policies was not measured).
+The index is read in process before Git starts, and again when Git exits with a status other than 0.
+Only the paths that were not unmerged before the command and are unmerged after it are candidates, so a file a person is
+resolving by hand is never replaced by a later command that fails on it.
+The stages are read with one `git cat-file --batch`, the attributes with one `git check-attr`;
+each file that resolves is written as a blob (`git hash-object -w`), staged as resolved
+(`git update-index --index-info`, which replaces the conflict stages) and written to the worktree with `git checkout-index --force`,
+so the repository's filters apply; if the checkout fails the conflict stages are put back.
+Standard error gets one line per part, `cli-git: word-level merge: <path>: part <n> of <m>: base <lines>, ours <lines>, theirs <lines> became "<text>"`.
+Each merged file is one journal entry of priority `warning` under `SYSLOG_IDENTIFIER` `cli-git`, with the fields
+`CLI_GIT_WORD_MERGE_FILE`, `CLI_GIT_WORD_MERGE_OPERATION` and `CLI_GIT_WORD_MERGE_PARTS`.
+
+When every conflicted file of the command resolved, the operation is finished the way Git finishes it after a clean run
+(owner decision of 2026-11-03, "Finish like a clean merge"), through the wrapper's own command path: the continuing step is
+`run_process` of this process, so the commit policies apply to it and a later pick of a rebase that conflicts gets the pass again
+(nested no deeper than the budget the outermost finish takes from its input: a rebase's remaining todo length plus one, a
+cherry-pick or revert sequence's todo length, one for a merge; past it the operation stays stopped).
+The exit status and the output are the finishing command's; what Git printed when it stopped (`CONFLICT` lines, "Automatic merge
+failed") is already out and stays.
+What Git does after a clean run, from the Git 2.56.0 source:
+- `merge` and the merge of a `pull`: a clean merge that wants a commit commits (`builtin/merge.c` line 1828, `prepare_to_commit`
+  line 905); with `--no-commit` or `--squash` it prints "Automatic merge went well; stopped before committing as requested" to
+  standard error and exits 0 (lines 1867 to 1873). The wrapper does the same for those two options, and otherwise runs
+  `git commit` through its own path with `--no-edit --cleanup=whitespace` (the prepared message as it is, with the conflict hint
+  cut from `MERGE_MSG`, `append_conflicts_hint`, `sequencer.c` line 722) or, when the editor is wanted, plain `git commit`.
+  The editor is wanted by `--edit`/`-e`, or by default when no `-m`/`-F` was given, `GIT_MERGE_AUTOEDIT` is unset and standard
+  input and output are one terminal (`default_edit_option`, lines 1158 to 1180). `-S`, `--gpg-sign`, `--no-gpg-sign` and
+  `--signoff` are handed to the commit. `--autostash` and `merge.autoStash` need nothing: the ending `git commit` applies
+  `MERGE_AUTOSTASH` after it concludes the merge (`builtin/commit.c` line 1982), as a clean merge's `finish` does
+  (`builtin/merge.c` line 1848). The wrapper's commit builds the commit in a shadow repository, which now holds a private copy of
+  `MERGE_AUTOSTASH`; landing removes the real pseudoref when the shadow consumed it (`conclusion_cleanup.rs`).
+  A stash whose apply conflicts when the commit concludes the merge (the finish's, or the person's own `git commit`)
+  is stored by Git in the
+  scratch repository's private `refs/stash`, with its conflict stages in the commit's private index.
+  The landing carries both back
+  (`autostash_carry.rs`): the stash is stored in the repository with `git stash store -m autostash` (once;
+  the objects are
+  already in the repository's store, because the scratch repository writes there),
+  by `remove_conclusion_state` before it removes
+  the pseudoref, and the stages are put into the index the landing installs, under the lock it holds (`follow_up` in
+  `service_land.rs`).
+  The finish therefore ends a conflicting autostash as Git does and declines nothing (the dry run of the apply that once
+  declined it was retired). The controls `a_merge_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
+  `a_pull_autostash_that_conflicts_on_apply_keeps_the_work_as_git_keeps_it`,
+  `a_commit_that_applies_a_conflicting_autostash_keeps_the_stash_as_git_keeps_it` and
+  `a_commit_over_unsaved_changes_to_a_stash_file_keeps_the_stash_as_git_keeps_it` compare the stash list, the status,
+  the files and
+  the exit status with a twin repository that real Git runs. A
+  `branch.<name>.mergeoptions` value of the checked-out branch is split as Git splits it (`alias.c` lines 126 to 180) and read
+  before the command line (`merge.c` lines 1407 to 1409), so `--no-commit`, `--squash`, `--edit` or `-m` set there is honoured.
+  Hooks: the wrapper switches every hook event off in every Git it starts, so a user's hooks see nothing on a clean merge and
+  nothing on a finished one (a control compares the two, with real Git run directly as the positive control). Were hooks run, a
+  clean merge would run `pre-merge-commit`, `prepare-commit-msg`, `commit-msg` and `post-merge` (`merge.c` lines 931, 966, 975
+  and 537), a concluding `git commit` `pre-commit`, `prepare-commit-msg`, `commit-msg` and `post-commit` (`builtin/commit.c`
+  lines 780, 1116, 1133 and 1966), and a clean pick `prepare-commit-msg` and `post-commit` (`sequencer.c` lines 1367 and 1699);
+  that difference would then need a decision.
+- `cherry-pick` and `revert`: `git commit --no-edit --cleanup=strip`, which is what Git's own `--continue` runs for a conflicted
+  pick (`continue_single_pick`, `sequencer.c` lines 5354 to 5378), edited when `--edit` is given or, for `revert`, when standard
+  input is a terminal (`should_edit`, line 2217); then `<command> --continue` when a sequencer todo file exists, which picks the
+  rest and ends the sequence (`sequencer_continue`, lines 5617 to 5630). `--no-commit` stops with the result staged and exit 0;
+  a range applied with `--no-commit` is not finished (`error_dirty_index`), and neither is it here. `--continue` and `--skip`
+  forms take their options from `sequencer/opts` (`save_opts`, line 3734).
+- `rebase` and the rebase of a `pull`: `git rebase --continue`, which edits the message of the commit it makes after a conflict
+  (`commit_staged_changes`, `sequencer.c` line 5381, flag `EDIT_MSG`), where a clean pick does not; the continuing step is run
+  with `GIT_EDITOR=:` for its Git children (the in-process variable `CLI_GIT_CHILD_SET_GIT_EDITOR`, `child_environment.rs`), and a
+  rebase whose remaining todo list holds `reword`, `squash` or `fixup -c`/`-C` is not finished, because the same setting would
+  switch off the editor those steps want. The original author is kept because `--continue` reads `rebase-merge/author-script`
+  (a plain `git commit` would not). `--autostash` and `rebase.autoStash` need nothing: the continuing step applies the autostash
+  when the rebase ends (`sequencer.c` lines 4980 and 5330).
+- `pull` runs `git merge` or `git rebase` as a child of Git (`builtin/pull.c` lines 525 and 750),
+  out of the wrapper's reach, except
+  for a pull that is stated to merge and read exactly, which the wrapper splits into its fetch
+  and a `git merge FETCH_HEAD` of its own
+  (see "Merges and commits never fail"); for every other pull the wrapper sees the pull's exit and its state files:
+  `rebase-merge` or `rebase-apply` means the rebase, `MERGE_HEAD` (or
+  `--squash`) the merge. Pull's own options are read like merge's plus the fetch and rebase options it passes on, and the
+  child merge applies `branch.<name>.mergeoptions` and `--autostash` as a merge does; the finish is not made when an option is
+  unknown.
+Options are read by exact spelling, since Git accepts unambiguous abbreviations; a command line with an option this reader does not know
+leaves the operation stopped with the files staged and Git's exit status, as before the finish existed.
+A file that does not resolve keeps the stop of Git for every operation.
+A merge that Git completes costs one in-process read of the index before Git starts and nothing after it; the Git starts above happen only after a conflict,
+and they run from the top of the worktree with the invocation's `-c` options only, because `check-attr` and `checkout-index` read paths relative to the directory they run in.
+
+Merges from objects (the isolated merge, the auto-push reconcile merge, the commit replay merge):
+`git merge-tree --write-tree -z` prints the stages of every conflicted path.
+These merges accept the result only when every conflicted file resolves; otherwise they behave as they did, naming the paths.
+The merged blobs are written, a scratch index in the repository's `cli-git-scratch` directory takes the merge tree and the merged blobs
+(`read-tree`, `update-index --index-info`, `write-tree`), and the scratch file is removed.
+No worktree is read by these merges, so the attribute tree is named where Git would read none. Git takes the tree from
+`--attr-source`, else `GIT_ATTR_SOURCE`, else the configuration `attr.tree`, and ignores an `attr.tree` that is no tree
+(`attr.c` lines 1202 to 1231). The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`, the
+reconcile merge's branch tip, the landed tip of a replay) only when none of the three applies: a person's choice is never
+overridden. `attr.tree` is read in process, or from Git when the in-process readers decline the environment (a `GIT_*` variable
+such as `GIT_NAMESPACE` makes them decline; the variables that only trace, word output, reach a network or a tool, or set a limit
+do not, each checked against Git 2.56.0 in `repo_read_layout.rs`), which costs one Git start in that case.
+The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them.
+A `.gitattributes` that only the second side has is not read (Git takes one tree).
+The isolated merge prints the part lines before Git's own words and sends the journal entries after the merge is in the checkout;
+the reconcile merge appends the part lines to the merge commit's message, prints them with the push report and sends the entries after the push succeeded,
+under `SYSLOG_IDENTIFIER` `cli-git-service` for the auto-push, which runs inside the service, and `cli-git` for a push a person typed;
+the replay merge reports the parts in a `word-merged` event and sends the entries when the merge is used.
+
 ### Retry after a moved branch
 
 A branch that moved since the wrapper read it makes the service answer `retry-prepare` with the commits that landed meanwhile.
@@ -2889,6 +4271,9 @@ no recorded policy run is reused.
 Where a path changed in both,
 the later capture wins when both captures read the same worktree
 and every other path is settled by subsumption and then the three-way merge.
+A path that Git's line merge still reports as a conflict after the subsumption rules is merged by word
+(see "Word-level second merge pass"); when every conflicted file resolves, the merged tree is used,
+and a `word-merged` event lists each merged part with the commit's other events.
 Paths that cannot be combined end the commit with the core finding `concurrent-commit/replay-conflict`,
 exit `1`,
 a message naming the paths and the commit that landed first,
@@ -2906,8 +4291,8 @@ and the number of attempts it made:
 and "changed 3 times" for a commit the wrapper built (its `retry-prepare` rounds)
 and for a batch the service builds again after its reference update finds the branch moved,
 each three attempts at most.
-The bounds are `REBUILD_ATTEMPTS` in `src/native/service_commit.rs`
-and `LANDING_ATTEMPTS` in `src/native/service_land.rs`.
+The bounds are `REBUILD_ATTEMPTS` in `src/native/landing/service_commit.rs`
+and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
@@ -2932,7 +4317,7 @@ with the path quoted for the shell.
 
 The service takes a queued item by renaming its file into `claimed`,
 and the file name carries the clock reading of the holder's last renewal
-(`src/native/claim_time.rs`, `src/native/work_item.rs`).
+(`src/native/landing/claim_time.rs`, `src/native/landing/work_item.rs`).
 The reading holds the machine ID,
 the boot ID,
 the monotonic clock in milliseconds,
@@ -3026,7 +4411,7 @@ makes its processes see each other's claims as of an earlier boot.
 
 A slow worktree add is split by step from `<common-git-dir>/cli-git-worktree-add-timing.jsonl`, written the same way as the commit
 timing file below (one append, no flush to disk, size-capped by the same appender, never changing the add's result).
-Code: `src/native/add_timing.rs`.
+Code: `src/native/worktree/add_timing.rs`.
 Each line has `schemaVersion`, `time`, `startMillis`, `pid`, `release`, `exitCode`, `totalMs`, `steps`, `otherMs`, `work` and `notes`.
 `steps` maps a step name to `{ms, calls}`; steps are disjoint (a step inside another is taken out of the outer one) and
 `otherMs` is what no step covers, so the steps and `otherMs` add up to `totalMs`.
@@ -3110,6 +4495,28 @@ so two writers that both see a full file cannot put the new small file over the 
 and a file that ends without a newline (a write a full disk or a signal cut short) gets the next line on a fresh line,
 so one torn line is lost alone.
 A reader skips empty lines and lines that are not JSON.
+The three kinds of file differ in what a rotation keeps.
+The timing files and the push trigger file keep one generation:
+the rotated file is `.1` and the next rotation replaces it,
+because they are diagnostics.
+At the rate measured on 2026-11-03 (760,605 bytes of commit timing in about 30 hours),
+one mebibyte of commit timing is about two days,
+so the two files together keep three to four days of timing.
+The audit file keeps every rotated file under the next free number (`.1`, `.2`, and on; the highest is the newest),
+claimed with a hard link, which fails when the name is taken,
+so two writers never take one number, nothing is replaced and no lock is held.
+After a rotation the writer removes the oldest generations until the generations that name no saved copy still on disk,
+together with any file a killed rotation left at its private name, total at most four mebibytes.
+A generation that holds a `saved-conflict` line whose copy place exists is never removed,
+and neither is one that cannot be read,
+one with a `saved-conflict` line that cannot be parsed,
+or one that names a place the line could not show as text,
+because a wrong answer in that direction costs disk and the other costs the only account of a copy.
+A file left at a private name by a killed rotation is counted and kept,
+and a second name left for a generation by a kill between the link and the removal is removed.
+The audit measurement, the derivation of the four mebibytes and the choice
+(a pick the coordinator made under the owner's delegation, open to the owner's veto)
+are in `doc/planning/cli-git-shipped-limits-audit.md`.
 
 The service's lines reach the unit's journal in one of two ways.
 When its standard error is the journal
@@ -3175,7 +4582,7 @@ and when the lock was found held `lock_looks`,
 `objects_ms`,
 `journal_ms`,
 `ref_ms`,
-`sync_ms`,
+`index_update_ms` (named `sync_ms` in records written before 2026-11-04),
 `answer_ms`,
 `total_ms`),
 a `pushed` line for every push the service ran
@@ -3198,14 +4605,26 @@ so it cannot end the line or hide a field.
 
 ### Compatibility and degradation
 
-The executable requires real Git 2.55.0 or newer for commits.
-It asks Git for its version once per invocation before that work,
-and on an older Git it runs nothing and emits an `engine-failure` event with code `content-unavailable` and exit `2`,
-whose message names the real Git it found,
-the version Git reported and the remedy (upgrade Git,
+The executable is tested with real Git 2.56.0, the release the gate image's distribution package carried on 2026-11-04,
+and `MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs` names it.
+It asks Git for its version once per invocation before commits, hooks and locks,
+and on an older Git it prints one warning to standard error
+that names the real Git it found,
+the version Git reported,
+the version the wrapper was tested with,
+and that the command continues,
+then runs the command as usual
+(owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+Only a version that cannot be read,
+or a Git that cannot start,
+stops the command with an `engine-failure` event with code `content-unavailable` and exit `2`,
+whose message names the real Git and the remedy (point the wrapper at a working Git,
  then run the command again).
 Read-only commands are never checked.
-Features that Git introduced after 2.55.0 are not assumed.
+The constant moves with the test image's Git: when the gate image's `git` package moves to a newer release,
+the constant is raised to it with the first gate run on that release.
+Code written while the minimum was 2.55.0 assumed no feature introduced after 2.55.0,
+and no test now runs on an older Git, so behavior on one is untested.
 
 The retired TypeScript wrapper had no version gate and degraded one feature at a time on Git 2.39.5 and 2.40.0:
 a probe of `git merge-tree --write-tree --merge-base` (fail fast with `concurrent-commit/head-moved` without it),
@@ -3494,7 +4913,9 @@ A `saved-conflict` line also has `copies`, a list of `<path> => <place>` (`none`
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory, which `worktree` the kind word does not name).
-The file moves to `cli-git-audit.jsonl.1` at one mebibyte.
+The file moves aside at one mebibyte to the next free generation, `cli-git-audit.jsonl.<number>`,
+and generations that name no saved copy on disk are kept up to four mebibytes
+(see "Timing logs").
 A failed write never changes the command's result.
 
 After an explicit-path landing computes its post-index,

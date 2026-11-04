@@ -117,9 +117,16 @@ not a reason to disable parts of it.
   and `GIT_EDITOR=:`.
 - Before `post-commit`,
   landing runs `git maintenance run --auto` as native `git commit` does,
-  because every landing adds one pack to the real object store
-  and unconsolidated packs slow every later Git process in the repository.
+  because every landing adds objects to the real object store
+  and unconsolidated objects slow every later Git process in the repository.
   Added 2026-09-26 (veto open);
+  corrected 2026-11-04 with the owner's approval ("Correct it now."):
+  this line said "every landing adds one pack",
+  but a landing's `git fast-import` stores a small batch as loose objects and only a large one as a pack
+  (Git 2.56.0,
+  measured on a throwaway repository:
+  a 5-object import left 5 loose objects and no pack,
+  a 152-object import left one pack);
   evidence:
   [`doc/troubleshooting/git-plumbing-commit-auto-maintenance.md`](../troubleshooting/git-plumbing-commit-auto-maintenance.md).
 
@@ -171,6 +178,21 @@ broad when absent.
 - `git cli-git fix` holds the landing lock across installation and real-index verification.
 - Windows holder detection uses the PID file and Restart Manager,
   never a `DELETE`-access probe.
+
+Implemented 2026-11-03 (delegated pick 2 of `doc/planning/cli-git-shipped-limits-audit.md`;
+the coordinator picked while the
+owner was away, open to the owner's veto):
+a proven-alive owner is waited for with no bound, which the code had not done (it stopped at 1800 seconds);
+a dead owner ends the wait at once instead of after the backoff (a deviation from the line above);
+an evidence-free owner first got a fixed 1000 ms instead of the quadratic backoff with jitter, and the diagnostic;
+the coordinator's
+follow-up pick under the same delegation (2026-11-03, open to the owner's veto)
+replaced that with the same unbounded wait a
+proven-alive owner gets, with a line that says what is known and how to remove the lock if no program uses the
+repository,
+because the person's own `git commit` with its editor open holds `index.lock` with no proof and would otherwise make
+ours fail;
+`indexLock.unprovenOwnerTimeoutMs` stays retired because nothing reads configuration at that point.
 
 ## Auto-push
 
@@ -494,11 +516,33 @@ and runs a "reject commits to main" check.
   because symbolic links need a privilege or developer mode there,
   and copies shared files;
   Windows verification runs in CI.
-- Landing migrates the shadow's new objects into the real store as a pack kept with a `.keep` file
-  until the compare-and-swap succeeds,
-  so neither `git prune` nor repacking can drop them in between.
+- Landing writes the batch's objects into the real store with one `git fast-import`,
+  which also points the per-worktree scratch ref `refs/worktree/cli-git-service/<seq>` at the batch's commit;
+  the branch then moves by one compare-and-swap,
+  and the scratch ref is deleted afterwards
+  (`package/git-policy/cli/src/native/landing/service_land.rs`).
+  While the scratch ref exists the new objects are reachable,
+  so `git prune` and `git gc --prune=now` keep them
+  (checked on a throwaway repository with a linked worktree on 2026-11-04).
+  That protection holds only against maintenance that reads the references after the scratch ref exists:
+  `git prune --expire=now`,
+  `git gc --prune=now` and `git repack -a -d` started while a commit is landing are not supported,
+  because one that read the references just before the scratch ref was created can delete the batch's objects;
+  Git's default prune keeps unreachable objects younger than two weeks (`gc.pruneExpire`),
+  so default maintenance is not affected.
+  Added 2026-11-04 with the owner's approval ("Add the limit now"),
+  after the latency round 3 review found the gap (`SPEC.md`,
+  "Maintenance that may run while a commit is made").
+  `fast-import` removes its own `.keep` when it exits;
+  the wrapper holds no kept pack.
+  Corrected 2026-11-04 with the owner's approval ("Correct it now."):
+  this entry said "Landing migrates the shadow's new objects into the real store as a pack kept with a `.keep` file
+  until the compare-and-swap succeeds",
+  which described the shadow-repository landing path that the resident service replaced.
 - No `refs/cli-git/` pending ref exists;
-  the shadow store protects the pending commit.
+  the scratch ref named in the landing entry protects the pending commit
+  (corrected 2026-11-04:
+  this entry said "the shadow store protects the pending commit").
 - Culled:
   detached private `HEAD` and a per-worktree ref
   (hooks see no branch and no upstream,

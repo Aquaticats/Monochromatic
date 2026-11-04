@@ -145,8 +145,7 @@ not the Claude Code cap above.
   mutation campaigns only,
   by the owner's decision of 2026-11-01 ("anything lower
   than 1h should be fine-ish ... Limit it to mutation runs only for now"):
-  `package/mutation-test/cli-cargo-mutants/README.md` ("Who runs a campaign") and
-  `doc/handover/cli-git-rust-implementation.md` ("Authority").
+  `package/mutation-test/cli-cargo-mutants/README.md` ("Who runs a campaign").
 
 ## Untested options, read from the source and the docs
 

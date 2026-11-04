@@ -89,7 +89,7 @@ mise run //package/mutation-test/cli-cargo-mutants:campaign:gate-slot -- mise ru
 
 The limiter holds no lock.
 Each slot is a series of numbered claim files, `slot-1.owner.<generation>` to `slot-N.owner.<generation>`, in the lock directory,
-made as `package/git-policy/cli/src/native/single_owner_claim.rs` makes its claims (see "Single writer").
+made as `package/git-policy/cli/src/native/lock/single_owner_claim.rs` makes its claims (see "Single writer").
 A gate takes the lowest free slot at once, with one exclusive `link` of a new generation, and runs the command inside it at
 nice 19 with inherited stdio; the command's exit status becomes the limiter's.
 A slot is free when its newest generation is released, or names a process that no longer exists with that start time and boot,
@@ -110,13 +110,18 @@ documented at `defaultSlotCount` in `src/constants.ts`.
 ### Gates of the earlier release
 
 Until this release the limiter held `flock` locks on `slot-N.lock` files for as long as the command ran.
-A gate that started before the change may still run, so each time a gate looks at a slot it opens that slot's `slot-N.lock`
-without creating it and asks `flock` once, without waiting, for the lock (`src/legacy-flock.ts`).
-A held lock counts as a live holder and is named in the notice as a gate of the earlier release.
-A lock file nobody holds is removed while the probe still holds it, so the leftovers retire themselves and a slot whose file is
-gone costs one failed `open`.
-A launcher that still runs the earlier source does not see the claim files and can take a slot beside a gate of this release;
-the limit is whole again once every launcher reads this release.
+A gate that started before the change may still run, and a gate that waits polls `flock --nonblock` on `slot-N.lock` every
+few seconds without ever looking at a claim file, as does any checkout that still has the earlier source.
+So a gate of this release holds that kernel lock too, for exactly as long as its claim (`src/legacy-flock.ts`): it asks
+`flock` once, without waiting, for the lock on the slot's file (creating the file as a poll of the earlier release does) after
+it has taken the claim, keeps the file open while the command runs, and gives the lock back just before the claim.
+A waiting gate of the earlier release then finds the slot held and keeps waiting.
+Each time a gate looks at a slot it first asks, without waiting, whether the lock is held: a held lock with a live claim in the
+slot is named in the notice as that process, and a held lock without one as a gate of the earlier release.
+The lock files are never removed: a probe that removes a file races with a gate of the earlier release that has just created
+and locked a new one at the same path, and would delete the file that gate holds.
+A gate that reads the interim source (claims without the lock) holds only a claim, and an earlier-release gate can still take
+its slot; that source existed for hours, and the limit is whole again once no such gate runs.
 
 ## Who runs a campaign
 
@@ -193,7 +198,7 @@ status 3 although the last attempt, handed nothing to score, exits 0), plus `att
 ### Single writer
 
 The right to run a campaign is a numbered claim file in its evidence directory, held by the campaign process itself
-(`src/campaign-lock.ts`, `src/owner-claim.ts`), made as `package/git-policy/cli/src/native/single_owner_claim.rs` makes its claims.
+(`src/campaign-lock.ts`, `src/owner-claim.ts`), made as `package/git-policy/cli/src/native/lock/single_owner_claim.rs` makes its claims.
 `campaign.owner.<generation>` is written whole into a private file and published with one exclusive `link`, so exactly one
 process creates generation `n + 1`; the newest generation is the claim, and it names its owner by process id, birth (start
 time from `/proc/<pid>/stat` field 22 plus the boot id) and PID namespace (`src/process-identity.ts`).
@@ -203,13 +208,23 @@ A run that was stopped by `systemctl --user stop`, lost its host in a reboot or 
 that no longer exists with that birth, and the next run takes the next generation; there is nothing to clean up by hand.
 The newest generation file stays as a tombstone, so a run that listed the directory earlier cannot create a number that was
 used.
-An owner in another PID namespace cannot be probed; it counts as alive until its claim file is an hour old.
+An owner in another PID namespace is never judged by the age of its claim file, so a gate that runs for days keeps its slot.
+Its claim file names the id the owner has inside its own namespace; a process of a namespace nested in the reader's shows that
+id on the `NSpid` line of its `/proc/<pid>/status`, and with the start time in the claim it names the owner exactly
+(`src/foreign-process-scan.ts`).
+The owner is gone when it began in an earlier boot, when a process of its namespace has its id with another start time, or when
+its namespace is seen, every process could be read, and none has its id.
+A namespace this process cannot see into shows nothing, and nothing is not proof of death, so such an owner (and one whose
+record or reader names no namespace) counts as alive; a holder that crashed there is freed by removing the newest claim file of its slot in the lock directory the notice names
+(`<slot claim prefix>.<generation>`).
 The claim knows its owner only by process id, start time and boot.
 The kernel lock this replaced was exact about whether the holder still lived; the claim is exact for a process that was killed
 or lost to a reboot, but a campaign process that handed its work to another process and exited would read as finished.
 A campaign that the earlier release started holds a kernel lock on the evidence directory instead of a claim.
 The run takes its claim first and then asks `flock` once, without waiting, for that lock (`src/legacy-flock.ts`);
 a held lock gives its claim back and refuses the run, naming the earlier release.
+A lock that is free is kept for as long as the run holds its claim, so a campaign of the earlier release that starts on the
+same directory meanwhile is refused by the lock it takes without waiting.
 The claim is needed although the parallel launcher names each campaign's systemd unit,
 because a run started by hand,
 or by another launcher under another label for the same file,
@@ -426,8 +441,9 @@ the campaigns themselves are run by a person, never by a test.
   and the names of its generations), `src/claim-files.ts` (the exclusive `link` publication and the atomic release),
   `src/claim-liveness.ts` (whether an owner is alive) and `src/owner-claim.ts` (take a claim, read the live owner).
   `src/campaign-lock.ts` uses one claim per evidence directory, and `src/gate-slot-run.ts` one claim series per slot.
-- `src/legacy-flock.ts` is the one-time probe of the kernel locks the earlier release took; it is the only place that runs
-  `flock`, and it can be deleted with its callers' probe calls once no gate or campaign of that release can still run.
+- `src/legacy-flock.ts` probes, and while a claim is held keeps, the kernel locks the earlier release took; it is the only
+  place that runs `flock`, and it can be deleted with its callers' calls once no gate or campaign of that release, nor any
+  checkout of its source, can still run.
 - `startUnit` (`src/start-units.ts`) starts one unit and reports it;
   a product launcher can use it,
   with `planUnits`,

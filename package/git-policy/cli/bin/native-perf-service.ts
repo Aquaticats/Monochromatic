@@ -16,6 +16,7 @@ import {
 import {
   mkdir,
   mkdtemp,
+  open,
   readFile,
   rm,
   writeFile,
@@ -26,7 +27,11 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 
 import { instanceOf } from '../e2e/service-launch-fixture.ts';
-import { timed } from './native-perf-git.ts';
+import {
+  straceArguments,
+  timed,
+} from './native-perf-git.ts';
+import { SERVICE_LOG_NAME } from './native-perf-evidence.ts';
 import { runCommand } from './native-verification-process.ts';
 
 /**
@@ -150,6 +155,9 @@ async function waitUntilListening({
  @param scratchParent - short private directory the runtime directory is made in, because a socket path holds only about a
    hundred bytes
 
+ @param traceDirectory - directory that receives one `strace` record per service, named after its instance; absent starts the
+   services untraced
+
  @returns the runtime directory for `XDG_RUNTIME_DIR`, a function that starts the service of one worktree, and a function
    that stops every service and removes the directory
 
@@ -163,10 +171,12 @@ export async function makeService({
   program,
   root,
   scratchParent,
+  traceDirectory,
 }: {
   readonly program: string;
   readonly root: string;
   readonly scratchParent: string;
+  readonly traceDirectory?: string;
 }): Promise<PerfService> {
   /**
    Private runtime directory of the run.
@@ -192,7 +202,24 @@ export async function makeService({
   async function stop(): Promise<void> {
     await Promise.all(children.map(async function stopChild(child) {
       if ((child.exitCode === null) && (child.signalCode === null)) {
-        child.kill('SIGTERM');
+        // A traced service is the child of `strace`, which detaches and leaves its tracee running when it is terminated
+        // itself, so the tracee is told to stop and `strace` ends with it.
+        if (traceDirectory === undefined) {
+          child.kill('SIGTERM');
+        }
+        else {
+          await runCommand({
+            command: 'pkill',
+            args: [
+              '--parent',
+              String(child.pid),
+              '--signal',
+              'TERM',
+            ],
+            capture: true,
+            allowFailure: true,
+          });
+        }
         await once(
           child,
           'exit',
@@ -231,11 +258,31 @@ export async function makeService({
       throw new Error(`the socket path is longer than ${String(SOCKET_PATH_LIMIT)} bytes, which a socket cannot bind: ${socket}`);
     }
     /**
+     The file the service's standard error goes to: its landing lines, which it writes plainly because it is no journal stream
+     here, and which the run reads back.
+     */
+    const log = await open(
+      join(
+        root,
+        SERVICE_LOG_NAME,
+      ),
+      'a',
+    );
+    /**
      The service process.
      */
     const child = spawn(
-      program,
+      traceDirectory === undefined ? program : 'strace',
       [
+        ...(traceDirectory === undefined
+          ? []
+          : [
+            ...straceArguments(join(
+              traceDirectory,
+              `service-${instance}.strace`,
+            )),
+            program,
+          ]),
         '--journal',
         join(
           root,
@@ -247,9 +294,16 @@ export async function makeService({
         instance,
       ],
       {
-        stdio: 'ignore',
+        stdio: [
+          'ignore',
+          'ignore',
+          log.fd,
+        ],
         env: {
-          PATH: '/usr/bin:/bin',
+          PATH: `/usr/bin:/bin:${join(
+            root,
+            'tools',
+          )}`,
           HOME: join(
             root,
             'home',
@@ -259,6 +313,8 @@ export async function makeService({
         },
       },
     );
+    // The child holds its own copy of the descriptor.
+    await log.close();
     children.push(child);
     if (!await waitUntilListening({
       socket,

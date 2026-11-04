@@ -22,9 +22,9 @@ with `Invalid cross-device link`).
   (the wrapper never runs a third-party program); "Use as few locks as possible."; Linux only;
   "Fix even pre-existing issues of the pkgs you own."
 - The owner migrates this machine's main checkout into a subvolume separately.
-  The proven procedure is in `doc/handover/cli-git-rust-implementation.md`, section
-  "2026-11-01: subvolume migration procedure (proven on a throwaway)", and summarized in "Migration of the main
-  checkout" here.
+  The procedure was proven on a throwaway (the script is `doc/handover/cli-git-subvolume-migration-script.md`)
+  and is summarized in "Migration of the main checkout" here;
+  the migration itself was done on 2026-11-01.
 
 ## Summary
 

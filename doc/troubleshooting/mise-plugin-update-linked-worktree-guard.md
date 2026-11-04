@@ -128,7 +128,8 @@ and nothing post-migration references them.
 ### Earlier readings that were wrong
 
 The handover entry of 2026-10-25
-(`doc/handover/cli-git-rust-implementation.md`,
+(`doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+`e10b8186bc`],
 `User-boundary check of the exemption`)
 concluded the exemption worked on this host because
 `git -C ~/.local/share/mise/plugins/cmake checkout --force main`
@@ -293,7 +294,8 @@ and plugin reinstalls discard the file.
 - The `--no-enforce-worktree` hatch:
   mise constructs the `git` argv itself,
   so a tool cannot pass the flag
-  (also recorded in `doc/handover/cli-git-rust-implementation.md`).
+  (also recorded in `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and
+  kept in commit `e10b8186bc`]).
 - Any `CLI_GIT_*` bypass:
   `src/native` exposes no environment switch for this policy.
 - Testing the command outside this checkout and concluding it works:
@@ -369,7 +371,8 @@ with no issue or comment draft.
   the migration workarounds,
   the rollback path,
   and the post-cutover leftover-plugin entry.
-- `doc/handover/cli-git-rust-implementation.md`:
+- `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`]:
   the 2026-10-25 exemption decision and release,
   and the 2026-10-27 correction of its false-green boundary check.
 - `doc/planning/cli-git-native-cutover.md`:

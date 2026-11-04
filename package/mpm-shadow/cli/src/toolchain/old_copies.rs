@@ -33,8 +33,9 @@ use crate::version::compare_versions;
 
 /// Imports what this module uses from `super::cargo_installs`.
 use super::across_roots::winning_version;
-/// Imports `is_repository_published` from `super::cargo_installs`.
-use super::cargo_installs::is_repository_published;
+/// Imports `is_repository_published`, and `shell_word` for the tool id inside the printed `mpm update` hint,
+/// from `super::cargo_installs`.
+use super::cargo_installs::{is_repository_published, shell_word};
 /// Imports what this module uses from `super::cargo_record`.
 use super::cargo_record::{RecordedInstall, install_naming_bin, read_recorded_installs};
 /// Imports `Context` from `super::context`.
@@ -185,9 +186,11 @@ fn precondition_reason(
         && compare_versions(&install.version, version) == Ordering::Greater
     {
         return Some(format!(
-            "cargo's record says it is {} {}, newer than the managed {version}; upgrade this tree's lock with `mise run toolchain:update` \
+            "cargo's record says it is {} {}, newer than the managed {version}; upgrade this tree's lock with `mpm update {}` \
              so the newest copy is the managed one",
-            install.crate_name, install.version
+            install.crate_name,
+            install.version,
+            shell_word(&tool.declaration.id)
         ));
     }
     return None;

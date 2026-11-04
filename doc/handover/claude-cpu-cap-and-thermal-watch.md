@@ -674,7 +674,8 @@ The day-one checks under "Checks before buying" still decide it.
 - A higher fan floor was offered and not taken: the user is balancing noise themselves and edits the curve.
 - Is 40 the right pressure limit? Judge from settled data.
 - `ide7`, `ide8`, and `tr-gate` units run outside the cap (their own cgroups).
-- The hold paragraph in `doc/handover/cli-git-rust-implementation.md` should point to this work.
+- The hold paragraph in `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P
+  and kept in commit `e10b8186bc`] should point to this work.
   The session `monochromatic-18` was asked to update it.
 - A reboot has not been tested against the persistent setup.
 - The token is not being rotated (user, 2026-10-18) and still works for ad hoc CoolerControl API reads.

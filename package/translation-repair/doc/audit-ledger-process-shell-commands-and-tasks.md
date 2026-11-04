@@ -611,7 +611,7 @@ the worktree was usable and nothing was lost,
 and the cause of the failed copy is not traced.
 The lead ran `git worktree add --detach` with no `--no-worktree-copy`.
 From a linked source the Git wrapper copies every ignored file of the source worktree
-(`package/git-policy/cli/src/native/worktree_copy_selection.rs`,
+(`package/git-policy/cli/src/native/worktree_copying/worktree_copy_selection.rs`,
 the `CopySelection` TSDoc),
 and the source was the branch worktree that holds the run keys.
 The checkout finished at `5f6c8593d7`,

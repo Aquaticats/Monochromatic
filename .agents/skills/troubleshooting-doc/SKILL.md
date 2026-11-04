@@ -600,6 +600,11 @@ and before marking a draft fileable.
 
 ## Readiness check before anyone files
 
+HQP:
+ Before filing or asking a user to file,
+ attempt the authorized fix prototype and report its test result.
+Report-only handoffs need an explicit scope choice or a concrete prototype blocker.
+
 Run this whenever the user asks whether a draft is ready,
  and run it before marking any draft fileable.
  Record each item with the date,

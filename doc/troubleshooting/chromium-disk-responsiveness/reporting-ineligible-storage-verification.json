@@ -1,0 +1,1258 @@
+{
+  "scope": "Unbranded Linux Chromium; histogram storage selection and native sample retention.",
+  "build": {
+    "completedAt": "2026-11-03T19:21:54.522Z",
+    "revision": "360d943d418b3d6645fea86766f5dcc4a7cc3b2e",
+    "candidatePatchSha256": "57a30501ab2cba3fb21d815b0a750f5ce3c50d596a6ea154fd41bc28914e2a18",
+    "gnArguments": "is_debug=true\nis_component_build=true\nsymbol_level=1\nblink_symbol_level=0\nv8_symbol_level=0\nuse_siso=true\nuse_remoteexec=false\n",
+    "sourceChecksums": "d6ee8a42bfa5a74a9a1155000609e117780705c64f4e9940c67f4f6cc999d7ab  chrome/app/chrome_main_delegate.cc\nc41be314f5f97e667a5be448e0b203385eb472096d0d9bf871fe00b1f59b46a5  chrome/browser/metrics/chrome_metrics_service_accessor.cc\ne10a720203cc61dcf0cbf3f9b0129684fb4fe1eb4593f22806ee5aa1f0b35317  chrome/browser/metrics/chrome_metrics_service_accessor.h\n2f95e45d28a7d76e7ddffce7c5acdc92be7a442b7948a1aabef5818c2529d281  chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc\ne0d0e4f835e445ef59b06e7926854aa719f70bd72ee185fa0e9c31714ef1e062  chrome/browser/metrics/metrics_service_browsertest.cc\n2976097ee5dae1d0631f473f258a67394ab1860153ecab4d3289a41254fc4e8b  components/metrics/metrics_service_accessor.cc\nc66976412de1a3bb64dcde6ee75e01fe463d6963ff033d8223fb2751cf60bc7e  components/metrics/metrics_service_accessor.h\n"
+  },
+  "initialNativeTests": [
+    {
+      "at": "2026-11-03T19:23:48.879Z",
+      "binary": "unit_tests",
+      "filter": "--gtest_filter=ChromeMetricsServiceAccessorTest.*",
+      "exitCode": 0,
+      "signal": null,
+      "expectedStatus": "SUCCESS",
+      "expectedNames": [
+        "ChromeMetricsServiceAccessorTest.MetricsReportingEnabled",
+        "ChromeMetricsServiceAccessorTest.MetricsReportingSupported",
+        "ChromeMetricsServiceAccessorTest.ForcedReportingSupported",
+        "ChromeMetricsServiceAccessorTest.RecordingOnlyDoesNotEnableReportingSupport",
+        "ChromeMetricsServiceAccessorTest.PrefLookupOverrideReportingSupport",
+        "ChromeMetricsServiceAccessorTest.ConsentOverrideReportingSupport"
+      ],
+      "observed": {
+        "ChromeMetricsServiceAccessorTest.ConsentOverrideReportingSupport": [
+          "SUCCESS"
+        ],
+        "ChromeMetricsServiceAccessorTest.ForcedReportingSupported": [
+          "SUCCESS"
+        ],
+        "ChromeMetricsServiceAccessorTest.MetricsReportingEnabled": [
+          "SUCCESS"
+        ],
+        "ChromeMetricsServiceAccessorTest.MetricsReportingSupported": [
+          "SUCCESS"
+        ],
+        "ChromeMetricsServiceAccessorTest.PrefLookupOverrideReportingSupport": [
+          "SUCCESS"
+        ],
+        "ChromeMetricsServiceAccessorTest.RecordingOnlyDoesNotEnableReportingSupport": [
+          "SUCCESS"
+        ]
+      }
+    },
+    {
+      "at": "2026-11-03T19:24:11.442Z",
+      "binary": "browser_tests",
+      "filter": "--gtest_filter=NonReportingPersistentHistogramsBrowserTest.*:MetricsServiceBrowserDoUploadTest.*:MetricsServiceBrowserNoUploadTest.*:MetricsServiceBrowserSampledOutTest.*",
+      "exitCode": 0,
+      "signal": null,
+      "expectedStatus": "SUCCESS",
+      "expectedNames": [
+        "MetricsServiceBrowserDoUploadTest.FilesRemain",
+        "MetricsServiceBrowserNoUploadTest.FilesRemoved",
+        "MetricsServiceBrowserSampledOutTest.FilesRemoved",
+        "NonReportingPersistentHistogramsBrowserTest.RecordsWithoutPersistentLocation"
+      ],
+      "observed": {
+        "MetricsServiceBrowserDoUploadTest.FilesRemain": [
+          "SUCCESS"
+        ],
+        "MetricsServiceBrowserNoUploadTest.FilesRemoved": [
+          "SUCCESS"
+        ],
+        "MetricsServiceBrowserSampledOutTest.FilesRemoved": [
+          "SUCCESS"
+        ],
+        "NonReportingPersistentHistogramsBrowserTest.RecordsWithoutPersistentLocation": [
+          "SUCCESS"
+        ]
+      }
+    }
+  ],
+  "removedStartupChange": {
+    "at": "2026-11-03T19:28:59.565Z",
+    "binary": "browser_tests",
+    "filter": "--gtest_filter=NonReportingPersistentHistogramsBrowserTest.*",
+    "exitCode": 1,
+    "signal": null,
+    "expectedStatus": "FAILURE",
+    "expectedNames": [
+      "NonReportingPersistentHistogramsBrowserTest.RecordsWithoutPersistentLocation"
+    ],
+    "observed": {
+      "NonReportingPersistentHistogramsBrowserTest.RecordsWithoutPersistentLocation": [
+        "FAILURE"
+      ]
+    },
+    "assertion": "Value of: allocator->HasPersistentLocation()\n  Actual: true\nExpected: false"
+  },
+  "candidateRestoration": {
+    "completedAt": "2026-11-03T19:30:19.946Z",
+    "sourceRestored": true,
+    "sourceChecksumsVerifiedAfterLiveRun": true,
+    "nativeTests": [
+      {
+        "at": "2026-11-03T19:29:58.780Z",
+        "binary": "unit_tests",
+        "filter": "--gtest_filter=ChromeMetricsServiceAccessorTest.*",
+        "exitCode": 0,
+        "signal": null,
+        "expectedStatus": "SUCCESS",
+        "expectedNames": [
+          "ChromeMetricsServiceAccessorTest.MetricsReportingEnabled",
+          "ChromeMetricsServiceAccessorTest.MetricsReportingSupported",
+          "ChromeMetricsServiceAccessorTest.ForcedReportingSupported",
+          "ChromeMetricsServiceAccessorTest.RecordingOnlyDoesNotEnableReportingSupport",
+          "ChromeMetricsServiceAccessorTest.PrefLookupOverrideReportingSupport",
+          "ChromeMetricsServiceAccessorTest.ConsentOverrideReportingSupport"
+        ],
+        "observed": {
+          "ChromeMetricsServiceAccessorTest.ConsentOverrideReportingSupport": [
+            "SUCCESS"
+          ],
+          "ChromeMetricsServiceAccessorTest.ForcedReportingSupported": [
+            "SUCCESS"
+          ],
+          "ChromeMetricsServiceAccessorTest.MetricsReportingEnabled": [
+            "SUCCESS"
+          ],
+          "ChromeMetricsServiceAccessorTest.MetricsReportingSupported": [
+            "SUCCESS"
+          ],
+          "ChromeMetricsServiceAccessorTest.PrefLookupOverrideReportingSupport": [
+            "SUCCESS"
+          ],
+          "ChromeMetricsServiceAccessorTest.RecordingOnlyDoesNotEnableReportingSupport": [
+            "SUCCESS"
+          ]
+        }
+      },
+      {
+        "at": "2026-11-03T19:30:19.933Z",
+        "binary": "browser_tests",
+        "filter": "--gtest_filter=NonReportingPersistentHistogramsBrowserTest.*:MetricsServiceBrowserDoUploadTest.*:MetricsServiceBrowserNoUploadTest.*:MetricsServiceBrowserSampledOutTest.*",
+        "exitCode": 0,
+        "signal": null,
+        "expectedStatus": "SUCCESS",
+        "expectedNames": [
+          "MetricsServiceBrowserDoUploadTest.FilesRemain",
+          "MetricsServiceBrowserNoUploadTest.FilesRemoved",
+          "MetricsServiceBrowserSampledOutTest.FilesRemoved",
+          "NonReportingPersistentHistogramsBrowserTest.RecordsWithoutPersistentLocation"
+        ],
+        "observed": {
+          "MetricsServiceBrowserDoUploadTest.FilesRemain": [
+            "SUCCESS"
+          ],
+          "MetricsServiceBrowserNoUploadTest.FilesRemoved": [
+            "SUCCESS"
+          ],
+          "MetricsServiceBrowserSampledOutTest.FilesRemoved": [
+            "SUCCESS"
+          ],
+          "NonReportingPersistentHistogramsBrowserTest.RecordsWithoutPersistentLocation": [
+            "SUCCESS"
+          ]
+        }
+      }
+    ]
+  },
+  "liveBrowser": {
+    "completedAt": "2026-11-03T19:37:50.658Z",
+    "clientSha256": "98025b71853963920f165fa903dc3403db3f0aae9f312ba14aa5af5b81e626db",
+    "network": "loopback-only",
+    "mappingPositiveControlPassed": true,
+    "results": [
+      {
+        "mode": "forced-reporting-control",
+        "version": "Chrome/159.0.8141.0",
+        "expectedMapped": true,
+        "before": [
+          {
+            "permissions": "rw-s",
+            "deleted": false
+          }
+        ],
+        "after": [
+          {
+            "permissions": "rw-s",
+            "deleted": false
+          }
+        ],
+        "recording": {
+          "samples": 60,
+          "histograms": [
+            {
+              "name": "Monochromatic.BrowserMetricsRepro.CurrentBoolean",
+              "sum": 30,
+              "count": 60,
+              "buckets": [
+                {
+                  "low": 0,
+                  "high": 1,
+                  "count": 30
+                },
+                {
+                  "low": 1,
+                  "high": 2,
+                  "count": 30
+                }
+              ]
+            },
+            {
+              "name": "Monochromatic.BrowserMetricsRepro.CurrentSparse",
+              "sum": 1770,
+              "count": 60,
+              "buckets": [
+                {
+                  "low": 0,
+                  "high": 1,
+                  "count": 1
+                },
+                {
+                  "low": 1,
+                  "high": 2,
+                  "count": 1
+                },
+                {
+                  "low": 2,
+                  "high": 3,
+                  "count": 1
+                },
+                {
+                  "low": 3,
+                  "high": 4,
+                  "count": 1
+                },
+                {
+                  "low": 4,
+                  "high": 5,
+                  "count": 1
+                },
+                {
+                  "low": 5,
+                  "high": 6,
+                  "count": 1
+                },
+                {
+                  "low": 6,
+                  "high": 7,
+                  "count": 1
+                },
+                {
+                  "low": 7,
+                  "high": 8,
+                  "count": 1
+                },
+                {
+                  "low": 8,
+                  "high": 9,
+                  "count": 1
+                },
+                {
+                  "low": 9,
+                  "high": 10,
+                  "count": 1
+                },
+                {
+                  "low": 10,
+                  "high": 11,
+                  "count": 1
+                },
+                {
+                  "low": 11,
+                  "high": 12,
+                  "count": 1
+                },
+                {
+                  "low": 12,
+                  "high": 13,
+                  "count": 1
+                },
+                {
+                  "low": 13,
+                  "high": 14,
+                  "count": 1
+                },
+                {
+                  "low": 14,
+                  "high": 15,
+                  "count": 1
+                },
+                {
+                  "low": 15,
+                  "high": 16,
+                  "count": 1
+                },
+                {
+                  "low": 16,
+                  "high": 17,
+                  "count": 1
+                },
+                {
+                  "low": 17,
+                  "high": 18,
+                  "count": 1
+                },
+                {
+                  "low": 18,
+                  "high": 19,
+                  "count": 1
+                },
+                {
+                  "low": 19,
+                  "high": 20,
+                  "count": 1
+                },
+                {
+                  "low": 20,
+                  "high": 21,
+                  "count": 1
+                },
+                {
+                  "low": 21,
+                  "high": 22,
+                  "count": 1
+                },
+                {
+                  "low": 22,
+                  "high": 23,
+                  "count": 1
+                },
+                {
+                  "low": 23,
+                  "high": 24,
+                  "count": 1
+                },
+                {
+                  "low": 24,
+                  "high": 25,
+                  "count": 1
+                },
+                {
+                  "low": 25,
+                  "high": 26,
+                  "count": 1
+                },
+                {
+                  "low": 26,
+                  "high": 27,
+                  "count": 1
+                },
+                {
+                  "low": 27,
+                  "high": 28,
+                  "count": 1
+                },
+                {
+                  "low": 28,
+                  "high": 29,
+                  "count": 1
+                },
+                {
+                  "low": 29,
+                  "high": 30,
+                  "count": 1
+                },
+                {
+                  "low": 30,
+                  "high": 31,
+                  "count": 1
+                },
+                {
+                  "low": 31,
+                  "high": 32,
+                  "count": 1
+                },
+                {
+                  "low": 32,
+                  "high": 33,
+                  "count": 1
+                },
+                {
+                  "low": 33,
+                  "high": 34,
+                  "count": 1
+                },
+                {
+                  "low": 34,
+                  "high": 35,
+                  "count": 1
+                },
+                {
+                  "low": 35,
+                  "high": 36,
+                  "count": 1
+                },
+                {
+                  "low": 36,
+                  "high": 37,
+                  "count": 1
+                },
+                {
+                  "low": 37,
+                  "high": 38,
+                  "count": 1
+                },
+                {
+                  "low": 38,
+                  "high": 39,
+                  "count": 1
+                },
+                {
+                  "low": 39,
+                  "high": 40,
+                  "count": 1
+                },
+                {
+                  "low": 40,
+                  "high": 41,
+                  "count": 1
+                },
+                {
+                  "low": 41,
+                  "high": 42,
+                  "count": 1
+                },
+                {
+                  "low": 42,
+                  "high": 43,
+                  "count": 1
+                },
+                {
+                  "low": 43,
+                  "high": 44,
+                  "count": 1
+                },
+                {
+                  "low": 44,
+                  "high": 45,
+                  "count": 1
+                },
+                {
+                  "low": 45,
+                  "high": 46,
+                  "count": 1
+                },
+                {
+                  "low": 46,
+                  "high": 47,
+                  "count": 1
+                },
+                {
+                  "low": 47,
+                  "high": 48,
+                  "count": 1
+                },
+                {
+                  "low": 48,
+                  "high": 49,
+                  "count": 1
+                },
+                {
+                  "low": 49,
+                  "high": 50,
+                  "count": 1
+                },
+                {
+                  "low": 50,
+                  "high": 51,
+                  "count": 1
+                },
+                {
+                  "low": 51,
+                  "high": 52,
+                  "count": 1
+                },
+                {
+                  "low": 52,
+                  "high": 53,
+                  "count": 1
+                },
+                {
+                  "low": 53,
+                  "high": 54,
+                  "count": 1
+                },
+                {
+                  "low": 54,
+                  "high": 55,
+                  "count": 1
+                },
+                {
+                  "low": 55,
+                  "high": 56,
+                  "count": 1
+                },
+                {
+                  "low": 56,
+                  "high": 57,
+                  "count": 1
+                },
+                {
+                  "low": 57,
+                  "high": 58,
+                  "count": 1
+                },
+                {
+                  "low": 58,
+                  "high": 59,
+                  "count": 1
+                },
+                {
+                  "low": 59,
+                  "high": 60,
+                  "count": 1
+                }
+              ]
+            }
+          ]
+        },
+        "exit": {
+          "code": 0,
+          "signal": null
+        },
+        "fatalDiagnostic": false,
+        "browserCloseAcknowledged": true,
+        "sampleValuesVerified": true
+      },
+      {
+        "mode": "reporting-ineligible",
+        "version": "Chrome/159.0.8141.0",
+        "expectedMapped": false,
+        "before": [],
+        "after": [],
+        "recording": {
+          "samples": 60,
+          "histograms": [
+            {
+              "name": "Monochromatic.BrowserMetricsRepro.CurrentBoolean",
+              "sum": 30,
+              "count": 60,
+              "buckets": [
+                {
+                  "low": 0,
+                  "high": 1,
+                  "count": 30
+                },
+                {
+                  "low": 1,
+                  "high": 2,
+                  "count": 30
+                }
+              ]
+            },
+            {
+              "name": "Monochromatic.BrowserMetricsRepro.CurrentSparse",
+              "sum": 1770,
+              "count": 60,
+              "buckets": [
+                {
+                  "low": 0,
+                  "high": 1,
+                  "count": 1
+                },
+                {
+                  "low": 1,
+                  "high": 2,
+                  "count": 1
+                },
+                {
+                  "low": 2,
+                  "high": 3,
+                  "count": 1
+                },
+                {
+                  "low": 3,
+                  "high": 4,
+                  "count": 1
+                },
+                {
+                  "low": 4,
+                  "high": 5,
+                  "count": 1
+                },
+                {
+                  "low": 5,
+                  "high": 6,
+                  "count": 1
+                },
+                {
+                  "low": 6,
+                  "high": 7,
+                  "count": 1
+                },
+                {
+                  "low": 7,
+                  "high": 8,
+                  "count": 1
+                },
+                {
+                  "low": 8,
+                  "high": 9,
+                  "count": 1
+                },
+                {
+                  "low": 9,
+                  "high": 10,
+                  "count": 1
+                },
+                {
+                  "low": 10,
+                  "high": 11,
+                  "count": 1
+                },
+                {
+                  "low": 11,
+                  "high": 12,
+                  "count": 1
+                },
+                {
+                  "low": 12,
+                  "high": 13,
+                  "count": 1
+                },
+                {
+                  "low": 13,
+                  "high": 14,
+                  "count": 1
+                },
+                {
+                  "low": 14,
+                  "high": 15,
+                  "count": 1
+                },
+                {
+                  "low": 15,
+                  "high": 16,
+                  "count": 1
+                },
+                {
+                  "low": 16,
+                  "high": 17,
+                  "count": 1
+                },
+                {
+                  "low": 17,
+                  "high": 18,
+                  "count": 1
+                },
+                {
+                  "low": 18,
+                  "high": 19,
+                  "count": 1
+                },
+                {
+                  "low": 19,
+                  "high": 20,
+                  "count": 1
+                },
+                {
+                  "low": 20,
+                  "high": 21,
+                  "count": 1
+                },
+                {
+                  "low": 21,
+                  "high": 22,
+                  "count": 1
+                },
+                {
+                  "low": 22,
+                  "high": 23,
+                  "count": 1
+                },
+                {
+                  "low": 23,
+                  "high": 24,
+                  "count": 1
+                },
+                {
+                  "low": 24,
+                  "high": 25,
+                  "count": 1
+                },
+                {
+                  "low": 25,
+                  "high": 26,
+                  "count": 1
+                },
+                {
+                  "low": 26,
+                  "high": 27,
+                  "count": 1
+                },
+                {
+                  "low": 27,
+                  "high": 28,
+                  "count": 1
+                },
+                {
+                  "low": 28,
+                  "high": 29,
+                  "count": 1
+                },
+                {
+                  "low": 29,
+                  "high": 30,
+                  "count": 1
+                },
+                {
+                  "low": 30,
+                  "high": 31,
+                  "count": 1
+                },
+                {
+                  "low": 31,
+                  "high": 32,
+                  "count": 1
+                },
+                {
+                  "low": 32,
+                  "high": 33,
+                  "count": 1
+                },
+                {
+                  "low": 33,
+                  "high": 34,
+                  "count": 1
+                },
+                {
+                  "low": 34,
+                  "high": 35,
+                  "count": 1
+                },
+                {
+                  "low": 35,
+                  "high": 36,
+                  "count": 1
+                },
+                {
+                  "low": 36,
+                  "high": 37,
+                  "count": 1
+                },
+                {
+                  "low": 37,
+                  "high": 38,
+                  "count": 1
+                },
+                {
+                  "low": 38,
+                  "high": 39,
+                  "count": 1
+                },
+                {
+                  "low": 39,
+                  "high": 40,
+                  "count": 1
+                },
+                {
+                  "low": 40,
+                  "high": 41,
+                  "count": 1
+                },
+                {
+                  "low": 41,
+                  "high": 42,
+                  "count": 1
+                },
+                {
+                  "low": 42,
+                  "high": 43,
+                  "count": 1
+                },
+                {
+                  "low": 43,
+                  "high": 44,
+                  "count": 1
+                },
+                {
+                  "low": 44,
+                  "high": 45,
+                  "count": 1
+                },
+                {
+                  "low": 45,
+                  "high": 46,
+                  "count": 1
+                },
+                {
+                  "low": 46,
+                  "high": 47,
+                  "count": 1
+                },
+                {
+                  "low": 47,
+                  "high": 48,
+                  "count": 1
+                },
+                {
+                  "low": 48,
+                  "high": 49,
+                  "count": 1
+                },
+                {
+                  "low": 49,
+                  "high": 50,
+                  "count": 1
+                },
+                {
+                  "low": 50,
+                  "high": 51,
+                  "count": 1
+                },
+                {
+                  "low": 51,
+                  "high": 52,
+                  "count": 1
+                },
+                {
+                  "low": 52,
+                  "high": 53,
+                  "count": 1
+                },
+                {
+                  "low": 53,
+                  "high": 54,
+                  "count": 1
+                },
+                {
+                  "low": 54,
+                  "high": 55,
+                  "count": 1
+                },
+                {
+                  "low": 55,
+                  "high": 56,
+                  "count": 1
+                },
+                {
+                  "low": 56,
+                  "high": 57,
+                  "count": 1
+                },
+                {
+                  "low": 57,
+                  "high": 58,
+                  "count": 1
+                },
+                {
+                  "low": 58,
+                  "high": 59,
+                  "count": 1
+                },
+                {
+                  "low": 59,
+                  "high": 60,
+                  "count": 1
+                }
+              ]
+            }
+          ]
+        },
+        "exit": {
+          "code": 0,
+          "signal": null
+        },
+        "fatalDiagnostic": false,
+        "browserCloseAcknowledged": true,
+        "sampleValuesVerified": true
+      },
+      {
+        "mode": "recording-only",
+        "version": "Chrome/159.0.8141.0",
+        "expectedMapped": false,
+        "before": [],
+        "after": [],
+        "recording": {
+          "samples": 60,
+          "histograms": [
+            {
+              "name": "Monochromatic.BrowserMetricsRepro.CurrentBoolean",
+              "sum": 30,
+              "count": 60,
+              "buckets": [
+                {
+                  "low": 0,
+                  "high": 1,
+                  "count": 30
+                },
+                {
+                  "low": 1,
+                  "high": 2,
+                  "count": 30
+                }
+              ]
+            },
+            {
+              "name": "Monochromatic.BrowserMetricsRepro.CurrentSparse",
+              "sum": 1770,
+              "count": 60,
+              "buckets": [
+                {
+                  "low": 0,
+                  "high": 1,
+                  "count": 1
+                },
+                {
+                  "low": 1,
+                  "high": 2,
+                  "count": 1
+                },
+                {
+                  "low": 2,
+                  "high": 3,
+                  "count": 1
+                },
+                {
+                  "low": 3,
+                  "high": 4,
+                  "count": 1
+                },
+                {
+                  "low": 4,
+                  "high": 5,
+                  "count": 1
+                },
+                {
+                  "low": 5,
+                  "high": 6,
+                  "count": 1
+                },
+                {
+                  "low": 6,
+                  "high": 7,
+                  "count": 1
+                },
+                {
+                  "low": 7,
+                  "high": 8,
+                  "count": 1
+                },
+                {
+                  "low": 8,
+                  "high": 9,
+                  "count": 1
+                },
+                {
+                  "low": 9,
+                  "high": 10,
+                  "count": 1
+                },
+                {
+                  "low": 10,
+                  "high": 11,
+                  "count": 1
+                },
+                {
+                  "low": 11,
+                  "high": 12,
+                  "count": 1
+                },
+                {
+                  "low": 12,
+                  "high": 13,
+                  "count": 1
+                },
+                {
+                  "low": 13,
+                  "high": 14,
+                  "count": 1
+                },
+                {
+                  "low": 14,
+                  "high": 15,
+                  "count": 1
+                },
+                {
+                  "low": 15,
+                  "high": 16,
+                  "count": 1
+                },
+                {
+                  "low": 16,
+                  "high": 17,
+                  "count": 1
+                },
+                {
+                  "low": 17,
+                  "high": 18,
+                  "count": 1
+                },
+                {
+                  "low": 18,
+                  "high": 19,
+                  "count": 1
+                },
+                {
+                  "low": 19,
+                  "high": 20,
+                  "count": 1
+                },
+                {
+                  "low": 20,
+                  "high": 21,
+                  "count": 1
+                },
+                {
+                  "low": 21,
+                  "high": 22,
+                  "count": 1
+                },
+                {
+                  "low": 22,
+                  "high": 23,
+                  "count": 1
+                },
+                {
+                  "low": 23,
+                  "high": 24,
+                  "count": 1
+                },
+                {
+                  "low": 24,
+                  "high": 25,
+                  "count": 1
+                },
+                {
+                  "low": 25,
+                  "high": 26,
+                  "count": 1
+                },
+                {
+                  "low": 26,
+                  "high": 27,
+                  "count": 1
+                },
+                {
+                  "low": 27,
+                  "high": 28,
+                  "count": 1
+                },
+                {
+                  "low": 28,
+                  "high": 29,
+                  "count": 1
+                },
+                {
+                  "low": 29,
+                  "high": 30,
+                  "count": 1
+                },
+                {
+                  "low": 30,
+                  "high": 31,
+                  "count": 1
+                },
+                {
+                  "low": 31,
+                  "high": 32,
+                  "count": 1
+                },
+                {
+                  "low": 32,
+                  "high": 33,
+                  "count": 1
+                },
+                {
+                  "low": 33,
+                  "high": 34,
+                  "count": 1
+                },
+                {
+                  "low": 34,
+                  "high": 35,
+                  "count": 1
+                },
+                {
+                  "low": 35,
+                  "high": 36,
+                  "count": 1
+                },
+                {
+                  "low": 36,
+                  "high": 37,
+                  "count": 1
+                },
+                {
+                  "low": 37,
+                  "high": 38,
+                  "count": 1
+                },
+                {
+                  "low": 38,
+                  "high": 39,
+                  "count": 1
+                },
+                {
+                  "low": 39,
+                  "high": 40,
+                  "count": 1
+                },
+                {
+                  "low": 40,
+                  "high": 41,
+                  "count": 1
+                },
+                {
+                  "low": 41,
+                  "high": 42,
+                  "count": 1
+                },
+                {
+                  "low": 42,
+                  "high": 43,
+                  "count": 1
+                },
+                {
+                  "low": 43,
+                  "high": 44,
+                  "count": 1
+                },
+                {
+                  "low": 44,
+                  "high": 45,
+                  "count": 1
+                },
+                {
+                  "low": 45,
+                  "high": 46,
+                  "count": 1
+                },
+                {
+                  "low": 46,
+                  "high": 47,
+                  "count": 1
+                },
+                {
+                  "low": 47,
+                  "high": 48,
+                  "count": 1
+                },
+                {
+                  "low": 48,
+                  "high": 49,
+                  "count": 1
+                },
+                {
+                  "low": 49,
+                  "high": 50,
+                  "count": 1
+                },
+                {
+                  "low": 50,
+                  "high": 51,
+                  "count": 1
+                },
+                {
+                  "low": 51,
+                  "high": 52,
+                  "count": 1
+                },
+                {
+                  "low": 52,
+                  "high": 53,
+                  "count": 1
+                },
+                {
+                  "low": 53,
+                  "high": 54,
+                  "count": 1
+                },
+                {
+                  "low": 54,
+                  "high": 55,
+                  "count": 1
+                },
+                {
+                  "low": 55,
+                  "high": 56,
+                  "count": 1
+                },
+                {
+                  "low": 56,
+                  "high": 57,
+                  "count": 1
+                },
+                {
+                  "low": 57,
+                  "high": 58,
+                  "count": 1
+                },
+                {
+                  "low": 58,
+                  "high": 59,
+                  "count": 1
+                },
+                {
+                  "low": 59,
+                  "high": 60,
+                  "count": 1
+                }
+              ]
+            }
+          ]
+        },
+        "exit": {
+          "code": 0,
+          "signal": null
+        },
+        "fatalDiagnostic": false,
+        "browserCloseAcknowledged": true,
+        "sampleValuesVerified": true
+      }
+    ]
+  },
+  "limits": [
+    "This run does not validate Google-branded builds or other operating systems.",
+    "No latency comparison or artificial filesystem delay was used.",
+    "Existing spare-file work and legacy-file cleanup remain outside the no-live-mapping property."
+  ],
+  "deliveryChecks": {
+    "recordedAt": "2026-11-03T20:27:46.966Z",
+    "markdownLint": "passed",
+    "typescriptChecks": "passed",
+    "markdownRendering": "inspected",
+    "sourceHashes": [
+      {
+        "sha256": "57a30501ab2cba3fb21d815b0a750f5ce3c50d596a6ea154fd41bc28914e2a18",
+        "path": "doc/troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.patch"
+      },
+      {
+        "sha256": "75df644b17a5537022f4ef15a3636c1fd952de39918bcade4d4e1c9c58557fe9",
+        "path": "doc/troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.md"
+      },
+      {
+        "sha256": "f2c17456cf6e3d5f0ff5fb7f2df9573b29ed8ce831ff7aab1a69d0a5d801f626",
+        "path": "doc/troubleshooting/chromium-disk-responsiveness/native-validation.md"
+      },
+      {
+        "sha256": "c5d85c0493a7dc501beb83bcbbcbad4ae9114424ed99766dda0106e91cb4474d",
+        "path": "doc/planning/browser-disk-responsiveness/chromium-metrics-patch-comment.md"
+      },
+      {
+        "sha256": "e12fc8fe8894346b578619fab85e057bd259a682ce485a4730d53c902bb62d7f",
+        "path": "doc/handover/chromium-live-histogram-contribution.md"
+      },
+      {
+        "sha256": "ac27b75d287019589248a8df504fed52f25bbeedb844d029196400c449b0c24c",
+        "path": "doc/troubleshooting/agent-browser-eagain.md"
+      }
+    ],
+    "ownedBuildAndTestContainersRemaining": 0,
+    "ownedSourceBrowsersRemaining": 0,
+    "issueWatcher": {
+      "checks": 97,
+      "lastSuccessAt": "2026-11-03T20:04:54.513Z",
+      "endsAt": "2026-11-04T12:07:36.851Z",
+      "error": null,
+      "complete": false,
+      "serviceActive": true
+    }
+  }
+}

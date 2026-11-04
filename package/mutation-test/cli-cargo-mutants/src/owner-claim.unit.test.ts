@@ -21,11 +21,7 @@ import {
   unusedProcessId,
 } from './claim-test-support.ts';
 import { CargoMutantsToolingError } from './error.ts';
-import {
-  ageOutlivesPatience,
-  foreignOwnerPatienceMs,
-  noLiveOwner,
-} from './claim-liveness.ts';
+import { noLiveOwner } from './claim-liveness.ts';
 import {
   claimPath,
   decodeClaimRecord,
@@ -40,7 +36,10 @@ import {
   type OwnerClaim,
   takeClaim,
 } from './owner-claim.ts';
-import { currentProcessIdentity } from './process-identity.ts';
+import {
+  currentProcessIdentity,
+  readBootId,
+} from './process-identity.ts';
 
 /**
  Name of the claim series the cases use.
@@ -54,6 +53,11 @@ const claimModule = join(
   import.meta.dirname,
   'owner-claim.ts',
 );
+
+/**
+ How old a claim file is made so that no rule on its age could matter: a hundred hours.
+ */
+const ancientMs = 100 * 3_600_000;
 
 /**
  Birth text of a process that never ran.
@@ -453,25 +457,7 @@ await describe({
       name: 'an owner in another PID namespace',
       children: [
         it({
-          name: 'counts as alive while its claim file is younger than the patience, though no process has its id',
-          fn: async () => {
-            await using directory = await scratchDirectory('claim-foreign-young-');
-            const path = await plantClaim({
-              directory: directory.path,
-              prefix,
-              generation: 1,
-              pid: await unusedProcessId(),
-              birth: noSuchBirth,
-              namespace: 'pid:[not-this-namespace]',
-            });
-            expect(busy(await takeClaim({
-              directory: directory.path,
-              prefix,
-            })).path).toBe(path);
-          },
-        }),
-        it({
-          name: 'stops counting as alive once its claim file is older than the patience, and is replaced by the next generation',
+          name: 'keeps its claim however old the claim file is, because only evidence about the process can end it',
           fn: async () => {
             await using directory = await scratchDirectory('claim-foreign-old-');
             const path = await plantClaim({
@@ -479,38 +465,14 @@ await describe({
               prefix,
               generation: 1,
               pid: await unusedProcessId(),
-              birth: noSuchBirth,
+              birth: `linux:1@${await readBootId()}`,
               namespace: 'pid:[not-this-namespace]',
             });
-            const longAgo = new Date(Date.now() - foreignOwnerPatienceMs - 60_000);
+            const longAgo = new Date(Date.now() - ancientMs);
             await utimes(
               path,
               longAgo,
               longAgo,
-            );
-            expect(held(await takeClaim({
-              directory: directory.path,
-              prefix,
-            })).generation).toBe(2);
-          },
-        }),
-        it({
-          name: 'is still alive when its claim file is a little younger than the patience',
-          fn: async () => {
-            await using directory = await scratchDirectory('claim-foreign-edge-');
-            const path = await plantClaim({
-              directory: directory.path,
-              prefix,
-              generation: 1,
-              pid: await unusedProcessId(),
-              birth: noSuchBirth,
-              namespace: 'pid:[not-this-namespace]',
-            });
-            const almost = new Date((Date.now() - foreignOwnerPatienceMs) + 60_000);
-            await utimes(
-              path,
-              almost,
-              almost,
             );
             expect(busy(await takeClaim({
               directory: directory.path,
@@ -519,16 +481,38 @@ await describe({
           },
         }),
         it({
-          name: 'judges the age so that exactly the patience still counts as alive',
+          name: 'is replaced by the next generation when it began in an earlier boot, though its claim file is young',
           fn: async () => {
-            expect(ageOutlivesPatience(foreignOwnerPatienceMs)).toBe(false);
-            expect(ageOutlivesPatience(foreignOwnerPatienceMs + 1)).toBe(true);
+            await using directory = await scratchDirectory('claim-foreign-boot-');
+            await plantClaim({
+              directory: directory.path,
+              prefix,
+              generation: 1,
+              pid: await unusedProcessId(),
+              birth: 'linux:1@an-earlier-boot',
+              namespace: 'pid:[not-this-namespace]',
+            });
+            expect(held(await takeClaim({
+              directory: directory.path,
+              prefix,
+            })).generation).toBe(2);
           },
         }),
         it({
-          name: 'waits one hour, as the wrapper\'s other owner records do',
+          name: 'keeps its claim when its record names no namespace and no process here has its id',
           fn: async () => {
-            expect(foreignOwnerPatienceMs).toBe(3_600_000);
+            await using directory = await scratchDirectory('claim-nameless-');
+            const path = await plantClaim({
+              directory: directory.path,
+              prefix,
+              generation: 1,
+              pid: await unusedProcessId(),
+              birth: `linux:1@${await readBootId()}`,
+            });
+            expect(busy(await takeClaim({
+              directory: directory.path,
+              prefix,
+            })).path).toBe(path);
           },
         }),
       ],

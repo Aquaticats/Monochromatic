@@ -123,3 +123,20 @@ The consumer selected the wrong working directory for the repository's explicit 
 The `.out-of-scope/` inventory has no matching Mise exemption.
 No upstream issue,
 comment or message was sent.
+
+## Chromium documentation check at 2026-11-03T17:51:08+00:00
+
+Mise `2026.10.23` emitted this diagnostic from the repository root:
+
+```text
+# Documentation render task discovery
+mise ERROR no task //doc/planning/browser-disk-responsiveness:verify:metrics-candidate found
+```
+
+The current root `mise.toml` still sets `config_roots = ["package/*/*"]`.
+The documentation configuration is outside that set.
+The recorded owning-directory workaround passed:
+with the command's working directory set to `doc/planning/browser-disk-responsiveness`,
+`mise run verify:metrics-candidate` executed the expected Pandoc commands and exited successfully.
+No discovery configuration was changed.
+The failing root invocation did not run Pandoc and receives no rendering credit.

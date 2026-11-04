@@ -1,5 +1,3 @@
-# Development guidelines for AI agents
-
 ORG:
  Organized by moment of decision,
  not topic;
@@ -508,11 +506,10 @@ GC2:
 RT1:
  `rg` for text search,
  not directory navigation;
- `rg --files` for globs;
- `--hidden`,
+ `rg --files` for globs.
+Scope `--hidden`,
  recursive `grep`,
- unbounded `find` only with a named path:
- the search shadows refuse them at a repo root.
+ and unbounded `find` to named paths other than repo root.
 
 RT4:
  `gh` for GitHub issues,
@@ -528,6 +525,12 @@ BRQ:
  derivations and own ideas are revisable suggestions;
  inferred requirements or policy:
  ask first.
+
+DQB:
+ Before briefing work on a component,
+ grep `doc/decision/` for its records
+ and quote every owner decision and amendment that bears on the task,
+ with path and lines.
 
 FBN:
  A user saying a cost is fine or acceptable sets a bound,
@@ -660,8 +663,7 @@ No long form:
 RGT:
  `rg` recurses by default;
  its `-r` means `--replace`,
- so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output;
- the rg shadow refuses short `-r`.
+ so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output.
 
 ### Hazardous commands
 
@@ -719,12 +721,23 @@ Measure under the load there is,
 
 NHR:
  Normal here,
- never excuses:
+ sometimes a cause,
+ never an excuse or a reason to wait:
  high CPU load,
  memory pressure and swap,
  slow SSD and I/O,
  nearly full disk or GPU memory,
  process and descriptor limits near exhaustion.
+
+SLW:
+ Slower under host pressure is our defect:
+ measure,
+ under that pressure,
+ what we add over the baseline (native tool,
+ last release);
+ remove it,
+ make it cheaper,
+ or move it off the waiting path.
 
 NHP:
  Normal here,
@@ -1348,6 +1361,12 @@ MGN:
  or the relation under test,
  so a legitimate change breaks nothing.
 
+LQM:
+ Shipped resource limits (unit caps,
+ timeouts,
+ size bounds) cite a workload measurement or owner decision beside the value;
+ agent-command cgroup rules never size shipped code.
+
 GFP:
  A guard test proves nothing until shown to fail:
  commit it,
@@ -1578,6 +1597,12 @@ RBK:
  handovers:
  `doc/handover/<topic>.md`;
  package-specific ones stay beside code.
+
+H0P:
+ A handover holds only open work and current state:
+ when an item lands or is superseded,
+ move its durable facts to their canonical doc,
+ then delete it from the handover.
 
 ### Handling external changes
 

@@ -1,7 +1,7 @@
 /**
  The right to run one campaign: a numbered claim file in the campaign's evidence directory that names the campaign process.
 
- The claim is the one `src/owner-claim.ts` implements after `package/git-policy/cli/src/native/single_owner_claim.rs`:
+ The claim is the one `src/owner-claim.ts` implements after `package/git-policy/cli/src/native/lock/single_owner_claim.rs`:
  `campaign.owner.<generation>` is published with one exclusive `link`, the newest generation is the claim, and it names its
  owner by process id, birth (start time and boot) and PID namespace. A second campaign on the same directory is refused with
  the owner named, never made to wait. A run killed by `systemctl stop`, a reboot or `SIGKILL` leaves its claim behind and the
@@ -9,11 +9,13 @@
  rewrites its claim as released. The newest generation is kept as a tombstone, so no later run can create the same number
  twice.
 
- No lock stays in this file (the repository rule is lock-free first; a lock that must stay covers the smallest unit and says
- why). The unit is one campaign's evidence directory and one owner per item. The kernel lock this file used to take on the
- directory is gone; what remains is a single non-waiting probe of that old lock, for a campaign that an earlier release of
- this package started and that still runs (`src/legacy-flock.ts`). That probe takes the lock for an instant and gives it
- straight back; nothing holds or waits for it, and it can be removed with the probe once no such campaign can run.
+ The one lock that stays in this file is the kernel lock on the evidence directory that the earlier release of this package took
+ (the repository rule is lock-free first; a lock that must stay covers the smallest unit and says why). The unit is one
+ campaign's evidence directory. It stays because a campaign of the earlier release takes that lock without waiting and never
+ looks at a claim file, so a campaign of this release that holds only its claim would let an old one start on the same
+ directory. The lock is taken once without waiting, after the claim, held for as long as the claim, and given back with it;
+ nothing waits for it, and it can be removed (`src/legacy-flock.ts`) once no such campaign can run. A campaign of the earlier
+ release that already holds the lock refuses this run, as before.
 
  What the claim judges less exactly than the kernel did: whether its owner is alive. It knows only the recorded process id,
  start time and boot, which is exact for a run that was killed, stopped or lost to a reboot, but a campaign process that
@@ -25,7 +27,7 @@
  */
 import { stat } from 'node:fs/promises';
 
-import { probeLegacyLock } from './legacy-flock.ts';
+import { holdLegacyLock } from './legacy-flock.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { takeClaim } from './owner-claim.ts';
 
@@ -111,12 +113,25 @@ export async function acquireCampaignLock(evidence: string): Promise<AsyncDispos
   }
   try {
     // A campaign of the earlier release holds a kernel lock on the directory instead of a claim, and two runs must never
-    // share the directory, whichever release they are.
-    if ((await probeLegacyLock({
+    // share the directory, whichever release they are; this run takes the same lock, so a campaign of the earlier release
+    // that starts while this one runs is refused in its turn.
+    /**
+     What taking that lock came to.
+     */
+    const hold = await holdLegacyLock({
       path: evidence,
-      retireWhenFree: false,
-    })) === 'held')
+      create: false,
+    });
+    if (hold.kind === 'busy')
       throw new CargoMutantsToolingError(`A run of this campaign started by the earlier release of this package is alive (it holds the kernel lock on ${evidence}); wait for it or stop it, then run this again.`);
+    if (hold.kind === 'kept')
+      return {
+        async [Symbol.asyncDispose](): Promise<void> {
+          // The kernel lock goes first, so a run that sees the claim given back also finds the lock free.
+          await hold.lock[Symbol.asyncDispose]();
+          await release();
+        },
+      };
   }
   catch (error) {
     // Nothing is granted: give the claim back, so a refused run does not lock out the run that is alive.

@@ -39,16 +39,16 @@ the merge had no conflict.
 
 ### The policy
 
-`src/native/policy_markdown.rs` checks the lifecycle's candidates in candidate order,
+`src/native/markdown/policy_markdown.rs` checks the lifecycle's candidates in candidate order,
 as the installed wrapper's `markdownLintPolicy` does
 (`package/git-policy/markdown-lint/src/rewrite-candidates.ts`
-(deleted 2026-10-13: now `package/git-policy/cli/src/native/policy_markdown.rs`)):
+(deleted 2026-10-13: now `package/git-policy/cli/src/native/markdown/policy_markdown.rs`)):
 
 - Deleted candidates,
   symbolic links and submodules are skipped,
   and so is every pathname whose extension is not exactly `md` or `mdx`.
 - A candidate the `exclude` patterns name is skipped before its bytes are read
-  and before any linter is needed (`src/native/markdown_exclude.rs`,
+  and before any linter is needed (`src/native/markdown/markdown_exclude.rs`,
   the `ignore` crate's gitignore matcher with the linter's walk over ancestor directories).
 - A candidate whose bytes are not UTF-8 is skipped.
 - Every other candidate goes through the linter.
@@ -81,7 +81,7 @@ exit status 2 and nothing forwarded
 
 The evidence for `PATH`:
 the installed wrapper ran a command chosen by repository configuration,
-which the native configuration refuses (`src/native/config_policies.rs`, the retired `command` key);
+which the native configuration refuses (`src/native/config/config_policies.rs`, the retired `command` key);
 the plan makes the choice installation wiring and forbids repository JSONC from making it
 (`doc/planning/cli-git-rust-implementation.md`, lines 181 to 189);
 the cutover installs the linter through mise as `cargo:monochromatic-lint`
@@ -90,20 +90,20 @@ and mise exposes installed tools on `PATH`,
 through `mise activate` or its shims directory
 (<https://mise.jdx.dev/dev-tools/shims.html>, read on 2026-10-06);
 the scanner is linked in and needs no lookup,
-and real Git is found on `PATH` the same way (`src/native/real_git.rs`).
+and real Git is found on `PATH` the same way (`src/native/invocation/real_git.rs`).
 "Beside the wrapper's own executable" was rejected:
 mise installs each `cargo:` tool in its own directory,
 so the linter is not beside the `git` launcher.
 
 ### Running the linter
 
-`src/native/markdown_linter.rs` starts the linter from the repository's top level as
+`src/native/markdown/markdown_linter.rs` starts the linter from the repository's top level as
 `monochromatic-lint --config=<file> --stdin --stdin-filename=<path> --fix`,
 with the invocation's whole environment.
 Each option is one `--name=value` argument,
 so a pathname that starts with `-` stays a value;
 the pathname is passed as Git's exact bytes.
-The configuration (`src/native/markdown_linter_config.rs`) is one block that selects `**/*.md` and `**/*.mdx`
+The configuration (`src/native/markdown/markdown_linter_config.rs`) is one block that selects `**/*.md` and `**/*.mdx`
 and the policy's rules at severity `warn`,
 with the policy's `exclude` patterns as the rule's own `exclude` option,
 as the installed wrapper passed them (`--lfs-image-exclude`).
@@ -130,7 +130,7 @@ one linter run took 11 milliseconds warm and 227 milliseconds cold.
 
 ### Reading the linter's output
 
-`src/native/markdown_linter_output.rs` reads one run against the linter's contract
+`src/native/markdown/markdown_linter_output.rs` reads one run against the linter's contract
 (`package/linter/monochromatic-lint/README.md`; `src/run_stdin.rs`, `src/run_output.rs`, `src/run_failure.rs`).
 With every rule at `warn`,
 a finding the fixes leave is a record on standard error and exit status 0,
@@ -171,7 +171,7 @@ and a Latin-1 name and a name starting with `-` are rewritten.
 
 ### pathBytes
 
-`src/native/event_path.rs` gives every event path two forms:
+`src/native/policy/event_path.rs` gives every event path two forms:
 `path`, text with each invalid sequence replaced by U+FFFD as before,
 and,
 only for a name that is not UTF-8,
@@ -271,11 +271,11 @@ so an installed linter can never stand in for it.
 
 ## What to inspect
 
-- `src/native/policy_markdown.rs` and its tests,
+- `src/native/markdown/policy_markdown.rs` and its tests,
   for which candidates reach the linter and what is reported.
-- `src/native/markdown_linter_output.rs`,
+- `src/native/markdown/markdown_linter_output.rs`,
   for what output is trusted.
-- `src/native/event_path.rs`, `src/native/policy_events.rs` and the three `SPEC.md` paragraphs,
+- `src/native/policy/event_path.rs`, `src/native/policy/policy_events.rs` and the three `SPEC.md` paragraphs,
   for the event fields.
 - The choices in the Choices open to veto section.
 
@@ -360,7 +360,9 @@ none was fixed.
   the native wrapper reports `policy-incomplete`,
   a message with the cause and both remedies,
   and a `path` naming the candidate.
-  Failure codes follow their cause (`doc/handover/cli-git-rust-implementation.md`, "User decisions 2026-10-05");
+  Failure codes follow their cause (`doc/handover/cli-git-rust-implementation.md` [moved on 2026-11-03 to
+  `doc/planning/cli-git-rust-open-decisions.md`],
+  "User decisions 2026-10-05");
   `plugin-threw` named plugins, which the native wrapper does not have.
 - A file name that is not UTF-8,
   `pkg/caf` 0xE9 `.md`
@@ -379,7 +381,7 @@ none was fixed.
   ("monochromatic-lint --fix () rewrites ...");
   the native configuration refuses the empty list with `config-invalid`
   ("must name at least one rule; set the policy's severity to "off" to disable it.",
-  `src/native/config_policies.rs`),
+  `src/native/config/config_policies.rs`),
   a refusal that predates this branch.
   The incumbent's empty list widening to every rule is an incumbent defect:
   its own option comment says prose rules never rewrite a commit unasked.
@@ -492,7 +494,7 @@ Surviving mutants:
   which changes only the result for a directory-only pattern (one ending in `/`) that names a file.
   It survived both passes, so no test checked that such a pattern does not exclude a file of the same name.
   Killed by the test `a_directory_only_pattern_never_excludes_a_file_of_that_name` in
-  `src/native/markdown_exclude_tests.rs`, committed as `2e10ab6fb2`.
+  `src/native/markdown/markdown_exclude_tests.rs`, committed as `2e10ab6fb2`.
   Shown by hand: with the mutant applied the test fails (exit 101);
   restored, the file is identical to the commit.
 

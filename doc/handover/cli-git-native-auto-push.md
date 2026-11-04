@@ -169,7 +169,9 @@ the interop matrix beyond one-direction fixtures;
 Windows checks (the probe and auto-push code is unix-only).
 
 Update 2026-10-19: the auto-push-only modules and the four timed-out files are queued as the unit `cli-git-nc1` in
-`doc/handover/cli-git-rust-implementation.md`; the results will be recorded there.
+`doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+`e10b8186bc`];
+the results will be recorded there.
 The reconcile change to `auto_push_reconcile.rs`, `auto_push_record.rs` and `auto_push_single_flight.rs` already
 passed a scoped mutation run (55 mutants, none missed).
 

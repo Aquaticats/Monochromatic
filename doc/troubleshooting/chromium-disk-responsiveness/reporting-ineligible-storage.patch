@@ -1,0 +1,319 @@
+diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
+index 4d1c21302c8ac8e05ce5dadc8f4089b974a45712..f01b35133cf1e8bec6f686e50796e794cd316dca 100644
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -193,6 +193,7 @@
+ #include "chrome/browser/headless/headless_mode_util.h"  // nogncheck
+ #include "chrome/browser/lifetime/browser_shutdown.h"  // nogncheck
+ #include "chrome/browser/metrics/chrome_feature_list_creator.h"  // nogncheck
++#include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
+ #include "chrome/browser/startup_data.h"  // nogncheck
+ #include "chrome/gpu/chrome_content_gpu_client.h"  // nogncheck
+ #include "chrome/utility/chrome_content_utility_client.h"  // nogncheck
+@@ -1804,8 +1805,8 @@ void ChromeMainDelegate::SandboxInitialized(const std::string& process_type) {
+   // unless headless mode is in effect. This is done as soon as possible to
+   // ensure metrics collection coverage. Note: this is done before field trial
+   // initialization, so the values of `kPersistentHistogramsFeature` and
+-  // `kPersistentHistogramsStorage` will not be used. Persist histograms to a
+-  // memory-mapped file.
++  // `kPersistentHistogramsStorage` will not be used. Select the backing before
++  // creating the global allocator, whose histogram pointers cannot move later.
+ #if !defined(BUILDING_CHROME_RENDERER)
+   if (process_type.empty() && !headless::IsHeadlessMode()) {
+     base::FilePath metrics_dir;
+@@ -1817,10 +1818,15 @@ void ChromeMainDelegate::SandboxInitialized(const std::string& process_type) {
+           EnrollClient();
+ #endif
+ 
+-      InstantiatePersistentHistograms(
+-          metrics_dir,
+-          /*persistent_histograms_enabled=*/true,
+-          /*storage=*/kPersistentHistogramStorageMappedFile);
++      // Reporting-ineligible processes discard persisted metrics. Keep their
++      // live recording in local memory to avoid regular-file write faults.
++      const char* storage =
++          ChromeMetricsServiceAccessor::IsMetricsReportingSupported()
++              ? kPersistentHistogramStorageMappedFile
++              : kPersistentHistogramStorageLocalMemory;
++      InstantiatePersistentHistograms(metrics_dir,
++                                      /*persistent_histograms_enabled=*/true,
++                                      storage);
+     } else {
+       DUMP_WILL_BE_NOTREACHED();
+     }
+diff --git a/chrome/browser/metrics/chrome_metrics_service_accessor.cc b/chrome/browser/metrics/chrome_metrics_service_accessor.cc
+index c0baf5982fcb671d78cc4a64b02e96c81b38625a..5e4350db541464fd3f7470d49f819c73b1bd5fa7 100644
+--- a/chrome/browser/metrics/chrome_metrics_service_accessor.cc
++++ b/chrome/browser/metrics/chrome_metrics_service_accessor.cc
+@@ -27,6 +27,14 @@ void ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(
+   g_metrics_consent_for_testing = value;
+ }
+ 
++// static
++bool ChromeMetricsServiceAccessor::IsMetricsReportingSupported() {
++  // A test override can change consent after startup, so preserve persistence
++  // whenever the override is installed, even if its current value is false.
++  return g_metrics_consent_for_testing != nullptr ||
++         metrics::MetricsServiceAccessor::IsMetricsReportingSupported();
++}
++
+ // static
+ bool ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled() {
+   return IsMetricsAndCrashReportingEnabled(g_browser_process->local_state());
+diff --git a/chrome/browser/metrics/chrome_metrics_service_accessor.h b/chrome/browser/metrics/chrome_metrics_service_accessor.h
+index 8efd14233b7c60a69d6f1b995d31cbc5be32f3d7..dd1ac5a6e570ead62f890a6a8768bf47d5a38abd 100644
+--- a/chrome/browser/metrics/chrome_metrics_service_accessor.h
++++ b/chrome/browser/metrics/chrome_metrics_service_accessor.h
+@@ -143,6 +143,7 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
+   // For ThreadProfilerConfiguration.
+   friend class ChromeBrowserMainParts;
+   friend class ChromeContentBrowserClient;
++  friend class ChromeMainDelegate;
+   friend class ChromeMetricsServicesManagerClient;
+   friend class ChromeSyncClient;
+   friend class ChromeDomainReliabilityDelegate;
+@@ -210,6 +211,16 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
+   friend class metrics::CrOSPreChoiceMetricsManagerTest;
+   FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
+                            MetricsReportingEnabled);
++  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
++                           MetricsReportingSupported);
++  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
++                           ForcedReportingSupported);
++  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
++                           RecordingOnlyDoesNotEnableReportingSupport);
++  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
++                           PrefLookupOverrideReportingSupport);
++  FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServiceAccessorTest,
++                           ConsentOverrideReportingSupport);
+   FRIEND_TEST_ALL_PREFIXES(
+       ChromeMetricsServiceAccessorTest,
+       MetricsReportingEnabled_RestructureMetricsConsentSettings_FeatureOff);
+@@ -219,6 +230,10 @@ class ChromeMetricsServiceAccessor : public metrics::MetricsServiceAccessor {
+   FRIEND_TEST_ALL_PREFIXES(ChromeMetricsServicesManagerClientTest,
+                            ForceTrialsDisablesReporting);
+ 
++  // Returns whether this process can report metrics, including test overrides.
++  // Does not consult consent or require local state or field-trial setup.
++  static bool IsMetricsReportingSupported();
++
+   // Returns true if metrics reporting is enabled. This does NOT necessary mean
+   // that it is active as configuration may prevent it on some devices (i.e.
+   // the "MetricsReporting" field trial that controls sampling). To include
+diff --git a/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc b/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc
+index 4f4d3a583b35bb9eafd7093b31eea44b5c8361a1..5db1ed6566588950bc76f8ea556218e4ed6e82e9 100644
+--- a/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc
++++ b/chrome/browser/metrics/chrome_metrics_service_accessor_unittest.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
+ 
++#include "base/test/scoped_command_line.h"
+ #include "base/test/scoped_feature_list.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
+@@ -11,6 +12,7 @@
+ #include "chrome/test/base/testing_browser_process.h"
+ #include "components/metrics/metrics_features.h"
+ #include "components/metrics/metrics_pref_names.h"
++#include "components/metrics/metrics_switches.h"
+ #include "components/prefs/pref_service.h"
+ #include "content/public/test/browser_task_environment.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+@@ -57,3 +59,87 @@ TEST_F(ChromeMetricsServiceAccessorTest, MetricsReportingEnabled) {
+       ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled());
+ #endif
+ }
++
++// Support can be queried before a pref service or field trials are available.
++TEST_F(ChromeMetricsServiceAccessorTest, MetricsReportingSupported) {
++  base::test::ScopedCommandLine command_line;
++  command_line.GetProcessCommandLine()->RemoveSwitch(
++      metrics::switches::kForceEnableMetricsReporting);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
++  EXPECT_EQ(BUILDFLAG(GOOGLE_CHROME_BRANDING),
++            ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      original_override);
++}
++
++// Explicitly forced reporting must retain its persistent storage capability.
++TEST_F(ChromeMetricsServiceAccessorTest, ForcedReportingSupported) {
++  base::test::ScopedCommandLine command_line;
++  command_line.GetProcessCommandLine()->AppendSwitch(
++      metrics::switches::kForceEnableMetricsReporting);
++  EXPECT_TRUE(ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++}
++
++// Recording samples for a test does not by itself enable reporting.
++TEST_F(ChromeMetricsServiceAccessorTest,
++       RecordingOnlyDoesNotEnableReportingSupport) {
++  base::test::ScopedCommandLine command_line;
++  command_line.GetProcessCommandLine()->RemoveSwitch(
++      metrics::switches::kForceEnableMetricsReporting);
++  command_line.GetProcessCommandLine()->AppendSwitch(
++      metrics::switches::kMetricsRecordingOnly);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
++  EXPECT_EQ(BUILDFLAG(GOOGLE_CHROME_BRANDING),
++            ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      original_override);
++}
++
++// Tests that opt into ordinary pref lookup can enable reporting later.
++TEST_F(ChromeMetricsServiceAccessorTest, PrefLookupOverrideReportingSupport) {
++  base::test::ScopedCommandLine command_line;
++  command_line.GetProcessCommandLine()->RemoveSwitch(
++      metrics::switches::kForceEnableMetricsReporting);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      true);
++  EXPECT_TRUE(ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
++  EXPECT_EQ(BUILDFLAG(GOOGLE_CHROME_BRANDING),
++            ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      original_override);
++}
++
++// The override's presence, rather than current consent, determines support.
++TEST_F(ChromeMetricsServiceAccessorTest, ConsentOverrideReportingSupport) {
++  base::test::ScopedCommandLine command_line;
++  command_line.GetProcessCommandLine()->RemoveSwitch(
++      metrics::switches::kForceEnableMetricsReporting);
++  const bool original_override = metrics::MetricsServiceAccessor::
++      IsForceMetricsReportingEnabledPrefLookup();
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      false);
++  bool consent = false;
++  ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(&consent);
++  EXPECT_TRUE(ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++  EXPECT_FALSE(
++      ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled(nullptr));
++  consent = true;
++  EXPECT_TRUE(ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++  EXPECT_TRUE(
++      ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled(nullptr));
++  ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(nullptr);
++  EXPECT_EQ(BUILDFLAG(GOOGLE_CHROME_BRANDING),
++            ChromeMetricsServiceAccessor::IsMetricsReportingSupported());
++  ChromeMetricsServiceAccessor::SetForceIsMetricsReportingEnabledPrefLookup(
++      original_override);
++}
+diff --git a/chrome/browser/metrics/metrics_service_browsertest.cc b/chrome/browser/metrics/metrics_service_browsertest.cc
+index 8b19f394e4202fc3f66ba2b7d2a39078374ed2a9..f62f69ea092cc365c3bdb4a490938acdf946ca0c 100644
+--- a/chrome/browser/metrics/metrics_service_browsertest.cc
++++ b/chrome/browser/metrics/metrics_service_browsertest.cc
+@@ -14,6 +14,8 @@
+ #include "base/files/file_enumerator.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
++#include "base/metrics/histogram_functions.h"
++#include "base/metrics/persistent_histogram_allocator.h"
+ #include "base/path_service.h"
+ #include "base/process/memory.h"
+ #include "base/test/metrics/histogram_tester.h"
+@@ -21,6 +23,7 @@
+ #include "base/test/scoped_feature_list.h"
+ #include "base/test/task_environment.h"
+ #include "base/threading/thread_restrictions.h"
++#include "build/branding_buildflags.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
+@@ -503,3 +506,38 @@ IN_PROC_BROWSER_TEST_F(MetricsServiceBrowserSampledOutTest, FilesRemoved) {
+   EXPECT_TRUE(
+       base::test::RunUntil([&]() { return FindNonPMAFiles().empty(); }));
+ }
++
++#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
++// Use the ordinary browser startup path without the consent overrides installed
++// by MetricsServiceBrowserTest and its derived fixtures.
++class NonReportingPersistentHistogramsBrowserTest
++    : public InProcessBrowserTest {};
++
++IN_PROC_BROWSER_TEST_F(NonReportingPersistentHistogramsBrowserTest,
++                       RecordsWithoutPersistentLocation) {
++  ASSERT_FALSE(metrics::IsMetricsReportingForceEnabled());
++  ASSERT_FALSE(metrics::MetricsServiceAccessor::
++                   IsForceMetricsReportingEnabledPrefLookup());
++
++  // Exercise the global allocator installed by ChromeMainDelegate, rather than
++  // constructing an unrelated local allocator in the test.
++  base::GlobalHistogramAllocator* allocator =
++      base::GlobalHistogramAllocator::Get();
++  ASSERT_NE(nullptr, allocator);
++  EXPECT_FALSE(allocator->HasPersistentLocation());
++
++  base::HistogramTester histogram_tester;
++  constexpr char kBooleanHistogram[] =
++      "MetricsServiceTest.LocalStorage.Boolean";
++  constexpr char kSparseHistogram[] = "MetricsServiceTest.LocalStorage.Sparse";
++  constexpr int kSparseSample = 42;
++
++  // Both boolean buckets exercise recording beyond the single-sample shortcut.
++  base::UmaHistogramBoolean(kBooleanHistogram, false);
++  base::UmaHistogramBoolean(kBooleanHistogram, true);
++  base::UmaHistogramSparse(kSparseHistogram, kSparseSample);
++  histogram_tester.ExpectBucketCount(kBooleanHistogram, false, 1);
++  histogram_tester.ExpectBucketCount(kBooleanHistogram, true, 1);
++  histogram_tester.ExpectUniqueSample(kSparseHistogram, kSparseSample, 1);
++}
++#endif  // !BUILDFLAG(GOOGLE_CHROME_BRANDING)
+diff --git a/components/metrics/metrics_service_accessor.cc b/components/metrics/metrics_service_accessor.cc
+index 83e963b074036a761297b3778f3cc6a9bc5c1f46..90b1634670bb8a7a065a14e21dc7f67907ee1227 100644
+--- a/components/metrics/metrics_service_accessor.cc
++++ b/components/metrics/metrics_service_accessor.cc
+@@ -38,13 +38,8 @@ bool MetricsServiceAccessor::IsMetricsReportingEnabled(
+                     "servers. Should not be used for tests.";
+     return true;
+   }
+-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  return IsMetricsReportingEnabledForOfficialBuild(local_state);
+-#else
+-  // In non-official builds, disable metrics reporting completely.
+-  return g_force_official_enabled_test &&
++  return IsMetricsReportingSupported() &&
+          IsMetricsReportingEnabledForOfficialBuild(local_state);
+-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+ }
+ 
+ // static
+@@ -75,4 +70,14 @@ bool MetricsServiceAccessor::IsForceMetricsReportingEnabledPrefLookup() {
+   return g_force_official_enabled_test;
+ }
+ 
++// static
++bool MetricsServiceAccessor::IsMetricsReportingSupported() {
++#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
++  return true;
++#else
++  // Non-Google-branded builds only report when explicitly overridden.
++  return g_force_official_enabled_test || IsMetricsReportingForceEnabled();
++#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
++}
++
+ }  // namespace metrics
+diff --git a/components/metrics/metrics_service_accessor.h b/components/metrics/metrics_service_accessor.h
+index e427f5e46a95776cc8d7b933b1cfa27157d81683..fc0488d5868dc3e8e524b972a43fc2f5c036d5df 100644
+--- a/components/metrics/metrics_service_accessor.h
++++ b/components/metrics/metrics_service_accessor.h
+@@ -34,6 +34,10 @@ class MetricsServiceAccessor {
+   // disallow instantiation.
+   MetricsServiceAccessor() = default;
+ 
++  // Returns whether reporting can be enabled in this process, independently of
++  // current consent. Does not read prefs or require field-trial initialization.
++  static bool IsMetricsReportingSupported();
++
+   // Returns whether metrics reporting is enabled, using the value of the
+   // kMetricsReportingEnabled pref in |local_state| to determine whether user
+   // has enabled reporting.

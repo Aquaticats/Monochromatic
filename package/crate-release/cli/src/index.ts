@@ -15,6 +15,7 @@ export * from './dispatch-run.ts';
 export * from './error.ts';
 export * from './manifest-edit.ts';
 export * from './option-parsing.ts';
+export * from './origin-containment.ts';
 export * from './package-version.ts';
 export * from './publish-results.ts';
 export * from './publish-run-selection.ts';

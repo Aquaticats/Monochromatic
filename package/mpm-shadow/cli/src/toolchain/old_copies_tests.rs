@@ -317,7 +317,7 @@ fn a_record_that_says_the_old_copy_is_newer_than_the_managed_one_keeps_it() {
     scene.write_record("0.4.6");
     let newer = plan_old_copies(&scene.context(), &[]);
     let reason = newer.plans[0].kept.clone().unwrap_or_default();
-    assert!(reason.contains("0.4.6") && reason.contains("mise run toolchain:update"), "{reason}");
+    assert!(reason.contains("0.4.6") && reason.contains(&format!("`mpm update {GIT_TOOL}`")), "{reason}");
     for version in ["0.4.5", "0.4.4", "0.2.13"] {
         scene.write_record(version);
         let plans = plan_old_copies(&scene.context(), &[]);

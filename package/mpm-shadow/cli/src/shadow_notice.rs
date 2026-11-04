@@ -212,14 +212,45 @@ pub fn help_section(real_mpm: &Path) -> String {
     return format!(
         "\nmpm-shadow {version}:\n  \
          This `mpm` is a shadow of mpm, run by mpm-shadow (shadowing the real mpm at {path}).\n  \
-         It passes your arguments, the standard streams and mpm's exit status through unchanged.\n  \
-         After every run it deletes the superseded cached versions of this repository's own `monochromatic-` crates\n  \
-         from cargo's registry, and reports that post-run cleanup as one summary line on standard error;\n  \
-         `MPM_SHADOW_VERBOSE=1` adds one `mpm-shadow: deleted stale <path>` line per path.\n  \
-         The toolchain commands (install, update, outdated, list, bin) belong to `mpm-shadow --help`.\n",
+         A first word that is one of pnpm's verbs runs mpm-shadow's own command: {verbs}\n  \
+         (`mpm i -g` is `mpm-shadow install --global`; `mpm-shadow --help` describes them).\n  \
+         Every other command line goes to the real mpm, with your arguments, the standard streams and mpm's exit\n  \
+         status passed through unchanged. After each run of the real mpm the shadow deletes the superseded cached\n  \
+         versions of this repository's own `monochromatic-` crates from cargo's registry, and reports that post-run\n  \
+         cleanup as one summary line on standard error;\n  \
+         `MPM_SHADOW_VERBOSE=1` adds one `mpm-shadow: deleted stale <path>` line per path.\n",
         version = shadow_version(),
-        path = real_mpm.display()
+        path = real_mpm.display(),
+        verbs = pnpm_verb_words()
     );
+}
+
+/// What:
+/// `fn pnpm_verb_words() -> String` declares a private function that writes every verb `declared_verbs` lists,
+///           each followed by its aliases in parentheses,
+/// as one comma-separated text:
+///           `prune, install (i), update (up, upgrade), ...`.
+/// Why:
+/// The help section names exactly the words `mpm` hands to mpm-shadow,
+/// read from the one verb table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pnpmVerbWords(): string {
+///   return declaredVerbs().map((verb) => verb.aliases.length === 0 ? verb.name : `${verb.name} (${verb.aliases.join(', ')})`).join(', ');
+/// }
+/// ```
+fn pnpm_verb_words() -> String {
+    let mut words: Vec<String> = Vec::new();
+    for verb in crate::cli::declared_verbs() {
+        if verb.aliases.is_empty() {
+            // `.to_string()` copies the borrowed name into an owned `String` the list keeps.
+            words.push(verb.name.to_string());
+        } else {
+            words.push(format!("{} ({})", verb.name, verb.aliases.join(", ")));
+        }
+    }
+    return words.join(", ");
 }
 
 /// The unit tests of the scan and the added text.

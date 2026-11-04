@@ -123,7 +123,7 @@ pub fn build_command() -> Command {
     // return new Command('mpm-shadow').version(pkg.version).addCommand(prune);
     // ```
     return Command::new("mpm-shadow")
-        .about("A shadow of mpm: invoked as `mpm` it runs the real mpm, then deletes the superseded cached versions of this repository's own crates. Invoked as mpm-shadow it owns the toolchain plan and lock with pnpm's commands (install, update, outdated, list, bin).")
+        .about("A shadow of mpm that owns the toolchain plan and lock with pnpm's commands (install, update, outdated, list, bin): invoked as `mpm`, a command line whose first word is one of these verbs or their pnpm aliases (`mpm i -g`) runs that command here, and every other command line runs the real mpm, after which the superseded cached versions of this repository's own crates are deleted. Invoked as mpm-shadow it runs the same commands.")
         // `env!("CARGO_PKG_VERSION")` is a compile-time macro (the `!`) that pastes in the version from
         // `Cargo.toml`; `subcommand_required(true)` makes a bare `mpm-shadow` print the help instead.
         .version(env!("CARGO_PKG_VERSION"))
@@ -155,10 +155,46 @@ pub fn declared_verbs() -> Vec<&'static Verb> {
 }
 
 /// What:
+/// `pub fn names_a_declared_verb(word: &str) -> bool` declares a public function that answers whether `word`
+///           (a borrowed text, `&str`) is the name or an alias of one of the verbs `declared_verbs` lists.
+/// Why:
+/// `main.rs` runs a command line typed to `mpm` as this tool's own command when its first word is one of these
+///           pnpm verbs (owner,
+/// 2026-11-03:
+/// "I want pnpm style verbs.
+/// We talked about this!"),
+/// and the verb
+///           table stays the one owner of those words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function namesADeclaredVerb(word: string): boolean {
+///   return declaredVerbs().some((verb) => verb.name === word || verb.aliases.includes(word));
+/// }
+/// ```
+pub fn names_a_declared_verb(word: &str) -> bool {
+    for verb in declared_verbs() {
+        // What:     `verb.aliases.contains(&word)` asks whether the alias list holds `word`; `&word` lends the
+        //           text to the search without giving it away.
+        // Why:      An alias such as `i` is as much pnpm's verb as the name `install`.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (verb.name === word || verb.aliases.includes(word)) return true;
+        // ```
+        if verb.name == word || verb.aliases.contains(&word) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 /// `pub fn run_cli(arguments: Vec<String>) -> i32` declares a public function taking the command-line texts
 ///           and returning the exit code.
 /// Why:
-/// `main.rs` calls it for every start that is not under the name `mpm`.
+/// `main.rs` calls it for every start that is not under the name `mpm`,
+/// and for a start under `mpm` whose first word is one of pnpm's verbs (`names_a_declared_verb`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

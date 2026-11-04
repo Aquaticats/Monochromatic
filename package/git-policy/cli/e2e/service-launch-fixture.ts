@@ -18,18 +18,18 @@ import { realpath, } from 'node:fs/promises';
 const SERVICE_PROGRAM = '/opt/native/cli-git-service';
 
 /**
- The Git the service runs, which the image keeps off the default path.
+ The Git the service runs: the image's installed Git.
  */
-const SERVICE_GIT = '/opt/git/2.55.0/bin/git';
+const SERVICE_GIT = '/usr/bin/git';
 
 /**
  Environment variable that arms one fault point of the service
- (`src/native/service_fault.rs`, compiled into the release executable).
+ (`src/native/service/service_fault.rs`, compiled into the release executable).
  */
 const FAULT_VARIABLE = 'CLI_GIT_TEST_ONLY_SERVICE_FAULT';
 
 /**
- The 128-bit FNV-1a offset basis and prime of the instance name (`src/native/service_instance.rs`).
+ The 128-bit FNV-1a offset basis and prime of the instance name (`src/native/service/service_instance.rs`).
  */
 const FNV_OFFSET = 0x6C_62_27_2E_07_BB_01_42_62_B8_21_75_62_95_C5_8Dn;
 
@@ -84,7 +84,7 @@ async function resolvedOrGiven(path: string,): Promise<string> {
 
 /**
  The name of the service instance of a worktree: 32 hexadecimal digits of the FNV-1a hash of the real path of its own Git
- directory, the name `src/native/service_instance.rs` gives it.
+ directory, the name `src/native/service/service_instance.rs` gives it.
  The wrapper derives the socket from it, so the suite starts each worktree's service under the same name.
 
  @param gitDir - the worktree's own Git directory (`.git` of the main worktree, `.git/worktrees/<id>` of a linked one)

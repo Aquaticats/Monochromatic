@@ -87,6 +87,29 @@ export const releaseWorkflowInputs = {
 
 //endregion Release hosts, registry and dispatch
 
+//region Origin containment before a dispatch
+
+/**
+ Name of the Git remote that holds the repository the release workflow builds from.
+ */
+export const originRemote = 'origin';
+
+/**
+ Exit statuses of `git merge-base --is-ancestor`: zero when the first commit is contained in the second, one when it is
+ not; any other status means Git could not answer.
+ */
+export const ancestorStatuses = {
+  contained: 0,
+  notContained: 1,
+} as const;
+
+/**
+ Prefix of the branch a symbolic `HEAD` reference names in the answer of `git ls-remote --symref`.
+ */
+export const symbolicHeadPrefix = 'ref: refs/heads/';
+
+//endregion Origin containment before a dispatch
+
 //region Push of the release commit
 
 /**

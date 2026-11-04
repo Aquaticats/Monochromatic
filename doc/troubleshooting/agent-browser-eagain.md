@@ -402,3 +402,27 @@ No upstream filing is supported by this observation:
 - No upstream patch was proposed or prototyped.
 
 There is nothing to add upstream from this bounded recovery without the missing exit evidence.
+
+## Chromium patch source verification at 2026-11-03T19:53:07+00:00
+
+An owned source-verification browser returned `outcome_unknown` from `agent-browser open`
+with the daemon-read diagnostic quoted in this document.
+The command targeted a public Gitiles commit page.
+Normal `close` succeeded and the launch scope became inactive.
+This occurrence does not establish a task-ceiling failure or why the response was lost.
+
+A replacement browser used a fresh private profile and completed the remaining source passages.
+The helper applied CPU,
+memory,
+task,
+and I/O limits to the identified browser scope before navigation.
+All owned sessions were closed.
+The [verification record](chromium-disk-responsiveness/upstream-work-check.json)
+keeps the successful selections and earlier failures separate.
+
+The replacement helper also exposed a distinct local parser error:
+the observed process command line placed space-separated arguments inside one NUL-delimited string.
+The helper's argument checks did not find its private profile flag.
+Handling that observed representation for its whitespace-free fixture path corrected identification.
+This is separate from the daemon-read diagnostic and does not explain that diagnostic.
+No new upstream defect or filing is established by these observations.

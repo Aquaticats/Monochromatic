@@ -17,7 +17,7 @@ There is no supported public linter library interface.
 Design:
 `doc/planning/unified-linter.md`.
 Execution:
-`doc/handover/cli-git-rust-implementation.md`.
+`doc/handover/unified-linter.md`.
 Executable evidence,
 open decisions,
 and the comparison with both earlier linters:

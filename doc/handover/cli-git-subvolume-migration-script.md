@@ -1,8 +1,10 @@
 # cli-git subvolume migration script (proven on a throwaway, 2026-11-01)
 
 Purpose: a durable copy of the one-off script that converts a Git main checkout into a btrfs subvolume in place.
-It was proven on throwaway copies (see the section "2026-11-01: subvolume migration procedure (proven on a throwaway)"
-in [the cli-git handover](cli-git-rust-implementation.md)); the original lives outside Git under
+It was proven on throwaway copies (the procedure and its measurements are summarized in
+`doc/planning/cli-git-btrfs-worktree.md`,
+"Migration of the main checkout");
+the original lives outside Git under
 `~/temp/agent/subvol-migrate/` and would not survive a reboot of this machine.
 Where the tool lives for good (a wrapper subcommand or printed commands) is an open owner decision;
 this file is the record, not a shipped tool.

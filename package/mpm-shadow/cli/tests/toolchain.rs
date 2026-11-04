@@ -237,6 +237,30 @@ fn rendered_alias_bracket(line: &str) -> Option<&str> {
     return Some(&rest[..=end]);
 }
 
+/// What:
+/// `update` takes pnpm's own aliases,
+/// `up` and `upgrade`.
+/// Why:
+/// pnpm's page lists them ("Aliases: up, upgrade",
+/// https://pnpm.io/cli/update,
+/// read 2026-11-03),
+/// and the commands follow pnpm's,
+///           aliases included,
+/// so `mpm up` and `mpm upgrade` are the toolchain's update.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(declaredVerbs().find((verb) => verb.name === 'update')?.aliases).toEqual(['up', 'upgrade']);
+/// ```
+#[test]
+fn update_takes_pnpms_aliases_up_and_upgrade() {
+    let update = declared_verbs()
+        .into_iter()
+        .find(|verb| return verb.name == "update")
+        .expect("an update verb");
+    assert_eq!(update.aliases, ["up", "upgrade"]);
+}
+
 #[test]
 fn help_lists_every_declared_verb_and_its_visible_aliases() {
     assert_grammar_matches_declaration();

@@ -59,9 +59,10 @@ pub const VERBS: &[Verb] = &[
         aliases: &["i"],
         build: install_command,
     },
+    // pnpm's own aliases for `update` ("Aliases: up, upgrade", https://pnpm.io/cli/update, read 2026-11-03).
     Verb {
         name: "update",
-        aliases: &[],
+        aliases: &["up", "upgrade"],
         build: update_command,
     },
     Verb {

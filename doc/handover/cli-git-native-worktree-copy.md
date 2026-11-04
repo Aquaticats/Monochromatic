@@ -43,7 +43,7 @@ Container gate, final commit: `mise run //package/git-policy/cli:native:test:con
 The image tagged `localhost/git-policy-native-test:worktree-copy` has id
 `53dd88eb33b88a928fdbb22305372796603375cd01078dd0c3f92cf3280e9a65`.
 The gate failed. The lib test target stopped at Clippy with four findings in files this lane does not own:
-`src/native/entry_tests.rs:114`, `src/native/index_lock_wait_tests.rs:190` and `:201`, and
+`src/native/invocation/entry_tests.rs:114`, `src/native/lock/index_lock_wait_tests.rs:190` and `:201`, and
 `src/native/index_writer_coordination_tests.rs:192`. The coordinator said these belong to the transactions branch.
 The binary and interop targets therefore did not run in this gate.
 

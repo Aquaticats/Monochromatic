@@ -88,7 +88,8 @@ Each responsibility records these points:
   `absent`,
   `in progress`,
   or `implemented`.
-  "In progress" means the `Resumption 2026-10-05` section of `doc/handover/cli-git-rust-implementation.md`
+  "In progress" means the `Resumption 2026-10-05` section of `doc/handover/cli-git-rust-implementation.md` [section
+  removed on 2026-11-03 under rule H0P and kept in commit `e10b8186bc`]
   delegates the area and no module for it exists at `df25471a9`.
   "Implemented" means a library module with unit tests exists.
   No native executable exists at `df25471a9` (`src/native/lib.rs:1`),
@@ -275,7 +276,8 @@ counted with `rg --multiline --count-matches` over the `Status` and `Native stat
   Evidence:
   5 unit tests in `src/native/global_arguments_tests.rs`,
   part of the 9 tests and Clippy pass of `mise run //package/git-policy/cli:native:test:container`
-  recorded in the `Resumption 2026-10-05` section of `doc/handover/cli-git-rust-implementation.md`.
+  recorded in the `Resumption 2026-10-05` section of `doc/handover/cli-git-rust-implementation.md` [section removed on
+  2026-11-03 under rule H0P and kept in commit `e10b8186bc`].
   No executable consumes it yet,
   so the consumer-level test has not run.
 

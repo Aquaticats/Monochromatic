@@ -139,7 +139,7 @@ fn a_tree_pinning_an_older_repository_tool_keeps_the_newer_install_runs_it_and_i
     assert!(!version_directory(&rig.scope.toolchain_root, "monochromatic-mpm-shadow", "0.4.0").exists());
     assert_eq!(report_old.warnings, vec![older_lock_message(PUBLISHED, "0.4.0", "0.4.4")]);
     assert!(report_old.warnings[0].contains("older repository tools are never kept"), "{report_old:?}");
-    assert!(report_old.warnings[0].contains("mise run toolchain:update"), "{report_old:?}");
+    assert!(report_old.warnings[0].contains(&format!("`mpm update {PUBLISHED}`")), "{report_old:?}");
 
     // The old tree's links go through its own launcher to the newest version.
     let launcher = scope_old.launcher_dir.join("mpm-shadow");

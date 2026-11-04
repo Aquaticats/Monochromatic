@@ -130,7 +130,9 @@ Order from the independent review: skip directory syncs where nothing changed (t
 syncs after removing a landed transaction directory, defer directory syncs to barriers, add torn-record tolerance for
 pre-landing records with a tearing, dropping and reordering harness (a kill is not a power loss), and only then drop
 file syncs of pre-landing records. Lock-candidate syncs stay: a torn blocking `owner.json` would stick every
-acquirer. The sync-site table is in `doc/handover/cli-git-rust-implementation.md`.
+acquirer.
+The sync-site table described the transaction route that 4d part 2 deleted,
+so it is no longer kept.
 
 ### J1 outcome: the `ensure_*` syncs were already conditional
 
@@ -815,6 +817,12 @@ scenarios, is now zero. The wrapper creates the entries of an empty bare reposit
 (`src/native/shadow_skeleton.rs`, compared with real `git init --bare --template=` by its own test), and starts
 `git init` only for the reftable backend. The `read-tree` count is unchanged (it now runs `--reset` over a copy of the
 real index); the reason and the timings are in `doc/planning/cli-git-commit-timeouts.md`.
+
+Lowered again on 2026-11-03: the `read-tree` start of a commit whose index already equals its base is zero in the warm,
+monitor-on and amend scenarios (the cold scenarios commit on an unborn branch and keep their one start). The private index is
+the copy of the real index, and the in-process `diff-index --cached` reader says the copy holds exactly the base tree; a
+question the readers leave to Git takes the old way, with the start. The reasons and the numbers are in
+`doc/planning/cli-git-main-commit-within-native-plus-five.md`.
 
 ## Filesystem identity without `findmnt` (slice S2)
 

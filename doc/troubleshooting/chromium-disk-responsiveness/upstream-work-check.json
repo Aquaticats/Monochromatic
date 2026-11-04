@@ -1,0 +1,630 @@
+{
+  "checkedAt": "2026-11-03T19:56:18.603Z",
+  "queries": [
+    {
+      "query": "project:chromium/src status:open file:chrome/app/chrome_main_delegate.cc",
+      "at": "2026-11-03T18:43:24.050Z",
+      "resultCount": 56,
+      "moreResults": false,
+      "changes": [
+        {
+          "number": 8662902,
+          "subject": "[Windows] Ensure USER32/GDI32 can load in IsUser32AndGdi32Available",
+          "status": "NEW",
+          "updated": "2026-11-03 15:53:38.000000000"
+        },
+        {
+          "number": 8561037,
+          "subject": "[variations] Share the feature list startup between Chrome and iOS",
+          "status": "NEW",
+          "updated": "2026-11-03 15:09:16.000000000"
+        },
+        {
+          "number": 8665021,
+          "subject": "Move SystemProfile minidump stream ownership to crash reporter client",
+          "status": "NEW",
+          "updated": "2026-11-03 12:12:54.000000000"
+        },
+        {
+          "number": 8713420,
+          "subject": "Add standalone Basic Process browser test",
+          "status": "NEW",
+          "updated": "2026-11-03 05:53:25.000000000"
+        },
+        {
+          "number": 8702204,
+          "subject": "Rewrite Linux UNSAFE_TODO libc calls with unsafe_libc_rewriter",
+          "status": "NEW",
+          "updated": "2026-11-02 17:28:05.000000000"
+        },
+        {
+          "number": 8261085,
+          "subject": "Move ParallelPreReadFileMainDllWin to Stable",
+          "status": "NEW",
+          "updated": "2026-10-13 14:57:55.000000000"
+        },
+        {
+          "number": 7980103,
+          "subject": "Disable HKCU lookup for isolated processes",
+          "status": "NEW",
+          "updated": "2026-09-18 21:26:25.000000000"
+        },
+        {
+          "number": 8412070,
+          "subject": "Support de-elevation relaunch for Process Isolation",
+          "status": "NEW",
+          "updated": "2026-09-15 22:33:05.000000000"
+        },
+        {
+          "number": 8362362,
+          "subject": "[DO NOT MERGE] Add Crubit C++ bindings for Rust regex",
+          "status": "NEW",
+          "updated": "2026-09-09 19:51:06.000000000"
+        },
+        {
+          "number": 8351673,
+          "subject": "[mac] Record and trace Mach-O relocation resolution metrics in Aperitif",
+          "status": "NEW",
+          "updated": "2026-09-04 12:21:58.000000000"
+        },
+        {
+          "number": 8279710,
+          "subject": "Enable running web benchmarks via file:// URLs on Android",
+          "status": "NEW",
+          "updated": "2026-08-24 10:47:17.000000000"
+        },
+        {
+          "number": 8214459,
+          "subject": "Complete Bluedog Critical Action Audit Logging Validation & Benchmark Suite",
+          "status": "NEW",
+          "updated": "2026-08-06 10:16:32.000000000"
+        },
+        {
+          "number": 8213600,
+          "subject": "[Clank] Prototype: History Search Accelerators with multi-device and agent filtering",
+          "status": "NEW",
+          "updated": "2026-08-06 10:14:38.000000000"
+        },
+        {
+          "number": 7985051,
+          "subject": "[poc] passkey",
+          "status": "NEW",
+          "updated": "2026-06-23 15:39:24.000000000"
+        },
+        {
+          "number": 7910372,
+          "subject": "Fix Mac crash in InitMacCrashReporter for helper bundles like AlertNotificationService",
+          "status": "NEW",
+          "updated": "2026-06-09 07:36:43.000000000"
+        },
+        {
+          "number": 7853883,
+          "subject": "Fix onTabStripChanged listener args in searchboxes",
+          "status": "NEW",
+          "updated": "2026-05-20 20:56:44.000000000"
+        },
+        {
+          "number": 7805468,
+          "subject": "Address review comments: move disconnect handler to constructor, add CHECK for ReceiverId, use WaitForAllDisconnects in TearDown",
+          "status": "NEW",
+          "updated": "2026-04-30 17:28:03.000000000"
+        },
+        {
+          "number": 7732903,
+          "subject": "memory_instrumentation: Integrate SmapsCategorizer into service",
+          "status": "NEW",
+          "updated": "2026-04-10 23:00:42.000000000"
+        },
+        {
+          "number": 7676299,
+          "subject": "[Draft] Pipe partition_alloc events over to libheapprofd",
+          "status": "NEW",
+          "updated": "2026-03-17 20:19:17.000000000"
+        },
+        {
+          "number": 7518764,
+          "subject": "sample",
+          "status": "NEW",
+          "updated": "2026-02-25 11:05:16.000000000"
+        },
+        {
+          "number": 7533377,
+          "subject": "**This is an AI-generated fix for the crash http://crash/c24ca76560ccf05a**",
+          "status": "NEW",
+          "updated": "2026-01-30 06:55:01.000000000"
+        },
+        {
+          "number": 7086627,
+          "subject": "Update version_info::GetXXX() to constexpr char[]",
+          "status": "NEW",
+          "updated": "2025-11-03 13:34:21.000000000"
+        },
+        {
+          "number": 6472058,
+          "subject": "Move ShowMissingLocaleMessageBox to ChromeMainDelegate",
+          "status": "NEW",
+          "updated": "2025-07-17 08:32:03.000000000"
+        },
+        {
+          "number": 5742620,
+          "subject": "Delegate process-specific HangWatcher work to //chrome",
+          "status": "NEW",
+          "updated": "2025-06-28 00:12:42.000000000"
+        },
+        {
+          "number": 5014984,
+          "subject": "[ios] Build on //chrome",
+          "status": "NEW",
+          "updated": "2025-06-24 01:08:08.000000000"
+        },
+        {
+          "number": 4441229,
+          "subject": "Experiment with huge pages for .text",
+          "status": "NEW",
+          "updated": "2025-04-30 15:39:21.000000000"
+        },
+        {
+          "number": 2826210,
+          "subject": "Avoid instant poll of events after sleep in MessagePumpKqueue::Run",
+          "status": "NEW",
+          "updated": "2025-04-03 00:40:02.000000000"
+        },
+        {
+          "number": 2555640,
+          "subject": "Remove deprecated UsePowerMonitorWithThreadController feature",
+          "status": "NEW",
+          "updated": "2025-04-03 00:38:38.000000000"
+        },
+        {
+          "number": 5672940,
+          "subject": "Redo prefetch logic so that the PreReadFile is done in the context of the created process. Also support new modes to disable PreReadFile on SSD and have the type of PreReadFile on the cmd line for analysis.",
+          "status": "NEW",
+          "updated": "2025-02-18 16:33:20.000000000"
+        },
+        {
+          "number": 5983883,
+          "subject": "Fix the root casue causing IdleManagerFactory crash.",
+          "status": "NEW",
+          "updated": "2024-10-31 23:53:09.000000000"
+        },
+        {
+          "number": 5909050,
+          "subject": "Use dedicated unix domain socket for schedqos",
+          "status": "NEW",
+          "updated": "2024-10-07 09:29:55.000000000"
+        },
+        {
+          "number": 3307333,
+          "subject": "[Do not submit] Android Unwinder Local Testing",
+          "status": "NEW",
+          "updated": "2024-05-28 15:43:04.000000000"
+        },
+        {
+          "number": 5473962,
+          "subject": "base::optional (3)",
+          "status": "NEW",
+          "updated": "2024-04-22 17:29:25.000000000"
+        },
+        {
+          "number": 5406092,
+          "subject": "Cleanup UsePowerMonitorWithThreadController experiment",
+          "status": "NEW",
+          "updated": "2024-03-28 20:50:44.000000000"
+        },
+        {
+          "number": 5141146,
+          "subject": "Remove ThreadControllerSetsProfilerMetadata feature",
+          "status": "NEW",
+          "updated": "2023-12-20 18:31:31.000000000"
+        },
+        {
+          "number": 4919422,
+          "subject": "Always emit profiler metadata on lower channels",
+          "status": "NEW",
+          "updated": "2023-12-20 16:38:36.000000000"
+        },
+        {
+          "number": 4707004,
+          "subject": "Build on //chrome - With dlopen goodness",
+          "status": "NEW",
+          "updated": "2023-12-04 16:49:11.000000000"
+        },
+        {
+          "number": 4987200,
+          "subject": "DO NOT SUBMIT: Sample usage of new logging framework",
+          "status": "NEW",
+          "updated": "2023-11-08 17:27:57.000000000"
+        },
+        {
+          "number": 4771052,
+          "subject": "[CLONE] [Brya Bringup] Add feature flag to enable media compression",
+          "status": "NEW",
+          "updated": "2023-08-28 23:14:51.000000000"
+        },
+        {
+          "number": 4378577,
+          "subject": "Use //chrome for bling",
+          "status": "NEW",
+          "updated": "2023-07-17 18:16:51.000000000"
+        },
+        {
+          "number": 4576863,
+          "subject": "Restructure parameters of components/memory_system",
+          "status": "NEW",
+          "updated": "2023-05-31 10:28:30.000000000"
+        },
+        {
+          "number": 2210742,
+          "subject": "Emit chrome_debug.log to --user-data-dir location (if set).",
+          "status": "NEW",
+          "updated": "2023-05-01 09:05:24.000000000"
+        },
+        {
+          "number": 4264670,
+          "subject": "WONT LAND -- rewrite new to keep track of object counts",
+          "status": "NEW",
+          "updated": "2023-02-17 14:21:20.000000000"
+        },
+        {
+          "number": 4175072,
+          "subject": "[DO NOT SUBMIT] proof of concept for capturing early exit metrics",
+          "status": "NEW",
+          "updated": "2023-01-17 19:08:21.000000000"
+        },
+        {
+          "number": 639154,
+          "subject": "Support locale variants better",
+          "status": "NEW",
+          "updated": "2022-11-29 20:42:51.000000000"
+        },
+        {
+          "number": 4045482,
+          "subject": "[DO NOT SUBMIT] clone of 4037381",
+          "status": "NEW",
+          "updated": "2022-11-29 04:13:04.000000000"
+        },
+        {
+          "number": 3827316,
+          "subject": "[DO NOT SUBMIT] Find children of ContentMainDelegate.",
+          "status": "NEW",
+          "updated": "2022-08-18 21:38:44.000000000"
+        },
+        {
+          "number": 3828604,
+          "subject": "[DO NOT SUBMIT] Test.",
+          "status": "NEW",
+          "updated": "2022-08-12 14:37:30.000000000"
+        },
+        {
+          "number": 3776722,
+          "subject": "WIP: Enable feedback page.",
+          "status": "NEW",
+          "updated": "2022-07-20 16:49:09.000000000"
+        },
+        {
+          "number": 3696781,
+          "subject": "Cleanup: Rename ShouldCreateFeatureList to DelegateWillCreateFeatureList",
+          "status": "NEW",
+          "updated": "2022-06-16 16:57:15.000000000"
+        },
+        {
+          "number": 3696337,
+          "subject": "Disable immediate heap termination for tests.",
+          "status": "NEW",
+          "updated": "2022-06-13 16:58:34.000000000"
+        },
+        {
+          "number": 3574833,
+          "subject": "[Resource file sharing] Prototype with zygote/utility process loading",
+          "status": "NEW",
+          "updated": "2022-04-11 07:23:48.000000000"
+        },
+        {
+          "number": 3542725,
+          "subject": "Rewrite raw pointer fields to use raw_ptr<T>",
+          "status": "NEW",
+          "updated": "2022-03-24 06:57:13.000000000"
+        },
+        {
+          "number": 3388175,
+          "subject": "Enable the HangWatcher for the GPU compositor thread",
+          "status": "NEW",
+          "updated": "2022-01-15 05:12:40.000000000"
+        },
+        {
+          "number": 2817999,
+          "subject": "Enable power scheduler on ChromeOS",
+          "status": "NEW",
+          "updated": "2021-11-04 03:03:03.000000000"
+        },
+        {
+          "number": 3159008,
+          "subject": "PERF: hack chrome to use WebLayer's contentrendererclient",
+          "status": "NEW",
+          "updated": "2021-09-20 16:59:36.000000000"
+        }
+      ]
+    },
+    {
+      "query": "project:chromium/src status:open file:chrome/browser/metrics/chrome_metrics_service_accessor.cc",
+      "at": "2026-11-03T18:46:27.744Z",
+      "resultCount": 1,
+      "moreResults": false,
+      "changes": [
+        {
+          "number": 3115928,
+          "subject": "upload to see an absl compile issue",
+          "status": "NEW",
+          "updated": "2021-08-24 08:15:41.000000000"
+        }
+      ]
+    },
+    {
+      "query": "project:chromium/src status:open file:chrome/browser/metrics/chrome_metrics_service_accessor.h",
+      "at": "2026-11-03T18:46:27.745Z",
+      "resultCount": 14,
+      "moreResults": false,
+      "changes": [
+        {
+          "number": 8671222,
+          "subject": "[Glic][Android] Add bottom-sheet native FRE metrics and render tests",
+          "status": "NEW",
+          "updated": "2026-11-03 09:02:05.000000000"
+        },
+        {
+          "number": 8666606,
+          "subject": "[Glic][Android] Plumb per-tab native FRE state and readiness over JNI",
+          "status": "NEW",
+          "updated": "2026-11-03 09:01:45.000000000"
+        },
+        {
+          "number": 7917552,
+          "subject": "a11y: implement blink-resident shared memory string pool on Linux (Phase 3)",
+          "status": "NEW",
+          "updated": "2026-06-10 09:17:01.000000000"
+        },
+        {
+          "number": 7807636,
+          "subject": "[WIP] Metrics Consent changes Parallel",
+          "status": "NEW",
+          "updated": "2026-05-05 11:53:05.000000000"
+        },
+        {
+          "number": 7805468,
+          "subject": "Address review comments: move disconnect handler to constructor, add CHECK for ReceiverId, use WaitForAllDisconnects in TearDown",
+          "status": "NEW",
+          "updated": "2026-04-30 17:28:03.000000000"
+        },
+        {
+          "number": 7723138,
+          "subject": "[WIP] Metrics Consent Restructuring",
+          "status": "NEW",
+          "updated": "2026-04-24 13:10:56.000000000"
+        },
+        {
+          "number": 7732903,
+          "subject": "memory_instrumentation: Integrate SmapsCategorizer into service",
+          "status": "NEW",
+          "updated": "2026-04-10 23:00:42.000000000"
+        },
+        {
+          "number": 7008210,
+          "subject": "Register synthetic trial for seed memory purge and SeedFile experiments.",
+          "status": "NEW",
+          "updated": "2025-10-08 06:38:53.000000000"
+        },
+        {
+          "number": 6680575,
+          "subject": "Forward declare friend class in chrome_metrics_service_accessor.h",
+          "status": "NEW",
+          "updated": "2025-06-27 02:23:44.000000000"
+        },
+        {
+          "number": 5014984,
+          "subject": "[ios] Build on //chrome",
+          "status": "NEW",
+          "updated": "2025-06-24 01:08:08.000000000"
+        },
+        {
+          "number": 5732232,
+          "subject": "synthetic trial code without tests",
+          "status": "NEW",
+          "updated": "2024-07-22 19:50:35.000000000"
+        },
+        {
+          "number": 4707004,
+          "subject": "Build on //chrome - With dlopen goodness",
+          "status": "NEW",
+          "updated": "2023-12-04 16:49:11.000000000"
+        },
+        {
+          "number": 4681121,
+          "subject": "Copied from https://crrev.com/c/4664538/8",
+          "status": "NEW",
+          "updated": "2023-07-12 08:45:48.000000000"
+        },
+        {
+          "number": 3641018,
+          "subject": "[broken down][Android] Safe Mode: Use safe values",
+          "status": "NEW",
+          "updated": "2022-05-19 21:58:43.000000000"
+        }
+      ]
+    },
+    {
+      "query": "project:chromium/src status:open file:components/metrics/metrics_service_accessor.cc",
+      "at": "2026-11-03T18:46:27.746Z",
+      "resultCount": 2,
+      "moreResults": false,
+      "changes": [
+        {
+          "number": 7723138,
+          "subject": "[WIP] Metrics Consent Restructuring",
+          "status": "NEW",
+          "updated": "2026-04-24 13:10:56.000000000"
+        },
+        {
+          "number": 2268585,
+          "subject": "[DO NOT COMMIT] Generate synthetic crash log for UTE",
+          "status": "NEW",
+          "updated": "2022-11-01 19:28:52.000000000"
+        }
+      ]
+    },
+    {
+      "query": "project:chromium/src status:open file:components/metrics/persistent_histograms.cc",
+      "at": "2026-11-03T18:46:27.746Z",
+      "resultCount": 3,
+      "moreResults": false,
+      "changes": [
+        {
+          "number": 7853883,
+          "subject": "Fix onTabStripChanged listener args in searchboxes",
+          "status": "NEW",
+          "updated": "2026-05-20 20:56:44.000000000"
+        },
+        {
+          "number": 5851756,
+          "subject": "lensoverlay: move full_image_endpoint_fetcher_",
+          "status": "NEW",
+          "updated": "2024-09-10 20:17:08.000000000"
+        },
+        {
+          "number": 4175072,
+          "subject": "[DO NOT SUBMIT] proof of concept for capturing early exit metrics",
+          "status": "NEW",
+          "updated": "2023-01-17 19:08:21.000000000"
+        }
+      ]
+    },
+    {
+      "query": "project:chromium/src status:open message:BrowserMetrics",
+      "at": "2026-11-03T18:43:24.114Z",
+      "resultCount": 2,
+      "moreResults": false,
+      "changes": [
+        {
+          "number": 8707393,
+          "subject": "Cache system profile segment refs in RecordAllocator",
+          "status": "NEW",
+          "updated": "2026-11-02 20:57:57.000000000"
+        },
+        {
+          "number": 8454728,
+          "subject": "Remove NOTREACHEDs in PersistentSystemProfile::RecordAllocator",
+          "status": "NEW",
+          "updated": "2026-09-25 15:56:17.000000000"
+        }
+      ]
+    },
+    {
+      "query": "project:chromium/src status:open message:histogram message:fault",
+      "at": "2026-11-03T18:43:24.115Z",
+      "resultCount": 1,
+      "moreResults": false,
+      "changes": [
+        {
+          "number": 8041741,
+          "subject": "Avoid modifying read-only memory maps in persistent histograms.",
+          "status": "NEW",
+          "updated": "2026-07-04 09:34:30.000000000"
+        }
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "change": 8665021,
+      "revision": "fd29250a5a0aa73454b6f326bb3606c7fe53dc1d",
+      "needle": "Windows minidumps never contained the system profile.",
+      "url": "https://chromium.googlesource.com/chromium/src/+/fd29250a5a0aa73454b6f326bb3606c7fe53dc1d#:~:text=Windows%20minidumps%20never%20contained%20the%20system%20profile.",
+      "at": "2026-11-03T19:05:02.037Z",
+      "observation": {
+        "found": true,
+        "href": "https://chromium.googlesource.com/chromium/src/+/fd29250a5a0aa73454b6f326bb3606c7fe53dc1d",
+        "inView": true,
+        "title": "fd29250a5a0aa73454b6f326bb3606c7fe53dc1d - chromium/src - Git at Google"
+      },
+      "status": "NEW",
+      "updated": "2026-11-03 12:12:54.000000000",
+      "commitMessage": "Move SystemProfile minidump stream ownership to crash reporter client\n\nThe SystemProfile minidump user stream\n(kSharedMemorySystemProfileMinidump) was owned by a process-wide\nsingleton in //components/metrics. On Windows, Crashpad is started by\nchrome_elf.dll while metrics runs in chrome.dll, and each module ended\nup with its own copy of the singleton: the Crashpad handler received\nchrome_elf's region while metrics wrote into chrome.dll's. As a result,\nWindows minidumps never contained the system profile.\n\nMove ownership of the stream to Chrome's crash reporter client\n(ChromeCrashReporterClient), which always lives in the module that\nstarts Crashpad, and let other modules write to it through\n//components/crash:\n\n- ChromeCrashUserStreams (//chrome/app), owned by\n  ChromeCrashReporterClient, creates the shared memory and hands\n  read-only handles to the handler via\n  CrashReporterClient::GetUserStreamSharedMemoryRegions().\n- Add CrashReporterClient::WriteUserStreamData() and\n  crash_reporter::WriteUserStreamData() to update an embedder-owned\n  stream by type. On Windows the call crosses into chrome_elf.dll\n  through the new WriteUserStreamData_ExportThunk.\n- //components/metrics no longer owns any shared memory.\n  WriteSystemProfileUserStream() only pushes the serialized proto and\n  records UMA.SystemProfile.UserStreamOverflow in the metrics module,\n  since histograms recorded in chrome_elf.dll are not uploaded.\n\nTested: the write has two code paths, each checked by a manual test that\ncrashes the browser and the GPU process with the feature enabled and\ninspects the minidumps:\n- Cross-module path (Windows: chrome.dll -> export thunk ->\n  chrome_elf.dll): ran it on a Windows 10 swarming bot. Both minidumps\n  contain user stream 0x4B6B0003, which decodes to a valid\n  SystemProfileProto.\n- Same-module path (Linux, ChromeOS, Mac, Android, which share the posix\n  ChromeCrashReporterClient) checked on Linux. The stream is present in\n  both minidumps. The per-platform transport of the regions to the\n  handler is not changed by this CL.\n\nBug: 514425492\nChange-Id: Iec057f5347070328d02ab0dad7225cb2e5919b6d"
+    },
+    {
+      "change": 8561037,
+      "revision": "79e5be7f01b4ca0dbea7cbe4b8a155ae46fd51d9",
+      "needle": "Share the feature list startup between Chrome and iOS",
+      "url": "https://chromium.googlesource.com/chromium/src/+/79e5be7f01b4ca0dbea7cbe4b8a155ae46fd51d9#:~:text=Share%20the%20feature%20list%20startup%20between%20Chrome%20and%20iOS",
+      "at": "2026-11-03T19:05:08.846Z",
+      "observation": {
+        "found": true,
+        "href": "https://chromium.googlesource.com/chromium/src/+/79e5be7f01b4ca0dbea7cbe4b8a155ae46fd51d9",
+        "inView": true,
+        "title": "79e5be7f01b4ca0dbea7cbe4b8a155ae46fd51d9 - chromium/src - Git at Google"
+      },
+      "status": "NEW",
+      "updated": "2026-11-03 15:09:16.000000000",
+      "commitMessage": "[variations] Share the feature list startup between Chrome and iOS\n\nChrome and iOS run the same startup sequence up to\nbase::FeatureList::SetInstance(). Previously, ChromeFeatureListCreator\nand IOSChromeMainParts maintained separate copies of those startup\nsteps.\n\nAdd variations::CreateFeatureList(FeatureListCreatorClient&) in\ncomponents/variations/feature_list_creator to run the shared sequence.\nWhen --no-experiments is absent, CreateFeatureList() converts\nabout:flags entries to switches and registers flag variation parameters.\nCreateFeatureList() also refreshes command-line crash keys, creates\nMetricsServicesManager, and calls VariationsService::SetUpFieldTrials().\n\nConsolidate adjacent startup helpers across components, Chrome, and iOS.\nMove kNoExperiments to components/webui/flags, add\nNetworkTimeTracker::CreateUninitialized(), and add\nvariations::CreateVariationsIdsProvider() for Chrome, Android, and iOS.\nMove Local State store setup into chrome_prefs::CreateLocalState() and\nmove Windows locale and Desktop seed helpers into first_run. Move\nAndroid first-run seed retrieval into ChromeVariationsServiceClient and\nclear ChromeFeatureListCreator client pointers on handoff.\n\nEach embedder creates Local State and the policy connector before\nCreateFeatureList() and retains MetricsServicesManager ownership.\n\nTAG=agy\nCONV=f5abfe5c-0313-4d12-9dde-ae4f9fffb5dc\nBug: 504969926, 572685701\nChange-Id: I368be9363f39595046c0d2aa39479cab36a73700"
+    },
+    {
+      "change": 7807636,
+      "revision": "e7edf73097a907478820a6b103ad9cbdd347bd89",
+      "needle": "Metrics Consent changes Parallel",
+      "url": "https://chromium.googlesource.com/chromium/src/+/e7edf73097a907478820a6b103ad9cbdd347bd89#:~:text=Metrics%20Consent%20changes%20Parallel",
+      "at": "2026-11-03T19:05:11.613Z",
+      "observation": {
+        "found": true,
+        "href": "https://chromium.googlesource.com/chromium/src/+/e7edf73097a907478820a6b103ad9cbdd347bd89",
+        "inView": true,
+        "title": "e7edf73097a907478820a6b103ad9cbdd347bd89 - chromium/src - Git at Google"
+      },
+      "status": "NEW",
+      "updated": "2026-05-05 11:53:05.000000000",
+      "commitMessage": "[WIP] Metrics Consent changes Parallel\n\nChange-Id: I85dd07f94d3684694920d4f7ab7e194c5e95f7b7\n"
+    },
+    {
+      "change": 7723138,
+      "revision": "6037c5ecfff3b3dfb4086f71e1d02938f0dfbc75",
+      "needle": "This is a WIP CL",
+      "url": "https://chromium.googlesource.com/chromium/src/+/6037c5ecfff3b3dfb4086f71e1d02938f0dfbc75#:~:text=This%20is%20a%20WIP%20CL",
+      "at": "2026-11-03T19:48:38.556Z",
+      "observation": {
+        "found": true,
+        "href": "https://chromium.googlesource.com/chromium/src/+/6037c5ecfff3b3dfb4086f71e1d02938f0dfbc75",
+        "inView": true,
+        "title": "6037c5ecfff3b3dfb4086f71e1d02938f0dfbc75 - chromium/src - Git at Google"
+      },
+      "status": "NEW",
+      "updated": "2026-04-24 13:10:56.000000000",
+      "commitMessage": "[WIP] Metrics Consent Restructuring\n\nThis is a WIP CL for go/restructuring-chrome-metrics-settings-consent\nproject. This CL gives a general sense of the implementation before\nbreaking down it into smaller CLs. This CL doesn't cover for example iOS\nand also ChromeOS in depth. Currently this CL has only been tested on\nLinux and covers the FRE flow, and the MetricsReportingLevel toggle in\nthe chrome://settings page.\n\nChange-Id: I660a26d6d060191176c3585a2fd6749f65870595"
+    },
+    {
+      "change": 4175072,
+      "revision": "147f62aefdb24e885bc687d159422e0f46a21136",
+      "needle": "proof of concept for capturing early exit metrics",
+      "url": "https://chromium.googlesource.com/chromium/src/+/147f62aefdb24e885bc687d159422e0f46a21136#:~:text=proof%20of%20concept%20for%20capturing%20early%20exit%20metrics",
+      "at": "2026-11-03T19:49:02.780Z",
+      "observation": {
+        "found": true,
+        "href": "https://chromium.googlesource.com/chromium/src/+/147f62aefdb24e885bc687d159422e0f46a21136",
+        "inView": true,
+        "title": "147f62aefdb24e885bc687d159422e0f46a21136 - chromium/src - Git at Google"
+      },
+      "status": "NEW",
+      "updated": "2023-01-17 19:08:21.000000000",
+      "commitMessage": "[DO NOT SUBMIT] proof of concept for capturing early exit metrics\n\nThis CL:\n\n1. Moves the Persistent Histogram System initialization earlier (as is\n   done in crrev.com/c/3950551)\n2. Immediately writes a \"bare\" system_profile to the PMA file after\n   initialization\n\nstep 2 is done very hackily, just to show that the system profile\nfields of interest are accessible at that stage in Chrome\n\n-----\nTo test this CL:\n\n(Assumes you have metrics reporting enabled. You can run Chrome with\n--force-enable-metrics-reporting flag otherwise.)\n\n1. uncomment lines 1610-1611 in chrome/app/chrome_main_delegate.cc to\n   simulate an early exit (also emits a histogram right before)\n2. build and run Chrome, which should close as soon as it runs\n3. comment lines 1610-1611 in chrome/app/chrome_main_delegate.cc\n4. go to chrome://metrics-internals\n5. after ~1minute, an independent log should be produced (maybe more\n   depending on the amount of PMA files you have on disk; if that's\n   the case, wait until no more independent logs are being created)\n6. export the logs\n7. inspect the independent log in http://shortn/_4KyQkdYE5L (Google\n   internal)\n8. confirm that the \"Test.Test\" histogram has been emitted (its hash\n   is 8403475912766526277)\n\nChange-Id: Ie6dce09ce6bb6eb657d3a2c4521b359b91f932bd\n"
+    }
+  ],
+  "browserSessionsClosed": true,
+  "earlierAttempts": [
+    {
+      "operation": "Source navigation",
+      "diagnostic": "agent-browser outcome_unknown: Failed to read: Resource temporarily unavailable (os error 11)",
+      "outcome": "Normal close succeeded; no cause assigned."
+    },
+    {
+      "operation": "Owned-browser identification",
+      "diagnostic": "Helper assertion: Owned browser process was not identified",
+      "outcome": "Observed flattened process-title arguments; the helper was corrected and the remaining source passages passed in a fresh bounded session."
+    }
+  ]
+}

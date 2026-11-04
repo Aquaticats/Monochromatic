@@ -4,7 +4,7 @@
 # Why: the wrapper never starts its own executable (doc/planning/cli-git-no-self-invocation.md). A call to
 #  `current_exe` is the first step of that design, so each remaining use is identification only and carries an
 #  `#[allow(clippy::disallowed_methods)]` with a comment saying what it identifies; the textual scan in
-#  `src/native/no_self_invocation_tests.rs` covers the spellings Clippy cannot see.
+#  `src/native/source_guard/no_self_invocation_tests.rs` covers the spellings Clippy cannot see.
 disallowed-methods = [
   { path = "std::result::Result::unwrap", reason = "handle errors with ? or explain intentional panic with expect" },
   { path = "std::env::temp_dir", reason = "the device behind /tmp is unknowable; use a directory under the build directory or .git/cli-git" },

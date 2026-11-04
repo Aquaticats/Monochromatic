@@ -581,7 +581,14 @@ store and main's `node_modules` were only read.
 - What happens to an existing checkout whose `node_modules` was linked from the old store, once the line is present:
   1. every command except an install keeps working: `pnpm exec` ran against the old `node_modules` and passed, and
      `HOME`
-     unset or pointing elsewhere did not matter to it;
+     unset or pointing elsewhere did not matter to it.
+     Correction (seen 2026-11-02 in the main checkout,
+     whose `node_modules` was still linked from
+     `node_modules/.pnpm-store/v11`):
+     `pnpm update -r --no-save` stops with `ERR_PNPM_UNEXPECTED_STORE` until an
+     install has relinked `node_modules` to the new store,
+     so "every command except an install" holds for `exec` and
+     `run` but not for every command;
   2. `pnpm install --frozen-lockfile --offline` against a new store that does not hold the packages fails with
      `snapshot not present in local store` AND LEAVES `node_modules` EMPTY (only `.pnpm-workspace-state-v1.json`
      remained).
@@ -1574,6 +1581,34 @@ at another depth, then the tool's own command.
   On a copy of this repository's worktree one level deeper the entry `node_modules/execa` was dead and
   `require.resolve` still succeeded, through the source's `node_modules`, so the failure is silent.
   After the repair the entry resolves inside the copy.
+  Matrix detail (real pnpm 12.16.1,
+  a workspace root plus one package,
+  copies nested under `.claude/worktrees/topic` and
+  outside the tree at another depth,
+  measured 2026-11-03):
+  the relative links of a global virtual store with the store
+  outside the tree climb to `/` and back down,
+  so a verbatim copy two levels deeper resolves to nothing,
+  and the first
+  probe misled because Node fell back to the source's `node_modules` above a nested copy (check each tree's own entry and
+  where resolution lands).
+  An outside copy also fails `pnpm run` with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` (`.modules.yaml` records `virtualStoreDir`
+  as a relative path) until `pnpm install --offline --frozen-lockfile`,
+  which repairs it in about 50 ms.
+  Fine in every case (own entries resolve inside the copy,
+  `pnpm run` and the offline frozen install succeed in under
+  0.2 s):
+  store set or unset,
+  isolated virtual store,
+  linker isolated,
+  hoisted or pnp,
+  and the global virtual store with
+  no `storeDir` (pnpm then keeps it in `node_modules/.pnpm-store/v11/links`,
+  inside the tree;
+  the copy's `.modules.yaml`
+  still names the source's in-tree store,
+  and whether a later install in the copy writes into the source's store is
+  unmeasured).
 - Cargo 1.101.0-nightly: `target/` and, where `build-dir` is set, a build directory outside the tree.
   The person's `~/.cargo/config.toml` keys it by `{workspace-path-hash}`, so a new worktree has none.
   Every one of the tracked `Cargo.toml` files of this repository belongs to a workspace of its own with a `Cargo.lock`.

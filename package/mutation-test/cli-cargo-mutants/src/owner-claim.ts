@@ -1,7 +1,7 @@
 /**
  The right of one running command to one item, held as a numbered claim file that names its owner by process birth.
 
- This is the TypeScript counterpart of `package/git-policy/cli/src/native/single_owner_claim.rs`, with the same rules, and
+ This is the TypeScript counterpart of `package/git-policy/cli/src/native/lock/single_owner_claim.rs`, with the same rules, and
  the comments cite its lines. A claim file is made whole in a private temporary file and published with one exclusive
  `link` under the next generation number `<prefix>.<generation>` (`single_owner_claim.rs:182`), so the kernel lets exactly
  one command create generation `n + 1`. No lock is held and nothing ever waits: a command that finds a live owner is told
@@ -10,8 +10,9 @@
  it is reused; `single_owner_claim.rs:211`), so a killed command leaves nothing to clean up by hand. The newest generation
  file is never removed, because removing it would let a command that read an older listing create the same number again; a
  release rewrites it in place by renaming a one-line record over it (`single_owner_claim.rs:308`), and the command that
- takes the next generation removes the older ones (`single_owner_claim.rs:276`). An owner in another PID namespace cannot be
- probed, so it counts as alive until its claim file is older than one hour (`pid_namespace.rs:19`, `pid_namespace.rs:102`).
+ takes the next generation removes the older ones (`single_owner_claim.rs:276`). An owner in another PID namespace, or one
+ whose namespace is not named, is searched for among the processes this one can see by its id inside its own namespace and its
+ start time (`src/foreign-process-scan.ts`); only evidence ends its claim, and no age does.
 
  What a claim cannot know, and the kernel's advisory lock it replaces does: whether the recorded process is the one that
  still does the work. A claim judges its owner from process id, start time and boot, which is exact for a process that was

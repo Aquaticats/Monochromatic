@@ -6,6 +6,14 @@ run = [
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/browser-responsiveness-firefox.html" firefox-upstream.md',
 ]
 
+[tasks."verify:issue-watch"]
+description = "Render the issue watcher record and its readiness rule"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-issue-watch.html" ../../handover/chromium-issue-581090722-watch.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-issue-watch-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-readiness-skill.html" ../../../.agents/skills/troubleshooting-doc/SKILL.md',
+]
+
 [tasks."verify:metrics-ping"]
 description = "Render the Chromium metrics contribution and its verification records"
 run = [
@@ -17,4 +25,15 @@ run = [
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-agents.html" ../../../AGENTS.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-claude.html" ../../../CLAUDE.md',
   'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/metrics-helium-evidence.html" ../../troubleshooting/helium-window-freezes.md',
+]
+
+[tasks."verify:metrics-candidate"]
+description = "Render the Chromium storage candidate and current handover"
+run = [
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-candidate.html" ../../troubleshooting/chromium-disk-responsiveness/reporting-ineligible-storage.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-patch-comment.html" chromium-metrics-patch-comment.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-native-validation.html" ../../troubleshooting/chromium-disk-responsiveness/native-validation.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-handover.html" ../../handover/chromium-live-histogram-contribution.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-task-discovery.html" ../../troubleshooting/mise-excluded-research-task-discovery.md',
+  'pandoc --from=gfm --to=html5 --output="$HOME/temp/agent/chromium-metrics-browser-recovery.html" ../../troubleshooting/agent-browser-eagain.md',
 ]

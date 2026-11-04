@@ -12,9 +12,9 @@ and an invariant checker judges every run.
 
 ```sh
 # package/git-policy/cli: run from the repository root
-mise run //package/git-policy/cli:test:e2e:concurrent:native --git 2.55.0
-mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --git 2.55.0
-mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --scenario shared-file-overlapping-hunks --git 2.55.0
+mise run //package/git-policy/cli:test:e2e:concurrent:native
+mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1
+mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --scenario shared-file-overlapping-hunks
 ```
 
 - `test:e2e:concurrent:native` depends on `test:e2e:concurrent:native:image`,
@@ -26,9 +26,11 @@ mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --scenario
   then a summary.
   The task exits non-zero when any scenario fails or errors.
 - `--scenario` takes comma-separated scenario names;
-  `--git` takes comma-separated versions, and the image provides `2.55.0` only.
-- The native executable requires Git 2.55.0 or newer and runs nothing on an older Git,
-  so the image builds that one version.
+  `--git` takes comma-separated Git releases, and the image provides its installed Git's release only (the report lines
+  name it).
+- The native executable is tested with the image's current Git and prints a warning on an older one without refusing
+  it (owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse."),
+  so the image no longer builds a second, oldest Git.
   On 2026-10-14 with seed 1, 36 scenarios passed and 2 skipped.
 
 The TypeScript wrapper that this suite first verified is retired;
@@ -40,14 +42,16 @@ The TypeScript wrapper that this suite first verified is retired;
    the only wrapper) names the directory whose `git` shadows the real Git
   (`wrapper-selection-fixture.ts`);
   the consumer checks that this `git` is an ELF executable and prints the result first.
-- `test:e2e:concurrent:native:image` compiles the release `cli-git-native` in `rust:1.97-bookworm`
-  and links it as `/opt/native/bin/git` in a copy of the `cli-git-concurrent-e2e` base image.
+- `test:e2e:concurrent:native:image` compiles the release `cli-git-native` in the gate's base image
+  (CachyOS with Rust, `native-test-base.Containerfile`)
+  and links it as `/opt/native/bin/git` in a copy of the `cli-git-concurrent-e2e` base image,
+  which starts from the same CachyOS image.
   `GIT_POLICY_NATIVE_IMAGE_TAG` names the native image's tag, so concurrent worktrees never share one.
-- `test:e2e:concurrent:image` builds the base image alone (Node,
-   the three Git builds,
-   `ssh-keygen`);
-  `GIT_POLICY_E2E_BASE_TAG` names a tag other than `latest`,
-   so a trial build never replaces the image other runs use.
+- `test:e2e:concurrent:image` builds the base image alone (CachyOS, Node,
+   the Git build,
+   `ssh-keygen`).
+  It pulls the CachyOS `latest` tag and names the image after that pull and the Containerfile,
+   so a new CachyOS image builds a new base and a trial build never replaces the image other runs use.
 
 Regenerate the committed trace with real Git on the host.
 It mines this checkout by default;
@@ -108,13 +112,13 @@ The instruments that replace them add nothing to the release executables:
   The `push-<oid>` record is the durable trace of the after-commit work that the `post-commit` hook once observed:
   one settled record per landed commit stands for "post-commit ran once".
 - External `SIGKILL` of the client's process group, or of the service, at a seeded offset or at an observable instant.
-- The fault points of the release service (`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, `src/native/service_fault.rs`):
+- The fault points of the release service (`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, `src/native/service/service_fault.rs`):
   `after-objects`, `after-intent`, `after-ref`, `after-index` and `before-ack`.
   The variable is armed only by the harness, and only on the process a scenario starts for it.
 
 A declared `postCommit` action in `cli-git.config.jsonc` is not an instrument:
 that facility was built and deleted on the owner's instruction, and the key is a configuration error
-(`src/native/config_parse.rs`, `SPEC.md` "External hooks").
+(`src/native/config/config_parse.rs`, `SPEC.md` "External hooks").
 
 ### Scenarios whose instrument no longer runs
 
@@ -148,21 +152,22 @@ its commits now wait prepared at a frozen service while `git gc --prune=now` run
 
 `concurrent-commits.Containerfile` builds `cli-git-concurrent-e2e`:
 
-- Node 24.11.0,
-  the version the suite has always run with;
-- Git 2.55.0,
-  built from a checksum-pinned kernel.org tarball,
-  installed under `/opt/git/2.55.0`;
-- no Git on the default `PATH`,
-  so each scenario picks its Git by `PATH` order.
+- Node, from the distribution's `nodejs` package (owner decision, 2026-11-04: "We don't need to pin Node too.");
+- Git, from the distribution's `git` package at `/usr/bin/git` (owner decision, 2026-11-04: "We don't need to pin git
+  because my current system is already using git latest."), whatever release that is; the suite reads it at run time;
+- `ssh-keygen`, from `openssh`.
+
+The wrapper's directory comes before `/usr/bin` on each scenario's `PATH`, so the wrapper finds the packaged Git behind
+itself.
+Pacman checks package signatures (`SigLevel = Required DatabaseOptional`).
 
 The native image adds `/opt/native/bin/git`,
  a link to the release executable,
  on top of this image.
 
-The native executable requires Git 2.55.0 or newer and runs nothing on an older Git
+The native executable prints a warning on a Git older than the release it was tested with and runs as usual
 (`SPEC.md` "Compatibility and degradation"),
-so the image carries no other version.
+so the image carries one Git, the distribution's current one.
 The rest of this section records why the image once also carried 2.39.5 and 2.40.0:
 the retired TypeScript wrapper degraded on them.
 The `replayPlumbing` skips and the `replay-unavailable-*` scenarios below stay in the catalog for that history,
@@ -324,7 +329,7 @@ Design scenarios exercise the accepted concurrent-commit design:
   overlapping hunks may fail only with exit `1` and the `concurrent-commit/replay-conflict` `core-finding` event
   that names the path.
   The first lands, and the second, which prepared against the branch before that,
-  has the bytes it captured merged onto the branch (`src/native/service_replay.rs`);
+  has the bytes it captured merged onto the branch (`src/native/landing/service_replay.rs`);
   a write the harness makes after the second command started never appears in its commit.
 - `shared-file-adjacent-edits`:
   the first agent edits one line and is queued at a frozen service,
@@ -466,7 +471,7 @@ it silences only traditional hooks and leaves config hooks running
 ### Phase markers
 
 No scenario arms a phase marker.
-The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` (`src/native/transaction_phase.rs`) names only the phases of an isolated
+The wrapper's `CLI_GIT_TEST_ONLY_PHASE_SIGNAL` (`src/native/transaction/transaction_phase.rs`) names only the phases of an isolated
 merge and of a commit headed for the service,
 which the binary tests of the crate use;
 the phases of the retired landing are gone.

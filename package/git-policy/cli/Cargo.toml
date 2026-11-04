@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.5.24"
+version = "0.5.30"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -9,9 +9,9 @@ repository = "https://github.com/Aquaticats/Monochromatic.git"
 # `include` patterns are gitignore-style, so an unanchored `README.md` would also package `e2e/README.md`.
 include = [
   "src/native/**/*.rs",
-  "src/native/dependent_version_fixtures/*.json",
-  "src/native/service_units/*",
-  "src/native/index_lock_restart_manager.ps1",
+  "src/native/dependent_version/dependent_version_fixtures/*.json",
+  "src/native/service/service_units/*",
+  "src/native/lock/index_lock_restart_manager.ps1",
   "/Cargo.toml",
   "/Cargo.lock",
   "/README.md",
@@ -48,12 +48,12 @@ pkg-fmt = "tgz"
 # Consumer-level controls that start the built executable against real Git.
 [[test]]
 name = "native_binary"
-path = "src/native/binary_tests.rs"
+path = "src/native/binary/binary_tests.rs"
 
 # A consumer of the candidate and scanner layers that can reach only the library's public interface.
 [[test]]
 name = "native_candidates"
-path = "src/native/candidate_consumer_tests.rs"
+path = "src/native/candidate/candidate_consumer_tests.rs"
 
 [dependencies]
 # Both native tools use the already adopted comment-preserving JSONC foundation.
@@ -61,11 +61,11 @@ monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.
 # The pure catalog specifier rule behind the `mono/catalog-specifiers` policy: manifest bytes in, findings out.
 # The pnpm wrapper shares it, so the policy never re-implements the grammar (doc/handover/catalog-specifier-policy.md).
 monochromatic-catalog-specifier = { path = "../../catalog-specifier/core-rust", version = "=0.1.0" }
-# The repository's own scanner, linked in-process instead of spawned: `src/native/scanner_adapter.rs`
+# The repository's own scanner, linked in-process instead of spawned: `src/native/candidate/scanner_adapter.rs`
 # loads its rules once per invocation and scans candidate bytes through `Scanner::scan`.
 # Its catch boundaries need this crate's effective profile to unwind; `scanner_adapter.rs` refuses to build otherwise.
 forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.1" }
-# The Markdown policy's linter, linked in-process instead of spawned: `src/native/markdown_linter.rs` calls
+# The Markdown policy's linter, linked in-process instead of spawned: `src/native/markdown/markdown_linter.rs` calls
 # `monochromatic_lint::run_embedded::fix_source`, the executable's own `--stdin --fix` code, on a guarded thread.
 # Without its default `semantic` feature: the rust-analyzer backend is not used by Markdown, and linking it made
 # every start of this executable slower (doc/planning/cli-git-rust-implementation.md, "Markdown policy in process").
@@ -85,6 +85,11 @@ ureq = { workspace = true, default-features = false, features = ["rustls"] }
 # It adds two packages (itself and `adler2`) to the lockfile; the measurement is in
 # doc/planning/cli-git-in-process-reads.md.
 miniz_oxide = { workspace = true, default-features = false, features = ["with-alloc"] }
+# The diff behind the word-level second merge pass (`src/native/merge/word_merge.rs`): `capture_diff_slices` with the Myers
+# algorithm, nothing else of the crate. Apache-2.0, no dependencies of its own, one package added to the lockfile.
+# The owner chose a merge of the wrapper's own on this crate over a port of Jujutsu's code and over linking `jj-lib`
+# (doc/planning/cli-git-merge-auto-resolution.md, "merge-code options measured"); the tests keep it equal to Jujutsu's results.
+similar = { workspace = true, default-features = false }
 
 # `sigaction` with signal details, `kill` and process-group facts, which the standard library does not expose.
 # Already in the lockfile through the scanner's dependencies.
@@ -138,5 +143,6 @@ ignore = ">=0.4.34"
 libc = ">=0.2.191"
 miniz_oxide = { version = ">=0.9.1", default-features = false }
 serde_json = ">=1.0.154"
+similar = { version = ">=3.2.1", default-features = false }
 tempfile = ">=3.27.0"
 ureq = { version = ">=3.5.0", default-features = false }

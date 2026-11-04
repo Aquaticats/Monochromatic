@@ -1,7 +1,11 @@
 /**
  Paired direct-versus-wrapped sampling for one scenario of the latency benchmark in `native-perf.ts`.
  */
+import { join } from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
+
 import { timed } from './native-perf-git.ts';
+import { evictRepositoryCache } from './native-perf-shape.ts';
 import {
   median,
   pairedDeltas,
@@ -75,6 +79,21 @@ export type ScenarioSetting = {
    Runtime directory of the commit service the wrapped side is pointed at; absent for a forwarded command, which needs none.
    */
   readonly runtime?: string;
+  /**
+   Directory that receives one `strace` record per sample, named after the scenario, the round and the side; absent runs
+   every sample untraced. A traced sample is slower, so its counts and per-call sums are evidence, never its elapsed time.
+   */
+  readonly traceDirectory?: string;
+  /**
+   Whether the pack files, pack indexes and index of each repository are dropped from the page cache before each sample, on
+   both sides alike.
+   */
+  readonly cold?: boolean;
+  /**
+   Milliseconds to wait after both sides of a round, so the work a commit leaves running after its answer (the service's queued
+   syncs) is over before the next round starts; absent starts the next round at once.
+   */
+  readonly pauseMilliseconds?: number;
 };
 
 /**
@@ -112,12 +131,19 @@ async function runSample({
   directRepository,
   wrappedRepository,
   runtime,
+  traceDirectory,
+  cold,
+  pauseMilliseconds,
+  name,
   wrapped,
   sample,
-}: Pick<ScenarioSetting, 'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime'> & {
-  readonly wrapped: boolean;
-  readonly sample: number;
-}): Promise<TimedSample> {
+}: Pick<
+  ScenarioSetting,
+  'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository' | 'runtime' | 'traceDirectory' | 'cold' | 'pauseMilliseconds' | 'name'
+  > & {
+    readonly wrapped: boolean;
+    readonly sample: number;
+  }): Promise<TimedSample> {
   /**
    Repository of the side that runs, so the two sides never share index state.
    */
@@ -126,6 +152,9 @@ async function runSample({
     directory,
     sample,
   });
+  if (cold === true) {
+    await evictRepositoryCache(directory);
+  }
   /**
    Timing and exit state of the sample, measured after the preparation finished.
    */
@@ -135,7 +164,19 @@ async function runSample({
     ...(runtime === undefined ? {} : { runtime, }),
     directory,
     arguments_: command({ sample }),
+    ...(traceDirectory === undefined
+      ? {}
+      : {
+        trace: join(
+          traceDirectory,
+          `${name}-${String(sample)}-${wrapped ? 'wrapped' : 'direct'}.strace`,
+        ),
+      }),
   });
+  // The work a commit leaves running after its answer is over before the next sample starts, when the run asks for the wait.
+  if (pauseMilliseconds !== undefined) {
+    await pause(pauseMilliseconds);
+  }
   return {
     wrapped,
     sample,

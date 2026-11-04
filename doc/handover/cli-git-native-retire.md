@@ -51,7 +51,7 @@ The pinned incumbent revision,
   `native:config:differential`,
    `native:differential:commit` and `native:differential:dependent-version`,
    the ignored
-  corpus test `corpus_from_environment` of `src/native/dependent_version_differential_tests.rs`,
+  corpus test `corpus_from_environment` of `src/native/dependent_version/dependent_version_differential_tests.rs`,
    the four packages
   with their ignored `node_modules`,
    the three mirror blocks of `file-enforcer.config.ts` and
@@ -148,7 +148,7 @@ The pinned incumbent revision,
    verified in the
   header of `src/native/commit_revalidation.rs` and by the ledger entry whose native state is "absent").
   The trust commands in `Management grammar` now describe the retired forms that print an explanation and exit `0`
-  (verified in `src/native/management_tests.rs`).
+  (verified in `src/native/invocation/management_tests.rs`).
 
 ## Gates
 
@@ -247,7 +247,8 @@ All through `node "${HOME}/temp/agent/gate-slot.ts"` with `GIT_POLICY_NATIVE_IMA
    8 decision files and others) cite
   deleted TypeScript paths and stay as written;
    four lane records carry an in-place note for tasks they name.
-- `doc/handover/cli-git-rust-implementation.md` still contains two sentences in the queue that are stale:
+- `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`] still contains two sentences in the queue that are stale:
    "Current
   production tools remain active until cutover."
    and "The first crates.io publication still needs explicit user
@@ -299,7 +300,8 @@ Listed read-only on 2026-10-14 with `ls -d` and `git check-ignore --verbose`;
 ## What remains
 
 - The queue item "retirement of the old TypeScript implementation is verified complete" in
-  `doc/handover/cli-git-rust-implementation.md` stays open until the trailing gates are recorded.
+  `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P and kept in commit
+  `e10b8186bc`] stays open until the trailing gates are recorded.
 
 ## Rerun commands
 

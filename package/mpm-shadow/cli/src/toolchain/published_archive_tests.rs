@@ -223,7 +223,7 @@ fn a_tree_pinning_an_older_release_keeps_the_newer_install_runs_it_and_is_warned
     assert!(!tool_directory(&root, ID).expect("a plain name").join("0.2.0").exists());
     assert_eq!(report_old.warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1")], "{report_old:?}");
     assert!(report_old.warnings[0].contains("older repository tools are never kept"));
-    assert!(report_old.warnings[0].contains("mise run toolchain:update"));
+    assert!(report_old.warnings[0].contains(&format!("`mpm update {ID}`")));
 
     // The old tree's link goes through its own launcher, so every run of the tool warns there.
     assert_eq!(fs::read_link(scope_old.exposure_dir.join(BIN)).expect("a link"), scope_old.launcher_dir.join(BIN));

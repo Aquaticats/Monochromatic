@@ -23,7 +23,7 @@ that needs `HOME` and `PATH`.
 
 ## Cause
 
-`git_command` in `package/git-policy/cli/src/native/auto_push_single_flight.rs` starts every coordination query,
+`git_command` in `package/git-policy/cli/src/native/push/auto_push_single_flight.rs` starts every coordination query,
 the manual-push probe and the push with `.env_clear().envs(git.environment)`.
 That is the intended contract of `PushGit.environment` (a complete environment), but the two places that built a
 `PushGit` passed only the child-environment overlay (lock PID injection and forward-target marker):
@@ -60,7 +60,7 @@ forward-target marker; both are unchanged.
 All green on the final code (host and container).
 
 - `push_environment::an_auto_push_after_a_landed_commit_runs_git_with_the_invocation_environment` in
-  `src/native/binary_push_environment_tests.rs`, registered in `binary_tests.rs`.
+  `src/native/binary/binary_push_environment_tests.rs`, registered in `binary_tests.rs`.
   A repository whose `origin` is an `ext::` transport runs a shim that records `HOME`, `PATH`, a marker variable
   set only in the wrapper's environment, the forward-target marker and `GIT_CONFIG_COUNT`, and refuses the push
   without the marker.
@@ -115,8 +115,8 @@ On code head `116615ad41`:
   Clippy in the container finished with no warning or error. Log: `${HOME}/temp/agent/push-env/gate-container.log`.
 - Host `native:clippy` through `gate-slot.ts`: finished clean. Log: `clippy.log`.
 - Scoped mutation with `NATIVE_MUTATION_SKIP_PLANTED=1` (the planted phase was skipped on purpose):
-  `src/native/child_environment.rs`: 50 mutants, 49 caught, 1 unviable, 0 missed, 0 timeouts.
-  `src/native/commit_command.rs`: 14 mutants, 10 caught, 4 unviable, 0 missed, 0 timeouts.
+  `src/native/invocation/child_environment.rs`: 50 mutants, 49 caught, 1 unviable, 0 missed, 0 timeouts.
+  `src/native/commit/commit_command.rs`: 14 mutants, 10 caught, 4 unviable, 0 missed, 0 timeouts.
   Logs: `mut-child-environment.log`, `mut-commit-command.log`.
 - Lint of `bin/native-planted-controls.mjs` (oxlint with `OXLINT_THREADS=2`): three errors, all present before this
   work (`max-lines` for a 631-line file, two `no-useless-escape` at the `hook_dispatch_plan.rs` control).
@@ -124,8 +124,8 @@ On code head `116615ad41`:
 
 ## Not done yet
 
-- Scoped mutation of `src/native/wrapped_command.rs`.
-- Scoped mutation of `src/native/auto_push_single_flight.rs` (only doc comments changed there; optional).
+- Scoped mutation of `src/native/invocation/wrapped_command.rs`.
+- Scoped mutation of `src/native/push/auto_push_single_flight.rs` (only doc comments changed there; optional).
 - The two new planted controls have never been executed. Run them with the planted phase on
   (see the Rerun commands section).
 - Nothing was published and nothing was installed on the live PATH.
@@ -139,8 +139,8 @@ each through the slot limiter (`gate-slot.ts` in `${HOME}/temp/agent`):
 # doc/handover/cli-git-native-push-env.md
 GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:test:container
 node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:clippy
-NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/wrapped_command.rs --timeout 900
-GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/wrapped_command.rs --timeout 900
+NATIVE_MUTATION_SKIP_PLANTED=1 GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/invocation/wrapped_command.rs --timeout 900
+GIT_POLICY_NATIVE_IMAGE_TAG=push-env node "${HOME}/temp/agent/gate-slot.ts" mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/invocation/wrapped_command.rs --timeout 900
 ```
 
 The last command runs the planted phase too; both new planted controls must be reported as noticed.
@@ -154,5 +154,6 @@ unless they go through `gate-slot.ts`.
 
 - 0.1.2 is released (crates.io and GitHub release `monochromatic-git-policy-cli-v0.1.2`, 2026-10-13); the mise pin
   is still 0.1.1 and is re-pinned by the orchestrator,
-  see the resume steps in `doc/handover/cli-git-rust-implementation.md`.
+  see the resume steps in `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P
+  and kept in commit `e10b8186bc`].
 - Git 2.55.0 (host) ran both new binary controls green; no difference from the 2.56.0 container run.

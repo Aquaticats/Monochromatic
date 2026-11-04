@@ -1,6 +1,8 @@
 # Wrapper sync attribution for one explicit-path commit (task 78)
 
-This answers task 78 in `doc/handover/cli-git-rust-implementation.md`: in one wrapped `git commit -m x -- file`,
+This answers task 78 in `doc/handover/cli-git-rust-implementation.md` [section removed on 2026-11-03 under rule H0P
+and kept in commit `e10b8186bc`]:
+in one wrapped `git commit -m x -- file`,
 which sync calls come from the wrapper's own code and which from the child Git processes it starts.
 Nothing in the product was changed; this is a measurement and a reading of the code.
 
@@ -10,7 +12,7 @@ Nothing in the product was changed; this is a measurement and a reading of the c
   `mise run //package/git-policy/cli:build`.
   A debug build (`mise run //package/git-policy/cli:native:build`) was used only for stack traces (`strace -k`),
   which name the Rust function behind each sync; its counts equal the release counts.
-- Real Git: `/usr/bin/git` 2.56.0, the version the budget tests in `src/native/binary_budget_tests.rs` name.
+- Real Git: `/usr/bin/git` 2.56.0, the version the budget tests in `src/native/binary/binary_budget_tests.rs` name.
 - Filesystem under test: btrfs (`stat -f` on the scratch directory, `/var/mnt/encrypted`).
   Sync call counts do not depend on the filesystem; the durability reasoning in the section on which syncs are
   needed does.
@@ -22,7 +24,7 @@ Nothing in the product was changed; this is a measurement and a reading of the c
   Each sync line was attributed to the process that issued it by following `execve` and `clone` lines: a process or
   thread with no `execve` of its own takes the program of its parent.
   The wrapper is any program under the fixture; Git children are named by subcommand (`index-pack`, `pack-objects`).
-  This is the attribution method of `src/native/binary_budget_trace.rs`, reimplemented in a scratch script.
+  This is the attribution method of `src/native/binary/binary_budget_trace.rs`, reimplemented in a scratch script.
 - Scripts (scratch, not committed): `~/temp/agent/m78/sync-attribution.ts` (one traced run),
   `run-all.ts` (three runs per scenario), `summarize.ts`, `index-pack-fsync-probe.ts`.
   Raw traces and per-run reports are in the same directory.
@@ -67,7 +69,7 @@ The run-to-run spread is zero in every scenario.
 ### Existing opt-outs
 
 The wrapper accepts `--no-worktree-copy` (skip ignored-state synchronization) and `--no-enforce-only` (do not inject
-`--only` into a commit); both are listed in `src/native/wrapper_controls.rs` and `command_commit.rs`.
+`--only` into a commit); both are listed in `src/native/invocation/wrapper_controls.rs` and `command_commit.rs`.
 Neither changes the commit path's syncs:
 
 - `commit --no-worktree-copy -- a.txt`: 36 syncs in all three runs (33 wrapper, 3 `git index-pack`).

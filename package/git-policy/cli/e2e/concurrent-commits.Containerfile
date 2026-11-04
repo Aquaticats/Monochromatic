@@ -2,35 +2,26 @@
 #        (`mise run //package/git-policy/cli:test:e2e:concurrent:native`, which links the native executable into it).
 # Why:   concurrent mutation of shared Git state is only verified against real repositories
 #        (doc/decision/cli-git-concurrent-commits.md, "Container end-to-end verification").
-#        Distribution images ship an older Git, so the Git version under test builds from source:
-#        2.55.0, the current release and the oldest the native wrapper accepts (it refuses older Gits and runs nothing).
+# Tools: all from pacman, current, with no pins. Owner decisions of 2026-11-04: "We don't need to pin git because my
+#        current system is already using git latest.", "We don't need to pin Node too.", "Pacman for everything it has"
+#        (an exception to AGENTS.md rule CM7 for these images), and, for the former 2.55.0 source build, "Raise minimum,
+#        drop the test, merely print a warning on older git and not refuse." So the suite runs the distribution's
+#        `git` at /usr/bin/git and reads its release at run time.
+# Signatures: pacman checks package signatures (`SigLevel = Required DatabaseOptional` in the CachyOS image's
+#        /etc/pacman.conf); nothing below turns that off.
+# Base:  CachyOS on its `latest` tag (doc/decision/container-base-distro.md); bin/e2e-native-container.ts pulls the tag
+#        and passes the resolved image as CACHYOS_IMAGE. Without the argument the plain image builds.
 # Build context: any directory; nothing is copied from it.
-# Checksums: https://www.kernel.org/pub/software/scm/git/sha256sums.asc.
-# Every RUN uses exec form: no shell logic lives in this file.
+# Build arguments: CACHYOS_IMAGE (the base).
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
-# Node 24.11.0 is the version this image has always run the suite with (the floor the retired TypeScript wrapper named);
-# the suite is TypeScript run by Node type stripping, so the version is kept as it was.
-FROM docker.io/library/node:24.11.0-slim AS git-build
-
-RUN ["apt-get", "update"]
-RUN ["apt-get", "install", "--yes", "--no-install-recommends", "build-essential", "zlib1g-dev", "xz-utils", "cargo"]
-
-ADD --checksum=sha256:457fdb04dc8728e007d4688695e6912e6f680727920f2a40bf11eacc17505357 https://www.kernel.org/pub/software/scm/git/git-2.55.0.tar.xz /src/git-2.55.0.tar.xz
-
-RUN ["tar", "--extract", "--xz", "--file=/src/git-2.55.0.tar.xz", "--directory=/src"]
-
-# Transport, translation, and scripting-language features are unused by the suite;
-# the local bare remote is reached through the file transport.
-# Rust stays at 2.55.0's default (enabled, RelNotes/2.55.0.adoc), so Debian's cargo builds it (MSRV 1.49).
-RUN ["make", "--directory=/src/git-2.55.0", "--jobs=2", "prefix=/opt/git/2.55.0", "NO_CURL=1", "NO_EXPAT=1", "NO_TCLTK=1", "NO_GETTEXT=1", "NO_PERL=1", "NO_PYTHON=1", "NO_OPENSSL=1", "install"]
-
-FROM docker.io/library/node:24.11.0-slim AS consumer
-
-# `ssh-keygen` backs the SSH-signing scenarios.
-RUN ["apt-get", "update"]
-RUN ["apt-get", "install", "--yes", "--no-install-recommends", "openssh-client"]
-
-COPY --from=git-build /opt/git /opt/git
+# One full system upgrade with the tools in the same transaction. --disable-sandbox: pacman's hook sandbox needs a
+# network namespace a rootless podman build cannot give it (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+# `git` is the Git under test, `nodejs` runs the suite (TypeScript by Node type stripping), and `ssh-keygen` (openssh)
+# backs the SSH-signing scenarios. The cache mount keeps downloaded packages between builds outside the image.
+RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
+    ["pacman", "--disable-sandbox", "--sync", "--refresh", "--sysupgrade", "--noconfirm", "--needed", "git", "nodejs", "openssh"]
 
 # The suite imports the workspace package @monochromatic-dev/caught-value-core through its `/ts` source,
 # which the run task mounts read-only at /fixture/caught-value. Node resolves /fixture/e2e imports through
@@ -38,5 +29,6 @@ COPY --from=git-build /opt/git /opt/git
 RUN ["mkdir", "--parents", "/node_modules/@monochromatic-dev"]
 RUN ["ln", "--symbolic", "/fixture/caught-value", "/node_modules/@monochromatic-dev/caught-value-core"]
 
-# The image deliberately has no /usr/bin/git: each scenario selects its Git through PATH order.
+# The check proves the packaged Node and Git start.
+RUN ["sh", "-c", "node --version && /usr/bin/git --version"]
 WORKDIR /work

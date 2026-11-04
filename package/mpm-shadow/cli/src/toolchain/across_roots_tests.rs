@@ -222,10 +222,10 @@ fn an_unfinished_newer_version_in_the_other_root_is_not_a_copy_that_wins() {
 #[test]
 fn the_older_lock_sentence_names_the_upgrade_command_of_the_scope_it_is_for() {
     let repository = older_lock_message_for(ScopeKind::Repo, GIT_TOOL, "0.4.4", "0.4.5");
-    assert!(repository.contains("in this tree") && repository.contains("`mise run toolchain:update` or merge main"), "{repository}");
-    assert!(!repository.contains("toolchain:update:global"), "{repository}");
+    assert!(repository.contains("in this tree") && repository.contains(&format!("`mpm update {GIT_TOOL}` or merge main")), "{repository}");
+    assert!(!repository.contains("update -g"), "{repository}");
     let global = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5");
-    assert!(global.contains("in this machine's global lock") && global.contains("`mise run toolchain:update:global`"), "{global}");
+    assert!(global.contains("in this machine's global lock") && global.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{global}");
     assert!(!global.contains("merge main"), "{global}");
 }
 
@@ -246,7 +246,7 @@ fn a_repository_scope_pinning_an_older_version_installs_nothing_runs_the_newer_g
         !version_directory(&duo.repository_root(), GIT_CRATE, "0.4.4").exists(),
         "the older version is neither installed nor kept"
     );
-    assert!(report.warnings.iter().any(|warning| return warning.contains("locked at 0.4.4") && warning.contains("0.4.5 runs") && warning.contains("`mise run toolchain:update`")), "{report:?}");
+    assert!(report.warnings.iter().any(|warning| return warning.contains("locked at 0.4.4") && warning.contains("0.4.5 runs") && warning.contains(&format!("`mpm update {GIT_TOOL}`"))), "{report:?}");
     // The tree's exposed link and its postinstall link go through its launcher, whose record names the winner.
     let launcher = duo.rig.scope.launcher_dir.join(GIT_BIN);
     let record = launcher_record(&launcher);
@@ -280,7 +280,7 @@ fn the_global_scope_does_the_same_with_the_global_upgrade_command_and_its_postin
 
     let listed = run_status(&duo.global, &duo.rig.env, &duo.rig.runner, &duo.rig.host).expect("listed");
     assert!(!listed.drifted, "{}", listed.text);
-    assert!(listed.text.contains("toolchain:update:global"), "{}", listed.text);
+    assert!(listed.text.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{}", listed.text);
     drop(lock);
 }
 
@@ -629,3 +629,33 @@ fn a_release_archive_tools_older_copy_in_the_other_root_goes_with_its_downloads_
 }
 
 //endregion
+
+/// What:
+///  A tool id that a shell would split or read specially is printed inside both hints as one single-quoted word,
+///  a plain id stays bare,
+///  and neither hint names a mise task.
+/// Why:
+///  The hint is a command the person pastes into a shell,
+///  so it must name exactly the tool whatever its id holds,
+///  and mise is being retired, so the hint names mpm's own pnpm-style verb.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(olderLockMessageFor('global', "odd id;'x", '0.4.4', '0.4.5')).toContain("`mpm update -g 'odd id;'\\''x'`");
+/// ```
+#[test]
+fn the_hint_names_the_tool_as_one_shell_word_and_names_no_mise_task() {
+    // Each pair is an id and the single shell word that reads back as it:
+    // a space, a semicolon and a single quote (closed, escaped and reopened),
+    // then a dollar sign, a backtick and a line break, which single quotes keep literal.
+    let cases: [(&str, &str); 2] = [("odd id;'x", "'odd id;'\\''x'"), ("a$b`c\nd", "'a$b`c\nd'")];
+    for (odd, quoted) in cases {
+        let repository: String = older_lock_message_for(ScopeKind::Repo, odd, "0.4.4", "0.4.5");
+        let global: String = older_lock_message_for(ScopeKind::Global, odd, "0.4.4", "0.4.5");
+        assert!(repository.contains(&format!("`mpm update {quoted}` or merge main")), "{repository}");
+        assert!(global.contains(&format!("`mpm update -g {quoted}`")), "{global}");
+        assert!(!repository.contains("mise") && !global.contains("mise"), "{repository}\n{global}");
+    }
+    let plain: String = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5");
+    assert!(plain.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{plain}");
+}

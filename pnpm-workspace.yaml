@@ -569,7 +569,7 @@ shellEmulator: false
 # with ERR_PNPM_UNEXPECTED_STORE (seen 2026-11-02 in the main checkout), so run
 # `pnpm install` first. pnpm expands ${HOME} here; it does not expand ~.
 # Owner decision 2026-11-02 ("Set the shared store"); measurements in
-# doc/handover/cli-git-rust-implementation.md ("Snapshot route measured").
+# doc/planning/cli-git-main-worktree-ignored-copy.md ("Snapshot route measured").
 storeDir: ${HOME}/.local/share/pnpm/store
 # Global virtual store: node_modules holds only links into one shared virtual
 # store at <storeDir>/links, so every worktree shares one tree per package

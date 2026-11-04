@@ -1,0 +1,28 @@
+//! What:
+//!  The `doctor` report and the checks of hooks and configuration it runs.
+//! Why:
+//!  A report reads many subsystems but is one feature.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // health/index.ts: one `export * from './file'` per module below.
+//! ```
+
+/// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
+pub mod doctor_config;
+
+/// What `git cli-git doctor` says about Git's own fsmonitor: off by the owner's decision, or the setting that turns it on.
+pub mod doctor_fsmonitor;
+
+/// The configured external hooks, read from the snapshot, and the loud report that none runs.
+pub mod external_hooks;
+
+/// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
+pub mod traditional_hook_warning;
+
+/// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
+pub mod doctor;
+
+/// The filesystem section of `git cli-git doctor`: btrfs subvolume, overlayfs, the removal mount option and its commands.
+#[cfg(target_os = "linux")]
+pub mod doctor_filesystem;

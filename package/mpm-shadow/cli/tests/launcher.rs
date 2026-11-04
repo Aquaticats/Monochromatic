@@ -28,7 +28,7 @@ const REAL_PROGRAM: &str = "#!/bin/sh\nprintf 'out:'\nfor argument in \"$@\"; do
 fn expected_warning(locked: &str, used: &str) -> String {
     return format!(
         "mpm-shadow: warning: {TOOL_ID} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
-         once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main\n"
+         once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main\n"
     );
 }
 
@@ -211,7 +211,7 @@ impl VerbTree {
 fn verb_warning(verb: &str, locked: &str, used: &str) -> String {
     return format!(
         "toolchain {verb}: warning: {TOOL_ID} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
-         once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main\n"
+         once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main\n"
     );
 }
 
@@ -267,7 +267,7 @@ fn a_release_archive_tool_warns_on_every_run_when_the_lock_pins_an_older_version
     let launched = run(&launcher, &["x"], &[]);
     assert_eq!(launched.stdout, direct.stdout, "standard output is the real program's, byte for byte");
     let warning = "mpm-shadow: warning: demo-release is locked at 0.2.0 in this tree but 0.2.1 runs, because older repository tools are never kept \
-                   once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main\n";
+                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main\n";
     assert_eq!(String::from_utf8_lossy(&launched.stderr), format!("{warning}{}", String::from_utf8_lossy(&direct.stderr)));
 
     let (_matching_directory, matching_launcher, matching_real) = archive_tree("0.2.1", "0.2.1");

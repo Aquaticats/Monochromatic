@@ -24,10 +24,8 @@ import {
   imageRootDirectory,
   writeDependencyStubs,
 } from './native-layered-build.ts';
-import { copyNextest, } from './native-nextest-snapshot.ts';
-import { copyPnpm, } from './native-pnpm-snapshot.ts';
+import { ensureTestBase, } from './native-test-base.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
-import { copyStraceSource, } from './native-strace-snapshot.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
 import {
@@ -102,11 +100,16 @@ const evidence = await mkdtemp(join(
   evidenceRoot,
   'native-',
 ));
-// The audited Git 2.56.0 image is the rewrite's selected native consumer baseline.
+// The base is the newest CachyOS image on its `latest` tag with pacman's current Git, Node, pnpm, strace, cargo-nextest and the Rust toolchain on top
+// (doc/decision/container-base-distro.md): the pull happens here, once, and every step after it is offline.
 /**
- Content-addressed ID of the audited Git 2.56.0 base image.
+ The derived base image, built now when the registry's current CachyOS image or its Containerfile is new to this host.
  */
-const base = '6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802a';
+const testBase = await ensureTestBase({ limits: containerLimits, });
+/**
+ Content-addressed ID of the base image shared by every stage of the gate image.
+ */
+const base = testBase.id;
 await copySourceSnapshot({ context: context.path });
 // The dependency layers copy only these stand-in trees, the vendored sources and the Cargo mapping.
 await writeDependencyStubs({
@@ -118,9 +121,6 @@ await vendorLockedDependencies({
   vendorName: `${imageRootDirectory}/vendor`,
   configName: `${imageRootDirectory}/.cargo`,
 });
-await copyNextest({ context: context.path });
-await copyPnpm({ context: context.path });
-await copyStraceSource({ context: context.path });
 await writeFile(
   join(
     context.path,
@@ -183,6 +183,9 @@ await writeFile(
   `${JSON.stringify(
     {
       base,
+      baseTag: testBase.tag,
+      cachyosImage: testBase.cachyosImage,
+      cachyosImageId: testBase.cachyosImageId,
       image,
       limits,
       user: '1000:1000',
@@ -226,7 +229,7 @@ await runCommand({
     '--volume',
     `${compiler}:/toolchain:ro`,
     '--env',
-    'PATH=/toolchain/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    'PATH=/toolchain/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     '--env',
     'RUSTC=/toolchain/bin/rustc',
     '--env',

@@ -5,7 +5,7 @@
  names only the id would read as held by whatever unrelated process carries that id later. A process is therefore named by
  its id plus when it started (`/proc/<pid>/stat` field 22, in clock ticks since the boot) plus which boot that tick count
  belongs to (`/proc/sys/kernel/random/boot_id`); the namespace is carried beside it. The birth text is
- `linux:<ticks>@<boot id>`: the first part is the spelling `package/git-policy/cli/src/native/process_identity.rs` uses
+ `linux:<ticks>@<boot id>`: the first part is the spelling `package/git-policy/cli/src/native/process/process_identity.rs` uses
  (`linux_identity_from_stat`), and the boot suffix keeps a tick count of an earlier boot from matching.
 
  Three copies of this read exist in the repository (`package/translation-repair/run/src/corpus-run/process-identity.ts`,
@@ -33,6 +33,11 @@ const exitedStates: ReadonlySet<string> = new Set([
   'Z',
   'X',
 ]);
+
+/**
+ Where the kernel shows its processes.
+ */
+export const defaultProcRoot = '/proc';
 
 /**
  Where the kernel names the current boot.
@@ -80,7 +85,7 @@ export type ProcessIdentity = {
  errorCodeOf(new Error('x'));
  ```
  */
-function errorCodeOf(error: unknown): string {
+export function errorCodeOf(error: unknown): string {
   if (!Error.isError(error))
     return '';
   if (!('code' in error))
@@ -169,6 +174,67 @@ async function readProcText(path: string): Promise<string> {
 }
 
 /**
+ What a birth text says: the start time and the boot.
+ */
+export type ParsedBirth = {
+  /**
+   The start time, in clock ticks since the boot.
+   */
+  readonly startTicks: string;
+  /**
+   The boot the ticks count from.
+   */
+  readonly boot: string;
+};
+
+/**
+ Stands for a birth text of another spelling than this package writes, which proves nothing about the process.
+ */
+export const birthNotParsed: unique symbol = Symbol('birth.not-parsed');
+
+/**
+ Take a birth text apart.
+
+ @param birth - the text, `linux:<ticks>@<boot id>`
+
+ @returns its parts, or {@link birthNotParsed} for a text of another spelling
+
+ @example
+ ```ts
+ parseBirth('linux:4242@3f2a');
+ ```
+ */
+export function parseBirth(birth: string): ParsedBirth | typeof birthNotParsed {
+  /**
+   The prefix every birth text starts with.
+   */
+  const prefix = 'linux:';
+  if (!birth.startsWith(prefix))
+    return birthNotParsed;
+  /**
+   Where the boot id starts: the last `@`, since a boot id holds none.
+   */
+  const separator = birth.lastIndexOf('@');
+  if (separator <= prefix.length)
+    return birthNotParsed;
+  /**
+   The parts.
+   */
+  const startTicks = birth.slice(
+    prefix.length,
+    separator,
+  );
+  /**
+   The boot id.
+   */
+  const boot = birth.slice(separator + 1);
+  return ((startTicks === '') || (boot === '')) ? birthNotParsed : {
+    startTicks,
+    boot,
+  };
+}
+
+/**
  Read the name of the current boot.
 
  @returns the boot id
@@ -196,6 +262,8 @@ export async function readBootId(): Promise<string> {
 
  @param readText - reads a file's text
 
+ @param procRoot - the directory that shows the processes
+
  @returns the text of `/proc/<pid>/stat`, or {@link processGone} when there is no such record or the process exited during
  the read
 
@@ -209,14 +277,16 @@ export async function readBootId(): Promise<string> {
 async function readStat({
   pid,
   readText,
+  procRoot,
 }: {
   readonly pid: number;
   readonly readText: (path: string) => Promise<string>;
+  readonly procRoot: string;
 }): Promise<string | typeof processGone> {
   /**
    The record of the process.
    */
-  const path = `/proc/${String(pid)}/stat`;
+  const path = `${procRoot}/${String(pid)}/stat`;
   try {
     return await readText(path);
   }
@@ -235,6 +305,8 @@ async function readStat({
  @param readText - reads a file's text; absent to read the real one, given by tests to show a failure the host cannot be
  made to show
 
+ @param procRoot - the directory that shows the processes; a test gives a fake one
+
  @returns `linux:<start ticks>@<boot id>`, or {@link processGone} when no process has that id, or it exited
 
  @throws CargoMutantsToolingError when the record cannot be read for a reason other than the process being gone (a refusal,
@@ -248,9 +320,11 @@ async function readStat({
 export async function readProcessBirth({
   pid,
   readText = readProcText,
+  procRoot = defaultProcRoot,
 }: {
   readonly pid: number;
   readonly readText?: (path: string) => Promise<string>;
+  readonly procRoot?: string;
 }): Promise<string | typeof processGone> {
   /**
    The record's text.
@@ -258,6 +332,7 @@ export async function readProcessBirth({
   const stat = await readStat({
     pid,
     readText,
+    procRoot,
   });
   if (stat === processGone)
     return processGone;
@@ -275,6 +350,8 @@ export async function readProcessBirth({
 
  @param pid - the process id to look up
 
+ @param procRoot - the directory that shows the processes; a test gives a fake one
+
  @returns the namespace link text, or {@link namespaceUnknown} when the process is gone or its namespace cannot be read
 
  @example
@@ -282,9 +359,15 @@ export async function readProcessBirth({
  await readPidNamespace({ pid: process.pid });
  ```
  */
-export async function readPidNamespace({ pid }: { readonly pid: number }): Promise<string | typeof namespaceUnknown> {
+export async function readPidNamespace({
+  pid,
+  procRoot = defaultProcRoot,
+}: {
+  readonly pid: number;
+  readonly procRoot?: string;
+}): Promise<string | typeof namespaceUnknown> {
   try {
-    return await readlink(`/proc/${String(pid)}/ns/pid`);
+    return await readlink(`${procRoot}/${String(pid)}/ns/pid`);
   }
   catch (error) {
     if (!recordIsGone(error))
