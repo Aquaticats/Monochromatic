@@ -335,6 +335,11 @@ mixed-release overlap is safe in that direction. Every caller of the boot compar
 `work_item_recovery.rs`) already compare the machine ID; the reference-lock judge reads the boot time by the wall clock only.
 Machines cloned with one machine ID cannot be told apart and are judged as one machine.
 
+Release overlap: the release before this one reclaims under the `flock` and this one under claims, and the two do not see each other.
+The service of one worktree never runs two releases at once (an upgrade retires the old release first, `SPEC.md`, "One marker-writing
+taker at a time"), so the overlap needs two worktrees sharing one alternate index across an upgrade, or a host that runs both releases
+on one repository; stop the older service first, as `SPEC.md` says for a downgrade.
+
 Where this does not hold: a service on another machine whose marker carries no machine ID (written by a release before this one, or by a
 host with no valid machine ID) is read as before, so over a shared file system a live holder of that kind can still read as gone.
 No Linux call can tell a process of another machine from a gone one by the marker alone; the machine ID is the only evidence.
