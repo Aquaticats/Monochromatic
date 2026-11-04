@@ -1036,9 +1036,9 @@ fn r18_a_checked_document_that_names_a_dependency_the_set_lacks_is_neither_admit
     let (lane, state, envelope) = lane_with_envelope("r18-checked-admission");
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
     let document: Vec<u8> = checked(std::slice::from_ref(&request)).encode();
-    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
-    assert!(writer.append_with(1, &document, &[]).is_err(), "a checked document naming R was admitted without R in its set");
-    drop(writer);
+    let mut first_writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    assert!(first_writer.append_with(1, &document, &[]).is_err(), "a checked document naming R was admitted without R in its set");
+    drop(first_writer);
     let (record, _) = raw_record(1, &"0".repeat(64), &document);
     std::fs::write(state.join("state.log.1"), record).expect("a log the writer did not produce");
     assert!(!matches!(read(&state), Ok(Some(_))), "recovery selected a checked document whose dependency is not in its set");

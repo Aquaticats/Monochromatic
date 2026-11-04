@@ -28,6 +28,14 @@ mod model_m1_reclaim_r19;
 #[path = "model_m1_reclaim_r19_tests.rs"]
 mod model_m1_reclaim_r19_tests;
 
+/// The comparison of the bounded receipt protocols: misses, live processes and foreground synchronisations.
+#[path = "model_helper_bound_r20.rs"]
+mod model_helper_bound_r20;
+
+/// The table of the comparison.
+#[path = "model_helper_bound_r20_tests.rs"]
+mod model_helper_bound_r20_tests;
+
 /// Finding F7: the same identity with different content from two clients.
 #[path = "model_f7_identity.rs"]
 mod model_f7_identity;

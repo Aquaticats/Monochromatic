@@ -113,10 +113,12 @@ classification is the author's until a review accepts it.
   `a_lane_lock_the_launcher_releases_is_free_while_the_helper_lives` in `commit_helper_launch_tests.rs`. Not
   shown: the other helpers (the syncer, a level-2 helper) are not components yet, and the manager-started
   transient unit route is not built; the launch shown is the double-forked fallback, with a descriptor inventory
-  (a_launched_helper_inherits_no_descriptor_of_its_launcher), the lock test, and the flusher helper that keeps
-  only the lock its launcher handed it: the handover goes in one order, intermediate child reaped (killed if it
-  does not leave, with the kill and the wait checked), launcher copy closed, handover byte sent, helper
-  acknowledges and only then works (a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor,
+  (a_launched_helper_inherits_no_descriptor_of_its_launcher), the lock test, and the flusher helper, which takes
+  the lock itself after the handover while the launcher alone holds it until then (the intermediate child and
+  the helper close the held descriptors at once): the handover goes in one order, intermediate child reaped
+  (killed if it does not leave, with the kill and the wait checked), launcher copy closed, handover byte sent,
+  helper takes the lock, acknowledges and only then works
+  (a_client_that_joins_while_the_launcher_still_holds_its_copy_has_an_executor,
   no_copy_of_the_lock_but_the_executors_exists_when_the_handover_is_sent,
   a_refused_kill_of_the_intermediate_child_is_a_failed_launch); a helper that gets no handover runs nothing and
   the launch fails with every receipt recorded
@@ -133,14 +135,21 @@ classification is the author's until a review accepts it.
   copies of a process and not at real call sites, which do not exist yet; the bound on helpers is one lock
   holder (clients_that_find_the_flusher_lock_held_start_no_helper,
   many_clients_start_one_helper_and_it_holds_the_lock) and NOT a bound on live helpers: a helper that released
-  the lock and is in its recheck or exit step holds nothing, and a launch in that step starts another; the
-  reviewer's protocol (the token kept until exit, a client that finds it held left to a continuing retry) was
-  modeled and misses a receipt when no owner runs to retry it, with and without the client starting the owner
+  the lock and is in its recheck or exit step holds nothing, and a launch in that step starts another; the token
+  kept to exit with the running syncer as the only retry misses a receipt when no owner runs
   (a_token_held_to_exit_misses_a_receipt_when_no_owner_runs_to_retry_it,
-  a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown), so it
-  is not built and the obligation stays open; the launch is bounded by three limits (report, intermediate child,
-  acknowledgment) plus the bounded reap of a killed child; a launch that fails records every receipt of the
-  lane, joiners included.
+  a_token_held_to_exit_still_misses_a_receipt_when_the_client_cannot_start_the_owner_during_the_shutdown); five
+  protocols are compared on misses, live processes and foreground synchronisations
+  (model_helper_bound_r20_tests.rs, handover round 18): the built one keeps no miss and a live-helper count that
+  grows with the clients, a singleton retry owner, a baton between the service and that owner, and a client that
+  forces its own receipt inline whenever the token is held each show no miss in the model with at most two (or
+  one) live processes, and none is built, because the owner picks; the obligation stays open until then; a
+  process other than the launcher carries no copy of the lock during a launch and the helper takes the lock
+  itself after the handover whatever its outcome, so a launcher death, a failure tail and a cleanup error leave
+  no unaccounted holder (a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor,
+  a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor); the launch is bounded by
+  three limits (report, intermediate child, acknowledgment) plus the bounded reap of a killed child; a launch
+  that fails records every receipt of the lane, joiners included.
 
 ### C0 to C5, S1, C3 repair
 
@@ -334,7 +343,9 @@ classification is the author's until a review accepts it.
   (r17_a_checkpoint_cannot_compact_an_opaque_append_and_reclaim_its_segment); the real lane state document is
   not implemented, so whether it fits the checked representation is open; needs lines
   (r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it) remain a check for
-  opaque records.
+  opaque records; the references of a checked document are validated against the retained set at append
+  admission, begin and recovery
+  (r18_a_checked_document_that_names_a_dependency_the_set_lacks_is_neither_admitted_nor_selected).
 - Covered, control: retirement discharge forces the ledger prefix that proves it:
   `r14_a_retirement_forces_the_ledger_prefix_that_discharges_it` in `commit_state_log_tests.rs`.
 - Covered, control: a later record retaining new saved content is not selected without it:
@@ -958,5 +969,145 @@ The full `native:test:model` run is 462 passed, 0 failed (`/var/home/user/temp/a
 reports one
 leaky test, the stalled intermediate child that its own alarm ends); `native:clippy` and `native:clippy:seams` are clean
 (`/var/home/user/temp/agent/r17/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
+map has 64
+covered, 17 narrower, 9 historical and 17 not yet.
+
+## Round 18 state
+
+Round 18 answers `commit-models-sol-12.txt` ("no, as submitted"): findings A to C are fixed with red controls
+first, and the
+live-helper bound is a comparison of five protocols in a new model for the owner to choose from. Nothing of the
+five is built in
+the components. The owner has not been asked yet.
+
+### Findings A to C
+
+- A (launcher death before the handover). Red:
+  `a_launcher_that_dies_before_the_handover_leaves_no_receipt_without_an_executor`.
+  Green: no process but the launcher carries the lock during a launch (the intermediate child and the helper close
+  the held
+  descriptors at once); after the handover, or at the end of the input when the launcher died, the helper takes the
+  lock itself and
+  works when it gets it. A launcher that is only slow still holds the lock, the helper finds it taken and ends, and
+  the launcher
+  fails with `HandoverNotAcknowledged` and records the lane's receipts.
+- B (the failure tail and cleanup errors). Red:
+  `a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_executor`.
+  Green: because no other process holds the lock, the launcher's own drop is the last release, and a launch that
+  fails records the
+  lane's receipts after that drop; a client that arrives later finds the lock free and starts its own flusher. The
+  same holds when
+  the intermediate child cannot be killed: it holds no copy.
+- C (checked references on admission). Red:
+  `r18_a_checked_document_that_names_a_dependency_the_set_lacks_is_neither_admitted_nor_selected`.
+  Green: a document in the checked representation is validated against its retained set at append admission, at the
+  start of a
+  checkpoint and at recovery; a document that starts as a checked document and does not parse is not covered.
+
+### The live-helper bound: five protocols on one model
+
+`model/model_helper_bound_r20.rs` runs three clients against a service with a planned shutdown, a crash and a later
+start, from two
+start states (a running service, and no service at all with no seal). A miss is a state where only the environment
+can move and a
+receipt is still visible. Live processes are helpers, workers and the owner. The table is asserted in
+`model_helper_bound_r20_tests.rs`.
+
+- The built release, recheck and exit.
+  - Misses: none in the model.
+  - Live processes: as many as there are clients that launch in the release step (three with three clients; it
+    grows with the
+    clients).
+  - Waits: none. Locks added: none. Recursion: none (an internal entry). Foreground cost of an ordinary commit: none.
+- The reviewer's singleton retry owner.
+  - Misses: none. Live processes: two (the owner and one worker). Waits: none in the foreground; the owner wakes on
+    a bounded
+    interval. Locks added: none (it holds the token for its life).
+  - Real costs, not in the model: one extra process per lane that needs the flusher path, alive until a verified
+    transfer or for
+    ever; it starts through the internal entry (a function, not the wrapper command line, so no recursion), but the
+    fallback
+    launch leaves it in the client's session scope, which a logout ends, so a lasting owner needs the
+    manager-started unit route,
+    which is not built; across an upgrade the old owner runs old code until it retires. "Verified responsibility
+    transfer",
+    concretely: the owner retires only when a running service has registered its syncer for the lane (a persisted
+    record with the
+    boot identity) and the owner's last listing found nothing; without a service it does not retire. Persisted
+    responsibility:
+    the receipts in `lane/receipt/` are the registration and the owner is restarted by the next client that finds
+    the token free.
+  - Foreground cost: the same as today (create the receipt, try the token, fork when free).
+- A client that forces its own receipt inline while the lane is sealed (the first of my suggestions).
+  - Misses: yes. Schedule: no service runs and the lane is not sealed (the service never started), a flusher holds
+    the token,
+    client 2 creates its receipt after the flusher's last listing, finds the token held, is not in the sealed case
+    and leaves it;
+    the flusher exits. `forcing_inline_only_while_sealed_still_misses_when_no_service_runs`.
+  - So the sealed condition is not enough. Live processes: one.
+- A client that forces its own receipt inline whenever the token is held, the token kept to exit (my second suggestion).
+  - Misses: none in the model. Live processes: one (plus launch intermediates). Locks added: none. Recursion: none.
+  - Waits: only the client's own synchronisation of its receipt file and its directory, bounded by the disk and the
+    same "Force
+    at leaving" cost the wrapper already accepts for its own syncs. It is paid only by a client that finds a
+    flusher at work,
+    which happens only when no service runs or the lane is sealed; a commit with a running service rings it and
+    pays nothing.
+  - Measured foreground cost (one run of twenty on this host at load average 14, file sync plus directory sync of a
+    small file):
+    minimum 3.6 ms, median 11.4 ms, maximum 77.1 ms; one run is not a spread (QNB), so read it as the order of
+    magnitude, far under
+    the five seconds of "commits vs native git should not take 5s longer", unless the disk stalls, in which case
+    every forced save
+    of the wrapper stalls with it.
+  - Why it holds: a receipt is forced by the process that created it or by a flusher that took the token after the
+    receipt existed;
+    no retry owner is needed and no exit race can lose it. Under "Use as few locks as possible" it adds none and
+    removes the
+    release, recheck and exit step.
+- The baton (another protocol found while modeling).
+  - The running service is the retry owner while it runs; when it exits it starts the singleton owner, and the
+    owner retires when
+    a running service has the lane and acknowledged the transfer.
+  - Misses: none. Live processes: two (owner and worker), and the owner exists only while no service runs. Waits:
+    the service's
+    shutdown starts the owner (a bounded fork and handshake, not a foreground wait). Locks added: none.
+  - Cost: the owner must outlive the service's unit, so it has to be started outside the service's control group
+    (the unit route
+    that is not built); a crash hands no baton, which the model excuses like every crash.
+- The control: the token kept to exit with nobody to retry misses (round 17's two schedules); live processes one.
+
+Owner rules, protocol by protocol (a plain reading, not a measurement unless marked):
+
+- "Commits should never fail." and "never discard user data": all but the control and the sealed-only inline keep
+  every receipt
+  owned in the model; a forcing error is recorded per receipt in each.
+- "nothing should ever wait forever or indefinitely": no foreground wait in any; the inline client waits only for
+  its own
+  synchronisation; the owner protocols add a background loop with a bounded wake interval.
+- "Use as few locks as possible.": none adds a lock.
+- "Force at leaving, else background.": the inline protocol is this rule applied to the receipt of a client that
+  cannot hand it
+  to a worker; the others are background.
+- "We should never invoke ourselves recursively.": none starts the wrapper command line.
+- "commits vs native git should not take 5s longer": only the inline protocol puts a synchronisation in a
+  foreground path, and
+  only for a client that finds a flusher at work.
+
+Ranking, my reading and the owner decides: the inline-whenever-held protocol > the built protocol > the baton > the
+singleton
+owner. The inline protocol bounds live processes at one with no extra long-lived process and no unit route; the
+built protocol
+misses nothing but its live-helper count grows with the clients; the baton and the singleton owner bound the count
+at two and
+need the unit route that does not exist yet, and the singleton owner stays alive when a service already runs.
+
+### Gates at the tip
+
+The full `native:test:model` run is 471 passed, 0 failed (`/var/home/user/temp/agent/r18/full-model.log`; nextest
+reports three
+leaky tests, the stalled intermediate children that their alarms end); `native:clippy` and `native:clippy:seams`
+are clean
+(`/var/home/user/temp/agent/r18/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has 64
 covered, 17 narrower, 9 historical and 17 not yet.
