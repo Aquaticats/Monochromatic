@@ -285,10 +285,20 @@ they narrow the window and do not close it.
   eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
   so the Windows-specific branches in the sources have never run; each is marked `UNTESTED ON WINDOWS` in the source.
   A Windows port is deferred to a later version (owner decision, 2026-10-15).
-- Real Git 2.55.0 or newer on `PATH` after the wrapper.
+- Real Git on `PATH` after the wrapper, tested with 2.56.0 (`MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs`).
   The wrapper checks the version before work that depends on Git's behavior,
-   such as a commit,
-  and refuses older Git.
+   such as a commit.
+  A Git older than that release is not refused:
+   the wrapper prints one warning that names the Git it found,
+   the release it reported and the release the wrapper was tested with,
+   says that the command continues,
+   and runs the command as usual
+   (owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+  Only a Git whose release cannot be read stops the command.
+  The constant follows the test image's Git:
+   the gate image installs the distribution's current `git` package,
+   so when `mise run //package/git-policy/cli:test:git-image` reports a newer release,
+   raise the constant to it with the first gate run on that release.
   The wrapper finds the real Git by walking `PATH`,
    skipping itself and anything that leads back to it:
    a link or a copy of the wrapper,
