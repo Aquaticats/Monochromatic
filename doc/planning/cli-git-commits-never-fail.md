@@ -251,6 +251,15 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     protocol uses a new lock file name; old and new flushers may overlap because both sweep the same receipts and
     forcing twice is harmless). The old lock name stays with the old implementation; no version stamp and no extra
     recovery records are added for the overlap (step 3 of the plan).
+24. The notice texts, "Line plus what was kept" (question tool, 2026-11-04, plan question 4; this is option B, not the
+    option ranked first, A; meaning as asked: after every commit outcome the wrapper prints the one-line first line and
+    then the indented lines of what was kept). The question showed drafts for `git commit --message "Add the parser" --
+    src/parser.ts`, with "Ranking A > B ..." and option B's preview showing the landed and conflict texts with their
+    `kept:` lines. Accepted shape: for each outcome (landed; conflict; refusal by a policy; signing failure; not known with
+    a stuck write; a fresh attempt after a power loss, in both its notices) the first line, then the indented lines the
+    drafts give as option B (`kept:`, and `conflicted path:`, `refused path:`, `signer:`, `stuck step:`, `why a fresh
+    attempt:` where the drafts have them). The command names in the lines (`git commit-status`, `git commit-drop`,
+    `git commit-retry`) stay placeholders until the commands exist (step 6). Option A is not picked.
 
 
 Amendments by 4 to 6 (the newest owner answers govern): decision 1's set-aside-as-pending of a commit behind a person's hook, the earlier answer "Save on a
@@ -2180,7 +2189,8 @@ here."):
 - Plan questions 1 to 3 of "Ordered plan to the live protocol (round 22)", answered by the owner (question tool,
   2026-11-04), recorded as decisions 21 to 23: the real state document, "Checked format (Recommended)"; the launch route,
   "Systemd unit + fallback (Recommended)"; the cutover fence, "New lock name (Recommended)". Plan question 4 (the
-  notice texts) waits for the owner, who has not seen the texts; drafts are in the plan under Step 6.
+  notice texts), answered the same day, "Line plus what was kept" (option B), is decision 24; the accepted texts are the
+  option B drafts in the plan under Step 6.
 - P (a merge touching a path the person has staged): owner decision, "Merge anyway, unstage x" (P-carry); composition
   in MG3 and decision 11.
 - W (the attachment concession for merge file writes): owner decision, "Allow the rare leftover" (W-detect); its
@@ -2490,7 +2500,10 @@ and nothing in the plan decides it.
 - Question 4 (owner): the notice texts. Option A, one short line per outcome with the command to run (conflict, refusal,
   signing failure each named, the commit identity when one exists). Option B, a short line plus the retained inputs listed
   (more to read, nothing to look up). Ranking: A > B for an ordinary commit, with B printed only on the command that asks for the
-  detail; the owner has not seen the texts. Status: waiting for the owner. The drafts follow so the owner sees the exact lines.
+  detail. Answered 2026-11-04 (question tool): "Line plus what was kept", option B, recorded as decision 24; option A is not
+  picked. Meaning as asked: after every commit outcome the wrapper prints the one-line first line and then the indented
+  lines of what was kept. The option B drafts below are the accepted shape; the command names in them stay placeholders until
+  the commands exist.
 
 #### Question 4 drafts: the notice texts, one per outcome, in options A and B
 
