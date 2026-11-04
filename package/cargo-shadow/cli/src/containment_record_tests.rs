@@ -244,6 +244,43 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     drop(transaction);
 }
 
+/// Acceptance row "Weaker path" (certification, third pass): an acknowledgement overrides neither a failed enumeration of the journals
+/// nor a failed mandatory step of finishing the recovery. Two acknowledged journals (the second makes the listing fail at its entry):
+/// the recovery changes nothing and keeps both; one acknowledged journal whose completion marker cannot be made durable is a
+/// mandatory failure, with the journal retained.
+#[test]
+fn an_acknowledged_journal_is_still_held_by_a_failed_listing_and_a_failed_mandatory_finish() {
+    use crate::failpoints::{Point, arm, fires};
+    // A failed enumeration.
+    let root = repository();
+    let first: PathBuf = journal_with_records(root.path(), "pgroup starting\npgroup 2147483646\n");
+    acknowledge(&first).expect("acknowledges");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
+    let second: PathBuf = {
+        // Planting begins a transaction, which an unacknowledged weaker-path journal would refuse; the first is acknowledged.
+        let planted: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
+        fs::write(planted.join("groups"), "pgroup starting\npgroup 2147483646\n").expect("records");
+        acknowledge(&planted).expect("acknowledges");
+        planted
+    };
+    arm(Point::ListingIteration);
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    assert!(!fires(Point::ListingIteration), "the listing fault was never reached");
+    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "an acknowledged recovery went ahead on a journal set it could not list: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("could not be listed"); }), "{messages:?}");
+    assert!(first.exists() && second.exists(), "an acknowledged journal was removed on a failed listing");
+
+    // A failed mandatory finish.
+    let other = repository();
+    let acknowledged: PathBuf = journal_with_records(other.path(), "pgroup starting\npgroup 2147483646\n");
+    acknowledge(&acknowledged).expect("acknowledges");
+    arm(Point::CompletionSync);
+    let report = crate::journal::recover_report(other.path(), &refusing);
+    assert!(!fires(Point::CompletionSync), "the completion fault was never reached");
+    assert!(report.mandatory_failure, "an acknowledged recovery whose marker could not be made durable was not a mandatory failure: {:?}", report.messages);
+    assert_eq!(journal_dirs(other.path()).len(), 1, "the journal was not retained");
+}
+
 /// Acceptance row "Weaker path" (certification, third pass): the process group is stopped at the normal exit as well as at the bound.
 /// A same-group writer announces itself (a handshake), the direct payload exits successfully with the writer still running, and the
 /// writer would write into the workspace later; after the run returns the marker must never appear and the writer must be gone.
