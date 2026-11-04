@@ -234,7 +234,10 @@ fn a_malformed_recorded_identity_is_not_a_reboot() {
         ("a boot id with a trailing space", boot_line(&format!("{} ", other.boot))),
         ("an all-zero boot id", boot_line("00000000-0000-0000-0000-000000000000")),
         ("a machine field that is not an id", format!("boot {}\nmachine not-a-machine-id\n", other.boot)),
-        ("a repeated boot field", format!("boot {}\nboot {}\nmachine {}\n", other.boot, now.boot, now.machine)),
+        // Both orders of the repeated field (fourth certification pass): a reader that keeps the last value, or the first, is wrong in
+        // exactly one of them, and the order that would clear the live group is the one the other boot comes last.
+        ("a repeated boot field, the other boot first", format!("boot {}\nboot {}\nmachine {}\n", other.boot, now.boot, now.machine)),
+        ("a repeated boot field, the other boot last", format!("boot {}\nboot {}\nmachine {}\n", now.boot, other.boot, now.machine)),
         ("a repeated machine field", format!("boot {}\nmachine {}\nmachine {}\n", other.boot, now.machine, now.machine)),
         ("an unknown line", format!("boot {}\nmachine {}\nthree {}\n", other.boot, now.machine, now.machine)),
     ];
