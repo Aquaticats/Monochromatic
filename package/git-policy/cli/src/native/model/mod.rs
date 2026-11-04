@@ -410,3 +410,8 @@ mod commit_review4_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_review5_tests.rs"]
 mod commit_review5_tests;
+
+/// Plan steps 2 and 3: the reads and writes of the ledger, the spool and the inbox (no link followed, no FIFO waited for).
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_review6_tests.rs"]
+mod commit_review6_tests;
