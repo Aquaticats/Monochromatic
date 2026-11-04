@@ -18,12 +18,14 @@
 use crate::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, file_avoids_keys, outer_scopes_avoid_keys};
 use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, parse_config_text};
 use crate::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filter, raw_lines, select};
-use crate::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
+use crate::repo_read_index::{INTENT_TO_ADD, IndexEntry, ParsedIndex, parse_index_with_tree};
 use crate::repo_read_layout::{RepoLayout, env_config_avoids, read_layout_with};
 use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_parse, symbolic_ref};
+use crate::index_cache_tree::CacheTree;
+use crate::repo_read_tree_cached::changes_with_cache;
 use crate::repo_read_tree::{FlatEntry, flatten_pair, flatten_tree_shared, parse_commit, subject_of};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -168,17 +170,23 @@ impl Context {
 
     /// The index entries.
     pub(crate) fn index(&self) -> Option<Vec<IndexEntry>> {
-        let bytes: Vec<u8> = crate::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
-        return parse_index(bytes.as_slice(), self.layout.object_format);
+        return self.index_with_tree().map(|parsed| { return parsed.entries; });
     }
 
-    /// The index as flat entries, refusing unmerged or intent-to-add entries.
-    fn resolved_index(&self) -> Option<Vec<FlatEntry>> {
-        let entries: Vec<IndexEntry> = self.index()?;
-        if entries.iter().any(|entry| { return entry.stage != 0 || entry.extended & INTENT_TO_ADD != 0; }) {
+    /// The index entries and the cache-tree extension.
+    pub(crate) fn index_with_tree(&self) -> Option<ParsedIndex> {
+        let bytes: Vec<u8> = crate::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
+        return parse_index_with_tree(bytes.as_slice(), self.layout.object_format);
+    }
+
+    /// The index as flat entries and its cache-tree, refusing unmerged or intent-to-add entries.
+    fn resolved_index_with_tree(&self) -> Option<(Vec<FlatEntry>, Option<CacheTree>)> {
+        let parsed: ParsedIndex = self.index_with_tree()?;
+        if parsed.entries.iter().any(|entry| { return entry.stage != 0 || entry.extended & INTENT_TO_ADD != 0; }) {
             return None;
         }
-        return Some(entries.into_iter().map(|entry| { return FlatEntry { path: entry.path, mode: entry.mode, id: entry.id }; }).collect());
+        let flat: Vec<FlatEntry> = parsed.entries.into_iter().map(|entry| { return FlatEntry { path: entry.path, mode: entry.mode, id: entry.id }; }).collect();
+        return Some((flat, parsed.tree));
     }
 
     /// The root tree of a commit or tree named by `hex`.
@@ -247,8 +255,17 @@ fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Optio
     let filter: PathFilter = PathFilter::parse(parsed.specs.as_slice(), context.layout.prefix.is_empty())?;
     let database: ObjectDatabase = context.database()?;
     let tree: Vec<u8> = context.tree_of(&database, parsed.operands[0])?;
-    let old: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, tree.as_slice(), context.layout.object_format)?;
-    let changes = diff_sorted(old.as_slice(), context.resolved_index()?.as_slice())?;
+    let (index, cache): (Vec<FlatEntry>, Option<CacheTree>) = context.resolved_index_with_tree()?;
+    // The cache-tree names the directories the index has not changed, and those are left unread; without one, or when its walk
+    //  declines, the whole tree is read.
+    let cached = cache.as_ref().and_then(|nodes| { return changes_with_cache(&database, tree.as_slice(), context.layout.object_format, nodes, index.as_slice()); });
+    let changes = match cached {
+        Some(found) => found,
+        None => {
+            let old: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, tree.as_slice(), context.layout.object_format)?;
+            diff_sorted(old.as_slice(), index.as_slice())?
+        }
+    };
     // The porcelain pairs an added and a deleted path as a rename; plain lists cannot say which pairs it would choose.
     if porcelain && changes.iter().any(|change| { return change.status == b'A'; }) && changes.iter().any(|change| { return change.status == b'D'; }) {
         return None;

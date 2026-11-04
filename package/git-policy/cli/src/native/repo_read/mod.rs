@@ -78,6 +78,10 @@ pub mod object_abbreviation;
 #[cfg(unix)]
 pub mod repo_read_tree;
 
+/// In-process repository reads: the part of a tree that differs from an index, found beside its cache-tree.
+#[cfg(unix)]
+pub mod repo_read_tree_cached;
+
 /// In-process repository reads: the entries of an index file, versions 2 to 4.
 pub mod repo_read_index;
 
