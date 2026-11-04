@@ -667,19 +667,21 @@ A row is "shown" when each of its schedules has a test that fails when the guara
 result; "partly" when a named part has no test yet.
 No row is certified by this map: the cross-vendor review of round 15 has not run, and the reviews of rounds 10 to 14 said that the
 count of shown rows was not established by the attachments they saw, whose unchanged tests they could not see.
-Counts: 16 rows, 10 shown, 6 partly, 0 not yet.
-The certification pass (`cargo-shadow-cert-sol-1.txt`, `cargo-shadow-cert-sol-2.txt`; group 3 is still to come) found A1, A1/V3,
-A2/R4, V2 amended c, V3/V4 and V6 partly shown: the tests named for them pass but several do not discriminate the guarantee from a
-weaker outcome (details under each row; round 16 works on them).
-The other rows of those groups, A1/A2 and V1, were judged shown by the pass.
-Suite counts at the round 15 code tip `156208a7d4`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran 592 tests: 592 passed, 0 failed, 12 skipped; `lint:clippy` with warnings
+Counts: 16 rows, 16 shown, 0 partly, 0 not yet.
+The certification pass (`cargo-shadow-cert-sol-1.txt`, `-2.txt`, `-3.txt`) found every row partly shown or shown with named false
+greens, and the map marked the rows partly until the fixes landed; the fixes of round 16 landed (a list per row follows, each with
+the tests that discriminate; the planted regressions that turned the old assertions red are in the red-first list), and the pass is
+to judge them again: no row is certified by this map.
+The shared helper `journal_dirs` now stops on every listing error except the initial absence of the journal directory
+(`the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty`, red against the old helper).
+Suite counts at the round 16 code tip `9cbee37b52`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran 609 tests: 609 passed, 0 failed, 13 skipped; `lint:clippy` with warnings
 denied is clean.
-The 12 skipped are the `#[ignore]` helper entries that twelve other tests start as child processes (their names are in the `ignore`
-attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,
-`src/round_eleven_tests.rs`, `src/round_twelve_tests.rs`, `src/round_thirteen_tests.rs` and `src/round_fourteen_tests.rs`); they are not
-run on their own.
-Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r15-debug2.log`, `r15-gate2.log`, `r15-clippy3.log`.
+The 13 skipped are the `#[ignore]` helper entries that thirteen other tests start as child processes (their names are in the `ignore`
+attributes of the test files); they are not run on their own.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r16-debug1.log`, `r16-gate2.log`, `r16-clippy2.log`.
+The first full gate of round 16 failed once, in `a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`, because another
+session on the host took the freed namespace number (`r16-gate1.log`); the schedule is now tried again up to eight times.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 to 10 the new guards were removed from the committed tests and the tests failed, then the guard was put back:
@@ -693,6 +695,27 @@ round 9: `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_e
 `an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses`,
 `a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal`,
 `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member`;
+round 16 (the planted regressions of the certification fixes; each log is in `logs/`):
+`the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout` and `a_zombie_leader_with_a_live_writer_thread_is_stopped_at_the_bound`
+(the reap replaced by a kill that returns success without a wait: `r16-f-red.log`),
+`a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_scope_cannot_be_emptied` (a post-start failure that returns
+the ordinary error without the stop check: `r16-b-red.log`),
+`the_record_is_written_made_durable_and_only_then_the_program_is_launched` and the trace of `a_record_that_cannot_be_written_or_made_durable_starts_no_program`
+(a sync before the append: `r16-d-red.log`), the control `a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees`
+(the move planted by the test itself),
+the three V2 tests of `round_sixteen_tests.rs` (malformed lines ignored, the live-member check removed: `r16-g-red.log`; the old tests
+stayed green under the same plant), the changed-view cases and the bind substitution (the view comparisons removed: `r16-h-red.log`),
+the lock contenders (a wait planted into the lock: `r16-i-red.log`), `an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound`
+(the stop deadline stretched: `r16-k-red.log`), the A3/A4 tests (the join of the operational error with the failed finish removed:
+`r16-l-red.log`), `a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a_name` (the replacement removed on the
+fallback: `r16-m-red.log`), `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning` (the beside-target
+bytes dropped: `r16-o-red.log`), `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction` (the barrier of the kept
+directory after the link skipped: `r16-p-red.log`), `an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart`
+(the finish replaced by a direct removal: `r16-q-red.log`), and the journal listing helper test (red against the old helper:
+`r16-e.log` first run).
+Without a planted regression, because none could be built cheaply, and so evidence of the assertions only: the in-place kept file of
+R1, the rollback test of R3/R5, the weaker-path tests of round 16, the stalled startup, the process oracle, the killed-wrapper test of
+V2 and the timeout test of V6.
 round 15 (red at the commit "red control for a recycled time namespace number", green at the commit "a start time that differs from the
 launcher record is unknown, never gone"; `logs/r15-red.log`): `a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`;
 round 14 (red at the commit "red control for the launcher start time read from another time namespace", green at the commit
@@ -720,9 +743,11 @@ for the red run).
 New behavior with no old code to fail (the scope route, the acknowledgement, the two views, the boot identity as a whole) has tests
 written with the code.
 
-- **A1: partly (certification group 1).**
-  Not shown yet: successful reaping of the direct child is not observed (a later wait must give `ECHILD`), and the zombie-leader fixture
-  is not driven through the timeout boundary. What follows is what the named tests show today.
+- **A1: shown.**
+  Round 16 (certification group 1): `the_direct_child_is_reaped_after_a_normal_return_and_after_a_timeout` (the program publishes its
+  own process id and a checked `waitpid` gives `ECHILD` afterwards; red with the reap planted away),
+  `a_zombie_leader_with_a_live_writer_thread_is_stopped_at_the_bound` (the zombie-leader fixture through the timeout, with the same
+  handshake, worker oracle and recorded-scope assertion, and the direct child reaped).
   `a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns` (the fixture says when its leader is a zombie
   and records its worker's thread id; the program's group is recorded and must be a delegated scope),
   `the_thread_oracle_sees_a_live_worker_behind_a_zombie_leader_and_its_end` (the control of the oracle),
@@ -733,9 +758,12 @@ written with the code.
   `a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent`.
   Round 10 (9b 3.7): the process oracle counts only `ESRCH` as an ended process, the thread fixture publishes a complete thread id by
   rename, and the writer tests of `src/bounded_contain_tests.rs` assert the scope record of their run.
-- **A1, V3 (spawn isolation): partly (certification group 2).**
-  Not shown yet: the overlap holds the first run before its launch, so its launcher spawn overlaps nothing; the launch and
-  group-association boundary under a handshake is not observed. What follows is what the named tests show today.
+- **A1, V3 (spawn isolation): shown.**
+  Round 16 (certification group 2): `two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wrappers_group` (two
+  bounded runs with their launchers held at the boundary where the manager would associate them with a scope, an unrelated spawn
+  between them; the wrapper, the unrelated child and both held launchers are in the wrapper's original group), and its control
+  `a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_the_boundary_test_sees` (the regression the pass
+  describes, planted, is seen).
   `two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary`,
   `probe_5_the_spawner_never_changes_group_and_an_unrelated_child_stays_out`,
   `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended`.
@@ -772,10 +800,11 @@ written with the code.
   while it lives; settled, and the journal removed, without an acknowledgement after the launcher is shown gone and the scope was
   collected),
   `a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone`.
-- **A2, R4 (7a F3): partly (certification group 2).**
-  Not shown yet: a failure of the startup completion after the child and a writer are running; fault consumption and cause are not
-  asserted for every fault (the shim fixture reports `!fires` even when the fault was never armed). What follows is what the named
-  tests show today.
+- **A2, R4 (7a F3): shown.**
+  Round 16 (certification group 2): `a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_scope_cannot_be_emptied`
+  (the child and a writer ready, then the startup completion fails; red with the post-start downgrade planted); in
+  `a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent` each fault has a control without it, is consumed,
+  and the writer's ready marker is asserted; the shim fixture reports arming apart from consumption.
   The joined runner-to-install test, the fault classes and the unstoppable member, and, round 13,
   `a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` (the shim with a user-command sentinel behind the
   refusal; round 14: the helper's journal must record a scope, the weaker-path notice must be absent, the armed scope fault must have
@@ -785,6 +814,9 @@ written with the code.
   through the bounded runner with an injected fault: refusal, lockfile kept, journal kept, no call after the update),
   `a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal`.
 - **A3, A4: shown.**
+  Round 16 (certification group 3): `an_operational_error_with_each_failed_completion_stage_stops_the_command_and_keeps_both_diagnostics`
+  (the injected completion failure, the real rename, the real parent sync), `an_operational_error_joined_with_a_failed_mandatory_phase_becomes_the_mandatory_failure_kind`
+  (red with the join planted away).
   `an_accepted_run_whose_outputs_cannot_be_forced_to_disk_stops_the_command`, `a_refusal_survives_a_journal_that_cannot_be_finished`,
   `a_refusal_survives_a_failed_completion_marker_and_names_it`,
   `an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_keeps_both_diagnostics`,
@@ -796,11 +828,15 @@ written with the code.
   `finish_makes_the_outputs_durable_before_the_done_marker`,
   `the_cleanup_failure_happens_after_the_completion_marker_was_published`, `a_removal_failure_after_the_marker_is_cleanup_only`.
 - **R1: shown by tests of earlier rounds.**
+  Round 16 (certification group 3): `a_replacement_edited_in_place_after_the_exchange_is_kept_not_deleted` reads the kept file and the
+  captured replacement inode.
   `a_lock_another_process_wrote_meanwhile_is_left_alone_with_a_warning`,
   `recovery_leaves_a_lock_that_another_writer_published_while_the_policy_was_judged`,
   `a_replacement_that_another_writer_holds_open_is_kept_when_the_exchange_is_undone`,
   `a_replacement_edited_in_place_after_the_exchange_is_kept_not_deleted`.
 - **R2: shown.**
+  Round 16 (certification group 3): `a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a_name` asserts that each
+  queued error fired and inventories both inodes (red with the replacement removed on the fallback).
   `a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a_name`,
   `when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_name_and_the_message_says_where` (the message must
   name a path under which the inode survives; round 10, 9b 3.1: the replacement inode is captured at the exchange, differs from the
@@ -809,17 +845,24 @@ written with the code.
   `a_displaced_file_that_could_not_be_linked_is_reported_with_the_snapshot_live`,
   `a_filesystem_without_exchange_fails_the_restore_and_overwrites_nothing`.
 - **R3, R5: shown.**
+  Round 16 (certification group 3): `a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions` asserts the cargo
+  write, the consumed restore fault and the rollback-specific refusal.
   `a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions`,
   `a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_falling_back` (asserts that cargo wrote the file, that
   the restore fault was reached and that the refusal is the rollback failure),
   `a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others`.
 - **K1: shown.**
+  Round 16 (certification group 3): `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning` checks the
+  combined size (4008 bytes) and the folder, repeats the transaction and inventories every entry (red with the beside-target bytes
+  dropped).
   `the_kept_files_warning_point_is_exact_and_repeated_runs_agree`,
   `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning`,
   `an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses`,
   `a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_refuses`,
   `a_second_refused_lock_is_saved_under_its_own_name_and_the_first_copy_survives`.
 - **K2: shown.**
+  Round 16 (certification group 3): `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction` logs links and barriers
+  together and requires a successful barrier of the kept directory after the preservation link (red with it skipped).
   `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction`,
   `a_directory_left_unsynced_by_a_failed_attempt_is_not_taken_as_durable`, `a_failing_directory_barrier_is_not_reported_as_preserved`,
   `failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name_or_reports_the_unsynced_chain` (round 10, 9b 3.2: a
@@ -831,10 +874,13 @@ written with the code.
 - **V1 (7b P1-2): shown.**
   `a_journal_listing_that_fails_in_any_way_stops_the_recovery`, `a_journal_listing_that_fails_in_any_way_stops_a_new_transaction`,
   `an_absent_journal_directory_is_no_journals`.
-- **V2, amended c: partly (certification group 1).**
-  Not shown yet: a malformed-only record; survivor tests that block only through a unacknowledged process group; a crash test that
-  does not exclude a zombie launcher as its cause; changed-view cases that classify but never recover. What follows is what the
-  named tests show today.
+- **V2, amended c: shown.**
+  Round 16 (certification group 1): `a_journal_whose_only_record_is_malformed_is_kept_with_its_diagnostic_until_it_is_acknowledged`,
+  `a_member_in_the_scope_of_one_journal_stops_the_recovery_of_another_until_it_ends`,
+  `a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends` (each red with its check planted away, each with a
+  control); `a_killed_wrapper_with_an_escaped_writer_stops_the_recovery` now establishes the launcher gone and names the scope's
+  member; `a_journal_seen_through_another_view_is_refused_and_kept` and the bind-substitution helper of
+  `a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace` invoke the real recovery.
   `a_survivor_of_one_journal_stops_the_recovery_of_another`, `a_new_transaction_does_not_start_beside_a_survivor`,
   `a_killed_wrapper_with_an_escaped_writer_stops_the_recovery`, `a_group_record_that_cannot_be_read_defers_the_recovery`,
   `a_malformed_group_record_defers_the_recovery`, `a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor`,
@@ -853,9 +899,11 @@ written with the code.
   `a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace` (9b 2.4: with the cgroup namespace
   and every recorded view equal, a bind mount of another cgroup directory over the directory that held the scope is refused for the
   parent view; the control before the bind clears).
-- **V3, V4: partly (certification group 2).**
-  Not shown yet: the order record write, successful sync, launch; the containment kind the runner attempted at a record fault.
-  What follows is what the named tests show today.
+- **V3, V4: shown.**
+  Round 16 (certification group 2): `the_record_is_written_made_durable_and_only_then_the_program_is_launched` (an ordered trace of
+  write, a sync that sees the whole record, the sync, the launch; red with a sync before the append planted) and
+  `a_record_that_cannot_be_written_or_made_durable_starts_no_program` (the trace names the containment kind attempted at the fault,
+  also when the write fails).
   The record is visible, written and synced before the program starts, and the faults of the write and of the sync are each reached
   and surface as the refusal (round 10, 9b 3.6); and, round 13, `a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively`
   kills a real wrapper after each step of the preparation of the journal (the hand-built states stay as
@@ -870,14 +918,24 @@ written with the code.
   `a_journal_cut_off_during_its_preparation_is_removed_without_touching_the_lockfile`, `a_recovery_removes_an_empty_journal_directory`,
   `a_nonempty_journal_without_its_record_is_not_treated_as_empty`.
 - **V5: shown.**
+  Round 16 (certification group 3): `an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart` (output barrier,
+  completion rename, marker sync, cleanup; red with the finish replaced by a direct removal); the unready and ready tests of
+  `journal_recover_tests.rs` are `an_unready_journal_whose_manifest_differs_from_its_snapshot_is_kept`,
+  `an_unready_journal_that_lost_its_index_but_holds_snapshots_is_kept`,
+  `an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable`, `a_ready_record_that_omits_a_manifest_snapshot_is_rejected`,
+  `a_ready_record_with_a_duplicate_entry_is_rejected`, `a_ready_record_with_an_unexpected_entry_is_rejected`.
   `two_roots_with_manifests_are_restored_or_kept_together_per_root` (round 10, 9b 3.3: the new refused copy is read and holds the
   refused output), `a_second_recovery_pass_changes_nothing_and_keeps_the_refused_copy`,
   `a_killed_breaking_run_whose_lock_is_refused_gets_its_manifest_back_too`, `a_journal_marked_done_is_removed_by_the_next_recovery`,
   the unready and ready tests of `journal_recover_tests.rs`.
-- **V6: partly (certification group 1).**
-  Not shown yet: a stalled scope startup and an unsuccessful shutdown with elapsed-time bounds; prompt return of the workspace-lock
-  contenders while the holder is held; a fail-closed process oracle in the bounded-run tests; the timeout variant asserted. What
-  follows is what the named tests show today.
+- **V6: shown.**
+  Round 16 (certification group 1): `a_scope_startup_that_stalls_before_the_payload_ends_at_the_bound`,
+  `an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound` (a surviving member runs the real stop loop to its
+  deadline; red with the deadline stretched), the lock contenders answer within a window while the holder is held
+  (`recovery_defers_while_a_live_transaction_holds_the_workspace`, `acknowledging_while_a_transaction_holds_the_workspace_is_refused`;
+  red with a wait planted into the lock), the process oracle of `bounded_run_tests.rs` fails closed through the pinned procfs
+  (`process_is_running`), the descendants tests record a delegated scope, and `a_child_that_outlives_its_bound_is_stopped_and_named`
+  asserts `RunError::TimedOut` and the payload's start.
   `a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline`, `a_discovery_whose_descendant_holds_the_pipes_ends_at_its_deadline`
   (round 12, 11b 2.7: an observer thread establishes, before the deadline, that the descendant is ready and alive when the direct
   program has exited),
@@ -890,6 +948,11 @@ written with the code.
   `a_timeout_returns_promptly_even_when_the_child_ignores_its_input`, `recovery_defers_while_a_live_transaction_holds_the_workspace`,
   `acknowledging_while_a_transaction_holds_the_workspace_is_refused`.
 - **Weaker path: shown.**
+  Round 16 (certification group 3): `a_directory_without_a_kill_file_takes_the_weaker_path_and_a_refused_scope_runs_nothing`,
+  `recovery_with_one_of_two_weaker_path_journals_acknowledged_restores_nothing_until_both_are`,
+  `acknowledging_while_a_transaction_holds_the_workspace_is_refused` (the contended lock, with a control),
+  `the_weaker_path_still_stops_the_process_group_at_the_bound` (a running-writer handshake, a `TimedOut` result, the weaker path's
+  record).
   `each_missing_capability_class_gives_the_notice_and_the_weaker_path_records_before_the_start`,
   `a_weaker_path_journal_is_refused_by_recovery_and_admission_before_it_is_acknowledged`,
   `an_acknowledged_weaker_path_journal_is_settled_like_any_other` (acknowledge, recover, settle),

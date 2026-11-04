@@ -1268,15 +1268,69 @@ none certified.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r15-debug2.log`, `r15-gate2.log`, `r15-clippy3.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 15, rewritten 2026-11-04T10:21:27-05:00 after the gate)
+## Round 16 (2026-11-04T11:17:02-05:00): the certification pass
 
-Done: rounds 10 to 15 (the sections above).
-The review inputs of round 15 are `/var/home/user/temp/agent/reviews/cargo-shadow-15*.diff`, cut from `2530e617f4`.
+Inputs answered: `cargo-shadow-cert-sol-1.txt` (A1, V1, V2 amended c, V6), `cargo-shadow-cert-sol-2.txt` (A1 A2, A1 V3, A2 R4, V3 V4) and
+`cargo-shadow-cert-sol-3.txt` (A3 A4, R1, R2, R3 R5, K1, K2, V5, weaker path), in `/var/home/user/temp/agent/reviews/`.
+Verdicts: not certified; no production defect established; test discrimination gaps, and one test-support defect (the fail-open
+`journal_dirs` listing helper of group 3 and the fail-open process oracle of group 1).
+The map marked A1, A1/V3, A2/R4, V2, V3/V4 and V6 partly until the fixes landed, then back to shown with the fixes listed per row.
 
+Production seams added for the tests (`cfg(test)` only, no change of behavior): an ordered trace of the recording and launching in
+`bounded_run.rs`, a hook after the program started that may fail the startup completion, a `ContainmentSurvivor` fault that makes the
+stop run its real loop to its deadline, a fail-closed `process_is_running`, the recovery's output-barrier and cleanup faults, and
+`QUIESCE_BOUND` visible to the tests.
+
+What each group asked, and what was done (the contract's map lists the test names; the planted regressions are in its red-first list):
+
+- Group 1.
+  A1: the direct child is observed reaped by a checked `waitpid` (`ECHILD`) after a normal return and at the bound; the zombie-leader
+  fixture is driven through the timeout.
+  V2: a malformed-only record; a member in a scope (with a resolvable lifecycle) for recovery and admission, each with a control; the
+  crash test classifies the launcher gone before it recovers and names the member; the changed-view cases and the bind substitution
+  invoke the real recovery.
+  V6: a stalled scope startup and an unsuccessful shutdown with a surviving member, each bounded in elapsed time; the two lock
+  contenders answer in a window while the holder is held; the bounded-run oracle fails closed through the pinned procfs and the
+  descendants tests record a delegated scope; the timeout test asserts `TimedOut` and the payload's start.
+- Group 2.
+  A1/V3: two launchers held at the launch boundary with an unrelated spawn between them, all in the wrapper's group, with the planted
+  move as a control.
+  A2/R4: a failed startup completion with a writer ready; every fault has a control, is consumed and has its ready marker; the shim
+  fixture tracks arming apart from consumption.
+  V3/V4: the ordered trace of write, whole-record sync, sync, launch; the containment kind attempted at a record fault.
+- Group 3.
+  A3/A4: an operational error with each completion stage; the joined update error leaves the operational classification.
+  R1: the kept in-place file holds the writer's bytes and is the captured inode.
+  R2: each queued error fires and both inodes are inventoried.
+  R3/R5: the rollback test asserts the write, the consumed fault and the specific refusal.
+  K1: the combined size and the folder, repeated runs, the inventory.
+  K2: links and barriers in one log on the successful chain.
+  V5: an active recovery's own finish with each failure and the cleanup-only case; the unready and ready tests of
+  `journal_recover_tests.rs` are named in the map and included in the rebuilt bundle.
+  Weaker path: the kernel without `cgroup.kill`, a scope the manager refuses, recovery with one of two journals acknowledged, the
+  contended lock, the shutdown with a running writer and a `TimedOut` result.
+  Shared: `journal_dirs` fails on every listing error but the initial absence.
+
+Not done, and why: the stalled-startup, the weaker-path and the rollback tests have no planted regression that turns an old assertion
+red (the old tests did not exist or had no cheap plant); their evidence is the assertions and the controls.
+A real unsuccessful shutdown (a member in an uninterruptible wait) is not built: the surviving member is a fault that makes the real
+loop run to its deadline.
+
+### Result
+
+The coverage map of the contract carries the counts: 609 tests, 609 passed, 0 failed, 13 skipped, for the debug run and the release
+gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own criterion, none certified.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r16-debug1.log`, `r16-gate2.log`, `r16-clippy2.log`.
+The certification bundles are rebuilt against the tip of this round.
+Nothing was published and nothing was merged into main.
+
+## Resume point (round 16, rewritten 2026-11-04T11:17:02-05:00 after the gate)
+
+Done: rounds 10 to 16 (the sections above).
 Open for the owner: the picks of rounds 8 to 13 stay veto-open as listed in their sections; the first publication needs the owner's
 explicit approval.
 
 Next:
 
-1. The coordinator launches the cross-vendor review of the round 15 diffs against the contract.
+1. The coordinator launches the certification pass again against the rebuilt bundles.
 2. Nothing is merged into main and nothing is published.
