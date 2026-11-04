@@ -92,7 +92,7 @@ jobs:
       - name: Install the repository tools
         uses: ./.github/actions/repo-tools-setup
         with:
-          tools: file-enforcer mpm-shadow
+          tools: file-enforcer mpm-shadow cargo-shadow
       # Committed outputs (CLAUDE.md, LICENSE, LICENSES, crate manifests, rust-catalog.toml and every other file no
       # .gitignore matches) are checked before anything regenerates them, so a drift is reported instead of repaired
       # (doc/decision/file-enforcer-rust-rewrite.md, "Cutover"; doc/runbook/rust-dependencies.md).
@@ -141,20 +141,33 @@ jobs:
             echo "::error::package/config/pnpr/config.yaml differs from what pnpr's generator renders; run 'mise run //package/config/pnpr:generate:config' and commit the result (package/config/pnpr/README.md)"
             exit 1
           fi
+      # The frozen lockfile gate: pnpm's `install --frozen-lockfile` in CI, the counterpart for Cargo.lock files. It fails naming
+      # every first-party Cargo.lock that no longer satisfies its manifests and writes nothing. With `trustLockfile = true` in
+      # rust-catalog.toml, the counterpart of pnpm's `trustLockfile: true` (owner's decision of 2026-10-29,
+      # doc/decision/rust-dependency-catalog.md), it then checks only the registry versions that no Cargo.lock held at the base
+      # revision, the pushed range's previous commit or the pull request's base; only that commit is fetched. Without the setting
+      # it re-validates every locked entry, as pnpm does by default (package/cargo-shadow/cli/README.md). It replaces the former
+      # `rust:install` and `rust:verify` mise tasks; the cache keeps crates.io histories and the digests of lockfiles that
+      # passed. The database dump (about 2 GB, read once) fills a cold cache.
+      - name: Install the pinned Rust toolchain
+        id: rust_toolchain
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          toolchain="$(jq --raw-output '.tools.rust.version' toolchain.lock.json)"
+          rustup toolchain install "$toolchain" --profile minimal --no-self-update
       - name: Restore Rust trust cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
-          path: .cache/rust-catalog-update
+          path: .cache/cargo-shadow
           key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
           restore-keys: |
             rust-catalog-trust-
-      # Checks only registry versions that no Cargo.lock held at the base revision, the counterpart of
-      # pnpm's trustLockfile: true: lockfile changes come only from the owner (doc/decision/rust-dependency-catalog.md).
-      # The base is the pushed range's previous commit, or the pull request's base; only that commit is fetched.
-      # A full cold check of all 1388 locked versions took 914 s and 187 API requests on 2026-10-29,
-      # so the 25-minute budget covers even a branch that relocks everything.
-      - name: Rust lockfile trust verification
-        id: rust_trust
+      # A full cold check of all 1388 locked versions took 914 s with the dump on 2026-10-29, so the 25-minute budget covers
+      # even a branch that relocks everything.
+      - name: Rust lockfile frozen install
+        id: rust_install
         continue-on-error: true
         timeout-minutes: 25
         shell: bash
@@ -167,12 +180,12 @@ jobs:
             base="$(git rev-parse HEAD~1)"
           fi
           git fetch --no-tags --depth=1 origin "${base}"
-          task-run rust:verify -- --base "${base}"
+          CARGO_SHADOW_TRUST_BASE="${base}" cargo-shadow install --frozen-lockfile
       - name: Save Rust trust cache
         if: always()
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
-          path: .cache/rust-catalog-update
+          path: .cache/cargo-shadow
           key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
       - name: Static changed paths
         id: static
@@ -241,9 +254,10 @@ jobs:
           TOOLCHAIN_LOCK_DRIFT: ${{ steps.toolchain_lock_drift.outcome }}
           LOCAL_FILE_DRIFT: ${{ steps.local_file_drift.outcome }}
           PNPR_CONFIG_DRIFT: ${{ steps.pnpr_config_drift.outcome }}
+          RUST_INSTALL: ${{ steps.rust_install.outcome }}
         run: |
           failed=0
-          for name in STATIC BUILD UNIT COMMITTED_FILE_DRIFT TOOLCHAIN_LOCK_DRIFT LOCAL_FILE_DRIFT PNPR_CONFIG_DRIFT; do
+          for name in STATIC BUILD UNIT COMMITTED_FILE_DRIFT TOOLCHAIN_LOCK_DRIFT LOCAL_FILE_DRIFT PNPR_CONFIG_DRIFT RUST_INSTALL; do
             if [ "${!name}" = "failure" ]; then
               echo "::error::The $name step failed; see its log."
               failed=1

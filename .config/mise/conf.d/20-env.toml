@@ -21,10 +21,13 @@ _.file = [{ path = ".env.local.json", redact = true }]
 # that holds the mpm link to the installed mpm shadow. The third is the gitignored
 # per-worktree directory .cache/pnpm-shadow-bin that holds the pnpm link to the installed
 # pnpm shadow (the postinstall of the cargo:monochromatic-pnpm-shadow tool); it has to
-# precede the next entry, whose pnpm is the real one the shadow execs. The fourth is the gitignored
+# precede the entry after the next one, whose pnpm is the real one the shadow execs. The fourth is the gitignored
+# per-worktree directory .cache/cargo-shadow-bin that holds the cargo link to the installed cargo shadow (the postinstall of
+# the cargo:monochromatic-cargo-shadow tool); it has to precede .cache/toolchain-bin, whose cargo is the real one the
+# shadow runs, and it does not exist until the tool is installed. The fifth is the gitignored
 # per-worktree toolchain exposure directory .cache/toolchain-bin, one link per tool
 # toolchain.lock.json declares, so tasks resolve the locked tools before any ambient or
-# global one. The fifth is the gitignored per-worktree directory .cache/cli-git-bin that
+# global one. The sixth is the gitignored per-worktree directory .cache/cli-git-bin that
 # holds the git link to the installed Git policy wrapper (the postinstall of the
 # cargo:monochromatic-git-policy-cli tool in the toolchain plan). The last is the root
 # workspace bin directory. The package bin directories come from 10-bin.local.toml.
@@ -32,6 +35,7 @@ _.path = [
   ".cache/search-shadow-bin",
   ".cache/mpm-shadow-bin",
   ".cache/pnpm-shadow-bin",
+  ".cache/cargo-shadow-bin",
   ".cache/toolchain-bin",
   ".cache/cli-git-bin",
   "node_modules/.bin",

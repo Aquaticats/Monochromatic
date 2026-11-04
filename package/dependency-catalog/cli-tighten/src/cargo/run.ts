@@ -315,7 +315,7 @@ export async function tightenRustCatalog({
         results,
       },),
     );
-    console.info(`Wrote ${String(tightened.length,)} tightened floors to ${RUST_CATALOG_FILENAME}; run \`mise run sync:files\` to update the crates, then \`mise run rust:install\` (pnpm install's counterpart) to bring their lockfiles in line.`,);
+    console.info(`Wrote ${String(tightened.length,)} tightened floors to ${RUST_CATALOG_FILENAME}; run \`mise run sync:files\` to update the crates, then any cargo command that resolves dependencies (or \`cargo-shadow install\`; pnpm install's counterpart) to bring their lockfiles in line.`,);
   }
   return results;
 }

@@ -67,9 +67,14 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
 
 ### Update and tightening
 
-- A new package bin (now `package/dependency-catalog/cli-rust-update`),
-   run by a thin mise task,
-   runs `cargo update` in every crate root
+- The update lives in the cargo shadow, `package/cargo-shadow/cli` (it was a TypeScript package,
+   `package/dependency-catalog/cli-rust-update`, until 2026-11-03):
+   started as `cargo`, the shadow answers `cargo update` as `pnpm update`,
+   `cargo generate-lockfile` as `pnpm install --lockfile-only`,
+   and runs an install step before every cargo command that resolves dependencies
+   (the `verifyDepsBeforeRun: install` counterpart);
+   started as `cargo-shadow`, it runs the repository-wide `install`, `update` and `verify` commands.
+   The whole-repository update runs `cargo update` in every crate root
    (the `pnpm -r --no-save update` counterpart),
    with dry run,
    pnpm's release-age semantics (newest version old enough;
