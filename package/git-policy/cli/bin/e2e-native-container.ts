@@ -198,7 +198,7 @@ async function buildImage(): Promise<void> {
       'COPY cargo-config /work/.cargo',
       `ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))} CARGO_INCREMENTAL=0`,
       'WORKDIR /work/package/git-policy/cli',
-      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "cli-git-native", "--bin", "cli-git-service"]',
+      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "cli-git-native"]',
       '',
       `FROM ${endToEndBase.id}`,
       'RUN ["mkdir", "--parents", "/opt/native/bin"]',
@@ -209,8 +209,6 @@ async function buildImage(): Promise<void> {
       // The executable was linked in another stage; `ldd` exits zero even for a missing library or symbol version, so the step
       // looks for its `not found` lines: a C library older than the one the executable was linked against fails the build here.
       'RUN ["sh", "-c", "! ldd /opt/native/cli-git-native 2>&1 | grep --quiet \'not found\'"]',
-      // The commit service sits beside the wrapper, where the wrapper looks for it; the suite starts it before the scenarios.
-      'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-service /opt/native/cli-git-service',
       '',
     ].join('\n'),
   );

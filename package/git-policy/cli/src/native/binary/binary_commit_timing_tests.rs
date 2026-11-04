@@ -33,7 +33,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// The seconds a service waits idle in a control that does not test the idle exit,
@@ -85,7 +84,7 @@ fn spawn_service_with_environment(root: &Path, places: &Places, idle_seconds: &s
 /// `spawn_service_with_environment` with the service's standard error given, so a control can make it a pipe.
 fn spawn_service_with_stderr(root: &Path, places: &Places, idle_seconds: &str, extra: &[&str], environment: &[(&str, String)], stderr: Stdio) -> Held {
     std::fs::create_dir_all(places.socket.parent().expect("parent")).expect("socket directory");
-    let child: Child = Command::new(SERVICE)
+    let child: Child = super::support::service_command()
         .args(["--journal"])
         .arg(root.join("journal"))
         .arg("--path")

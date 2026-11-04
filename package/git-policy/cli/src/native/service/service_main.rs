@@ -1,0 +1,179 @@
+//! What:
+//!  The resident commit service as a mode of the one executable: `cli-git-native cli-git service run <options>`.
+//! Why:
+//!  The release ships one program (owner, 2026-11-04: "Bazel doesn't need to distribute as 2 bins."), so the service is a mode
+//!  of the wrapper's executable and not a second one. The operating system starts it on demand and hands it the listening
+//!  socket (socket activation); the wrapper never starts it. The mode is chosen by the three leading words of the arguments and
+//!  never by the name the program was started as, so the executable's own path in a unit file names nothing but itself.
+//!  Development and test runs name an address instead.
+//!  Options: `--journal <directory>` (required), `--git <path>` (default `/usr/bin/git`), and one of
+//!  `--abstract <name>` or `--path <socket>`; with neither, the socket comes from the service manager. Test runs may also
+//!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's). The unit
+//!  instance of one worktree passes `--instance <name>` (`service_instance.rs`), and that service refuses messages about
+//!  any other worktree; without it a development run serves any.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! if (argv.slice(0, 3).join(' ') === 'cli-git service run') process.exit(await runService(argv.slice(3)));
+//! ```
+
+use crate::service_journal::{DONE_RETAINED, prune_done};
+use crate::service_land::{LandContext, recover_instance};
+use crate::service_protocol::PROTOCOL_VERSION;
+use crate::service_timing::{log, started_line};
+use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
+use crate::transaction_git::GitContext;
+use std::ffi::OsString;
+use std::path::PathBuf;
+use std::time::Duration;
+
+/// The words, first in the arguments, that select the service mode. They sit inside the wrapper's own `cli-git` namespace, and
+///  `run` is a third word apart from `status`, which asks a running service whether it answers.
+pub const SERVICE_WORDS: [&str; 3] = ["cli-git", "service", "run"];
+
+/// The exit status of a start that was refused for its arguments or its Git.
+pub const EXIT_REFUSED: i32 = 2;
+
+/// The exit status of a start that could not listen.
+pub const EXIT_NOT_LISTENING: i32 = 3;
+
+/// What:
+///  Whether the arguments (without the program name) select the service mode.
+/// Why:
+///   The decision reads the words only, before anything else of the process is set up, so the wrapper's own start never runs
+///  the service's setup and the service's start never runs the wrapper's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isServiceStart(args) // args[0..3] equal 'cli-git', 'service', 'run'
+/// ```
+pub fn is_service_start(arguments: &[OsString]) -> bool {
+    return arguments.len() >= SERVICE_WORDS.len()
+        && arguments.iter().zip(SERVICE_WORDS).all(|(argument, word)| { return argument == word; });
+}
+
+/// The words of the arguments after the service mode words, as text; a word that is not text is refused.
+pub fn service_options(arguments: &[OsString]) -> Result<Vec<String>, OsString> {
+    return arguments
+        .iter()
+        .skip(SERVICE_WORDS.len())
+        .map(|argument| { return argument.to_str().map(str::to_string).ok_or_else(|| { return argument.clone(); }); })
+        .collect();
+}
+
+fn option(arguments: &[String], name: &str) -> Option<String> {
+    return arguments.iter().position(|argument| { return argument == name; }).and_then(|at| { return arguments.get(at + 1).cloned(); });
+}
+
+/// What:
+///  Refuses a `--git` that would make every Git the service starts start the wrapper again.
+/// Why:
+///   A launcher of the wrapper, a link to it, a copy of it or the executable itself named as Git makes the service start
+///  the wrapper for every Git step (a unit written by an earlier release can hold such a path), and the executable is now
+///  the service's own program, so its own file is the first candidate to refuse (owner: "We should never invoke ourselves
+///  recursively."). The executable's path is identification only; nothing is started from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (isWrapper(git, ownExecutable)) { exit(2) }
+/// ```
+fn git_is_wrapper(git: &std::path::Path) -> bool {
+    let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    return match crate::real_git::process_resolution_inputs(environment.as_slice()) {
+        Ok(inputs) => matches!(crate::real_git_candidate::classify_candidate(git, inputs.own_executable.as_path()), crate::real_git_candidate::CandidateKind::Wrapper),
+        // Without its own path only a launcher's record can be recognised.
+        Err(_) => crate::real_git_candidate::is_wrapper_launcher(git, None),
+    };
+}
+
+/// What:
+///  Runs the service until it ends and gives the exit status.
+/// Why:
+///   The setup of the process comes first and only here: the service's Git starts run with hooks off, a signal that ends the
+///  service leaves a line, and the push advice names the service's remedies. The wrapper's own entry never reaches this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.exitCode = await runService(options)
+/// ```
+pub fn run(arguments: &[String]) -> i32 {
+    // Every Git the service starts (landing, index, push, upkeep) runs with hooks off, as the wrapper's own starts do: a hook
+    //  named by a repository's configuration is the person's, run by their own Git, never by the service.
+    crate::hooks_off::activate();
+    // A signal that ends the service (the manager stops a unit with `SIGTERM`) leaves one line with the signal and the uptime.
+    crate::service_signal::install();
+    // The push messages this process writes name the remedies that reach the service, not a terminal's variable.
+    crate::push_deadline_advice::mark_service_process();
+    let Some(journal) = option(arguments, "--journal").map(PathBuf::from) else {
+        crate::service_error!("--journal <directory> is required");
+        return EXIT_REFUSED;
+    };
+    let git: PathBuf = option(arguments, "--git").map_or_else(|| { return PathBuf::from("/usr/bin/git"); }, PathBuf::from);
+    if git_is_wrapper(git.as_path()) {
+        crate::service_error!(
+            "--git {} is the cli-git executable itself, a copy of it or a toolchain launcher of it, so every Git the service started would start cli-git again; pass the real Git executable (for example /usr/bin/git), or remove the unit that names this path and let the next cli-git command write it again",
+            git.display()
+        );
+        return EXIT_REFUSED;
+    }
+    let address: Bind = match (option(arguments, "--abstract"), option(arguments, "--path")) {
+        (Some(name), _) => Bind::Abstract(name),
+        (None, Some(path)) => Bind::Path(PathBuf::from(path)),
+        (None, None) => Bind::Inherited,
+    };
+    // A person who typed `git cli-git service run` has no socket from the manager and named no address: the refusal comes before
+    //  anything is created or bound, so no stray server and no stray directory is left.
+    if matches!(address, Bind::Inherited) && !crate::service_server::socket_passed_in() {
+        crate::service_error!(
+            "cli-git service run is started by the service manager, which passes it the listening socket of one worktree's commit service; no socket was passed in and no address was named, so nothing was started. Nothing needs starting by hand: the first commit in a worktree sets the service up. For a development run name an address with --path <socket> or --abstract <name>"
+        );
+        return EXIT_NOT_LISTENING;
+    }
+    if let Err(error) = std::fs::create_dir_all(&journal) {
+        crate::service_error!("cannot create the journal directory {}: {error}", journal.display());
+        return EXIT_REFUSED;
+    }
+    let listener = match bind(&address) {
+        Ok(listener) => listener,
+        Err(error) => {
+            crate::service_error!("cannot listen: {error}");
+            return EXIT_NOT_LISTENING;
+        }
+    };
+    let context: LandContext = LandContext {
+        git: GitContext { real_git: git, overlay: crate::child_environment::lockfile_pid_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
+        journal,
+        on_objects_written: None,
+        // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
+        lock_ceiling: option(arguments, "--lock-ceiling-millis").and_then(|text| { return text.parse::<u64>().ok(); }).map_or(crate::wait_ceilings::LOCK_CEILING, Duration::from_millis),
+    };
+    let idle: Duration = option(arguments, "--idle-seconds")
+        .and_then(|text| { return text.parse::<u64>().ok(); })
+        .map_or(IDLE_EXIT, Duration::from_secs);
+    let mut settings: ServeSettings = ServeSettings::new(idle);
+    if let Some(release) = option(arguments, "--release") {
+        settings.release = release;
+    }
+    // The unit instance names the worktree this service is for; a message about any other worktree is refused.
+    settings.instance = option(arguments, "--instance");
+    // Every later entry carries the release and the instance.
+    crate::service_timing::set_context(settings.release.as_str(), settings.instance.as_deref());
+    // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.
+    log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
+    // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in
+    //  it are finished before the first connection is accepted.
+    if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
+        let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, lock_ceiling: context.lock_ceiling };
+        let _reports = recover_instance(&earlier, instance);
+        // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
+        let _pruned = prune_done(shared, DONE_RETAINED);
+    }
+    crate::service_log!("ready");
+    serve(listener, &context, &settings);
+    return 0;
+}
+
+/// Mode controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_main_tests.rs"]
+mod tests;

@@ -32,7 +32,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
 /// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
@@ -61,7 +60,7 @@ fn address(fixture: &Fixture, label: &str) -> String {
 
 fn start_service(fixture: &Fixture, name: &str, fault: Option<&str>) -> Service {
     let journal: PathBuf = fixture.root.join("journal");
-    let mut command: Command = Command::new(SERVICE);
+    let mut command: Command = super::support::service_command();
     command.args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::inherit());
     if let Some(point) = fault {
         command.env(FAULT_VARIABLE, point);
@@ -211,7 +210,7 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
         std::fs::write(shared.join(format!("{seq}.{DONE_EXTENSION}")), "not an intent").expect("an old finished batch");
     }
     let name: String = address(&fixture, "prune-shared");
-    let mut command: Command = Command::new(SERVICE);
+    let mut command: Command = super::support::service_command();
     command
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str(), "--instance", instance.as_str()])
         .stdin(Stdio::null())
@@ -730,7 +729,7 @@ fn two_services_of_one_journal_never_number_their_batches_alike() {
     for label in ["numbers-a", "numbers-b"] {
         let name: String = address(&fixture, label);
         let journal: PathBuf = fixture.root.join("journal");
-        let mut command: Command = Command::new(SERVICE);
+        let mut command: Command = super::support::service_command();
         command
             .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str()])
             .env(FIRST_BATCH_VARIABLE, pinned.as_str())
