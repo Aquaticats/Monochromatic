@@ -10,14 +10,14 @@
 //! ```
 
 /// The conflicts of a merge tree, with their stages, for the word-level second pass.
-use super::merge_second_pass::{Conflict, conflicts_of_merge_tree};
+use crate::merge_second_pass::{Conflict, conflicts_of_merge_tree};
 /// The attribute tree a merge from objects reads.
-use super::child_environment::environment_with_overlay;
-use super::merge_second_pass::ContextRunner;
-use super::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables};
+use crate::child_environment::environment_with_overlay;
+use crate::merge_second_pass::ContextRunner;
+use crate::merge_second_pass_tree::{AttributeProbe, attribute_tree_variables};
 /// Shadow runs and the raw runner for a merge whose exit status matters.
-use super::shadow_git::shadow_request;
-use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
+use crate::shadow_git::shadow_request;
+use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git};
 /// Filesystem paths.
 use std::path::Path;
 

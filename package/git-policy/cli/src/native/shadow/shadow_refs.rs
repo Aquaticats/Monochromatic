@@ -16,12 +16,12 @@
 //! ```
 
 /// One shadow Git start, one real Git start, and their failure text.
-use super::shadow_git::shadow_request;
-use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+use crate::shadow_git::shadow_request;
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// Private file writes for the snapshot, published whole and not synced.
-use super::private_storage::write_private_file_unsynced;
+use crate::private_storage::write_private_file_unsynced;
 /// Journal enums: the ref backend, the base and the symbolic `HEAD` at invocation.
-use super::transaction_journal::{Base, RefFormat, SymbolicHead};
+use crate::transaction_journal::{Base, RefFormat, SymbolicHead};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 

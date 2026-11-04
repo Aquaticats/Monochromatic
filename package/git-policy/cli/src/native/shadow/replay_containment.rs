@@ -13,7 +13,7 @@
 //! ```
 
 /// Zero-context hunks and base lines from `replay_patch`.
-use super::replay_patch::{PatchHunk, PatchLine};
+use crate::replay_patch::{PatchHunk, PatchLine};
 
 /// What:
 ///  One zero-context hunk in base line coordinates:

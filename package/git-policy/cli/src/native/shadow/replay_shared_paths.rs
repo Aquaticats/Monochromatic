@@ -11,9 +11,9 @@
 //! ```
 
 /// Shadow runs for the two listings.
-use super::replay_shadow::run_shadow_checked;
+use crate::replay_shadow::run_shadow_checked;
 /// The shadow runner's context and failure.
-use super::transaction_git::{GitContext, GitFailure};
+use crate::transaction_git::{GitContext, GitFailure};
 /// `Path` names the shadow and the working directory.
 use std::path::Path;
 

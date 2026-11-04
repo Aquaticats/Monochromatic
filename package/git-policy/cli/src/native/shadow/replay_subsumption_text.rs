@@ -13,14 +13,14 @@
 //! ```
 
 /// Blob batch reader and the index-named tree writer's shadow runs.
-use super::blob_batch::load_blob_batch;
+use crate::blob_batch::load_blob_batch;
 /// The one-sided extension and the strict reverse check.
-use super::replay_containment::contains_landed_change;
-use super::replay_patch::{PatchHunk, parse_indexed_patch, split_keeping_newlines};
-use super::replay_reverse_apply::reverse_applies;
-use super::replay_shadow::run_shadow_checked;
-use super::replay_shared_paths::{SharedPath, TreeEntry};
-use super::transaction_git::{GitContext, GitFailure};
+use crate::replay_containment::contains_landed_change;
+use crate::replay_patch::{PatchHunk, parse_indexed_patch, split_keeping_newlines};
+use crate::replay_reverse_apply::reverse_applies;
+use crate::replay_shadow::run_shadow_checked;
+use crate::replay_shared_paths::{SharedPath, TreeEntry};
+use crate::transaction_git::{GitContext, GitFailure};
 /// Hunk maps keyed by entry name.
 use std::collections::{BTreeMap, HashMap};
 /// `Path` names the shadow and the object directory.

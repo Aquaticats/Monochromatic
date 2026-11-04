@@ -17,11 +17,11 @@
 //! ```
 
 /// Every hook event, switched off in the shadow.
-use super::hooks_off::HOOK_EVENTS;
+use crate::hooks_off::HOOK_EVENTS;
 /// The one configuration read the commit shares.
-use super::config_snapshot::ConfigSnapshot;
+use crate::config_snapshot::ConfigSnapshot;
 /// One required Git start, and its failure text.
-use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 

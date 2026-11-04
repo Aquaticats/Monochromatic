@@ -15,7 +15,7 @@
 //! ```
 
 /// Hunks and lines from `replay_patch`.
-use super::replay_patch::{PatchHunk, split_keeping_newlines};
+use crate::replay_patch::{PatchHunk, split_keeping_newlines};
 
 /// One image line:
 ///       its bytes and whether an earlier hunk wrote it,

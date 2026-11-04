@@ -244,7 +244,7 @@ Mutants tested: 0. Caught, missed, unviable and timed-out counts: none yet.
 Remaining work, in order:
 
 1. Rerun the scoped mutation over the ten files, with the image tag set:
-   `systemd-run --user --unit=cli-git-capture-mut-all --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/capture_invocation.rs --file src/native/capture_order.rs --file src/native/shadow_config.rs --file src/native/shadow_links.rs --file src/native/shadow_refs.rs --file src/native/conclusion_copy.rs --file src/native/shadow_create.rs --file src/native/commit_args.rs --file src/native/commit_index.rs --file src/native/commit_preparation.rs`
+   `systemd-run --user --unit=cli-git-capture-mut-all --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/capture_invocation.rs --file src/native/capture_order.rs --file src/native/shadow/shadow_config.rs --file src/native/shadow/shadow_links.rs --file src/native/shadow/shadow_refs.rs --file src/native/conclusion_copy.rs --file src/native/shadow/shadow_create.rs --file src/native/commit_args.rs --file src/native/commit_index.rs --file src/native/commit_preparation.rs`
    The unit exits with a nonzero status when any mutant survives or the campaign stops.
 2. Rerun any file whose mutants timed out, once alone, with the same command and only that `--file`.
 3. Justify each missed mutant with a code-based proof, or add a test that catches it.
@@ -296,7 +296,7 @@ and `shadow_links`. Run A's baseline passed on the earlier image `cd971b00a143`.
 This lane has not changed that test or the harness.
 
 Commands to finish once the baseline passes:
-`systemd-run --user --unit=<name> --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/shadow_create.rs --file src/native/shadow_links.rs`,
+`systemd-run --user --unit=<name> --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/shadow/shadow_create.rs --file src/native/shadow/shadow_links.rs`,
 then the same with `--file src/native/capture_order.rs` alone, then `--file src/native/commit_args.rs` alone.
 
 ## Trailing gates
@@ -337,7 +337,7 @@ What ran, and what is still open:
 Rerun commands once the blocker is cleared or the skip is used:
 
 ```
-systemd-run --user --unit=<name> --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture NATIVE_MUTATION_BASELINE_SKIP=index_lock_holders::tests::a_real_child_holding_the_lock_is_found_on_linux mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/shadow_create.rs --file src/native/shadow_links.rs
+systemd-run --user --unit=<name> --collect --property=MemoryMax=12G --working-directory=<worktree> node <gate-slot> env GIT_POLICY_NATIVE_IMAGE_TAG=capture NATIVE_MUTATION_BASELINE_SKIP=index_lock_holders::tests::a_real_child_holding_the_lock_is_found_on_linux mise run //package/git-policy/cli:native:mutation:scoped -- --file src/native/shadow/shadow_create.rs --file src/native/shadow/shadow_links.rs
 ```
 
 Then the same with `--file src/native/capture_order.rs` alone, then `--file src/native/commit_args.rs` alone,

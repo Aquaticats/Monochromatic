@@ -354,41 +354,14 @@ pub mod recovery_files;
 /// Test-only transaction phase markers, compiled into the release executable and armed only by an environment variable.
 pub mod transaction_phase;
 
-/// Git commands run against a transaction's shadow repository.
-pub mod shadow_git;
+/// The shadow repository and the replay of captured changes onto it.
+pub mod shadow;
+
+/// Re-exports every module of `shadow` at the crate root, as above.
+pub use shadow::*;
 
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
-
-/// Replay: the unified-diff parser of subsumption (`replay_patch`).
-pub mod replay_patch;
-
-/// Replay: the exact strict reverse check of subsumption (`replay_reverse_apply`).
-pub mod replay_reverse_apply;
-
-/// Replay: the one-sided extension of subsumption over zero-context hunks (`replay_containment`).
-pub mod replay_containment;
-
-/// Replay: capture order over the landed first-parent history and the per-path decision (`replay_capture_order`).
-pub mod replay_capture_order;
-
-/// Replay: the shadow-repository Git runner that every replay step uses (`replay_shadow`).
-pub mod replay_shadow;
-
-/// Replay: shared paths of the landed history and the prepared commit, with their three entries (`replay_shared_paths`).
-pub mod replay_shared_paths;
-
-/// Replay: the text half of subsumption over index-named blobs and hunks (`replay_subsumption_text`).
-pub mod replay_subsumption_text;
-
-/// Replay: subsumption rules and the synthetic merge base (`replay_subsumption`).
-pub mod replay_subsumption;
-
-/// Replay: the merge tree, the first conflicting landed commit, and the replayed commit rebuild (`replay_merge`).
-pub mod replay_merge;
-
-/// The empty tree's object name under each known object format.
-pub mod empty_tree;
 
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
@@ -403,15 +376,6 @@ pub mod capture_invocation;
 /// The private index and object store a commit's preparation selects, and the Git request that carries them.
 pub mod private_index_request;
 
-/// The shadow repository `config` file and the copied repository format.
-pub mod shadow_config;
-
-/// The shadow repository links to the real shared entries.
-pub mod shadow_links;
-
-/// The shadow ref store: snapshot, private target, symbolic refs and `HEAD`.
-pub mod shadow_refs;
-
 /// The shadow conclusion copies at preparation.
 pub mod conclusion_copy;
 
@@ -423,12 +387,6 @@ pub mod commit_index;
 
 /// Native `git commit` in the shadow, the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
-
-/// Creation of the shadow repository of one transaction.
-pub mod shadow_create;
-
-/// The entries of an empty bare repository, created in-process instead of by `git init`.
-pub mod shadow_skeleton;
 
 /// In-process reading and writing of the Git index file and its extensions.
 pub mod index;

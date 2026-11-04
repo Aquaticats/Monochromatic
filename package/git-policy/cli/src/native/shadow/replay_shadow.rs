@@ -13,8 +13,8 @@
 //! ```
 
 /// Shadow selection and the transaction Git runner.
-use super::shadow_git::shadow_request;
-use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
+use crate::shadow_git::shadow_request;
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// `OsString` names environment entries and arguments.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.

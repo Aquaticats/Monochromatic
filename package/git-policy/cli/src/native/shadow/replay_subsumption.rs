@@ -13,13 +13,13 @@
 //! ```
 
 /// Shared paths and their entries.
-use super::replay_shared_paths::{SharedPath, SharedPathError, TreeEntry, is_regular_triple, is_text_candidate, same_entry};
+use crate::replay_shared_paths::{SharedPath, SharedPathError, TreeEntry, is_regular_triple, is_text_candidate, same_entry};
 /// Capture order's per-path decision.
-use super::replay_capture_order::CaptureOrderDecision;
+use crate::replay_capture_order::CaptureOrderDecision;
 /// The text half of the check.
-use super::replay_subsumption_text::{TextSubsumptionError, subsumed_text_paths};
-use super::replay_shadow::{replay_base_index, run_shadow_checked};
-use super::transaction_git::{GitContext, GitFailure};
+use crate::replay_subsumption_text::{TextSubsumptionError, subsumed_text_paths};
+use crate::replay_shadow::{replay_base_index, run_shadow_checked};
+use crate::transaction_git::{GitContext, GitFailure};
 /// Decisions per path and the path-keyed maps.
 use std::collections::BTreeMap;
 /// `Path` names the shadow and the directories.

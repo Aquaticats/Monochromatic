@@ -19,7 +19,7 @@ const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
     ("service_native.rs", include_str!("service_native.rs")),
     ("service_prepare.rs", include_str!("service_prepare.rs")),
     ("health/external_hooks.rs", include_str!("health/external_hooks.rs")),
-    ("shadow_config.rs", include_str!("shadow_config.rs")),
+    ("shadow/shadow_config.rs", include_str!("shadow/shadow_config.rs")),
 ];
 
 /// What a commit-path source must never contain: a way to write an entry, a way to name this executable, Git's hook

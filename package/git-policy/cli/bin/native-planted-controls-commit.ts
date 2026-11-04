@@ -13,21 +13,21 @@ import type { PlantedControl } from './native-planted-controls.ts';
 export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: 'strict reverse check line match guard',
-    file: 'src/native/replay_reverse_apply.rs',
+    file: 'src/native/shadow/replay_reverse_apply.rs',
     from: 'if !incomplete_last || match_end {',
     to: 'if true {',
     failing: 'replay_reverse_apply::tests::an_incomplete_preimage_line_matches_past_whitespace_when_not_anchored',
   },
   {
     name: 'patch hunk count for removals',
-    file: 'src/native/replay_patch.rs',
+    file: 'src/native/shadow/replay_patch.rs',
     from: 'if marker != b\'+\' {',
     to: 'if true {',
     failing: 'replay_patch::tests::a_removal_after_an_addition_still_counts_the_old_side',
   },
   {
     name: 'subsumption text verdict per path',
-    file: 'src/native/replay_subsumption.rs',
+    file: 'src/native/shadow/replay_subsumption.rs',
     from: 'text.contains(&entry.path)',
     to: 'false',
     failing: 'replay_subsumption::tests::the_scenario_settles_each_path_by_its_rule',
@@ -48,14 +48,14 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "a branch base is written to the shadow branch",
-    file: "src/native/shadow_refs.rs",
+    file: "src/native/shadow/shadow_refs.rs",
     from: "if let Base::Commit(oid) = base {",
     to: "if let Base::Commit(oid) = &Base::Unborn {",
     failing: "shadow_refs::tests::files_shadow_snapshots_refs_and_points_head_at_the_branch",
   },
   {
     name: "a linked worktree keeps its info directory private",
-    file: "src/native/shadow_links.rs",
+    file: "src/native/shadow/shadow_links.rs",
     from: "if !mixed_info {",
     to: "if false {",
     failing: "shadow_links::tests::shared_entries_link_and_private_entries_stay_absent",
@@ -69,7 +69,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "the repository extensions are copied into the shadow config",
-    file: "src/native/shadow_config.rs",
+    file: "src/native/shadow/shadow_config.rs",
     from: "if !format.extensions.is_empty() {",
     to: "if false {",
     failing: "shadow_config::tests::config_copies_extensions_before_the_include",
@@ -90,7 +90,7 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "a missing shared info directory is tolerated",
-    file: "src/native/shadow_links.rs",
+    file: "src/native/shadow/shadow_links.rs",
     from: "        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}",
     to: "        Err(error) if false => {}",
     failing: "shadow_links::tests::linked_worktree_without_a_shared_info_directory_still_links",

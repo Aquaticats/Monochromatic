@@ -19,13 +19,13 @@
 //! ```
 
 /// Debug diagnostics.
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 /// Tree removal.
-use super::private_storage::remove_tree;
+use crate::private_storage::remove_tree;
 /// The fail-closed recovery failure.
-use super::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{RecoveryError, io_failure};
 /// One Git start.
-use super::transaction_git::GitRequest;
+use crate::transaction_git::GitRequest;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.

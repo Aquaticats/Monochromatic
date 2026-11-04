@@ -19,24 +19,24 @@
 //! ```
 
 /// Shadow path, redirect variables and the shadow request.
-use super::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
+use crate::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 /// Invocation capture.
-use super::capture_invocation::{InvocationCapture, InvocationLayout};
+use crate::capture_invocation::{InvocationCapture, InvocationLayout};
 /// The in-process entries of an empty bare repository.
-use super::shadow_skeleton::create_shadow_skeleton;
+use crate::shadow_skeleton::create_shadow_skeleton;
 /// Format copy and config text.
-use super::shadow_config::{format_shadow_config, read_repository_format, repository_format_from_snapshot};
+use crate::shadow_config::{format_shadow_config, read_repository_format, repository_format_from_snapshot};
 /// Entry links.
-use super::shadow_links::link_shadow_entries;
+use crate::shadow_links::link_shadow_entries;
 /// Conclusion copy and ref snapshot.
-use super::conclusion_copy::copy_conclusion_state;
-use super::shadow_refs::write_shadow_refs;
+use crate::conclusion_copy::copy_conclusion_state;
+use crate::shadow_refs::write_shadow_refs;
 /// Private directory creation and file writes.
-use super::private_storage::create_private_directory;
+use crate::private_storage::create_private_directory;
 /// Where Git's words go now that the `init` carries no `--quiet`.
-use super::inner_git_words::record_words;
+use crate::inner_git_words::record_words;
 /// Process context and one required Git start.
-use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// Strings for the redirect variable list.
@@ -211,7 +211,7 @@ pub fn create_shadow_repository_carrying(
     carry_conclusion: bool,
 ) -> Result<(), GitFailure> {
     let layout = &capture.layout;
-    if layout.ref_format == super::transaction_journal::RefFormat::Reftable {
+    if layout.ref_format == crate::transaction_journal::RefFormat::Reftable {
         // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
         init_with_git(context, layout, shadow)?;
     } else {
