@@ -1336,7 +1336,7 @@ Concurrent commits cannot be turned off.
 
 Nothing the wrapper waits for waits for ever (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"),
 and the
-wrapper never waits without saying so. Every bound is in `src/native/wait_ceilings.rs` with its measurement,
+wrapper never waits without saying so. Every bound is in `src/native/service/wait_ceilings.rs` with its measurement,
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
 A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.

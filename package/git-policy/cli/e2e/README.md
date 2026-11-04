@@ -108,7 +108,7 @@ The instruments that replace them add nothing to the release executables:
   The `push-<oid>` record is the durable trace of the after-commit work that the `post-commit` hook once observed:
   one settled record per landed commit stands for "post-commit ran once".
 - External `SIGKILL` of the client's process group, or of the service, at a seeded offset or at an observable instant.
-- The fault points of the release service (`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, `src/native/service_fault.rs`):
+- The fault points of the release service (`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, `src/native/service/service_fault.rs`):
   `after-objects`, `after-intent`, `after-ref`, `after-index` and `before-ack`.
   The variable is armed only by the harness, and only on the process a scenario starts for it.
 

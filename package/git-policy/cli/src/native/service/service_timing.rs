@@ -23,10 +23,10 @@
 //! console.error(`cli-git-service: answered request=${id} queued_ms=${queued} lock_wait_ms=${lockWait} total_ms=${total}`);
 //! ```
 
-use super::service_index_found::WaitNotes;
-use super::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
-use super::lfs_output_mask::mask_userinfo_text;
-use super::quiet_ledger::longest_healthy;
+use crate::service_index_found::WaitNotes;
+use crate::journald_native::{Delivery, MESSAGE_LIMIT, Priority, Sink, StreamWriter, cut, one_line};
+use crate::lfs_output_mask::mask_userinfo_text;
+use crate::quiet_ledger::longest_healthy;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 

@@ -12,8 +12,8 @@
 //! try { socket.send(`PRIORITY=4\nSYSLOG_IDENTIFIER=cli-git\nMESSAGE=${message}\n`) } catch { /* nothing waits for the journal */ }
 //! ```
 
-use super::diagnostic_log::debug;
-use super::journald_native::{CLIENT_IDENTIFIER, Priority, TEST_SOCKET_VARIABLE, Target, datagram_as};
+use crate::diagnostic_log::debug;
+use crate::journald_native::{CLIENT_IDENTIFIER, Priority, TEST_SOCKET_VARIABLE, Target, datagram_as};
 use std::os::unix::net::UnixDatagram;
 
 /// Tag used for diagnostics from this module.

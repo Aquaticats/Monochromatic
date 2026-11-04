@@ -13,7 +13,7 @@
 //! const [reply, messages] = makeReply(); queue.push({ request, reply }); await writeUntilAnswered(socket, messages, HEARTBEAT_EVERY);
 //! ```
 
-use super::service_protocol::{ServiceMessage, encode_service};
+use crate::service_protocol::{ServiceMessage, encode_service};
 use std::io::Write;
 use std::os::unix::net::UnixStream;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};

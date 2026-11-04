@@ -27,8 +27,8 @@
 //! process.on('SIGTERM', () => { console.error(`cli-git-service: exiting reason=signal-15 uptime_ms=${uptime()}`); process.exit(143); });
 //! ```
 
-use super::journald_native::{IDENTIFIER, Priority, raw_address, send_without_waiting};
-use super::service_timing::{LOG_PREFIX, sink};
+use crate::journald_native::{IDENTIFIER, Priority, raw_address, send_without_waiting};
+use crate::service_timing::{LOG_PREFIX, sink};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 

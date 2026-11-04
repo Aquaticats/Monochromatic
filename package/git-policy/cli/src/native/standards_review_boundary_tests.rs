@@ -18,7 +18,7 @@ const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_r
 
 /// The path prefixes, relative to the source root, of the files of those modules and their tests.
 const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] =
-    ["standards_review/standards_review_client", "standards_review/standards_review_run", "service_review"];
+    ["standards_review/standards_review_client", "standards_review/standards_review_run", "service/service_review"];
 
 /// Files outside the client path that may name the service-only modules: their own files and tests, the module
 /// declarations, the service's work consumer (which owns the handler that calls the review), and this test with its

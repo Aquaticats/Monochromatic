@@ -37,17 +37,42 @@ const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX",
 const REASON_MARKER: &str = "Lock kept:";
 
 /// The locks that stay, by file: what each protects is in the comment block above it, and in `SPEC.md`.
-const INVENTORY: &[&str] = &["journald_native.rs"];
+const INVENTORY: &[&str] = &["service/journald_native.rs"];
 
-/// The covered sources of this package: path and text.
+/// Every `.rs` file below `root`, as `/`-separated paths relative to it, found with a work stack so that the sources of
+/// the subsystem folders are covered as well as the files beside `lib.rs`.
+fn rust_files_below(root: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory).expect("a readable source directory").flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| { return extension == "rs"; }) {
+                let relative: &Path = path.strip_prefix(root).expect("a path below the root");
+                found.push(relative.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    found.sort();
+    return found;
+}
+
+/// Whether the file name of `path` starts with one of the covered prefixes.
+fn is_covered(path: &str) -> bool {
+    let name: &str = path.rsplit('/').next().unwrap_or(path);
+    return COVERED_PREFIXES.iter().any(|prefix| { return name.starts_with(prefix); });
+}
+
+/// The covered sources of this package: path relative to `src/native` and text, from every subsystem folder.
 fn covered_sources() -> Vec<(String, String)> {
     let directory: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
     let mut found: Vec<(String, String)> = Vec::new();
-    for entry in std::fs::read_dir(directory).expect("the source directory").flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        let covered: bool = COVERED_PREFIXES.iter().any(|prefix| { return name.starts_with(prefix); });
-        if covered && name.ends_with(".rs") && !name.ends_with("_tests.rs") {
-            found.push((name, std::fs::read_to_string(entry.path()).expect("a readable source")));
+    for relative in rust_files_below(directory.as_path()) {
+        if is_covered(relative.as_str()) && !relative.ends_with("_tests.rs") {
+            let text: String = std::fs::read_to_string(directory.join(relative.as_str())).expect("a readable source");
+            found.push((relative, text));
         }
     }
     found.sort();
@@ -104,6 +129,19 @@ fn every_kept_lock_has_its_reason_beside_it_and_the_inventory_has_no_stale_entry
         let lines: Vec<usize> = lock_lines(source.as_str());
         let first: usize = *lines.first().unwrap_or_else(|| { panic!("{kept} is on the inventory and holds no lock any more"); });
         assert!(reason_above(source.as_str(), first), "{kept}:{} declares a lock with no `{REASON_MARKER}` comment block above it", first + 1);
+    }
+}
+
+/// Every covered prefix reaches at least one source, so a move of files into folders cannot leave the scan with fewer
+/// files than it was written for.
+#[test]
+fn every_covered_prefix_reaches_a_source_in_some_folder() {
+    let sources: Vec<(String, String)> = covered_sources();
+    for prefix in COVERED_PREFIXES {
+        let reached: bool = sources.iter().any(|(path, _)| {
+            return path.rsplit('/').next().is_some_and(|name| { return name.starts_with(prefix); });
+        });
+        assert!(reached, "no covered source starts with {prefix}");
     }
 }
 

@@ -12,21 +12,21 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use super::service_journal::{DONE_RETAINED, Recovery, landed_commits, prune_done};
-use super::service_index_lock::{Announce, unsettled_locks};
-use super::service_index_prestage::{PrestageGuard, start as start_prestage};
-use super::service_captures::CaptureMemory;
-use super::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
-use super::journald_native::Priority;
-use super::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, log_entry, retire_line};
-use super::private_storage::remove_tree;
-use super::service_instance::instance_of;
-use super::claim_time::ClaimTime;
-use super::service_retry::RetrySchedule;
-use super::push_retry::{PLAN_DIRECTORY, PushRetries};
-use super::service_work::{GitHandlers, Wake, run_round};
-use super::service_reply::{Reply, write_until_answered};
-use super::service_protocol::{
+use crate::service_journal::{DONE_RETAINED, Recovery, landed_commits, prune_done};
+use crate::service_index_lock::{Announce, unsettled_locks};
+use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
+use crate::service_captures::CaptureMemory;
+use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
+use crate::journald_native::Priority;
+use crate::service_timing::{Answered, Arrival, ExitReason, LandTiming, answered_line, exit_line, log, log_entry, retire_line};
+use crate::private_storage::remove_tree;
+use crate::service_instance::instance_of;
+use crate::claim_time::ClaimTime;
+use crate::service_retry::RetrySchedule;
+use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
+use crate::service_work::{GitHandlers, Wake, run_round};
+use crate::service_reply::{Reply, write_until_answered};
+use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
 use std::collections::HashMap;
@@ -316,7 +316,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             let id: String = request.id.clone();
             let (reply, messages) = Reply::new();
             let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
-            super::service_fault::queued(id.as_str());
+            crate::service_fault::queued(id.as_str());
             // This thread has nothing else to do until the request is answered, so it writes the answers the landing thread
             //  queues and keeps the client told that the service lives.
             write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
@@ -353,8 +353,8 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
 }
 
 /// Finishes the open batches this instance owns: those of its worktree when it serves one, all of them in a development run.
-fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<super::service_land::RecoveryReport> {
-    let reports: Vec<super::service_land::RecoveryReport> = match instance {
+fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<crate::service_land::RecoveryReport> {
+    let reports: Vec<crate::service_land::RecoveryReport> = match instance {
         Some(mine) => recover_instance(context, mine),
         None => recover(context),
     };
@@ -405,7 +405,7 @@ impl BatchTimes {
 fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
     // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
-    let quiet: Vec<(String, Duration)> = super::quiet_ledger::drain();
+    let quiet: Vec<(String, Duration)> = crate::quiet_ledger::drain();
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.as_str(),
@@ -478,7 +478,7 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
                     captures.record_landed(request.common_dir.as_path(), request.repository.as_path(), commit.as_str(), request.captured);
                 }
             }
-            super::service_fault::reach("before-ack");
+            crate::service_fault::reach("before-ack");
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
                 if let Outcome::Landed { commit } = outcome {
                     for (repeat, stream, arrival) in repeats.iter().filter(|(repeat, _, _)| { return repeat.id == request.id; }) {

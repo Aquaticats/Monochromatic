@@ -116,7 +116,7 @@ the entry format is the same in both files.
 
 Nobody runs it by hand.
 The resident service runs one `review` work item per landed commit
-(`package/git-policy/cli/src/native/service_review.rs`),
+(`package/git-policy/cli/src/native/service/service_review.rs`),
 within a 20 s budget on the service's work thread:
 a call deadline of 10 s for the gateway and the Git reads and the write inside the rest.
 The environment of the service carries the settings:

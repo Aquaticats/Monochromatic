@@ -26,10 +26,10 @@
 //! await provision({ runtimeDir, configHome, busPath, serviceBinary, git, instance }) // writes templates, reloads, starts the socket
 //! ```
 
-use super::service_messages::{ClientFailure, Platform};
-use super::service_client::ask_to_retire;
-use super::service_instance::{LEGACY_SOCKET_RELATIVE, service_unit_instance, socket_path, socket_unit_instance};
-use super::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
+use crate::service_messages::{ClientFailure, Platform};
+use crate::service_client::ask_to_retire;
+use crate::service_instance::{LEGACY_SOCKET_RELATIVE, service_unit_instance, socket_path, socket_unit_instance};
+use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
 /// The socket template's text, with the marker on its first line.

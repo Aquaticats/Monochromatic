@@ -1432,7 +1432,7 @@ step that works between two samples, so no window is set below it outside the co
 The commit service runs the landing's Git steps in its own process, so its figures go to its journal: the `answered`
 line of
 each request ends with `quiet_ms=<longest among the steps that ended by themselves>` and `quiet_steps="<step>=<ms>;..."`
-(`src/native/service_timing.rs`).
+(`src/native/service/service_timing.rs`).
 The landings of one service share the ledger, so the first answer after a batch's steps holds their figures and the
 others of
 that batch hold none; a figure is a gap of some step of the service since the previous answer, not of one request.
@@ -1480,7 +1480,7 @@ The owner answered through the question tool at about 2026-11-03T12:45-05:00, qu
 
 The inventory of every wait, with the end behavior of each and the options for the ones not decided, is
 `doc/planning/cli-git-no-unbounded-waits.md`. The bounds,
-in `src/native/wait_ceilings.rs` with the measurement beside each:
+in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 
 - `ANSWER_CEILING` 20 minutes: the client's wait for the service's answer,
   heartbeats or not (3.9 times the longest answer wait

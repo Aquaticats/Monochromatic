@@ -12,7 +12,7 @@
 //! ```
 
 use serde_json::{Map, Value};
-use super::service_review_key::ReviewKey;
+use crate::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.

@@ -14,14 +14,14 @@
 //! const outcome = await reviewLanded(names, sha, subject, read, options);
 //! ```
 
-use super::standards_review_input::has_shadow_log;
-use super::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained};
-use super::standards_review_source::{read_landed_commit, read_message, read_names};
-use super::standards_review_text::commit_subject;
-use super::service_review_key::{KEY_VARIABLES, ReviewKey};
-use super::service_work::Verdict;
-use super::transaction_git::GitContext;
-use super::work_item::WorkItem;
+use crate::standards_review_input::has_shadow_log;
+use crate::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained};
+use crate::standards_review_source::{read_landed_commit, read_message, read_names};
+use crate::standards_review_text::commit_subject;
+use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
+use crate::service_work::Verdict;
+use crate::transaction_git::GitContext;
+use crate::work_item::WorkItem;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 

@@ -13,16 +13,16 @@
 //! const result = await submit(config, request, stderr); // landed, or prepare again, or a ClientFailure
 //! ```
 
-use super::commit_timing::{ReachTrace, SubmitTrace, holder_kind_of};
-use super::service_messages::{ClientFailure, Platform, SILENT_NOTICE, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
-use super::service_protocol::{
+use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_of};
+use crate::service_messages::{ClientFailure, Platform, SILENT_NOTICE, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
+use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client, encode_retire,
 };
-use super::service_instance::service_unit_instance;
-use super::service_provision::ProvisionHost;
-use super::service_review_key::ReviewKey;
-use super::systemd_dbus::{Bus, EXCHANGE_WAIT};
-use super::service_server::Bind;
+use crate::service_instance::service_unit_instance;
+use crate::service_provision::ProvisionHost;
+use crate::service_review_key::ReviewKey;
+use crate::systemd_dbus::{Bus, EXCHANGE_WAIT};
+use crate::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
@@ -372,7 +372,7 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
         FailureCode::Rejected => ClientFailure::Refused,
         FailureCode::BranchKeepsChanging => ClientFailure::BranchKeepsChanging {
             branch: request.reference.trim_start_matches("refs/heads/").to_string(),
-            times: super::service_land::LANDING_ATTEMPTS,
+            times: crate::service_land::LANDING_ATTEMPTS,
         },
         FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.trim_start_matches("refs/heads/").to_string() },
         FailureCode::StepTooSlow => ClientFailure::StepTooSlow,
@@ -439,7 +439,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         if let Some(fresh) = settings.keep_fresh.as_ref()
             && last_renewed.is_none_or(|at| { return at.elapsed() >= fresh.every; })
         {
-            super::scratch_location::renew(fresh.path.as_path());
+            crate::scratch_location::renew(fresh.path.as_path());
             last_renewed = Some(Instant::now());
         }
     };

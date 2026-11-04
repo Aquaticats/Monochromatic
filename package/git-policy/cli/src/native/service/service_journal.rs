@@ -12,9 +12,9 @@
 //! await writeIntent(dir, intent); // file fsync, rename, directory fsync: the batch's only synchronous write
 //! ```
 
-use super::repo_read_layout::dot_git_target;
-use super::service_land_start::{StartEntry, decode, encode};
-use super::service_protocol::Cleanup;
+use crate::repo_read_layout::dot_git_target;
+use crate::service_land_start::{StartEntry, decode, encode};
+use crate::service_protocol::Cleanup;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
