@@ -79,6 +79,25 @@ fn an_update_error_with_a_failed_mandatory_phase_reports_both() {
 }
 
 /// A failed removal of a disposable journal does not change an update error.
+/// Certification group 3 (A3, A4): the operational error of cargo (an `UpdateError::Cargo`) joined with a failed mandatory phase is
+/// not an operational error any more: it is the mandatory-failure error (`Other`, with the remedy to run the command again) that
+/// carries both diagnostics, for each mandatory phase.
+/// An error that stayed `Cargo` would keep the classification that lets a caller treat it as an ordinary failure.
+#[test]
+fn an_operational_error_joined_with_a_failed_mandatory_phase_becomes_the_mandatory_failure_kind() {
+    for phase in [FinishError::outputs(std::io::Error::other("disk said no")), FinishError::completion(std::io::Error::other("rename said no"))] {
+        let phase_text: String = phase.to_string();
+        let original = UpdateError::Cargo { crate_dir: CRATE_DIR.to_string(), command: "cargo update".to_string(), output: "cargo broke".to_string() };
+
+        let joined = settle_finish(Err(original), Err(phase), Vec::new(), Vec::new());
+
+        let error: UpdateError = joined.expect_err("an error");
+        assert!(matches!(error, UpdateError::Other { .. }), "{phase_text}: the joined error kept the operational classification: {error:?}");
+        let text: String = error.to_string();
+        assert!(text.contains("cargo broke") && text.contains(&phase_text) && text.contains("run the command again"), "{text}");
+    }
+}
+
 #[test]
 fn an_update_error_stands_alone_when_only_the_cleanup_failed() {
     let original = UpdateError::Other { message: "cargo could not resolve".to_string() };

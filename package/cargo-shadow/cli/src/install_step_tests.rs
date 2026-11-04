@@ -975,6 +975,31 @@ fn an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_k
 /// Round 7 (6b2 5):
 /// a completion marker that could not be published is not a cleanup problem:
 /// a later recovery would still see an active journal and could judge the run again.
+/// Acceptance rows A3, A4 (certification group 3): an operational error of cargo together with each failure of the completion
+/// (the injected completion failure, the real rename of the marker, the real sync of its parent) stops the command and keeps both
+/// diagnostics: the step is refused, which does not let the shim run the command again with `--locked`, and it is not reported as an
+/// ordinary failure that would.
+/// Each fault must have been consumed.
+#[test]
+fn an_operational_error_with_each_failed_completion_stage_stops_the_command_and_keeps_both_diagnostics() {
+    for fault in [crate::failpoints::Point::FinishCompletion, crate::failpoints::Point::CompletionRename, crate::failpoints::Point::CompletionSync] {
+        let root = repository(STALE);
+        let start = root.path().join(CRATE_DIR);
+        let runner = |_cwd: &Path, _arguments: &[String]| -> Result<CargoOutcome, String> {
+            return Ok(CargoOutcome { ok: false, output: "cargo broke".to_string(), stdout: String::new() });
+        };
+        crate::failpoints::arm(fault);
+
+        let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+
+        assert!(!crate::failpoints::fires(fault), "{fault:?}: the completion fault was never reached, so the operational error stood alone");
+        match outcome {
+            StepOutcome::Refused(message) => assert!(message.contains("cargo broke") && message.contains("completion"), "{fault:?}: {message}"),
+            other => panic!("{fault:?}: an operational error hid a failed completion and the shim would fall back: {other:?}"),
+        }
+    }
+}
+
 #[test]
 fn a_completion_marker_that_cannot_be_published_stops_the_command() {
     let root = repository(STALE);
