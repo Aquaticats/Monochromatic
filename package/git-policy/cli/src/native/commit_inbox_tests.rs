@@ -1,6 +1,6 @@
 //! What:
 //!  Controls of rule V (revision 12) for the durable-record components: a request is one checksummed file in `inbox/`, the state is a
-//!  double-buffered pair of files, the waiting path of a plain commit makes no sync of the wrapper's, and a departure forces to disk
+//!  hash-chained log, the waiting path of a plain commit makes no sync of the wrapper's, and a departure forces to disk
 //!  only what the leaving command promises, in the order of the dependency chain.
 //! Why:
 //!  The owner's rules "commits vs native git should not take 5s longer." and "Disk pressure being high is not an excuse." need a
@@ -19,7 +19,6 @@ use git_policy_cli::commit_inbox::{Accepted, accept, decode_inbox_file, depart, 
 use git_policy_cli::commit_integrity::sha256_hex;
 use git_policy_cli::commit_request::{Change, Operation, Request, publish};
 use git_policy_cli::commit_spool::write_spool;
-use git_policy_cli::commit_state::{read_state, sync_newest, write_state};
 use git_policy_cli::commit_state_log;
 use std::path::PathBuf;
 
@@ -78,12 +77,12 @@ fn the_waiting_path_of_a_plain_commit_makes_no_sync() {
     let (request, new_files, old_files) = one_path_request();
     start_events();
     let accepted: Accepted = accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
-    write_state(&lane.join("state"), 1, b"adopted").expect("state");
-    write_state(&lane.join("state"), 2, b"ready").expect("state");
+    commit_state_log::append(&lane.join("state"), 1, b"adopted").expect("state");
+    commit_state_log::append(&lane.join("state"), 2, b"ready").expect("state");
     let events: Vec<String> = take_events();
     assert_eq!(syncs(&events), 0, "{:?}", events);
     assert_eq!(accepted, Accepted::Created);
-    assert_eq!(read_state(&lane.join("state")).expect("state"), (2, b"ready".to_vec()));
+    assert_eq!(commit_state_log::read(&lane.join("state")).expect("readable").expect("state"), (2, b"ready".to_vec()));
 }
 
 /// A resend of the same request is answered from the file in place: no sync, no temporary file left, and the same bytes.
@@ -153,24 +152,6 @@ fn an_identity_names_exactly_one_content() {
     assert!(accept(&lane.join("inbox"), INSTANCE, &request, &[b"other bytes".to_vec()], &old_files).is_err());
 }
 
-/// The double-buffered state: a power loss that lands the newer file only in part leaves the older generation valid.
-#[test]
-fn a_partly_written_newer_state_leaves_the_older_generation_valid() {
-    let root: PathBuf = scratch("v-state");
-    let dir: PathBuf = root.join("state");
-    std::fs::create_dir_all(&dir).expect("dir");
-    write_state(&dir, 1, b"first").expect("state");
-    write_state(&dir, 2, b"second").expect("state");
-    assert_eq!(read_state(&dir).expect("newest"), (2, b"second".to_vec()));
-    let newer: PathBuf = dir.join("state.b");
-    let bytes: Vec<u8> = std::fs::read(&newer).expect("read");
-    std::fs::write(&newer, &bytes[..bytes.len() / 2]).expect("torn");
-    assert_eq!(read_state(&dir).expect("older"), (1, b"first".to_vec()));
-    write_state(&dir, 3, b"third").expect("state");
-    assert_eq!(read_state(&dir).expect("newest"), (3, b"third".to_vec()));
-    assert_eq!(std::fs::read(dir.join("state.a")).expect("the valid older file is not the one rewritten"), std::fs::read(dir.join("state.a")).expect("same"));
-}
-
 /// Review 5 P1 3: two independent invocations with equal payloads carry different nonces and get different identities; a resend of one
 /// invocation carries its retained nonce and gets the same identity.
 #[test]
@@ -187,22 +168,11 @@ fn independent_identical_requests_get_different_identities_and_a_resend_the_same
     assert!(with_identity(INSTANCE, short).is_err());
 }
 
-/// Review 5 P1 1: successive unsynced transitions then a power cut. The alternating pair loses every valid generation (the third write
-/// overwrites the only durable one in place and tears; the second never reached disk); the state log keeps its durable checkpoint.
+/// Review 5 P1 1: successive unsynced transitions then a power cut. The state log keeps its durable checkpoint (the alternating pair that
+/// this replaced lost every valid generation in the same schedule and is removed).
 #[test]
 fn successive_unsynced_state_transitions_then_a_power_cut() {
     let root: PathBuf = scratch("v-powercut");
-    let pair: PathBuf = root.join("pair");
-    std::fs::create_dir_all(&pair).expect("dir");
-    write_state(&pair, 1, b"durable").expect("g1");
-    sync_newest(&pair).expect("sync");
-    write_state(&pair, 2, b"unsynced two").expect("g2");
-    write_state(&pair, 3, b"unsynced three").expect("g3");
-    // The power cut: the unsynced second file never reached the disk; the third write tore the only durable file.
-    let _ = std::fs::remove_file(pair.join("state.b"));
-    let torn: Vec<u8> = std::fs::read(pair.join("state.a")).expect("read");
-    std::fs::write(pair.join("state.a"), &torn[..torn.len() / 2]).expect("tear");
-    assert!(read_state(&pair).is_none(), "the pair kept no valid generation");
     let log: PathBuf = root.join("log");
     std::fs::create_dir_all(&log).expect("dir");
     commit_state_log::append(&log, 1, b"one").expect("append");
@@ -214,7 +184,7 @@ fn successive_unsynced_state_transitions_then_a_power_cut() {
     }
     let bytes: Vec<u8> = std::fs::read(log.join("state.log.2")).expect("read");
     std::fs::write(log.join("state.log.2"), &bytes[..durable as usize + 7]).expect("the power cut tears the first unsynced record");
-    assert_eq!(commit_state_log::read(&log).expect("durable checkpoint"), (2, b"the checkpoint document".to_vec()));
+    assert_eq!(commit_state_log::read(&log).expect("readable").expect("durable checkpoint"), (2, b"the checkpoint document".to_vec()));
 }
 
 /// Review 5 P1 2: the departure forces the closure its exit promises, in dependency order: request files, the inbox directory, the order

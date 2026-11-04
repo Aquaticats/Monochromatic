@@ -30,23 +30,42 @@ fn log_path(dir: &Path, number: u64) -> PathBuf {
     return dir.join(format!("state.log.{}", number));
 }
 
-/// The numbers of the log files in `dir`, ascending.
-fn numbers(dir: &Path) -> Vec<u64> {
+/// What the state log could not give: a damaged log is not the same as no log, and a read failure is neither.
+#[derive(Debug)]
+pub enum StateError {
+    /// A log file exists with bytes and no valid first record, and no older file holds a valid state.
+    Damaged,
+    /// A file or the directory could not be read or written.
+    Io(io::Error),
+}
+
+impl From<io::Error> for StateError {
+    fn from(error: io::Error) -> Self {
+        return StateError::Io(error);
+    }
+}
+
+/// The numbers of the log files in `dir`, ascending; a directory that does not exist has none, any other listing failure is an error.
+fn numbers(dir: &Path) -> io::Result<Vec<u64>> {
     let mut found: Vec<u64> = Vec::new();
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            if let Some(number) = entry.file_name().to_str().and_then(|name| { return name.strip_prefix("state.log."); }).and_then(|n| { return n.parse::<u64>().ok(); }) {
-                found.push(number);
-            }
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(found),
+        Err(error) => return Err(error),
+    };
+    for listed in entries {
+        let entry = listed?;
+        if let Some(number) = entry.file_name().to_str().and_then(|name| { return name.strip_prefix("state.log."); }).and_then(|n| { return n.parse::<u64>().ok(); }) {
+            found.push(number);
         }
     }
     found.sort();
-    return found;
+    return Ok(found);
 }
 
 /// The highest log file number in `dir`, if any.
-pub fn rotation_number(dir: &Path) -> Option<u64> {
-    return numbers(dir).last().copied();
+pub fn rotation_number(dir: &Path) -> io::Result<Option<u64>> {
+    return Ok(numbers(dir)?.last().copied());
 }
 
 /// One record: `rec <generation> <previous hash> <length>\n<payload>\nhash <hash>\n`, the hash over the previous hash, the header line and
@@ -96,18 +115,22 @@ fn valid_prefix(bytes: &[u8]) -> Option<(u64, Vec<u8>, String, usize)> {
 }
 
 /// The newest valid state: the highest-numbered file whose first record validates, read as its longest valid prefix; a newest file that
-/// does not validate falls back to the previous one (it exists until the new one is durable).
-pub fn read(dir: &Path) -> Option<(u64, Vec<u8>)> {
-    for number in numbers(dir).into_iter().rev() {
-        let bytes: Vec<u8> = match fs::read(log_path(dir, number)) {
-            Ok(bytes) => bytes,
-            Err(_) => continue,
-        };
+/// does not validate falls back to the previous one (it exists until the new one is durable). No log file is `Ok(None)`; files with
+/// bytes and no valid record anywhere are `Damaged`; a file that cannot be read is `Io`, never a silent fall back to an older state.
+pub fn read(dir: &Path) -> Result<Option<(u64, Vec<u8>)>, StateError> {
+    let all: Vec<u64> = numbers(dir)?;
+    let mut saw_bytes: bool = false;
+    for number in all.into_iter().rev() {
+        let bytes: Vec<u8> = fs::read(log_path(dir, number))?;
+        saw_bytes = saw_bytes || !bytes.is_empty();
         if let Some((generation, payload, _, _)) = valid_prefix(&bytes) {
-            return Some((generation, payload));
+            return Ok(Some((generation, payload)));
         }
     }
-    return None;
+    if saw_bytes {
+        return Err(StateError::Damaged);
+    }
+    return Ok(None);
 }
 
 /// What:
@@ -121,12 +144,22 @@ pub fn read(dir: &Path) -> Option<(u64, Vec<u8>)> {
 /// function append(dir: string, generation: number, payload: Uint8Array): void;
 /// ```
 pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
-    if read(dir).is_some_and(|(newest, _)| { return generation <= newest; }) {
+    let newest: Option<(u64, Vec<u8>)> = read(dir).map_err(|error| {
+        return match error {
+            StateError::Io(inner) => inner,
+            StateError::Damaged => io::Error::new(io::ErrorKind::InvalidData, "the state log is damaged; its bytes are kept"),
+        };
+    })?;
+    if newest.is_some_and(|(newest_generation, _)| { return generation <= newest_generation; }) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the generation must increase"));
     }
-    let number: u64 = rotation_number(dir).unwrap_or(1);
+    let number: u64 = rotation_number(dir)?.unwrap_or(1);
     let path: PathBuf = log_path(dir, number);
-    let existing: Vec<u8> = fs::read(&path).unwrap_or_default();
+    let existing: Vec<u8> = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error),
+    };
     let (previous, keep): (String, usize) = match valid_prefix(&existing) {
         Some((_, _, hash, length)) => (hash, length),
         None => (genesis(), 0),
@@ -151,7 +184,7 @@ pub fn append(dir: &Path, generation: u64, payload: &[u8]) -> io::Result<()> {
 /// function syncNewestLog(dir: string): void;
 /// ```
 pub fn sync_newest_log(dir: &Path) -> io::Result<()> {
-    let number: u64 = rotation_number(dir).ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
+    let number: u64 = rotation_number(dir)?.ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "no state log"); })?;
     let path: PathBuf = log_path(dir, number);
     let file: File = File::open(&path)?;
     sync_file(&file, &path)?;
@@ -168,7 +201,7 @@ pub fn sync_newest_log(dir: &Path) -> io::Result<()> {
 /// function rotate(dir: string, generation: number, document: Uint8Array): number;
 /// ```
 pub fn rotate(dir: &Path, generation: u64, document: &[u8]) -> io::Result<u64> {
-    let next: u64 = rotation_number(dir).map_or(1, |number| { return number + 1; });
+    let next: u64 = rotation_number(dir)?.map_or(1, |number| { return number + 1; });
     let (record, _) = encode_record(generation, &genesis(), document);
     let mut file: File = OpenOptions::new().create_new(true).write(true).open(log_path(dir, next))?;
     file.write_all(&record)?;
@@ -185,7 +218,7 @@ pub fn rotate(dir: &Path, generation: u64, document: &[u8]) -> io::Result<u64> {
 /// function completeRotation(dir: string): void;
 /// ```
 pub fn complete_rotation(dir: &Path) -> io::Result<()> {
-    let all: Vec<u64> = numbers(dir);
+    let all: Vec<u64> = numbers(dir)?;
     let Some(newest) = all.last().copied() else { return Ok(()) };
     let path: PathBuf = log_path(dir, newest);
     let file: File = File::open(&path)?;
