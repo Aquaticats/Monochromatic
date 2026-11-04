@@ -142,3 +142,18 @@ fn a_timeout_returns_promptly_even_when_the_child_ignores_its_input() {
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
     assert!(started.elapsed() < Duration::from_secs(8), "{:?}", started.elapsed());
 }
+
+/// Round 6 (advisor, owner rule "nothing should ever wait forever or indefinitely"): a second run in the same process is refused
+/// at once instead of waiting for the first.
+#[test]
+fn a_second_run_in_one_process_is_refused_instead_of_waiting() {
+    let first = std::thread::spawn(|| { return output_within(Command::new("sleep").arg("2"), None, &bound(Duration::from_secs(20))); });
+    std::thread::sleep(Duration::from_millis(400));
+    let started = Instant::now();
+
+    let second = output_within(&mut Command::new("true"), None, &bound(Duration::from_millis(300)));
+
+    assert!(second.is_err(), "a second run was allowed beside the first");
+    assert!(started.elapsed() < Duration::from_millis(1500), "the second run waited for the first: {:?}", started.elapsed());
+    assert!(first.join().expect("first run thread").is_ok());
+}
