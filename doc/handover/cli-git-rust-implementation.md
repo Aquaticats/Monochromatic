@@ -3526,6 +3526,8 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the owner chose "Leave CM7 unchanged" with the note "Record this carve-out for whatever the git wrapper needs.";
   so `AGENTS.md` stays as it is,
   and the package docs of `package/git-policy/cli` record the carve-out (its test images take tools from pacman).
+  The other container picks (resolve `latest` once per run,
+  run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
 - After the check of the older delegated picks (report of 2026-11-04,
   live picks listed under "Older picks still live"):
   - Branch writes:
@@ -3605,8 +3607,41 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
     plus the stated premise that the serving kernel ran the old run.
-  The other container picks (resolve `latest` once per run,
-  run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
+- Index reclamation without `flock`:
+  merged to main `38de589e7a` (branch tip `ceafded580`,
+  gate 4769/4769,
+  its own cross-vendor review `claim-chain-sol-1.txt` folded in);
+  the claim chain of placed files where `flock` is refused.
+  Owner,
+  asked about the mixed-mount race it left (a `flock` reclaimer and a claim reclaimer on one file):
+  "Claim files always (Recommended)";
+  so every reclaimer takes the claim chain and the `flock` path for this is retired.
+  Follow-up running on `fix/git-policy-cli-index-lock-claims-always`:
+  that change,
+  plus the machine id in markers and claims (a different machine is unknown,
+  never gone;
+  same machine with a different boot is gone),
+  the coordinator's application of the rule the owner kept for cargo-shadow.
+- Models round 15 done (tip `d650198dcf`;
+  440 model tests passed;
+  map 64 covered,
+  17 narrower,
+  9 historical,
+  17 not yet);
+  coordinator picks under the owner's rules sent back before its review (veto open):
+  saved content made immutable by its creator (O_TMPFILE or a private name,
+  read-only before it is named) instead of depending on read leases;
+  the running syncer retries recorded receipt errors;
+  linked worktrees,
+  packed refs,
+  the side-ref transaction and create,
+  delete and symbolic-ref updates are obligations to demonstrate,
+  not exclusions (exclusions:
+  level 2,
+  a threaded launcher,
+  the memory or process cap,
+  the transient-unit route until built).
+  The coordinator places the scope paragraph in the design file when the agent sends it.
 - #6261 native-layer move:
   "Defer until branches merge (Recommended)".
 - Fallback to the installed real Git (four picks):
