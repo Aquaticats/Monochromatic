@@ -237,12 +237,16 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
     }
     let Some(finished) = status else {
         stop_group(&child);
-        // The leader is reaped so it leaves no zombie; nothing waits for the output, which is in files.
-        let _reaped = child.wait();
+        // The leader is reaped so it leaves no zombie, within a budget: a process in uninterruptible I/O ends only when the I/O does,
+        // and a wait with no bound would keep the add for as long as it lasts. Nothing waits for the output, which is in files.
+        let _reaped_in_time: bool = reap_within(child, crate::bounded_push::STOP_GRACE);
         let end: ToolEnd = if at_ceiling { ToolEnd::CeilingReached(limits.ceiling) } else { ToolEnd::TimedOut };
         return ToolRun { end, millis: started.elapsed().as_millis(), stdout: Vec::new() };
     };
-    let (stdout, errors): (Vec<u8>, Vec<u8>) = captured.read();
+    let shown: crate::output_capture::Captured = captured.snapshot(crate::output_capture::STEP_OUTPUT_LIMIT);
+    // Nothing reads the files again, and a helper that still holds them would keep what they hold in memory.
+    captured.discard();
+    let (stdout, errors): (Vec<u8>, Vec<u8>) = (shown.stdout, shown.stderr);
     let millis: u128 = started.elapsed().as_millis();
     if finished.success() {
         return ToolRun { end: ToolEnd::Succeeded, millis, stdout };
@@ -250,6 +254,32 @@ pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> To
     let combined: Vec<u8> = [stdout.as_slice(), errors.as_slice()].concat();
     let text: String = tail_of(combined.as_slice());
     return ToolRun { end: ToolEnd::Failed(format!("{}: {text}", describe_status(finished))), millis, stdout: Vec::new() };
+}
+
+/// What:
+///  Reap `child` within `budget`; when it has not ended by then, hand it to a thread that reaps it whenever it does.
+/// Why:
+///   The stop is a signal, and a process whose kernel call cannot be interrupted ends only when the call does. The add returns
+///  without it, and the thread keeps the leader from becoming a zombie for good. True when the leader ended within the budget.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ended = await reapWithin(child, budgetMs); // false: a background task reaps it later
+/// ```
+fn reap_within(mut child: Child, budget: Duration) -> bool {
+    let began: Instant = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return true,
+            Ok(None) if began.elapsed() < budget => std::thread::sleep(POLL_INTERVAL),
+            Ok(None) | Err(_) => break,
+        }
+    }
+    // A thread that cannot be started leaves the leader to the system's init when this process ends; the add goes on either way.
+    let _handed = std::thread::Builder::new().name(String::from("cli-git-leader-reaper")).spawn(move || {
+        let _reaped = child.wait();
+    });
+    return false;
 }
 
 /// What:

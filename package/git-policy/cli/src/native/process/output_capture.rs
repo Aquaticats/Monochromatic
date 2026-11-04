@@ -20,6 +20,11 @@ use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::process::Stdio;
 
+/// The most bytes of one stream a snapshot of a step's output holds, the last ones. Exempt from a citation under `LQM` (class: display
+///  cap): it limits how much of the output of a step the command keeps in memory for its messages, and no result depends on it; the
+///  steps that use it write a few lines (a reference update, a merge) or print a reason at the end (the repair tools).
+pub const STEP_OUTPUT_LIMIT: usize = 8 * 1024 * 1024;
+
 /// Two anonymous files that collect a child's standard output and standard error.
 pub struct Capture {
     /// Standard output.
@@ -60,26 +65,81 @@ impl Capture {
         return Ok((Stdio::from(self.out.try_clone()?), Stdio::from(self.err.try_clone()?)));
     }
 
-    /// Everything the child wrote so far to its standard output and its standard error, read from the start.
-    pub fn read(&self) -> (Vec<u8>, Vec<u8>) {
-        return (read_all(&self.out), read_all(&self.err));
+    /// What:
+    ///  A snapshot of what the child wrote so far to each stream: the last `limit` bytes of what was there when the snapshot began,
+    ///  and a note for everything that was left out.
+    /// Why:
+    ///   A descendant that keeps appending, or a child that writes more than anyone wants, must not make the reader chase the end
+    ///  of a file that grows ahead of it, nor hold the whole of it in memory (sol-1 and sol-2 round 2): the length is read once and
+    ///  that many bytes are read at most, from the end of the snapshot backwards by `limit`. A read that fails is not the end of
+    ///  the output: the stream's note says it could not be read whole. The tail is kept because a tool prints its reason last.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const { stdout, stderr, notes } = capture.snapshot(limit);
+    /// ```
+    pub fn snapshot(&self, limit: usize) -> Captured {
+        let mut notes: Vec<String> = Vec::new();
+        let stdout: Vec<u8> = snapshot_of(&self.out, "standard output", limit, &mut notes);
+        let stderr: Vec<u8> = snapshot_of(&self.err, "standard error", limit, &mut notes);
+        return Captured { stdout, stderr, notes };
+    }
+
+    /// Free what the files hold in memory. The child's offset is its own, so what it writes afterwards leaves a hole before it and
+    ///  costs only the pages it writes; nothing reads the files after this.
+    pub fn discard(&self) {
+        let _out: std::io::Result<()> = self.out.set_len(0);
+        let _err: std::io::Result<()> = self.err.set_len(0);
     }
 }
 
-/// Everything in `file` from position zero; what could not be read is left out, which is what a partly written file holds.
-fn read_all(file: &File) -> Vec<u8> {
-    let mut collected: Vec<u8> = Vec::new();
+/// What a snapshot of a child's output holds.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Captured {
+    /// The tail of what was written to standard output.
+    pub stdout: Vec<u8>,
+    /// The tail of what was written to standard error.
+    pub stderr: Vec<u8>,
+    /// What was left out or could not be read, in words for the person.
+    pub notes: Vec<String>,
+}
+
+/// The last `limit` bytes of the first `length` bytes of `file`, where `length` is the size when the call began; a note for the bytes
+///  left out and for a read that failed.
+fn snapshot_of(file: &File, name: &str, limit: usize, notes: &mut Vec<String>) -> Vec<u8> {
+    let length: u64 = match file.metadata() {
+        Ok(found) => found.len(),
+        Err(error) => {
+            notes.push(format!("the {name} of the step could not be measured ({error}), so none of it is shown"));
+            return Vec::new();
+        }
+    };
+    let wanted: u64 = length.min(limit as u64);
+    let start: u64 = length - wanted;
+    if start > 0 {
+        notes.push(format!("{start} bytes at the start of the {name} of the step are left out; the last {wanted} bytes are shown"));
+    }
+    let mut collected: Vec<u8> = Vec::with_capacity(usize::try_from(wanted).unwrap_or(0));
     let mut buffer: [u8; 8192] = [0; 8192];
-    let mut position: u64 = 0;
-    loop {
-        match file.read_at(&mut buffer, position) {
-            Ok(0) | Err(_) => return collected,
+    let mut position: u64 = start;
+    while position < length {
+        let room: usize = usize::try_from((length - position).min(buffer.len() as u64)).unwrap_or(buffer.len());
+        match file.read_at(&mut buffer[..room], position) {
+            Ok(0) => break,
             Ok(read) => {
                 collected.extend_from_slice(&buffer[..read]);
                 position += read as u64;
             }
+            Err(error) => {
+                notes.push(format!("the {name} of the step could not be read whole ({error}); {} of {wanted} bytes are shown", collected.len()));
+                return collected;
+            }
         }
     }
+    if (collected.len() as u64) < wanted {
+        notes.push(format!("the {name} of the step ended early: {} of {wanted} bytes are shown", collected.len()));
+    }
+    return collected;
 }
 
 /// Capture controls stay out of the release executable.
