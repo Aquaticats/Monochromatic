@@ -247,6 +247,10 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     The manager-started route is now in the supported scope; the earlier exclusion "until it is built" is lifted
     (see "Supported scope" in the acceptance contract section), and the route is an obligation to build and show
     before the live protocol ships (step 2 of the plan).
+    Recorded by the coordinator on 2026-11-04 as within the decision, so nobody re-asks it: the route is built with
+    `systemd-run --user`, not with a D-Bus `StartTransientUnit` call. The question offered "Systemd unit + fallback
+    (Recommended)", the owner chose the route and not the call, and the manual of `systemd-run` (systemd 262 on this host) says it
+    may be used "to create and start a transient .service or .scope unit".
 23. The cutover fence, "New lock name (Recommended)" (same date and recording, question 3; meaning as asked: the new
     protocol uses a new lock file name; old and new flushers may overlap because both sweep the same receipts and
     forcing twice is harmless). The old lock name stays with the old implementation; no version stamp and no extra
