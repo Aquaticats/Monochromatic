@@ -3690,7 +3690,23 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   3C descriptors 0 to 2;
   3D ready byte with an unreaped first child);
   no criterion added.
-  Round 16 running on both parts.
+  Round 16 done (tip `93dbc86b80`;
+  451 model tests passed;
+  map unchanged at 64,
+  17,
+  9,
+  17);
+  every 10a and 10b finding fixed except 3B,
+  recorded as a coordinator pick (veto open):
+  helpers stopped from outside after their lock release are not bounded,
+  because no release-then-recheck protocol found bounds them without missing a receipt or adding a wait;
+  the launch row is Narrower.
+  Disclosed:
+  a round 15 test had been cut by a later round 15 edit and is restored;
+  the map check only tests names in its test column.
+  Cross-vendor review running:
+  `commit-models-sol-11.txt` (one part,
+  prompt `commit-models-prompt-11.txt`).
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
