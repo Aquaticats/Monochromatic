@@ -62,6 +62,89 @@ the branch and agent lists below them are older and carry their own times.
 
 ### Release in flight
 
+Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
+
+- `monochromatic-file-enforcer-cli` 0.1.2 is published (bump `fadde01fff`,
+  crates.io 2026-11-04T20:41:44Z),
+  locked and installed (`7929d95d65`);
+  `file-enforcer --version` prints 0.1.2.
+  0.1.1 had been built with dependency-catalog 0.1.0 and rejected `rust-catalog.toml` once `912e82a0c7` set `trustLockfile`
+  ("is not a catalog table or a supported setting"),
+  so `mise run sync:files` failed on main;
+  `bce22f7456` had moved the cli source to `=0.2.0` without a version bump.
+  CLAUDE.md is regenerated and carries SUF.
+- The installed wrapper 0.5.34 is not the release archive's binary:
+  the archive `monochromatic-git-policy-cli-0.5.34-x86_64-unknown-linux-gnu.tar.gz` holds only `cli-git-native`
+  (13,728,056 bytes) and `README.md`,
+  while the install directory `~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/0.5.34/bin/`
+  holds `cli-git-native` (13,710,088 bytes) and `cli-git-service`.
+  Cause:
+  the crate declares two `[[bin]]` targets since `e9eaf63d14` (2026-11-01),
+  the release job builds and packages only `cli-git-native` (`cargo-publish.yml:2506`),
+  cargo-binstall needs every `[[bin]]` in the archive,
+  and mpm-shadow runs `cargo binstall` without `--disable-strategies compile`
+  (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs:61-84`),
+  so it compiled the crate from source.
+  The same archive fails CI's `catalog-specifiers` job (`catalog-specifiers.yml:58` passes `--disable-strategies compile`:
+  "bin cli-git-service is not found");
+  that job's last success was 2026-11-01T14:34:19Z (`72541fe39c`).
+- Owner,
+  2026-11-04:
+  "Bazel doesn't need to distribute as 2 bins."
+  The service becomes a mode of `cli-git-native`;
+  agent `a26d7ef8229ffbeb2` on branch `fix/git-policy-cli-one-executable`
+  (worktree `~/temp/agent/cli-git-one-executable`);
+  then gate,
+  merge,
+  release 0.5.35,
+  and check that `catalog-specifiers` goes green.
+- Owner,
+  2026-11-04:
+  "mpm-shadow should still be able to compile tools that are not controlled by this repo."
+  Queued (the five agent slots were full at 15:49):
+  mpm-shadow disables cargo-binstall's compile strategy for crates this repository publishes
+  (its existing `monochromatic-` prefix test,
+  `cargo_installs.rs:70`,
+  or the crate-release registry)
+  and keeps the fallback for third-party crates;
+  red test first;
+  a failing repository crate names the crate,
+  version,
+  binstall's reason and the remedies;
+  audit every `cargo-binstall` row with a dry run;
+  release only after wrapper 0.5.35 is locked,
+  because a fresh install of 0.5.34 would then fail.
+  Owner's clarification:
+  "It should still BE ABLE TO compile tools this repo doesn't control when needed."
+  CM7 rewritten as the owner chose ("Rewrite CM7 (Recommended)",
+  `5f03ec99b3`).
+  Agent `a97a9a4124bdb9776` started 2026-11-04T15:52-05:00 on branch
+  `fix/mpm-shadow-cli-never-compiles-a-repository-crate`
+  (worktree `~/temp/agent/mpm-shadow-no-compile`).
+- Models agent (`a9c775c9196f1d836`) finished the step-2b fixes and plan step 3 behind `--lane`
+  (models tip `45bee5ba00`,
+  design tip `1fc759ba80`;
+  `native:test:model` 605 passed,
+  4 leaky;
+  map 66 covered,
+  20 narrower,
+  9 historical,
+  13 not yet).
+  Cross-vendor reviews running:
+  `~/temp/agent/reviews/commit-models-step3-sol-a1.txt` (code against whole files),
+  `-a2.txt` (component tests),
+  `-b.txt` (models,
+  map,
+  handover).
+  Its `--lane` options in `service_main.rs` will conflict with the one-executable change;
+  that agent was told to keep the service options a pass-through.
+  The `-a2.txt` review (component tests) returned "Sufficient after named additions, not sufficient as is"
+  with one product risk (blocking doorbell sends can wait without a bound);
+  sent to the models agent at once,
+  which resumed even with five other agents running
+  (resuming a finished agent was not refused by the five-agent limit).
+  `-a1.txt` and `-b.txt` go to it the moment each lands.
+
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,
 gate r7 4839/4839 with main,

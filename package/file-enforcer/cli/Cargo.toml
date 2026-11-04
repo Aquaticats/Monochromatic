@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-file-enforcer-cli"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
 documentation = "https://docs.rs/monochromatic-file-enforcer-cli"
