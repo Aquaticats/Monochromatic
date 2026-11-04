@@ -2385,8 +2385,9 @@ its prose line was wrapped without changing content.
 
 The user identified `# Development guidelines for AI agents` as unnecessary
 and asked what to do.
-Recommend deleting that line and its following blank line from `AGENTS.md`,
-then regenerating `CLAUDE.md` through the existing file-enforcer task.
+The user accepted removal with "Okay, do it."
+The title and following blank line were removed from `AGENTS.md`,
+and `CLAUDE.md` was regenerated through the existing file-enforcer task.
 The `claude-md` rule in `file-enforcer.config.jsonc` composes the preamble and `AGENTS.md`.
 
 The title repeats the document's purpose without adding a constraint or distinguishing a section.
@@ -2395,7 +2396,4 @@ already calls for non-obvious,
 actionable content;
 another always-loaded rule would add unnecessary text.
 Keep the meaningful section headings and historical snapshots.
-The supplied text-fragment link will cease to select the deleted title.
-
-This is a proposal;
-`AGENTS.md` and `CLAUDE.md` remain unchanged pending acceptance.
+The supplied text-fragment link no longer selects the deleted title.

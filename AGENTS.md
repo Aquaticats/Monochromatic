@@ -1,5 +1,3 @@
-# Development guidelines for AI agents
-
 ORG:
  Organized by moment of decision,
  not topic;

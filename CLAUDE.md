@@ -68,8 +68,6 @@ A command run in its own `systemd-run --user --scope` leaves the shared `claude-
 and with it the CPU cap `claude-cpu-watch` keeps there;
 that is fine.
 
-# Development guidelines for AI agents
-
 ORG:
  Organized by moment of decision,
  not topic;
