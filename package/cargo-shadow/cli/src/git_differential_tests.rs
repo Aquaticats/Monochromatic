@@ -644,7 +644,26 @@ fn a_declined_choice_costs_exactly_one_git_start() {
 
     // `None`: the present or the absent value of an `Option`.
     // Borrow `&fixture.work`: lends the value without copying or giving it away.
-    let base = resolve_trust_base_with(&fixture.work, false, None, &environment(fixture.root.path()));
+    // The Git is a logging stand-in around the real one, so the process budget is observed from outside and not read from the
+    // reader's own counter (review finding 4a, missing tests), and the fallback runs the same Git and home as the oracle.
+    let log: PathBuf = fixture.root.path().join("invocations");
+    let stand_in: PathBuf = fixture.root.path().join("logging-git");
+    fs::write(&stand_in, format!("#!/bin/sh\necho \"$@\" >> {}\nexec {SYSTEM_GIT} \"$@\"\n", log.display())).expect("stand-in");
+    fs::set_permissions(&stand_in, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    let mut controlled: NativeEnvironment = environment(fixture.root.path());
+    controlled.git = GitProgram {
+        program: stand_in,
+        bound: std::time::Duration::from_secs(30),
+        clean_environment: true,
+        environment: vec![
+            ("PATH".to_string(), "/usr/bin:/bin".to_string()),
+            ("HOME".to_string(), fixture.root.path().join("home").display().to_string()),
+            ("GIT_CONFIG_NOSYSTEM".to_string(), "1".to_string()),
+            ("LC_ALL".to_string(), "C".to_string()),
+        ],
+    };
+    let base = resolve_trust_base_with(&fixture.work, false, None, &controlled);
+    assert_eq!(fs::read_to_string(&log).expect("the invocation log").lines().count(), 1, "the processes actually started");
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(base.git_starts, 1, "{base:?}");
