@@ -18,6 +18,11 @@ mod hook_self_invocation_tests;
 #[path = "service_lock_inventory_tests.rs"]
 mod service_lock_inventory_tests;
 
+/// The crate declares only the executable the release archive holds; a second `[[bin]]` breaks cargo-binstall installs.
+#[cfg(test)]
+#[path = "release_bins_tests.rs"]
+mod release_bins_tests;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]

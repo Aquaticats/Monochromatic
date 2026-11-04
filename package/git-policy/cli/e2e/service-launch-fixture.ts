@@ -19,8 +19,8 @@ import { realpath, } from 'node:fs/promises';
 const SERVICE_PROGRAM = '/opt/native/cli-git-native';
 
 /**
- The words, first in the arguments, that select the service mode of the executable. A Rust control
- (`src/native/service/service_main_tests.rs`) reads this declaration and fails when it differs from `SERVICE_WORDS`.
+ The words, first in the arguments, that select the service mode of the executable. A control
+ (`e2e/service-mode-words.unit.test.ts`) fails when it differs from `SERVICE_WORDS` in `src/native/service/service_main.rs`.
  */
 export const SERVICE_MODE_WORDS = [
   'cli-git',

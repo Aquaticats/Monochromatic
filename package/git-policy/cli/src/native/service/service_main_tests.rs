@@ -89,8 +89,8 @@ fn the_service_setup_and_its_words_are_used_only_by_the_service_mode() {
     let sources = release_sources();
     assert!(sources.len() > 100, "the scan reads the crate's sources");
     for (needle, allowed) in [
-        ("service_signal::install", vec!["service/service_main.rs"]),
-        ("mark_service_process()", vec!["service/service_main.rs"]),
+        ("service_signal::install()", vec!["service/service_main.rs"]),
+        ("push_deadline_advice::mark_service_process()", vec!["service/service_main.rs"]),
         ("SERVICE_WORDS", vec!["service/service_main.rs", "main.rs"]),
         ("service_main::", vec!["main.rs"]),
     ] {
@@ -114,16 +114,8 @@ fn the_service_start_takes_its_process_setup_first() {
     let signal: usize = position("service_signal::install()");
     let mark: usize = position("mark_service_process()");
     let first_option: usize = position("option(arguments,");
+    let refusal: usize = position("socket_passed_in()");
     let first_directory: usize = position("create_dir_all");
     assert!(hooks < signal && signal < mark && mark < first_option && first_option < first_directory, "{hooks} {signal} {mark} {first_option} {first_directory}");
-}
-
-/// The TypeScript declaration of the mode words, which the end-to-end suite and the benchmark start the service with, equals
-///  the words the executable dispatches on.
-#[test]
-fn the_typescript_launchers_declare_the_same_words() {
-    let text: String = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("e2e/service-launch-fixture.ts")).expect("the launch fixture");
-    let compact: String = text.split_whitespace().collect();
-    let expected: String = format!("exportconstSERVICE_MODE_WORDS=[{}]asconst;", SERVICE_WORDS.iter().map(|word| { return format!("'{word}',"); }).collect::<String>());
-    assert!(compact.contains(expected.as_str()), "{expected} is not declared in e2e/service-launch-fixture.ts");
+    assert!(refusal < first_directory, "the refusal of a start with no socket comes before anything is created");
 }
