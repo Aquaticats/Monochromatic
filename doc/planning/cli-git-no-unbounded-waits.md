@@ -481,7 +481,9 @@ The scripts are `/var/home/user/temp/agent/ceiling-measure/measure.ts`, `measure
   `cargo metadata` 0.5 s, `pnpm install` 0.5 s.
   The 600 second window is 19.8 times the longest.
   Too small a sample to change the window, and unchanged.
-- Commit timing logs (`cli-git-commit-timing.jsonl` and `.1`): 1,838 commits, longest `gateMs` 38,551 ms (99th percentile 943 ms),
+- Commit timing logs (`cli-git-commit-timing.jsonl` and `.1`): 1,838 commits up to 2026-11-04T14:08:47Z (the first record of the
+  rotated file has no `time` field, so the start of the sample is not known; the oldest record that has one is 2026-11-02),
+  longest `gateMs` 38,551 ms (99th percentile 943 ms),
   longest `totalMs` 750,604 ms; quiet gap of the Markdown linter (`quietMs`, 116 records) at most 404 ms,
   so the 60 second window is 149 times the longest.
 - The Markdown linter program on the four largest Markdown files of the repository (188 kB to 748 kB), five runs each,
@@ -523,3 +525,20 @@ The scripts are `/var/home/user/temp/agent/ceiling-measure/measure.ts`, `measure
   names the restart command for the person to run when no program uses the repository.
 - The readers `RERUNNABLE` does not name are not run again after a quiet window although they are safe to run twice.
   Not changed here.
+- How wide the steps without a ceiling are.
+  The owner named the branch write.
+  The rest of `WRITES_IN_PLACE` is a reading of "steps that can safely run twice keep their ceilings": `reset`, `read-tree`,
+  `update-index` and `add` on the real index, `checkout-index`, `clean`, `stash`, `merge`, `checkout`, `switch`, `restore` and
+  `config` writes also lost the ceiling they had.
+  Several are idempotent and run in the client, so a person's `git worktree add` or merge now has a step with no bound at all where it
+  had one before (`worktree_clean.rs`, `autostash_carry.rs`, `merge_isolation.rs`).
+  Options: A, as built, the whole list;
+  B, the branch write and the real-index writers only (`update-ref`, `reset`, `read-tree`, `update-index`, `add` without a private
+  index), the steps the owner's data rule is most about;
+  C, `update-ref` alone, the one the owner named.
+  Ranking: B > A > C.
+  B over A because a hung `clean`, `stash` or `merge` in the client leaves a command waiting for ever on a step the owner did not
+  name, against the rule "nothing should ever wait forever or indefinitely", while the real index and the branch are where ending
+  a write half way costs the person's staged work;
+  A over C because ending `update-index` or `reset` on the real index half way is the same risk as ending `update-ref`
+  and C would give them back the 10-minute cut the owner declined for the branch.
