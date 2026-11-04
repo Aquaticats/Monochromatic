@@ -617,7 +617,7 @@
     },
     "cargo:monochromatic-cargo-shadow": {
       "request": "cargo:monochromatic-cargo-shadow@latest",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "route": "cargo-binstall",
       "bins": [
         "cargo-shadow"
@@ -1525,5 +1525,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:2ec4522d90cf809de6e754a3f2285cfda57ed66f7b1fc74e17aafbc5494fad34"
+  "digest": "sha256:084708529622847c87d99a6a9732cc5f2e75a63620b1dd385f5d5384e97a68de"
 }
