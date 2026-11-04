@@ -336,8 +336,14 @@ classification is the author's until a review accepts it.
   `commit_state_log_tests.rs`. Not shown: survival under a concurrent reclaimer (the reclamation-during-capture
   control is not yet); a checkpoint covers an earlier acknowledgment only when its document is shown to contain
   the state that acknowledgment promised: both are documents in the checked representation (LaneDocument) and
-  the new one names every request, saved content and ledger extent of the old or discharges it
-  (r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation); an opaque
+  the new one names every request, saved content, decision mark and ledger and order extent of the old or
+  discharges it (r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation,
+  r23_a_mark_is_retained_until_its_request_is_discharged_by_the_ledger); the marker, logical head and tail,
+  request states and consumption map are not containment obligations, because no file lies behind them and the
+  newer generation supersedes them
+  (r23_a_changed_state_still_reclaims_and_covers_because_state_has_no_file_behind_it); the containment lines for
+  marks and the order extent are defense in depth that the non-drop check already implies, and no test fails
+  without them; an opaque
   document is never shown to contain anything, so an opaque checkpoint reclaims no segment and records no
   lineage (r17_a_compaction_of_a_later_opaque_record_does_not_reclaim_or_cover_an_earlier_acknowledgment,
   r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowledgment,
@@ -361,21 +367,32 @@ classification is the author's until a review accepts it.
   `model_discharge_r14_tests.rs`.
 - Narrower, control: non-drop for later appends (a record cannot omit what its predecessor retained):
   `r14_a_record_cannot_omit_what_the_previous_record_retained` in `commit_state_log_tests.rs`. Not shown:
-  complete closure: only a document in the checked representation (LaneDocument: requests, saved content and the
-  ledger extent, nothing else) can be checkpointed with reclamation, its closure must equal what the document
-  names and hold everything the lane holds
-  (r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_document_declares,
+  complete closure: only a document in the checked representation (LaneDocument: the references requests, saved
+  content, decision marks and the ledger and order extents, and the state fields with no file behind them) can
+  be checkpointed with reclamation, its closure must equal the references the document names and hold everything
+  the lane holds, marks and the order file included
+  (r23_a_closure_lacking_a_decision_mark_the_lane_holds_is_refused,
+  r23_a_closure_shorter_than_the_order_file_the_lane_holds_is_refused,
+  r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_document_declares,
   r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation); a document the
-  component cannot read, one that depends on a file outside the representation such as an order file, is opaque
+  component cannot read, one that depends on a file outside the representation such as a journal file, is opaque
   and its checkpoints never reclaim
   (r17_an_opaque_document_that_needs_a_file_outside_the_derived_places_never_reclaims_its_predecessor), and a
   checkpoint that compacts an opaque append reclaims nothing
-  (r17_a_checkpoint_cannot_compact_an_opaque_append_and_reclaim_its_segment); the real lane state document is
-  not implemented, so whether it fits the checked representation is open; needs lines
+  (r17_a_checkpoint_cannot_compact_an_opaque_append_and_reclaim_its_segment); the real state document is
+  expressed in the representation (owner decision 21, 'Checked format';
+  r23_a_full_real_state_document_round_trips_and_only_the_canonical_bytes_parse,
+  r23_a_request_position_beyond_the_order_extent_is_not_a_document) and a reclaiming checkpoint can retire
+  (begin_checkpoint_reclaiming_retiring); not shown: any caller, since no code writes the document at a real
+  call site yet (plan step 2), the spool and the attempt directories of a request, which the log never deletes
+  and the document does not retain, and the protocol's rule for when a transition may drop a consumption entry
+  or change a phase, which is the models' business and not the log's; needs lines
   (r15_a_document_that_names_a_dependency_cannot_be_checkpointed_or_appended_without_it) remain a check for
   opaque records; the references of a checked document are validated against the retained set at append
   admission, begin and recovery
-  (r18_a_checked_document_that_names_a_dependency_the_set_lacks_is_neither_admitted_nor_selected).
+  (r18_a_checked_document_that_names_a_dependency_the_set_lacks_is_neither_admitted_nor_selected,
+  r23_a_document_naming_an_order_extent_its_set_lacks_is_not_admitted,
+  r23_a_mark_with_content_is_not_a_mark_and_a_named_mark_must_be_in_the_set).
 - Covered, control: retirement discharge forces the ledger prefix that proves it:
   `r14_a_retirement_forces_the_ledger_prefix_that_discharges_it` in `commit_state_log_tests.rs`.
 - Covered, control: a later record retaining new saved content is not selected without it:
@@ -1547,3 +1564,59 @@ no manager is present. The statements in this handover that the manager-started 
 statements about the build.
 
 Question 4 (the notice texts) waits for the owner; the six drafts, in options A and B, are in the plan under Step 6.
+
+### Step 1 built: the real state document in the checked representation
+
+Owner decision 21 ("Checked format (Recommended)"). New module `commit_lane_state.rs` (the state fields) and changes in
+`commit_state_log.rs`; the red controls are `commit_lane_state_tests.rs`, committed before the implementation (the red
+state was a compile failure, since the representation did not exist; the commit says so).
+
+Classification of the design's state document (the module documentation of `LaneDocument` says it too):
+- References, derived from the lane and checked against the closure: requests, saved content, decision marks (a new
+  `EntryKind::Mark`: an empty file `decision/<identity>.withdraw` or `.withdraw-unresolved`), the ledger extent and the
+  adoption order extent (`order`, a second designated append-only path).
+- State with no file behind it (`LaneState`): the marker, the logical head, the logical tail, the state and resume
+  point and order position of every live request, and the consumption map. They are canonical and consistent with the
+  references (a state for an unadopted request, a position outside the order extent, a head that is not an object
+  name and an unsorted entry are not a document; a document is read only if re-encoding gives the same bytes), and
+  they are not containment obligations: a reclaiming checkpoint compares `references()` with its closure.
+- Not retained, as a decision: the spool and the attempt directories. The log never deletes them.
+- Found and fixed on the way: a reclaiming checkpoint could never retire anything, because the non-drop check accepts
+  only what the writer names and the reclaiming entry points named nothing. `begin_checkpoint_reclaiming_retiring` names
+  it.
+- The journal file replaces the order file as the example of a file outside the representation (the earlier fixtures
+  would have stayed green and changed meaning).
+
+Controls (red before, green after): `r23_a_full_real_state_document_round_trips_and_only_the_canonical_bytes_parse`,
+`r23_a_request_position_beyond_the_order_extent_is_not_a_document`,
+`r23_a_closure_lacking_a_decision_mark_the_lane_holds_is_refused`,
+`r23_a_mark_with_content_is_not_a_mark_and_a_named_mark_must_be_in_the_set`,
+`r23_a_mark_is_retained_until_its_request_is_discharged_by_the_ledger`,
+`r23_a_closure_shorter_than_the_order_file_the_lane_holds_is_refused`,
+`r23_a_document_naming_an_order_extent_its_set_lacks_is_not_admitted`,
+`r23_a_changed_state_still_reclaims_and_covers_because_state_has_no_file_behind_it`,
+`r23_a_reclaiming_checkpoint_compares_references_not_state`.
+
+Guard removals (`/var/home/user/temp/agent/r23/mutations2.log`, each guard removed alone and the file restored): the
+lane scan of marks, the order extent in the covering check, the lane scan of the order file, the references-only
+comparison, marks in the covering check, the canonical re-encoding and the state consistency check each turn at
+least one of the new controls red. A first run showed that the two order controls did not discriminate (the non-drop
+check refused for them); they were rebuilt with no predecessor. Not shown to fail when removed: the mark and order
+lines in `segment_is_contained`; the non-drop check already implies them, so they are defense in depth and the map
+says so.
+
+Rows: no status changed (65 covered, 16 narrower, 9 historical, 18 not yet). The two Narrower rows were rewritten:
+the sentence "the real lane state document is not implemented" is replaced by what is built and what is not shown (no
+caller writes the document at a real call site yet, which is plan step 2; the spool and attempt directories; the
+protocol's rule for when a transition may drop a consumption entry or change a phase, which belongs to the models).
+The rows "non-drop for later appends" and "captured authority valid through completion or verified substitution" stay
+Narrower for those reasons. The rows "reclamation during capture", "saved content survives until authorized disposal",
+"damaged established roots fail closed" and the two others of step 1 are not started: they need models or callers
+this step does not add.
+
+Gates: full `native:test:model` 499 passed, 0 failed (4 leaky, the same stalled children as before:
+`/var/home/user/temp/agent/r23/full-model.log`); `native:clippy` and `native:clippy:seams` clean
+(`clippy.log`, `clippy-seams.log` beside it); `source_guard` 39 of 39.
+
+Next: the rest of step 1 (the models for reclamation during capture and for disposal), then step 2 (the call sites,
+where the first caller of the document appears).
