@@ -930,31 +930,25 @@ fn a_side_ref_write_that_hangs_on_the_landing_thread_is_left_running_after_a_bou
         format!("#!/bin/sh\n: > '{started}'\nwhile [ ! -e '{release}' ] && {alive}; do sleep 0.05; done\n", started = started.display(), release = root.join("release").display(), alive = while_test_lives(root.as_path())).as_bytes(),
     );
     let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: Some(root.clone()) };
-    crate::service_busy::use_on_this_thread(crate::service_busy::LandingBoard::new(root.join("journal"), Duration::from_secs(60)));
-    let side: GitRequest = GitRequest::new(root.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/7"]);
-    let branch: GitRequest = GitRequest::new(root.as_path(), &["update-ref", "--stdin"]);
-    assert_eq!(step_bound(&branch), StepBound::Unbounded, "the branch write is waited for on the landing thread");
-    assert!(matches!(step_bound(&side), StepBound::LeaveRunning { .. }), "a side ref is not a branch: {:?}", step_bound(&side));
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
     let (sender, receiver) = std::sync::mpsc::channel();
-    let shortened = std::thread::Builder::new().spawn({
-        let side = side.clone();
-        move || {
-            STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
-            EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
-            let board = crate::service_busy::LandingBoard::new(side.cwd.join("journal"), Duration::from_secs(60));
-            crate::service_busy::use_on_this_thread(board);
-            let _sent = sender.send(run_git(&context, &side));
-        }
+    let journal: PathBuf = root.join("journal");
+    let work_root: PathBuf = root.clone();
+    // The landing thread of the control: it has a record, and the bounds are shortened on it alone.
+    let landing = std::thread::Builder::new().spawn(move || {
+        STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
+        EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(Duration::from_millis(400))); });
+        crate::service_busy::use_on_this_thread(crate::service_busy::LandingBoard::new(journal, Duration::from_secs(60)));
+        let side: GitRequest = GitRequest::new(work_root.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", "refs/worktree/cli-git-service/7"]);
+        let branch: GitRequest = GitRequest::new(work_root.as_path(), &["update-ref", "--stdin"]);
+        assert_eq!(step_bound(&branch), StepBound::Unbounded, "the branch write is waited for on the landing thread");
+        assert!(matches!(step_bound(&side), StepBound::LeaveRunning { .. }), "a side ref is not a branch: {:?}", step_bound(&side));
+        let _sent = sender.send(run_git(&context, &side));
     });
-    assert!(shortened.is_ok());
+    assert!(landing.is_ok());
     let outcome = receiver.recv_timeout(Duration::from_secs(30)).expect("the landing thread came back from a hung side-ref write");
     let failure = outcome.expect_err("it stopped waiting");
     assert!(crate::child_watch::is_not_known(&failure), "{failure}");
     assert!(started.exists());
-    STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
-    EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
     std::fs::write(root.join("release"), b"").expect("release");
     remove(root.as_path());
 }
