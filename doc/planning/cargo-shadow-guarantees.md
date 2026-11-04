@@ -664,8 +664,8 @@ result; "partly" when a named part has no test yet.
 No row is certified by this map: the cross-vendor review of round 15 has not run, and the reviews of rounds 10 to 14 said that the
 count of shown rows was not established by the attachments they saw, whose unchanged tests they could not see.
 Counts: 16 rows, 16 shown, 0 partly, 0 not yet.
-Suite counts at the round 14 code tip `9c95465450`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran 590 tests: 590 passed, 0 failed, 11 skipped; `lint:clippy` with warnings
+Suite counts at the round 15 code tip `156208a7d4`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran 592 tests: 592 passed, 0 failed, 12 skipped; `lint:clippy` with warnings
 denied is clean.
 The 12 skipped are the `#[ignore]` helper entries that twelve other tests start as child processes (their names are in the `ignore`
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,
