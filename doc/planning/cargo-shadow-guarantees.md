@@ -1215,6 +1215,43 @@ No row is certified by this map.
   (V1); the mandatory-finish refusal through a real shim run (A3); the acknowledgement writer's successful ordering; the reboot-related
   refusals through the recovery and admission entry points; the blocked-feeder handshake of the input-ignoring timeout test.
 
+### Round 20 additions (fifth certification pass, 2026-11-04T16:43:15-05:00)
+
+The fifth pass (`cargo-shadow-cert5-sol-1.txt` to `-15.txt`) judged all groups not certified. Some groups ran without the manifest because
+the packet and the manifest together passed the input cap, and some lacked bodies the manifest assigned; the packets are rebuilt below
+the cap with the manifest attached and with production items listed apart from tests. Substantive findings and their state:
+
+- **Launcher.**
+  `a_running_image_whose_installed_path_was_replaced_still_skips_its_hard_links_in_the_production_lookup` runs a real process from an
+  installed path, replaces that path with a rename while a hard link stays on PATH, and asks the production lookup (no identity is
+  injected); it covers a direct alias and a recorded chain that ends at the alias (red with the image identity dropped, planted).
+  Production race: the chosen path was a mutable pathname between the choice and the start. `refuse_if_ourselves` repeats the check
+  right before each of the three starts (`a_chosen_path_that_names_the_running_image_at_the_start_is_refused`). That shrinks the
+  window to the instants between the check and the start; it does not close it. Closing it means executing an opened descriptor,
+  which breaks scripts and proxies that open their own path, so it is not done and needs an owner decision.
+  The test of an unrecorded launcher shows bounded re-entry (one to six runs), not none; the owner's rule of no self-invocation is
+  being asked about, and the behavior is unchanged. The test name says so.
+- **Weaker path, V6.**
+  Production defect: the once-per-process notice used `Once::call_once`, so a second run waited with no deadline for the first run's
+  write to standard error. It is a flag won with a swap now (`a_run_does_not_wait_for_another_runs_slow_notice`, a fresh process that
+  holds the winner inside its emission; red with the old `Once`, planted).
+- **A2, R4.**
+  The install and shim uncertainty tests require the journal to stay unfinished, not only present (no plant).
+- **K1.**
+  `a_completed_run_warns_exactly_past_the_count_and_not_at_or_below_it` (below, at, past).
+- **Scope lifecycle.**
+  The parent view's mount id and inode are changed on their own, with an unchanged control, through recovery and admission (red with
+  only the mount compared, planted).
+- **V2.**
+  A member after a reboot is refused by the real recovery and admission under the same identity (no plant).
+- **V6 retries.**
+  The retried tests measure the judged attempt and require the timeout itself.
+- **Not done in this round.**
+  V1 injections still return before the real handling of the operation results; R2 sibling-fallback fault and stranded path; K2 retry
+  after a failed parent-entry barrier; admission checks for the other boot-related and unreadable-record schedules; the acknowledgement
+  writer's successful ordering; the mandatory-finish refusal through a real shim run; the blocked-feeder handshake; the assertion that
+  the start-time error line names the namespace; the actual spawned child's id for the reap check.
+
 ### What the map does not claim
 
 - The strong-path tests that do not run a transaction rely on the host having a delegated scope (`delegated_route`) and on the
