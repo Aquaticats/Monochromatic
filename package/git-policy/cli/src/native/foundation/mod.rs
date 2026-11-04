@@ -46,3 +46,6 @@ pub mod parallel_budget;
 
 /// Independent items on a bounded number of threads, reported in input order with no lock.
 pub mod parallel_runner;
+
+/// A scoped thread, or the work done in turn where the system cannot start one.
+pub mod scoped_start;
