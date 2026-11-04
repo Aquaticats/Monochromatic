@@ -1,6 +1,7 @@
 # Source layout of the Git wrapper crate (issue 6261), second design
 
-Status: analysis in progress, nothing moved.
+Status: analysis in progress, nothing moved;
+a group order with no upward reference is found (section "Group order found, from the bottom").
 Started 2026-11-04 by the coordinator session after the owner stopped the child session
 ("I told the layout subagent to stop because it couldn't ever produce something good enough. Lets do this ourselves.").
 The child session's third proposal (branch `refactor/git-policy-cli-source-layout`, `671eb1c6d1`) is not used;
@@ -75,57 +76,118 @@ test files (`*_tests.rs`) are left out because nothing in production uses them.
 4. Repeat until no reference points up and no two groups loop;
    then the same inside each group, file by file.
 5. Name every folder and file for someone who knows only `git commit` and `git push`,
-   number the siblings,
-   and write each folder's top doc.
-6. Show the owner the whole tree (old name, new name, one-line explanation, layer) before any file moves.
+   write each folder's top doc,
+   and list in each folder's `uses/` the folders its code uses.
+6. Show the owner the whole tree (old name, new name, one-line explanation, what it uses) before any file moves.
 
-## Draft groups, from the bottom (working names, not the final names)
+## Group order found, from the bottom (working names, not the final names)
 
-1. `basic_tools`: files, processes, time, logging, parallel work (today `foundation/`, `process/`, plus `child_watch`,
-   `child_class`, `start_retry`, `wait_ceilings`, `tcp_sockets`, `journald_native`, `fs_mount_options`,
-   `child_environment`).
-2. `git_files`: reading Git's own files without starting Git (index format, refs, objects, packs, trees, configuration
-   text; `worktree_identity`, `transaction_journal`).
-3. `typed_command`: reading the command the person typed (`global_arguments`, `wrapper_controls`, `escape_hatch`,
-   `forwarded_command`, `wrapper_invocation`, `git_builtins`, `announced_query`, `effective_target`, today's `command/`).
-4. `start_git`: finding and starting the real Git (`real_git*`, `started_as_git`, `hooks_off`, `forwarding`,
-   `git_version*`, `transaction_git`, `git_metadata`, `repository_location`, `repo_read_hook`, `repo_read_query*`).
-5. `locks`, 6. `settings`, 7. `checks` (policies and the files they look at),
-8. the commands (`shadow`, `subvolume`, `worktree_copying`, `worktree`, `lfs`, `push`, `conflict`, `merge`, `commit`,
-   `repair`, `health`), each with its own number among siblings,
-9. `service`, 10. `decide` (the top-level decision for one invocation), then test helpers and the crate root.
+Measured on main at `6f731f15ca` (2026-11-04T18:12:05-05:00, before the branch-write merge `de36a92311`),
+with the item-level scanner `~/temp/agent/issue-6261/refs.ts`,
+the crossing report `crossings.ts` (with a search for the group order that leaves the fewest upward references)
+and the in-group loop report `inside.ts`.
+The group map is committed beside this file as
+[`cli-git-source-layout-groups.json`](cli-git-source-layout-groups.json):
+`folders` and `modules` place each file in a group,
+`items` moves single items (a type, a constant, a function) to another file,
+and `(removed)` marks a reference that a named code change takes away.
 
-## Findings so far
+The scanner now also blanks character literals (`'"'` hid code up to the next quote, missing five references)
+and leaves out test-only modules:
+`*_tests.rs` files and every module whose `mod` line carries a `cfg` attribute naming `test`,
+including ones declared inside a production file through `#[path]` (`index_reset_support`).
+Test helpers live with the tests they serve and are not part of the shipped order.
 
-The suggestion pass on that draft reports 12 plain moves and 56 knots.
-Most knots come from two shapes:
+Under this map the groups use each other in one direction only: no reference points from a lower group to a higher one.
+From the bottom:
 
-- One folder holds a client and a server.
-  `service` (today `service/` and `landing/`) holds both what a command needs to talk to the background service
-  (protocol, messages, instance, review key, timing, journal) and the service itself (landing commits, after-commit
-  work), which uses the commands.
-  Split it into a client group below the commands and a server group above them.
-- Shared parts sit in the folder of one user.
-  - `bounded_push`,
-    `push_progress` and `wait_progress` are a general "stop a program that makes no progress" tool kept under `push/`,
-    and basic code uses them;
-    the general part moves down and the push-specific lock clearing stays with push.
-  - The `service_index_*` modules are the handling of Git's `index.lock`,
-    which locks and merges use;
-    they move to the locks group.
-  - `transaction_git` (the one runner of real Git) reaches up into `add_timing` (worktree) and `service_busy` (service)
-    for two small types;
-    those types move down,
-    or the runner takes a value from its caller.
-  - `child_watch` (a basic process watcher) calls the stale reference lock clearing (`stopped_git_locks`);
-    the clearing moves to the caller.
-  - `repo_read_layout` (a reader of Git's files) calls `repo_read_hook` (the runner's in-process shortcut);
-    one asker that tries the readers first and falls back to running Git replaces the two-way use,
-    so readers never start Git and the runner never calls a reader.
+1. `basic_tools`: files, processes, time, logging, parallel work, watching a child for progress
+   (today `foundation/`, `process/`, plus `child_watch`, `wait_progress`, `push_progress`, `add_timing`,
+   `subvolume_sha`, `lfs_output_mask`, `shell_quote`, `client_journal`, `service_fault`, `service_durable`).
+2. `git_files`: reading Git's own files without starting Git.
+3. `typed_command`: reading the command the person typed, including the list of policy names (`policy_registry`).
+4. `start_git`: finding and starting the real Git, the readers that may start it, `forwarded_command`,
+   `worktree_identity`, `landing_location`.
+5. `locks`: Git's lock files, including the service's hold on `index.lock` (`service_index_*`).
+6. `push_runner`: running `git push` with a deadline and one push at a time
+   (`bounded_push`, `bounded_query`, `auto_push_single_flight`, `push_lock_clearing`, `push_deadline_advice`).
+7. `settings`: the wrapper's own configuration, including the discarded-copies section (`config_discarded`).
+8. `checks`: the policies and the files they read, the rule modules from `command/` and `commit/`, `diagnostics`,
+   the hook warnings, the standards review key.
+9. `service_talk`: what a command needs to talk to the background commit service
+   (protocol, instance, messages, provisioning, client, route, work records, claim time, timing, handoff,
+   landed summary, commit timing, pruned content, `inner_git_words`).
+10. `merge_engine`: the merge machinery that push and shadow reuse (second pass, isolation journal and recovery).
+11. `shadow`, then `subvolume`, `repair`, `lfs`, `push`, `worktree` (with today's `worktree_copying/`), `conflict`.
+12. `checks_runner`: `policy_checks`, which runs every check and calls the conflict judges.
+13. `merge`, `health`, then `service_server` (the service itself: landing, after-commit work, index reset),
+    `commit` (with the commit-through-the-service files), and `decide` (the top-level decision,
+    `index_writer_forward`, `worktree_copy_forward`).
+
+The order puts `commit` above `service_server`:
+the commit command reuses landing pieces (`update_index`, `IndexPaths`) in its own process,
+and nothing in the service uses the commit command.
+
+## Named code changes the order needs
+
+Moving whole files to the group that matches what they do accounts for most of the change.
+The rest are items that move to a lower file, plus five changes to how code is called.
+
+### Items that move down (from the group map's `items`)
+
+- Process outcome types and the subcommand reader (`ChildOutcome`, `outcome_of`, `subcommand_of`) to `child_class`.
+- Machine and boot identity (`current_boot_id`, `current_machine_id`, `is_machine_id`) to `process_identity`.
+- The service unit name and its directory to `real_git_record`; `remember_own_executable` to `real_git`.
+- `LANDING_ATTEMPTS` and `Bind` to `service_protocol`; `work_directory` and `Verdict` to `work_item`.
+- `capture_stamp` to `claim_time`; `effective_directory` to `effective_target`; `WorktreeIdentity` to `effective_target`.
+- The sequencer facts (`SequencerFacts`, `SequencerState`, `sequencer_state`) to `repo_read_adapter`.
+- The in-process reading switch (`repo_read_hook::enabled`) to the readers.
+- Conversion facts (`ConversionEnvironment`, `SystemAttributes`, `CLAIM_PREFIX`) to the subvolume files.
+- `ForwardedRun` and `run_forwarded_git` to `forwarded_command`;
+  `CoordinatedForward` and `CoordinatedRun` to the index-lock wait;
+  `PushForward` to `push_stacking`.
+- Small helpers to the basic tools: `append_line`, `read_plain_file`, `copy_file_exclusive`, `STOP_GRACE`,
+  `ENGINE_FAILURE_EXIT_CODE`.
+- Configuration warning rendering (`render_configuration_warning`, `render_engine_failure`, `EngineFailureCode`)
+  to the settings group; `Limits` and `parse_size` to `config_discarded`.
+- `FailureCode` and `storage_failure` to the index-lock files; `ShippedChecks` to `policy_pass`.
+
+The simulation does not follow what a moved item itself uses;
+the compiler checks that when the item really moves.
+
+### Changes to how code is called
+
+- The push of an integrated merge (`stacked_merge_push`) plans a whole new invocation through `entry::plan_invocation`,
+  and the clean finish of a merge (`merge_second_pass_finish`) runs a nested command through `entry::run_process`.
+  Both are the top level called from below, and both are recursion inside one process.
+  Proposed: they return "run this command next" to the top level, which runs it in its loop.
+  This follows the owner's ban on the wrapper invoking itself; open to veto.
+- The one runner of real Git (`transaction_git`) tells the service which step it is in
+  (`service_busy::enter_step`, `on_landing_thread`).
+  Proposed: a small "current step" record in the basic tools that the runner writes and the service reads.
+- The process watcher (`child_watch`) sweeps stale Git locks itself (`stopped_git_locks::LockLedger`).
+  Proposed: its caller hands it what to do after a stop.
+- The configuration reader (`repo_read_config_scan`) asks for the system configuration path,
+  which can start real Git (`git_system_config::system_config_for`).
+  Proposed: the caller passes the path in, so a reader never starts Git.
+- Commands that only finish (`subvolume_command`, `doctor`, `worktree_convert_command`, `stacked_merge_push`)
+  build the top-level `Action`.
+  Proposed: they return a small "finished with this code and output" value from a low file;
+  only the top level builds `Action`.
+
+## Loops between files inside one group
+
+With the map applied, the groups have no loop between them,
+but 27 loops between files remain inside groups, touching 79 files (`~/temp/agent/issue-6261/scc2/inside.txt`).
+Most share one shape: a file and a helper split off from it each use the other's types.
+The usual fix is a third file at the bottom of the folder that holds the shared types,
+used by both.
+Some need a closer look at the functions,
+for example the placement, reclaim and claim files of the `index.lock` hold, which may call each other in a cycle.
 
 ## Next
 
-Apply the client and server split,
-move the shared parts down,
-rerun the suggestion pass,
-and turn every remaining knot into a named code change with the files it touches.
+Break the file loops with named changes,
+then split the large groups (`checks` holds 66 files, `worktree` 41) into folders,
+name every folder and file for someone who knows only `git commit` and `git push`,
+and show the owner the whole tree before any file moves.
