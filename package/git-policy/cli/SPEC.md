@@ -4243,7 +4243,7 @@ makes its processes see each other's claims as of an earlier boot.
 
 A slow worktree add is split by step from `<common-git-dir>/cli-git-worktree-add-timing.jsonl`, written the same way as the commit
 timing file below (one append, no flush to disk, size-capped by the same appender, never changing the add's result).
-Code: `src/native/add_timing.rs`.
+Code: `src/native/worktree/add_timing.rs`.
 Each line has `schemaVersion`, `time`, `startMillis`, `pid`, `release`, `exitCode`, `totalMs`, `steps`, `otherMs`, `work` and `notes`.
 `steps` maps a step name to `{ms, calls}`; steps are disjoint (a step inside another is taken out of the outer one) and
 `otherMs` is what no step covers, so the steps and `otherMs` add up to `totalMs`.

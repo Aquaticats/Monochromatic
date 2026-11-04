@@ -23,16 +23,16 @@
 //! const outcome = await removeSubvolumeWorktree(request); // 'left-to-git': run git worktree remove
 //! ```
 
-use super::diagnostic_log::{debug, warn};
-use super::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, open_file_at, open_root, remove_at};
-use super::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
-use super::fs_kind::is_subvolume_root;
-use super::fs_mount_options::read_mount_facts;
-use super::subvolume_remove_walk::{empty_directory, verify_below};
-use super::transaction_git::GitContext;
-use super::worktree_clean::check_clean;
-use super::worktree_remove_plan::RemovePlan;
-use super::worktree_remove_registry::{Registration, registration_of};
+use crate::diagnostic_log::{debug, warn};
+use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, open_file_at, open_root, remove_at};
+use crate::fs_btrfs_ioctl::{snapshot_destroy_by_id, snapshot_destroy_in, subvolume_id};
+use crate::fs_kind::is_subvolume_root;
+use crate::fs_mount_options::read_mount_facts;
+use crate::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::transaction_git::GitContext;
+use crate::worktree_clean::check_clean;
+use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_remove_registry::{Registration, registration_of};
 use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;

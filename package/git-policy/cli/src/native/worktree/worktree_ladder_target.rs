@@ -13,19 +13,19 @@
 //! await applyDifference(source, target, workTree, runGit);
 //! ```
 
-use super::config_snapshot::{ConfigEntry, read_config_snapshot};
-use super::landed_summary::short_name;
-use super::repo_read_layout::ObjectFormat;
-use super::repo_read_object::from_hex;
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_tree::{CommitFields, FlatEntry, flatten_tree, parse_commit, subject_of};
-use super::transaction_git::GitContext;
-use super::worktree_add_plan::AddPlan;
-use super::worktree_clean::head_commit;
-use super::worktree_copy::{GitRunner, GitStatus, GitStep};
-use super::fs_beneath::handle_path;
-use super::worktree_add_binding::{Bound, path_identity};
-use super::worktree_snapshot_source::SnapshotSource;
+use crate::config_snapshot::{ConfigEntry, read_config_snapshot};
+use crate::landed_summary::short_name;
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_object::from_hex;
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_tree::{CommitFields, FlatEntry, flatten_tree, parse_commit, subject_of};
+use crate::transaction_git::GitContext;
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_clean::head_commit;
+use crate::worktree_copy::{GitRunner, GitStatus, GitStep};
+use crate::fs_beneath::handle_path;
+use crate::worktree_add_binding::{Bound, path_identity};
+use crate::worktree_snapshot_source::SnapshotSource;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 

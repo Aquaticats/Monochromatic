@@ -16,7 +16,7 @@
 //! ```
 
 /// Import the captured-query runner and its byte helpers.
-use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).

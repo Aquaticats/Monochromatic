@@ -15,15 +15,15 @@
 //! ```
 
 /// Masks the userinfo of any URL in Git's words, as every journal entry of the service is masked.
-use super::lfs_output_mask::mask_userinfo_text;
+use crate::lfs_output_mask::mask_userinfo_text;
 /// The entry from a wrapper a person ran, which only Linux writes.
 #[cfg(target_os = "linux")]
-use super::client_journal::record_entry;
+use crate::client_journal::record_entry;
 /// The priority an entry carries, and the service's way to write one.
-use super::journald_native::Priority;
-use super::service_timing::{in_service, log_entry};
+use crate::journald_native::Priority;
+use crate::service_timing::{in_service, log_entry};
 /// The captured output of one Git start.
-use super::transaction_git::GitOutput;
+use crate::transaction_git::GitOutput;
 
 /// The field a reader filters the journal on to find the entries of this module.
 pub const COMMAND_FIELD: &str = "CLI_GIT_INNER_COMMAND";

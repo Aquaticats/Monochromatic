@@ -15,15 +15,15 @@
 //! route?.tell(plan); // stderr unless quiet, and the journal
 //! ```
 
-use super::client_journal::record_entry;
-use super::diagnostic_log::debug;
-use super::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
-use super::journald_native::Priority;
-use super::transaction_git::GitContext;
-use super::worktree_add_plan::AddPlan;
-use super::worktree_identity::WorktreeIdentity;
-use super::worktree_clean::CleanRefusalKind;
-use super::worktree_snapshot_source::{ChangedPaths, Refusal, RefusalKind, changed_paths, plain};
+use crate::client_journal::record_entry;
+use crate::diagnostic_log::debug;
+use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use crate::journald_native::Priority;
+use crate::transaction_git::GitContext;
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_clean::CleanRefusalKind;
+use crate::worktree_snapshot_source::{ChangedPaths, Refusal, RefusalKind, changed_paths, plain};
 use std::io::Write;
 use std::path::Path;
 

@@ -13,10 +13,10 @@
 //! if (!workersSetAnywhere(args, env, configSnapshot)) args.splice(subcommandIndex, 0, '-c', 'checkout.workers=0');
 //! ```
 
-use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
-use super::diagnostic_log::debug;
-use super::global_arguments::{GlobalOutcome, global_layout};
-use super::transaction_git::{GitContext, subcommand_of};
+use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
+use crate::diagnostic_log::debug;
+use crate::global_arguments::{GlobalOutcome, global_layout};
+use crate::transaction_git::{GitContext, subcommand_of};
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 

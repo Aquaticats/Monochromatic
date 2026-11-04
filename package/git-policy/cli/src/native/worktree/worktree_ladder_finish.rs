@@ -16,24 +16,24 @@
 //! const result = await ladder.finish({ git, runGit, context, out });
 //! ```
 
-use super::add_timing::step as timed;
-use super::diagnostic_log::{debug, warn};
-use super::fs_beneath::ObjectId;
-use super::transaction_git::GitContext;
-use super::worktree_add_binding::{Bound, bind_registration, verify_association};
-use super::worktree_add_plan::AddPlan;
-use super::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
-use super::worktree_copy::{GitRunner, GitStatus};
-use super::worktree_copy_error::WorktreeCopyError;
-use super::worktree_copy_stage_claim::StageClaim;
-use super::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
-use super::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
-use super::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
-use super::worktree_slow_route::{SlowRoute, explain_failure};
-use super::worktree_snapshot::{PlaceError, put_in_place, settle_displaced, take_snapshot};
-use super::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
-use super::worktree_subvolume::settle_subvolume_destination;
-use super::worktree_trash::{TrashManifest, dispose_pending_trash};
+use crate::add_timing::step as timed;
+use crate::diagnostic_log::{debug, warn};
+use crate::fs_beneath::ObjectId;
+use crate::transaction_git::GitContext;
+use crate::worktree_add_binding::{Bound, bind_registration, verify_association};
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_clone::{Cloned, clone_tracked_files, leftover_report};
+use crate::worktree_copy::{GitRunner, GitStatus};
+use crate::worktree_copy_error::WorktreeCopyError;
+use crate::worktree_copy_stage_claim::StageClaim;
+use crate::worktree_ladder_run::{Ladder, LadderResult, Rung, discard_stage};
+use crate::worktree_dirty_restore::{left_out_note, record_left_out, restore_dirty};
+use crate::worktree_ladder_target::{Target, apply_difference, checkout_environment, prepare_target, run_step};
+use crate::worktree_slow_route::{SlowRoute, explain_failure};
+use crate::worktree_snapshot::{PlaceError, put_in_place, settle_displaced, take_snapshot};
+use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
+use crate::worktree_subvolume::settle_subvolume_destination;
+use crate::worktree_trash::{TrashManifest, dispose_pending_trash};
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -303,7 +303,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             let _written = out.write_all(line.as_bytes());
             // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
             if source.git_dir == source.common_dir && !plan.quiet {
-                let _noted = std::io::stderr().write_all(super::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
+                let _noted = std::io::stderr().write_all(crate::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
                 if let Some(changed) = source.dirty.as_ref().filter(|found: &&ChangedPaths| { return found.has_changes(); }) {
                     let _left_out = std::io::stderr().write_all(left_out_note(changed).as_bytes());
                 }

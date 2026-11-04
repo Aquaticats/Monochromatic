@@ -12,7 +12,7 @@ use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repo
 const FAILED: GitStatus = GitStatus { code: Some(128) };
 
 /// A runner that must not be called.
-fn no_runner() -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, super::super::worktree_copy_error::WorktreeCopyError> {
+fn no_runner() -> impl FnMut(&GitStep<'_>) -> Result<GitStatus, crate::worktree_copy_error::WorktreeCopyError> {
     return |_step| { panic!("no Git run is expected"); };
 }
 

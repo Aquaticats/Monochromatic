@@ -16,17 +16,17 @@
 //! await disposePendingTrash({ context, destination, gitDir, trash, notices }); // after it
 //! ```
 
-use super::diagnostic_log::debug;
-use super::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
-use super::fs_kind::is_subvolume_root;
-use super::random_id::random_uuid;
-use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::worktree_clean::stored_stats;
-use super::worktree_copy_prune::Prune;
-use super::worktree_snapshot_source::SnapshotSource;
-pub use super::worktree_trash_dispose::{Reach, Router, TRASH_REFERENCE, delete_trash, dispose_pending_trash, dispose_pending_trash_with, empty_trash};
-pub use super::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
-use super::worktree_trash_remove::remove_tree_beneath;
+use crate::diagnostic_log::debug;
+use crate::fs_beneath::{ObjectId, identity_at, identity_of, make_directory_at, open_directory_at, open_directory_beneath, open_root, plain_components, rename_at};
+use crate::fs_kind::is_subvolume_root;
+use crate::random_id::random_uuid;
+use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::worktree_clean::stored_stats;
+use crate::worktree_copy_prune::Prune;
+use crate::worktree_snapshot_source::SnapshotSource;
+pub use crate::worktree_trash_dispose::{Reach, Router, TRASH_REFERENCE, delete_trash, dispose_pending_trash, dispose_pending_trash_with, empty_trash};
+pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
+use crate::worktree_trash_remove::remove_tree_beneath;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -291,7 +291,7 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
         Some(made) if count > 0 => Some(TrashManifest { name: made.name, trash: made.id, entries: aside.entries }),
         Some(empty) => {
             // Nothing was moved, so the trash made for it goes again; a refusal only leaves an empty directory.
-            if let Err(error) = super::fs_beneath::remove_at(&empty.parent, OsStr::new(empty.name.as_str()), true) {
+            if let Err(error) = crate::fs_beneath::remove_at(&empty.parent, OsStr::new(empty.name.as_str()), true) {
                 debug(TAG, format!("the empty trash {} could not be removed ({error})", empty.name).as_str());
             }
             None

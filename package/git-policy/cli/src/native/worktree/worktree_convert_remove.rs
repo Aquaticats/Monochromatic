@@ -13,12 +13,12 @@
 //! const outcome = await removeRecordedOldTree({ platform, parent, name, oldRoot, installed }); // 'removed' | 'absent' | { kept: reason } | { differs: reason }
 //! ```
 
-use super::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, remove_at};
-use super::subvolume_error::MigrateError;
-use super::subvolume_platform::Platform;
-use super::subvolume_remove::remove_tree;
-use super::worktree_convert_compare::first_difference;
-use super::worktree_convert_journal::is_recorded_object;
+use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, remove_at};
+use crate::subvolume_error::MigrateError;
+use crate::subvolume_platform::Platform;
+use crate::subvolume_remove::remove_tree;
+use crate::worktree_convert_compare::first_difference;
+use crate::worktree_convert_journal::is_recorded_object;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};

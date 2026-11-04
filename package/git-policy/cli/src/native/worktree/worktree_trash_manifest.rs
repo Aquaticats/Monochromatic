@@ -12,7 +12,7 @@
 //! const text = encodeManifest(manifest); const same = decodeManifest(name, text);
 //! ```
 
-use super::fs_beneath::ObjectId;
+use crate::fs_beneath::ObjectId;
 
 /// Separates the identities in the encoded manifest; an encoded identity holds only digits, colons and a minus sign.
 const SEPARATOR: char = ';';

@@ -13,7 +13,7 @@
 //! await removeTreeBeneath({ label, parent, name, expected }); // throws a reason; the entry is left as it is when it is not the expected object
 //! ```
 
-use super::fs_beneath::{ObjectId, device_of, handle_path, identity_at, identity_of, open_directory_at, remove_at};
+use crate::fs_beneath::{ObjectId, device_of, handle_path, identity_at, identity_of, open_directory_at, remove_at};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
@@ -70,7 +70,7 @@ fn make_writable(dir: &File, shown: Describe<'_>) {
         return;
     }
     if let Err(error) = dir.set_permissions(std::fs::Permissions::from_mode(mode | 0o700)) {
-        super::diagnostic_log::debug(TAG, format!("{} keeps its mode ({error})", shown().display()).as_str());
+        crate::diagnostic_log::debug(TAG, format!("{} keeps its mode ({error})", shown().display()).as_str());
     }
 }
 

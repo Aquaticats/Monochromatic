@@ -15,12 +15,12 @@
 //! finish(exitCode); // appends JSON.stringify(record) + '\n' to join(commonDir, 'cli-git-worktree-add-timing.jsonl')
 //! ```
 
-use super::diagnostic_log::debug;
-use super::discard_audit::append_line;
-use super::iso_time::now_iso;
-use super::json_record::quote;
-use super::quiet_ledger::{drain, object_json};
-use super::service_protocol::RELEASE;
+use crate::diagnostic_log::debug;
+use crate::discard_audit::append_line;
+use crate::iso_time::now_iso;
+use crate::json_record::quote;
+use crate::quiet_ledger::{drain, object_json};
+use crate::service_protocol::RELEASE;
 use std::cell::RefCell;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};

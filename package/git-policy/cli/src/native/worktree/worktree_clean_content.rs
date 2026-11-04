@@ -17,15 +17,15 @@
 //! judge.agrees({ directory, parents, name, entry, id, indexSeconds }); // throws the reason the file cannot be proven equal
 //! ```
 
-use super::fs_beneath::{entry_metadata_at, open_directory_beneath, open_file_at, read_link_at};
-use super::git_system_config::system_attributes_for;
-use super::repo_read_config_list::list_config;
-use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_config_text::{ConfigEntry, last_entry, parse_bool};
-use super::repo_read_layout::ObjectFormat;
-use super::subvolume_sha::{sha1, sha256};
-use super::worktree_attributes::{AttributeLine, CONVERTING_ATTRIBUTES, attribute_name, may_apply, parse_attribute_lines};
-use super::worktree_clean::{StatEntry, StatVerdict, metadata_verdict};
+use crate::fs_beneath::{entry_metadata_at, open_directory_beneath, open_file_at, read_link_at};
+use crate::git_system_config::system_attributes_for;
+use crate::repo_read_config_list::list_config;
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_config_text::{ConfigEntry, last_entry, parse_bool};
+use crate::repo_read_layout::ObjectFormat;
+use crate::subvolume_sha::{sha1, sha256};
+use crate::worktree_attributes::{AttributeLine, CONVERTING_ATTRIBUTES, attribute_name, may_apply, parse_attribute_lines};
+use crate::worktree_clean::{StatEntry, StatVerdict, metadata_verdict};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::{OsStr, OsString};
 use std::io::Read;

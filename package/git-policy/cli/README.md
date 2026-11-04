@@ -1854,7 +1854,7 @@ So no other output-hiding option or redirect stands in for it either.
 A `--quiet` stays on a run whose documented effect is the exit status or what is computed (`rev-parse --verify --quiet`,
 `symbolic-ref --quiet`, `diff-index --quiet`, `diff-files --quiet`; read in the Git 2.56.0 sources, listed in
 `doc/planning/cli-git-slow-server-and-inner-quiet.md`).
-The words of a run that said something are kept in the journal (`src/native/inner_git_words.rs`): the service writes one
+The words of a run that said something are kept in the journal (`src/native/worktree/inner_git_words.rs`): the service writes one
 `info` entry in its log, and the wrapper writes one client entry (`journalctl --identifier=cli-git`), both with the field
 `CLI_GIT_INNER_COMMAND`.
 A test that starts such a run records its arguments with `recording_git.rs` and checks `quiet_starts`.

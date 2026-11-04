@@ -14,7 +14,7 @@
 //! ```
 
 #[cfg(target_os = "linux")]
-pub use super::worktree_ladder_run::{Ladder, LadderResult, begin_ladder};
+pub use crate::worktree_ladder_run::{Ladder, LadderResult, begin_ladder};
 
 /// What:
 ///  The ladder on a system without btrfs subvolumes and snapshots: nothing is prepared and nothing is settled.
@@ -27,10 +27,10 @@ pub use super::worktree_ladder_run::{Ladder, LadderResult, begin_ladder};
 /// ```
 #[cfg(not(target_os = "linux"))]
 mod other {
-    use super::super::transaction_git::GitContext;
-    use super::super::worktree_add_plan::AddPlan;
-    use super::super::worktree_copy::{GitRunner, GitStatus, GitStep};
-    use super::super::worktree_identity::WorktreeIdentity;
+    use crate::transaction_git::GitContext;
+    use crate::worktree_add_plan::AddPlan;
+    use crate::worktree_copy::{GitRunner, GitStatus, GitStep};
+    use crate::worktree_identity::WorktreeIdentity;
     use std::io::Write;
     use std::path::PathBuf;
 

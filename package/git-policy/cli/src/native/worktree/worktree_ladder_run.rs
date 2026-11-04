@@ -15,17 +15,17 @@
 //! const result = await ladder.finish(git, runGit);
 //! ```
 
-use super::add_timing::{note as note_timing, step as timed};
-use super::diagnostic_log::{debug, warn};
-use super::fs_btrfs_ioctl::subvolume_destroy_at;
-use super::transaction_git::GitContext;
-use super::worktree_copy::{GitStatus, GitStep};
-use super::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination};
-use super::worktree_add_plan::AddPlan;
-use super::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
-use super::worktree_identity::WorktreeIdentity;
-use super::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_refusal, explain_unsupported};
-use super::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_or_dirty};
+use crate::add_timing::{note as note_timing, step as timed};
+use crate::diagnostic_log::{debug, warn};
+use crate::fs_btrfs_ioctl::subvolume_destroy_at;
+use crate::transaction_git::GitContext;
+use crate::worktree_copy::{GitStatus, GitStep};
+use crate::worktree_subvolume::{CreatedSubvolume, prepare_subvolume_destination};
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_add};
+use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_slow_route::{SlowRoute, explain_cheap_refusal, explain_refusal, explain_unsupported};
+use crate::worktree_snapshot_source::{SnapshotSource, clone_refusal, snapshot_blocker, snapshot_refusal, source_or_dirty};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -180,12 +180,12 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
 /// ```ts
 /// await discardStage(stage, made);
 /// ```
-pub(super) fn discard_stage(stage: &Path, made: Option<super::fs_beneath::ObjectId>) {
+pub(super) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::ObjectId>) {
     let Some(expected) = made else {
         warn(TAG, format!("the stage {} was not identified and is left in place", stage.display()).as_str());
         return;
     };
-    let current = stage.parent().and_then(|parent: &Path| { return super::fs_beneath::open_root(parent).ok(); }).and_then(|held: std::fs::File| { return super::fs_beneath::identity_at(&held, stage.file_name()?).ok(); });
+    let current = stage.parent().and_then(|parent: &Path| { return crate::fs_beneath::open_root(parent).ok(); }).and_then(|held: std::fs::File| { return crate::fs_beneath::identity_at(&held, stage.file_name()?).ok(); });
     if current.is_none() {
         return;
     }
@@ -196,7 +196,7 @@ pub(super) fn discard_stage(stage: &Path, made: Option<super::fs_beneath::Object
     if subvolume_destroy_at(stage).is_ok() {
         return;
     }
-    if let Err(error) = super::subvolume_remove::remove_tree(stage) {
+    if let Err(error) = crate::subvolume_remove::remove_tree(stage) {
         warn(TAG, format!("the stage {} could not be removed ({error}); it stays for the person to remove", stage.display()).as_str());
     }
 }

@@ -1,0 +1,151 @@
+//! What:
+//!  Worktree commands:
+//!  add,
+//!  remove,
+//!  clean,
+//!  convert,
+//!  trash,
+//!  snapshots and the placement ladder.
+//! Why:
+//!  Worktree lifecycle code shares plans and journals.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // worktree/index.ts: one `export * from './file'` per module below.
+//! ```
+
+/// Whether the checkout of a new worktree may be given Git's parallel checkout, and the option that does it.
+pub mod checkout_workers;
+
+/// Repository and worktree identity as reported by real Git.
+pub mod worktree_identity;
+
+/// The record of where one wrapped `git worktree add` spent its time, step by step,
+/// appended beside the commit timing record.
+pub mod add_timing;
+
+/// Bringing added paths' worktree copies to their landed bytes.
+pub mod worktree_completion;
+
+/// What becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
+pub mod worktree_removal_rescue;
+
+/// The plan for one `git worktree add` that the cheap-worktree ladder serves: its destination and insertion point.
+#[cfg(unix)]
+pub mod worktree_add_plan;
+
+/// The empty subvolume made at the destination of a `git worktree add` before Git runs, and its cleanup.
+#[cfg(target_os = "linux")]
+pub mod worktree_subvolume;
+
+/// Whether a worktree is clean enough to copy from or to remove without asking Git, proven in process.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean;
+
+pub mod worktree_attributes;
+
+pub mod worktree_clean_content;
+
+/// The plan of a `git worktree remove` that names one directory and no option.
+#[cfg(unix)]
+pub mod worktree_remove_plan;
+
+/// The removal of a clean subvolume worktree by one ioctl, and the plan of the `git worktree remove` it serves.
+#[cfg(target_os = "linux")]
+pub mod worktree_remove;
+
+pub mod worktree_remove_registry;
+
+/// Fixtures shared by the controls of the cheap-worktree ladder.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod worktree_ladder_test_support;
+
+/// The snapshot source: whether the creating worktree can be snapshotted for a new worktree, and what that needs.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source;
+
+/// The snapshot rung's mechanics: snapshot to a stage name, make it a worktree, swap it into place.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot;
+
+/// The binding of a `git worktree add` to the directories Git made for it, its record, and the check that the binding holds.
+#[cfg(target_os = "linux")]
+pub mod worktree_add_binding;
+
+/// The clone rung: tracked files cloned into the new worktree, the source's index installed with fresh stat fields.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone;
+
+/// What both filling rungs read from Git's `--no-checkout` result, and the one step that applies the tree difference.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_target;
+
+/// The ladder's choice of rung before real Git runs.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_run;
+
+/// Where the words of a Git run the wrapper or the service started on its own go, now that none carries `--quiet`.
+pub mod inner_git_words;
+
+/// The plain sentence that says why an add was not made as a snapshot, and where it goes.
+#[cfg(target_os = "linux")]
+pub mod worktree_slow_route;
+
+/// The ladder's steps after real Git returned: the snapshot rung and the fall back to Git's checkout.
+#[cfg(target_os = "linux")]
+pub mod worktree_ladder_finish;
+
+/// The restore of a snapshot of a main checkout with uncommitted changes, and its proof.
+#[cfg(target_os = "linux")]
+pub mod worktree_dirty_restore;
+
+/// The cheap-worktree ladder around one `git worktree add`: what runs before real Git and after it.
+#[cfg(unix)]
+pub mod worktree_ladder;
+
+/// Quoting of bytes printed inside a shell command for a person to run.
+#[cfg(target_os = "linux")]
+pub mod shell_quote;
+
+/// Converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path, resumably.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert;
+
+/// The read-only comparison of the old tree of a conversion with the installed one.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_compare;
+
+/// The journal of a conversion and the retirement of the kernel lock file older releases left.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_journal;
+
+/// The removal of the old tree of a conversion beneath a pinned descriptor.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_remove;
+
+/// The grammar of `git cli-git convert-worktree-to-subvolume`.
+pub mod worktree_convert_arguments;
+
+/// `git cli-git convert-worktree-to-subvolume`: the worktrees to cover and the report.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_command;
+
+/// Setting aside what a snapshot of the main checkout leaves out, and having the commit service empty it.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash;
+
+/// Disposal of a snapshot's trash: the work item, the foreground fallback and the service's handler.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_dispose;
+
+/// The removal of the entries a snapshot's leave-out moved into its trash, side by side.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_entries;
+
+/// What a snapshot's leave-out made and moved, with identities, as the text a work item carries.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_manifest;
+
+/// Removal of a directory tree beneath a held parent handle, never following a link.
+#[cfg(target_os = "linux")]
+pub mod worktree_trash_remove;

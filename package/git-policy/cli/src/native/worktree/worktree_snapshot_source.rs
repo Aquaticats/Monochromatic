@@ -13,13 +13,13 @@
 //! const source = await chooseSnapshotSource({ context, identity, plan }); // throws the reason it cannot be one
 //! ```
 
-use super::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot};
-use super::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
-use super::fs_mount_options::read_mount_facts;
-use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::worktree_add_plan::AddPlan;
-use super::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, dirty_source};
-use super::worktree_identity::WorktreeIdentity;
+use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot};
+use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
+use crate::fs_mount_options::read_mount_facts;
+use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::worktree_add_plan::AddPlan;
+use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, dirty_source};
+use crate::worktree_identity::WorktreeIdentity;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -119,11 +119,11 @@ pub fn changed_paths(context: &GitContext, root: &Path) -> Result<ChangedPaths, 
             Ok(found) => {
                 let said: String = String::from_utf8_lossy(found.stderr.as_slice()).trim().to_string();
                 let code: String = found.code.map_or_else(|| { return String::from("was stopped by a signal"); }, |number: i32| { return format!("ended with exit code {number}"); });
-                super::diagnostic_log::debug("changedPaths", format!("Git could not list the changes (`git {words}` {code}: {said})").as_str());
+                crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes (`git {words}` {code}: {said})").as_str());
                 Err(if said.is_empty() { format!("`git {words}` {code} and said nothing") } else { format!("`git {words}` {code}: {}", plain(said.as_str())) })
             }
             Err(error) => {
-                super::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({error})").as_str());
+                crate::diagnostic_log::debug("changedPaths", format!("Git could not list the changes ({error})").as_str());
                 Err(format!("`git {words}` could not be started ({error})"))
             }
         };
@@ -291,7 +291,7 @@ fn may_clone(path: &Path) -> bool {
     if matches!(filesystem_kind(path), Ok(FilesystemKind::Btrfs | FilesystemKind::Overlayfs)) {
         return true;
     }
-    return super::fs_kind::is_xfs(path).unwrap_or(false);
+    return crate::fs_kind::is_xfs(path).unwrap_or(false);
 }
 
 /// What:
@@ -398,8 +398,8 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
     //  are set aside read different things and write nothing, so they run side by side; the verdicts are read in the order the
     //  checks have always had.
     let (read_config, checked, trash_ignored): (Option<ConfigSnapshot>, Result<CleanSource, CleanRefusal>, bool) = std::thread::scope(|scope| {
-        let config = scope.spawn(|| { return super::add_timing::work("readConfig", || { return read_config_snapshot(context, root.as_path()); }); });
-        let trash = scope.spawn(|| { return super::add_timing::work("trashIgnored", || { return git_dir == common_dir && super::worktree_trash::trash_location_is_ignored(context, root.as_path()); }); });
+        let config = scope.spawn(|| { return crate::add_timing::work("readConfig", || { return read_config_snapshot(context, root.as_path()); }); });
+        let trash = scope.spawn(|| { return crate::add_timing::work("trashIgnored", || { return git_dir == common_dir && crate::worktree_trash::trash_location_is_ignored(context, root.as_path()); }); });
         let checked = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path());
         return (config.join().unwrap_or(None), checked, trash.join().unwrap_or(false));
     });
@@ -418,7 +418,7 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
             if changed.attributes_changed {
                 return Err(Refusal::unsupported("a .gitattributes file is among the uncommitted changes, and its rules could change how the restore writes other files"));
             }
-            super::diagnostic_log::debug("sourceOrDirty", format!("{} is snapshotted with {} uncommitted paths, the first {:?}; the restore follows ({})", root.display(), changed.count, changed.first, found.why).as_str());
+            crate::diagnostic_log::debug("sourceOrDirty", format!("{} is snapshotted with {} uncommitted paths, the first {:?}; the restore follows ({})", root.display(), changed.count, changed.first, found.why).as_str());
             (found.source, Some(changed))
         }
         Err(why) => return Err(unclean(why)),

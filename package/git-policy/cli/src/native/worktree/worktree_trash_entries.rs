@@ -11,10 +11,10 @@
 //! const left = await removeEntries({ inside, trash, manifest, host, remove }); // one reason per entry that stays
 //! ```
 
-use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use super::parallel_runner::{Event, OrderedRun, run_ordered};
-use super::worktree_trash_manifest::{TrashManifest, entry_name};
-use super::worktree_trash_remove::Removal;
+use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::worktree_trash_manifest::{TrashManifest, entry_name};
+use crate::worktree_trash_remove::Removal;
 use std::fs::File;
 use std::path::Path;
 
@@ -30,7 +30,7 @@ const MEASURED_MILLION_NAME_PEAK: u64 = 99_655_680;
 const ENTRY_MEMORY: u64 = MEASURED_MILLION_NAME_PEAK.next_power_of_two();
 
 /// The removal of one entry beneath the trash handle, replaceable so a control can watch or delay it.
-pub type RemoveOne<'a> = dyn Fn(&Path, &File, &std::ffi::OsStr, Option<super::fs_beneath::ObjectId>) -> Result<super::worktree_trash_remove::Removal, String> + Sync + 'a;
+pub type RemoveOne<'a> = dyn Fn(&Path, &File, &std::ffi::OsStr, Option<crate::fs_beneath::ObjectId>) -> Result<crate::worktree_trash_remove::Removal, String> + Sync + 'a;
 
 /// What:
 ///  What the removal of a trash's entries is told.

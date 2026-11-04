@@ -13,22 +13,22 @@
 //! await disposePendingTrash({ context, destination, gitDir, trash, notices }); // throws the reason the trash stays
 //! ```
 
-use super::diagnostic_log::debug;
-use super::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
-use super::iso_time::now_iso;
-use super::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
-use super::service_protocol::HEARTBEAT_SILENCE;
-use super::service_messages::{ClientFailure, render};
-use super::service_provision::{ProvisionHost, provision};
-use super::service_route::{Route, route_from_environment};
-use super::service_work::{Verdict, work_directory};
-use super::transaction_git::GitContext;
-use super::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
-use super::worktree_trash::TRASH_PARENT;
-use super::worktree_trash_manifest::TrashManifest;
-use super::parallel_budget::HostResources;
-use super::worktree_trash_entries::{EntryRemoval, remove_entries};
-use super::worktree_trash_remove::remove_tree_beneath;
+use crate::diagnostic_log::debug;
+use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
+use crate::iso_time::now_iso;
+use crate::service_client::{Activation, ClientConfig, START_WAIT, manager_watch_for, wake};
+use crate::service_protocol::HEARTBEAT_SILENCE;
+use crate::service_messages::{ClientFailure, render};
+use crate::service_provision::{ProvisionHost, provision};
+use crate::service_route::{Route, route_from_environment};
+use crate::service_work::{Verdict, work_directory};
+use crate::transaction_git::GitContext;
+use crate::work_item::{PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::worktree_trash::TRASH_PARENT;
+use crate::worktree_trash_manifest::TrashManifest;
+use crate::parallel_budget::HostResources;
+use crate::worktree_trash_entries::{EntryRemoval, remove_entries};
+use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};

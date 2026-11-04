@@ -16,11 +16,11 @@
 //! await restoreDirtySnapshot({ source, target, stage, runGit, context }); // throws the reason it cannot be proven
 //! ```
 
-use super::inner_git_words::record_words;
-use super::transaction_git::{GitContext, GitRequest, run_git};
-use super::worktree_copy::GitRunner;
-use super::worktree_ladder_target::{Target, checkout_environment, run_step};
-use super::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
+use crate::inner_git_words::record_words;
+use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::worktree_copy::GitRunner;
+use crate::worktree_ladder_target::{Target, checkout_environment, run_step};
+use crate::worktree_snapshot_source::{ChangedPaths, SnapshotSource};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -58,7 +58,7 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
         ("CLI_GIT_DIRTY_PATHS", changed.count.to_string()),
         ("CLI_GIT_DIRTY_FIRST", changed.first.clone().unwrap_or_default()),
     ];
-    super::client_journal::record_entry(super::journald_native::Priority::Info, note.trim_end(), &fields);
+    crate::client_journal::record_entry(crate::journald_native::Priority::Info, note.trim_end(), &fields);
 }
 
 /// What:
@@ -103,7 +103,7 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
         return Err(String::from("Git could not list the untracked files of the restored worktree"));
     }
     if let Some(name) = untracked.split(|byte: &u8| { return *byte == 0; }).find(|name: &&[u8]| { return !name.is_empty(); }) {
-        return Err(format!("{} is still untracked in the restored worktree", super::worktree_snapshot_source::plain(String::from_utf8_lossy(name).as_ref())));
+        return Err(format!("{} is still untracked in the restored worktree", crate::worktree_snapshot_source::plain(String::from_utf8_lossy(name).as_ref())));
     }
     let files: Option<i32> = ask(context, target, work_tree, &["diff-files", "--quiet"])?.0;
     if files != Some(0) {
@@ -155,7 +155,7 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
     record_words(&["clean", "--force", "-d"], &clean);
     let clean_ms: u128 = began.elapsed().as_millis();
     prove_restored(context, target, stage)?;
-    super::diagnostic_log::debug(
+    crate::diagnostic_log::debug(
         TAG,
         format!("restored {} to {} and proved it: reset done at {reset_ms} ms, clean at {clean_ms} ms, proof at {} ms", stage.display(), target.commit, began.elapsed().as_millis()).as_str(),
     );

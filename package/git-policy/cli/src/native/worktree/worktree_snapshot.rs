@@ -15,16 +15,16 @@
 //! await putInPlace({ stage, destination, mode });
 //! ```
 
-use super::add_timing::step as timed;
-use super::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, remove_at, rename_at};
-use super::fs_btrfs_ioctl::snapshot_create_at;
-use super::subvolume_index_files::install_index_in;
-use super::subvolume_remove::remove_tree;
-use super::worktree_add_plan::AddPlan;
-use super::subvolume_index::StatFields;
-use super::worktree_clean::{CleanRefusal, StatCursor, StatEntry, stored_stats, tree_fields_beneath};
-use super::worktree_snapshot_source::SnapshotSource;
-use super::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
+use crate::add_timing::step as timed;
+use crate::fs_beneath::{ObjectId, exchange_at, identity_at, open_directory_at, open_directory_beneath, open_file_at, open_root, plain_components, remove_at, rename_at};
+use crate::fs_btrfs_ioctl::snapshot_create_at;
+use crate::subvolume_index_files::install_index_in;
+use crate::subvolume_remove::remove_tree;
+use crate::worktree_add_plan::AddPlan;
+use crate::subvolume_index::StatFields;
+use crate::worktree_clean::{CleanRefusal, StatCursor, StatEntry, stored_stats, tree_fields_beneath};
+use crate::worktree_snapshot_source::SnapshotSource;
+use crate::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
@@ -133,7 +133,7 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
     // An entry the walk did not cover (a source with changes has no walk) is looked at through a cursor that keeps its directory.
     let mut cursor: StatCursor<'_> = StatCursor::new(&root);
     let report: String = timed("installIndexFile", || { return install_index_in(admin, bytes, &mut |path: &[u8]| { return known.get(path).copied().or_else(|| { return cursor.fields(path); }); }, source.clean.hash_length); })?;
-    super::diagnostic_log::debug("takeSnapshot", report.as_str());
+    crate::diagnostic_log::debug("takeSnapshot", report.as_str());
     return Ok(());
 }
 
@@ -245,7 +245,7 @@ pub fn put_in_place_with(stage: &Path, destination: &Path, source_mode: u32, exp
     }
     let parent: File = open_root(parent_path).map_err(|error| { return ours(format!("the parent of the destination cannot be opened ({error})")); })?;
     let snapshot: ObjectId = identity_at(&parent, stage_name).map_err(|error| { return ours(format!("the stage cannot be examined ({error})")); })?;
-    let is_directory = |name: &OsStr| -> bool { return super::fs_beneath::entry_metadata_at(&parent, name).is_ok_and(|found: std::fs::Metadata| { return found.is_dir(); }); };
+    let is_directory = |name: &OsStr| -> bool { return crate::fs_beneath::entry_metadata_at(&parent, name).is_ok_and(|found: std::fs::Metadata| { return found.is_dir(); }); };
     if !is_directory(destination_name) || identity_at(&parent, destination_name).ok() != Some(expected) {
         return Err(ours(format!("{} is not the directory Git made", destination.display())));
     }
@@ -288,10 +288,10 @@ pub fn settle_displaced(stage: &Path, destination: &Path, expected: ObjectId, po
         return Ok((parent, displaced, placed));
     })();
     let Ok((parent, displaced, placed)) = opened else { return vec![format!("{} could not be opened to be settled", stage.display())] };
-    if super::fs_beneath::identity_of(&displaced).ok() != Some(expected) {
+    if crate::fs_beneath::identity_of(&displaced).ok() != Some(expected) {
         return vec![format!("{} is not the directory Git made and stays", stage.display())];
     }
-    let listing: Vec<OsString> = match std::fs::read_dir(super::fs_beneath::handle_path(&displaced)) {
+    let listing: Vec<OsString> = match std::fs::read_dir(crate::fs_beneath::handle_path(&displaced)) {
         Ok(found) => found.flatten().map(|entry| { return entry.file_name(); }).collect(),
         Err(error) => return vec![format!("{} cannot be listed ({error})", stage.display())],
     };

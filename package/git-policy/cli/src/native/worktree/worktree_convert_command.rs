@@ -14,16 +14,16 @@
 //! const code = await executeConvert({ platform, args, cwd, interrupt, say });
 //! ```
 
-use super::action::Action;
-use super::subvolume_command::main_checkout_root;
-use super::diagnostic_log::debug;
-use super::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use super::parallel_runner::{Event, OrderedRun, run_ordered};
-use super::subvolume_error::{Interrupt, MigrateError};
-use super::subvolume_index_files::linked_worktrees_inside;
-use super::subvolume_platform::{LinuxPlatform, Platform};
-use super::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
-use super::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
+use crate::action::Action;
+use crate::subvolume_command::main_checkout_root;
+use crate::diagnostic_log::debug;
+use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
+use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_index_files::linked_worktrees_inside;
+use crate::subvolume_platform::{LinuxPlatform, Platform};
+use crate::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
+use crate::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::Write;

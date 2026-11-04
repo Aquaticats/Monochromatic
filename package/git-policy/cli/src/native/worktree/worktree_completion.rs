@@ -20,19 +20,19 @@
 //! ```
 
 /// The blob batch.
-use super::blob_batch::load_blob_batch;
+use crate::blob_batch::load_blob_batch;
 /// Diagnostics.
-use super::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{debug, warn};
 /// Exact path bytes as file names, and as text for messages.
-use super::path_bytes::{os_from_path_bytes, path_message_text};
+use crate::path_bytes::{os_from_path_bytes, path_message_text};
 /// Unique temporary names.
-use super::random_id::random_uuid;
+use crate::random_id::random_uuid;
 /// The fail-closed recovery failure.
-use super::recovery_error::{RecoveryError, io_failure};
+use crate::recovery_error::{RecoveryError, io_failure};
 /// Running real Git.
-use super::transaction_git::GitContext;
+use crate::transaction_git::GitContext;
 /// One added-path record.
-use super::transaction_journal::AddedPath;
+use crate::transaction_journal::AddedPath;
 /// `HashMap` maps object IDs to bytes.
 use std::collections::HashMap;
 /// The trait that gives files `.read_to_end` and `.write_all`.
@@ -353,7 +353,7 @@ fn write_prepared(prepared: &Path, bytes: &[u8], mode: u32) -> std::io::Result<(
     let mut file: std::fs::File = options.open(prepared)?;
     file.write_all(bytes)?;
     drop(file);
-    return super::private_storage::protect_path(prepared, mode);
+    return crate::private_storage::protect_path(prepared, mode);
 }
 
 /// What:

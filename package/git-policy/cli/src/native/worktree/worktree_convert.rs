@@ -16,18 +16,18 @@
 //! const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 //! ```
 
-use super::fs_beneath::{ObjectId, identity_at, open_root};
-use super::process_use::{UseTarget, processes_using};
-use super::subvolume_error::{Interrupt, MigrateError};
-use super::subvolume_index_files::{IndexLock, RefreshOptions, RefreshStatus, refresh_index_file_report, repository_hash_length};
-use super::subvolume_lock::{acquire, is_ours};
-use super::subvolume_platform::Platform;
-use super::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
-use super::worktree_clean::check_clean_tracked_by_content;
-use super::single_owner_claim::{ClaimOutcome, OwnerClaim, live_owner_of, take_claim};
-use super::worktree_convert_journal::{CLAIM_PREFIX, Journal, is_recorded_object, legacy_lock_is_held, read_plain_file, read_plain_text};
-pub use super::worktree_convert_journal::{JOURNAL_NAME, Phase};
-use super::worktree_convert_remove::{Removal, remove_recorded_old_tree};
+use crate::fs_beneath::{ObjectId, identity_at, open_root};
+use crate::process_use::{UseTarget, processes_using};
+use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_index_files::{IndexLock, RefreshOptions, RefreshStatus, refresh_index_file_report, repository_hash_length};
+use crate::subvolume_lock::{acquire, is_ours};
+use crate::subvolume_platform::Platform;
+use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
+use crate::worktree_clean::check_clean_tracked_by_content;
+use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, live_owner_of, take_claim};
+use crate::worktree_convert_journal::{CLAIM_PREFIX, Journal, is_recorded_object, legacy_lock_is_held, read_plain_file, read_plain_text};
+pub use crate::worktree_convert_journal::{JOURNAL_NAME, Phase};
+use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
@@ -220,7 +220,7 @@ fn registered_inside(common: &Path, inside: &Path) -> Result<Vec<PathBuf>, Strin
 ///  nothing when none is (or the common directory is not a main checkout's `.git`).
 fn migration_of_main_checkout(common: &Path) -> Option<String> {
     let root: &Path = common.parent().filter(|_parent: &&Path| { return common.file_name() == Some(std::ffi::OsStr::new(".git")); })?;
-    let layout = super::subvolume_preflight::layout_of(root)?;
+    let layout = crate::subvolume_preflight::layout_of(root)?;
     return match live_owner_of(layout.parent.as_path(), layout.claim_prefix.as_os_str()) {
         Ok(None) => None,
         Ok(Some(owner)) => Some(format!("process {} is migrating the main checkout {} to a subvolume (it owns {}); wait for it to finish, then run this command again", owner.pid, root.display(), owner.path.display())),
@@ -255,7 +255,7 @@ pub fn refusals(platform: &dyn Platform, candidate: &Candidate, owned: Owned, co
         refuse(RefusalKind::ConvertingName, format!("{} exists and no journal of this command owns it, so it is left alone; remove it yourself once you know what it is", converting.display()));
     }
     match platform.filesystem_facts(candidate.path.as_path()) {
-        Ok((kind, _device)) if kind == super::fs_kind::FilesystemKind::Btrfs => {}
+        Ok((kind, _device)) if kind == crate::fs_kind::FilesystemKind::Btrfs => {}
         Ok(_) => refuse(RefusalKind::Filesystem, format!("{} is not on btrfs", candidate.path.display())),
         Err(error) => refuse(RefusalKind::Filesystem, format!("the filesystem of {} cannot be examined ({error})", candidate.path.display())),
     }
@@ -692,7 +692,7 @@ pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOp
                     return Ok(Verdict::Skipped(vec![format!(
                         "another conversion of {} is running (a command of release 0.5.20 or older holds {}), so this one did not start",
                         candidate.path.display(),
-                        candidate.admin.join(super::worktree_convert_journal::LOCK_NAME).display()
+                        candidate.admin.join(crate::worktree_convert_journal::LOCK_NAME).display()
                     )]));
                 }
                 Some(held)

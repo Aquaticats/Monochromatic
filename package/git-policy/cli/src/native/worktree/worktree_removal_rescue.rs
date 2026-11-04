@@ -20,12 +20,12 @@
 //! const later = await settleRemovals(commonDir); // on the next command
 //! ```
 
-use super::diagnostic_log::{debug, warn};
-use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use super::process_identity::{current_birth_identity, process_birth_identity};
-use super::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory, record_lost_push};
-use super::service_instance::instance_of;
-use super::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkItem, WorkKind, find_claim, id_of_entry};
+use crate::diagnostic_log::{debug, warn};
+use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory, record_lost_push};
+use crate::service_instance::instance_of;
+use crate::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkItem, WorkKind, find_claim, id_of_entry};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.

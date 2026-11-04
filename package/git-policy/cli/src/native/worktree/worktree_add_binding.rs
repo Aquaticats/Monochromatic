@@ -16,7 +16,7 @@
 //! await verifyAssociation(bound); // throws when the objects are no longer where and what they were
 //! ```
 
-use super::fs_beneath::{ObjectId, identity_of, open_file_at, open_root};
+use crate::fs_beneath::{ObjectId, identity_of, open_file_at, open_root};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
@@ -133,7 +133,7 @@ pub fn planned_record(destination: &Path) -> String {
 /// Why: a held handle keeps naming the directory it was opened on, whatever the path names later; this asks the path.
 pub fn path_identity(path: &Path) -> Option<ObjectId> {
     let parent: File = open_root(path.parent()?).ok()?;
-    return super::fs_beneath::identity_at(&parent, path.file_name()?).ok();
+    return crate::fs_beneath::identity_at(&parent, path.file_name()?).ok();
 }
 
 /// What:

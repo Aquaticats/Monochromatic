@@ -19,12 +19,12 @@
 //! await cloneTrackedFiles(source, destination, admin); // throws a reason
 //! ```
 
-use super::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
-use super::fs_clone_exchange::clone_file;
-use super::subvolume_index::StatFields;
-use super::subvolume_index_files::{fields_of, install_index_in};
-use super::worktree_clean::{StatEntry, metadata_differs_from_entry, stored_stats};
-use super::worktree_snapshot_source::SnapshotSource;
+use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
+use crate::fs_clone_exchange::clone_file;
+use crate::subvolume_index::StatFields;
+use crate::subvolume_index_files::{fields_of, install_index_in};
+use crate::worktree_clean::{StatEntry, metadata_differs_from_entry, stored_stats};
+use crate::worktree_snapshot_source::SnapshotSource;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -159,7 +159,7 @@ fn ensure_parents(directories: &mut Directories, names: &[OsString], created: &m
         let name: &OsString = &names[index];
         let made: bool = make_directory_at(&current, name.as_os_str(), 0o777).map_err(|error| { return format!("{} cannot be created ({error})", name.to_string_lossy()); })?;
         let next: File = open_directory_at(&current, name.as_os_str()).map_err(|error| { return format!("{} cannot be entered ({error})", name.to_string_lossy()); })?;
-        if super::fs_beneath::device_of(&next).ok() != super::fs_beneath::device_of(&current).ok() {
+        if crate::fs_beneath::device_of(&next).ok() != crate::fs_beneath::device_of(&current).ok() {
             return Err(format!("{} is on another device", name.to_string_lossy()));
         }
         if made {
@@ -281,7 +281,7 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
     let mut stats: HashMap<Vec<u8>, StatFields> = HashMap::new();
     for entry in &entries {
         let names: Vec<OsString> = entry_names(entry.path.as_slice())?;
-        let source_dir: File = super::fs_beneath::open_directory_beneath(&root, &names[..names.len() - 1]).map_err(|error| { return format!("the source directory of {} cannot be opened ({error})", String::from_utf8_lossy(entry.path.as_slice())); })?;
+        let source_dir: File = crate::fs_beneath::open_directory_beneath(&root, &names[..names.len() - 1]).map_err(|error| { return format!("the source directory of {} cannot be opened ({error})", String::from_utf8_lossy(entry.path.as_slice())); })?;
         let destination_dir: File = ensure_parents(directories, names.as_slice(), created)?;
         let work: Work<'_> = Work { entry, names: names.as_slice(), index_seconds: source.clean.index_seconds };
         clone_entry(&source_dir, &destination_dir, &work, (&mut *created, &mut stats), seams)?;
@@ -294,7 +294,7 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
 
 /// Log what the index install did.
 fn debug_report(report: &str) {
-    super::diagnostic_log::debug("cloneTrackedFiles", report);
+    crate::diagnostic_log::debug("cloneTrackedFiles", report);
 }
 
 /// What:

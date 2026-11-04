@@ -15,16 +15,16 @@
 //! const clean = await checkClean({ root, gitDir, commonDir }); // { headCommit, headTree } or throws a reason
 //! ```
 
-use super::repo_read_index::{IndexEntry, parse_index};
-use super::repo_read_layout::ObjectFormat;
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_refs::{Refs, RefValue};
-use super::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit};
-use super::fs_beneath::{entry_metadata_at, open_directory_beneath, open_root, plain_components};
-use super::worktree_clean_content::{ContentJudge, ConversionEnvironment, Place};
-use super::subvolume_index::{StatFields, StoredStat, be32, walk_entries};
-use super::subvolume_index_files::{fields_of, matches_stored, repository_hash_length};
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::repo_read_index::{IndexEntry, parse_index};
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_refs::{Refs, RefValue};
+use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit};
+use crate::fs_beneath::{entry_metadata_at, open_directory_beneath, open_root, plain_components};
+use crate::worktree_clean_content::{ContentJudge, ConversionEnvironment, Place};
+use crate::subvolume_index::{StatFields, StoredStat, be32, walk_entries};
+use crate::subvolume_index_files::{fields_of, matches_stored, repository_hash_length};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
@@ -667,7 +667,7 @@ fn read_state(git_dir: &Path, common_dir: &Path) -> Result<State, CleanRefusal> 
     let stats = stored_stats(bytes.as_slice(), hash_length).ok_or_else(|| { return CleanRefusal::unreadable("the index entries have no plain layout"); })?;
     let commit: String = head_commit(git_dir, common_dir, format).ok_or_else(|| { return CleanRefusal::unreadable("HEAD is not a plain ref to a commit"); })?;
     let database: ObjectDatabase = ObjectDatabase::open(common_dir, None, format).ok_or_else(|| { return CleanRefusal::unreadable("the object database has a layout the reader does not know"); })?;
-    let commit_name: Vec<u8> = super::repo_read_object::from_hex(commit.as_bytes(), format).ok_or_else(|| { return CleanRefusal::unreadable("HEAD names no object"); })?;
+    let commit_name: Vec<u8> = crate::repo_read_object::from_hex(commit.as_bytes(), format).ok_or_else(|| { return CleanRefusal::unreadable("HEAD names no object"); })?;
     let commit_fields = parse_commit(database.read(commit_name.as_slice()).ok_or_else(|| { return CleanRefusal::unreadable("the commit of HEAD is unreadable"); })?.bytes.as_slice(), format)
         .ok_or_else(|| { return CleanRefusal::unreadable("the commit of HEAD has a layout the reader does not know"); })?;
     let tree: Vec<FlatEntry> = flatten_tree(&database, commit_fields.tree.as_slice(), format).ok_or_else(|| { return CleanRefusal::unreadable("the tree of HEAD is unreadable"); })?;
@@ -679,12 +679,12 @@ fn check_tracked(root: &Path, git_dir: &Path, common_dir: &Path, environment: Op
     if let Some(name) = operation_in_progress(git_dir, owned_index_lock) {
         return Err(CleanRefusal::new(CleanRefusalKind::OperationInProgress(name), format!("{name} exists in {}", git_dir.display())));
     }
-    let state: State = super::add_timing::step("readIndexAndTree", || { return read_state(git_dir, common_dir); })?;
-    if let Some(refusal) = super::add_timing::step("indexAgainstTree", || { return index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice()); }) {
+    let state: State = crate::add_timing::step("readIndexAndTree", || { return read_state(git_dir, common_dir); })?;
+    if let Some(refusal) = crate::add_timing::step("indexAgainstTree", || { return index_differs_from_tree(state.entries.as_slice(), state.tree.as_slice()); }) {
         return Err(refusal);
     }
     let differs: Option<CleanRefusal> = match environment {
-        None => super::add_timing::step("walkSource", || { return tree_refusal(root, state.stats.as_slice(), state.index_seconds); }),
+        None => crate::add_timing::step("walkSource", || { return tree_refusal(root, state.stats.as_slice(), state.index_seconds); }),
         Some(found) => tree_differs_from_index_by_content(&ContentTarget { root, git_dir, common_dir, environment: found, format: state.format }, state.stats.as_slice(), state.entries.as_slice(), state.index_seconds)
             .map(|reason: String| { return CleanRefusal::new(CleanRefusalKind::FileChanged, reason); }),
     };
@@ -739,7 +739,7 @@ pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir
     // The tracked files (the index, the tree of `HEAD`, a stat of every file) and the untracked scan (one Git run over the
     //  directory tree) read different things and write nothing, so they run side by side; the tracked refusal still comes first.
     let (tracked, untracked): (Result<CleanSource, CleanRefusal>, Result<Option<String>, CleanRefusal>) = std::thread::scope(|scope| {
-        let scan = scope.spawn(|| { return super::add_timing::work("untrackedScan", || { return untracked_file(context, root); }); });
+        let scan = scope.spawn(|| { return crate::add_timing::work("untrackedScan", || { return untracked_file(context, root); }); });
         let tracked = check_tracked(root, git_dir, common_dir, None, false);
         let scanned = scan.join().unwrap_or_else(|_panic| { return Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")); });
         return (tracked, scanned);

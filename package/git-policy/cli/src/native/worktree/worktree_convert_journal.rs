@@ -14,8 +14,8 @@
 //! await journal.save(admin); // exclusive temporary, then rename
 //! ```
 
-use super::fs_beneath::ObjectId;
-use super::subvolume_error::MigrateError;
+use crate::fs_beneath::ObjectId;
+use crate::subvolume_error::MigrateError;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;

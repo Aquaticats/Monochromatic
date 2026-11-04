@@ -17,11 +17,11 @@
 //! if (made) await settleSubvolumeDestination(made); // rmdir when still empty
 //! ```
 
-use super::diagnostic_log::{debug, warn};
-use super::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, remove_at};
-use super::fs_btrfs_ioctl::subvolume_create_at;
-use super::fs_kind::{FilesystemKind, filesystem_kind};
-use super::worktree_add_plan::AddPlan;
+use crate::diagnostic_log::{debug, warn};
+use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_directory_at, remove_at};
+use crate::fs_btrfs_ioctl::subvolume_create_at;
+use crate::fs_kind::{FilesystemKind, filesystem_kind};
+use crate::worktree_add_plan::AddPlan;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
