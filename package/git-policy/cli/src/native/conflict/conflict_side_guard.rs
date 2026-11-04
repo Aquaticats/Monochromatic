@@ -28,21 +28,21 @@
 //! const verdict = judgeConflictSides({ context, arguments }); // 'not-applicable' | allowed | refused | copy-failed
 //! ```
 
-use super::command_conflict_side::{SideRequest, conflict_side_request};
-use super::conflict_side_decision::magic_on_conflicted;
-use super::conflict_side_modes::{MODE_OPTIONS, MODE_VARIABLES, magic_note, mode_note, modes_in_effect};
-use super::conflict_sides::{
+use crate::command_conflict_side::{SideRequest, conflict_side_request};
+use crate::conflict_side_decision::magic_on_conflicted;
+use crate::conflict_side_modes::{MODE_OPTIONS, MODE_VARIABLES, magic_note, mode_note, modes_in_effect};
+use crate::conflict_sides::{
     FailureKind, Operation, SAVED_DIRECTORY, SaveFailure, SavedCopy, SideDecision, clean_paths_note, conflicted_paths, decide_sides, operation_in_progress,
     save_copies, saved_notice,
 };
-use super::diagnostic_log::debug;
-use super::discarded_prune::{Limits, Problem, directory_name_of, prune};
-use super::global_arguments::command_tokens;
-use super::private_storage::read_regular_file;
-use super::repo_read_index::{IndexEntry, parse_index};
-use super::repo_read_layout::{RepoLayout, read_layout};
-use super::repo_read_layout_without::read_layout_without;
-use super::transaction_git::GitContext;
+use crate::diagnostic_log::debug;
+use crate::discarded_prune::{Limits, Problem, directory_name_of, prune};
+use crate::global_arguments::command_tokens;
+use crate::private_storage::read_regular_file;
+use crate::repo_read_index::{IndexEntry, parse_index};
+use crate::repo_read_layout::{RepoLayout, read_layout};
+use crate::repo_read_layout_without::read_layout_without;
+use crate::transaction_git::GitContext;
 use std::ffi::OsString;
 
 /// Module tag for diagnostics.

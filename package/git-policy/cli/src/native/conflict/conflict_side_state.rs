@@ -16,7 +16,7 @@
 //! const conflicted = new Set(entries.filter((entry) => entry.stage !== 0).map((entry) => entry.path));
 //! ```
 
-use super::repo_read_index::IndexEntry;
+use crate::repo_read_index::IndexEntry;
 use std::collections::BTreeSet;
 use std::path::Path;
 

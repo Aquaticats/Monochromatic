@@ -27,12 +27,12 @@
 //! conflictSideRequest('checkout', ['-f', '--', 'a.rs'])       // undefined
 //! ```
 
-use super::command_checkout_table::{
+use crate::command_checkout_table::{
     CHECKOUT_TABLE, DETACH, FORCE, NEW_BRANCH, NEW_BRANCH_FORCE, ORPHAN, PATCH, PATHSPEC_FROM_FILE,
 };
-use super::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
-use super::command_options_query::is_stated;
-use super::diagnostic_log::debug;
+use crate::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
+use crate::command_options_query::is_stated;
+use crate::diagnostic_log::debug;
 use std::ffi::OsString;
 
 /// Module tag for diagnostics.

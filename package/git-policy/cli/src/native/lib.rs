@@ -163,29 +163,13 @@ pub mod rule_commit_only_message;
 ///  cherry-pick and revert conclusion check.
 pub mod rule_commit_sequencer;
 
-/// The `checkout` and `restore` command lines that take one side of a conflicted file.
-pub mod command_conflict_side;
+/// Conflict handling around commits and checkouts:
+///  side flags,
+///  saved copies of conflicted files and leftover markers.
+pub mod conflict;
 
-/// Finding and copying the file a conflict-side command replaces.
-pub mod conflict_side_source;
-
-/// The operation in progress and the conflicted paths.
-pub mod conflict_side_state;
-
-/// Whether every token of a command line names a conflicted file.
-pub mod conflict_side_decision;
-
-/// The pathspec modes and magic of a conflict-side line.
-pub mod conflict_side_modes;
-
-/// The notices of a conflict-side command.
-pub mod conflict_side_notice;
-
-/// The saved copy of each file a conflict-side command replaces.
-pub mod conflict_sides;
-
-/// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.
-pub mod conflict_side_guard;
+/// Re-exports every module of `conflict` at the crate root, as above.
+pub use conflict::*;
 
 /// Wrapper-only control spellings,
 ///  their meanings,
@@ -231,9 +215,6 @@ pub mod repository_location;
 /// Lazily fetched repository facts behind one interface,
 ///  with the real-Git provider.
 pub mod repository_facts;
-
-/// The append-only record of every command form that can discard uncommitted state.
-pub mod discard_audit;
 
 /// The record of where one wrapped commit spent its time,
 /// appended beside the discard audit.
@@ -972,15 +953,6 @@ pub mod service_index_watch;
 /// The preparation of a commit that the service lands, for every command line.
 pub mod service_prepare;
 
-/// The `discardedCopies` section of `cli-git.config.jsonc`.
-pub mod config_discarded;
-
-/// The bound on the folder of saved copies of conflicted files: age, size, audit and doctor report.
-pub mod discarded_prune;
-
-/// The folder of saved copies opened once without following a link, with every read and removal addressed through descriptors.
-pub mod discarded_store;
-
 /// The native journal protocol and the standard error fallback the service's entries go through.
 pub mod journald_native;
 
@@ -1010,12 +982,6 @@ pub mod service_hold_retry;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
-
-/// The marker lines a committed file still holds, and the line about an operation a commit left open.
-pub mod conflict_markers;
-
-/// The stash and conflict stages Git's apply of an autostash left in the commit's scratch repository, carried back.
-pub mod autostash_carry;
 
 /// The service's memory of when the bytes of the commits it landed were captured, per worktree.
 pub mod service_captures;

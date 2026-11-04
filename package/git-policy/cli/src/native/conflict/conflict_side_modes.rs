@@ -91,8 +91,8 @@ fn second_of(pair: &(String, String)) -> &str {
 }
 
 /// The word for an operation in a sentence.
-fn operation_word(operation: super::conflict_side_state::Operation) -> &'static str {
-    use super::conflict_side_state::Operation;
+fn operation_word(operation: crate::conflict_side_state::Operation) -> &'static str {
+    use crate::conflict_side_state::Operation;
     return match operation {
         Operation::Merge => "merge",
         Operation::Rebase => "rebase",
@@ -112,7 +112,7 @@ fn operation_word(operation: super::conflict_side_state::Operation) -> &'static 
 /// ```ts
 /// function modeNote(modes: string[], operation: Operation): string;
 /// ```
-pub fn mode_note(modes: &[String], operation: super::conflict_side_state::Operation) -> String {
+pub fn mode_note(modes: &[String], operation: crate::conflict_side_state::Operation) -> String {
     let named: String = backticked(modes.iter().map(String::as_str));
     return format!(
         " This {} is in progress and every path named is a conflicted file, so the same command without {named} would be saved first \
@@ -133,7 +133,7 @@ pub fn mode_note(modes: &[String], operation: super::conflict_side_state::Operat
 /// ```ts
 /// function magicNote(magic: [string, string][], operation: Operation): string;
 /// ```
-pub fn magic_note(magic: &[(String, String)], operation: super::conflict_side_state::Operation) -> String {
+pub fn magic_note(magic: &[(String, String)], operation: crate::conflict_side_state::Operation) -> String {
     let spellings: String = backticked(magic.iter().map(first_of));
     let names: String = backticked(magic.iter().map(second_of));
     return format!(

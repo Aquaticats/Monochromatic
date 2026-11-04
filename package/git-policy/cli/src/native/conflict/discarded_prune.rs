@@ -19,17 +19,17 @@
 //! const removed = await pruneDiscarded({ commonDir, nowMillis, limits, keep: newestDirectoryName });
 //! ```
 
-use super::conflict_sides::SAVED_DIRECTORY;
-use super::diagnostic_log::debug;
-use super::discard_audit::{AUDIT_FILE, append_line, check_appendable};
-use super::discarded_store::{Interrupted, OpenFailure, Store, Tally};
-use super::iso_time::format_iso_milliseconds;
-use super::json_record::{quote, string_array};
-use super::service_protocol::RELEASE;
+use crate::conflict_sides::SAVED_DIRECTORY;
+use crate::diagnostic_log::debug;
+use crate::discard_audit::{AUDIT_FILE, append_line, check_appendable};
+use crate::discarded_store::{Interrupted, OpenFailure, Store, Tally};
+use crate::iso_time::format_iso_milliseconds;
+use crate::json_record::{quote, string_array};
+use crate::service_protocol::RELEASE;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-pub use super::discarded_store::Identity;
+pub use crate::discarded_store::Identity;
 
 /// Days after which a copy is removed unless the setting says otherwise.
 ///

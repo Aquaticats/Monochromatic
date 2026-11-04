@@ -30,18 +30,18 @@
 //! if (decision.kind === 'allow') await saveCopies({ root, commonDir, paths: decision.paths });
 //! ```
 
-use super::conflict_side_source::{copy_located, locate};
-use super::iso_time::format_iso_milliseconds;
-use super::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
+use crate::conflict_side_source::{copy_located, locate};
+use crate::iso_time::format_iso_milliseconds;
+use crate::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-pub use super::conflict_side_decision::{SideDecision, decide_sides, literal_path};
-pub use super::conflict_side_notice::{clean_paths_note, saved_notice};
-pub use super::conflict_side_source::{FailureKind, SaveFailure};
-pub use super::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
+pub use crate::conflict_side_decision::{SideDecision, decide_sides, literal_path};
+pub use crate::conflict_side_notice::{clean_paths_note, saved_notice};
+pub use crate::conflict_side_source::{FailureKind, SaveFailure};
+pub use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
 
 /// Where the copies live,
 /// below the common Git directory,

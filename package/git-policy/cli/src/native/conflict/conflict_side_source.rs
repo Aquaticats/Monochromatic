@@ -21,8 +21,8 @@
 //! if (located) copyLocated(located, destination, () => {}); // throws when the file changed while it was copied
 //! ```
 
-use super::diagnostic_log::debug;
-use super::fs_beneath::{ObjectId, entry_metadata_at, identity_at, identity_of, open_directory_at, open_file_at, read_link_at};
+use crate::diagnostic_log::debug;
+use crate::fs_beneath::{ObjectId, entry_metadata_at, identity_at, identity_of, open_directory_at, open_file_at, read_link_at};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{Read, Write};
@@ -133,7 +133,7 @@ pub struct Located {
 /// ```
 fn open_parent(root: &Path, relative: &[u8]) -> Result<Option<(File, OsString)>, SaveFailure> {
     let shown: String = String::from_utf8_lossy(relative).into_owned();
-    let names: Vec<OsString> = match super::fs_beneath::plain_components(Path::new(OsStr::from_bytes(relative))) {
+    let names: Vec<OsString> = match crate::fs_beneath::plain_components(Path::new(OsStr::from_bytes(relative))) {
         Ok(found) => found,
         Err(error) => return Err(io_failure(&shown, &error)),
     };

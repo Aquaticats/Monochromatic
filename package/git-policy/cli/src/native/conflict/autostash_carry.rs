@@ -15,15 +15,15 @@
 //! ```
 
 /// The fail-closed recovery failure, for the listing that cannot be read.
-use super::recovery_files::read_optional;
+use crate::recovery_files::read_optional;
 /// Scratch repository commands.
-use super::shadow_git::shadow_request;
+use crate::shadow_git::shadow_request;
 /// The record of the commit's scratch directory.
-use super::service_protocol::Cleanup;
+use crate::service_protocol::Cleanup;
 /// Running real Git.
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// Diagnostics for the log.
-use super::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{debug, warn};
 /// Borrowed filesystem paths.
 use std::path::{Path, PathBuf};
 

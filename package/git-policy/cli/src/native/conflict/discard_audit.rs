@@ -11,13 +11,13 @@
 //! await appendFile(join(commonDir, 'cli-git-audit.jsonl'), JSON.stringify(entry) + '\n');
 //! ```
 
-use super::diagnostic_log::debug;
+use crate::diagnostic_log::debug;
 use generations::{Retention, install_generation, retention_of, trim_generations};
-use super::iso_time::format_iso_milliseconds;
-use super::json_record::{quote, string_array};
-use super::service_protocol::RELEASE;
-use super::rule_linked_worktree::GuardedCommand;
-use super::worktree_identity::WorktreeIdentity;
+use crate::iso_time::format_iso_milliseconds;
+use crate::json_record::{quote, string_array};
+use crate::service_protocol::RELEASE;
+use crate::rule_linked_worktree::GuardedCommand;
+use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};

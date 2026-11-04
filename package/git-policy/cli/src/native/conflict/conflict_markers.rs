@@ -13,7 +13,7 @@
 //! ```
 
 /// Running real Git for the committed blobs and the attribute.
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// Owned operating-system text.
 use std::ffi::OsString;
 /// Raw bytes to and from operating-system text.

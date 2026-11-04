@@ -12,9 +12,9 @@
 //! const limits = parseDiscardedCopies({ maxAgeDays: 90, maxSize: '256m' }); // { maxAgeDays: 90, maxBytes: 268435456 }
 //! ```
 
-use super::config_error::ConfigError;
-use super::config_values::{member_keys, member_path, safe_integer, text, wrong_kind};
-use super::discarded_prune::{Limits, parse_size};
+use crate::config_error::ConfigError;
+use crate::config_values::{member_keys, member_path, safe_integer, text, wrong_kind};
+use crate::discarded_prune::{Limits, parse_size};
 use monochromatic_jsonc_edit::{JsoncKind, JsoncValue};
 
 /// The name of the section.

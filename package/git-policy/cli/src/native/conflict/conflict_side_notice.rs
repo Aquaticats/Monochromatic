@@ -11,8 +11,8 @@
 //! savedNotice(copies); cleanPathsNote(['b.rs'], 'merge');
 //! ```
 
-use super::conflict_side_state::Operation;
-use super::conflict_sides::SavedCopy;
+use crate::conflict_side_state::Operation;
+use crate::conflict_sides::SavedCopy;
 use std::ffi::OsString;
 
 /// What:
