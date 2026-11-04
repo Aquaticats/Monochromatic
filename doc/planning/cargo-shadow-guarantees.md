@@ -678,6 +678,9 @@ the tests that discriminate; the planted regressions that turned the old asserti
 to judge them again: no row is certified by this map.
 The shared helper `journal_dirs` now stops on every listing error except the initial absence of the journal directory
 (`the_journal_listing_helper_stops_on_an_unreadable_directory_and_reads_only_absence_as_empty`, red against the old helper).
+Suite counts at the round 17 code tip `8e009bc256` (written 2026-11-04T14:50:00-05:00): the debug run and the release gate each ran
+618 tests: 618 passed, 0 failed, 13 skipped (the same thirteen `#[ignore]` helper entries); `lint:clippy` with warnings denied is
+clean; logs `/home/user/temp/agent/r17-debug.log`, `r17-gate.log`, `r17-clippy.log`.
 Suite counts at the round 16 code tip `9cbee37b52`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
 (`mise run //package/cargo-shadow/cli:test`) each ran 609 tests: 609 passed, 0 failed, 13 skipped; `lint:clippy` with warnings
 denied is clean.
@@ -1018,7 +1021,9 @@ No row is certified by this map.
   `an_acknowledgement_whose_file_cannot_be_synced_is_not_published` is the writer-side file-sync fault of this row;
   The process and thread oracles of the tests fail closed: `is_running` and `thread_is_alive` stop on any error, and
   `thread_is_alive` first requires a procfs that matches the namespace.
-  The V2 lifecycle tests of the unsettled scope are `an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended`,
+- **V2, amended c.**
+  The tests of the unsettled scope and the launcher lifecycle belong to this row:
+  `an_unsettled_scope_that_exists_empty_is_not_read_as_a_run_that_ended`,
   `a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended`,
   `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty`, `a_gone_launcher_lets_the_recovery_read_the_scope_as_final` and
   `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended`.
