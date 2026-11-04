@@ -3740,8 +3740,27 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     those wording fixes and the certification bundles (row groups under 250 KB each,
     whole named test files plus the support they call,
     manifest `cargo-shadow-cert-manifest.md`).
-    Then the certification reviews,
-    at most three at once;
+    Wording fixed (tip `d5a8753488`);
+    bundles ready (three groups of about 232 KB:
+    group 1 rows A1,
+    V1,
+    V2 amended c,
+    V6;
+    group 2 A1/V3,
+    A1/A2,
+    A2/R4,
+    V3/V4;
+    group 3 A3/A4,
+    R1,
+    R2,
+    R3/R5,
+    K1,
+    K2,
+    V5,
+    weaker path).
+    Certification reviews of groups 1 and 2 running (`cargo-shadow-cert-sol-1.txt`,
+    `cargo-shadow-cert-sol-2.txt`);
+    group 3 queued for the next free review slot (prompt `cargo-shadow-cert-prompt-3.txt` written);
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
