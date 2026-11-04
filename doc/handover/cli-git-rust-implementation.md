@@ -445,6 +445,12 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Oversized files are split by these agents, with each folder's file-loop list so a split breaks a loop rather than
   adding one; the layout pass renames and moves files afterwards.
   The coordinator merges the four branches and gates the result once.
+  The owner then added AGENTS.md VGW (no vague word such as `native` alone in a name; "helper_<specific> is fine")
+  and answered the layout questions: plain-sentence folder names (the draft in
+  `doc/planning/cli-git-source-layout.md`, `src/native/` gone), "hand back 'run this next'" in place of the two
+  in-process recursions, and all four smaller call changes.
+  A fifth agent builds the LYD and LYF checks into `monochromatic-lint`, off by default
+  (branch `feat/monochromatic-lint-folder-uses-and-file-loops`, brief `~/temp/agent/issue-6261/layout-lint-brief.md`).
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
