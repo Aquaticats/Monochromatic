@@ -254,3 +254,33 @@ pub fn seal_for_shutdown(lane: &Path, state: &Path) -> Result<Sealed, LifecycleE
     writer.complete_checkpoint(&candidate)?;
     return Ok(Sealed { generation });
 }
+
+/// What:
+///  The departure's acknowledgment of the state log, with the retry the races need: forces the segment recovery selects
+///  (`commit_state_log::sync_prefix`) and returns the prefix only when `state_covers` says the root recovery selects now is that record or
+///  descends from it. A segment unlinked between the selection and the open (`ENOENT`) and a root that changed to one that does not cover the
+///  capture both capture again, at most `attempts` times in all.
+/// Why:
+///  The seal and any other reclaimer run concurrently with a departure. Forcing a file that is no longer a root is not an acknowledgment,
+///  and a return on the survival of the old file would promise a record the next recovery does not select (review of step 1, finding 5).
+///  The attempts are the caller's: the bound of the wait that contains this call is the caller's register entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function departureAcknowledge(state: string, attempts: number): Prefix; // throws
+/// ```
+pub fn departure_acknowledge(state: &Path, attempts: u32) -> io::Result<super::commit_state_log::Prefix> {
+    let mut last: io::Error = io::Error::other("the departure was given no attempt");
+    for _attempt in 0..attempts {
+        match super::commit_state_log::sync_prefix(state) {
+            Ok(prefix) => match super::commit_state_log::state_covers(state, &prefix) {
+                Ok(true) => return Ok(prefix),
+                Ok(false) => last = io::Error::other("the state log's root changed to one that does not cover the captured record"),
+                Err(error) => return Err(io::Error::other(format!("the state log could not be read: {:?}", error))),
+            },
+            Err(error) if error.kind() == io::ErrorKind::NotFound => last = error,
+            Err(error) => return Err(error),
+        }
+    }
+    return Err(last);
+}

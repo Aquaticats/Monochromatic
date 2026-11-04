@@ -358,7 +358,8 @@ fn race_at_capture(point: &str) {
         }
         Race::UnrelatedCheckpoint => {
             let generation: u64 = read(&state).expect("readable").expect("state").0 + 1;
-            StateWriter::acquire(&state).expect("writer").checkpoint(generation, b"an unrelated document", &[]).expect("the unrelated checkpoint");
+            let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+            StateWriter::acquire(&state).expect("writer").checkpoint(generation, b"an unrelated document", &closure).expect("the unrelated checkpoint");
         }
     }
 }
