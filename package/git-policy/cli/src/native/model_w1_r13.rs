@@ -46,9 +46,17 @@ pub enum Rules {
     Twelve,
     /// Revision 13: every normal exit creates the mark first, `withdraw-unresolved a` forbids any later attempt, E1 has kind U.
     Thirteen,
-    /// Control: revision 13 whose `out` file is a channel the person's hook descendants can write to (the backend obligation that Git
+    /// Revision 14: Revision 13 plus the client's receipt before `published`, a recovery that reads the receipt or `commit: ok` in the
+    /// attempt's `out`, and the outcome `withdrawn` for a late positive failure under the unresolved mark.
+    Fourteen,
+    /// Control: revision 14 whose `out` file is a channel the person's hook descendants can write to (the backend obligation that Git
     /// redirects a hook's standard output to its standard error does not hold), so E1's evidence is not authentic.
-    ThirteenSharedChannel,
+    FourteenSharedChannel,
+}
+
+/// Whether `rules` read the client's receipt and the attempt's `out` at recovery (revision 14).
+pub fn receipts(rules: Rules) -> bool {
+    return matches!(rules, Rules::Fourteen | Rules::FourteenSharedChannel);
 }
 
 /// The withdrawal mark `lane/decision/<id>`.
@@ -234,6 +242,10 @@ pub struct State {
     pub landed: u8,
     /// Ghost: the newest attempt started when the command's exit became final.
     pub exit_attempt: u8,
+    /// `lane/receipt/<id>`: the client recorded that it saw the landing and is about to print `published` (revision 14).
+    pub receipt: bool,
+    /// The owner recorded the outcome `withdrawn` for a late positive failure under the unresolved mark (revision 14).
+    pub outcome_withdrawn: bool,
 }
 
 /// The start state: a bound request, no attempt, an attached client.
@@ -258,6 +270,8 @@ pub fn initial(rules: Rules) -> State {
         reflog: false,
         landed: 0,
         exit_attempt: 0,
+        receipt: false,
+        outcome_withdrawn: false,
     };
 }
 
@@ -288,8 +302,8 @@ pub fn open_submitted(state: &State) -> bool {
 /// ```ts
 /// function classify(rules, submitted, line, seen, childEnded): Class;
 /// ```
-pub fn classify(rules: Rules, submitted: bool, line: Line, seen: Seen, ended: bool) -> Class {
-    if seen == Seen::Present || line == Line::CommitOk {
+pub fn classify(rules: Rules, submitted: bool, line: Line, seen: Seen, ended: bool, receipt: bool) -> Class {
+    if seen == Seen::Present || line == Line::CommitOk || (receipts(rules) && receipt) {
         return Class::Published;
     }
     if seen == Seen::Rewritten {
@@ -332,7 +346,9 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
     }
     let mark_blocks_start: bool = if thirteen { state.mark != Mark::Absent } else { state.mark == Mark::Withdraw };
     let previous_closed: bool = state.attempt == 0 || (state.child == Child::Ended && state.closed == state.attempt);
-    let finished: bool = matches!(state.client, Client::Published) || matches!(state.recorded, Some((_, Class::Published | Class::RewrittenAway)));
+    // What the owner can observe: its own recorded class, and (revision 14) the client's receipt. The client's actual exit is not
+    // observable: a released client lock looks the same after a success and after a kill.
+    let finished: bool = matches!(state.recorded, Some((_, Class::Published | Class::RewrittenAway))) || (receipts(state.rules) && state.receipt);
     if !mark_blocks_start && previous_closed && state.attempt < MAX_ATTEMPT && !finished {
         let mut after: State = state.clone();
         after.attempt = state.attempt + 1;
@@ -342,6 +358,25 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
         after.hold_expired = false;
         after.recorded = None;
         push_step(found, "owner: P1 and P2a start an attempt", after);
+    }
+    // R5 (owner decision 3): a request whose client is gone and whose last attempt is unresolved is landed by a fresh attempt. The client
+    // is "gone" when its lock is released with no mark and no outcome, which is what a success exit and a kill both look like.
+    let clientless: bool = matches!(state.client, Client::Killed | Client::Published);
+    if clientless
+        && state.mark == Mark::Absent
+        && state.attempt < MAX_ATTEMPT
+        && !finished
+        && state.child == Child::Ended
+        && matches!(state.recorded, Some((attempt, Class::Unresolved)) if attempt == state.attempt)
+    {
+        let mut after: State = state.clone();
+        after.attempt = state.attempt + 1;
+        after.child = Child::Preparing;
+        after.line = Line::Nothing;
+        after.pipe = Pipe::Empty;
+        after.hold_expired = false;
+        after.recorded = None;
+        push_step(found, "owner: R5 lands a request whose client is gone with a fresh attempt", after);
     }
     if matches!(state.child, Child::Prepared | Child::Wedged) && state.pipe == Pipe::Empty && !state.hold_expired {
         let mut after: State = state.clone();
@@ -381,10 +416,10 @@ fn classify_steps(state: &State, found: &mut Vec<(String, State)>) {
         (Seen::Unread, "owner: E1 cannot read the tip (store error) and classifies from what it has"),
     ];
     for (seen, label) in readings {
-        push_class(state, found, label, classify(state.rules, submitted, state.line, seen, ended));
+        push_class(state, found, label, classify(state.rules, submitted, state.line, seen, ended, state.receipt));
     }
     if state.recovered {
-        let class: Class = classify(state.rules, submitted, Line::Nothing, Seen::Unread, ended);
+        let class: Class = classify(state.rules, submitted, Line::Nothing, Seen::Unread, ended, state.receipt);
         push_class(state, found, "owner: E1 after a restart finds the result lines unreadable and classifies from the record", class);
     }
 }
@@ -402,6 +437,11 @@ fn push_class(state: &State, found: &mut Vec<(String, State)>, label: &str, clas
     after.recorded = Some((state.attempt, class));
     if class == Class::Failed {
         after.closed = state.attempt;
+        // A late positive failure of the attempt an unresolved exit named: the request will never land, and revision 14 records
+        // the outcome `withdrawn` (revision 13 left the request pending for ever).
+        if receipts(state.rules) && matches!(state.mark, Mark::Unresolved(attempt) if attempt == state.attempt) {
+            after.outcome_withdrawn = true;
+        }
     }
     push_step(found, label, after);
 }
@@ -423,7 +463,7 @@ fn git_steps(state: &State, found: &mut Vec<(String, State)>) {
             push_step(found, "environment: prepare fails in the ref store; update-ref exits non-zero", failed);
         }
         Child::Prepared => {
-            if state.rules == Rules::ThirteenSharedChannel && state.line == Line::Nothing {
+            if state.rules == Rules::FourteenSharedChannel && state.line == Line::Nothing {
                 let mut forged: State = state.clone();
                 forged.line = Line::AbortOk;
                 push_step(found, "environment: a hook descendant writes text that looks like abort: ok into the shared output", forged);
@@ -487,7 +527,13 @@ fn client_steps(state: &State, found: &mut Vec<(String, State)>) {
     let thirteen: bool = state.rules != Rules::Twelve;
     match state.client {
         Client::Waiting => {
-            if state.line == Line::CommitOk || state.tip == Tip::New {
+            let saw_landing: bool = state.line == Line::CommitOk || state.tip == Tip::New;
+            if saw_landing && receipts(state.rules) && !state.receipt {
+                let mut after: State = state.clone();
+                after.receipt = true;
+                push_step(found, "client: writes the receipt before it prints published", after);
+            }
+            if saw_landing && (!receipts(state.rules) || state.receipt) {
                 let mut after: State = exit_state(state);
                 after.client = Client::Published;
                 push_step(found, "client: sees commit: ok or the tip at new, prints published and exits 0", after);
@@ -604,10 +650,21 @@ pub fn violations(state: &State) -> Vec<String> {
                 broken.push("an attempt other than the one the unresolved exit names landed".to_string());
             }
         }
-        Client::Published if state.landed == 0 => {
-            broken.push("the command said published and nothing landed".to_string());
+        Client::Published => {
+            if state.landed == 0 {
+                broken.push("the command said published and nothing landed".to_string());
+            }
+            if state.attempt > state.exit_attempt {
+                broken.push("an attempt started after the command exited published".to_string());
+            }
         }
         _ => {}
+    }
+    let late_failure_unrecorded: bool = matches!(state.mark, Mark::Unresolved(attempt) if state.closed == attempt)
+        && matches!(state.client, Client::UnresolvedExit(_))
+        && !state.outcome_withdrawn;
+    if late_failure_unrecorded {
+        broken.push("an unresolved attempt ended in a positive failure and the request stayed pending".to_string());
     }
     if state.closed != 0 && state.landed == state.closed {
         broken.push("an attempt that wrote the ref was closed as positively failed".to_string());

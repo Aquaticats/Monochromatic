@@ -238,3 +238,19 @@ mod model_m1_split_r13;
 /// The controls of M1's split compare and unlink.
 #[path = "model_m1_split_r13_tests.rs"]
 mod model_m1_split_r13_tests;
+
+/// Revision 14: dependency validation at recovery with discharge by a terminal outcome.
+#[path = "model_discharge_r14.rs"]
+mod model_discharge_r14;
+
+/// The controls of dependency discharge.
+#[path = "model_discharge_r14_tests.rs"]
+mod model_discharge_r14_tests;
+
+/// Revision 14: C2's `bound` (client lock before the link).
+#[path = "model_bound_r14.rs"]
+mod model_bound_r14;
+
+/// The controls of C2's `bound`.
+#[path = "model_bound_r14_tests.rs"]
+mod model_bound_r14_tests;

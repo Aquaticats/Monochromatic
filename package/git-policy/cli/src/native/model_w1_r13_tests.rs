@@ -95,14 +95,72 @@ fn a_reset_before_the_child_dies_is_unresolved_or_rewritten_never_failed() {
     assert!(violations(&kept).is_empty() && !enabled(&kept, START));
 }
 
-/// The search over every schedule: red under 12 with a shortest schedule, green and exhausted under 13 with the wait's bound met.
+/// The search over every schedule: red under 12 and under 13 (13 by the success-then-death schedule below), green and exhausted under 14.
 #[test]
-fn twelve_is_red_and_thirteen_is_green_over_every_schedule() {
-    let twelve: Report = check(Rules::Twelve);
-    assert!(twelve.violation.is_some(), "revision 12 must be red");
+fn twelve_and_thirteen_are_red_and_fourteen_is_green_over_every_schedule() {
+    assert!(check(Rules::Twelve).violation.is_some(), "revision 12 must be red");
     let thirteen: Report = check(Rules::Thirteen);
-    assert!(thirteen.violation.is_none() && thirteen.exhausted, "{:?}", thirteen.violation.map(|found| { return (found.message, found.trace); }));
-    println!("W1 against publication, revision 13: {} states, deepest {}, client bound {}", thirteen.states, thirteen.deepest, FOREGROUND_BOUND);
+    assert!(thirteen.violation.is_some(), "revision 13 must be red once the owner cannot see the client's exit");
+    let fourteen: Report = check(Rules::Fourteen);
+    assert!(fourteen.violation.is_none() && fourteen.exhausted, "{:?}", fourteen.violation.map(|found| { return (found.message, found.trace); }));
+    println!("W1 against publication, revision 14: {} states, deepest {}, client bound {}", fourteen.states, fourteen.deepest, FOREGROUND_BOUND);
+}
+
+/// R13-1, control 1: the client sees the landing and returns success, the owner dies before P3 and T0, another writer resets the branch
+/// away and the reflog entry is lost, a new incarnation recovers. A released client lock looks the same after a success and after a kill,
+/// so revision 13's R5 lands the request again (red: an attempt after the command exited published). Revision 14 writes a receipt before
+/// `published`, and recovery reads it (green).
+#[test]
+fn success_then_owner_death_then_reset_does_not_publish_again_under_fourteen() {
+    const PUBLISHED: &str = "client: sees commit: ok or the tip at new, prints published and exits 0";
+    const RECEIPT: &str = "client: writes the receipt before it prints published";
+    const R5: &str = "owner: R5 lands a request whose client is gone with a fresh attempt";
+    let common = [START, HOOK_OK, RECORD, WRITE, READS_COMMIT, WRITES_REF, DIES_BEFORE_REPORT];
+    let after = |rules: Rules, exit: &[&str]| -> State {
+        let mut reached: State = replay(initial(rules), steps, &common);
+        reached = replay(reached, steps, exit);
+        return replay(reached, steps, &[OWNER_DIES, RESET_ERASED, REAP, E1]);
+    };
+    let thirteen: State = after(Rules::Thirteen, &[PUBLISHED]);
+    assert!(enabled(&thirteen, R5), "the owner sees no client and an unresolved attempt");
+    let landed_again: State = replay(thirteen, steps, &[R5]);
+    assert!(violations(&landed_again).contains(&"an attempt started after the command exited published".to_string()));
+    let fourteen: State = after(Rules::Fourteen, &[RECEIPT, PUBLISHED]);
+    assert_eq!(fourteen.recorded, Some((1, Class::Published)), "recovery reads the receipt");
+    assert!(!enabled(&fourteen, R5));
+    assert!(violations(&fourteen).is_empty());
+}
+
+/// R13-1: the success step needs the receipt first under 14, so no schedule exits published without it.
+#[test]
+fn fourteen_prints_published_only_after_the_receipt() {
+    let reached: State = replay(initial(Rules::Fourteen), steps, &[START, HOOK_OK, RECORD, WRITE, READS_COMMIT, WRITES_REF]);
+    assert!(!enabled(&reached, "client: sees commit: ok or the tip at new, prints published and exits 0"));
+    assert!(enabled(&reached, "client: writes the receipt before it prints published"));
+}
+
+/// Control 14: a late positive failure after the unresolved exit (the owner's `abort` was queued first, so the child executes it and the
+/// client's `commit` is the ignored second line). The request can never land; revision 14 records the outcome `withdrawn` and starts no
+/// attempt; revision 13 leaves it pending for ever (red).
+#[test]
+fn a_late_positive_failure_after_the_unresolved_exit_records_withdrawn() {
+    let schedule = [
+        START,
+        HOOK_OK,
+        RECORD,
+        HOLD,
+        WRITE,
+        COMMITTING_MARK,
+        COMMITTING_EXIT,
+        "environment: update-ref reads abort",
+        "environment: update-ref prints abort: ok and exits",
+        E1,
+    ];
+    let thirteen: State = replay(initial(Rules::Thirteen), steps, &schedule);
+    assert!(violations(&thirteen).contains(&"an unresolved attempt ended in a positive failure and the request stayed pending".to_string()));
+    let fourteen: State = replay(initial(Rules::Fourteen), steps, &schedule);
+    assert!(fourteen.outcome_withdrawn && violations(&fourteen).is_empty());
+    assert!(!enabled(&fourteen, START), "no attempt after the one the mark names");
 }
 
 /// The transaction process makes progress with its owner dead (review 3b: child progress must not depend on a live owner): the
@@ -167,7 +225,7 @@ fn only_a_positive_failure_allows_the_next_attempt() {
 /// child that never reads again keeps the branch lock, and revision 13 claims only the enqueue.
 #[test]
 fn prepared_hold_enqueues_abort_and_a_child_that_never_reads_keeps_the_lock() {
-    let report: Report = check_hold(Rules::Thirteen);
+    let report: Report = check_hold(Rules::Fourteen);
     assert!(report.violation.is_none() && report.exhausted, "bound {}: {:?}", HOLD_BOUND, report.violation.map(|found| { return found.message; }));
     let wedged: State = replay(initial(Rules::Thirteen), steps, &[START, HOOK_OK, "environment: update-ref never reads again", HOLD]);
     assert_eq!(wedged.pipe, Pipe::Abort);
@@ -178,7 +236,7 @@ fn prepared_hold_enqueues_abort_and_a_child_that_never_reads_keeps_the_lock() {
 /// Revision 12's text claimed that `abort` releases the lock whatever else holds the pipe (red): the search finds the wedged child.
 #[test]
 fn the_revision_twelve_text_that_abort_releases_the_lock_is_false() {
-    let report: Report = check_with(Rules::Thirteen, invariant_twelve_text_lock_released);
+    let report: Report = check_with(Rules::Fourteen, invariant_twelve_text_lock_released);
     let violation = report.violation.expect("a child that never reads keeps the lock");
     assert_eq!(violation.message, "abort was enqueued and the branch lock is still held by a process that never reads");
 }
@@ -239,13 +297,13 @@ fn w1_and_the_owner_race_on_the_closing_line_and_commit_never_queues() {
 /// E1's classification as a pure function: the revision-12 negative inference and revision 13's U, side by side.
 #[test]
 fn classify_separates_the_negative_inference_from_unresolved() {
-    assert_eq!(classify(Rules::Twelve, true, Line::Nothing, Seen::Absent, true), Class::Failed);
-    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Absent, true), Class::Unresolved);
-    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Unread, true), Class::Unresolved);
-    assert_eq!(classify(Rules::Thirteen, false, Line::Nothing, Seen::Unread, true), Class::Failed);
-    assert_eq!(classify(Rules::Thirteen, true, Line::AbortOk, Seen::Absent, true), Class::Failed);
-    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Present, true), Class::Published);
-    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Rewritten, true), Class::RewrittenAway);
+    assert_eq!(classify(Rules::Twelve, true, Line::Nothing, Seen::Absent, true, false), Class::Failed);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Absent, true, false), Class::Unresolved);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Unread, true, false), Class::Unresolved);
+    assert_eq!(classify(Rules::Thirteen, false, Line::Nothing, Seen::Unread, true, false), Class::Failed);
+    assert_eq!(classify(Rules::Thirteen, true, Line::AbortOk, Seen::Absent, true, false), Class::Failed);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Present, true, false), Class::Published);
+    assert_eq!(classify(Rules::Thirteen, true, Line::Nothing, Seen::Rewritten, true, false), Class::RewrittenAway);
 }
 
 /// Positive controls: each clause of the contract fires on a state built to break it, so the green search above can fail.
@@ -288,13 +346,14 @@ fn every_clause_of_the_contract_fires_on_a_state_that_breaks_it() {
 }
 
 /// E1 evidence is only as good as its channel (review 3a P2, item E1 evidence): when a hook descendant can write into the file E1 reads, a
-/// forged `abort: ok` makes E1 call a submitted attempt positively failed while its `commit` is still queued, and the retry can land too.
+/// forged `abort: ok` survives until the attempt ends (here: the ref is written, the report is missing and the tip cannot be read), so E1
+/// calls an attempt that wrote the ref positively failed.
 /// Revision 13 relies on Git redirecting a hook's standard output away from `out` (a backend gate): without it the search is red, with it
 /// green.
 #[test]
 fn a_hook_that_can_write_the_output_file_forges_positive_failure() {
-    let shared: Report = check(Rules::ThirteenSharedChannel);
+    let shared: Report = check(Rules::FourteenSharedChannel);
     let violation = shared.violation.expect("a forged line is accepted as evidence");
     assert!(violation.trace.iter().any(|label| { return label.contains("looks like abort: ok"); }), "{:?}", violation.trace);
-    assert!(check(Rules::Thirteen).violation.is_none());
+    assert!(check(Rules::Fourteen).violation.is_none());
 }
