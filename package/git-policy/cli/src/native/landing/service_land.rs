@@ -598,6 +598,11 @@ mod tests;
 #[path = "service_land_witness_tests.rs"]
 mod witness_tests;
 
+/// Controls for a service whose branch write does not return stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_hung_write_tests.rs"]
+mod hung_write_tests;
+
 /// Controls for the worktree's head around a landing stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_head_tests.rs"]

@@ -83,12 +83,15 @@ pub struct ServeSettings {
     /// The worktree this instance serves, as `service_instance::instance_of` names it; every message about another worktree
     ///  is refused. Nothing in a development run that serves any worktree.
     pub instance: Option<String>,
+    /// How long a write the service never ends runs before the clients behind it are told, and may be withdrawn while the
+    ///  service is inside it (`wait_ceilings.rs`, `NEVER_ENDED_STEP_SLOW_AFTER`); a control shortens it.
+    pub stuck_after: Duration,
 }
 
 impl ServeSettings {
     /// The settings of an ordinary run: the given idle exit and this build's release.
     pub fn new(idle: Duration) -> Self {
-        return Self { idle, release: String::from(RELEASE), instance: None };
+        return Self { idle, release: String::from(RELEASE), instance: None, stuck_after: NEVER_ENDED_STEP_SLOW_AFTER };
     }
 }
 
@@ -291,12 +294,12 @@ const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// () => { const words = board.describe(SLOW_AFTER); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
+/// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
 fn stuck_notice(board: &LandingBoard) -> impl FnMut() -> Option<ServiceMessage> + '_ {
     let mut last: Option<String> = None;
     return move || {
-        let words: String = board.describe(NEVER_ENDED_STEP_SLOW_AFTER)?;
+        let words: String = board.describe()?;
         if last.as_deref() == Some(words.as_str()) {
             return None;
         }
@@ -351,7 +354,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             //  withdrawn here (`service_busy.rs`); otherwise the landing thread answers between two landings, so the answer is
             //  either that the commit landed or that it never will, and meanwhile this thread keeps the client told that the
             //  service lives.
-            match board.withdraw_early(id.as_str(), NEVER_ENDED_STEP_SLOW_AFTER) {
+            match board.withdraw_early(id.as_str()) {
                 EarlyAnswer::Landed(commit) => send(&stream, &ServiceMessage::Landed { id, commit, already: true }),
                 EarlyAnswer::Withdrawn(words) => {
                     send(&stream, &ServiceMessage::Waiting { text: words });
@@ -662,7 +665,7 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     // What this landing thread is inside, for the threads that talk to clients (`service_busy.rs`).
-    let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone());
+    let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone(), settings.stuck_after);
     crate::service_busy::use_on_this_thread(Arc::clone(&board));
     let connection_board: Arc<LandingBoard> = Arc::clone(&board);
     // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.

@@ -16,7 +16,7 @@
 //! ```ts
 //! const board = new LandingBoard(journal);
 //! const dropped = board.beginGroup(ids); landGroup(); board.endGroup();       // the landing thread
-//! const answer = board.withdrawEarly(id, SLOW_AFTER);                          // a connection thread
+//! const answer = board.withdrawEarly(id);                                      // a connection thread
 //! ```
 
 use crate::service_journal::landed_commits;
@@ -78,9 +78,11 @@ pub enum EarlyAnswer {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class LandingBoard { beginGroup(ids): string[]; endGroup(): void; describe(after): string | undefined; withdrawEarly(id, after): EarlyAnswer }
+/// class LandingBoard { beginGroup(ids): string[]; endGroup(): void; describe(): string | undefined; withdrawEarly(id): EarlyAnswer }
 /// ```
 pub struct LandingBoard {
+    /// How long a write runs before it counts as stuck (`wait_ceilings.rs`, `NEVER_ENDED_STEP_SLOW_AFTER`; shorter in a control).
+    slow_after: Duration,
     /// The journal the finished batches are read from, for the answer to a withdrawal of a request that already landed.
     journal: PathBuf,
     /// The record.
@@ -88,9 +90,9 @@ pub struct LandingBoard {
 }
 
 impl LandingBoard {
-    /// A board for the service whose journal is `journal`.
-    pub fn new(journal: PathBuf) -> Arc<Self> {
-        return Arc::new(Self { journal, state: Mutex::new(State::default()) });
+    /// A board for the service whose journal is `journal`, where a write counts as stuck after `slow_after`.
+    pub fn new(journal: PathBuf, slow_after: Duration) -> Arc<Self> {
+        return Arc::new(Self { slow_after, journal, state: Mutex::new(State::default()) });
     }
 
     /// The record, whether or not a thread that held it panicked: a poisoned record is still a record of what the thread did.
@@ -121,12 +123,12 @@ impl LandingBoard {
     }
 
     /// The words that tell a client what the service is stuck in, when the landing thread has been inside a write that is never
-    ///  ended for longer than `after`; nothing otherwise.
-    pub fn describe(&self, after: Duration) -> Option<String> {
+    ///  ended for longer than the board's `slow_after`; nothing otherwise.
+    pub fn describe(&self) -> Option<String> {
         let state: MutexGuard<'_, State> = self.locked();
         let step: &RunningStep = state.step.as_ref()?;
         let running: Duration = step.since.elapsed();
-        if running <= after {
+        if running <= self.slow_after {
             return None;
         }
         let minutes: u64 = running.as_secs() / 60;
@@ -150,8 +152,8 @@ impl LandingBoard {
     /// ```ts
     /// stuck && !inFlight.has(id) ? (landed(id) ?? withdraw(id)) : 'queued'
     /// ```
-    pub fn withdraw_early(&self, id: &str, after: Duration) -> EarlyAnswer {
-        let Some(words) = self.describe(after) else {
+    pub fn withdraw_early(&self, id: &str) -> EarlyAnswer {
+        let Some(words) = self.describe() else {
             return EarlyAnswer::Queued;
         };
         // Read before the lock is taken again: a request that is not in flight cannot land while the thread is stuck.
