@@ -46,6 +46,8 @@ thread_local! {
     static REAP_ERROR: Cell<bool> = const { Cell::new(false) };
     /// Whether the next sync of a file that is about to be published whole, on this thread, fails.
     static PUBLICATION_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next stop of a scope on this thread finds a member that survives every signal until its deadline.
+    static CONTAINMENT_SURVIVOR: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static RECORD_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
@@ -117,6 +119,9 @@ pub enum Point {
     ListingOpen,
     /// The stop of a scope reports that a member could not be stopped within the bound.
     ContainmentStopStuck,
+    /// The stop of a scope after the program started finds a member that survives every signal: the stop runs its real loop to its
+    /// deadline and then reports that the member could not be stopped.
+    ContainmentSurvivor,
     /// The stop of a scope after the program started fails with an error.
     ContainmentStopError,
     /// The listing of the members of a scope after the program started fails.
@@ -159,6 +164,7 @@ pub fn arm(point: Point) {
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| { slot.set(true); }),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(|slot| { slot.set(true); }),
         Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
+        Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(|slot| { slot.set(true); }),
         Point::ReapError => REAP_ERROR.with(|slot| { slot.set(true); }),
         Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(|slot| { slot.set(true); }),
         Point::RecordSync => RECORD_SYNC.with(|slot| { slot.set(true); }),
@@ -198,6 +204,7 @@ pub fn fires(point: Point) -> bool {
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(Cell::take),
         Point::AcknowledgementFileSync => ACKNOWLEDGEMENT_FILE_SYNC.with(Cell::take),
         Point::AcknowledgementDirectorySync => ACKNOWLEDGEMENT_DIRECTORY_SYNC.with(Cell::take),
+        Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(Cell::take),
         Point::ReapError => REAP_ERROR.with(Cell::take),
         Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(Cell::take),
         Point::RecordSync => RECORD_SYNC.with(Cell::take),

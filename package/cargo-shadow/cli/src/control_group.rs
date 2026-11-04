@@ -639,6 +639,48 @@ fn start_of(pid: i32) -> StartOf {
 }
 
 /// What:
+/// `#[cfg(test)]
+pub(crate) fn process_is_running(pid: i32) -> Result<bool, String>` says whether a process with this id is running (not ended,
+/// not a zombie that is waiting to be reaped), and fails when it cannot tell.
+/// Why:
+/// An oracle of the tests that decides "this process is stopped" must not fail open: an inspection that cannot tell (a procfs of
+/// another namespace, an unreadable entry) is an error, never "gone" (certification group 1).
+/// It reads through the pinned procfs descriptor and a pidfd, as the launcher question does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function processIsRunning(pid: number): boolean  // throws when it cannot tell
+/// ```
+pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
+    use std::os::fd::AsRawFd;
+    let found: Pid = Pid::from_raw(pid).ok_or_else(|| { return format!("{pid} is not a process id"); })?;
+    let pidfd: OwnedFd = match pidfd_open(found, PidfdFlags::empty()) {
+        Ok(opened) => opened,
+        Err(Errno::SRCH) => return Ok(false),
+        Err(error) => return Err(format!("a pidfd for process {pid} cannot be opened ({error})")),
+    };
+    let root: ProcRoot = open_proc_root()?;
+    let number = || -> Result<i64, String> {
+        let info: String = read_in_proc(&root, &format!("{}/fdinfo/{}", root.own, pidfd.as_raw_fd())).map_err(|error| { return format!("the pidfd of process {pid} cannot be examined ({error})"); })?;
+        let line: &str = info.lines().find_map(|candidate| { return candidate.strip_prefix("Pid:"); }).ok_or_else(|| { return format!("the pidfd of process {pid} has no Pid line"); })?;
+        return line.trim().parse::<i64>().map_err(|error| { return format!("the Pid line of process {pid} is not a number ({error})"); });
+    };
+    match number()? {
+        -1 => return Ok(false),
+        other if other == i64::from(pid) => {}
+        other => return Err(format!("the mounted procfs numbers process {pid} as {other}, so it serves another process id namespace")),
+    }
+    return match read_in_proc(&root, &format!("{pid}/stat")).and_then(|text| { return parse_stat(pid, &text); }) {
+        Ok((_, state)) => Ok(state != 'Z' && state != 'X'),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => match number()? {
+            -1 => Ok(false),
+            _ => Err(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({error})")),
+        },
+        Err(error) => Err(format!("/proc/{pid}/stat cannot be read ({error})")),
+    };
+}
+
+/// What:
 /// `pub(crate) fn process_start(pid: i32) -> io::Result<u64>` is the start time of a process, in clock ticks since boot
 /// (field 22 of `/proc/<pid>/stat`).
 /// Why:
@@ -1280,6 +1322,12 @@ impl ControlGroup {
             }
         }
         let deadline: Instant = Instant::now() + bound;
+        // A test makes a member survive every signal, so the loop below runs to its deadline as it would for a member in an
+        // uninterruptible wait (round 16, V6: an unsuccessful shutdown has a deadline).
+        #[cfg(test)]
+        let survivor: bool = crate::failpoints::fires(crate::failpoints::Point::ContainmentSurvivor);
+        #[cfg(not(test))]
+        let survivor: bool = false;
         match write_text(&self.directory.join("cgroup.kill"), "1") {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -1298,7 +1346,7 @@ impl ControlGroup {
             Err(error) => return Err(error),
         };
         loop {
-            if !populated_through(&events)? {
+            if !populated_through(&events)? && !survivor {
                 return Ok(true);
             }
             self.signal_members()?;

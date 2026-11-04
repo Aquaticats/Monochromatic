@@ -144,6 +144,62 @@ thread_local! {
     /// A hook that runs inside the start of a run, after the scope's record is on disk and before the program starts,
     /// so a test can overlap other work with the start at a boundary of its own choosing.
     static START_HOOK: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
+
+    /// A hook that runs right after the program has started and decides whether the completion of the startup fails: it returns
+    /// `true` to make it fail, after the test has waited for whatever it needs to be ready (a writer, for one).
+    static STARTUP_HOOK: RefCell<Option<Rc<dyn Fn() -> bool>>> = const { RefCell::new(None) };
+
+    /// The ordered events of the recording and the launching of the runs of this thread, for the tests of their order.
+    static TRACE: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// What:
+/// `fn trace(event: impl FnOnce() -> String)` appends an event to this thread's trace in a test build and does nothing otherwise.
+/// Why:
+/// The order record write, durability barrier, launch is a property of the real boundaries, so the tests read an ordered trace of
+/// them (certification group 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function trace(event: () => string): void
+/// ```
+#[cfg(test)]
+fn trace(event: impl FnOnce() -> String) {
+    let text: String = event();
+    TRACE.with(|slot| { slot.borrow_mut().push(text); });
+}
+
+/// The production build keeps no trace.
+#[cfg(not(test))]
+fn trace(_event: impl FnOnce() -> String) {}
+
+/// What:
+/// `pub(crate) fn take_trace_for_test() -> Vec<String>` returns and clears this thread's trace.
+/// Why:
+/// A test reads the events of the run it just made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function takeTraceForTest(): string[]
+/// ```
+#[cfg(test)]
+pub(crate) fn take_trace_for_test() -> Vec<String> {
+    return TRACE.with(|slot| { return std::mem::take(&mut *slot.borrow_mut()); });
+}
+
+/// What:
+/// `pub(crate) fn on_startup_for_test(hook: Option<Rc<dyn Fn() -> bool>>)` sets the hook that runs after the program started and may
+/// make the completion of the startup fail.
+/// Why:
+/// The row A2/R4 requires a failure after the child and a writer are running to be as conservative as a failed stop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function onStartupForTest(hook?: () => boolean): void
+/// ```
+#[cfg(test)]
+pub(crate) fn on_startup_for_test(hook: Option<Rc<dyn Fn() -> bool>>) {
+    STARTUP_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
 }
 
 /// What a scope remembers.
@@ -368,6 +424,14 @@ fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()>
         return Err(io::Error::from(Errno::INVAL));
     }
     let line: String = format!("{record}\n");
+    let kind_name: &str = match record {
+        Record::Scope { .. } => "scope",
+        Record::Settled { .. } => "settled",
+        Record::Launcher { .. } => "launcher",
+        Record::ProcessGroup(_) => "pgroup",
+        Record::ProcessGroupStarting => "pgroup-starting",
+    };
+    trace(|| format!("attempt {kind_name}"));
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::RecordWrite) {
         return Err(io::Error::other("injected failure to write the containment record"));
@@ -376,15 +440,20 @@ fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()>
     if written != line.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "the containment record was cut short"));
     }
+    trace(|| format!("written {kind_name}"));
     if !sync {
         return Ok(());
     }
     // The record is durable before the program it describes can start: a sync that fails stops the start.
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::RecordSync) {
+        trace(|| format!("sync {kind_name} whole={}", std::fs::read_to_string(log).is_ok_and(|text| { return text.ends_with(&line); })));
         return Err(io::Error::other("injected failure to make the containment record durable"));
     }
-    return fsync(&file).map_err(io::Error::from);
+    trace(|| format!("sync {kind_name} whole={}", std::fs::read_to_string(log).is_ok_and(|text| { return text.ends_with(&line); })));
+    fsync(&file).map_err(io::Error::from)?;
+    trace(|| format!("synced {kind_name}"));
+    return Ok(());
 }
 
 /// What:
@@ -832,6 +901,13 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
             return Err(error);
         }
     };
+    // A test decides here, after the program has started, whether the completion of the startup fails (certification group 2).
+    #[cfg(test)]
+    if let Some(hook) = STARTUP_HOOK.with(|slot| { return slot.borrow().clone(); })
+        && hook()
+    {
+        return Err(fail_started(&containment, &mut child, &scope, bound, RunError::Io(io::Error::other("injected failure to complete the startup"))));
+    }
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let _cancel_on_exit: CancelOnDrop = CancelOnDrop(Arc::clone(&cancel));
     let writer: Option<Receiver<io::Result<()>>> = match (input, child.stdin.take()) {
@@ -971,6 +1047,7 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             run_start_hook();
             let mut launch: Command = group.launcher(route, command, clean_environment);
             configure_stdio(&mut launch, has_input);
+            trace(|| "launch scope".to_string());
             let child: Child = launch.spawn().map_err(RunError::Io)?;
             if let Some(state) = scope {
                 note_launcher(&state.log, group.directory(), &child);
@@ -990,6 +1067,7 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
                 })?;
             }
             run_start_hook();
+            trace(|| "launch pgroup".to_string());
             let mut child: Child = command.spawn().map_err(RunError::Io)?;
             let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
             if let Some(state) = scope
