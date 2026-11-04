@@ -1,9 +1,8 @@
-//! Controls for the route decision: an existing socket is used as it is, the session bus and the service program together
+//! Controls for the route decision: an existing socket is used as it is, the session bus and the wrapper's own executable together
 //!  mean the wrapper provisions, and anything less has no route.
 
 use super::*;
 use crate::test_support::{fixture, remove};
-use crate::service_provision::SERVICE_PROGRAM;
 
 const GIT: &str = "/usr/bin/git";
 
@@ -45,9 +44,9 @@ fn add_bus(machine: &Machine) -> String {
 }
 
 fn add_program(machine: &Machine) -> PathBuf {
-    let program: PathBuf = machine.wrapper.parent().expect("programs").join(SERVICE_PROGRAM);
-    std::fs::write(&program, b"program").expect("service program");
-    return program;
+    // The service is a mode of the wrapper's own executable, so the wrapper is the program the unit names.
+    std::fs::write(&machine.wrapper, b"program").expect("the wrapper's own executable");
+    return machine.wrapper.clone();
 }
 
 /// A socket that exists is used as it is, with nothing to set up.

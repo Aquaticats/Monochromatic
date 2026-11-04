@@ -136,6 +136,12 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
     };
 }
 
+/// Whether the service manager passed this process a listening socket: the variables `LISTEN_PID` and `LISTEN_FDS` of this
+///  process's environment name this process and at least one descriptor.
+pub fn socket_passed_in() -> bool {
+    return ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id()).is_ok();
+}
+
 /// What:
 ///  Checks the service manager's socket-activation variables:
 /// `listen_pid` must name this process (`own_pid`) and

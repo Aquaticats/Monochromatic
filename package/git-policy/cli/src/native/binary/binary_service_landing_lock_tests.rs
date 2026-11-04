@@ -15,7 +15,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A service process that is stopped when the control ends, whether it passed or panicked.
@@ -39,7 +38,7 @@ pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_secon
     let git_dir: PathBuf = fixture.root.join("repo/.git");
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir.as_path());
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
-    let child: Child = Command::new(SERVICE)
+    let child: Child = super::support::service_command()
         .args(["--journal"])
         .arg(fixture.root.join("journal"))
         .arg("--path")

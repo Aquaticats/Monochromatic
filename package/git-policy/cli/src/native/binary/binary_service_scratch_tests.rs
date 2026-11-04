@@ -13,10 +13,9 @@ use std::io::Write;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixStream};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::time::{Duration, Instant};
 
-const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 
 /// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
@@ -35,7 +34,7 @@ impl Drop for Held {
 }
 
 fn start(fixture: &Fixture, name: &str) -> Held {
-    let child: Child = Command::new(SERVICE)
+    let child: Child = super::support::service_command()
         .args(["--journal"])
         .arg(fixture.root.join("journal"))
         .args(["--abstract", name])

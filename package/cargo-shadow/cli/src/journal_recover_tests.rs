@@ -219,3 +219,56 @@ fn the_exhausted_names_advice_does_not_recommend_archiving_and_names_the_open_fi
     assert!(!message.contains("archive"), "{message}");
     assert!(message.contains("open"), "{message}");
 }
+
+/// Acceptance row V5 (certification, fourth pass): the recovery's own output barriers are the real `make_durable` calls for the
+/// lockfiles and the journaled manifests, each failed on its own at its production operation. The root is accepted by the policy and
+/// kept (no replacement runs for it, so no other durability supplies the evidence): a failed file or directory sync is a mandatory
+/// failure, the fault is consumed, and the journal stays; the control without a fault completes and removes the journal.
+#[test]
+fn the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_real_barrier() {
+    use crate::failpoints::{Point, arm, fires};
+    for fault in [Point::OutputFileSync, Point::OutputDirectorySync] {
+        let root = repository("lock", "manifest after");
+        let manifest_edit = edit(root.path(), "manifest before");
+        let journal = plant(root.path(), &[snapshot("lock")], &[manifest_edit]);
+        fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "output the policy accepts").expect("the killed run's output");
+        arm(fault);
+
+        let report = crate::journal::recover_report(root.path(), &|_before, _live| { return Vec::new(); });
+
+        assert!(!fires(fault), "{fault:?}: the barrier was never reached at its production operation");
+        assert!(report.mandatory_failure, "{fault:?}: a failed output barrier of the recovery was not a mandatory failure: {:?}", report.messages);
+        assert!(journal.exists(), "{fault:?}: the journal was removed after a failed output barrier");
+        assert_eq!(live_lock(root.path()), "output the policy accepts");
+    }
+    // The control: no fault.
+    let root = repository("lock", "manifest after");
+    let journal = plant(root.path(), &[snapshot("lock")], &[edit(root.path(), "manifest before")]);
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), "output the policy accepts").expect("the killed run's output");
+    let _ = crate::bounded_run::take_trace_for_test();
+
+    let report = crate::journal::recover_report(root.path(), &|_before, _live| { return Vec::new(); });
+
+    assert!(!report.mandatory_failure && !journal.exists(), "the control did not complete: {:?}", report.messages);
+    let durable: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("durable "); }).collect();
+    assert_eq!(durable, vec!["durable Cargo.lock".to_string(), "durable Cargo.toml".to_string()], "the recovery did not make both outputs durable before completing");
+}
+
+/// Acceptance row V5 (certification, fourth pass): the recovery of a journal that never became ready reports its mandatory failures
+/// through `recover_report`: a failed durability barrier of the live files is a mandatory failure, and a failed removal after the
+/// marker is a cleanup only.
+#[test]
+fn an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_report() {
+    use crate::failpoints::{Point, arm, fires};
+    for (fault, mandatory) in [(Point::RecoverDurability, true), (Point::CompletionSync, true), (Point::FinishCleanup, false)] {
+        let root = repository("same lock", "manifest");
+        let journal = unready_journal_with_manifest(root.path(), "same lock", "manifest");
+        arm(fault);
+
+        let report = crate::journal::recover_report(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+
+        assert!(!fires(fault), "{fault:?}: the fault was never reached");
+        assert_eq!(report.mandatory_failure, mandatory, "{fault:?}: {:?}", report.messages);
+        assert_eq!(journal.exists(), mandatory && !matches!(fault, Point::CompletionSync), "{fault:?}: the journal is not in the state this failure leaves: {:?}", report.messages);
+    }
+}

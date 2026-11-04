@@ -104,7 +104,7 @@ fn write_record(runtime: &Path, git: &Path) {
         runtime_dir: runtime.to_path_buf(),
         user_unit_dir: None,
         bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/nonexistent/cli-git-service"),
+        service_binary: PathBuf::from("/nonexistent/cli-git-native"),
         git: git.to_path_buf(),
         instance: String::from("fixture"),
         retirement_wait: std::time::Duration::ZERO,

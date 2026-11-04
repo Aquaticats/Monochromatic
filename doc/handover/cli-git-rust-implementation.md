@@ -143,7 +143,104 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   sent to the models agent at once,
   which resumed even with five other agents running
   (resuming a finished agent was not refused by the five-agent limit).
-  `-a1.txt` and `-b.txt` go to it the moment each lands.
+  `-a1.txt` ("not correct as is": a disposal revalidation hole and the doorbell blocking clients) and `-b.txt`
+  ("correct after named fixes") were sent the moment each landed.
+- cargo-shadow 0.1.1 as `cargo` blocked every wrapper gate:
+  `bin/native-scanner-snapshot.ts` runs `cargo vendor --manifest-path` on a staged copy outside the work tree,
+  and the shadow counted all 281 locked versions of an unchanged lockfile as new and refused 4 on trust level
+  (log `~/temp/agent/gate/gpc-gate-branch-write-round4-retry-20261104T155841-0500.log`).
+  The `cargo` link is off (`8917a3f221`;
+  the install left the old symlinks,
+  removed by hand in the main checkout and in the branch-write worktree;
+  that stale-link defect went to the mpm-shadow agent).
+  The cargo-shadow agent has the vendor defect as top priority;
+  the link returns after its fixed release passes the launcher trace again.
+- Branch-write round 4 (`aa0fee0c2cf70bb31`,
+  tip `07076dc23b`,
+  host suite 4874/4874) re-gated without the link:
+  unit `gpc-gate-branch-write-round4-no-cargo-link-20261104T160436-0500`;
+  review `~/temp/agent/reviews/branch-write-r4-sol.txt` returned "correct after named fixes" (B,
+  the side-ref reflog proof,
+  still lacks a valid safety proof).
+  That gate failed 4873/4874:
+  `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  with `thread 'cli-git-durable' ... panicked at library/std/src/thread/scoped.rs:206:46: failed to spawn thread: ... Resource temporarily unavailable`
+  and the same panic on `main`;
+  the test passed on the round 3 and startup-wake gates.
+  Not a round 4 change (its diff adds no scoped spawn):
+  `landing/service_durable.rs` `sync_batch` (line 60) and `force` (line 132) call `scope.spawn`,
+  which panics when a thread cannot start;
+  shipped since `eaad11a3a6` (0.5.28 and later).
+  The fix and an audit of every production `std::thread::scope` site go out in the next release.
+  Sent to the branch-write agent first,
+  before the review fixes,
+  on its round 5 branch (`fix/git-policy-cli-side-ref-proof-round5`,
+  worktree `~/temp/agent/branch-write-round5`);
+  round 4 and round 5 merge together once that gate passes.
+  Owner decision on the earlier single service,
+  2026-11-04 (question tool):
+  "A: fail, retry (Recommended)",
+  which round 4 built;
+  record it in `doc/planning/cli-git-no-unbounded-waits.md` and `SPEC.md` when the branch merges.
+- Service startup wake (`aca6e78c5ffbd5680` done;
+  branch `fix/git-policy-cli-service-recovers-claims-without-a-wake`,
+  gate 4847/4847 on the Rust tip `f2dc8833f8`,
+  e2e kill scenarios green on seeds 1 to 3):
+  main merged in cleanly,
+  gate `gpc-gate-service-startup-wake-with-main-20261104T160613-0500` running,
+  review `~/temp/agent/reviews/service-startup-wake-sol.txt` returned "correct after named fixes"
+  (fixes on `fix/git-policy-cli-claim-watch-identity-and-errors`);
+  the gate passed 4866/4866 and the branch is merged to main.
+  Main now holds it together with the leaked one-executable commit,
+  first gated together by the one-executable branch's gate.
+- QWD tightened as the owner chose ("Tighten QWD (Recommended)",
+  `3abcbf585e`).
+- Leak to main:
+  the one-executable and mpm-shadow branches were created with `git worktree add -b <branch> <path> origin/main`,
+  which set `origin/main` as their upstream,
+  and the wrapper's auto-push sends commits to the upstream when the names differ,
+  so `9b360150c0` (service as a mode of `cli-git-native`,
+  not gated),
+  the mpm-shadow never-compile commits (`ae2f2210bc`,
+  `0154f65dea`,
+  package tests 546/546) and its link retirement (`5b7213a46a`,
+  `c71ad82ba1`) reached origin/main.
+  Both upstreams were removed at 2026-11-04T16:20-05:00.
+  Owner (question tool):
+  "A: keep, gate first (Recommended)":
+  the one-executable branch is gated before merge and before 0.5.35.
+  Future briefs start branches from a commit hash or local `main`,
+  or pass `--no-track`.
+- Owner on cargo-binstall's quick-install (question tool,
+  after a clarification):
+  "A: one flag, our crates (Recommended)":
+  crates this repository publishes get `--disable-strategies compile,quick-install`,
+  third-party crates keep the defaults;
+  owner's note:
+  "The point of cargo-binstall is for us to not manually point to gh releases ourselves!"
+  Sent to the mpm-shadow agent.
+  Its audit:
+  only wrapper 0.5.34 among repository rows fails with compile disabled (archive lacks `cli-git-service`);
+  release mpm-shadow after 0.5.35 is locked.
+- cargo-shadow round 19 merged to main (`bc671de431`;
+  gate 648/648;
+  staged copies in ignored directories go to cargo untouched;
+  running-image identity from `/proc/self/exe`;
+  K1 unreadable inventory reported as unknown);
+  next:
+  release 0.1.2,
+  relock,
+  launcher trace,
+  put the `cargo` link back,
+  then the fifth certification pass (bundles `~/temp/agent/reviews/cargo-shadow-cert5-*.txt`,
+  15 groups).
+  0.1.2 published (crates.io 2026-11-04T21:23:13Z,
+  publish run 41915321457 built from `b96ca268de`),
+  locked and installed without the `cargo` link (`3a59c6cc1c`);
+  launcher trace (`~/temp/agent/cgs-installed-launcher-trace.ts`) running before the link goes back;
+  the fifth pass is running (`run-cert5-reviews.ts`,
+  groups read from the manifest,
+  outputs `cargo-shadow-cert5-sol-<n>.txt`).
 
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,

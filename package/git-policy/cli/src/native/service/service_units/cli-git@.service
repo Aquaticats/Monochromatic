@@ -6,10 +6,14 @@ Requires=cli-git@%i.socket
 After=cli-git@%i.socket
 
 [Service]
-# The wrapper replaces the program and Git words below, each written between two at-signs, with absolute paths. The socket
-# comes from the socket unit, so the program is never started by the wrapper and is started again by the first
+# The wrapper replaces the program and Git words below, each written between two at-signs, with absolute paths. The program
+# is the wrapper's own executable, started in its service mode by the first three words after it (service_main.rs); the
+# manager starts it, never the wrapper. The socket comes from the socket unit, so the service is started again by the first
 # connection after an exit or a crash. The instance refuses every message about another worktree.
-ExecStart=@SERVICE_BINARY@ --journal %S/cli-git/service/%i --git @GIT@ --instance %i
+ExecStart=@SERVICE_BINARY@ cli-git service run --journal %S/cli-git/service/%i --git @GIT@ --instance %i
+# The journal keeps the identifier it has always shown for this service, also for the lines the manager captures from
+# standard error, which would otherwise carry the name of the executable.
+SyslogIdentifier=cli-git-service
 StateDirectory=cli-git/service/%i
 Restart=on-failure
 # No resource limits of the wrapper's own: the service and the Git processes it starts get systemd's defaults, the same

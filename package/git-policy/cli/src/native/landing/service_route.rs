@@ -2,8 +2,8 @@
 //!  How a commit reaches the resident service: already listening, or set up first by the wrapper.
 //! Why:
 //!  There is no switch and no install state for the person to manage (`doc/planning/cli-git-resident-service.md`,
-//!  "Provisioning"). The route follows the machine: a user session bus and a service program next to the wrapper mean the
-//!  wrapper can set the service up itself, and keeps it set up (the socket is the manager's and outlives every upgrade, so
+//!  "Provisioning"). The route follows the machine: a user session bus and the wrapper's own executable (which is the service
+//!  program too) mean the wrapper can set the service up itself, and keeps it set up (the socket is the manager's and outlives every upgrade, so
 //!  its presence never says the installed units name this release's program); a socket without them is used as it is;
 //!  anything else has no route, and the commit stops with the plain message of its platform, because the service is the only
 //!  writer of a commit. The decision reads the file system only and starts no process.
@@ -15,7 +15,7 @@
 
 use crate::repo_read_layout::read_layout_in;
 use crate::service_instance::{SOCKET_DIRECTORY, instance_of, socket_for};
-use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT, SERVICE_PROGRAM};
+use crate::service_provision::{ProvisionHost, RETIREMENT_WAIT};
 use crate::service_server::Bind;
 use crate::systemd_dbus::session_bus_path;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
@@ -23,9 +23,10 @@ use std::path::{Path, PathBuf};
 
 static OWN_EXECUTABLE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
-/// Remembers where the running wrapper is, once, so the service program can be found beside it.
+/// Remembers where the running wrapper is, once, so the unit of the service can name it (the service is a mode of the same
+///  executable).
 ///  Identification only: nothing is started from this path (`doc/planning/cli-git-no-self-invocation.md`); the path is
-///  read to name a sibling program in a unit file that the operating system's manager runs.
+///  read to name this executable in a unit file that the operating system's manager runs, as the program of its service mode.
 pub fn remember_own_executable(path: &Path) {
     let _first = OWN_EXECUTABLE.set(path.to_path_buf());
 }
@@ -60,7 +61,7 @@ pub struct Route {
     /// Where the service listens.
     pub address: Bind,
     /// What to set up, or to check is set up, first; absent only when a socket exists and the wrapper cannot set up
-    ///  a service itself (no session bus, or no service program beside it).
+    ///  a service itself (no session bus, or no executable of its own to name).
     pub provision: Option<ProvisionHost>,
 }
 
@@ -74,7 +75,7 @@ pub fn user_unit_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<
 /// What:
 ///  Decides the route.
 /// Why:
-///   Provisioning needs the session bus socket and the service program, and it is always handed back when both are there,
+///   Provisioning needs the session bus socket and the wrapper's own executable, and it is always handed back when both are there,
 ///  even when the socket exists: the socket outlives an upgrade, and the units it activates may name a program the upgrade
 ///  removed. Whether anything must be written is decided where the units are read (`provision`), so this decision stays
 ///  free of reads. A socket that exists without the means to provision is used as it is, whoever made it; with neither
@@ -91,12 +92,9 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     let Some(bus) = session_bus_path(inputs.bus_address, Some(runtime_dir)).filter(|path| { return path.exists(); }) else {
         return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None };
     };
-    let Some(service_binary) = inputs
-        .own_executable
-        .and_then(Path::parent)
-        .map(|directory| { return directory.join(SERVICE_PROGRAM); })
-        .filter(|path| { return path.is_file(); })
-    else {
+    // The service is a mode of the wrapper's own executable (`service_main.rs`), so the unit names that file; a path that
+    //  is not a file (a deleted executable) is no program for a unit to name.
+    let Some(service_binary) = inputs.own_executable.map(Path::to_path_buf).filter(|path| { return path.is_file(); }) else {
         return if socket_exists { Some(Route { address: Bind::Path(socket), provision: None }) } else { None };
     };
     let host: ProvisionHost = ProvisionHost {

@@ -648,6 +648,49 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
 }
 
 /// What:
+/// `pub fn is_git_ignored(root: &Path, relative: &str) -> bool` says whether git ignores a path of the repository at `root`
+/// (`git check-ignore`, exit status 0).
+/// Why:
+/// A crate in a directory that git ignores (a gate's disposable build context under `node_modules`, a scratch copy) is not a lockfile
+/// of the repository: there is no committed lockfile to compare with, so every locked version would count as newly locked and be held
+/// to the trust policy of versions that nobody added. Only a clear "ignored" answer counts; any other answer (not ignored, no
+/// repository, a failure, a timeout) leaves the crate under the catalog's policy, so a crate that is merely new is still checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function isGitIgnored(root: string, relative: string): boolean
+/// ```
+pub fn is_git_ignored(root: &Path, relative: &str) -> bool {
+    // A plain child with a deadline, not a contained run: the question only reads, it writes nothing that needs a scope to stop, and
+    // it must not start a scope (or take a fault meant for the first contained run) on every invocation of the shadow.
+    let mut child = match Command::new("git")
+        .args(["check-ignore", "--quiet", "--", relative])
+        .current_dir(root)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(started) => started,
+        Err(_) => return false,
+    };
+    let deadline: std::time::Instant = std::time::Instant::now() + Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.code() == Some(0),
+            Ok(None) => {}
+            Err(_) => return false,
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// What:
 /// `pub fn explicit_base_from_environment() -> Option<String>` is the base named by `CARGO_SHADOW_TRUST_BASE`,
 /// when it is set
 /// and not blank.

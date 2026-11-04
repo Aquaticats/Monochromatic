@@ -133,12 +133,23 @@ fn a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservative
         wait_for_file(&root.path().join("reached"));
         wrapper.kill().expect("kill the wrapper at the step");
         let _ = wrapper.wait();
-        let before: usize = journal_dirs(root.path()).len();
+        let before_dirs: Vec<PathBuf> = journal_dirs(root.path());
+        let before: usize = before_dirs.len();
 
         let messages: Vec<String> = recover(root.path(), &refusing);
 
         assert_eq!(before, 1, "{step}: the cut left {before} journals");
         assert_eq!(journal_dirs(root.path()).is_empty(), removed, "{step}: the journal's fate is not the conservative one: {messages:?}");
+        // The kept journal is the partial journal itself with its recovery payload (fourth certification pass), not some other entry
+        // of the journal directory: the same path stays, with the snapshot it took and, from the index cut on, the index.
+        if !removed {
+            let journal: &PathBuf = &before_dirs[0];
+            assert!(journal.exists(), "{step}: the partial journal {} is gone: {messages:?}", journal.display());
+            assert_eq!(fs::read_to_string(journal.join("0.lock")).expect("the snapshot"), "original", "{step}: the snapshot of the partial journal was lost or changed");
+            if step == "index" {
+                assert!(journal.join("index.txt").exists(), "{step}: the index of the partial journal was lost");
+            }
+        }
         let expected: &str = if restored { "original" } else { LEFT_BY_THE_KILLED_RUN };
         assert_eq!(live_lock(root.path()), expected, "{step}: the live lockfile is not the expected one: {messages:?}");
     }

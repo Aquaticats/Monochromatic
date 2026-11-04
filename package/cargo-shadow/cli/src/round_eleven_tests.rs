@@ -268,11 +268,30 @@ fn a_gone_launcher_does_not_clear_a_scope_with_a_member() {
     assert!(scope.group.members().is_ok_and(|found| { return !found.is_empty(); }), "the scope has no member, so the schedule is not made");
 
     let blocked: Option<String> = survivor_note(&journal);
+    // The real recovery and admission refuse too (fourth certification pass), before and after the acknowledgement: the member-specific
+    // refusal, the live lockfile unchanged, the journal retained, no transaction admitted.
+    assert_entry_points_refuse_for_a_member(root.path(), &journal, "unacknowledged");
     acknowledge(&journal).expect("acknowledges");
     let acknowledged: Option<String> = survivor_note(&journal);
+    assert_entry_points_refuse_for_a_member(root.path(), &journal, "acknowledged");
 
     assert!(blocked.is_some_and(|text| { return text.contains("still running"); }), "a gone launcher cleared a scope with a member");
     assert!(acknowledged.is_some_and(|text| { return text.contains("still running"); }), "an acknowledgement overrode a scope with a member");
+    // The control: with the member stopped the same journal is recovered, so the refusals above were the member's.
+    scope.group.stop(std::time::Duration::from_secs(5)).expect("stop the member");
+    let after: Vec<String> = recover(root.path(), &refusing);
+    assert!(journal_dirs(root.path()).is_empty(), "the control: with the member gone the journal was not recovered: {after:?}");
+}
+
+/// The real recovery and admission refuse for a live scope member: the refusal names a process that is still running, nothing is
+/// restored, the journal stays, and a new transaction is not admitted.
+fn assert_entry_points_refuse_for_a_member(root: &Path, journal: &Path, label: &str) {
+    let messages: Vec<String> = recover(root, &refusing);
+    assert!(messages.iter().any(|message| { return message.contains("still running"); }), "{label}: the recovery did not name the running member: {messages:?}");
+    assert_eq!(live_lock(root), LEFT_BY_THE_KILLED_RUN, "{label}: a recovery went ahead beside a live scope member: {messages:?}");
+    assert!(journal.exists(), "{label}: the journal was removed beside a live member");
+    assert!(begin(root, &[snapshot("original")], false).is_err(), "{label}: a transaction was admitted beside a live member");
+    assert_eq!(journal_dirs(root).len(), 1, "{label}: the refused admission left a journal behind");
 }
 
 /// Acceptance rows A1, V2 (round 11): what the launcher record cannot prove still waits for an acknowledgement:

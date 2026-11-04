@@ -37,9 +37,6 @@ use std::ffi::OsString;
 /// function main(): never { process.exit(runProcess(argv, env)); }
 /// ```
 fn main() {
-    // The linked scanner's catch boundaries run after the panic hook, so a hook that never
-    // prints a panic's message is installed before anything can scan.
-    git_policy_cli::panic_notice::install_payload_free_panic_hook();
     // What: `.skip(1)` drops the program name; `.collect()` gathers the rest into an
     //       owned list. `Vec<OsString>` is that list type.
     // Why:  Git receives only the caller's arguments, in order.
@@ -49,6 +46,22 @@ fn main() {
     // const args = process.argv.slice(2);
     // ```
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
+    // The service mode is chosen by the leading words (`cli-git service run`), never by the name this program was started
+    // as, and before anything else of the wrapper runs: the service's process setup is its own, and the wrapper's start
+    // never takes it (doc/planning/cli-git-resident-service.md, "One executable").
+    if git_policy_cli::service_main::is_service_start(arguments.as_slice()) {
+        let code: i32 = match git_policy_cli::service_main::service_options(arguments.as_slice()) {
+            Ok(options) => git_policy_cli::service_main::run(options.as_slice()),
+            Err(word) => {
+                git_policy_cli::service_error!("an argument of the service is not text: {}", word.to_string_lossy());
+                git_policy_cli::service_main::EXIT_REFUSED
+            }
+        };
+        std::process::exit(code);
+    }
+    // The linked scanner's catch boundaries run after the panic hook, so a hook that never
+    // prints a panic's message is installed before anything can scan.
+    git_policy_cli::panic_notice::install_payload_free_panic_hook();
     // `vars_os` yields every environment entry as an undecoded name/value pair.
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     // `i32` is the signed 32-bit type of process exit codes.

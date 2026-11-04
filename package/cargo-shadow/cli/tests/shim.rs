@@ -626,3 +626,64 @@ fn the_shadow_prints_the_kept_files_warning_on_stderr_every_completed_run_and_ke
         }
     }
 }
+
+/// A catalog repository that is a real git repository, with `ignored/` ignored by git, a tracked crate and, in the ignored directory, a
+/// staged copy of that crate (as a gate's disposable build context is). Both lockfiles are stale, so a command that the shadow takes on
+/// updates the lock to satisfied, and one it leaves alone does not.
+fn make_git_world() -> World {
+    let world = make_world();
+    let git = |arguments: &[&str]| {
+        let status = Command::new("/usr/bin/git").args(arguments).current_dir(&world.repository).env("GIT_CONFIG_GLOBAL", "/dev/null").env("GIT_CONFIG_SYSTEM", "/dev/null").status().expect("git runs");
+        assert!(status.success(), "git {arguments:?} failed");
+    };
+    std::fs::write(world.repository.join(".gitignore"), "ignored/\n").expect("gitignore");
+    write_lock(&world, STALE);
+    git(&["init", "--quiet"]);
+    git(&["add", "--", ".gitignore", "rust-catalog.toml", "package"]);
+    git(&["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "--quiet", "--message", "base"]);
+    let staged: PathBuf = world.repository.join("ignored").join("context").join(CRATE_DIR);
+    std::fs::create_dir_all(&staged).expect("the staged crate");
+    for name in ["Cargo.toml", "Cargo.lock"] {
+        std::fs::copy(world.repository.join(CRATE_DIR).join(name), staged.join(name)).expect("copy the crate");
+    }
+    return world;
+}
+
+/// A cargo command whose manifest is a staged copy under a directory that git ignores is not the repository's lockfile: the shadow does
+/// not take it on (no update of the staged lock, only the user's command reaches cargo), where the same command on the tracked crate is
+/// taken on. Found by `cargo vendor --manifest-path` of the git-policy gate, which counted every locked version of the staged copy as
+/// newly locked (no committed lockfile at its path) and refused versions nobody added.
+#[test]
+fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_is_not() {
+    let world = make_git_world();
+    let staged_manifest: PathBuf = world.repository.join("ignored/context").join(CRATE_DIR).join("Cargo.toml");
+    let staged_lock: PathBuf = world.repository.join("ignored/context").join(CRATE_DIR).join("Cargo.lock");
+    // The system directories are on PATH so that the shadow finds `git`, as it does outside this test.
+    let path: String = path_of(&[&world.shadow_directory, &world.fake_directory, Path::new("/usr/bin")]);
+    let run = |manifest: &Path| -> Output {
+        return Command::new(world.shadow_directory.join("cargo"))
+            .args(["vendor", "--manifest-path"])
+            .arg(manifest)
+            .arg("--offline")
+            .current_dir(&world.repository)
+            .env("PATH", &path)
+            .env("CI", "")
+            .env("FAKE_CARGO_LOG", &world.log)
+            .output()
+            .expect("start the shadow");
+    };
+
+    let staged = run(&staged_manifest);
+
+    assert_eq!(staged.status.code(), Some(0), "{}", String::from_utf8_lossy(&staged.stderr));
+    assert_eq!(std::fs::read_to_string(&staged_lock).expect("the staged lock"), STALE, "the shadow took on a staged copy in an ignored directory");
+    let calls: Vec<String> = log_lines(&world);
+    assert_eq!(calls.len(), 1, "cargo was asked more than the user's command for the staged copy: {calls:?}");
+    assert!(calls[0].starts_with("vendor"), "{calls:?}");
+    assert!(!String::from_utf8_lossy(&staged.stderr).contains("comparing lockfiles"), "the shadow compared the lockfiles of a staged copy: {}", String::from_utf8_lossy(&staged.stderr));
+
+    // The control: the same command on the tracked crate is taken on (its stale lock is updated before the command).
+    let tracked = run(&world.repository.join(CRATE_DIR).join("Cargo.toml"));
+    assert_eq!(tracked.status.code(), Some(0), "{}", String::from_utf8_lossy(&tracked.stderr));
+    assert_eq!(read_lock(&world), SATISFIED, "the tracked crate was not taken on, so the staged copy's passing proves nothing");
+}

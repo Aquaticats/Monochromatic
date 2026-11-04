@@ -28,7 +28,7 @@ fn rendered_service_unit(git: &Path) -> String {
         runtime_dir: PathBuf::from("/run/user/1"),
         user_unit_dir: None,
         bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/opt/tool/cli-git-service"),
+        service_binary: PathBuf::from("/opt/tool/cli-git-native"),
         git: git.to_path_buf(),
         instance: String::from("x"),
         retirement_wait: std::time::Duration::ZERO,
