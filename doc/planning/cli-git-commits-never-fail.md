@@ -2321,6 +2321,16 @@ many outstanding receipts, non-recursive launch (an internal entry point, never 
 protected-dispatch eligibility of every internal Git invocation (hook-free internal transactions on the wrapper's own
 namespace) as a verification gate.
 
+Owner decision, 2026-11-04, question tool, "Keep built, state limit (Recommended)": the resource-bounded part of the launch
+obligation is overridden. The helper that releases the lock, rechecks for new saves and exits is kept. The number of live
+helpers is arrival-dependent and has no time bound: every client that needs the flusher path forks a helper whatever the lock's
+state, a helper that finds the lock taken ends, and the helpers in the release, recheck and exit step hold nothing. The number
+of helpers that hold the lock is one, and only a process that will list and force after it takes the lock ever holds it. The
+owner's reasons: no save lost in any modeled case, no added commit time, no new lock or process. Each launch also has an
+intermediate child, which is reaped or killed and reaped by the launcher, apart from the detached worker. The comparison of the
+other bounded protocols (a singleton retry owner, inline forcing, a baton) is recorded evidence in
+`doc/handover/cli-git-commit-protocol-models.md` on `feat/git-policy-cli-commit-protocol-models` and none of them is built.
+
 ## Rule conflicts and the decisions that rank them
 
 Source: `commits-never-fail-sol-17c.txt`, section 3. No new owner question follows from them.
