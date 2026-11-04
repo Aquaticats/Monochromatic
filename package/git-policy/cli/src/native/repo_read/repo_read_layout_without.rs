@@ -13,10 +13,10 @@
 //! const layout = readLayoutWithout(globalPrefix, overlay, ['--icase-pathspecs'], ['GIT_ICASE_PATHSPECS']);
 //! ```
 
-use super::repo_read_config_scan::ScopeEnvironment;
-use super::repo_read_config_typed::environment_is_accepted;
-use super::repo_read_hook::enabled;
-use super::repo_read_layout::{RepoLayout, effective_environment, environment_is_plain, start_directory, walk_up};
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_config_typed::environment_is_accepted;
+use crate::repo_read_hook::enabled;
+use crate::repo_read_layout::{RepoLayout, effective_environment, environment_is_plain, start_directory, walk_up};
 use std::ffi::OsString;
 use std::path::PathBuf;
 

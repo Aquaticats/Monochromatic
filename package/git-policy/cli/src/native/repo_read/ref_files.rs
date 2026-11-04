@@ -16,9 +16,9 @@
 //! ```
 
 /// Bounded no-follow reading of a regular file.
-use super::private_storage::read_regular_file;
+use crate::private_storage::read_regular_file;
 /// The ref storage backend and the symbolic `HEAD` answer.
-use super::transaction_journal::{RefFormat, SymbolicHead};
+use crate::transaction_journal::{RefFormat, SymbolicHead};
 /// Borrowed filesystem paths.
 use std::path::Path;
 

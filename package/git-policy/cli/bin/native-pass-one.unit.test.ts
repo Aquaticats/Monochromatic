@@ -80,7 +80,7 @@ await describe({
          */
         const passOne = await passOneFor({
           crateDirectory,
-          scopes: ['src/native/repo_read_layout.rs'],
+          scopes: ['src/native/repo_read/repo_read_layout.rs'],
           command,
         });
         for (const target of slowTestTargets) {
@@ -98,7 +98,7 @@ await describe({
          */
         const passOne = await passOneFor({
           crateDirectory,
-          scopes: ['src/native/object_abbreviation.rs'],
+          scopes: ['src/native/repo_read/object_abbreviation.rs'],
           command,
         });
         expect(passOne.command.slice(0, 2)).toEqual(['cargo', 'mutants']);

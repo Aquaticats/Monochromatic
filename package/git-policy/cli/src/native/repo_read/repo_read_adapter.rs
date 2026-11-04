@@ -10,11 +10,11 @@
 //! const location = locationOf(layout); // same value `parseLocationOutput(rev-parse output)` gives
 //! ```
 
-use super::landing_location::LandingLocation;
-use super::repo_read_layout::{RepoLayout, git_path};
-use super::repository_location::RepositoryLocation;
-use super::rule_commit_sequencer::{SequencerFacts, SequencerState, sequencer_state};
-use super::worktree_identity::WorktreeIdentity;
+use crate::landing_location::LandingLocation;
+use crate::repo_read_layout::{RepoLayout, git_path};
+use crate::repository_location::RepositoryLocation;
+use crate::rule_commit_sequencer::{SequencerFacts, SequencerState, sequencer_state};
+use crate::worktree_identity::WorktreeIdentity;
 
 /// What:
 ///  The location `git rev-parse` would report for this layout.

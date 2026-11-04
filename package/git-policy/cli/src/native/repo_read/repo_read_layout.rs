@@ -18,12 +18,12 @@
 //! const layout: RepoLayout | undefined = readLayout({ globalPrefix, overlay }); // undefined: ask Git
 //! ```
 
-use super::child_environment::{COUNT_VARIABLE, environment_value, parse_config_count};
-use super::private_storage::read_regular_file;
-use super::repo_read_hook::enabled;
-use super::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys, read_following};
-use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
-use super::repo_read_config_typed::{entries_are_accepted, environment_is_accepted, outer_scopes_are_accepted};
+use crate::child_environment::{COUNT_VARIABLE, environment_value, parse_config_count};
+use crate::private_storage::read_regular_file;
+use crate::repo_read_hook::enabled;
+use crate::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys, read_following};
+use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
+use crate::repo_read_config_typed::{entries_are_accepted, environment_is_accepted, outer_scopes_are_accepted};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -221,7 +221,7 @@ pub fn env_config_avoids(variables: &[(OsString, OsString)], declines: &dyn Fn(&
 
 /// Whether every `GIT_` variable among `variables` is one that cannot move discovery:
 ///  a tolerated prefix, or one of this package's own.
-pub(super) fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
+pub(crate) fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
     for (name, _) in variables {
         let Some(text) = name.to_str() else {
             continue;
@@ -235,7 +235,7 @@ pub(super) fn environment_is_plain(variables: &[(OsString, OsString)]) -> bool {
 }
 
 /// The environment Git would see: the process environment with the child overlay applied over it.
-pub(super) fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+pub(crate) fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
     let mut variables: Vec<(OsString, OsString)> = std::env::vars_os()
         .filter(|(name, _)| { return !overlay.iter().any(|(added, _)| { return added == name; }); })
         .collect();
@@ -245,7 +245,7 @@ pub(super) fn effective_environment(overlay: &[(OsString, OsString)]) -> Vec<(Os
 
 /// The directory a command starts in: the process directory moved by leading `-C <path>` options.
 ///  Any other global option returns `None`.
-pub(super) fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
+pub(crate) fn start_directory(global_prefix: &[OsString]) -> Option<PathBuf> {
     let mut directory: PathBuf = std::env::current_dir().ok()?;
     let mut options = global_prefix.iter();
     while let Some(option) = options.next() {
@@ -645,7 +645,7 @@ pub fn read_layout_after_success_for(global_prefix: &[OsString], overlay: &[(OsS
 }
 
 /// Walk from `start` to the root looking for the first `.git`, as Git does, and build the layout there.
-pub(super) fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
+pub(crate) fn walk_up(start: &Path, scope: &ScopeEnvironment, typed: bool) -> Option<RepoLayout> {
     let mut directory: PathBuf = start.to_path_buf();
     loop {
         if let Some(entry) = dot_git_target(directory.as_path())? {

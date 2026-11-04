@@ -2022,7 +2022,7 @@ Release 0.5.23 judged the lock files of a Git child that the wrapper itself stop
 A lock that any other killed Git leaves (a terminal closed mid-fetch, the out-of-memory killer, a reboot, a release before
 0.5.23) blocked every later `git fetch` and `git push` of the same reference with "Unable to create ... File exists"
 until someone deleted the file by hand.
-This entry extends the same code (`src/native/lock/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/git_directory_roots.rs`
+This entry extends the same code (`src/native/lock/stopped_git_locks.rs` for the pid-file reader and the sweep after a stop, `src/native/repo_read/git_directory_roots.rs`
 for the Git directories it shares, `src/native/lock/stale_ref_locks.rs` and the `stale_ref_lock_*` modules for the judgement) to those
 locks, with one rule: a lock is removed only when its holder is
 **proven** gone, and otherwise the wrapper says what it found and prints the command that clears it.

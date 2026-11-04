@@ -18,8 +18,8 @@
 //! const ok: boolean | undefined = everyTypedValueIsAccepted({ entries, scope }); // undefined: ask Git
 //! ```
 
-use super::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, read_following};
-use super::repo_read_config_text::{ConfigEntry, parse_config_text};
+use crate::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, read_following};
+use crate::repo_read_config_text::{ConfigEntry, parse_config_text};
 use std::ffi::OsString;
 use std::path::Path;
 
@@ -575,7 +575,7 @@ pub fn environment_is_accepted(variables: &[(OsString, OsString)]) -> bool {
     let Some(count_text) = find("GIT_CONFIG_COUNT") else {
         return true;
     };
-    let Some(count) = super::child_environment::parse_config_count(count_text.as_os_str()) else {
+    let Some(count) = crate::child_environment::parse_config_count(count_text.as_os_str()) else {
         return false;
     };
     if count > ENV_ENTRY_LIMIT {

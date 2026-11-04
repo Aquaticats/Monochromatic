@@ -15,16 +15,16 @@
 
 #![cfg(unix)]
 
-use super::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, file_avoids_keys, outer_scopes_avoid_keys};
-use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, parse_config_text};
-use super::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filter, raw_lines, select};
-use super::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
-use super::repo_read_layout::{RepoLayout, env_config_avoids, read_layout_with};
-use super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
+use crate::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, file_avoids_keys, outer_scopes_avoid_keys};
+use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, parse_config_text};
+use crate::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filter, raw_lines, select};
+use crate::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
+use crate::repo_read_layout::{RepoLayout, env_config_avoids, read_layout_with};
+use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_parse, symbolic_ref};
-use super::repo_read_tree::{FlatEntry, flatten_pair, flatten_tree_shared, parse_commit, subject_of};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_parse, symbolic_ref};
+use crate::repo_read_tree::{FlatEntry, flatten_pair, flatten_tree_shared, parse_commit, subject_of};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -53,15 +53,15 @@ pub struct Answer {
 }
 
 /// The parts of a command line after its global options.
-pub(super) struct Parsed<'a> {
+pub(crate) struct Parsed<'a> {
     /// The subcommand word.
-    pub(super) command: &'a str,
+    pub(crate) command: &'a str,
     /// Options before `--`.
-    pub(super) flags: Vec<&'a str>,
+    pub(crate) flags: Vec<&'a str>,
     /// Non-option arguments before `--`.
-    pub(super) operands: Vec<&'a [u8]>,
+    pub(crate) operands: Vec<&'a [u8]>,
     /// Arguments after `--`.
-    pub(super) specs: Vec<&'a [u8]>,
+    pub(crate) specs: Vec<&'a [u8]>,
 }
 
 /// Split the arguments: leading `-C <dir>` pairs move the start directory, `--no-literal-pathspecs` is Git's default.
@@ -104,7 +104,7 @@ fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Option<Parsed<'a
 }
 
 /// Whether `flags` holds exactly the options of `allowed` (each at most once) and every one of `required`.
-pub(super) fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> bool {
+pub(crate) fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> bool {
     return required.iter().all(|flag| { return flags.contains(flag); })
         && flags.iter().all(|flag| { return allowed.contains(flag) || required.contains(flag); })
         && flags.iter().enumerate().all(|(position, flag)| { return !flags[..position].contains(flag); });
@@ -133,7 +133,7 @@ fn environment(
 /// Whether no configuration file Git reads for these queries sets a key that could change the output.
 fn content_config_is_plain(layout: &RepoLayout, scope: &ScopeEnvironment) -> Option<bool> {
     let path: PathBuf = layout.common_dir.join("config");
-    let bytes: Vec<u8> = super::private_storage::read_regular_file(path.as_path(), CONFIG_TEXT_LIMIT as u64).ok()?;
+    let bytes: Vec<u8> = crate::private_storage::read_regular_file(path.as_path(), CONFIG_TEXT_LIMIT as u64).ok()?;
     let entries = parse_config_text(bytes.as_slice())?;
     if !entries_avoid_keys(entries.as_slice(), path.as_path(), scope.home.as_deref(), 0, &content_key)? {
         return Some(false);
@@ -147,28 +147,28 @@ fn content_config_is_plain(layout: &RepoLayout, scope: &ScopeEnvironment) -> Opt
 }
 
 /// Everything one query needs, opened lazily.
-pub(super) struct Context {
+pub(crate) struct Context {
     /// The repository.
-    pub(super) layout: RepoLayout,
+    pub(crate) layout: RepoLayout,
     /// The index file Git would read.
     index_path: PathBuf,
     /// The object directory override, if any.
     objects: Option<PathBuf>,
     /// Where the system and global configuration files are.
-    pub(super) scope: ScopeEnvironment,
+    pub(crate) scope: ScopeEnvironment,
     /// The environment Git would see, without the index and object directory variables.
-    pub(super) variables: Vec<(OsString, OsString)>,
+    pub(crate) variables: Vec<(OsString, OsString)>,
 }
 
 impl Context {
     /// The object database.
-    pub(super) fn database(&self) -> Option<ObjectDatabase> {
+    pub(crate) fn database(&self) -> Option<ObjectDatabase> {
         return ObjectDatabase::open(self.layout.common_dir.as_path(), self.objects.as_deref(), self.layout.object_format);
     }
 
     /// The index entries.
-    pub(super) fn index(&self) -> Option<Vec<IndexEntry>> {
-        let bytes: Vec<u8> = super::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
+    pub(crate) fn index(&self) -> Option<Vec<IndexEntry>> {
+        let bytes: Vec<u8> = crate::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
         return parse_index(bytes.as_slice(), self.layout.object_format);
     }
 
@@ -222,7 +222,7 @@ fn list_files(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
 fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Option<Answer> {
     // The exit status alone, for the checks of the wrapper that print nothing.
     if !porcelain && parsed.flags.contains(&"--quiet") {
-        return super::repo_read_query_quiet::diff_index_quiet(context, parsed);
+        return crate::repo_read_query_quiet::diff_index_quiet(context, parsed);
     }
     let raw: bool = parsed.flags.contains(&"--raw");
     let mut required: Vec<&str> = vec!["--cached", "-z"];

@@ -13,9 +13,9 @@
 
 #![cfg(unix)]
 
-use super::repo_read_object::{ObjectKind, name_length};
-use super::repo_read_layout::ObjectFormat;
-use super::repo_read_odb::ObjectDatabase;
+use crate::repo_read_object::{ObjectKind, name_length};
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_odb::ObjectDatabase;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -309,9 +309,9 @@ pub fn parse_commit(bytes: &[u8], format: ObjectFormat) -> Option<CommitFields> 
             if index != 0 {
                 return None;
             }
-            tree = Some(super::repo_read_object::from_hex(text, format)?);
+            tree = Some(crate::repo_read_object::from_hex(text, format)?);
         } else if let Some(text) = line.strip_prefix(b"parent ") {
-            parents.push(super::repo_read_object::from_hex(text, format)?);
+            parents.push(crate::repo_read_object::from_hex(text, format)?);
         } else if line.starts_with(b"encoding ") {
             return None;
         }

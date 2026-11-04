@@ -35,8 +35,8 @@
 /// ```ts
 /// import { parseIdentityOutput } from './worktree_identity.ts';
 /// ```
-use super::git_metadata::{path_from_git_bytes, strip_git_line};
-use super::worktree_identity::{IDENTITY_QUERY, WorktreeIdentity, parse_identity_output};
+use crate::git_metadata::{path_from_git_bytes, strip_git_line};
+use crate::worktree_identity::{IDENTITY_QUERY, WorktreeIdentity, parse_identity_output};
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might

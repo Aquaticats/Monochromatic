@@ -31,28 +31,28 @@
 /// ```ts
 /// import { indexQueryArguments, indexStateFromExit } from './rule_commit_index.ts';
 /// ```
-use super::candidate_error::CandidateError;
+use crate::candidate_error::CandidateError;
 /// Candidate preparation on a private index.
-use super::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
+use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
 /// The captured-query runner and its byte helpers.
-use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
-use super::repo_read_adapter::{location_of, sequencer_of};
-use super::git_system_config::with_real_git;
-use super::repo_read_layout::{RepoLayout, read_layout};
-use super::repository_location::{
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
+use crate::repo_read_adapter::{location_of, sequencer_of};
+use crate::git_system_config::with_real_git;
+use crate::repo_read_layout::{RepoLayout, read_layout};
+use crate::repository_location::{
     RepositoryLocation, location_query_arguments, parse_location_output,
 };
-use super::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
-use super::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
-use super::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
-use super::rule_commit_sequencer::{
+use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
+use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
+use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
+use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
     sequencer_state, sequencer_state_when_query_fails,
 };
 /// The transaction Git context.
-use super::transaction_git::GitContext;
+use crate::transaction_git::GitContext;
 /// The common directory of a location's identity.
-use super::worktree_identity::{common_directory, git_directory};
+use crate::worktree_identity::{common_directory, git_directory};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 ///  Sibling

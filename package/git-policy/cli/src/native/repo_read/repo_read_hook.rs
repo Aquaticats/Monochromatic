@@ -11,12 +11,12 @@
 //! const output = tryInProcess(args, overlay) ?? (await spawnGit(args, overlay));
 //! ```
 
-use super::git_metadata::MetadataOutput;
+use crate::git_metadata::MetadataOutput;
 #[cfg(unix)]
-use super::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_config_scan::ScopeEnvironment;
 #[cfg(unix)]
-use super::repo_read_query::{Answer, Query, answer_with};
-use super::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::repo_read_query::{Answer, Query, answer_with};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest};
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::path::Path;
@@ -60,7 +60,7 @@ pub fn guarded<T>(read: impl FnOnce() -> Option<T>) -> Option<T> {
         Ok(found) => found,
         Err(payload) => {
             let message: &str = payload.downcast_ref::<&str>().copied().or_else(|| { return payload.downcast_ref::<String>().map(String::as_str); }).unwrap_or("a panic without text");
-            super::diagnostic_log::warn("repo-read-guard", format!("an in-process read panicked and Git answers instead: {message}").as_str());
+            crate::diagnostic_log::warn("repo-read-guard", format!("an in-process read panicked and Git answers instead: {message}").as_str());
             None
         }
     };
@@ -145,7 +145,7 @@ pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutp
     arguments.extend(request.arguments.iter().cloned());
     // The context names the Git it runs, which the readers need to learn the system configuration file.
     // The context names the Git it runs, which the readers need to learn the system configuration file.
-    let mut variables: Vec<(OsString, OsString)> = super::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
+    let mut variables: Vec<(OsString, OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
     variables.extend(request.environment.iter().cloned());
     if let Some(index) = &request.index {
         variables.push((OsString::from("GIT_INDEX_FILE"), index.clone().into_os_string()));

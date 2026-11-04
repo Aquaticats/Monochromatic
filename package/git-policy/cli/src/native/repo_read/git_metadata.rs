@@ -12,10 +12,10 @@
 //! ```
 
 /// Import the shared child-command builder.
-use super::forwarding::git_command;
-use super::repo_read_hook::try_metadata;
+use crate::forwarding::git_command;
+use crate::repo_read_hook::try_metadata;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+use crate::start_retry::RetryStart;
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -80,7 +80,7 @@ pub fn run_metadata_git(
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some(answered) = try_metadata(arguments, super::git_system_config::with_real_git(overlay, real_git).as_slice()) {
+    if let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice()) {
         return Ok(answered);
     }
     // What: `.stdin(Stdio::null())` connects the child's input to nothing; `.output()`

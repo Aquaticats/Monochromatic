@@ -18,7 +18,7 @@
 
 #![cfg(unix)]
 
-use super::repo_read_odb::alternates_of;
+use crate::repo_read_odb::alternates_of;
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};

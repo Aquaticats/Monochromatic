@@ -12,7 +12,7 @@
 //! const safe: boolean | undefined = noScopeSetsBareOrWorktree({ home, env }); // undefined: ask Git
 //! ```
 
-use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, parse_bool, parse_config_text};
+use crate::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, parse_bool, parse_config_text};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -198,7 +198,7 @@ impl ScopeEnvironment {
         };
         // Git reads its compiled-in system file unless the environment removes or replaces it.
         if boolean_ok && !scope.no_system && scope.system.is_none() {
-            scope.system_default = super::git_system_config::system_config_for(variables);
+            scope.system_default = crate::git_system_config::system_config_for(variables);
             scope.unresolvable = scope.system_default.is_none();
         }
         let relative: bool = [&scope.home, &scope.xdg, &scope.system, &scope.global].iter().any(|path| { return path.as_ref().is_some_and(|found| { return !found.is_absolute(); }); });

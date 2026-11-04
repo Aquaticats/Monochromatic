@@ -12,7 +12,7 @@
 
 #![cfg(unix)]
 
-use super::private_storage::read_regular_file;
+use crate::private_storage::read_regular_file;
 use std::path::{Path, PathBuf};
 
 /// The longest loose ref file or `packed-refs` line this reader looks at.
@@ -115,7 +115,7 @@ impl Refs {
     fn packed_named(&self, skip_unplain: bool) -> Option<Vec<(String, String)>> {
         let bytes: Vec<u8> = match read_regular_file(self.directory.join("packed-refs").as_path(), PACKED_LIMIT) {
             Ok(bytes) => bytes,
-            Err(super::private_storage::ReadRefusal::Missing) => return Some(Vec::new()),
+            Err(crate::private_storage::ReadRefusal::Missing) => return Some(Vec::new()),
             Err(_) => return None,
         };
         let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;

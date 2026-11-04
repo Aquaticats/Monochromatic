@@ -9,7 +9,7 @@
 //! type RawObject = { kind: 'commit' | 'tree' | 'blob' | 'tag'; bytes: Uint8Array };
 //! ```
 
-use super::repo_read_layout::ObjectFormat;
+use crate::repo_read_layout::ObjectFormat;
 use miniz_oxide::inflate::TINFLStatus;
 use miniz_oxide::inflate::core::{DecompressorOxide, decompress, inflate_flags};
 

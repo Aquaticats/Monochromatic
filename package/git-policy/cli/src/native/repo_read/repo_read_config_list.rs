@@ -13,8 +13,8 @@
 //! const entries = listConfig({ commonDir, gitDir, scope, variables }); // undefined: ask Git
 //! ```
 
-use super::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, read_following};
-use super::repo_read_config_text::{ConfigEntry, last_entry, parse_bool, parse_config_text};
+use crate::repo_read_config_scan::{ScopeEnvironment, include_target, is_include_key, read_following};
+use crate::repo_read_config_text::{ConfigEntry, last_entry, parse_bool, parse_config_text};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -86,7 +86,7 @@ fn add_environment(variables: &[(OsString, OsString)], listed: &mut Vec<ListedEn
     let Some(count_text) = find("GIT_CONFIG_COUNT") else {
         return Some(());
     };
-    let count: u64 = super::child_environment::parse_config_count(count_text.as_os_str())?;
+    let count: u64 = crate::child_environment::parse_config_count(count_text.as_os_str())?;
     if count > ENV_ENTRY_LIMIT {
         return None;
     }

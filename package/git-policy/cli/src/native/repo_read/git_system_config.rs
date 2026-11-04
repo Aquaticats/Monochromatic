@@ -16,8 +16,8 @@
 //! const path = cached(identity, 'git-system-config') ?? (await run(realGit, ['var', 'GIT_CONFIG_SYSTEM'])); // undefined: unknown
 //! ```
 
-use super::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
-use super::git_version_cache::{BinaryIdentity, binary_identity, cache_directory, read_cached_text, store_cached_text};
+use crate::child_environment::{FORWARD_TARGET_VARIABLE, environment_value};
+use crate::git_version_cache::{BinaryIdentity, binary_identity, cache_directory, read_cached_text, store_cached_text};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -69,7 +69,7 @@ fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
     // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`).
-    super::started_as_git::mark_real_git_start(&mut command, super::started_as_git::StartMode::Child);
+    crate::started_as_git::mark_real_git_start(&mut command, crate::started_as_git::StartMode::Child);
     let output = command.output().ok()?;
     return if output.status.success() { Some(output.stdout) } else { None };
 }

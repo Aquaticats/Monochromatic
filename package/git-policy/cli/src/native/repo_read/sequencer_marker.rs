@@ -15,9 +15,9 @@
 //! ```
 
 /// Where one worktree's ref files live and what format they are in.
-use super::ref_files::RefFilesLayout;
+use crate::ref_files::RefFilesLayout;
 /// The ref storage backend.
-use super::transaction_journal::RefFormat;
+use crate::transaction_journal::RefFormat;
 /// Borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 

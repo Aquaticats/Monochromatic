@@ -14,13 +14,13 @@
 //! const code: 0 | 1 | undefined = diffIndexQuiet({ commit, paths }); // undefined: start Git
 //! ```
 
-use super::repo_read_diff::PathFilter;
-use super::repo_read_index::IndexEntry;
-use super::repo_read_object::{ObjectKind, from_hex};
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_query::{Answer, Context, Parsed, flags_are};
-use super::repo_read_refs::{RefValue, Refs};
-use super::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree_shared, parse_commit};
+use crate::repo_read_diff::PathFilter;
+use crate::repo_read_index::IndexEntry;
+use crate::repo_read_object::{ObjectKind, from_hex};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_query::{Answer, Context, Parsed, flags_are};
+use crate::repo_read_refs::{RefValue, Refs};
+use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree_shared, parse_commit};
 
 /// The commit `HEAD` names, for a branch under `refs/heads/` or a detached head.
 fn head_commit(context: &Context) -> Option<String> {
@@ -97,7 +97,7 @@ fn compare(tree: &[&FlatEntry], index: &[&IndexEntry]) -> (bool, bool) {
 }
 
 /// `diff-index --cached --quiet <commit> [-- <paths>]`.
-pub(super) fn diff_index_quiet(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn diff_index_quiet(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !flags_are(&parsed.flags, &["--cached", "--quiet"], &[]) || parsed.operands.len() != 1 {
         return None;
     }

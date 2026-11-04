@@ -12,8 +12,8 @@
 //! const entries: IndexEntry[] | undefined = parseIndex(bytes, objectFormat); // undefined: ask Git
 //! ```
 
-use super::repo_read_layout::ObjectFormat;
-use super::repo_read_object::name_length;
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_object::name_length;
 
 /// The bytes of the index header: signature, version, entry count.
 const HEADER_LENGTH: usize = 12;

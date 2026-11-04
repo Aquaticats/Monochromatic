@@ -12,10 +12,10 @@
 
 #![cfg(unix)]
 
-use super::private_storage::{ReadRefusal, read_regular_file};
-use super::repo_read_layout::ObjectFormat;
-use super::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
-use super::repo_read_pack::Pack;
+use crate::private_storage::{ReadRefusal, read_regular_file};
+use crate::repo_read_layout::ObjectFormat;
+use crate::repo_read_object::{OBJECT_SIZE_LIMIT, RawObject, name_length, parse_loose, to_hex};
+use crate::repo_read_pack::Pack;
 use std::path::{Path, PathBuf};
 
 /// How many alternate object directories deep the reader follows `info/alternates`.

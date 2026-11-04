@@ -15,11 +15,11 @@
 
 #![cfg(unix)]
 
-use super::repo_read_config_list::{ListedEntry, list_config, listing_bytes};
-use super::repo_read_object::{ObjectKind, from_hex};
-use super::repo_read_odb::ObjectDatabase;
-use super::repo_read_query::{Answer, Context, Parsed, flags_are};
-use super::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
+use crate::repo_read_config_list::{ListedEntry, list_config, listing_bytes};
+use crate::repo_read_object::{ObjectKind, from_hex};
+use crate::repo_read_odb::ObjectDatabase;
+use crate::repo_read_query::{Answer, Context, Parsed, flags_are};
+use crate::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
 use std::ffi::OsString;
 
 /// The `--format` text of the one listing the wrapper asks for.
@@ -63,7 +63,7 @@ fn messages_are_english(variables: &[(OsString, OsString)]) -> bool {
 }
 
 /// `config --list -z --show-scope`.
-pub(super) fn config_list(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn config_list(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !flags_are(&parsed.flags, &["--list", "-z", "--show-scope"], &[]) || !parsed.operands.is_empty() || !parsed.specs.is_empty() {
         return None;
     }
@@ -72,7 +72,7 @@ pub(super) fn config_list(context: &Context, parsed: &Parsed<'_>) -> Option<Answ
 }
 
 /// `remote get-url <name>` for a remote with one plain URL and no rewriting rule anywhere.
-pub(super) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn remote_url(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !parsed.flags.is_empty() || !parsed.specs.is_empty() || parsed.operands.len() != 2 || parsed.operands[0] != b"get-url" {
         return None;
     }
@@ -113,7 +113,7 @@ fn peel_to_commit(database: &ObjectDatabase, context: &Context, start: &str) -> 
     for _ in 0..PEEL_LIMIT {
         let object = database.read(current.as_slice())?;
         match object.kind {
-            ObjectKind::Commit => return Some(super::repo_read_object::to_hex(current.as_slice())),
+            ObjectKind::Commit => return Some(crate::repo_read_object::to_hex(current.as_slice())),
             ObjectKind::Tag => {
                 let first: &[u8] = object.bytes.split(|byte| { return *byte == b'\n'; }).next()?;
                 current = from_hex(first.strip_prefix(b"object ")?, context.layout.object_format)?;
@@ -125,7 +125,7 @@ fn peel_to_commit(database: &ObjectDatabase, context: &Context, start: &str) -> 
 }
 
 /// `for-each-ref` with the one format the wrapper uses.
-pub(super) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn for_each_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if parsed.flags != [LISTING_FORMAT] || !parsed.operands.is_empty() || !parsed.specs.is_empty() {
         return None;
     }
@@ -161,7 +161,7 @@ fn shadowed(refs: &Refs, prefix: &str, short: &str) -> Option<bool> {
 }
 
 /// The tracking ref a fetch refspec maps `merge` to.
-pub(super) fn tracking_ref(listed: &[ListedEntry], remote: &str, merge: &str) -> Option<String> {
+pub(crate) fn tracking_ref(listed: &[ListedEntry], remote: &str, merge: &str) -> Option<String> {
     let key: String = format!("remote.{remote}.fetch");
     for item in listed.iter().filter(|item| { return item.entry.key == key; }) {
         let spec: &str = std::str::from_utf8(item.entry.value.as_deref()?).ok()?;
@@ -228,7 +228,7 @@ fn upstream(context: &Context) -> Option<Answer> {
 }
 
 /// `symbolic-ref --quiet HEAD`: the branch `HEAD` names, or a silent failure for a detached `HEAD`.
-pub(super) fn symbolic_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn symbolic_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !flags_are(&parsed.flags, &["--quiet"], &[]) || parsed.operands != [b"HEAD".as_slice()] || !parsed.specs.is_empty() {
         return None;
     }
@@ -242,7 +242,7 @@ pub(super) fn symbolic_ref(context: &Context, parsed: &Parsed<'_>) -> Option<Ans
 }
 
 /// `rev-parse --verify --quiet <ref>^{commit}` and the upstream query.
-pub(super) fn rev_parse(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+pub(crate) fn rev_parse(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if !parsed.specs.is_empty() || parsed.operands.len() != 1 {
         return None;
     }

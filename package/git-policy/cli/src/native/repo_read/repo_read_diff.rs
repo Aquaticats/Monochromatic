@@ -14,7 +14,7 @@
 
 #![cfg(unix)]
 
-use super::repo_read_tree::{FlatEntry, MODE_GITLINK};
+use crate::repo_read_tree::{FlatEntry, MODE_GITLINK};
 
 /// One changed path.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -180,8 +180,8 @@ pub fn select(changes: Vec<Change>, filter: &PathFilter, statuses: Option<&[u8]>
 pub fn raw_lines(changes: &[Change], zero_id: &str) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for change in changes {
-        let old_id: String = if change.old_id.is_empty() { zero_id.to_string() } else { super::repo_read_object::to_hex(change.old_id.as_slice()) };
-        let new_id: String = if change.new_id.is_empty() { zero_id.to_string() } else { super::repo_read_object::to_hex(change.new_id.as_slice()) };
+        let old_id: String = if change.old_id.is_empty() { zero_id.to_string() } else { crate::repo_read_object::to_hex(change.old_id.as_slice()) };
+        let new_id: String = if change.new_id.is_empty() { zero_id.to_string() } else { crate::repo_read_object::to_hex(change.new_id.as_slice()) };
         out.extend_from_slice(format!(":{:06o} {:06o} {old_id} {new_id} {}", change.old_mode, change.new_mode, char::from(change.status)).as_bytes());
         out.push(0);
         out.extend_from_slice(change.path.as_slice());

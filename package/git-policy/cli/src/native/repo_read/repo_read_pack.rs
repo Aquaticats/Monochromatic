@@ -14,7 +14,7 @@
 
 #![cfg(unix)]
 
-use super::repo_read_object::{ObjectKind, OBJECT_SIZE_LIMIT, RawObject, inflate_exact};
+use crate::repo_read_object::{ObjectKind, OBJECT_SIZE_LIMIT, RawObject, inflate_exact};
 use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::path::Path;
