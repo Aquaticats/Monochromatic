@@ -313,3 +313,24 @@ fn a_linter_that_keeps_working_is_never_abandoned_however_long_it_runs() {
     assert!(started.elapsed() > WORKING_WINDOW * 2, "the fixture ran only {:?}", started.elapsed());
     remove(root.as_path());
 }
+
+/// A fix that keeps working past the ceiling is abandoned there: the reason names the tool, the file, the ceiling and the ways
+/// forward, and the next candidate is refused without a second thread, as after a quiet one.
+#[test]
+fn a_linter_that_keeps_working_is_abandoned_at_its_ceiling_naming_the_file() {
+    let root: PathBuf = fixture("linter-ceiling");
+    let ceiling: Duration = Duration::from_secs(2);
+    let mut linter: EmbeddedLinter = embedded_linter_with(works_then_answers, WORKING_WINDOW).with_ceiling(ceiling);
+    let reason: String = lint(&mut linter, root.as_path(), b"big.md", b"a\n").expect_err("abandoned at the ceiling");
+    assert!(reason.contains("monochromatic-lint") && reason.contains("big.md") && reason.contains(format!("{} seconds", ceiling.as_secs()).as_str()), "{reason}");
+    assert!(reason.contains("markdown/autofix") && reason.contains("by hand"), "{reason}");
+    let later: String = lint(&mut linter, root.as_path(), b"b.md", b"b\n").expect_err("refused");
+    assert_eq!(later, ABANDONED_REASON);
+    remove(root.as_path());
+}
+
+/// The shipped linter waits longer than its window, or the window would never end anything.
+#[test]
+fn the_shipped_ceiling_is_past_the_shipped_quiet_window() {
+    assert!(crate::wait_ceilings::LINT_CEILING > LINT_QUIET_WINDOW);
+}

@@ -22,12 +22,13 @@
 //!  The thread has the linter's own stack size,
 //!  because the main thread's stack is set by the platform and a stack overflow cannot be caught;
 //!  the size makes an overflow as unlikely as in the executable, it does not contain one.
-//!  Elapsed time never ends the wait (owner, 2026-11-03: "Stop only on no progress"; pick 9 of
+//!  Silence ends the wait (owner, 2026-11-03: "Stop only on no progress"; pick 9 of
 //!  `doc/planning/cli-git-shipped-limits-audit.md`, the coordinator's under the owner's delegation and open to the owner's
 //!  veto). The signs of work are those the push reads, taken from the job thread's own files under `/proc/self/task/`
 //!  (`thread_quiet.rs`): the bytes it read and wrote, its processor time, its state. The longest quiet gap of every run is kept
-//!  in the ledger under `monochromatic-lint` (`quiet_ledger.rs`). Where `/proc` cannot be read the wait has no end but the
-//!  job's.
+//!  in the ledger under `monochromatic-lint` (`quiet_ledger.rs`). Where `/proc` cannot be read only the ceiling ends the wait.
+//!  The ceiling (`wait_ceilings.rs`, `LINT_CEILING`) abandons a job that keeps showing work (owner, 2026-11-04, "Silence plus a
+//!  ceiling (Recommended)"), the same way: the wrapper stops waiting and the thread ends with the process.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -49,7 +50,7 @@ use std::io::Write;
 /// A one-shot channel from the job's thread to the waiting caller.
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 /// Spans of time and the clock.
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// What:
 ///  Why a guarded job produced no result.
@@ -158,6 +159,7 @@ fn wait_for<T>(
     reporter: &mut WaitReporter<'_>,
 ) -> (Result<T, GuardFailure>, Duration) {
     let window: Duration = limits.window;
+    let began: Instant = Instant::now();
     let mut clock: Option<ThreadClock> = None;
     let mut longest: Duration = Duration::ZERO;
     loop {
@@ -176,6 +178,11 @@ fn wait_for<T>(
             if quiet {
                 return (Err(GuardFailure::Quiet(window)), longest);
             }
+        }
+        // The ceiling abandons a job that keeps showing work, as the window abandons one that shows none (owner, 2026-11-04,
+        // "Silence plus a ceiling (Recommended)").
+        if began.elapsed() >= limits.ceiling {
+            return (Err(GuardFailure::Ceiling(limits.ceiling)), longest);
         }
         match receiver.recv_timeout(NOTICE_POLL) {
             Ok(Ok(value)) => return (Ok(value), longest),
