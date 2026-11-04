@@ -39,6 +39,9 @@ const ALTERNATES_LIMIT: u64 = 1 << 20;
 ///  open to the owner's veto.
 const PACKED_REFS_LIMIT: u64 = 256 << 20;
 
+/// How many loose paths the reader has looked at, which a control reads to show that a packed object costs none.
+pub(crate) static LOOSE_LOOKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// The loose directories and packs of a repository and its alternates.
 #[derive(Debug)]
 pub struct ObjectDatabase {
@@ -158,6 +161,7 @@ impl ObjectDatabase {
         let hex: String = to_hex(name);
         for root in &self.roots {
             let path: PathBuf = root.join(&hex[..2]).join(&hex[2..]);
+            LOOSE_LOOKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let Ok(metadata) = std::fs::symlink_metadata(&path) else {
                 continue;
             };
