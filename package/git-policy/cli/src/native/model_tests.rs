@@ -230,3 +230,11 @@ mod model_pipe_r13_tests;
 /// The evidence labels of the model modules.
 #[path = "model_labels_tests.rs"]
 mod model_labels_tests;
+
+/// M1's lock handling with comparison and removal as two steps.
+#[path = "model_m1_split_r13.rs"]
+mod model_m1_split_r13;
+
+/// The controls of M1's split compare and unlink.
+#[path = "model_m1_split_r13_tests.rs"]
+mod model_m1_split_r13_tests;

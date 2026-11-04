@@ -46,6 +46,9 @@ pub enum Rules {
     Twelve,
     /// Revision 13: every normal exit creates the mark first, `withdraw-unresolved a` forbids any later attempt, E1 has kind U.
     Thirteen,
+    /// Control: revision 13 whose `out` file is a channel the person's hook descendants can write to (the backend obligation that Git
+    /// redirects a hook's standard output to its standard error does not hold), so E1's evidence is not authentic.
+    ThirteenSharedChannel,
 }
 
 /// The withdrawal mark `lane/decision/<id>`.
@@ -317,7 +320,7 @@ fn exit_state(state: &State) -> State {
 
 /// The owner's steps.
 fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
-    let thirteen: bool = state.rules == Rules::Thirteen;
+    let thirteen: bool = state.rules != Rules::Twelve;
     if state.owner == Owner::Dead {
         if matches!(state.child, Child::NotStarted | Child::Ended) {
             let mut after: State = state.clone();
@@ -420,6 +423,11 @@ fn git_steps(state: &State, found: &mut Vec<(String, State)>) {
             push_step(found, "environment: prepare fails in the ref store; update-ref exits non-zero", failed);
         }
         Child::Prepared => {
+            if state.rules == Rules::ThirteenSharedChannel && state.line == Line::Nothing {
+                let mut forged: State = state.clone();
+                forged.line = Line::AbortOk;
+                push_step(found, "environment: a hook descendant writes text that looks like abort: ok into the shared output", forged);
+            }
             if state.pipe == Pipe::Commit {
                 let mut after: State = state.clone();
                 after.child = Child::Applying;
@@ -476,7 +484,7 @@ fn git_steps(state: &State, found: &mut Vec<(String, State)>) {
 
 /// The client's steps (the ones the register's bound counts) and the client lock's release.
 fn client_steps(state: &State, found: &mut Vec<(String, State)>) {
-    let thirteen: bool = state.rules == Rules::Thirteen;
+    let thirteen: bool = state.rules != Rules::Twelve;
     match state.client {
         Client::Waiting => {
             if state.line == Line::CommitOk || state.tip == Tip::New {

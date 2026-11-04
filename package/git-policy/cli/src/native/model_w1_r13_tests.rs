@@ -286,3 +286,15 @@ fn every_clause_of_the_contract_fires_on_a_state_that_breaks_it() {
     leaving.tip = Tip::Base;
     assert_eq!(invariant(&leaving), Some("a normal exit left no withdrawal mark".to_string()));
 }
+
+/// E1 evidence is only as good as its channel (review 3a P2, item E1 evidence): when a hook descendant can write into the file E1 reads, a
+/// forged `abort: ok` makes E1 call a submitted attempt positively failed while its `commit` is still queued, and the retry can land too.
+/// Revision 13 relies on Git redirecting a hook's standard output away from `out` (a backend gate): without it the search is red, with it
+/// green.
+#[test]
+fn a_hook_that_can_write_the_output_file_forges_positive_failure() {
+    let shared: Report = check(Rules::ThirteenSharedChannel);
+    let violation = shared.violation.expect("a forged line is accepted as evidence");
+    assert!(violation.trace.iter().any(|label| { return label.contains("looks like abort: ok"); }), "{:?}", violation.trace);
+    assert!(check(Rules::Thirteen).violation.is_none());
+}
