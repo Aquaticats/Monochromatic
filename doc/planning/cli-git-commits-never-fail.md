@@ -2474,6 +2474,10 @@ and nothing in the plan decides it.
 - Closes: the not-yet row "live cutover excludes old probe-capable holders or provides recovery responsibility", with a test that
   uses the legacy probe seam as the old-behaviour holder against the fenced lane.
 - Depends on: step 2 (the real lock names and call sites).
+- Status (2026-11-04): built on `feat/git-policy-cli-commit-protocol-models` (handover rounds 26 and 27) behind a switch that is the absence of a
+  flag: the new protocol's lock is `flusher.v2.lock`, the old probe holder is played by a seam on the old name, and `cli-git-service --lane`
+  runs the doorbell, the startup sweep and the periodic pass (the failure owner of a unit that died after its execution); the shipped unit
+  files do not pass the flag. Not yet: a cutover with a real old binary, and the owner's step of passing the flag in the unit file.
 - Question 3 (owner), answered 2026-11-04 (question tool): "New lock name (Recommended)", option A, recorded as
   decision 23; options B and C are not picked. Meaning as asked: the new protocol uses a new lock file name; old and
   new flushers may overlap because both sweep the same receipts and forcing twice is harmless. The question as asked:
