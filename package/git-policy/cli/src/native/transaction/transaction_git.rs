@@ -740,6 +740,8 @@ fn is_proven_to_run_twice(arguments: &[OsString], name: &str, rest: &[String]) -
             let set: bool = !words.has("-d") && words.before.len() == 2 && is_side_ref(words.before[0]) && is_object_id(words.before[1]);
             plain && (delete || set)
         }
+        // A read: whether a reflog exists for a ref, which the side-ref writes ask before they are ended (`step_bound_checked`).
+        "reflog" => rest.len() == 2 && rest[0] == "exists" && !rest[1].starts_with('-'),
         "stash" => rest.first().is_some_and(|first| { return first == "list"; }) && rest.len() == 2 && rest[1] == "--format=%H",
         "clean" => no_paths && words.before.is_empty() && words.only_options(&["--force", "-d"]) && words.has("--force") && words.has("-d"),
         "read-tree" => no_paths && words.before.len() == 1 && words.only_options(&["--reset", "-u"]) && words.has("--reset") && words.has("-u"),
@@ -820,6 +822,20 @@ fn step_bound(request: &GitRequest) -> StepBound {
     if may_be_ended(request) {
         return StepBound::EndAt(class_ceiling);
     }
+    return not_ended_bound(class_ceiling);
+}
+
+/// What:
+///  The bound of a step that is never ended: unbounded on the landing thread, else left running after the class ceiling plus the
+///  short extra wait.
+/// Why:
+///   Both `step_bound` and `step_bound_checked` give a step this bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// onLandingThread() ? unbounded : leaveRunning(classCeiling, SHORT_EXTRA_WAIT)
+/// ```
+fn not_ended_bound(class_ceiling: Duration) -> StepBound {
     if crate::service_busy::on_landing_thread() {
         return StepBound::Unbounded;
     }
@@ -828,6 +844,43 @@ fn step_bound(request: &GitRequest) -> StepBound {
     #[cfg(not(test))]
     let extra: Duration = crate::wait_ceilings::SHORT_EXTRA_WAIT;
     return StepBound::LeaveRunning { after: class_ceiling, extra };
+}
+
+/// The side ref an `update-ref` request writes or deletes, when the request is the proven form of one (`is_proven_to_run_twice`).
+fn side_ref_written(request: &GitRequest) -> Option<String> {
+    let (position, name) = subcommand_of(request.arguments.as_slice())?;
+    if name != "update-ref" || !may_be_ended(request) {
+        return None;
+    }
+    return request.arguments[position + 1..]
+        .iter()
+        .map(|argument| { return argument.to_string_lossy().into_owned(); })
+        .find(|word| { return is_side_ref(word.as_str()); });
+}
+
+/// What:
+///  `step_bound`, and a write of a side ref keeps its ceiling only while the ref has no reflog.
+/// Why:
+///   `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists, so a write that
+///  is cut after its append and run again would append twice (sol-1 round 3, P1 B). A fresh sequence number does not prove the
+///  repository holds no log for the ref: an earlier release or another writer may have made one. Git is asked, at the start of the
+///  write (`git reflog exists`, which works on either ref backend); an answer that is not "no such log" (Git could not be asked, the
+///  question was refused) is not proof, and the write has no ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stepBound(request) is endAt && sideRef(request) && !(await reflogAbsent(ref)) ? notEndedBound(...) : stepBound(request)
+/// ```
+fn step_bound_checked(context: &GitContext, request: &GitRequest) -> StepBound {
+    let bound: StepBound = step_bound(request);
+    let StepBound::EndAt(class_ceiling) = bound else { return bound };
+    let Some(reference) = side_ref_written(request) else { return bound };
+    let mut ask: GitRequest = GitRequest::new(request.cwd.as_path(), &["reflog", "exists", reference.as_str()]);
+    ask.without_prefix = request.without_prefix;
+    ask.unset = request.unset.clone();
+    ask.environment = request.environment.clone();
+    let absent: bool = run_git(context, &ask).is_ok_and(|answer| { return answer.code == Some(1) && answer.stdout.is_empty(); });
+    return if absent { bound } else { not_ended_bound(class_ceiling) };
 }
 
 #[cfg(test)]
@@ -860,7 +913,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     // The class label travels in the subject, so the notices and the timeout sentence name the kind of step.
     let subject: String = step_subject(request);
     let ledger_step: String = crate::add_timing::git_step_label(request.arguments.as_slice());
-    let bound: StepBound = step_bound(request);
+    let bound: StepBound = step_bound_checked(context, request);
     // A write that is never ended is recorded for the clients that queue behind it (`service_busy.rs`); the record ends with the step.
     let _recorded = if matches!(bound, StepBound::Unbounded) {
         crate::service_busy::enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))
