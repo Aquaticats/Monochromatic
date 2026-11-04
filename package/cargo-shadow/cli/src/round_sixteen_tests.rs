@@ -285,7 +285,8 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
         } else {
             assert_eq!(rest[..2], ["attempt launcher", "written launcher"], "the launcher line comes after the launch and is not synced: {trace:?}");
             assert!(!rest.iter().any(|event| { return event.starts_with("sync launcher"); }), "the launcher line was synced: {trace:?}");
-            assert_eq!(rest[2..], ["attempt settled", "written settled", "sync settled whole=true", "synced settled"], "the end is recorded and synced last: {trace:?}");
+            // The end is recorded only after the authoritative emptiness proof of the stop (fourth certification pass).
+            assert_eq!(rest[2..], ["scope proved empty", "attempt settled", "written settled", "sync settled whole=true", "synced settled"], "the end is recorded and synced last, after the emptiness proof: {trace:?}");
         }
         drop(transaction);
     }
