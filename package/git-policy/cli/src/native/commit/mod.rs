@@ -133,6 +133,10 @@ pub mod commit_flusher_unit;
 #[cfg(target_os = "linux")]
 pub mod commit_lane_lifecycle;
 
+/// The disposal of saved content: the line, the replacement root, then the unlink (plan step 2).
+#[cfg(target_os = "linux")]
+pub mod commit_disposal;
+
 /// The bound of a drain request (plan step 2).
 #[cfg(target_os = "linux")]
 pub mod commit_drain;

@@ -374,6 +374,11 @@ impl LaneDocument {
         return Some(document);
     }
 
+    /// The saved content names (checksums) the document holds, sorted.
+    pub fn saved(&self) -> &[String] {
+        return &self.saved;
+    }
+
     /// This document with `state` in place of its state; the references stay.
     pub fn with_state(mut self, state: LaneState) -> LaneDocument {
         self.state = state;
