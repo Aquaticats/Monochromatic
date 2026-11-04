@@ -150,57 +150,29 @@ mod reader_fsmonitor_tests;
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
-/// Git 2.56.0 `parse-options` tokenization of one command's argument region.
-pub mod command_options;
+/// Per-command handling:
+///  the option grammar of each Git command the wrapper understands,
+///  and the rules that rewrite, refuse or hint at a command.
+pub mod command;
 
-/// Long-option matching:
-///  exact names,
-///  unique abbreviations and `no-` negation.
-mod command_options_long;
-
-/// Final-state and position questions over a tokenized region.
-pub mod command_options_query;
-
-/// Short-option clusters and their attached or following values.
-mod command_options_short;
-
-/// The shared decision of which bytes are an option's value.
-mod command_options_value;
-
-/// Real-Git fixtures and table oracles for command tests;
-///  never in the release build.
-#[cfg(test)]
-mod command_test_support;
-
-/// Per-case copies of a pristine fixture and worker threads for independent test cases;
-///  never in the release build.
-#[cfg(test)]
-mod command_test_cases;
-
-/// Differential harness over `git rev-parse --parseopt`;
-///  never in the release build.
-#[cfg(test)]
-mod command_test_parseopt;
-
-/// Table oracle over `--git-completion-helper-all`;
-///  never in the release build.
-#[cfg(test)]
-mod command_test_completion;
-
-/// Facts about the arguments after `git commit`.
-pub mod command_commit;
-
-/// The complete Git 2.56.0 option table of `git commit`.
-pub mod command_commit_table;
-
-/// The shared result and builder of transforms that add tokens to a command line.
-pub mod rule_argument_rewrite;
+/// What:
+///  `pub use command::*;` also names every module declared in `command/mod.rs` directly under the crate root,
+///  with the visibility each module was declared with.
+/// Why:
+///  The modules moved into folders but keep their paths (`crate::name`, `git_policy_cli::name`),
+///  so no caller, fuzz target or test changes and the move stays mechanical.
+/// Gotcha:
+///  A glob re-export is shadowed by a same-named item written in this file,
+///  so no folder may share a name with a module.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './command';
+/// ```
+pub use command::*;
 
 /// Pure core of the index-against-`HEAD` check.
 pub mod rule_commit_index;
-
-/// The query and reading of "does this worktree hold uncommitted state?".
-pub mod rule_worktree_dirty;
 
 /// Pure decision of the commit-only transform.
 pub mod rule_commit_only;
@@ -211,34 +183,6 @@ pub mod rule_commit_only_message;
 /// Pure core of the merge,
 ///  cherry-pick and revert conclusion check.
 pub mod rule_commit_sequencer;
-
-/// The Git 2.56.0 option table of `git push` and its facts.
-pub mod command_push;
-
-/// The Git 2.56.0 option table of `git status`,
-///  its facts and the advice-key reading.
-pub mod command_status;
-
-/// Pure decision of the atomic-push transform.
-pub mod rule_atomic_push;
-
-/// Pure decision of the status-hints transform.
-pub mod rule_status_hints;
-
-/// The Git 2.56.0 option table of `git add` and its bulk-staging facts.
-pub mod command_add;
-
-/// The Git 2.56.0 option table of `git clean` and its deletion facts.
-pub mod command_clean;
-
-/// The Git 2.56.0 option table of `git reset` and its mode.
-pub mod command_reset;
-
-/// `git stash` subcommand dispatch and wrapper-flag positions.
-pub mod command_stash;
-
-/// The commands that can overwrite or delete uncommitted state, read as Git reads them.
-pub mod command_discard;
 
 /// The `checkout` and `restore` command lines that take one side of a conflicted file.
 pub mod command_conflict_side;
@@ -263,37 +207,6 @@ pub mod conflict_sides;
 
 /// The linked-worktree policy's carve-out for conflicted files during a merge, rebase, cherry-pick or revert.
 pub mod conflict_side_guard;
-
-/// The Git 2.56.0 option tables of every `git stash` subcommand.
-pub mod command_stash_table;
-
-/// Branch-creation facts of `git branch`,
-///  `git checkout` and `git switch`.
-pub mod command_branch_create;
-
-/// Which action a tokenized `git branch` region selects.
-mod command_branch_mode;
-
-/// The complete Git 2.56.0 option table of `git branch`.
-pub mod command_branch_table;
-
-/// Explicit creation and the remote-guess candidate of `git checkout` and `git switch`.
-mod command_branch_target;
-
-/// The complete Git 2.56.0 option tables of `git checkout` and `git switch`.
-pub mod command_checkout_table;
-
-/// The Git 2.56.0 option groups of `git config`.
-pub mod command_config_table;
-
-/// The form and file scope of a `git config` region.
-pub mod command_config;
-
-/// Pure decision of the require-root policy.
-pub mod rule_require_root;
-
-/// Whether a `git worktree` invocation changes worktree registrations (an add or a move).
-pub mod command_worktree;
 
 /// Wrapper-only control spellings,
 ///  their meanings,
@@ -360,12 +273,6 @@ pub mod repository_location;
 ///  with the real-Git provider.
 pub mod repository_facts;
 
-/// Pure decision of the linked-worktree-only policy.
-pub mod rule_linked_worktree;
-
-/// The rejection texts of the linked-worktree-only policy.
-pub mod rule_linked_worktree_messages;
-
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
 
@@ -385,12 +292,6 @@ pub mod add_timing;
 
 /// The intent-guessing hint that follows a finding, an engine failure or a notice.
 pub mod event_hints;
-
-/// Pure decision of the branch-worktree-only policy and its one-query remote guess.
-pub mod rule_branch_worktree;
-
-/// Pure decision of the add-explicit policy.
-pub mod rule_add_explicit;
 
 /// The repository content the dependent-version planner reads, and its two failure kinds.
 pub mod dependent_version_content;
@@ -697,7 +598,6 @@ pub mod lfs_upload_settings;
 
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;
-
 
 /// Whether a blob is a Git LFS pointer, decided as `git-lfs` decides it.
 pub mod lfs_pointer;
