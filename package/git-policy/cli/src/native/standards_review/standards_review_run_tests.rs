@@ -41,7 +41,7 @@ fn reader(names: &[String]) -> Result<LandedCommit, String> {
 /// Options writing to `directory/log.md` at `endpoint`.
 fn options(directory: &Path, endpoint: &str, key: Option<&str>) -> ReviewOptions {
     // The log is not made here: the run creates it on its first delivery.
-    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: SHORT, trusted_pem: None };
+    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: SHORT, call_ceiling: Duration::from_secs(3600), trusted_pem: None };
 }
 
 /// A full review: the request the mock sees is the built body, and the entry holds the verdict, date and seconds.

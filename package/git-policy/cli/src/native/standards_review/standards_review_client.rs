@@ -33,7 +33,7 @@ pub const SCRIPT_QUIET_WINDOW: Duration = Duration::from_secs(30);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Gateway = { url: string; apiKey: string; quietWindow: number; trustedPem?: Uint8Array };
+/// type Gateway = { url: string; apiKey: string; quietWindow: number; ceiling: number; trustedPem?: Uint8Array };
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Gateway<'a> {
@@ -43,6 +43,8 @@ pub struct Gateway<'a> {
     pub api_key: &'a str,
     /// How long the call may stay silent (resolving, connecting, one read, one write) before it is ended.
     pub quiet_window: Duration,
+    /// The longest the call runs in all, whatever it shows (`wait_ceilings.rs`, `REVIEW_CALL_CEILING`).
+    pub ceiling: Duration,
     /// A PEM authority that replaces the embedded roots; `None` keeps them.
     pub trusted_pem: Option<&'a [u8]>,
 }

@@ -59,6 +59,8 @@ pub struct ReviewOptions {
     pub endpoint: String,
     /// How long the gateway call may stay silent before it is ended.
     pub quiet_window: Duration,
+    /// The longest the gateway call runs in all, whatever it shows (`wait_ceilings.rs`, `REVIEW_CALL_CEILING`).
+    pub call_ceiling: Duration,
     /// A PEM authority replacing the embedded roots (tests only).
     pub trusted_pem: Option<Vec<u8>>,
 }
@@ -76,7 +78,7 @@ pub struct ReviewOptions {
 pub fn options_from_environment(common_dir: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
     let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return shared_log_path(common_dir), PathBuf::from);
     let api_key: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| return variable(KEY_VARIABLES[1]));
-    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, trusted_pem: None };
+    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING, trusted_pem: None };
 }
 
 /// What:
@@ -132,7 +134,7 @@ fn ask_gateway(input: &ReviewInput, options: &ReviewOptions) -> Judged {
     if key.is_empty() {
         return failed(String::from(NO_KEY_MESSAGE));
     }
-    let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, trusted_pem: options.trusted_pem.as_deref() };
+    let gateway: Gateway = Gateway { url: options.endpoint.as_str(), api_key: key, quiet_window: options.quiet_window, ceiling: options.call_ceiling, trusted_pem: options.trusted_pem.as_deref() };
     let reply: Result<Reply, String> = post_decision(&gateway, request_body(input.model_input.as_str()).as_str());
     return match reply.and_then(|answer| return read_answer(answer.status, answer.body.as_str())) {
         Ok(judged) => judged,
