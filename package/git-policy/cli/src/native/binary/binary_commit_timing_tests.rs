@@ -245,7 +245,7 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     assert!(line.contains(" size=1 position=1 "), "{line}");
     let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|key| { return ms_of(line, key); }).sum();
     assert!(request_phases <= ms_of(line, "total_ms"), "the phases lie inside the request's total: {line}");
-    let landing_keys: [&str; 6] = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "sync_ms"];
+    let landing_keys: [&str; 6] = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"];
     let landing_phases: u64 = landing_keys.iter().map(|key| { return ms_of(line, key); }).sum();
     let landing_total: u64 = ms_of(line, "landing_ms");
     assert!(landing_phases <= landing_total && landing_total - landing_phases < u64::try_from(landing_keys.len()).expect("a small count"), "{line}");
@@ -355,7 +355,7 @@ fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration
     assert!(wait_covers_the_hold(lock_wait, age_at_first_look, hold_ms), "the wait for the lock is what was left of the hold ({hold_ms} ms) after {age_at_first_look} ms: {line}");
     // A phase that is slow on a slow host still lies beside the wait: the two fit in the whole they are parts of.
     let landing_total: u64 = ms_of(line, "landing_ms");
-    for other in ["reads_ms", "objects_ms", "journal_ms", "ref_ms", "sync_ms"] {
+    for other in ["reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"] {
         assert!(phase_lies_beside_the_wait(ms_of(line, other), lock_wait, landing_total), "{other} is not what the time went to: {line}");
     }
     for other in ["read_ms", "queued_ms", "settle_ms", "answer_ms"] {

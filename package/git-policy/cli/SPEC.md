@@ -4414,7 +4414,7 @@ and when the lock was found held `lock_looks`,
 `objects_ms`,
 `journal_ms`,
 `ref_ms`,
-`sync_ms`,
+`index_update_ms` (named `sync_ms` in records written before 2026-11-04),
 `answer_ms`,
 `total_ms`),
 a `pushed` line for every push the service ran

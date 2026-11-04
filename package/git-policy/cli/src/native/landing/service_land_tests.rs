@@ -634,7 +634,7 @@ fn the_hold_covers_the_branch_move_and_the_index_build() {
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let mut timing: LandTiming = LandTiming::default();
     land_batch_timed(&world.context, 1, &[request], &|_| {}, &mut timing).expect("landed");
-    assert!(timing.hold >= timing.ref_update + timing.sync, "{timing:?}");
+    assert!(timing.hold >= timing.ref_update + timing.index_update, "{timing:?}");
     assert!(timing.hold > std::time::Duration::ZERO, "{timing:?}");
     remove(world.root.as_path());
 }
@@ -1275,7 +1275,7 @@ fn syncs_of(events: &[String]) -> (Vec<String>, Vec<String>) {
 /// The owner's rule for the commit protocol, "Force at leaving, else background": a landing that publishes a commit waits for no
 /// sync of the wrapper's own records. Native Git forces nothing by default (a traced native commit makes no sync call), so each
 /// sync on the person's wait is a flush that a loaded disk can stall for seconds (production: `journal_ms` up to 40 s, `sync_ms`
-/// up to 119 s). The syncs are queued, and the background thread makes them; the list is the records a power cut may lose.
+/// (now `index_update_ms`) up to 119 s). The syncs are queued, and the background thread makes them; the list is the records a power cut may lose.
 #[test]
 fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
     let world: World = world("service-land-syncs");

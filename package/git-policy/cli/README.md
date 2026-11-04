@@ -2644,7 +2644,8 @@ each prefixed `cli-git-service:` on standard error and identified as `cli-git-se
   `objects_ms`,
   `journal_ms`,
   `ref_ms`
-  (moving the branch) and `sync_ms` (the index);
+  (moving the branch) and `index_update_ms` (removing the conclusion state, then building and installing the new index);
+  records written before 2026-11-04 carry the same duration as `sync_ms`, which was never a disk sync;
   `lock_hold_ms` is how long the index lock was held, from its placement to its release (the branch move and the index
   build), and is no phase of that sum;
   `attempts` is more than one when the branch moved under the batch.

@@ -552,9 +552,9 @@ fn land_batch_body(
         //  Git leaves too (`git commit` then `git symbolic-ref HEAD <other>`): the index describes the commit made.
         let followed: Result<bool, FailureCode> = follows_move(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str(), new.as_str());
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
-        let sync_began: Instant = Instant::now();
+        let index_update_began: Instant = Instant::now();
         let settled: bool = finish_after_move(&git, &intent, held, context.journal.as_path(), followed);
-        timing.sync += sync_began.elapsed();
+        timing.index_update += index_update_began.elapsed();
         timing.hold += hold_began.elapsed();
         if settled {
             reach("after-index");
