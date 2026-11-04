@@ -323,9 +323,23 @@ fn resolve_candidate(environment: &NativeEnvironment, root: &Path, base: &str, s
     // `.map_err(...)`: converts the callee's error into this function's error type.
     // Macro `format!`: builds or prints text (or a list) from a template.
     let resolved = run_git(environment, root, &["rev-parse", "--verify", "--quiet", "--end-of-options", &format!("{base}^{{commit}}")], None).map_err(Candidate::Operational)?;
-    if !resolved.status.success() {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        return Err(Candidate::NotACommit);
+    // `git rev-parse --verify --quiet` answers "not a commit" with exit 1 and no output (checked with Git 2.56.0 for a missing name and
+    // for a missing upstream); any other end is a failed Git, not a negative answer (round 6, 5a F4).
+    match resolved.status.code() {
+        Some(0) => {}
+        Some(1) => return Err(Candidate::NotACommit),
+        Some(code) => {
+            return Err(Candidate::Operational(format!(
+                "`git rev-parse` for {base} ended with exit status {code}: {}; no other candidate was tried",
+                String::from_utf8_lossy(&resolved.stderr).trim()
+            )));
+        }
+        None => {
+            return Err(Candidate::Operational(format!(
+                "`git rev-parse` for {base} was ended by a signal ({}); no other candidate was tried",
+                String::from_utf8_lossy(&resolved.stderr).trim()
+            )));
+        }
     }
     return Ok(String::from_utf8_lossy(&resolved.stdout).trim().to_string());
 }
