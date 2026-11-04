@@ -72,7 +72,8 @@ fn a_failing_completion_directory_sync_is_mandatory_and_a_later_recovery_only_re
     let messages: Vec<String> = recover(root.path(), &refusing);
 
     assert!(!error.cleanup_only(), "{error}");
-    assert!(marked.iter().all(|journal| { return journal.to_string_lossy().ends_with(".done"); }), "{marked:?}");
+    assert_eq!(marked.len(), 1, "the finished journal was removed before the failed barrier was handled, or was never made: {marked:?}");
+    assert!(marked[0].to_string_lossy().ends_with(".done"), "{marked:?}");
     assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), "final output of the run", "a finished run was judged again: {messages:?}");
     assert!(journal_dirs(root.path()).is_empty(), "the finished journal was not removed");
 }

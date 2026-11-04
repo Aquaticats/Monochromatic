@@ -1067,12 +1067,16 @@ fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_fa
     let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
+    let unlocked_update_ran = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen_by_runner = std::sync::Arc::clone(&unlocked_update_ran);
+    let written = young.clone();
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
         if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
             return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
         }
         if arguments[0] == "update" {
-            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            fs::write(cwd.join("Cargo.lock"), &written).map_err(|error| { return error.to_string(); })?;
+            seen_by_runner.store(true, std::sync::atomic::Ordering::Relaxed);
             return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
         }
         return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
@@ -1081,5 +1085,66 @@ fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_fa
 
     let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
 
-    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would fall back onto the unrestored lockfile: {outcome:?}");
+    // Both faults were reached: cargo failed after it wrote the lockfile, and the restore fault was consumed by the rollback.
+    assert!(unlocked_update_ran.load(std::sync::atomic::Ordering::Relaxed), "cargo never wrote the lockfile, so the test shows nothing");
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::Restore), "the rollback never reached the restore");
+    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), young, "the unrestored lockfile is not the one cargo wrote");
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("could not be put back"), "the refusal is not the rollback failure: {message}"),
+        other => panic!("the command would fall back onto the unrestored lockfile: {other:?}"),
+    }
+}
+
+/// Acceptance row A2, R4 (joined, 7a F3):
+/// a real run through the bounded runner that cannot show its scope empty,
+/// as cargo's update inside the install step:
+/// the step stops, the lockfile cargo wrote is neither rolled back nor accepted, the journal is kept,
+/// and nothing runs after it (the user's command is not started).
+#[test]
+fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_kept_and_nothing_after_it() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let ready = root.path().join("writer-ready");
+    let calls: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&calls);
+    let script: String = format!(
+        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        ready = ready.display()
+    );
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        seen.lock().expect("the call log").push(arguments.join(" "));
+        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        }
+        if arguments[0] == "update" {
+            crate::failpoints::arm(crate::failpoints::Point::ContainmentStopStuck);
+            let bound = crate::bounded_run::Bound { limit: std::time::Duration::from_secs(30), what: "cargo".to_string(), rerun: "cargo".to_string() };
+            let mut command = std::process::Command::new("sh");
+            command.current_dir(cwd).args(["-c", &script]);
+            return match crate::bounded_run::output_within(&mut command, None, &bound) {
+                Ok(_) => Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() }),
+                Err(error) => Err(error.to_string()),
+            };
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+
+    let journals = crate::journal_support::journal_dirs(root.path());
+    let scope_path = journals.first().map(|journal| { return crate::cgroup_test_support::scope_directory_of(&journal.join("groups").display().to_string()); });
+    if let Some(scope) = &scope_path {
+        let _ = fs::write(scope.join("cgroup.kill"), "1");
+    }
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("may still") && message.contains("journal"), "{message}"),
+        other => panic!("a run that could not show quiescence read as {other:?}"),
+    }
+    assert_eq!(fs::read_to_string(start.join("Cargo.lock")).expect("lock"), SATISFIED, "the lockfile cargo wrote was rolled back or replaced");
+    assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+    let log: Vec<String> = calls.lock().expect("the call log").clone();
+    assert!(log.last().is_some_and(|last| { return last.starts_with("update") && !last.contains("--locked"); }), "something ran after the run that could not be stopped: {log:?}");
 }

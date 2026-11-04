@@ -779,3 +779,32 @@ Where the sections of rounds 5 to 7 above say otherwise, the contract and this s
   round 7).
 - The queue of round 7 stays queued except what a row of the list needed: the K1 inventory above and the real completion rename and
   sync tests.
+
+## Resume point (round 9, written 2026-11-04 when the session was asked to stop)
+
+Done in round 9 (commits on `feat/cargo-shadow-cli`, tip after this commit):
+
+- Production: `settled <scope path>` records and the refusal of an unsettled run whose scope is absent (8a F1); the boot identity
+  (machine id and boot id in the journal's `view` record, reboot of the same machine discharges liveness only); discovery that reads
+  and reaps under its deadline (8a F2); non-blocking route cache and unsynced registry (8a F3); whole and durable acknowledgement
+  records (8a F4); the unknown-inventory warning (8a K1).
+- Tests: `round_nine_tests.rs` (17 tests), the 8b fixes (orphan test with each orphan's own pid, thread oracle by thread id with a
+  control, ESRCH treated as gone, completion-sync count, namespace test isolating the cgroup view, R2 message naming a surviving
+  path, rollback test asserting both faults), the seven partly rows (reap, joined install test, R2 stages, K2 chain, V5 two roots,
+  V3/V4 failpoints and cut-off journals).
+- The guards were removed on the committed tests and the tests failed (list in the contract's coverage map), then restored.
+- Last full debug run before the contract edits: 561 passed, 3 skipped. Not rerun after: the rename
+  `the_scope_record_is_durable_before_the_program_starts` to `the_scope_record_is_visible_before_the_program_starts`, and the contract
+  and coverage map rewrite.
+
+Next, in order:
+
+1. Run the debug suite, `lint:clippy`, then the release gate (`//package/cargo-shadow/cli:test`); fix what fails; fill the counts in the
+   coverage map of `doc/planning/cargo-shadow-guarantees.md` (the placeholder sentence under "Counts").
+2. Check every test name the contract cites exists (the name-check script idea: backticked identifiers against `fn` names).
+3. Update `package/cargo-shadow/cli/README.md` (settled records, boot identity, acknowledgement record) and a short "Round 9" section
+   in this file.
+4. Cut `cargo-shadow-9a.diff` to `-9d.diff` from `089585a116` into `/var/home/user/temp/agent/reviews/`, each under 250 KB, and report.
+
+No gate unit or `systemd-run` scope of mine is running; scratch and logs are in `/var/home/user/temp/agent/cargo-shadow-r7/`
+(`logs/full9f.log` is the last full run).

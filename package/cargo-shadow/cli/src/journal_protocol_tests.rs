@@ -987,6 +987,11 @@ fn a_higher_ancestor_the_user_cannot_open_is_never_touched() {
     fs::create_dir_all(&anchor).expect("a pre-existing anchor");
     let kept_dir = anchor.join("c");
     fs::set_permissions(&above, fs::Permissions::from_mode(0o311)).expect("make the ancestor unreadable");
+    if fs::read_dir(&above).is_ok() {
+        fs::set_permissions(&above, fs::Permissions::from_mode(0o755)).expect("make it readable again");
+        eprintln!("SKIPPED: this user opens a directory without the read permission (a privileged user), so the schedule cannot be made");
+        return;
+    }
 
     let result = replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &real_sync_dir);
 
@@ -1218,6 +1223,84 @@ fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_na
         };
         let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
         assert!(!names.is_empty(), "{label}: the displaced inode lost its last name");
-        assert!(message.contains(&names[0].display().to_string()) || message.contains(".shadow-") || message.contains("displaced"), "{label}: the message does not say where the file is: {message}");
+        // The diagnostic names a pathname under which the displaced inode really survives, not a word.
+        assert!(names.iter().any(|name| { return message.contains(&name.display().to_string()); }), "{label}: the message does not name a surviving path of the file ({names:?}): {message}");
+        // The replacement text is still reachable under the live name or a kept one when the swap happened.
+        let _ = names_of_inode(root.path(), fs::metadata(&path).expect("the live path still names a file").ino());
+    }
+}
+
+/// Acceptance row R2 (stages and read-only transition):
+/// the exchange itself fails, or the file system turns read-only (`EROFS`) at the link:
+/// the displaced inode keeps a name, the live file is not lost, and nothing is reported as settled.
+#[test]
+fn a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named() {
+    // The exchange fails: nothing moved, so the original is still the live file and the replacement text is nowhere.
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let original: u64 = fs::metadata(&path).expect("examines").ino();
+    let none = |_path: &Path| {};
+    let failing_swap = |_first: &Path, _second: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected exchange failure")); };
+    let outcome = replace_with_seams(&path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &Seams { between: &none, after_exchange: &none, swap: &failing_swap, link: &real_link, sync_file: &real_sync_file, sync_dir: &real_sync_dir });
+    assert!(outcome.is_err(), "a failed exchange was reported as settled");
+    assert_eq!(fs::read_to_string(&path).expect("the live file"), "expected", "the live file changed although the exchange failed");
+    assert!(names_of_inode(root.path(), original).contains(&path), "the original lost its name");
+
+    // The file system turns read-only at every link: the displaced file stays under its temporary name, and the live file has the
+    // replacement text.
+    let other = repository("expected");
+    let other_path = other.path().join(CRATE_DIR).join("Cargo.lock");
+    let displaced: u64 = fs::metadata(&other_path).expect("examines").ino();
+    let read_only = |_existing: &Path, _new: &Path| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(rustix::io::Errno::ROFS.raw_os_error())); };
+    let swap = |first: &Path, second: &Path| -> std::io::Result<()> { return crate::journal_replace::exchange_paths(first, second); };
+    let settled = replace_with_seams(&other_path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &Seams { between: &none, after_exchange: &none, swap: &swap, link: &read_only, sync_file: &real_sync_file, sync_dir: &real_sync_dir });
+    let shown: String = format!("{settled:?}");
+    assert!(shown.contains("Displaced"), "a read-only file system was reported as settled: {shown}");
+    assert!(!names_of_inode(other.path(), displaced).is_empty(), "the displaced inode lost its last name");
+    assert_eq!(fs::read_to_string(&other_path).expect("the live file"), "new text", "the replacement is not live");
+    let replacement: u64 = fs::metadata(&other_path).expect("examines").ino();
+    assert!(names_of_inode(other.path(), replacement).contains(&other_path), "the replacement inode has no name");
+}
+
+/// Acceptance row K2 (each barrier of the creation chain):
+/// every directory barrier of a preservation into a new nested kept directory, failed one at a time:
+/// the displaced inode keeps a protected name each time,
+/// and preservation is reported only with the copy beside the target, never through the directories whose barrier failed.
+#[test]
+fn failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name_or_reports_the_unsynced_chain() {
+    let counted = {
+        let root = repository("expected");
+        let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+        let kept_dir = root.path().join("a").join("b").join("c").join("d");
+        fs::create_dir_all(root.path().join("a")).expect("the pre-existing anchor");
+        let calls: RefCell<usize> = RefCell::new(0);
+        let count = |_directory: &Path| -> std::io::Result<()> { *calls.borrow_mut() += 1; return Ok(()); };
+        replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &count).expect("replaces");
+        let total: usize = *calls.borrow();
+        total
+    };
+    assert!(counted >= 4, "the chain should have several barriers: {counted}");
+    for failing in 0..counted {
+        let root = repository("expected");
+        let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+        let kept_dir = root.path().join("a").join("b").join("c").join("d");
+        fs::create_dir_all(root.path().join("a")).expect("the pre-existing anchor");
+        let displaced: u64 = fs::metadata(&path).expect("examines").ino();
+        let seen: RefCell<usize> = RefCell::new(0);
+        let fail_nth = |_directory: &Path| -> std::io::Result<()> {
+            let index: usize = *seen.borrow();
+            *seen.borrow_mut() += 1;
+            if index == failing { return Err(std::io::Error::other("injected barrier failure")); }
+            return Ok(());
+        };
+
+        let outcome = replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &fail_nth);
+
+        let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
+        assert!(!names.is_empty(), "barrier {failing}: the displaced inode lost its last name");
+        if outcome.is_ok() {
+            // Reported as preserved: the copy must then be one whose barriers all held, beside the target and not in the new chain.
+            assert!(names.iter().any(|name| { return !name.starts_with(root.path().join("a")); }), "barrier {failing}: reported as preserved through the unsynced chain: {names:?}");
+        }
     }
 }

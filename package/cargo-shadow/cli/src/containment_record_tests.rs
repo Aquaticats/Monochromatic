@@ -156,7 +156,7 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
 /// until the journal is acknowledged,
 /// and the refusal names the journal and the command.
 #[test]
-fn a_weaker_path_journal_is_refused_by_recovery_and_admission_until_it_is_acknowledged() {
+fn a_weaker_path_journal_is_refused_by_recovery_and_admission_before_it_is_acknowledged() {
     for records in ["pgroup starting\n", "pgroup starting\npgroup 2147483646\n"] {
         let root = repository();
         let journal: PathBuf = journal_with_records(root.path(), records);
@@ -177,7 +177,7 @@ fn a_weaker_path_journal_is_refused_by_recovery_and_admission_until_it_is_acknow
 /// and a recovery then settles that journal like any other,
 /// while the other journal keeps blocking.
 #[test]
-fn acknowledging_one_of_two_journals_settles_it_and_leaves_the_other_blocking() {
+fn acknowledging_one_of_two_journals_leaves_the_other_blocking_everything() {
     let root = repository();
     let first: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
     let second: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
@@ -259,6 +259,11 @@ fn acknowledge_refuses_what_is_not_an_open_journal_of_a_workspace() {
 
     assert!(acknowledge(elsewhere.path()).is_err());
     assert!(acknowledge(&root.path().join("no-such-journal")).is_err());
+    // A journal that is already finished (marked done) is refused too.
+    let journal: PathBuf = crate::journal_support::plant(root.path(), &[snapshot("original")], &[]);
+    let finished: PathBuf = crate::journal_transaction::publish_done(&journal).expect("marks the journal done");
+    assert!(acknowledge(&finished).is_err_and(|text| { return text.contains("already finished"); }), "a finished journal was acknowledged");
+    assert!(!finished.join("acknowledged").exists());
 }
 
 /// Acceptance row "V2, amended c" (the journal view):
@@ -327,6 +332,13 @@ fn recovery_in_another_mount_namespace_fixture() {
         return;
     };
     let root: PathBuf = PathBuf::from(root_text);
+    // The journal is given the view this namespace has of it (as if it had been made here), so that the journal view agrees and
+    // only the view of the directory that held the scope differs.
+    for journal in journal_dirs(&root) {
+        let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
+        let rest: String = recorded.lines().skip(1).map(|line| { return format!("{line}\n"); }).collect();
+        fs::write(journal.join("view"), format!("view {}\n{rest}", view_of(&journal).expect("views"))).expect("rewrite the view");
+    }
     let messages: Vec<String> = recover(&root, &refusing);
     fs::write(root.join("fixture-messages"), messages.join("\n")).expect("write the messages");
 }
@@ -354,7 +366,8 @@ fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
 
     assert!(status.success(), "the helper process failed: {status:?}");
     let said: String = fs::read_to_string(root.path().join("fixture-messages")).expect("the helper's messages");
-    assert!(said.contains("another mount or path") || said.contains("recorded path may lead somewhere else"), "{said}");
+    assert!(said.contains("recorded path may lead somewhere else"), "the refusal is not about the cgroup parent view: {said}");
+    assert!(!said.contains("another mount or path"), "the journal view differed too, so the cgroup view was not isolated: {said}");
     assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "the other view restored a file");
     assert!(journal.exists(), "the journal was not retained");
 }
@@ -364,7 +377,7 @@ fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
 /// seen at the boundary by a hook that runs inside the start,
 /// and the program writes a marker only after that.
 #[test]
-fn the_scope_record_is_durable_before_the_program_starts() {
+fn the_scope_record_is_visible_before_the_program_starts() {
     if delegated_route().is_none() {
         return;
     }

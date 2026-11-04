@@ -408,3 +408,117 @@ fn the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member() {
     let _ = member.wait();
     assert!(note.is_some_and(|text| { return text.contains("although the boot id changed"); }), "a scope with a member after a reboot was cleared");
 }
+
+/// Acceptance rows A1 and V6 (reaping):
+/// a direct child that cannot be reaped within its bound makes the run not quiescent,
+/// with writers possibly remaining and the journal retained, and the return is not a wait without end.
+#[test]
+fn a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
+    arm(Point::ReapStuck);
+    let started = Instant::now();
+
+    let result = output_within(&mut Command::new("true"), None, &bound());
+
+    assert_scope_record(&journal.join("groups").display().to_string());
+    assert!(matches!(result, Err(crate::bounded_run::RunError::NotQuiescent { .. })), "{result:?}");
+    assert!(transaction.writers_may_remain(), "the scope was not told that writers may remain");
+    assert!(journal.exists() && !journal.to_string_lossy().ends_with(".done"));
+    assert!(started.elapsed() < Duration::from_secs(10), "the run waited {:?}", started.elapsed());
+    let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
+    assert!(!record.lines().any(|line| { return line.starts_with("settled "); }), "a run that could not show its end recorded one: {record:?}");
+    drop(transaction);
+}
+
+/// Acceptance rows V3 and V4 (8b 2.5):
+/// a record that cannot be written, or cannot be made durable, starts no program,
+/// in the delegated path and in the weaker path.
+/// The failure of the sync is the proof that the sync comes before the start.
+#[test]
+fn a_record_that_cannot_be_written_or_made_durable_starts_no_program() {
+    for weaker in [false, true] {
+        for fault in [Point::RecordWrite, Point::RecordSync] {
+            let plain = scratch();
+            if weaker {
+                crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+            } else if delegated_route().is_none() {
+                return;
+            }
+            let root = repository();
+            let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+            let marker: PathBuf = root.path().join("ran");
+            arm(fault);
+
+            let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
+            crate::bounded_run::use_route_settings_for_test(None);
+
+            assert!(result.is_err(), "weaker={weaker} {fault:?}: the program ran although its record was not durable");
+            assert!(!marker.exists(), "weaker={weaker} {fault:?}: the program started");
+            drop(transaction);
+        }
+    }
+}
+
+/// Acceptance rows V3 and V4 (preparation windows):
+/// a journal cut off after its record, or after its record and view, holds no child,
+/// and a recovery removes it without touching the lockfile.
+#[test]
+fn a_journal_cut_off_during_its_preparation_is_removed_without_touching_the_lockfile() {
+    for files in [vec!["groups"], vec!["groups", "view"], vec!["groups", "view", "owner"]] {
+        let root = repository();
+        let cut_off: PathBuf = root.path().join(crate::journal::JOURNAL_DIR).join("cut-off");
+        fs::create_dir_all(&cut_off).expect("a journal directory");
+        for file in &files {
+            fs::write(cut_off.join(file), "").expect("a file of the preparation");
+        }
+
+        let note: Option<String> = survivor_note(&cut_off);
+        let messages: Vec<String> = recover(root.path(), &refusing);
+
+        assert_eq!(note, None, "{files:?}: an empty record shows that no child started");
+        assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "{files:?}: {messages:?}");
+        assert!(!cut_off.exists(), "{files:?}: the cut-off journal stayed: {messages:?}");
+    }
+}
+
+/// Acceptance row V5:
+/// a journal of two roots with their manifests, one root refused and the other accepted:
+/// the refused root's lockfile and manifest go back together, the accepted root keeps both,
+/// and the refused lockfile is saved without overwriting an existing refused copy.
+#[test]
+fn two_roots_with_manifests_are_restored_or_kept_together_per_root() {
+    let root = scratch();
+    let first: &str = "package/n/first";
+    let second: &str = "package/n/second";
+    for crate_dir in [first, second] {
+        fs::create_dir_all(root.path().join(crate_dir)).expect("dir");
+        fs::write(root.path().join(crate_dir).join("Cargo.lock"), format!("output of {crate_dir}")).expect("lock");
+        fs::write(root.path().join(crate_dir).join("Cargo.toml"), format!("edited manifest of {crate_dir}")).expect("manifest");
+    }
+    fs::write(root.path().join(first).join("Cargo.lock.refused"), "an earlier refused copy").expect("an earlier refused copy");
+    let snapshots: Vec<LockSnapshot> = [first, second].iter().map(|crate_dir| { return LockSnapshot { crate_dir: (*crate_dir).to_string(), source: format!("snapshot of {crate_dir}") }; }).collect();
+    let manifests: Vec<crate::manifest_edit::ManifestEdit> = [first, second]
+        .iter()
+        .map(|crate_dir| { return crate::manifest_edit::ManifestEdit { crate_dir: (*crate_dir).to_string(), path: root.path().join(crate_dir).join("Cargo.toml"), before: format!("manifest of {crate_dir}"), produced: None }; })
+        .collect();
+    let _journal = plant(root.path(), &snapshots, &manifests);
+
+    let messages: Vec<String> = recover(root.path(), &|before, _live| {
+        return if before[0].crate_dir == first { vec!["dep@1.0.1 refused".to_string()] } else { Vec::new() };
+    });
+
+    let read = |crate_dir: &str, name: &str| -> String { return fs::read_to_string(root.path().join(crate_dir).join(name)).expect("a file"); };
+    assert_eq!(read(first, "Cargo.lock"), format!("snapshot of {first}"), "{messages:?}");
+    assert_eq!(read(first, "Cargo.toml"), format!("manifest of {first}"), "the refused root's manifest was not put back with its lockfile");
+    assert_eq!(read(first, "Cargo.lock.refused"), "an earlier refused copy", "an existing refused copy was overwritten");
+    let saved: Vec<String> = fs::read_dir(root.path().join(first)).expect("lists").flatten().map(|entry| { return entry.file_name().to_string_lossy().to_string(); }).filter(|name| { return name.starts_with("Cargo.lock.refused."); }).collect();
+    assert_eq!(saved.len(), 1, "the refused lockfile was not saved under its own name: {saved:?}");
+    assert_eq!(read(second, "Cargo.lock"), format!("output of {second}"), "the accepted root's lockfile was restored");
+    assert_eq!(read(second, "Cargo.toml"), format!("edited manifest of {second}"), "the accepted root's manifest was restored");
+    assert!(journal_dirs(root.path()).is_empty());
+}

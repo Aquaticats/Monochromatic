@@ -39,6 +39,7 @@ const LEADER_SOURCE: &str = r#"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 /* The second thread: waits until /proc shows the first thread (the thread group leader) as a zombie, then creates the file named by
@@ -61,7 +62,7 @@ static void *live_thread(void *argument) {
   (void) argument;
   while (!leader_is_zombie()) { usleep(1000); }
   FILE *out = fopen(ready_path, "w");
-  if (out != NULL) { fputs("ready", out); fclose(out); }
+  if (out != NULL) { fprintf(out, "%ld\n", (long) syscall(SYS_gettid)); fclose(out); }
   sleep(600);
   return NULL;
 }
@@ -111,9 +112,15 @@ pub(crate) fn is_running(pid: i32) -> bool {
     if test_kill_process(found).is_err() {
         return false;
     }
-    let stat: String = fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default();
+    // A process that was reaped between the two reads is gone; one whose state cannot be read for another reason stops the test.
+    let stat: String = match fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(found) => found,
+        // A process that is exiting reads as missing (ENOENT) or as gone (ESRCH).
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) => return false,
+        Err(error) => panic!("/proc/{pid}/stat cannot be read ({error}): the state of the process is unknown"),
+    };
     let state: &str = stat.rsplit(')').next().unwrap_or("").trim_start();
-    return !state.starts_with('Z');
+    return !state.starts_with('Z') && !state.starts_with('X');
 }
 
 /// Stops a helper process the test started and does not mind if it is gone.
@@ -133,15 +140,44 @@ pub(crate) fn compile_leader(directory: &Path) -> PathBuf {
     return program;
 }
 
-/// Whether a process has a thread that is not a zombie (a zombie leader with a live thread has one).
-pub(crate) fn has_live_thread(pid: i32) -> bool {
-    let Ok(tasks) = fs::read_dir(format!("/proc/{pid}/task")) else {
-        return false;
+/// Whether the thread with this id is alive (not a zombie, not gone).
+/// Only a thread that is gone (`ENOENT`) or a zombie is "not alive"; anything the helper cannot read or parse stops the test,
+/// because an unknown state is not a stopped one (8b 2.2).
+pub(crate) fn thread_is_alive(tid: i32) -> bool {
+    let stat: String = match fs::read_to_string(format!("/proc/{tid}/stat")) {
+        Ok(found) => found,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound || error.raw_os_error() == Some(3) => return false,
+        Err(error) => panic!("/proc/{tid}/stat cannot be read ({error}): the state of the thread is unknown, not stopped"),
     };
-    return tasks.flatten().any(|task| {
-        let stat: String = fs::read_to_string(task.path().join("stat")).unwrap_or_default();
-        return stat.rsplit(')').next().unwrap_or("").trim_start().chars().next().is_some_and(|state| { return state != 'Z'; });
-    });
+    let state: char = stat.rsplit(')').next().and_then(|rest| { return rest.trim_start().chars().next(); }).unwrap_or_else(|| { panic!("/proc/{tid}/stat cannot be parsed: {stat:?}") });
+    return state != 'Z' && state != 'X';
+}
+
+/// The thread id the fixture's worker wrote into its ready file, once the file holds it.
+pub(crate) fn worker_tid(ready: &Path) -> i32 {
+    return read_pid(ready);
+}
+
+/// The control of the oracle (8b 2.2):
+/// the fixture run on its own, with no run around it, shows the worker alive behind its zombie leader,
+/// and the same helper reports it gone once the process is killed.
+#[test]
+fn the_thread_oracle_sees_a_live_worker_behind_a_zombie_leader_and_its_end() {
+    let directory = scratch();
+    let leader: PathBuf = compile_leader(directory.path());
+    let ready: PathBuf = directory.path().join("ready");
+    let mut process = Command::new(&leader).arg(&ready).spawn().expect("starts the fixture");
+    let tid: i32 = worker_tid(&ready);
+    let leader_state: char = fs::read_to_string(format!("/proc/{}/stat", process.id())).expect("the leader's stat").rsplit(')').next().expect("a state").trim_start().chars().next().expect("a letter");
+
+    let alive_before: bool = thread_is_alive(tid);
+    process.kill().expect("kill the fixture");
+    let _ = process.wait();
+    let alive_after: bool = thread_is_alive(tid);
+
+    assert_eq!(leader_state, 'Z', "the fixture's leader is not a zombie, so the control shows nothing");
+    assert!(alive_before, "the oracle did not see the live worker");
+    assert!(!alive_after, "the oracle did not see the worker end");
 }
 
 /// Round 7 (6a R1 A), round 8 with handshakes:
@@ -158,8 +194,10 @@ fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_ret
     let leader: PathBuf = compile_leader(directory.path());
     let ready: PathBuf = directory.path().join("ready");
     let pid_file: PathBuf = directory.path().join("pid");
+    let group_file: PathBuf = directory.path().join("group");
     let script: String = format!(
-        "setsid {} {} </dev/null >/dev/null 2>&1 & echo $! > {}; while [ ! -e {} ]; do sleep 0.02; done; echo done",
+        "cat /proc/self/cgroup > {}; setsid {} {} </dev/null >/dev/null 2>&1 & echo $! > {}; while [ ! -e {} ]; do sleep 0.02; done; echo done",
+        group_file.display(),
         leader.display(),
         ready.display(),
         pid_file.display(),
@@ -168,9 +206,11 @@ fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_ret
 
     let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(30))).expect("runs");
 
-    let pid: i32 = read_pid(&pid_file);
+    let tid: i32 = worker_tid(&ready);
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
-    assert!(!has_live_thread(pid), "a thread of a process whose leader had ended is still alive after the run returned");
+    assert!(!thread_is_alive(tid), "the worker thread of a process whose leader had ended is still alive after the run returned");
+    let _ = read_pid(&pid_file);
+    assert!(fs::read_to_string(&group_file).expect("the program's group").trim().ends_with(".scope"), "the program did not run in a delegated scope");
 }
 
 /// Round 7 (6a R1 B):
@@ -183,7 +223,7 @@ fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
     let pids: PathBuf = directory.path().join("pids");
     // Forty orphans: each double-forked child records its process id and lives on; the program waits until all forty have.
     let script: String = format!(
-        "i=0; while [ $i -lt 40 ]; do ( ( echo $$ >> {pids}; exec sleep 600 ) & ) & i=$((i+1)); done; \
+        "i=0; while [ $i -lt 40 ]; do ( ( sh -c 'echo $$ >> {pids}; exec sleep 600' ) & ) & i=$((i+1)); done; \
          while [ \"$(wc -l < {pids} 2>/dev/null || echo 0)\" -lt 40 ]; do sleep 0.02; done; echo done",
         pids = pids.display()
     );
@@ -192,8 +232,11 @@ fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
 
     let recorded: Vec<i32> = fs::read_to_string(&pids).expect("the orphans' process ids").lines().filter_map(|line| { return line.trim().parse::<i32>().ok(); }).collect();
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
+    let distinct: std::collections::BTreeSet<i32> = recorded.iter().copied().collect();
     assert_eq!(recorded.len(), 40);
-    assert!(recorded.iter().all(|pid| { return !is_running(*pid); }), "an orphan of the run is still running after the run returned");
+    assert_eq!(distinct.len(), 40, "the orphans did not record their own process ids: {recorded:?}");
+    let alive: Vec<(i32, String)> = recorded.iter().filter(|pid| { return is_running(**pid); }).map(|pid| { return (*pid, fs::read_to_string(format!("/proc/{pid}/stat")).unwrap_or_default()); }).collect();
+    assert!(alive.is_empty(), "an orphan of the run is still running after the run returned: {alive:?}");
 }
 
 /// Round 7 (6a R3):
