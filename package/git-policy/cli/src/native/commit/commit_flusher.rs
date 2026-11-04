@@ -1,6 +1,6 @@
 //! What:
 //!  The one-shot receipt flusher: the internal flush entry point that forces `lane/receipt/<id>` files and the receipt directory, under
-//!  the non-blocking lock `lane/flusher.lock`, releases the lock after its last empty sweep and sweeps once more without it, taking the
+//!  the non-blocking lock `lane/flusher.v2.lock`, releases the lock after its last empty sweep and sweeps once more without it, taking the
 //!  lock again when that sweep finds work. A forcing error is recorded in `lane/receipt-errors` for every receipt whose name is not yet
 //!  forced (the receipt directory included), the lock is released, the lane is listed once more for the receipts that joined meanwhile,
 //!  and the flusher ends.
@@ -66,8 +66,13 @@ pub const RECEIPT_DIR: &str = "receipt";
 /// The lane's record of receipts whose forcing failed (V; the next owner's syncer retries them).
 pub const RECEIPT_ERRORS: &str = "receipt-errors";
 
-/// The lane's flusher lock.
-pub const FLUSHER_LOCK: &str = "flusher.lock";
+/// The lane's flusher lock: the file name of the new protocol (owner decision 23, "New lock name"). No earlier implementation uses it, so no
+/// old client that probes a lock and holds it without sweeping can hold this one; old and new flushers may run at once, both sweep the same
+/// receipt directory, and forcing a receipt twice is harmless.
+pub const FLUSHER_LOCK: &str = "flusher.v2.lock";
+
+/// The lock file name the earlier implementations used. The new protocol never takes it; it is named so that a test can play the old holder.
+pub const LEGACY_FLUSHER_LOCK: &str = "flusher.lock";
 
 /// The exit code of a flusher that ended on a forcing error.
 pub const FORCING_ERROR_EXIT: i32 = 1;
@@ -106,7 +111,7 @@ pub enum Flushed {
 }
 
 /// What:
-///  The lane's flusher lock, held for the value's life: an exclusive non-blocking `flock` on `<lane>/flusher.lock`.
+///  The lane's flusher lock, held for the value's life: an exclusive non-blocking `flock` on `<lane>/flusher.v2.lock`.
 /// Why:
 ///  At most one flusher holds the lock. A client probes it and forks a helper only when it was free; the helper takes the lock itself, so
 ///  no process but the one that works carries a copy of it. A foreign special file at the path is refused without being opened.
@@ -126,12 +131,17 @@ pub struct FlusherLock {
 impl FlusherLock {
     /// Takes the lock without waiting; `None` when another flusher holds it.
     pub fn try_acquire(lane: &Path) -> Result<Option<FlusherLock>, FlushError> {
+        return Self::try_acquire_named(lane, FLUSHER_LOCK);
+    }
+
+    /// Takes the lock file `name` of the lane without waiting.
+    fn try_acquire_named(lane: &Path, name: &str) -> Result<Option<FlusherLock>, FlushError> {
         #[cfg(feature = "test-seams")]
         if let Some(error) = seam_failure() {
             return Err(FlushError::Io(error));
         }
         use std::os::unix::fs::OpenOptionsExt;
-        let path: PathBuf = lane.join(FLUSHER_LOCK);
+        let path: PathBuf = lane.join(name);
         if let Ok(metadata) = fs::symlink_metadata(&path)
             && !metadata.file_type().is_file()
         {
@@ -148,6 +158,13 @@ impl FlusherLock {
         };
     }
 
+}
+
+/// Takes the old implementation's lock without sweeping, as an old probe-capable client did (a test plays the old holder with it); an error
+/// when another process holds it.
+#[cfg(feature = "test-seams")]
+pub fn hold_legacy_lock(lane: &Path) -> Result<FlusherLock, FlushError> {
+    return FlusherLock::try_acquire_named(lane, LEGACY_FLUSHER_LOCK)?.ok_or(FlushError::Invalid("the old lock is held by another process"));
 }
 
 /// Forces one path (a regular file, or a directory) to disk. The path is opened without following a symbolic link and without blocking, and
@@ -396,7 +413,7 @@ pub fn launch_flusher(lane: &Path) -> Result<Launched, FlusherLaunchError> {
     if LEGACY_PROBE.load(std::sync::atomic::Ordering::SeqCst) {
         // The removed behaviour, for a negative control: a probe that holds the lock without listing, and a client that returns when it
         // finds the lock held.
-        match FlusherLock::try_acquire(lane).map_err(FlusherLaunchError::Lock)? {
+        match FlusherLock::try_acquire_named(lane, LEGACY_FLUSHER_LOCK).map_err(FlusherLaunchError::Lock)? {
             Some(probe) => {
                 fault_point("flusher:probe-held");
                 drop(probe);

@@ -230,7 +230,7 @@ fn the_internal_flush_mode_validates_its_lane() {
     assert!(validate_lane(&lane).is_ok());
     std::os::unix::fs::symlink(&lane, base.join("link")).expect("a symlink to a lane");
     assert!(validate_lane(&base.join("link")).is_err(), "a symlink for the lane");
-    assert!(!plain.join("flusher.lock").exists(), "validation created nothing");
+    assert!(!plain.join(git_policy_cli::commit_flusher::FLUSHER_LOCK).exists(), "validation created nothing");
 }
 
 /// P2: a FIFO named like a receipt does not block the flusher: it is refused as a forcing error and recorded.

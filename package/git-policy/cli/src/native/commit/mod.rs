@@ -137,6 +137,10 @@ pub mod commit_lane_lifecycle;
 #[cfg(target_os = "linux")]
 pub mod commit_disposal;
 
+/// The service side of the lane lifecycle, behind the `--lane` switch: the doorbell, the startup sweep and the periodic pass (plan step 3).
+#[cfg(target_os = "linux")]
+pub mod commit_lane_service;
+
 /// The bound of a drain request (plan step 2).
 #[cfg(target_os = "linux")]
 pub mod commit_drain;

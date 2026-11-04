@@ -58,8 +58,23 @@ pub fn fresh_nonce() -> u64 {
     if std::fs::File::open("/dev/urandom").and_then(|mut source| { return source.read_exact(&mut bytes); }).is_ok() {
         return u64::from_le_bytes(bytes);
     }
-    let clock: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_nanos() as u64; });
+    #[cfg(feature = "test-seams")]
+    let frozen: Option<u64> = { let value: u64 = FROZEN_CLOCK.load(std::sync::atomic::Ordering::SeqCst); (value != u64::MAX).then_some(value) };
+    #[cfg(not(feature = "test-seams"))]
+    let frozen: Option<u64> = None;
+    let clock: u64 = frozen.unwrap_or_else(|| { return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_nanos() as u64; }); });
     return clock ^ (u64::from(std::process::id()) << 32);
+}
+
+/// The clock reading the nonce fallback uses while a test freezes it; `u64::MAX` is off.
+#[cfg(feature = "test-seams")]
+static FROZEN_CLOCK: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(u64::MAX);
+
+/// Freezes the clock the nonce fallback reads (`None` thaws it): two launches in one clock tick, to show that the random source is what makes
+/// their unit names differ.
+#[cfg(feature = "test-seams")]
+pub fn inject_frozen_clock(value: Option<u64>) {
+    FROZEN_CLOCK.store(value.unwrap_or(u64::MAX), std::sync::atomic::Ordering::SeqCst);
 }
 
 /// What:
@@ -67,7 +82,7 @@ pub fn fresh_nonce() -> u64 {
 ///  link, holding a `receipt` directory that is not a link either. Nothing is created.
 /// Why:
 ///  `cli-git-service --flush-lane <dir>` is reachable by anyone who can run the program. A wrong caller can name a directory it can write and
-///  have `flusher.lock` and `receipt-errors` created there and the regular files under its `receipt/` forced (a read-only operation on file
+///  have `flusher.v2.lock` and `receipt-errors` created there and the regular files under its `receipt/` forced (a read-only operation on file
 ///  data); it cannot make the mode delete, rewrite or follow a link, and a FIFO or other special file named as a receipt is refused.
 ///
 /// In TS you'd write (pseudocode):

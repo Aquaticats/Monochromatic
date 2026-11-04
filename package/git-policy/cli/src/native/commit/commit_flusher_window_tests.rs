@@ -486,11 +486,12 @@ fn the_fixed_launch_gives_a_client_an_executor_whatever_another_client_does() {
     wait_recorded(&lane, &["e"]);
 }
 
-/// Review 14 section 1, negative control with the removed probe: a helper launched for C is paused before its acquisition; D acquires its
-/// probe; the helper's acquisition fails against it and the helper ends; E, arriving meanwhile, sees the lock held; D dies. Every
-/// coordination step is asserted, and neither c nor e is ever recorded.
+/// Review 14 section 1 against the fenced lane (plan step 3, owner decision 23): a helper launched for C is paused before its acquisition;
+/// D, an old client, holds its probe on the old lock name; the helper's acquisition is of the new lock name and succeeds; E, a new client,
+/// launches its own helper; D dies. Both receipts are recorded: an old probe holder cannot make a new helper lose, which is what the
+/// fence is for. (Before the fence this schedule lost both receipts; the old clients' own loss, probe against probe, is the next test.)
 #[test]
-fn the_removed_probe_loses_the_receipts_of_a_helper_that_lost_to_it_and_of_a_client_that_saw_it() {
+fn an_old_probe_cannot_make_a_new_helper_lose_the_lock_so_neither_receipt_is_lost() {
     let (lane, marks) = probe_lane("flusher-probe-helper-legacy");
     unforceable(&lane, "c");
     let (c_lane, c_marks) = (lane.clone(), marks.clone());
@@ -502,13 +503,13 @@ fn the_removed_probe_loses_the_receipts_of_a_helper_that_lost_to_it_and_of_a_cli
     std::thread::sleep(Duration::from_millis(100));
     let d = start_d(&lane, &marks, true);
     assert!(marked(&marks, "d-holds", Duration::from_secs(3)), "D never held its probe");
-    assert!(marked(&marks, "hc-done", Duration::from_secs(3)), "C's helper never lost the lock to D's probe");
     unforceable(&lane, "e");
-    assert_eq!(run_e(&lane, true), Some(0), "E's launch");
+    assert_eq!(run_e(&lane, false), Some(0), "E's launch");
     mark(&marks, "d-may-die");
     assert_eq!(d.join().expect("D's thread"), Some(0), "D died at its probe");
-    assert_eq!(c.join().expect("C's thread"), Some(0), "C's launch was acknowledged although its helper lost the lock");
-    assert_never_recorded(&lane, &["c", "e"]);
+    assert_eq!(c.join().expect("C's thread"), Some(0), "C's launch");
+    assert!(!marks.join("hc-done").exists(), "C's helper lost the lock to an old holder: the fence does not hold");
+    wait_recorded(&lane, &["c", "e"]);
 }
 
 thread_local! {
@@ -552,10 +553,11 @@ fn a_receipt_exposed_after_the_last_empty_sweep_is_covered_by_the_holders_releas
     assert!(forced.borrow().iter().any(|name| { return name == "r"; }), "R was not forced by F's recheck: {:?}", forced.borrow());
 }
 
-/// Review 14 section 2, the release and recheck takeover, negative control with the removed probe: the flusher releases, a client's
-/// receipt appears, D holds a probe when the flusher rechecks, the recheck reads it as a handover (`Handed`), and D dies.
+/// Review 14 section 2 against the fenced lane: the flusher releases, a client's receipt appears, an old client D holds a probe on the old
+/// lock name when the flusher rechecks; the recheck takes the new lock, which D cannot hold, so there is no handover to a holder that never
+/// lists: the flusher forces and accounts for the receipt itself, and D's death changes nothing.
 #[test]
-fn the_removed_probe_makes_a_recheck_hand_a_receipt_over_to_a_holder_that_never_lists() {
+fn an_old_probe_cannot_make_a_new_recheck_hand_a_receipt_over_to_a_holder_that_never_lists() {
     let (lane, marks) = probe_lane("flusher-probe-recheck-legacy");
     fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt that can be forced");
     let (hook_lane, hook_marks) = (lane.clone(), marks.clone());
@@ -573,10 +575,10 @@ fn the_removed_probe_makes_a_recheck_hand_a_receipt_over_to_a_holder_that_never_
             assert!(marked(&hook_marks, "d-holds", Duration::from_secs(3)), "D never held its probe");
         },
     );
-    assert!(matches!(outcome, Ok(Flushed::Handed { .. })), "the recheck did not hand over to the probe: {:?}", outcome);
+    assert!(!matches!(outcome, Ok(Flushed::Handed { .. })), "the recheck handed over to an old probe holder: {:?}", outcome);
     mark(&marks, "d-may-die");
     assert_eq!(d.expect("D").join().expect("D's thread"), Some(0), "D died at its probe");
-    assert_never_recorded(&lane, &["z"]);
+    wait_recorded(&lane, &["z"]);
 }
 
 /// The same window against the fixed implementation: D launches a helper (no probe), the flusher's recheck either takes the lock again or
