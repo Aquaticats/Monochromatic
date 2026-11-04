@@ -24,7 +24,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_chain, sync_directory};
+use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_chain, sync_directory, sync_file};
 use super::commit_integrity::{crc32, is_identity, is_object_name};
 
 /// What:
@@ -244,14 +244,13 @@ pub fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
     if cut > 0 {
         let mut saved: File = OpenOptions::new().create(true).append(true).open(torn_path(ledger))?;
         saved.write_all(&bytes[valid_end..])?;
-        saved.sync_all()?;
-        record_event(&format!("file-sync:{}", torn_path(ledger).display()));
+        sync_file(&saved, &torn_path(ledger))?;
         sync_parent(&torn_path(ledger))?;
         fault_point("ledger:before-truncate");
         let file: File = OpenOptions::new().write(true).open(ledger)?;
         file.set_len(valid_end as u64)?;
         record_event(&format!("truncate:{}", ledger.display()));
-        file.sync_all()?;
+        sync_file(&file, ledger)?;
     }
     return Ok(Repair { kept: valid_end as u64, cut: cut as u64 });
 }
@@ -350,7 +349,7 @@ pub fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), L
     }
     let mut file: File = OpenOptions::new().create(true).append(true).open(ledger)?;
     file.write_all(&line)?;
-    file.sync_all()?;
+    sync_file(&file, ledger)?;
     // Always, through the caller's durable anchor: the file or a directory above it may exist because a writer that died created
     // it before syncing.
     sync_chain(&parent, anchor)?;

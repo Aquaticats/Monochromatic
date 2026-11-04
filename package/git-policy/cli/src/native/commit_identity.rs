@@ -170,6 +170,14 @@ pub fn fault_point(name: &str) {
     let _ = name;
 }
 
+/// Syncs a file's data and records the event `file-sync:<path>` (test seam) after it succeeded; every file sync of the durable-record
+/// components goes through here, so a test can count them.
+pub fn sync_file(file: &File, path: &Path) -> io::Result<()> {
+    file.sync_all()?;
+    record_event(&format!("file-sync:{}", path.display()));
+    return Ok(());
+}
+
 /// Syncs a directory so entries made in it survive power loss. The event `dir:<path>` is recorded after the sync succeeded.
 pub fn sync_directory(directory: &Path) -> io::Result<()> {
     File::open(directory)?.sync_all()?;
@@ -336,7 +344,7 @@ pub fn bind(root: &Path, id: &str, hash: &str) -> Result<Bound, IdentityError> {
     let temporary: PathBuf = temporary_name(directory)?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(format!("{}\n", hash).as_bytes())?;
-    file.sync_all()?;
+    sync_file(&file, &temporary)?;
     fault_point("bind:before-link");
     let linked: io::Result<()> = fs::hard_link(&temporary, &path);
     fs::remove_file(&temporary)?;

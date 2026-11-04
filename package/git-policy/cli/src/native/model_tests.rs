@@ -168,3 +168,8 @@ mod model_register_tests;
 /// The bounded process runner of the fixtures.
 #[path = "model_fixture_tests.rs"]
 mod model_fixture_tests;
+
+/// Rule V (revision 12): one-file requests, the double-buffered state, the departure barrier and the sync count of the waiting path.
+#[cfg(feature = "test-seams")]
+#[path = "commit_inbox_tests.rs"]
+mod commit_inbox_tests;

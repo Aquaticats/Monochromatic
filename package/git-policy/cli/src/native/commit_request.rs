@@ -15,7 +15,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, fault_point, sync_chain, temporary_name};
+use super::commit_identity::{create_dir_all_durable, fault_point, sync_chain, sync_file, temporary_name};
 use super::commit_integrity::{hex, is_identity, is_object_name, sha256_hex, unhex};
 
 /// The record format version this module reads and writes. These components are unreleased and no request of version 1 or 2 was ever
@@ -432,7 +432,7 @@ pub fn publish(anchor: &Path, inbox: &Path, request: &Request) -> Result<Publish
     let temporary: PathBuf = temporary_name(inbox)?;
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(&bytes)?;
-    file.sync_all()?;
+    sync_file(&file, &temporary)?;
     fault_point("publish:before-link");
     let linked: io::Result<()> = fs::hard_link(&temporary, &target);
     fs::remove_file(&temporary)?;
