@@ -267,38 +267,17 @@ fn a_hold_reported_as_taken_by_another_reclaimer_is_a_back_off() {
     remove(root.as_path());
 }
 
-/// A `flock` that fails for any reason but a hold by another reclaimer (no `flock` on the file system, `ENOLCK`) never has the
-///  stale lock removed: the unlink that follows the name check is not safe without the hold, because a second reclaimer without
-///  it could remove the stale lock and a live landing could place its own in between, and the unlink would remove that.
+/// A landing on a file system with neither a `flock` nor a place for a claim file treats the stale lock as a held lock: it waits
+///  to its ceiling, withdraws the commit with the index in use, leaves the lock where it is, and tells the person which lock it
+///  is, whose batch and process left it, and how to remove it.
 #[test]
-fn a_failed_flock_never_has_the_stale_lock_removed() {
-    let (root, index) = index_in("reclaim-no-flock");
-    let lock: PathBuf = lock_path_of(&index);
-    std::fs::write(&lock, stale_lock_text(5)).expect("stale lock");
-    let tried = std::cell::Cell::new(0_usize);
-    let refusing = |_: &std::fs::File| -> std::io::Result<()> {
-        tried.set(tried.get() + 1);
-        return Err(std::io::Error::from_raw_os_error(libc::ENOLCK));
-    };
-    let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
-    let outcome: Reclaimed = reclaim(&platform, &lock);
-    assert!(matches!(outcome, Reclaimed::Unguarded(_)), "the stale lock is left, and the caller is told why: {outcome:?}");
-    assert_eq!(tried.get(), 1, "the hold was asked for once");
-    assert!(lock.exists(), "the stale lock stays");
-    remove(root.as_path());
-}
-
-/// A landing on a file system with no `flock` treats the stale lock as a held lock: it waits to its ceiling, withdraws the
-///  commit with the index in use, leaves the lock where it is, and tells the person which lock it is, whose batch and process
-///  left it, and how to remove it.
-#[test]
-fn a_landing_with_no_flock_waits_to_its_ceiling_and_names_the_stale_lock() {
+fn a_landing_with_no_flock_and_no_claim_waits_to_its_ceiling_and_names_the_stale_lock() {
     let (root, index) = index_in("reclaim-landing-no-flock");
     let lock: PathBuf = lock_path_of(&index);
     let text: String = stale_lock_text(5);
     std::fs::write(&lock, &text).expect("stale lock");
     let refusing = |_: &std::fs::File| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(libc::ENOLCK)); };
-    let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
+    let platform: Platform = Platform { flock: &refusing, rename: &claim_tests::rename_unless_claim, link: &claim_tests::link_unless_claim, ..SYSTEM };
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
     let said = std::cell::RefCell::new(Vec::<String>::new());
     let began: std::time::Instant = std::time::Instant::now();
@@ -362,7 +341,7 @@ fn the_notice_names_the_judged_stale_lock_and_not_a_live_replacement() {
     let stale_pid: i64 = stale_marked.holder.as_ref().expect("a holder").0;
     std::fs::write(&lock, &stale).expect("stale lock");
     let live_cell: std::cell::RefCell<Option<IndexLock>> = std::cell::RefCell::new(None);
-    // The hold fails once, and the stale lock is reclaimed by another instance and replaced by a live landing's lock meanwhile.
+    // The hold fails once (and no claim can be placed either), and the stale lock is reclaimed by another instance and replaced by a live landing's lock meanwhile.
     let replacing = |_: &std::fs::File| -> std::io::Result<()> {
         if live_cell.borrow().is_none() {
             std::fs::remove_file(&lock).expect("the other reclaimer removes the stale lock");
@@ -370,7 +349,7 @@ fn the_notice_names_the_judged_stale_lock_and_not_a_live_replacement() {
         }
         return Err(std::io::Error::from_raw_os_error(libc::ENOLCK));
     };
-    let platform: Platform = Platform { flock: &replacing, ..SYSTEM };
+    let platform: Platform = Platform { flock: &replacing, rename: &claim_tests::rename_unless_claim, link: &claim_tests::link_unless_claim, ..SYSTEM };
     let said = std::cell::RefCell::new(Vec::<String>::new());
     let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
     let _failure = acquire_within(&platform, &index, 9, ceiling, &|announce| {
