@@ -20,7 +20,7 @@ use crate::commit_state_log_tests::lane_with_envelope;
 use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_flusher::{FlushError, FlusherLaunchError, RECEIPT_DIR, RECEIPT_ERRORS};
 use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, transient_unit_arguments, unit_name};
-use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, create_receipt, seal_for_shutdown, startup_sweep, syncer_pass, RETRYING};
+use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, seal_for_shutdown, startup_sweep, syncer_pass, RETRYING};
 use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind, LaneDocument, LaneState, Marker, StateWriter, read, state_covers, sync_prefix};
 use std::cell::Cell;
 use std::fs;
@@ -225,9 +225,9 @@ fn the_seal_writes_a_reclaiming_checkpoint_of_everything_the_lane_holds() {
     assert_eq!(document.state(), &previous, "the seal keeps the state it found");
 }
 
-/// The step-1 row's component test: a departure acknowledged a record, the seal (the real reclaimer) replaced its segment, and the
-/// acknowledgment is still covered; a seal over an opaque predecessor reclaims nothing and the acknowledgment is covered by the segment
-/// that stays.
+/// The step-1 row's component test: a departure acknowledged a record and the seal (the real reclaimer) replaced its segment; the
+/// acknowledgment is still covered when the record was a checked document. Over an opaque record the seal reclaims nothing and the
+/// acknowledgment is not covered: the departure's verification says so, and the segment stays.
 #[test]
 fn a_departures_acknowledgment_survives_the_seal_that_replaces_its_segment() {
     let (lane, state, _id) = lane_with_everything("life-seal-departure");
@@ -245,7 +245,7 @@ fn a_departures_acknowledgment_survives_the_seal_that_replaces_its_segment() {
     let result = seal_for_shutdown(&lane, &state);
     assert!(result.is_ok(), "{:?}", result.map(|sealed| { return sealed.generation; }));
     assert!(state.join("state.log.1").exists(), "an opaque predecessor is never reclaimed");
-    assert!(state_covers(&state, &promised).expect("readable"));
+    assert!(!state_covers(&state, &promised).expect("readable"), "a seal is not shown to contain an opaque record's promise, so the departure's verification says so and does not report it kept");
 }
 
 /// A seal refuses what it cannot capture: a lane file that the representation cannot hold makes the seal fail rather than write a document

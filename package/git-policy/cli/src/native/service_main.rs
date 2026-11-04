@@ -31,6 +31,11 @@ fn main() {
     // The push messages this process writes name the remedies that reach the service, not a terminal's variable.
     git_policy_cli::push_deadline_advice::mark_service_process();
     let arguments: Vec<String> = std::env::args().collect();
+    // The internal flusher mode (plan step 2, owner decision 22): a transient unit the user manager starts runs the receipt flusher on one
+    //  lane and exits with its code. It listens to nothing and serves nothing; without the flag this program is the service as before.
+    if let Some(lane) = option(&arguments, git_policy_cli::commit_flusher_unit::FLUSH_LANE_FLAG) {
+        std::process::exit(git_policy_cli::commit_flusher::flusher_entry(std::path::Path::new(&lane)));
+    }
     let Some(journal) = option(&arguments, "--journal").map(PathBuf::from) else {
         git_policy_cli::service_error!("--journal <directory> is required");
         std::process::exit(2);

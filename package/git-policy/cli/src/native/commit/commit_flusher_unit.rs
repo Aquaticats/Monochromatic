@@ -1,0 +1,154 @@
+//! What:
+//!  The manager-started launch route of the receipt flusher (owner decision 22, "Systemd unit + fallback"): a transient systemd user unit,
+//!  started with `systemd-run --user --collect` and waited for until the start is confirmed, that runs the service program in its internal
+//!  flusher mode (`--flush-lane <lane>`). `launch_routed` tries it first and falls back to the double-forked helper where the manager
+//!  refuses, is absent or does not answer within its wait.
+//! Why:
+//!  A helper started by a double fork from a session scope can end with the session, leaving its receipt to the next owner's startup sweep;
+//!  a unit the manager owns survives a logout and a service upgrade by containment. The start is confirmed before the client returns
+//!  (no `--no-block`): a start nobody confirmed would leave the receipt unserved with no record. Each launch has its own unit name, so a
+//!  refusal never means a flusher already runs (an unloaded-but-not-collected unit of the same name would look the same). The unit's process
+//!  takes the flusher lock itself, as the forked helper does, so the argument that a receipt is covered by whichever flusher holds the lock
+//!  is the same for both routes. The unit carries no `CPUQuota` or `MemoryMax`: it forces a few receipt files, and no measurement of a
+//!  flusher's footprint exists to cite beside a number.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // launchRouted(lane, manager): try manager.start(lane) -> unit; on refusal launchFlusher(lane) (the fork), which refuses a threaded process
+//! ```
+
+use super::commit_flusher::{FlusherLaunchError, launch_flusher};
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
+
+/// The internal flag of the service program that runs the flusher on a lane and exits with its code.
+pub const FLUSH_LANE_FLAG: &str = "--flush-lane";
+
+/// The prefix of a flusher unit's name.
+const UNIT_PREFIX: &str = "cli-git-flusher-";
+
+/// Why the manager did not start the unit; the caller falls back to the fork.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ManagerRefused(pub String);
+
+/// A way to have the user manager run the flusher for a lane.
+pub trait ManagerRoute {
+    /// Starts a unit that runs the flusher on `lane` and returns once the manager confirmed the start, with the unit's name.
+    fn start(&mut self, lane: &Path) -> Result<String, ManagerRefused>;
+}
+
+/// A hash of the lane's path and a per-launch number, as 16 hexadecimal digits.
+fn lane_digest(lane: &Path, nonce: u64) -> String {
+    let mut state: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in lane.as_os_str().as_encoded_bytes().iter().copied().chain(nonce.to_le_bytes()) {
+        state ^= u64::from(byte);
+        state = state.wrapping_mul(0x0100_0000_01b3);
+    }
+    return format!("{:016x}", state);
+}
+
+/// The unit name for one launch: the lane's digest and `nonce`, which differs per launch.
+pub fn unit_name(lane: &Path, nonce: u64) -> String {
+    return format!("{}{}", UNIT_PREFIX, lane_digest(lane, nonce));
+}
+
+/// The arguments of `systemd-run` that start the flusher unit: a user unit named `unit`, unloaded after it ran (`--collect`), the start
+/// waited for, then the service program in flusher mode on `lane`.
+pub fn transient_unit_arguments(unit: &str, service_program: &Path, lane: &Path) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = vec!["--user".into(), "--collect".into(), "--quiet".into(), format!("--unit={}", unit).into(), "--".into()];
+    arguments.push(service_program.as_os_str().to_os_string());
+    arguments.push(FLUSH_LANE_FLAG.into());
+    arguments.push(lane.as_os_str().to_os_string());
+    return arguments;
+}
+
+/// What:
+///  Runs `command` with its streams closed and waits at most `wait` for it: a zero exit is `Ok`; a non-zero exit, a program that cannot be
+///  started, and a command still running at the bound (which is killed and reaped) are refusals.
+/// Why:
+///  The manager's answer is a bounded wait of the client; it ends at `wait` whatever the manager does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runWithin(command: Command, wait: number): ExitStatus; // throws ManagerRefused
+/// ```
+pub fn run_within(mut command: Command, wait: Duration) -> Result<ExitStatus, ManagerRefused> {
+    let mut child = command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().map_err(|error| { return ManagerRefused(format!("the manager's command could not be started: {}", error)); })?;
+    let deadline: Instant = Instant::now() + wait;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => return Ok(status),
+            Ok(Some(status)) => return Err(ManagerRefused(format!("the manager's command ended with {}", status))),
+            Ok(None) => {}
+            Err(error) => return Err(ManagerRefused(format!("the manager's command could not be waited for: {}", error))),
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(ManagerRefused(format!("the manager did not confirm the start within {:?}", wait)));
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// The real route: `systemd-run --user` with the service program.
+#[derive(Clone, Debug)]
+pub struct TransientUnitRoute {
+    systemd_run: PathBuf,
+    service_program: PathBuf,
+    /// The longest the client waits for the manager's confirmation of the start.
+    pub wait: Duration,
+    launches: u64,
+}
+
+impl TransientUnitRoute {
+    /// A route that runs `systemd_run` and starts `service_program`; the wait is the service start ceiling (measured: the slowest of 52
+    /// cold starts took 1,041 ms, `src/native/service/wait_ceilings.rs`).
+    pub fn new(systemd_run: PathBuf, service_program: PathBuf) -> TransientUnitRoute {
+        return TransientUnitRoute { systemd_run, service_program, wait: crate::wait_ceilings::START_CEILING, launches: 0 };
+    }
+}
+
+impl ManagerRoute for TransientUnitRoute {
+    fn start(&mut self, lane: &Path) -> Result<String, ManagerRefused> {
+        self.launches += 1;
+        let clock: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_nanos() as u64; });
+        let nonce: u64 = clock ^ (u64::from(std::process::id()) << 32) ^ self.launches;
+        let unit: String = unit_name(lane, nonce);
+        let mut command: Command = Command::new(&self.systemd_run);
+        command.args(transient_unit_arguments(&unit, &self.service_program, lane));
+        run_within(command, self.wait)?;
+        return Ok(unit);
+    }
+}
+
+/// How a flusher was started.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Routed {
+    /// The manager started this unit.
+    Manager {
+        /// The unit's name.
+        unit: String,
+    },
+    /// The manager refused and a double-forked helper was started.
+    Fork,
+}
+
+/// What:
+///  Starts the flusher for `lane`: through `manager` first, and by the double fork where the manager refuses.
+/// Why:
+///  Decision 22. The fork keeps its own requirement (a process with one thread, `LaunchError::Threaded` otherwise, with every receipt
+///  recorded); the manager route needs none, since it forks nothing in this process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function launchRouted(lane: string, manager: ManagerRoute): Routed; // throws FlusherLaunchError
+/// ```
+pub fn launch_routed(lane: &Path, manager: &mut dyn ManagerRoute) -> Result<Routed, FlusherLaunchError> {
+    return match manager.start(lane) {
+        Ok(unit) => Ok(Routed::Manager { unit }),
+        Err(_refused) => launch_flusher(lane).map(|_started| { return Routed::Fork; }),
+    };
+}

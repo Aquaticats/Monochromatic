@@ -125,6 +125,18 @@ pub mod commit_state_log;
 #[cfg(target_os = "linux")]
 pub mod commit_helper_launch;
 
+/// The manager-started launch route of the receipt flusher (a transient systemd user unit) and its fork fallback (owner decision 22).
+#[cfg(target_os = "linux")]
+pub mod commit_flusher_unit;
+
+/// The lane lifecycle at its call sites: client step, syncer pass, startup sweep and the planned-shutdown seal (plan step 2).
+#[cfg(target_os = "linux")]
+pub mod commit_lane_lifecycle;
+
+/// The bound of a drain request (plan step 2).
+#[cfg(target_os = "linux")]
+pub mod commit_drain;
+
 /// The one-shot receipt flusher: the internal flush entry point under `lane/flusher.lock`.
 #[cfg(target_os = "linux")]
 pub mod commit_flusher;

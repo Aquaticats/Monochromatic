@@ -236,6 +236,54 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
     return Ok(());
 }
 
+/// What:
+///  Captures everything the lane holds that a reclaiming checkpoint must retain: every request envelope in `inbox/`, every saved content in
+///  `saved/`, every decision mark and the ledger and the order file at their length now, each as a validated closure entry. Names that are
+///  not an obligation (a temporary file, a stray name) are skipped, as `check_lane_obligations` skips them.
+/// Why:
+///  The planned-shutdown seal is a reclaiming checkpoint of the lane as it is. It builds its closure from the lane itself, by the same scan
+///  that the checkpoint then uses to refuse a closure that omits something, so the two cannot disagree about what the lane holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function captureLaneClosure(lane: string): ClosureEntry[]; // inbox/*, saved/*, decision/*, ledger, order
+/// ```
+pub fn capture_lane_closure(lane: &Path) -> io::Result<Vec<ClosureEntry>> {
+    let mut closure: Vec<ClosureEntry> = Vec::new();
+    for directory in [INBOX, SAVED, DECISION] {
+        let entries = match fs::read_dir(lane.join(directory)) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        let mut names: Vec<String> = Vec::new();
+        for listed in entries {
+            if let Some(text) = listed?.file_name().to_str() {
+                names.push(text.to_string());
+            }
+        }
+        names.sort();
+        for text in names {
+            let path: PathBuf = lane.join(directory).join(&text);
+            match directory {
+                INBOX if super::commit_integrity::is_identity(&text) => closure.push(ClosureEntry::capture(lane, &path, EntryKind::InboxEnvelope)?),
+                SAVED if text.len() == 64 && super::commit_integrity::unhex(&text).is_some() => closure.push(ClosureEntry::capture_sealed_saved(lane, &path)?),
+                DECISION if mark_identity(&text).is_some() => closure.push(ClosureEntry::capture(lane, &path, EntryKind::Mark)?),
+                _ => {}
+            }
+        }
+    }
+    for file in [LANE_LEDGER, LANE_ORDER] {
+        let path: PathBuf = lane.join(file);
+        match fs::metadata(&path) {
+            Ok(_) => closure.push(ClosureEntry::capture(lane, &path, EntryKind::AppendPrefix)?),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    return Ok(closure);
+}
+
 /// The first line of a document in the checked representation.
 const LANE_DOCUMENT_MAGIC: &str = "cli-git-lane-document 1\n";
 
@@ -425,6 +473,19 @@ impl ClosureEntry {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "saved content entries come from create_saved_content only: an existing file, read-only or not, may have a writer that still holds a descriptor"));
         }
         return Self::build(lane, relative, kind, path);
+    }
+
+    /// Captures saved content that this component created earlier, for a later closure (the planned-shutdown seal retains what the lane holds):
+    /// the file under `saved/` must be named by its checksum, read-only and, where the kernel grants a lease, not open for writing. The premise
+    /// is the one of the lane: `saved/` is written only through `create_saved_content`, so a read-only file there has no writer, and a
+    /// privileged writer that replaces it is detected by the checksum name and not prevented.
+    pub fn capture_sealed_saved(lane: &Path, path: &Path) -> io::Result<ClosureEntry> {
+        let relative: PathBuf = path.strip_prefix(lane).map(PathBuf::from).map_err(|_| { return io::Error::new(io::ErrorKind::InvalidInput, "a closure entry lies under the lane"); })?;
+        if kind_of_path(&relative)? != EntryKind::Opaque {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "only a file under saved/ is saved content"));
+        }
+        check_saved_content_sealed(path)?;
+        return Self::build(lane, relative, EntryKind::Opaque, path);
     }
 
     /// Reads the file at `path` and builds its validated entry; the callers decide whether the file may be admitted at all.

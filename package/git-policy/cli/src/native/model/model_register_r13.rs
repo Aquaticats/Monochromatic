@@ -69,7 +69,7 @@ pub const WITHDRAW: usize = 7;
 pub const DEPART: usize = 8;
 
 /// The register of revision 13 (the entries that wait or act at a bound; the unbounded ones are `EXEMPT`).
-pub const ENTRIES: [Entry; 19] = [
+pub const ENTRIES: [Entry; 20] = [
     Entry { name: "START", waits: true, retries: false, continues: false, stages: &[("W1, or the plain error when no request exists", Stage::Local)] },
     Entry { name: "CAPTURE", waits: true, retries: true, continues: false, stages: &[("exits non-zero: the lane kept changing, run again", Stage::Local)] },
     Entry { name: "MARKER", waits: true, retries: true, continues: false, stages: &[("exits non-zero: the lane was recovering, run again", Stage::Local)] },
@@ -142,7 +142,17 @@ pub const ENTRIES: [Entry; 19] = [
         continues: false,
         stages: &[("waits for the single attempt at M1 or MG3, then exits 0 published with the install continuing (WAIT_MATERIALIZE)", Stage::Foreign)],
     },
+    Entry {
+        name: "DRAIN-REQUEST",
+        waits: true,
+        retries: false,
+        continues: false,
+        stages: &[("the service finishes the drain (WAIT_DRAIN, unmeasured: no constant is shipped)", Stage::Foreign), ("returns non-zero: draining, upgrade not applied; the drain continues", Stage::Local)],
+    },
 ];
+
+/// Index of DRAIN-REQUEST in `ENTRIES`.
+pub const DRAIN_REQUEST: usize = 19;
 
 /// Index of STOP in `ENTRIES`.
 pub const STOP: usize = 17;

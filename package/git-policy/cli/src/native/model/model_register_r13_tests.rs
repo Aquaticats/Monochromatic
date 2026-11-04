@@ -13,7 +13,7 @@
 
 use crate::model_explore::{Report, replay};
 use crate::model_register_r13::{
-    BUDGET, CAPTURE, COMMITTING, DEPART, ENTRIES, EXEMPT, FOREGROUND, BARRIER_ENTRIES, MATERIALIZE, Phase, Rules, STOP, Stage, State, WITHDRAW, check, check_exempt,
+    BUDGET, CAPTURE, COMMITTING, DEPART, DRAIN_REQUEST, ENTRIES, EXEMPT, FOREGROUND, BARRIER_ENTRIES, MATERIALIZE, Phase, Rules, STOP, Stage, State, WITHDRAW, check, check_exempt,
     entry_bound, initial, invariant, path_bound, steps,
 };
 
@@ -345,7 +345,8 @@ fn p7_a_terminal_outcome_that_skips_its_final_save_is_red_and_the_barrier_route_
 /// and the caller is stuck (red); from revision 13 on it exits within its derived bound.
 #[test]
 fn the_drain_request_is_a_bounded_row_and_an_unbounded_one_leaves_the_caller_stuck() {
-    let index: usize = ENTRIES.iter().position(|entry| { return entry.name == "DRAIN-REQUEST"; }).expect("a DRAIN-REQUEST row");
+    let index: usize = DRAIN_REQUEST;
+    assert_eq!(ENTRIES[index].name, "DRAIN-REQUEST");
     assert!(ENTRIES[index].waits && ENTRIES[index].stages.iter().any(|stage| { return stage.0.contains("WAIT_DRAIN") && stage.1 == Stage::Foreign; }));
     assert!(ENTRIES[index].stages.iter().any(|stage| { return stage.0.contains("draining, upgrade not applied"); }));
     let stuck = check(Rules::Twelve, single(index)).violation.expect("the drain wait is unbounded under revision 12");
