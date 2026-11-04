@@ -20,7 +20,8 @@ use crate::commit_state_log_tests::lane_with_envelope;
 use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_flusher::{FlushError, FlusherLaunchError, RECEIPT_DIR, RECEIPT_ERRORS};
 use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, transient_unit_arguments, unit_name};
-use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, seal_for_shutdown, startup_sweep, syncer_pass, RETRYING};
+use git_policy_cli::commit_identity::set_fault_point;
+use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, departure_acknowledge, seal_for_shutdown, startup_sweep, syncer_pass, RETRYING};
 use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind, LaneDocument, LaneState, Marker, StateWriter, read, state_covers, sync_prefix};
 use std::cell::Cell;
 use std::fs;
@@ -330,4 +331,82 @@ fn a_missing_manager_program_and_an_unfinished_start_are_refusals() {
     let mut failing = std::process::Command::new("false");
     failing.arg("--ignored");
     assert!(run_within(failing, FLUSHER_WAIT).is_err(), "a start that exits non-zero is a refusal");
+}
+
+/// What the race does in the window between the departure's capture of the selected segment and its open of the path.
+enum Race {
+    /// The seal replaces and removes the segment (the real reclaimer).
+    Seal,
+    /// An opaque checkpoint at a higher generation becomes the root and the segment stays.
+    UnrelatedCheckpoint,
+}
+
+thread_local! {
+    /// The lane, the state directory and the action of the race, set by the test on its own thread; the fault point is a plain function.
+    static RACE: std::cell::RefCell<Option<(PathBuf, PathBuf, Race)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs the race once at the capture window of `sync_prefix`, then clears it.
+fn race_at_capture(point: &str) {
+    if point != "state:after-capture" {
+        return;
+    }
+    let Some((lane, state, action)) = RACE.with(|cell| { return cell.borrow_mut().take(); }) else { return };
+    match action {
+        Race::Seal => {
+            seal_for_shutdown(&lane, &state).expect("the seal in the window");
+        }
+        Race::UnrelatedCheckpoint => {
+            let generation: u64 = read(&state).expect("readable").expect("state").0 + 1;
+            StateWriter::acquire(&state).expect("writer").checkpoint(generation, b"an unrelated document", &[]).expect("the unrelated checkpoint");
+        }
+    }
+}
+
+/// The step-1 review's departure race, on the component: the departure captured the selected segment, the seal unlinks it, and the open
+/// of the path fails; the departure selects again and acknowledges the sealed root, which covers its promise (finding 5, the ENOENT schedule).
+#[test]
+fn a_departure_whose_captured_segment_is_unlinked_by_the_seal_selects_again() {
+    let (lane, state, _id) = lane_with_everything("life-race-seal");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible");
+    StateWriter::acquire(&state).expect("writer").append_with(1, &document.encode(), &closure).expect("the record to acknowledge");
+    assert!(git_policy_cli::commit_state_log::sync_prefix(&state).is_ok(), "no race: the first attempt works");
+    RACE.with(|cell| { *cell.borrow_mut() = Some((lane.clone(), state.clone(), Race::Seal)); });
+    set_fault_point(Some(race_at_capture));
+    let first = git_policy_cli::commit_state_log::sync_prefix(&state);
+    set_fault_point(None);
+    assert!(matches!(&first, Err(error) if error.kind() == io::ErrorKind::NotFound), "the open of the unlinked path fails with ENOENT: {:?}", first.map(|prefix| { return prefix.number; }));
+    assert!(!state.join("state.log.1").exists(), "the seal removed the segment the departure had captured");
+    let prefix = departure_acknowledge(&state, 3).expect("the departure selects again");
+    assert!(state_covers(&state, &prefix).expect("readable"));
+}
+
+/// The same window with an unrelated higher-generation checkpoint: the segment stays, the forcing succeeds, and `state_covers` is false for
+/// the old capture. The departure does not return on the survival of the old file; it captures the new root.
+#[test]
+fn a_departure_whose_capture_is_superseded_by_an_unrelated_root_captures_again() {
+    let (lane, state, _id) = lane_with_everything("life-race-unrelated");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible");
+    StateWriter::acquire(&state).expect("writer").append_with(1, &document.encode(), &closure).expect("the record to acknowledge");
+    RACE.with(|cell| { *cell.borrow_mut() = Some((lane.clone(), state.clone(), Race::UnrelatedCheckpoint)); });
+    set_fault_point(Some(race_at_capture));
+    let old = git_policy_cli::commit_state_log::sync_prefix(&state).expect("the forcing of the surviving segment works");
+    set_fault_point(None);
+    assert!(!state_covers(&state, &old).expect("readable"), "the old capture is not covered by the unrelated root");
+    RACE.with(|cell| { *cell.borrow_mut() = Some((lane.clone(), state.clone(), Race::UnrelatedCheckpoint)); });
+    set_fault_point(Some(race_at_capture));
+    let prefix = departure_acknowledge(&state, 3).expect("the departure acknowledges the root it ends with");
+    set_fault_point(None);
+    assert!(state_covers(&state, &prefix).expect("readable"));
+    assert!(prefix.generation >= 3, "the acknowledged root is the newest: {}", prefix.generation);
+}
+
+/// A log that keeps changing, or is absent, is a bounded failure and not a loop: the attempts end and the error says so.
+#[test]
+fn a_departure_that_cannot_acknowledge_within_its_attempts_fails() {
+    let (_lane, state, _id) = lane_with_everything("life-race-absent");
+    let failed = departure_acknowledge(&state, 2);
+    assert!(failed.is_err(), "an absent log was acknowledged");
 }
