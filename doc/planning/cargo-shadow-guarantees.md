@@ -711,8 +711,7 @@ the lock contenders (a wait planted into the lock: `r16-i-red.log`), `an_unsucce
 fallback: `r16-m-red.log`), `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning` (the beside-target
 bytes dropped: `r16-o-red.log`), `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction` (the barrier of the kept
 directory after the link skipped: `r16-p-red.log`), `an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_apart`
-(the finish replaced by a direct removal: `r16-q-red.log`), and the journal listing helper test (red against the old helper:
-`r16-e.log` first run).
+(the finish replaced by a direct removal: `r16-q-red.log`), and the journal listing helper test (red against the old helper, in the first run of that test, whose log was overwritten by the green run).
 Without a planted regression, because none could be built cheaply, and so evidence of the assertions only: the in-place kept file of
 R1, the rollback test of R3/R5, the weaker-path tests of round 16, the stalled startup, the process oracle, the killed-wrapper test of
 V2 and the timeout test of V6.
