@@ -279,7 +279,7 @@ It is a design to be checked, not a proof; claims marked "to test" need models o
     a later wrapper command in that worktree prints "possible leftover" and a restore command only when the branch has
     moved and a file still matches what the wrapper wrote; the restore command re-checks and saves the current
     versions first; dismissing stops reminders and deletes no saved copy; saved copies and their metadata stay until
-    explicit disposal. Decisions 15 to 18 were recorded by commit RECORD4_COMMIT, whose time is RECORD4_TIME.
+    explicit disposal. Decisions 15 to 18 were recorded by commit 5073225ed4, whose time is 2026-11-04T03:27:31-05:00.
     2026-11-03T21:47:28-05:00.
 
 
@@ -301,7 +301,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 16, first committed REV16_TIME)
+### Normative state machine (revision 16, first committed 2026-11-04T03:27:31-05:00 in 5073225ed4)
 
 Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea, and revision 13 at
 2026-11-03T20:22:09-05:00 in 4a7bea95a2.
