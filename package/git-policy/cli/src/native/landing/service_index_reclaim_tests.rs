@@ -64,3 +64,43 @@ fn a_foreign_lock_and_a_running_holders_lock_stay() {
     assert_eq!(std::fs::read_to_string(&lock).expect("stands"), "foreign");
     remove(root.as_path());
 }
+
+/// What:
+///  A reclaimer that checked a lock as stale, and reaches its rename only after another instance has replaced that lock with its
+///  own live one, takes the live lock aside; a third program (Git) places its own lock during the moments the live one is off
+///  its name.
+/// Why:
+///   This is the race two services reclaiming one physical index (an alternate index shared by two worktrees) can run:
+///  `remove_stale`, `try_acquire` and the wait of a landing each read the marker and then rename by name, which is two steps.
+///  The live holder then finds another file under its name, so it installs nothing and its batch stays open; and the third
+///  program and the live holder both believed they hold the lock for as long as the stranded lock lasts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const live = tryAcquire(index, 7); hook('reclaim-aside', () => gitCreatesLock()); reclaim(lock);
+/// expect(gitCreatedLock).toBe(false); expect(read(lock)).toBe(liveMarker);
+/// ```
+#[test]
+#[ignore = "red: shows the late-reclaimer race, which no guard closes yet; run with --run-ignored all"]
+fn a_live_lock_taken_aside_by_a_late_reclaimer_is_never_open_to_a_third_program() {
+    let (root, index) = index_in("reclaim-late-reclaimer");
+    let lock: PathBuf = lock_path_of(&index);
+    // The other instance's live lock, the one the late reclaimer's earlier look at the stale lock did not see.
+    let live = try_acquire(&index, 7).expect("the live holder places its lock");
+    let live_marker: String = std::fs::read_to_string(&lock).expect("the live marker");
+    let third_placed = std::rc::Rc::new(std::cell::Cell::new(false));
+    let (hook_lock, hook_placed) = (lock.clone(), std::rc::Rc::clone(&third_placed));
+    hooks::set("reclaim-aside", std::rc::Rc::new(move || {
+        // Git takes `index.lock` by exclusive creation, as it does for every command that writes the index.
+        let created = std::fs::OpenOptions::new().write(true).create_new(true).open(&hook_lock);
+        hook_placed.set(created.is_ok());
+    }));
+    let removed: bool = reclaim(&SYSTEM, &lock);
+    assert!(!removed, "a lock whose holder runs is not removed");
+    assert!(!third_placed.get(), "a third program placed its lock while the live holder's lock was off its name");
+    assert_eq!(std::fs::read_to_string(&lock).expect("a lock stands"), live_marker, "the live holder's lock is back under its name");
+    let names: Vec<String> = std::fs::read_dir(&root).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    assert_eq!(names.len(), 2, "only the index and the lock: {names:?}");
+    drop(live);
+    remove(root.as_path());
+}

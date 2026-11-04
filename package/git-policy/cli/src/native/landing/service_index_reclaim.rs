@@ -66,6 +66,8 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, still_stale: &dyn Fn(&Path) 
             return false;
         }
     }
+    // A control reaches here to act as another program would during the moments the file is off its name.
+    crate::service_fault::reach("reclaim-aside");
     if !still_stale(aside.as_path()) {
         put_back(aside.as_path(), lock);
         return false;
