@@ -734,8 +734,8 @@ Picks of the agent, also open to veto:
 What the new design does not do, so a later review does not read it as done:
 
 - A same-uid member can leave the group (probe 3); the cgroup namespace closer is not built.
-- A wrapper killed in the span of one `spawn` leaves itself in the new group; the group then holds the wrapper's pid until it
-  is reaped, which a recovery reads as a survivor, and that is the safe side.
+- A wrapper killed in the span of one `spawn` dies inside the new group; the group then holds only what the spawn started,
+  which a recovery finds as a survivor, or nothing. Not tested (the window is about a millisecond).
 - Login sessions (root-owned group) take the weaker path; a transient user scope is the second way to a group and is queued.
 - Journal retention of `groups` lines grows by one line per run; the lines are removed with the journal.
 - The weaker path records the process group after the child starts (the child can run for a moment before the record is durable).
