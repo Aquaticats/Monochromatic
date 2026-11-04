@@ -77,3 +77,28 @@ fn a_kept_pack_is_flushed_only_where_loose_objects_are() {
     assert_landed_whole(&flushed_world);
     remove(flushed_world.root.as_path());
 }
+
+/// Where native Git would harden the objects of a commit (loose objects named in `core.fsync`, or the deprecated object-file
+/// switch), a pack that the import keeps instead of unpacking is hardened too, with its index: the person's choice covers the
+/// same objects whichever way they are stored. Each case keeps its pack (`fastimport.unpackLimit=0`) and names loose objects
+/// without naming the packs, which is where Git's own importer would leave the kept pack unflushed.
+#[test]
+fn a_kept_pack_gets_the_flush_native_gives_the_same_objects() {
+    let cases: [(&str, [(&str, &str); 2]); 3] = [
+        ("loose-only", [("fastimport.unpackLimit", "0"), ("core.fsync", "loose-object,none")]),
+        ("objects-only", [("fastimport.unpackLimit", "0"), ("core.fsync", "objects,none")]),
+        ("object-files", [("fastimport.unpackLimit", "0"), ("core.fsyncObjectFiles", "true")]),
+    ];
+    for (label, settings) in cases {
+        let mut all: Vec<(&str, &str)> = settings.to_vec();
+        if label == "object-files" {
+            all.push(("core.fsync", "none"));
+        }
+        let (flushes, world) = landing_flushes(format!("service-land-fsync-kept-{label}").as_str(), all.as_slice());
+        let packs: usize = std::fs::read_dir(world.repo.join(".git/objects/pack")).expect("pack directory").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".pack"); }).count();
+        assert_eq!(packs, 1, "{label}: the import kept its pack");
+        assert!(flushes >= 2, "{label}: the kept pack and its index are flushed ({flushes} flushes)");
+        assert_landed_whole(&world);
+        remove(world.root.as_path());
+    }
+}
