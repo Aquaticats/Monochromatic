@@ -821,9 +821,11 @@ CM6:
  nothing type-checks automatically.
 
 CM7:
- Install tools only from `toolchain.lock.json` (`mise run toolchain:install`;
- in containers and CI use its row's archive and sha256);
- never `cargo install` or compile a locked tool.
+ Install tools only via `mise run toolchain:install`
+ (containers, CI: the lock row's archive and sha256);
+ never compile a locked tool this repo publishes;
+ mpm-shadow can still compile a third-party one
+ when no archive fits.
 
 ## Before editing code
 
