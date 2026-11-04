@@ -213,10 +213,35 @@ pub fn open_error_record(lane: &Path, write: bool) -> io::Result<File> {
         options.append(true).create(true);
     }
     let file: File = options.open(lane.join(RECEIPT_ERRORS))?;
-    if !file.metadata()?.file_type().is_file() {
+    check_error_record(&file)?;
+    return Ok(file);
+}
+
+/// Refuses an open error record that is not a regular file with one name: a hard link would carry the writes and the clearing to a file
+/// outside the lane, and `O_NOFOLLOW` does not stop a hard link.
+pub fn check_error_record(file: &File) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the receipt error record is not a regular file"));
     }
-    return Ok(file);
+    if metadata.nlink() != 1 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the receipt error record has more than one name"));
+    }
+    return Ok(());
+}
+
+/// The most of the error record that is read at once. A line is a receipt name and a short message, so this holds thousands of them; a longer
+/// record is read up to here and never cleared. Unmeasured; a pick with the owner's veto open.
+pub const RECORD_READ_LIMIT: u64 = 1024 * 1024;
+
+/// Reads the error record up to its length when it was opened (and at most `RECORD_READ_LIMIT`), so that a recorder that goes on appending
+/// cannot keep the reader from reaching its end. Returns the bytes and whether they are the whole record as it was opened.
+pub fn read_error_record(file: &mut File) -> io::Result<(Vec<u8>, bool)> {
+    let extent: u64 = file.metadata()?.len();
+    let mut bytes: Vec<u8> = Vec::new();
+    io::Read::read_to_end(&mut io::Read::take(&mut *file, extent.min(RECORD_READ_LIMIT)), &mut bytes)?;
+    return Ok((bytes, extent <= RECORD_READ_LIMIT));
 }
 
 /// Takes the shared lock of the error record, waiting at most `RECORD_LOCK_WAIT`.
@@ -242,8 +267,9 @@ fn record_errors(lane: &Path, names: &[PathBuf], error: &io::Error, recorded: &m
     // Shared lock for the writes: the syncer empties the record in place under the exclusive lock, so no line is written while it does.
     // Two recorders may both add a line for one name; the duplicate is harmless (a retry is idempotent).
     lock_shared_within(&record)?;
-    let mut present: String = String::new();
-    std::io::Read::read_to_string(&mut record, &mut present)?;
+    // The names already recorded, read to the extent the record had when it was opened; a longer record is not de-duplicated (a duplicate is
+    // harmless).
+    let present: String = String::from_utf8_lossy(&read_error_record(&mut record)?.0).into_owned();
     for name in names {
         let Some(leaf) = name.file_name() else { continue };
         if !recorded.insert(leaf.to_os_string()) || present.lines().any(|line| { return line.split('\t').next() == leaf.to_str(); }) {

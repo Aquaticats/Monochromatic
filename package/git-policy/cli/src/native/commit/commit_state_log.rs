@@ -25,6 +25,20 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{fault_point, record_event_lazy, sync_chain, sync_directory, sync_file};
 use super::commit_integrity::sha256_hex;
 
+/// Reads a whole file that must be a regular file: opened without following a link and without blocking, and refused when it is a FIFO, a
+/// device or a directory. A file of the lane or of the state directory can be put there by anyone who can write the directory, and a FIFO
+/// named like a log or a ledger would otherwise block recovery for ever.
+fn read_regular(path: impl AsRef<Path>) -> io::Result<Vec<u8>> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file: File = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path.as_ref())?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "a file the log depends on is not a regular file"));
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    io::Read::read_to_end(&mut file, &mut bytes)?;
+    return Ok(bytes);
+}
+
 /// The chain hash before the first record of a file.
 fn genesis() -> String {
     return "0".repeat(64);
@@ -182,7 +196,7 @@ fn positions_are_adopt_lines(lane: &Path, document: &LaneDocument) -> bool {
         return true;
     }
     let Some(length) = document.order_length.and_then(|length| { return usize::try_from(length).ok(); }) else { return false };
-    let Ok(bytes) = fs::read(lane.join(LANE_ORDER)) else { return false };
+    let Ok(bytes) = read_regular(lane.join(LANE_ORDER)) else { return false };
     let Some(prefix) = bytes.get(..length) else { return false };
     return positioned.iter().all(|(id, at)| {
         let Ok(start) = usize::try_from(*at) else { return false };
@@ -272,7 +286,7 @@ pub fn capture_lane_closure(lane: &Path) -> io::Result<Vec<ClosureEntry>> {
     let mut closure: Vec<ClosureEntry> = Vec::new();
     // Saved content whose `disposed` line is in the ledger is never captured again: a root that retained it once more would be invalidated by
     // the unlink that finishes the disposal (review of step 2).
-    let disposed: BTreeSet<String> = match fs::read(lane.join(LANE_LEDGER)) {
+    let disposed: BTreeSet<String> = match read_regular(lane.join(LANE_LEDGER)) {
         Ok(bytes) => super::commit_ledger::complete_entries(&bytes).map_or_else(BTreeSet::new, |entries| { return entries.into_iter().filter(|entry| { return entry.outcome == "disposed"; }).map(|entry| { return entry.id; }).collect(); }),
         Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeSet::new(),
         Err(error) => return Err(error),
@@ -537,7 +551,7 @@ impl ClosureEntry {
 
     /// Reads the file at `path` and builds its validated entry; the callers decide whether the file may be admitted at all.
     fn build(lane: &Path, relative: PathBuf, kind: EntryKind, path: &Path) -> io::Result<ClosureEntry> {
-        let bytes: Vec<u8> = fs::read(path)?;
+        let bytes: Vec<u8> = read_regular(path)?;
         let entry: ClosureEntry = ClosureEntry { path: relative, kind, length: bytes.len() as u64, sha256: sha256_hex(&bytes) };
         validate_entry(lane, &entry)?;
         return Ok(entry);
@@ -764,7 +778,7 @@ fn validate_entry(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     if kind_of_path(&entry.path)? != entry.kind {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "a closure entry claims a kind its path does not have"));
     }
-    let bytes: Vec<u8> = fs::read(lane.join(&entry.path))?;
+    let bytes: Vec<u8> = read_regular(lane.join(&entry.path))?;
     let identity_ok: bool = match entry.kind {
         EntryKind::AppendPrefix => usize::try_from(entry.length).ok().and_then(|length| { return bytes.get(..length); }).is_some_and(|prefix| { return sha256_hex(prefix) == entry.sha256; }),
         EntryKind::Opaque | EntryKind::InboxEnvelope => bytes.len() as u64 == entry.length && sha256_hex(&bytes) == entry.sha256,
@@ -1054,8 +1068,8 @@ struct Established {
 ///  like a candidate that never completed, and the older state would be selected silently. The record binds the identity (segment and hash),
 ///  not only a generation: a checkpoint at the same generation as an older segment, or a valid substitute at the same number, is not it.
 fn established_record(dir: &Path) -> Result<Option<Established>, StateError> {
-    let text: String = match fs::read_to_string(dir.join(ESTABLISHED)) {
-        Ok(text) => text,
+    let text: String = match read_regular(dir.join(ESTABLISHED)) {
+        Ok(bytes) => String::from_utf8(bytes).map_err(|_| { return StateError::Damaged; })?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(StateError::Io(error)),
     };
@@ -1079,7 +1093,7 @@ fn honors_establishment(dir: &Path, established: &Established, selected: Option<
     if chosen.number > established.number {
         return Ok(true);
     }
-    let bytes: Vec<u8> = fs::read(log_path(dir, established.number))?;
+    let bytes: Vec<u8> = read_regular(log_path(dir, established.number))?;
     return Ok(records(&bytes).first().is_some_and(|first| { return first.generation == established.generation && first.hash == established.hash; }));
 }
 
@@ -1099,13 +1113,16 @@ fn establish(dir: &Path, candidate: &Candidate) -> io::Result<()> {
 /// cannot outrun the dependencies it declares. No log file is `Ok(None)`; files with bytes and no eligible record anywhere are `Damaged`; a
 /// file that cannot be read is `Io`.
 pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
+    // The establishment record is read before the segments are: a checkpoint that completes meanwhile advances the record and removes the
+    // segment this call reads, and a record read afterwards would name a segment that this call, healthy, never saw.
+    let established: Option<Established> = established_record(dir)?;
     let all_numbers: Vec<u64> = numbers(dir)?;
     let highest: Option<u64> = all_numbers.last().copied();
     let lane: PathBuf = lane_of(dir);
     let mut saw_bytes: bool = false;
     let mut best: Option<Selected> = None;
     for number in all_numbers.into_iter().rev() {
-        let bytes: Vec<u8> = fs::read(log_path(dir, number))?;
+        let bytes: Vec<u8> = read_regular(log_path(dir, number))?;
         saw_bytes = saw_bytes || !bytes.is_empty();
         let Some((all, count, document, items)) = eligible(&lane, &bytes) else { continue };
         let last: &Rec = &all[count - 1];
@@ -1131,8 +1148,9 @@ pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
         return Err(StateError::Damaged);
     }
     // An established root that no longer validates is damaged, not a candidate that never completed: nothing older is selected in its place.
-    if let Some(established) = established_record(dir)?
-        && !honors_establishment(dir, &established, best.as_ref())?
+    fault_point("state:select-after-scan");
+    if let Some(record) = &established
+        && !honors_establishment(dir, record, best.as_ref())?
     {
         return Err(StateError::Damaged);
     }
@@ -1156,7 +1174,7 @@ fn ledger_prefix_has(lane: &Path, items: &[ClosureEntry], id: &str, outcome: Opt
         if validate_entry(lane, entry).is_err() {
             return false;
         }
-        let Ok(bytes) = fs::read(lane.join(&entry.path)) else { return false };
+        let Ok(bytes) = read_regular(lane.join(&entry.path)) else { return false };
         let Some(prefix) = usize::try_from(entry.length).ok().and_then(|length| { return bytes.get(..length); }) else { return false };
         return super::commit_ledger::complete_entries(prefix).is_some_and(|lines| { return lines.iter().any(|line| { return line.id == id && outcome.is_none_or(|wanted| { return line.outcome == wanted; }); }); });
     });
@@ -1207,7 +1225,7 @@ fn check_non_drop(lane: &Path, previous: &[ClosureEntry], new: &[ClosureEntry], 
                 && match old.kind {
                     EntryKind::AppendPrefix => {
                         entry.length >= old.length
-                            && fs::read(lane.join(&entry.path)).ok().and_then(|bytes| { return usize::try_from(old.length).ok().and_then(|length| { return bytes.get(..length).map(sha256_hex); }); }).is_some_and(|hash| { return hash == old.sha256; })
+                            && read_regular(lane.join(&entry.path)).ok().and_then(|bytes| { return usize::try_from(old.length).ok().and_then(|length| { return bytes.get(..length).map(sha256_hex); }); }).is_some_and(|hash| { return hash == old.sha256; })
                     }
                     EntryKind::Opaque | EntryKind::InboxEnvelope | EntryKind::Mark => entry.length == old.length && entry.sha256 == old.sha256,
                 };
@@ -1313,7 +1331,7 @@ pub fn state_covers(dir: &Path, prefix: &Prefix) -> Result<bool, StateError> {
         return Ok(false);
     }
     if current.number == prefix.number && current.length as u64 >= prefix.length {
-        let bytes: Vec<u8> = fs::read(log_path(dir, current.number))?;
+        let bytes: Vec<u8> = read_regular(log_path(dir, current.number))?;
         let same_record: bool = records(&bytes).iter().any(|record| { return record.end as u64 == prefix.length && record.hash == prefix.hash; });
         if same_record {
             return Ok(true);
@@ -1322,7 +1340,7 @@ pub fn state_covers(dir: &Path, prefix: &Prefix) -> Result<bool, StateError> {
     // Across segments the successor must descend from the promised record: the first record of the current segment is a replacement
     // authority that names the promised record's hash among the records it replaced, and nothing the promise retained was dropped except
     // by a discharge its own ledger prefix proves.
-    let bytes: Vec<u8> = fs::read(log_path(dir, current.number))?;
+    let bytes: Vec<u8> = read_regular(log_path(dir, current.number))?;
     let descends: bool = records(&bytes).first().is_some_and(|first| {
         return matches!(parse_payload(&first.payload), Payload::Authority(authority) if authority.lineage.contains(&prefix.hash));
     });
@@ -1348,7 +1366,7 @@ pub struct Candidate {
 /// contains (each request and saved content kept in `closure` or discharged by a ledger line inside it, the ledger no longer than the new
 /// one). Only then is the state the segment promised shown to be preserved, and only then may the segment be reclaimed.
 fn segment_is_contained(dir: &Path, number: u64, lane: &Path, closure: &[ClosureEntry], new: &LaneDocument) -> io::Result<bool> {
-    let bytes: Vec<u8> = fs::read(log_path(dir, number))?;
+    let bytes: Vec<u8> = read_regular(log_path(dir, number))?;
     for record in records(&bytes) {
         let document: Vec<u8> = match parse_payload(&record.payload) {
             Payload::Plain(plain) => plain,
@@ -1428,7 +1446,7 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
         for number in &existing {
             if segment_is_contained(dir, *number, &lane, closure, new)? {
                 reclaims.push(*number);
-                let reclaimed: Vec<Rec> = records(&fs::read(log_path(dir, *number))?);
+                let reclaimed: Vec<Rec> = records(&read_regular(log_path(dir, *number))?);
                 // A checkpoint carries the lineage of the authorities it replaces, so an acknowledgment taken before an earlier seal is still
                 // covered after a later one.
                 for record in &reclaimed {
@@ -1457,13 +1475,13 @@ fn complete_checkpoint(dir: &Path, candidate: &Candidate) -> io::Result<()> {
     if !same || all.last() != Some(&candidate.number) {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "the candidate is not the recovery root with the identity it was started with; the older files are kept"));
     }
-    let bytes: Vec<u8> = fs::read(log_path(dir, candidate.number))?;
+    let bytes: Vec<u8> = read_regular(log_path(dir, candidate.number))?;
     let first: Rec = records(&bytes).into_iter().next().ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the candidate has no valid first record"); })?;
     let Payload::Authority(authority) = parse_payload(&first.payload) else {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "the candidate is not a replacement-root authority"));
     };
     for number in all.iter().filter(|number| { return **number != candidate.number; }) {
-        let older: Vec<u8> = fs::read(log_path(dir, *number))?;
+        let older: Vec<u8> = read_regular(log_path(dir, *number))?;
         if records(&older).last().is_some_and(|last| { return last.generation > selected.generation; }) {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "an older file holds a newer generation than the candidate; it is kept"));
         }

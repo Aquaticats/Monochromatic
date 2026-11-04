@@ -95,13 +95,9 @@ pub struct SyncPass {
 /// emptied; a line recorded meanwhile makes the length differ and nothing is removed (the next pass retries the old lines again, which is
 /// idempotent).
 pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<SyncPass, FlushError> {
-    let read: Vec<u8> = match super::commit_flusher::open_error_record(lane, false) {
-        Ok(mut file) => {
-            let mut bytes: Vec<u8> = Vec::new();
-            io::Read::read_to_end(&mut file, &mut bytes).map_err(FlushError::Io)?;
-            bytes
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+    let (read, whole): (Vec<u8>, bool) = match super::commit_flusher::open_error_record(lane, false) {
+        Ok(mut file) => super::commit_flusher::read_error_record(&mut file).map_err(FlushError::Io)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (Vec::new(), true),
         Err(error) => return Err(FlushError::Io(error)),
     };
     let retried: usize = read.iter().filter(|byte| { return **byte == b'\n'; }).count();
@@ -109,7 +105,8 @@ pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<Syn
     match flush_lane(lane)? {
         Flushed::Held => return Ok(SyncPass { forced: 0, retried: 0, held: true }),
         Flushed::Finished { forced } | Flushed::Handed { forced } => {
-            if retried > 0 {
+            // A record longer than the read limit was read in part: it is never cleared, so no line goes unretried.
+            if retried > 0 && whole {
                 clear_if_unchanged(lane, &read)?;
             }
             return Ok(SyncPass { forced, retried, held: false });
@@ -126,16 +123,15 @@ fn clear_if_unchanged(lane: &Path, read: &[u8]) -> Result<(), FlushError> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(FlushError::Io(error)),
     };
-    if !file.metadata()?.file_type().is_file() {
-        return Err(FlushError::Io(io::Error::new(io::ErrorKind::InvalidInput, "the receipt error record is not a regular file")));
-    }
+    super::commit_flusher::check_error_record(&file).map_err(FlushError::Io)?;
     match file.try_lock() {
         Ok(()) => {}
         Err(std::fs::TryLockError::WouldBlock) => return Ok(()),
         Err(std::fs::TryLockError::Error(error)) => return Err(FlushError::Io(error)),
     }
+    // Compared to the extent the pass read plus one byte: a record that grew is a different record, and the read never runs to an unbounded end.
     let mut now: Vec<u8> = Vec::new();
-    io::Read::read_to_end(&mut file, &mut now)?;
+    io::Read::read_to_end(&mut io::Read::take(&mut file, read.len() as u64 + 1), &mut now)?;
     if now == read {
         file.set_len(0)?;
     }
@@ -256,6 +252,7 @@ pub fn seal_for_shutdown(lane: &Path, state: &Path) -> Result<Sealed, LifecycleE
     let closure: Vec<ClosureEntry> = capture_lane_closure(lane)?;
     let previous: Option<Selected> = select(state)?;
     let carried: LaneState = previous.as_ref().and_then(|chosen| { return LaneDocument::parse(&chosen.payload); }).map_or_else(LaneState::default, |document| { return document.state().clone(); });
+    fault_point("lifecycle:seal-after-capture");
     let retired: Vec<String> = previous.as_ref().map_or_else(Vec::new, |chosen| { return dropped_since(chosen, &closure); });
     let document: LaneDocument = LaneDocument::from_closure(&closure)
         .ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the lane holds an append-only file the checked representation cannot express"); })?

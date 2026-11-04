@@ -106,7 +106,10 @@ fn main() {
             std::process::exit(2);
         }
         let interval: Duration = option(&arguments, "--lane-interval-millis").and_then(|text| { return text.parse::<u64>().ok(); }).map_or(git_policy_cli::commit_lane_service::SYNC_INTERVAL, Duration::from_millis);
-        std::thread::spawn(move || { git_policy_cli::commit_lane_service::run_lane_service(&lane, interval); });
+        if let Err(error) = git_policy_cli::commit_lane_service::start_lane_service(&lane, interval) {
+            git_policy_cli::service_error!("--lane {}: {error}", lane.display());
+            std::process::exit(2);
+        }
     }
     git_policy_cli::service_log!("ready");
     serve(listener, &context, &settings);

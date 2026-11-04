@@ -100,6 +100,20 @@ pub fn validate_lane(lane: &Path) -> Result<(), String> {
     if !is_real_directory(&lane.join(super::commit_flusher::RECEIPT_DIR)) {
         return Err("the directory has no receipt directory, so it is not a lane".to_string());
     }
+    // A lane belongs to the account that runs the program and can be written by no one else: the doorbell and the error record in it are
+    // trusted only because of that. (Everything the program does to the lane is done with this account's rights.)
+    use std::os::unix::fs::MetadataExt;
+    // SAFETY: `geteuid` takes no argument and touches no memory.
+    let me: u32 = unsafe { libc::geteuid() };
+    for directory in [lane.to_path_buf(), lane.join(super::commit_flusher::RECEIPT_DIR)] {
+        let metadata = std::fs::symlink_metadata(&directory).map_err(|error| { return format!("{} cannot be read: {}", directory.display(), error); })?;
+        if metadata.uid() != me {
+            return Err(format!("{} belongs to another account", directory.display()));
+        }
+        if metadata.mode() & 0o022 != 0 {
+            return Err(format!("{} can be written by its group or by others", directory.display()));
+        }
+    }
     return Ok(());
 }
 
@@ -149,13 +163,51 @@ pub fn run_within(mut command: Command, wait: Duration) -> Result<ExitStatus, Ma
             while killed && Instant::now() < reap_until && matches!(child.try_wait(), Ok(None)) {
                 std::thread::sleep(Duration::from_millis(1));
             }
-            if !matches!(child.try_wait(), Ok(Some(_))) {
-                std::thread::spawn(move || { let _ = child.wait(); });
+            #[cfg(feature = "test-seams")]
+            let unreaped_by_force: bool = UNREAPABLE.load(std::sync::atomic::Ordering::SeqCst);
+            #[cfg(not(feature = "test-seams"))]
+            let unreaped_by_force: bool = false;
+            if unreaped_by_force || !matches!(child.try_wait(), Ok(Some(_))) {
+                // Not handed to a thread here: the caller may have to fork next, and a fork needs a process with one thread. The child waits
+                // in the pending list until `reap_pending` runs, which `launch_routed` does after its fallback has been tried.
+                PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }).push(child);
             }
             return Err(ManagerRefused(format!("the manager did not confirm the start within {:?}", wait)));
         }
         std::thread::sleep(Duration::from_millis(1));
     }
+}
+
+/// Children that were killed after a timeout and had not been reaped within the window; `reap_pending` hands them to a thread.
+static PENDING_REAP: std::sync::Mutex<Vec<std::process::Child>> = std::sync::Mutex::new(Vec::new());
+
+/// Makes the cleanup window of `run_within` treat the killed child as not yet reaped (a test cannot make a process survive SIGKILL).
+#[cfg(feature = "test-seams")]
+static UNREAPABLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Test seam: `true` makes `run_within` leave its killed child to the pending list whatever the window saw.
+#[cfg(feature = "test-seams")]
+pub fn inject_unreapable_child(on: bool) {
+    UNREAPABLE.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// How many killed children wait to be reaped.
+pub fn pending_reaps() -> usize {
+    return PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }).len();
+}
+
+/// Hands every pending child to a reaper thread. Called when no fork is still to come.
+pub fn reap_pending() {
+    let children: Vec<std::process::Child> = std::mem::take(&mut *PENDING_REAP.lock().unwrap_or_else(|poisoned| { return poisoned.into_inner(); }));
+    for child in children {
+        reap_in_background(child);
+    }
+}
+
+/// Hands a child that has not been reaped to a thread of its own that waits for it, so it is reaped when it does end and is never left a
+/// zombie of a long-lived caller.
+pub fn reap_in_background(mut child: std::process::Child) {
+    std::thread::spawn(move || { let _ = child.wait(); });
 }
 
 /// The real route: `systemd-run --user` with the service program.
@@ -210,8 +262,11 @@ pub enum Routed {
 /// function launchRouted(lane: string, manager: ManagerRoute): Routed; // throws FlusherLaunchError
 /// ```
 pub fn launch_routed(lane: &Path, manager: &mut dyn ManagerRoute) -> Result<Routed, FlusherLaunchError> {
-    return match manager.start(lane) {
+    let routed: Result<Routed, FlusherLaunchError> = match manager.start(lane) {
         Ok(unit) => Ok(Routed::Manager { unit }),
         Err(_refused) => launch_flusher(lane).map(|_started| { return Routed::Fork; }),
     };
+    // The fork, if it was needed, is done: a child the manager command left unreaped can have a thread to wait for it now.
+    reap_pending();
+    return routed;
 }
