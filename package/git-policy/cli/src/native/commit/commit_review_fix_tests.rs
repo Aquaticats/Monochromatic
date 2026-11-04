@@ -218,6 +218,7 @@ fn fresh_nonces_are_distinct() {
 #[test]
 fn the_internal_flush_mode_validates_its_lane() {
     let base: PathBuf = scratch("fix-validate-lane");
+    assert!(validate_lane(Path::new("relative-lane")).is_err(), "a relative path");
     assert!(validate_lane(&base.join("missing")).is_err(), "a missing directory");
     fs::write(base.join("file"), b"x").expect("a file");
     assert!(validate_lane(&base.join("file")).is_err(), "a file");

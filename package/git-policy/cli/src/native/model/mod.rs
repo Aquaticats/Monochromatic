@@ -384,3 +384,8 @@ mod commit_io_error_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_review_fix_tests.rs"]
 mod commit_review_fix_tests;
+
+/// Plan step 2: what recomputation needs, and the retention of the envelope until the ledger discharges it.
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_retention_tests.rs"]
+mod commit_retention_tests;
