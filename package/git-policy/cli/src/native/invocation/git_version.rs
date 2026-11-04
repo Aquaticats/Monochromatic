@@ -5,10 +5,15 @@
 //!  a commit,
 //!  hooks and locks.
 //! Why:
-//!  The native tables and protocols follow Git 2.56.0,
-//!  and the
-//!  owner settled on 2.55.0 as the oldest release that runs the swap,
-//!  so 2.55.0 or newer counts as supported and that read-only commands are never checked
+//!  The native tables and protocols follow the Git release the test image runs the tests with,
+//!  and a Git older than that release is not refused:
+//!  the owner chose to warn once and go on
+//!  ("Raise minimum, drop the test, merely print a warning on older git and not refuse.",
+//!  2026-11-04),
+//!  so the constant below is the release the wrapper was tested with.
+//!  Only a Git whose release cannot be read stops the command,
+//!  because nothing is known about it.
+//!  Read-only commands are never checked
 //!      (`doc/handover/cli-git-rust-implementation.md`,
 //!  "Adopted without a question";
 //!  that section moved on 2026-11-03 to
@@ -16,7 +21,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await requireSupportedGit({ gitPath }); // once
+//! await requireReadableGit({ gitPath }); // once; warns when the release is older than the tested one
 //! ```
 
 /// The per-executable cache of the version text.
@@ -25,12 +30,18 @@ use crate::git_version_cache::{binary_identity, cache_directory, read_version_te
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// OS strings and paths for the cache location.
 use std::ffi::OsString;
+use std::io::Write;
 use std::path::Path;
 /// `OnceLock` holds the one answer of this process.
 use std::sync::OnceLock;
 
-/// The oldest supported Git release.
-pub const MINIMUM_GIT_VERSION: (u64, u64, u64) = (2, 55, 0);
+/// The Git release the wrapper was tested with, and the minimum below which every run prints a warning.
+///
+/// Keep it in step with the test image: the gate's base image installs the distribution's current `git` package
+///  (`native-test-base.Containerfile`), and `mise run //package/git-policy/cli:test:git-image` prints the release it
+///  got. When that release moves past this one, change this constant to it in the same commit as the first gate run
+///  on the new release, together with the release named in `README.md` and `SPEC.md` ("tested with").
+pub const MINIMUM_GIT_VERSION: (u64, u64, u64) = (2, 56, 0);
 
 /// A Git release as its major,
 ///  minor and patch numbers.
@@ -77,28 +88,58 @@ fn not_digit(character: char) -> bool {
 }
 
 /// What:
-///  The message for an unsupported or unreadable Git.
+///  The message for a Git whose release cannot be read.
 /// Why:
 ///   The person must know which Git was asked and what to do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: ... needs Git 2.55.0 or newer ...`
+/// `cli-git: real Git at ${path} reports ${found}, so its release cannot be read ...`
 /// ```
 pub fn unsupported_message(context: &GitContext, found: &str) -> String {
     return format!(
-        "cli-git: real Git at {} reports {found}; commits, hooks and the locks that coordinate \
-         with them need Git 2.55.0 or newer. Nothing was run. Upgrade Git, then run the command \
-         again.",
+        "cli-git: real Git at {} reports {found}, so its release cannot be read; commits, hooks and the \
+         locks that coordinate with them depend on it. Nothing was run. Point the wrapper at a working \
+         Git, then run the command again.",
         context.real_git.display()
     );
 }
 
 /// What:
-///  Decide support from the text `git version` printed.
+///  The warning for a Git older than the release the wrapper was tested with,
+///  or `None` for that release and every later one.
+/// Why:
+///   An older Git is not refused;
+///  the person learns which Git was found,
+///  which release the wrapper was tested with,
+///  and that the command continues.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function olderGitWarning(context, release): string | undefined;
+/// ```
+pub fn older_git_warning(context: &GitContext, release: GitRelease) -> Option<String> {
+    if release >= MINIMUM_GIT_VERSION {
+        return None;
+    }
+    return Some(format!(
+        "cli-git: warning: real Git at {} is version {}.{}.{}, older than {}.{}.{}, the release this wrapper was tested \
+         with; the command continues with it.\n",
+        context.real_git.display(),
+        release.0,
+        release.1,
+        release.2,
+        MINIMUM_GIT_VERSION.0,
+        MINIMUM_GIT_VERSION.1,
+        MINIMUM_GIT_VERSION.2
+    ));
+}
+
+/// What:
+///  Read the release from the text `git version` printed.
 /// Why:
 ///   One judgment serves the text a Git process printed and the text the cache kept,
-///  so both paths refuse the same releases with the same message.
+///  so both paths answer the same release or refuse the same unreadable text with the same message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,12 +150,6 @@ fn judge_version_text(context: &GitContext, stdout: &[u8]) -> Result<GitRelease,
         let shown: String = String::from_utf8_lossy(stdout).trim().to_string();
         return Err(unsupported_message(context, format!("an unreadable version {shown:?}").as_str()));
     };
-    if version < MINIMUM_GIT_VERSION {
-        return Err(unsupported_message(
-            context,
-            format!("version {}.{}.{}", version.0, version.1, version.2).as_str(),
-        ));
-    }
     return Ok(version);
 }
 
@@ -138,8 +173,7 @@ fn run_git_version(context: &GitContext) -> Result<GitOutput, String> {
 }
 
 /// What:
-///  Ask Git its version and decide support,
-///  without the cache.
+///  Ask Git its version without the cache.
 /// Why:
 ///   `check_git_version` remembers this answer.
 ///
@@ -193,7 +227,8 @@ pub fn ask_git_version_cached(context: &GitContext, cache_directory: Option<&Pat
 
 /// What:
 ///  The process-wide version ask:
-///  the cache in the user's cache directory when the environment names one.
+///  the cache in the user's cache directory when the environment names one,
+///  and the warning for an older Git printed once to standard error.
 /// Why:
 ///   `check_git_version` takes only the Git context;
 ///  the environment is the process's own,
@@ -205,15 +240,25 @@ pub fn ask_git_version_cached(context: &GitContext, cache_directory: Option<&Pat
 /// askGitVersionCached(context, cacheDirectory(process.env))
 /// ```
 fn ask_git_version_with_process_cache(context: &GitContext) -> Result<GitRelease, String> {
-    if cfg!(test) {
-        return ask_git_version(context);
+    let answer: Result<GitRelease, String> = if cfg!(test) {
+        ask_git_version(context)
+    } else {
+        let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+        ask_git_version_cached(context, cache_directory(environment.as_slice()).as_deref())
+    };
+    // This function runs once per process (`check_git_version` keeps its answer), so the warning prints once.
+    if let Ok(release) = &answer
+        && let Some(warning) = older_git_warning(context, *release)
+    {
+        let mut stream = std::io::stderr();
+        let _ = stream.write_all(warning.as_bytes());
+        let _ = stream.flush();
     }
-    let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    return ask_git_version_cached(context, cache_directory(environment.as_slice()).as_deref());
+    return answer;
 }
 
 /// What:
-///  Require a supported Git,
+///  Require a Git whose release can be read,
 ///  asking at most once per process.
 /// Why:
 ///   The check costs a Git process,
@@ -221,7 +266,7 @@ fn ask_git_version_with_process_cache(context: &GitContext) -> Result<GitRelease
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await requireSupportedGit({ gitPath });
+/// await requireReadableGit({ gitPath });
 /// ```
 pub fn check_git_version(context: &GitContext) -> Result<(u64, u64, u64), String> {
     return check_once(&CHECKED, context, ask_git_version_with_process_cache);
