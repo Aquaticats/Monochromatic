@@ -116,3 +116,11 @@ pub mod commit_inbox;
 /// Revision 13's hash-chained append-only state log with checkpoint rotation (unused by the live protocol).
 #[cfg(target_os = "linux")]
 pub mod commit_state_log;
+
+/// A detached helper launch (two forks, a new session, `close_range`) that is a function of this program and never a start of it.
+#[cfg(target_os = "linux")]
+pub mod commit_helper_launch;
+
+/// The one-shot receipt flusher: the internal flush entry point under `lane/flusher.lock`.
+#[cfg(target_os = "linux")]
+pub mod commit_flusher;

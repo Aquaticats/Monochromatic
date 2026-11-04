@@ -1,0 +1,156 @@
+//! What:
+//!  Controls of the one-shot receipt flusher on disposable lanes: `flusher.lock` contention, the recheck sweep after the lock is released,
+//!  the error record that names every unforced receipt, and a launched flusher's error record.
+//! Why:
+//!  At most one flusher runs per lane, a client that found the lock held must still be covered by the holder, and a forcing error must
+//!  not leave a receipt behind an exited flusher without a record (the model's `a_forcing_error_records_every_unforced_receipt_and_the_next_owner_retries_each`).
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // test('a second flusher finds the lock held and forces nothing', ...);
+//! ```
+
+use crate::model_fixture::scratch;
+use git_policy_cli::commit_flusher::{FlushError, Flushed, FlusherLock, RECEIPT_DIR, RECEIPT_ERRORS, flush_lane, flush_lane_with, launch_flusher};
+use std::cell::RefCell;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+/// The longest a test waits for a launched flusher; the work is a few file operations.
+const FLUSHER_WAIT: Duration = Duration::from_secs(10);
+
+/// A lane with a receipt directory holding `names` as empty files.
+fn lane_with(label: &str, names: &[&str]) -> PathBuf {
+    let lane: PathBuf = scratch(label);
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    for name in names {
+        fs::write(lane.join(RECEIPT_DIR).join(name), b"receipt").expect("receipt");
+    }
+    return lane;
+}
+
+/// Names (last path components) in call order.
+fn leaves(calls: &[PathBuf]) -> Vec<String> {
+    return calls.iter().map(|path| { return path.file_name().expect("a leaf").to_string_lossy().into_owned(); }).collect();
+}
+
+/// Two opens of the lock file conflict: the second is refused while the first is held and succeeds after it is dropped.
+#[test]
+fn the_flusher_lock_admits_one_holder_at_a_time() {
+    let lane: PathBuf = lane_with("flusher-lock", &[]);
+    let first = FlusherLock::try_acquire(&lane).expect("lock").expect("the first takes it");
+    assert!(FlusherLock::try_acquire(&lane).expect("lock").is_none(), "a second holder is refused without waiting");
+    drop(first);
+    assert!(FlusherLock::try_acquire(&lane).expect("lock").is_some(), "the lock is free after the holder drops it");
+}
+
+/// A flusher that finds the lock held forces nothing and says so; the receipt stays for the holder's recheck sweep.
+#[test]
+fn a_second_flusher_finds_the_lock_held_and_forces_nothing() {
+    let lane: PathBuf = lane_with("flusher-held", &["r1"]);
+    let _holder = FlusherLock::try_acquire(&lane).expect("lock").expect("the holder");
+    let forced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    let outcome: Flushed = flush_lane_with(&lane, &mut |path: &Path| { forced.borrow_mut().push(path.to_path_buf()); return Ok(()); }, &mut || {}).expect("flush");
+    assert_eq!(outcome, Flushed::Held);
+    assert!(forced.borrow().is_empty(), "{:?}", forced);
+}
+
+/// The release window: a receipt created after the last empty sweep and before the lock is released is found by the sweep without the
+/// lock, which takes the lock again and forces it.
+#[test]
+fn a_receipt_created_in_the_release_window_is_forced_by_the_recheck_sweep() {
+    let lane: PathBuf = lane_with("flusher-recheck", &["r1"]);
+    let forced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    let window: PathBuf = lane.join(RECEIPT_DIR).join("r2");
+    let outcome: Flushed = flush_lane_with(
+        &lane,
+        &mut |path: &Path| { forced.borrow_mut().push(path.to_path_buf()); return Ok(()); },
+        &mut || { fs::write(&window, b"receipt").expect("a client's receipt"); },
+    )
+    .expect("flush");
+    assert_eq!(outcome, Flushed::Finished { forced: 2 });
+    let names: Vec<String> = leaves(&forced.borrow());
+    assert!(names.iter().any(|name| { return name == "r2"; }), "the window's receipt was forced: {:?}", names);
+}
+
+/// The release window with a second flusher: another flusher took the lock between the release and the recheck, so this one hands over
+/// instead of forcing (the other one carries the receipt).
+#[test]
+fn a_recheck_that_finds_work_and_the_lock_taken_hands_over() {
+    let lane: PathBuf = lane_with("flusher-handover", &["r1"]);
+    let taker: RefCell<Option<FlusherLock>> = RefCell::new(None);
+    let window: PathBuf = lane.join(RECEIPT_DIR).join("r2");
+    let outcome: Flushed = flush_lane_with(
+        &lane,
+        &mut |_: &Path| { return Ok(()); },
+        &mut || {
+            fs::write(&window, b"receipt").expect("a client's receipt");
+            *taker.borrow_mut() = FlusherLock::try_acquire(&lane).expect("lock");
+        },
+    )
+    .expect("flush");
+    assert!(taker.borrow().is_some(), "the other flusher took the free lock in the window");
+    assert_eq!(outcome, Flushed::Handed { forced: 1 });
+}
+
+/// A forcing error: the snapshot's first receipt is forced, the second fails, and a receipt a client created meanwhile joined the lock
+/// holder. The record names the failed receipt and the joiner, not the one already forced; the flusher ends with the error.
+#[test]
+fn a_forcing_error_records_the_failed_receipt_and_the_joiner_but_not_the_forced_one() {
+    let lane: PathBuf = lane_with("flusher-error", &["a", "b"]);
+    let joiner: PathBuf = lane.join(RECEIPT_DIR).join("c");
+    let result = flush_lane_with(
+        &lane,
+        &mut |path: &Path| {
+            if path.file_name().is_some_and(|leaf| { return leaf == "b"; }) {
+                fs::write(&joiner, b"receipt").expect("the joiner's receipt");
+                return Err(io::Error::other("the disk refused"));
+            }
+            return Ok(());
+        },
+        &mut || {},
+    );
+    assert!(matches!(result, Err(FlushError::Forcing(_))), "{:?}", result);
+    let record: String = fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the error record");
+    let named: Vec<&str> = record.lines().map(|line| { return line.split('\t').next().expect("a name"); }).collect();
+    assert_eq!(named, ["b", "c"], "{}", record);
+}
+
+/// The launched flusher end to end: a receipt that cannot be forced (a dangling link) makes the helper record every unforced receipt, and
+/// the helper releases the lock when it ends.
+#[test]
+fn a_launched_flusher_records_a_forcing_error_and_releases_the_lock() {
+    let lane: PathBuf = lane_with("flusher-launched", &["a", "c"]);
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("b")).expect("a dangling receipt");
+    launch_flusher(&lane).expect("launch");
+    let deadline: Instant = Instant::now() + FLUSHER_WAIT;
+    let record: String = loop {
+        if let Ok(text) = fs::read_to_string(lane.join(RECEIPT_ERRORS))
+            && text.lines().count() >= 2
+        {
+            break text;
+        }
+        assert!(Instant::now() < deadline, "no error record within {:?}", FLUSHER_WAIT);
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    let named: Vec<&str> = record.lines().map(|line| { return line.split('\t').next().expect("a name"); }).collect();
+    assert_eq!(named, ["b", "c"], "{}", record);
+    let freed: Instant = Instant::now() + FLUSHER_WAIT;
+    loop {
+        if FlusherLock::try_acquire(&lane).expect("lock").is_some() {
+            break;
+        }
+        assert!(Instant::now() < freed, "the helper still holds the lock");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// The real forcing on a healthy lane finishes with nothing recorded.
+#[test]
+fn a_healthy_lane_is_flushed_and_nothing_is_recorded() {
+    let lane: PathBuf = lane_with("flusher-healthy", &["a", "b"]);
+    assert_eq!(flush_lane(&lane).expect("flush"), Flushed::Finished { forced: 2 });
+    assert!(!lane.join(RECEIPT_ERRORS).exists());
+}

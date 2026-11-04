@@ -179,6 +179,16 @@ mod commit_inbox_tests;
 #[path = "../commit/commit_state_log_tests.rs"]
 mod commit_state_log_tests;
 
+/// The detached helper launch: no inherited descriptor, a new session, no program start.
+#[cfg(target_os = "linux")]
+#[path = "../commit/commit_helper_launch_tests.rs"]
+mod commit_helper_launch_tests;
+
+/// The one-shot receipt flusher: the lock, the recheck sweep and the error record.
+#[cfg(target_os = "linux")]
+#[path = "../commit/commit_flusher_tests.rs"]
+mod commit_flusher_tests;
+
 /// Revision 13's W1 against publication: the pipe, the mark, E1's three kinds, PREPARED-HOLD and a transaction process that outlives its owner.
 #[path = "model_w1_r13.rs"]
 mod model_w1_r13;
