@@ -125,10 +125,27 @@ fn kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warn
     fs::write(crate_root.join("Cargo.lock.refused"), "kept").expect("a refused copy");
     fs::write(crate_root.join("Cargo.toml"), "not kept").expect("an ordinary file");
 
-    let transaction = begin(root.path(), &[snapshot("original")], false).expect("never refuses");
+    // Two transactions in a row (certification group 3): the notice is the same each time, and nothing is deleted or counted twice.
+    let mut notices: Vec<String> = Vec::new();
+    for _run in 0..2 {
+        let transaction = begin(root.path(), &[snapshot("original")], false).expect("never refuses");
+        notices.push(transaction.kept_notice().map(str::to_string).expect("1002 kept files are past the count"));
+        drop(transaction);
+    }
 
-    let notice: String = transaction.kept_notice().map(str::to_string).expect("1002 kept files are past the count");
-    assert!(notice.contains("1002 files") && notice.contains("402 more are kept beside"), "{notice}");
+    // 1002 files of 4 bytes each: the combined size covers the central folder and the entries beside the target together,
+    // and the folder named is the central one.
+    for notice in &notices {
+        assert!(notice.contains("1002 files") && notice.contains("402 more are kept beside"), "{notice}");
+        assert!(notice.contains("4008 bytes"), "the size is not the combined size of the mixed locations: {notice}");
+        assert!(notice.contains(&kept.display().to_string()), "the folder is not named: {notice}");
+    }
+    assert_eq!(notices[0], notices[1], "repeated transactions disagree");
+    // The inventory after the runs: every kept name beside the target, the stranded temporary and the refused copy are still there.
+    let names: Vec<String> = fs::read_dir(&crate_root).expect("lists").flatten().map(|entry| { return entry.file_name().to_string_lossy().to_string(); }).collect();
+    assert_eq!(names.iter().filter(|name| { return name.starts_with("Cargo.lock.displaced."); }).count(), 400, "a name beside the target was deleted: {names:?}");
+    assert!(names.contains(&".Cargo.lock.shadow-abc.tmp".to_string()) && names.contains(&"Cargo.lock.refused".to_string()), "the stranded temporary or the refused copy was deleted: {names:?}");
+    assert_eq!(fs::read_dir(&kept).expect("lists").count(), 600, "a central kept file was deleted");
 }
 
 /// Acceptance row V5:
