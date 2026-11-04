@@ -205,3 +205,47 @@ fn a_wrapper_moved_before_the_spawn_puts_the_launcher_in_the_wrong_group_which_t
     assert!(lines[2].ends_with(&holder_name), "the wrapper was not seen in the holder's group at the boundary: {seen}");
 }
 //endregion
+
+//region the order of the record and the launch
+// What the region covers: the real boundaries of a run's recording and launching, read from the ordered trace of the runner.
+
+/// Acceptance rows "V3, V4" (certification group 2): in a run the record of the containment is written, then made durable (the
+/// sync sees the whole record in the file), and only then is the program launched; the launcher line comes after the launch, without
+/// a sync, and the end is recorded and synced last.
+/// A sync made before the append, followed by an unsynced append, would show as a sync whose file does not hold the record yet.
+/// Both containments are run, and the trace says which was attempted.
+#[test]
+fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
+    for weaker in [false, true] {
+        let plain = scratch();
+        if weaker {
+            use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+        } else if delegated_route().is_none() {
+            return;
+        }
+        let root = scratch();
+        fs::create_dir_all(root.path().join("package/s/one")).expect("dir");
+        fs::write(root.path().join("package/s/one/Cargo.lock"), "lock").expect("lock");
+        let transaction = crate::journal::begin(root.path(), &[crate::crates::LockSnapshot { crate_dir: "package/s/one".to_string(), source: "lock".to_string() }], false).expect("begin");
+        let _ = take_trace_for_test();
+
+        output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30))).expect("runs");
+        use_route_settings_for_test(None);
+        let trace: Vec<String> = take_trace_for_test();
+
+        let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
+        let launch: &str = if weaker { "launch pgroup" } else { "launch scope" };
+        let intended: Vec<String> = vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true"), format!("synced {kind}"), launch.to_string()];
+        assert_eq!(trace[..intended.len()], intended[..], "weaker={weaker}: the order is not record, sync, launch: {trace:?}");
+        let rest: Vec<&str> = trace[intended.len()..].iter().map(String::as_str).collect();
+        if weaker {
+            assert_eq!(rest[..4], ["attempt pgroup", "written pgroup", "sync pgroup whole=true", "synced pgroup"], "weaker: the group record after the launch: {trace:?}");
+        } else {
+            assert_eq!(rest[..2], ["attempt launcher", "written launcher"], "the launcher line comes after the launch and is not synced: {trace:?}");
+            assert!(!rest.iter().any(|event| { return event.starts_with("sync launcher"); }), "the launcher line was synced: {trace:?}");
+            assert_eq!(rest[2..], ["attempt settled", "written settled", "sync settled whole=true", "synced settled"], "the end is recorded and synced last: {trace:?}");
+        }
+        drop(transaction);
+    }
+}
+//endregion

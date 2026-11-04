@@ -524,10 +524,25 @@ fn a_record_that_cannot_be_written_or_made_durable_starts_no_program() {
             let root = repository();
             let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
             let marker: PathBuf = root.path().join("ran");
+            let _ = crate::bounded_run::take_trace_for_test();
             arm(fault);
 
             let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
             crate::bounded_run::use_route_settings_for_test(None);
+            let trace: Vec<String> = crate::bounded_run::take_trace_for_test();
+            // The containment the runner actually attempted at the fault (certification group 2), also when the write itself fails:
+            // the first record it tried to make, not the route that discovery could have given.
+            let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
+            let mut expected_trace: Vec<String> = if matches!(fault, Point::RecordWrite) {
+                vec![format!("attempt {kind}")]
+            } else {
+                vec![format!("attempt {kind}"), format!("written {kind}"), format!("sync {kind} whole=true")]
+            };
+            // A scope that will never be made is settled afterwards (nothing launched it); the weaker path has nothing to settle.
+            if !weaker {
+                expected_trace.extend(["attempt settled", "written settled", "sync settled whole=true", "synced settled"].map(String::from));
+            }
+            assert_eq!(trace, expected_trace, "weaker={weaker} {fault:?}: the runner did not attempt the containment kind the case claims, or went on past the fault");
 
             // The fault must have been reached (9b 3.6): a refusal before the record was made would leave it armed.
             // `RecordWrite` is the write of the appended record line; `RecordSync` is the sync of the record file after that write.
