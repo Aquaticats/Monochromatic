@@ -3570,6 +3570,42 @@ It uses:
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
 
+#### Maintenance that may run while a commit is made
+
+The objects of a commit that has not landed are protected by Git's grace period,
+and from the import on also by a reference.
+What this protects against, and what it does not (the supported concurrency, written 2026-11-04):
+
+- Supported while a commit is prepared and landed: any maintenance that keeps
+  Git's default grace period for unreferenced
+  objects, which are `git gc`, `git gc --auto`, `git maintenance run` (including the
+  `maintenance run --auto` the landing starts
+  after a landing) and `git prune` with the default `gc.pruneExpire`. They
+  remove no unreferenced object younger than the
+  grace period (two weeks by default). `git gc` repacks with `-A`, so unreachable
+  objects of a pack that the import kept become
+  loose objects first and are then subject to the same grace period.
+- Not supported while a commit is prepared or landed: maintenance that drops unreferenced objects at once. That is
+  `git prune --expire=now`, `git gc --prune=now`, any setting of
+  `gc.pruneExpire=now`, and `git repack -a -d` (which discards the
+  unreachable objects of the packs it replaces). Git's own manual says the same of
+  `git gc` run while another process writes
+  ("when git gc runs concurrently with another process, there is a risk of it
+  deleting an object that the other process is using
+  but hasn't created a reference to"; the installed 2.56.0 manual, section NOTES of git-gc).
+- What the wrapper does about the unsupported case is detect it where it can and
+  say so, not prevent it. Before the landing
+  imports anything or moves the branch, the objects the request names are looked up
+  (a blob, a tree, the commit Git built, and
+  for a commit Git built the objects it adds to the branch); a missing one answers that the content is unavailable, the
+  wrapper prepares the commit once more, and a second loss ends the commit with a
+  plain message. An object removed after that
+  look and before the branch moves is not prevented. The reference
+  `refs/worktree/cli-git-service/<batch>` that the import creates
+  is a reachability root for any collector that reads references after it exists;
+  a collector that took its snapshot of the
+  references before it was created and sweeps afterwards is not stopped by it.
+
 When real Git builds the commit,
 it runs in the scratch repository after policy evaluation settles,
 with inherited stdio,
@@ -4458,7 +4494,7 @@ and when the lock was found held `lock_looks`,
 `objects_ms`,
 `journal_ms`,
 `ref_ms`,
-`sync_ms`,
+`index_update_ms` (named `sync_ms` in records written before 2026-11-04),
 `answer_ms`,
 `total_ms`),
 a `pushed` line for every push the service ran

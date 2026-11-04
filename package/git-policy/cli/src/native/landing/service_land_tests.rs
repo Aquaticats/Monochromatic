@@ -634,7 +634,7 @@ fn the_hold_covers_the_branch_move_and_the_index_build() {
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let mut timing: LandTiming = LandTiming::default();
     land_batch_timed(&world.context, 1, &[request], &|_| {}, &mut timing).expect("landed");
-    assert!(timing.hold >= timing.ref_update + timing.sync, "{timing:?}");
+    assert!(timing.hold >= timing.ref_update + timing.index_update, "{timing:?}");
     assert!(timing.hold > std::time::Duration::ZERO, "{timing:?}");
     remove(world.root.as_path());
 }
@@ -1013,7 +1013,8 @@ fn marks_outside_the_batch_are_ignored_and_a_missing_mark_is_no_answer() {
 ///  The starts of a landing for each way a commit is made: the objects Git imports for a request, and the connectivity check
 ///  of a commit Git built.
 /// Why:
-///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`. The import carried it
+///   The owner's rule is that no Git start of the wrapper or the service gets `--quiet` or `-q`. (The check is started only where the
+///  object store cannot show the history, which the control arranges with a graft file.) The import carried it
 ///  (`fast-import`, whose `--quiet` Git 2.56.0 `builtin/fast-import.c` reads as the end of the `--stats` report) and so did
 ///  the check (`rev-list --objects`, whose option `builtin/rev-list.c` reads as "list nothing" after the same missing-object
 ///  check). The control lands both and looks at both starts.
@@ -1034,6 +1035,10 @@ fn the_import_and_the_connectivity_check_of_a_landing_start_without_quiet() {
     land_batch(&world.context, 1, &[imported]).expect("landed");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let built: CommitRequest = built_request(&world, "built", "built.txt", &[base.as_str()]);
+    // The object store answers the checks of an ordinary commit Git built without a start (`service_built_checks.rs`); a graft file
+    //  makes the store decline, so the check this control looks at is started, as it is wherever the store cannot show the history.
+    std::fs::create_dir_all(world.repo.join(".git/info")).expect("info");
+    std::fs::write(world.repo.join(".git/info/grafts"), "").expect("an empty graft file");
     land_batch(&world.context, 2, &[built]).expect("landed");
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
     let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
@@ -1275,7 +1280,7 @@ fn syncs_of(events: &[String]) -> (Vec<String>, Vec<String>) {
 /// The owner's rule for the commit protocol, "Force at leaving, else background": a landing that publishes a commit waits for no
 /// sync of the wrapper's own records. Native Git forces nothing by default (a traced native commit makes no sync call), so each
 /// sync on the person's wait is a flush that a loaded disk can stall for seconds (production: `journal_ms` up to 40 s, `sync_ms`
-/// up to 119 s). The syncs are queued, and the background thread makes them; the list is the records a power cut may lose.
+/// (now `index_update_ms`) up to 119 s). The syncs are queued, and the background thread makes them; the list is the records a power cut may lose.
 #[test]
 fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
     let world: World = world("service-land-syncs");

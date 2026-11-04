@@ -130,6 +130,9 @@ pub mod service_handoff;
 /// Whether a worktree's head still names the branch a commit was prepared on.
 pub mod service_head;
 
+/// What a commit Git built adds to the branch, answered from the object store without starting Git.
+pub mod service_built_checks;
+
 /// How a commit headed for the service notices that its prepared content was removed before it landed.
 pub mod service_pruned;
 

@@ -449,3 +449,32 @@ fn core_fsync_names_the_index_as_git_reads_it() {
     assert_eq!(names(&["added", ""]), Some(false), "an empty value is the default again");
     assert_eq!(names(&["bogus"]), Some(false), "a word that names no component is ignored, as Git ignores it");
 }
+
+/// The import step of a landing is given a `core.fsync` without the packs only where loose objects are not flushed: the default
+/// and any set without `loose-object` get it, a set with `loose-object`, the deprecated switch for object files, or a value
+/// that is not modelled leaves the import as the repository has it.
+#[test]
+fn the_import_gets_a_value_without_packs_only_where_loose_objects_are_not_flushed() {
+    let value = |records: &[(&str, &str)]| -> Option<String> { return snapshot_of(records).import_fsync_value(); };
+    assert_eq!(value(&[]), Some(String::from("commit-graph,none")), "the default keeps the commit graph and drops the packs");
+    assert_eq!(value(&[("local", "core.fsync\nreference")]), Some(String::from("commit-graph,reference,none")), "the person's reference flush stays");
+    assert_eq!(value(&[("local", "core.fsync\nnone")]), None, "a set with no pack has nothing to drop");
+    assert_eq!(value(&[("local", "core.fsync\nloose-object")]), None, "loose objects are flushed there");
+    assert_eq!(value(&[("local", "core.fsync\nadded")]), None);
+    assert_eq!(value(&[("local", "core.fsync\nall")]), None);
+    assert_eq!(value(&[("local", "core.fsync\nobjects")]), None, "objects includes loose objects");
+    assert_eq!(value(&[("local", "core.fsyncobjectfiles\ntrue")]), None, "the deprecated switch flushes loose objects");
+    assert_eq!(value(&[("local", "core.fsyncobjectfiles\nfalse")]), Some(String::from("commit-graph,none")));
+    assert_eq!(value(&[("local", "core.fsyncobjectfiles\nsometimes")]), None, "a value that is not a boolean is not modelled");
+    assert_eq!(value(&[("local", "core.fsync")]), None, "a key without a value is refused by Git, so it is left to Git");
+    // Loose objects flushed without the packs: a pack the import keeps is flushed too, with its index.
+    let with_packs = |entries: &[(&str, &str)]| -> Option<String> { return value(entries); };
+    assert_eq!(with_packs(&[("local", "core.fsync\nloose-object,none")]), Some(String::from("loose-object,pack,pack-metadata,none")));
+    assert_eq!(with_packs(&[("local", "core.fsync\nobjects,none")]), Some(String::from("loose-object,pack,pack-metadata,none")));
+    assert_eq!(with_packs(&[("local", "core.fsync\nloose-object,pack,none")]), None, "the word pack names the pack metadata too, so both are flushed already");
+    assert_eq!(with_packs(&[("local", "core.fsync\nloose-object,reference,none")]), Some(String::from("loose-object,pack,pack-metadata,reference,none")));
+    assert_eq!(with_packs(&[("local", "core.fsync\nnone"), ("local", "core.fsyncobjectfiles\ntrue")]), Some(String::from("pack,pack-metadata,none")));
+    assert_eq!(with_packs(&[("local", "core.fsyncobjectfiles\nyes")]), None, "the default already flushes the packs");
+    assert_eq!(value(&[("global", "core.fsync\nadded"), ("local", "core.fsync\nreference")]), Some(String::from("commit-graph,reference,none")), "the last entry decides alone");
+    assert_eq!(value(&[("local", "core.fsync\ncommitted,-loose-object")]), None, "an added component stays when it is also removed, so loose objects are flushed there");
+}

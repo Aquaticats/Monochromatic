@@ -58,7 +58,7 @@ pub struct Arrival {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LandTiming = { lockWait: number; lockHolder?: string; objects: number; journal: number; refUpdate: number; sync: number; attempts: number };
+/// type LandTiming = { lockWait: number; lockHolder?: string; objects: number; journal: number; refUpdate: number; indexUpdate: number; attempts: number };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LandTiming {
@@ -82,9 +82,9 @@ pub struct LandTiming {
     /// Time of the compare-and-swap that moves the branch.
     pub ref_update: Duration,
     /// Time to remove the conclusion state and to build and install the new index.
-    pub sync: Duration,
+    pub index_update: Duration,
     /// How long the index lock was held, from its placement to its release: the branch move and the index build.
-    /// Not a phase of its own (it overlaps `ref_update` and `sync`), so it is not part of what `reads` subtracts.
+    /// Not a phase of its own (it overlaps `ref_update` and `index_update`), so it is not part of what `reads` subtracts.
     pub hold: Duration,
     /// Passes over the batch:
     /// one,
@@ -99,7 +99,7 @@ impl LandTiming {
     /// the check for removed
     ///  content.
     pub fn reads(&self, landing: Duration) -> Duration {
-        return landing.saturating_sub(self.lock_wait + self.objects + self.journal + self.ref_update + self.sync);
+        return landing.saturating_sub(self.lock_wait + self.objects + self.journal + self.ref_update + self.index_update);
     }
 }
 
@@ -213,6 +213,31 @@ pub fn wait_line(seq: u64, total: Duration, notes: &WaitNotes, taken: bool) -> O
     ));
 }
 
+/// The key under which `answered` lines written before the index step was named by its role state its duration.
+const LEGACY_INDEX_UPDATE_KEY: &str = "sync_ms";
+
+/// What:
+///  The duration, in whole milliseconds, that an `answered` line gives for removing the conclusion state and building and
+///  installing the new index.
+/// Why:
+///   The step was first logged as `sync_ms`, which reads as a disk sync although it is the follow-up of the landing that holds
+///  the index lock; it is `index_update_ms` now. Lines already in the journal keep the old key, so a reader asks for the new
+///  key and falls back to the old one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Number(/ index_update_ms=(\d+)/.exec(line)?.[1] ?? / sync_ms=(\d+)/.exec(line)?.[1])
+/// ```
+pub fn index_update_ms_of(line: &str) -> Option<u64> {
+    let value_of = |key: &str| -> Option<u64> {
+        let word: String = format!(" {key}=");
+        let from: usize = line.find(word.as_str())? + word.len();
+        let digits: String = line[from..].chars().take_while(char::is_ascii_digit).collect();
+        return digits.parse::<u64>().ok();
+    };
+    return value_of("index_update_ms").or_else(|| { return value_of(LEGACY_INDEX_UPDATE_KEY); });
+}
+
 /// What:
 ///  One answered request as a line of `key=value` words,
 /// without the prefix.
@@ -232,7 +257,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
-         lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} sync_ms={} attempts={} landing_ms={} \
+         lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} index_update_ms={} attempts={} landing_ms={} \
          answer_ms={} total_ms={} quiet_ms={} quiet_steps={:?}",
         answered.request,
         answered.reference,
@@ -249,7 +274,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.landing.objects.as_millis(),
         answered.landing.journal.as_millis(),
         answered.landing.ref_update.as_millis(),
-        answered.landing.sync.as_millis(),
+        answered.landing.index_update.as_millis(),
         answered.landing.attempts,
         answered.land_total.as_millis(),
         answered.answer.as_millis(),

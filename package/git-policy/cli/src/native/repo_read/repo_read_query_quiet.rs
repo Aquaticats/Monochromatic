@@ -15,12 +15,13 @@
 //! ```
 
 use crate::repo_read_diff::PathFilter;
-use crate::repo_read_index::IndexEntry;
+use crate::repo_read_index::{INTENT_TO_ADD, IndexEntry, ParsedIndex};
 use crate::repo_read_object::{ObjectKind, from_hex};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_query::{Answer, Context, Parsed, flags_are};
 use crate::repo_read_refs::{RefValue, Refs};
 use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree_shared, parse_commit};
+use crate::repo_read_tree_cached::{UnequalParts, outside, unequal_parts};
 
 /// The commit `HEAD` names, for a branch under `refs/heads/` or a detached head.
 fn head_commit(context: &Context) -> Option<String> {
@@ -103,8 +104,22 @@ pub(crate) fn diff_index_quiet(context: &Context, parsed: &Parsed<'_>) -> Option
     }
     let filter: PathFilter = PathFilter::parse(parsed.specs.as_slice(), context.layout.prefix.is_empty())?;
     let database: ObjectDatabase = context.database()?;
-    let tree: std::rc::Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, tree_of_operand(context, &database, parsed.operands[0])?.as_slice(), context.layout.object_format)?;
-    let index: Vec<IndexEntry> = context.index()?;
+    let tree_name: Vec<u8> = tree_of_operand(context, &database, parsed.operands[0])?;
+    let whole_index: ParsedIndex = context.index_with_tree()?;
+    // The cache-tree names the directories the index has not changed; with no unmerged or intent-to-add entry (which it says
+    //  nothing of) those are left unread on both sides, and otherwise, or when its walk declines, the whole tree is read.
+    let trusted: bool = whole_index.entries.iter().all(|entry| { return entry.stage == 0 && entry.extended & INTENT_TO_ADD == 0; });
+    let paths: Vec<&[u8]> = whole_index.entries.iter().map(|entry| { return entry.path.as_slice(); }).collect();
+    let unequal: Option<UnequalParts> = whole_index.tree.as_ref().filter(|_| { return trusted; }).and_then(|nodes| { return unequal_parts(&database, tree_name.as_slice(), context.layout.object_format, nodes, paths.as_slice()); });
+    let whole_tree: std::rc::Rc<Vec<FlatEntry>>;
+    let tree: &[FlatEntry] = if let Some(parts) = &unequal {
+        parts.tree.as_slice()
+    } else {
+        whole_tree = flatten_tree_shared(&database, tree_name.as_slice(), context.layout.object_format)?;
+        whole_tree.as_slice()
+    };
+    let kept: Vec<IndexEntry> = unequal.as_ref().map(|parts| { return outside(whole_index.entries.as_slice(), parts.skipped.as_slice()).into_iter().cloned().collect(); }).unwrap_or_default();
+    let index: &[IndexEntry] = if unequal.is_some() { kept.as_slice() } else { whole_index.entries.as_slice() };
     let answer = |differs: bool| -> Option<Answer> {
         return Some(Answer { stdout: Vec::new(), stderr: Vec::new(), code: i32::from(differs) });
     };
@@ -118,7 +133,7 @@ pub(crate) fn diff_index_quiet(context: &Context, parsed: &Parsed<'_>) -> Option
     if reported {
         return answer(true);
     }
-    if hideable && has_gitmodules(context, tree.as_slice(), index.as_slice()) {
+    if hideable && has_gitmodules(context, tree, index) {
         return None;
     }
     return answer(hideable);

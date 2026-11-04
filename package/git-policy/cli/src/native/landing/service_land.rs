@@ -14,6 +14,7 @@
 
 use crate::journald_native::Priority;
 use crate::service_fault::reach;
+use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, history_is_plain, read_commit};
 use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
 use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
@@ -28,7 +29,7 @@ use crate::service_land_finish::finish_after_move;
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
 use crate::service_timing::{LandTiming, wait_line};
-use crate::config_snapshot::read_config_snapshot;
+use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use crate::service_land_follow::{classify, storage_failure};
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
@@ -49,6 +50,14 @@ pub struct LandContext {
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
     /// How long a landing waits for a foreign program's `index.lock` before it is withdrawn (`wait_ceilings.rs`).
     pub lock_ceiling: std::time::Duration,
+}
+
+/// What the landing reads once before it starts and hands to its body.
+struct Settings<'a> {
+    /// The `core.fsync` value for the one import, when the repository's own would flush a pack that is thrown away or leave a kept one unflushed.
+    import_fsync: Option<&'a str>,
+    /// Whether Git shows the history the commit objects say, so the object store may answer the checks of a commit Git built.
+    plain_history: bool,
 }
 
 /// What:
@@ -236,13 +245,18 @@ pub fn land_batch_timed(
     // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
     //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
     //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
-    let hardens_index: bool = requests
-        .first()
-        .and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); })
-        .and_then(|snapshot| { return snapshot.hardens_index(); })
-        .unwrap_or(true);
+    let snapshot = requests.first().and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); });
+    let hardens_index: bool = snapshot.as_ref().and_then(ConfigSnapshot::hardens_index).unwrap_or(true);
+    // Native Git writes a commit's objects as loose objects and flushes none by default; the import of a small batch writes a
+    //  temporary pack, flushes it and deletes it, so the flush is dropped unless the repository asks for flushed objects.
+    let import_fsync: Option<String> = snapshot.as_ref().and_then(ConfigSnapshot::import_fsync_value);
     let deferral = crate::service_durable::begin(hardens_index);
-    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing);
+    // The object store may answer the checks of a commit Git built only where Git shows the history the files say: the settings that
+    //  change it (a shallow or graft file elsewhere, another replacement namespace, replacements switched off) are read here from
+    //  the environment and configuration the landing's Git children run under, and a configuration that cannot be read counts as one.
+    let plain_history: bool = requests.first().is_some_and(|first| { return history_is_plain(first.common_dir.as_path(), &context.git, snapshot.as_ref()); });
+    let settings: Settings<'_> = Settings { import_fsync: import_fsync.as_deref(), plain_history };
+    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
     if result == Err(FailureCode::StepTooSlow)
@@ -273,6 +287,7 @@ fn land_batch_body(
     requests: &[CommitRequest],
     announce: &dyn Fn(Announce),
     timing: &mut LandTiming,
+    settings: &Settings<'_>,
 ) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
     if requests.iter().any(|request| {
@@ -314,9 +329,16 @@ fn land_batch_body(
         if !still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
-        let amended_parents: Vec<String> = if alone && !unborn {
-            let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
-            listing.split_whitespace().skip(1).map(str::to_string).collect()
+        // Only an amend uses the parents of the commit it replaces; they are read from the object store, and listed by Git when the
+        //  store cannot say (the same rule as for the commit Git built).
+        let amended_parents: Vec<String> = if alone && !unborn && first.amend {
+            match settings.plain_history.then(|| { return read_commit(first.common_dir.as_path(), first.base.as_str()); }).flatten() {
+                Some(replaced) => replaced.parents,
+                None => {
+                    let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
+                    listing.split_whitespace().skip(1).map(str::to_string).collect()
+                }
+            }
         } else {
             Vec::new()
         };
@@ -358,11 +380,19 @@ fn land_batch_body(
             // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives:
             //  an amend has the replaced commit's parents, a commit on a branch that did not exist has none, and any other
             //  commit has the branch tip first (a merge conclusion has the merged commits after it).
-            let listing: GitOutput = run(&git, repository, &["rev-list", "--parents", "--max-count=1", built], None)?;
-            let text: String = String::from_utf8_lossy(listing.stdout.as_slice()).into_owned();
-            let mut words = text.split_whitespace();
-            let named_itself: bool = listing.succeeded() && words.next() == Some(built);
-            let parents: Vec<String> = words.map(str::to_string).collect();
+            // The parents are read from the object store; a commit it cannot read as a plain commit is listed by Git, whose
+            //  answer is the one that counts (a repository with grafts, a shallow history or replacement objects).
+            let read: Option<BuiltCommit> = settings.plain_history.then(|| { return read_commit(first.common_dir.as_path(), built); }).flatten();
+            let (named_itself, parents): (bool, Vec<String>) = match &read {
+                Some(commit) => (true, commit.parents.clone()),
+                None => {
+                    let listing: GitOutput = run(&git, repository, &["rev-list", "--parents", "--max-count=1", built], None)?;
+                    let text: String = String::from_utf8_lossy(listing.stdout.as_slice()).into_owned();
+                    let mut words = text.split_whitespace();
+                    let named: bool = listing.succeeded() && words.next() == Some(built);
+                    (named, words.map(str::to_string).collect())
+                }
+            };
             let acceptable: bool = if first.amend {
                 parents == amended_parents
             } else if unborn {
@@ -375,15 +405,30 @@ fn land_batch_body(
             }
             // Git moves a branch to a commit without looking at what the commit holds, so a tree or a blob that a prune took
             //  while the commit object survived would put a damaged commit on the branch.
-            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old.as_str()] };
-            if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
-                return Err(FailureCode::Unavailable);
+            reach("before-connectivity");
+            // A commit whose one parent is the tip adds the objects that differ from the tip's tree, and the object store shows
+            //  they are all there; any other commit, and any object that looks absent, is checked by the `rev-list` Git always ran.
+            let proven: bool = read.as_ref().is_some_and(|commit| { return !unborn && adds_only_present_objects(first.common_dir.as_path(), commit, old.as_str()); });
+            if !proven {
+                let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", built] } else { vec!["rev-list", "--objects", built, "--not", old.as_str()] };
+                if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
+                    return Err(FailureCode::Unavailable);
+                }
             }
             (vec![built.to_string()], built.to_string())
         } else {
             let marks: PathBuf = context.journal.join(format!("marks-{seq}"));
             let marks_argument: String = format!("--export-marks={}", marks.display());
-            let imported: GitOutput = run(&git, repository, &["fast-import", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
+            // The `core.fsync` of the import is a global option of this one start; it reaches the `unpack-objects` child too, where
+            //  it names the same loose-object flush the repository has.
+            let import_fsync: Option<&str> = settings.import_fsync;
+            let fsync_setting: String = import_fsync.map(|value| { return format!("core.fsync={value}"); }).unwrap_or_default();
+            let mut import_arguments: Vec<&str> = Vec::new();
+            if import_fsync.is_some() {
+                import_arguments.extend(["-c", fsync_setting.as_str()]);
+            }
+            import_arguments.extend(["fast-import", "--done", marks_argument.as_str()]);
+            let imported: GitOutput = run(&git, repository, import_arguments.as_slice(), Some(import_stream(scratch.as_str(), old.as_str(), &batch, amended_parents.as_slice())))?;
             if !imported.succeeded() {
                 return Err(classify(&imported));
             }
@@ -543,9 +588,9 @@ fn land_batch_body(
         //  Git leaves too (`git commit` then `git symbolic-ref HEAD <other>`): the index describes the commit made.
         let followed: Result<bool, FailureCode> = follows_move(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str(), new.as_str());
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
-        let sync_began: Instant = Instant::now();
+        let index_update_began: Instant = Instant::now();
         let settled: bool = finish_after_move(&git, &intent, held, context.journal.as_path(), followed);
-        timing.sync += sync_began.elapsed();
+        timing.index_update += index_update_began.elapsed();
         timing.hold += hold_began.elapsed();
         if settled {
             reach("after-index");
@@ -572,3 +617,13 @@ mod witness_tests;
 #[cfg(test)]
 #[path = "service_land_head_tests.rs"]
 mod head_tests;
+
+/// Controls for the flushes of the Git children of a landing stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_fsync_tests.rs"]
+mod fsync_tests;
+
+/// Controls for the checks of a commit Git built stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_built_tests.rs"]
+mod built_tests;

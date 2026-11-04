@@ -12,6 +12,8 @@
 //! const entries: IndexEntry[] | undefined = parseIndex(bytes, objectFormat); // undefined: ask Git
 //! ```
 
+/// The `TREE` (cache-tree) extension, which names the tree each valid directory of the index hashes to.
+use crate::index_cache_tree::CacheTree;
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::name_length;
 
@@ -61,6 +63,29 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 /// function parseIndex(bytes: Uint8Array, format: ObjectFormat): IndexEntry[] | undefined;
 /// ```
 pub fn parse_index(bytes: &[u8], format: ObjectFormat) -> Option<Vec<IndexEntry>> {
+    return parse_index_with_tree(bytes, format).map(|parsed| { return parsed.entries; });
+}
+
+/// The entries of an index file and its cache-tree extension.
+#[derive(Clone, Debug)]
+pub struct ParsedIndex {
+    /// The entries, sorted by path and stage.
+    pub entries: Vec<IndexEntry>,
+    /// The `TREE` extension, or `None` when the file has none or it does not read as Git writes it.
+    pub tree: Option<CacheTree>,
+}
+
+/// What:
+///  `parse_index`, keeping the cache-tree extension.
+/// Why:
+///   A directory the cache-tree marks valid has a tree name that the index entries below it hash to, so a comparison of the index
+///  with a tree can leave that directory unread when the tree has the same name there (`repo_read_tree_cached.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseIndexWithTree(bytes: Uint8Array, format: ObjectFormat): { entries: IndexEntry[]; tree?: CacheTree } | undefined;
+/// ```
+pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<ParsedIndex> {
     let hash_length: usize = name_length(format);
     let end: usize = bytes.len().checked_sub(hash_length)?;
     if bytes.get(..4)? != b"DIRC" {
@@ -125,6 +150,7 @@ pub fn parse_index(bytes: &[u8], format: ObjectFormat) -> Option<Vec<IndexEntry>
     if entries.windows(2).any(|pair| { return (pair[0].path.as_slice(), pair[0].stage) >= (pair[1].path.as_slice(), pair[1].stage); }) {
         return None;
     }
+    let mut tree: Option<CacheTree> = None;
     while at < end {
         let signature: &[u8] = bytes.get(at..at.checked_add(4)?)?;
         let optional: bool = signature[0].is_ascii_uppercase();
@@ -132,12 +158,17 @@ pub fn parse_index(bytes: &[u8], format: ObjectFormat) -> Option<Vec<IndexEntry>
             return None;
         }
         let size: usize = usize::try_from(be32(bytes, at + 4)?).ok()?;
-        at = at.checked_add(8)?.checked_add(size)?;
+        let body_at: usize = at.checked_add(8)?;
+        if signature == b"TREE" {
+            // An extension that does not read as Git writes it is dropped by Git too, so the comparison goes without it.
+            tree = bytes.get(body_at..body_at.checked_add(size)?).and_then(|body| { return CacheTree::read(body, hash_length); });
+        }
+        at = body_at.checked_add(size)?;
     }
     if at != end {
         return None;
     }
-    return Some(entries);
+    return Some(ParsedIndex { entries, tree });
 }
 
 #[cfg(test)]
