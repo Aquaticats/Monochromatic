@@ -352,9 +352,18 @@ fn append_record(log: &Path, record: &Record) -> io::Result<()> {
         return Err(io::Error::from(Errno::INVAL));
     }
     let line: String = format!("{record}\n");
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::RecordWrite) {
+        return Err(io::Error::other("injected failure to write the containment record"));
+    }
     let written: usize = rustix::io::write(&file, line.as_bytes()).map_err(io::Error::from)?;
     if written != line.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "the containment record was cut short"));
+    }
+    // The record is durable before the program it describes can start: a sync that fails stops the start.
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::RecordSync) {
+        return Err(io::Error::other("injected failure to make the containment record durable"));
     }
     return fsync(&file).map_err(io::Error::from);
 }
@@ -371,6 +380,11 @@ fn append_record(log: &Path, record: &Record) -> io::Result<()> {
 /// function reap(child: ChildProcess): ExitStatus | undefined
 /// ```
 fn reap(child: &mut Child) -> Option<ExitStatus> {
+    // A child that cannot be reaped within its bound is "not reaped"; a test makes that so without a process in an uninterruptible wait.
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::ReapStuck) {
+        return None;
+    }
     let deadline: Instant = Instant::now() + REAP_BOUND;
     loop {
         match child.try_wait() {
@@ -421,6 +435,53 @@ enum Containment {
     ProcessGroup,
 }
 
+/// The answer of the manager, kept for the life of the process.
+/// It is read and written only with `try_lock`: a thread that finds the cache busy asks the manager itself instead of waiting for
+/// the thread that holds it (contract V6: an internal lock returns at once).
+pub(crate) struct RouteCache {
+    /// The last answer, a route or the reason there is none.
+    slot: std::sync::Mutex<Option<Result<Route, String>>>,
+}
+
+/// The methods of the type above.
+impl RouteCache {
+    /// What:
+    /// `pub(crate) const fn new() -> RouteCache` makes an empty cache.
+    /// Why:
+    /// The production cache is a `static`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static new(): RouteCache
+    /// ```
+    pub(crate) const fn new() -> RouteCache {
+        return RouteCache { slot: std::sync::Mutex::new(None) };
+    }
+
+    /// What:
+    /// `pub(crate) fn get_or_discover(&self, discover: &dyn Fn() -> Result<Route, GroupUnavailable>) -> Result<Route, GroupUnavailable>`
+    /// returns the cached answer, or asks `discover` and keeps its answer.
+    /// Why:
+    /// A busy cache is never waited for: the caller discovers on its own and keeps the answer only if the cache is free by then.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// getOrDiscover(discover: () => Route): Route  // throws GroupUnavailable
+    /// ```
+    pub(crate) fn get_or_discover(&self, discover: &dyn Fn() -> Result<Route, GroupUnavailable>) -> Result<Route, GroupUnavailable> {
+        if let Ok(held) = self.slot.try_lock()
+            && let Some(answer) = held.as_ref()
+        {
+            return answer.clone().map_err(|reason| { return GroupUnavailable { reason }; });
+        }
+        let found: Result<Route, GroupUnavailable> = discover();
+        if let Ok(mut held) = self.slot.try_lock() {
+            *held = Some(found.as_ref().map(Clone::clone).map_err(|unavailable| { return unavailable.reason.clone(); }));
+        }
+        return found;
+    }
+}
+
 /// What:
 /// `fn find_route() -> Result<Route, GroupUnavailable>` finds out what this host can give.
 /// Why:
@@ -433,11 +494,8 @@ enum Containment {
 /// ```
 #[cfg(not(test))]
 fn find_route() -> Result<Route, GroupUnavailable> {
-    static ROUTE: std::sync::OnceLock<Result<Route, String>> = std::sync::OnceLock::new();
-    return match ROUTE.get_or_init(|| { return detect_route(&RouteSettings::default()).map_err(|unavailable| { return unavailable.reason; }); }) {
-        Ok(found) => Ok(found.clone()),
-        Err(reason) => Err(GroupUnavailable { reason: reason.clone() }),
-    };
+    static ROUTE: RouteCache = RouteCache::new();
+    return ROUTE.get_or_discover(&|| { return detect_route(&RouteSettings::default()); });
 }
 
 /// What:
@@ -590,6 +648,26 @@ fn stop_everything(containment: &Containment, child: &mut Child) -> bool {
 }
 
 /// What:
+/// `fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>)` records that the run's launcher is reaped and its scope
+/// stopped, so a recovery may read an absent scope as one that ended.
+/// Why:
+/// Until then an absent scope may be one the launcher has not made yet (round 9, 8a F1).
+/// A record that cannot be written leaves the journal unsettled, which the next recovery treats as uncertainty to acknowledge:
+/// the safe side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function settle(containment: Containment, scope: ScopeState | undefined): void
+/// ```
+fn settle(containment: &Containment, scope: &Option<Rc<ScopeState>>) {
+    if let (Containment::Scope { group, .. }, Some(state)) = (containment, scope)
+        && let Err(error) = append_record(&state.log, &Record::Settled { path: group.directory().to_path_buf() })
+    {
+        eprintln!("cargo-shadow: warning: the end of the run in {} could not be recorded ({error}); a recovery will ask for an acknowledgement", group.directory().display());
+    }
+}
+
+/// What:
 /// `fn fail_started(containment, child, scope, bound, error) -> RunError` ends a run that failed after its program started.
 /// Why:
 /// Any failure on the containment path after the start is "not quiescent" unless everything is shown gone (contract A2):
@@ -601,6 +679,7 @@ fn stop_everything(containment: &Containment, child: &mut Child) -> bool {
 /// ```
 fn fail_started(containment: &Containment, child: &mut Child, scope: &Option<Rc<ScopeState>>, bound: &Bound, error: RunError) -> RunError {
     if stop_everything(containment, child) {
+        settle(containment, scope);
         return error;
     }
     lose(scope);
@@ -726,7 +805,14 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
     let deadline: Instant = Instant::now() + bound.limit;
     configure_stdio(command, input.is_some());
     let containment: Containment = contain();
-    let mut child: Child = start_contained(command, &containment, scope.as_ref(), input.is_some(), clean_environment)?;
+    let mut child: Child = match start_contained(command, &containment, scope.as_ref(), input.is_some(), clean_environment) {
+        Ok(started) => started,
+        Err(error) => {
+            // Nothing was started (the launcher could not be spawned or the record could not be written): the scope will never be made.
+            settle(&containment, &scope);
+            return Err(error);
+        }
+    };
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let _cancel_on_exit: CancelOnDrop = CancelOnDrop(Arc::clone(&cancel));
     let writer: Option<Receiver<io::Result<()>>> = match (input, child.stdin.take()) {
@@ -757,6 +843,7 @@ fn run_bounded(command: &mut Command, input: Option<&[u8]>, bound: &Bound, clean
         lose(&scope);
         return Err(RunError::NotQuiescent { what: bound.what.clone() });
     }
+    settle(&containment, &scope);
     let out: Vec<u8> = finished(&stdout, &bound.what)?;
     let err: Vec<u8> = finished(&stderr, &bound.what)?;
     if let Some(receiver) = writer {

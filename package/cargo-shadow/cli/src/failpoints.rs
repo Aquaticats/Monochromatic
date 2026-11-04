@@ -35,6 +35,16 @@ thread_local! {
     /// Whether the next durability barrier of a recovery on this thread fails.
     static RECOVER_DURABILITY: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
+    static ACKNOWLEDGEMENT_PUBLISH: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static ACKNOWLEDGEMENT_DURABILITY: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static RECORD_SYNC: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static RECORD_WRITE: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
+    static REAP_STUCK: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next use of this step on this thread fails.
     static COMPLETION_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static COMPLETION_RENAME: Cell<bool> = const { Cell::new(false) };
@@ -67,6 +77,16 @@ pub enum Point {
     FinishCleanup,
     /// The forcing of live files to disk before a recovery deletes the durable copies that made them recoverable.
     RecoverDurability,
+    /// The publication of an acknowledgement fails before it is visible.
+    AcknowledgementPublish,
+    /// The sync that makes an acknowledgement durable fails.
+    AcknowledgementDurability,
+    /// The sync that makes a containment record durable fails.
+    RecordSync,
+    /// The write of a containment record fails.
+    RecordWrite,
+    /// The reaping of a direct child reports that it could not be reaped within its bound.
+    ReapStuck,
     /// The sync of the directory that lists the completion marker fails (after the real rename).
     CompletionSync,
     /// The rename that publishes the completion marker fails (the real rename is not made).
@@ -119,6 +139,11 @@ pub fn arm(point: Point) {
         Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
         Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
         Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
+        Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(|slot| { slot.set(true); }),
+        Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| { slot.set(true); }),
+        Point::RecordSync => RECORD_SYNC.with(|slot| { slot.set(true); }),
+        Point::RecordWrite => RECORD_WRITE.with(|slot| { slot.set(true); }),
+        Point::ReapStuck => REAP_STUCK.with(|slot| { slot.set(true); }),
         Point::CompletionSync => COMPLETION_SYNC.with(|slot| { slot.set(true); }),
         Point::CompletionRename => COMPLETION_RENAME.with(|slot| { slot.set(true); }),
         Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(|slot| { slot.set(true); }),
@@ -149,6 +174,11 @@ pub fn fires(point: Point) -> bool {
         Point::FinishDurability => FINISH.with(Cell::take),
         Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
         Point::RecoverDurability => RECOVER_DURABILITY.with(Cell::take),
+        Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(Cell::take),
+        Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(Cell::take),
+        Point::RecordSync => RECORD_SYNC.with(Cell::take),
+        Point::RecordWrite => RECORD_WRITE.with(Cell::take),
+        Point::ReapStuck => REAP_STUCK.with(Cell::take),
         Point::CompletionSync => COMPLETION_SYNC.with(Cell::take),
         Point::CompletionRename => COMPLETION_RENAME.with(Cell::take),
         Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(Cell::take),

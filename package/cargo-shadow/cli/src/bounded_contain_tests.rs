@@ -125,7 +125,10 @@ fn nested_transactions_keep_their_own_records() {
     output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(20))).expect("runs");
 
     let outer_record = fs::read_to_string(journal_dirs(first.path()).into_iter().next().expect("journal").join("groups")).expect("groups");
-    assert_eq!(outer_record.lines().count(), 1, "the outer transaction stopped recording: {outer_record:?}");
+    // One run records its scope and then its end.
+    let lines: Vec<&str> = outer_record.lines().collect();
+    assert_eq!(lines.len(), 2, "the outer transaction stopped recording: {outer_record:?}");
+    assert!(lines[0].starts_with("scope ") && lines[1].starts_with("settled "), "{outer_record:?}");
     drop(outer);
 }
 

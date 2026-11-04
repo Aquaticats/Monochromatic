@@ -81,7 +81,15 @@ pub fn acknowledge(journal: &Path) -> Result<String, String> {
     };
     let seconds: u64 = SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_secs(); }).unwrap_or(0);
     let text: String = format!("{ACKNOWLEDGED_HEADER}\n{}\n{seconds}\n", std::process::id());
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementPublish) {
+        return Err("the acknowledgement could not be written (injected failure); nothing was acknowledged".to_string());
+    }
     atomic_write(&resolved.join(ACKNOWLEDGED_FILE), &text).map_err(|error| { return format!("the acknowledgement could not be written ({error}); nothing was acknowledged"); })?;
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
+        return Err("the acknowledgement could not be made durable (injected failure); it counts only once it is, so run the command again".to_string());
+    }
     sync_directory(&resolved).map_err(|error| { return format!("the acknowledgement could not be made durable ({error}); it counts only once it is, so run the command again"); })?;
     return Ok(format!(
         "acknowledged {}: you asserted that every process or worker of that run that can modify the workspace has stopped; the next cargo-shadow run settles the journal",

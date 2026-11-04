@@ -53,6 +53,12 @@ use std::os::unix::fs::{FileExt, MetadataExt};
 /// Imports `std::path::{Path, PathBuf}` for this file.
 use std::path::{Path, PathBuf};
 
+/// Imports `std::sync::Arc` for this file.
+use std::sync::Arc;
+
+/// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
+use std::sync::atomic::{AtomicBool, Ordering};
+
 /// Imports `std::process::{Command, Stdio}` for this file.
 use std::process::{Command, Stdio};
 
@@ -101,6 +107,11 @@ const DISCOVERY_BOUND: Duration = Duration::from_secs(10);
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
 /// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
 const DISCOVERY_POLL: Duration = Duration::from_millis(5);
+
+/// How long a killed discovery program is given to be reaped.
+/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
+/// (handover "Picks made under the owner's delegation"), veto open; not a measurement.
+const DISCOVERY_REAP: Duration = Duration::from_secs(2);
 
 /// How many random bytes make a scope name unique.
 /// 16 bytes are 128 bits, so a name repeated by chance is not a case to plan for.
@@ -241,6 +252,83 @@ pub(crate) struct Route {
     pub(crate) slice_view: View,
 }
 
+/// Who ran: the machine and the boot of the kernel that held the processes of a run.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Identity {
+    /// `/proc/sys/kernel/random/boot_id`: a new value for every boot of a kernel.
+    pub(crate) boot: String,
+    /// `/etc/machine-id`: the same value on every boot of one installation.
+    pub(crate) machine: String,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The identity this thread reads instead of the machine's, so a test can be a recovery after a reboot or on another machine.
+    static IDENTITY_OVERRIDE: std::cell::RefCell<Option<Result<Identity, String>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+/// `pub(crate) fn use_identity_for_test(identity: Option<Result<Identity, String>>)` makes this thread read `identity` as its own.
+/// Why:
+/// A recovery after a reboot, on another machine, or with an unreadable identity is made without rebooting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function useIdentityForTest(identity?: Identity | Error): void
+/// ```
+#[cfg(test)]
+pub(crate) fn use_identity_for_test(identity: Option<Result<Identity, String>>) {
+    IDENTITY_OVERRIDE.with(|slot| { *slot.borrow_mut() = identity; });
+}
+
+/// What:
+/// `pub(crate) fn read_identity_text(text: &str) -> Option<Identity>` reads the `boot` and `machine` lines of a journal's view record.
+/// Why:
+/// A missing or malformed identity is uncertainty, never a match.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function readIdentityText(text: string): Identity | undefined
+/// ```
+pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
+    let mut boot_text: Option<String> = None;
+    let mut machine_text: Option<String> = None;
+    for line in text.lines() {
+        if let Some(found) = line.strip_prefix("boot ") {
+            boot_text = Some(found.trim().to_string());
+        } else if let Some(found) = line.strip_prefix("machine ") {
+            machine_text = Some(found.trim().to_string());
+        }
+    }
+    return match (boot_text, machine_text) {
+        (Some(boot), Some(machine)) if !boot.is_empty() && !machine.is_empty() => Some(Identity { boot, machine }),
+        _ => None,
+    };
+}
+
+/// What:
+/// `pub(crate) fn current_identity() -> Result<Identity, String>` reads the boot id and the machine id of this system.
+/// Why:
+/// Both are recorded with a journal, so a recovery can tell a reboot of the same machine from another machine.
+/// Either unreadable is an error, and the caller keeps the refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function currentIdentity(): Identity  // throws the reason
+/// ```
+pub(crate) fn current_identity() -> Result<Identity, String> {
+    #[cfg(test)]
+    if let Some(chosen) = IDENTITY_OVERRIDE.with(|slot| { return slot.borrow().clone(); }) {
+        return chosen;
+    }
+    let boot: String = fs::read_to_string("/proc/sys/kernel/random/boot_id").map_err(|error| { return format!("the boot id cannot be read ({error})"); })?.trim().to_string();
+    let machine: String = fs::read_to_string("/etc/machine-id").map_err(|error| { return format!("the machine id cannot be read ({error})"); })?.trim().to_string();
+    if boot.is_empty() || machine.is_empty() {
+        return Err("the boot id or the machine id is empty".to_string());
+    }
+    return Ok(Identity { boot, machine });
+}
+
 /// What:
 /// `fn is_cgroup2(path: &Path) -> io::Result<bool>` says whether the directory is on a cgroup v2 file system.
 /// Why:
@@ -308,32 +396,78 @@ fn run_plain(program: &str, arguments: &[&str], environment: &[(String, Option<S
         };
     }
     let mut child = command.spawn().map_err(|error| { return format!("{program} could not be started ({error})"); })?;
+    let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let (Some(out_pipe), Some(err_pipe)) = (child.stdout.take(), child.stderr.take()) else {
+        let _ = child.kill();
+        reap_within(&mut child);
+        return Err(format!("{program} has no output pipes"));
+    };
+    let out_reader = crate::bounded_io::collect(OwnedFd::from(out_pipe), Arc::clone(&cancel));
+    let err_reader = crate::bounded_io::collect(OwnedFd::from(err_pipe), Arc::clone(&cancel));
     let deadline: Instant = Instant::now() + bound;
+    // Every exit from here ends the readers, kills a child that is still running, and reaps it within a bound.
+    let ended = |running: &mut std::process::Child, readers: &Arc<AtomicBool>| {
+        readers.store(true, Ordering::Relaxed);
+        let _ = running.kill();
+        reap_within(running);
+    };
     let status = loop {
         match child.try_wait() {
             Ok(Some(found)) => break found,
             Ok(None) => {}
-            Err(error) => return Err(format!("{program} could not be waited for ({error})")),
+            Err(error) => {
+                ended(&mut child, &cancel);
+                return Err(format!("{program} could not be waited for ({error})"));
+            }
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
+            ended(&mut child, &cancel);
             return Err(format!("{program} did not answer within {bound:?}"));
         }
         std::thread::sleep(DISCOVERY_POLL);
     };
-    let mut out: String = String::new();
-    let mut err: String = String::new();
-    if let Some(mut pipe) = child.stdout.take() {
-        let _ = pipe.read_to_string(&mut out);
-    }
-    if let Some(mut pipe) = child.stderr.take() {
-        let _ = pipe.read_to_string(&mut err);
-    }
+    // The direct child ended; a descendant may still hold the pipes, so the draining has the same deadline.
+    let out_wait: Duration = deadline.saturating_duration_since(Instant::now());
+    let out: Vec<u8> = match out_reader.recv_timeout(out_wait) {
+        Ok(Ok(bytes)) => bytes,
+        _ => {
+            ended(&mut child, &cancel);
+            return Err(format!("{program} did not answer within {bound:?} (its output was not closed)"));
+        }
+    };
+    let err_wait: Duration = deadline.saturating_duration_since(Instant::now());
+    let err: Vec<u8> = match err_reader.recv_timeout(err_wait) {
+        Ok(Ok(bytes)) => bytes,
+        _ => {
+            ended(&mut child, &cancel);
+            return Err(format!("{program} did not answer within {bound:?} (its error output was not closed)"));
+        }
+    };
+    cancel.store(true, Ordering::Relaxed);
     if !status.success() {
-        return Err(format!("{program} failed ({})", err.lines().next().unwrap_or("no message").trim()));
+        let message: String = String::from_utf8_lossy(&err).to_string();
+        return Err(format!("{program} failed ({})", message.lines().next().unwrap_or("no message").trim()));
     }
-    return Ok(out);
+    return Ok(String::from_utf8_lossy(&out).to_string());
+}
+
+/// What:
+/// `fn reap_within(child: &mut std::process::Child)` waits for a killed child for at most `DISCOVERY_REAP`.
+/// Why:
+/// `Child::wait` has no deadline (contract V6).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reapWithin(child: ChildProcess): void
+/// ```
+fn reap_within(child: &mut std::process::Child) {
+    let deadline: Instant = Instant::now() + DISCOVERY_REAP;
+    while Instant::now() < deadline {
+        if !matches!(child.try_wait(), Ok(None)) {
+            return;
+        }
+        std::thread::sleep(DISCOVERY_POLL);
+    }
 }
 
 /// What:
@@ -426,6 +560,12 @@ pub(crate) enum Record {
         /// How the directory that holds the scope was seen.
         parent_view: View,
         /// The directory of the scope.
+        path: PathBuf,
+    },
+    /// The run that recorded this scope ended and every process of its launcher was reaped, so no launcher can still create the scope:
+    /// from here an absent scope means a scope that ended, not one that was never made (round 9, 8a F1).
+    Settled {
+        /// The directory of the scope that is settled.
         path: PathBuf,
     },
     /// The weaker path: only a process group (round 5), recorded by the process id of its leader.
@@ -811,7 +951,7 @@ fn populated_through(events: &fs::File) -> io::Result<bool> {
 /// ```ts
 /// function populatedAt(directory: string): boolean
 /// ```
-fn populated_at(directory: &Path) -> io::Result<bool> {
+pub(crate) fn populated_at(directory: &Path) -> io::Result<bool> {
     return parse_populated(&fs::read_to_string(directory.join("cgroup.events"))?);
 }
 
@@ -829,6 +969,7 @@ impl fmt::Display for Record {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         return match self {
             Record::Scope { namespace, parent_view, path } => write!(formatter, "scope {namespace} {parent_view} {}", path.display()),
+            Record::Settled { path } => write!(formatter, "settled {}", path.display()),
             Record::ProcessGroup(leader) => write!(formatter, "pgroup {leader}"),
             Record::ProcessGroupStarting => write!(formatter, "pgroup starting"),
         };
@@ -867,6 +1008,12 @@ pub(crate) fn parse_record(line: &str) -> Result<Record, String> {
             return Err(format!("{line:?} is not a process group"));
         }
         return Ok(Record::ProcessGroup(leader));
+    }
+    if let Some(rest) = line.strip_prefix("settled ") {
+        if rest.is_empty() {
+            return Err(format!("{line:?} has no path"));
+        }
+        return Ok(Record::Settled { path: PathBuf::from(rest) });
     }
     if let Some(rest) = line.strip_prefix("scope ") {
         let mut parts = rest.splitn(3, ' ');

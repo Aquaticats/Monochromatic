@@ -456,7 +456,14 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     // (an empty directory), and one that has other files but lost it is uncertain (round 7, 6b2 2).
     write_synced(&directory.join(GROUPS_FILE), "")?;
     // How this journal directory is seen now (mount and inode); a recovery that sees another view refuses (contract assumption c).
-    write_synced(&directory.join(crate::journal::VIEW_FILE), &format!("view {}\n", crate::control_group::view_of(&directory)?))?;
+    // With the mount view go the machine id and the boot id: a recovery after a reboot of the same machine knows that the run's
+    // processes ended (contract assumption c). An identity that cannot be read is not recorded as a guess: the journal then has none,
+    // and a recovery treats that as uncertainty.
+    let identity_text: String = match crate::control_group::current_identity() {
+        Ok(identity) => format!("boot {}\nmachine {}\n", identity.boot, identity.machine),
+        Err(_) => String::new(),
+    };
+    write_synced(&directory.join(crate::journal::VIEW_FILE), &format!("view {}\n{identity_text}", crate::control_group::view_of(&directory)?))?;
     write_synced(&directory.join(OWNER_FILE), &format!("v3\n{}\n", std::process::id()))?;
     let mut index: String = String::from("v2\n");
     let mut listed: Vec<String> = Vec::new();
@@ -788,6 +795,8 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
     let mut beside: usize = 0;
     let mut bytes: u64 = 0;
     let mut unreadable: usize = 0;
+    // Whole directories that could not be listed: what is kept there is unknown, which is not "small".
+    let mut unlisted: Vec<PathBuf> = Vec::new();
     match fs::read_dir(&directory) {
         Ok(listing) => {
             for entry in listing {
@@ -830,17 +839,29 @@ fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(_) => unreadable += 1,
+            Err(_) => unlisted.push(place),
         }
     }
     let count: usize = central + beside;
+    let unknown: String = if unlisted.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " {} could not be listed, so the number of files kept there is unknown; look at {}.",
+            unlisted.iter().map(|place| { return place.display().to_string(); }).collect::<Vec<String>>().join(", "),
+            if unlisted.len() == 1 { "it" } else { "them" }
+        )
+    };
     if count + unreadable <= KEPT_FILES_WARNING_COUNT {
-        return None;
+        if unlisted.is_empty() {
+            return None;
+        }
+        return Some(format!("cargo-shadow:{unknown} Nothing was deleted and cargo keeps working."));
     }
     let unread: String = if unreadable == 0 { String::new() } else { format!(" ({unreadable} more could not be read)") };
     let besides: String = if beside == 0 { String::new() } else { format!(" and {beside} more are kept beside the lockfiles of the crate roots (Cargo.lock.displaced*, Cargo.lock.refused*, .Cargo.lock.shadow-*.tmp)") };
     return Some(format!(
-        "cargo-shadow: {} holds {central} files{besides}: {count} files, {bytes} bytes in all{unread}. They were moved aside instead of deleted because they may be someone's work. Nothing was deleted and cargo keeps working; review them when you can. Before you remove any of them, check that no program still has it open.",
+        "cargo-shadow: {} holds {central} files{besides}: {count} files, {bytes} bytes in all{unread}. They were moved aside instead of deleted because they may be someone's work. Nothing was deleted and cargo keeps working; review them when you can. Before you remove any of them, check that no program still has it open.{unknown}",
         directory.display()
     ));
 }

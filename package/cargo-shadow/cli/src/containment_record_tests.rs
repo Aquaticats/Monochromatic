@@ -272,8 +272,8 @@ fn a_journal_seen_through_another_view_is_refused_and_kept() {
     };
     let root = repository();
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n", planned.record()));
-    assert_eq!(survivor_note(&journal), None, "the unchanged view should be accepted: the planned scope is absent and its parent unchanged");
+    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\nsettled {}\n", planned.record(), planned.directory().display()));
+    assert_eq!(survivor_note(&journal), None, "the unchanged view should be accepted: the settled scope is absent and its parent unchanged");
     let recorded: View = view_of(&journal).expect("views");
 
     fs::write(journal.join("view"), format!("view {}:{}\n", recorded.mount + 1, recorded.inode)).expect("another mount");
@@ -306,7 +306,7 @@ fn a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_
         panic!("a scope record");
     };
     let wrong: Record = Record::Scope { namespace, parent_view: View { mount: parent_view.mount + 1, inode: parent_view.inode }, path };
-    let journal: PathBuf = journal_with_records(root.path(), &format!("{wrong}\n"));
+    let journal: PathBuf = journal_with_records(root.path(), &format!("{wrong}\nsettled {}\n", planned.directory().display()));
 
     let note: String = survivor_note(&journal).expect("a different parent view blocks");
     let messages: Vec<String> = recover(root.path(), &refusing);
@@ -341,8 +341,8 @@ fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
     };
     let root = repository();
     let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n", planned.record()));
-    assert_eq!(survivor_note(&journal), None, "in this namespace the planned, absent scope is gone");
+    let journal: PathBuf = journal_with_records(root.path(), &format!("{}\nsettled {}\n", planned.record(), planned.directory().display()));
+    assert_eq!(survivor_note(&journal), None, "in this namespace the settled, absent scope is gone");
 
     let status = Command::new("unshare")
         .args(["--user", "--map-root-user", "--mount", "--"])
@@ -478,7 +478,12 @@ fn a_wrapper_killed_inside_its_start_is_recovered_conservatively() {
             assert!(journal.exists());
         } else {
             assert!(matches!(parse_record(record.trim_end()), Ok(Record::Scope { .. })), "{record:?}");
-            assert_eq!(live_lock(root.path()), "original", "the scope was never made, so its verified absence lets the recovery go on: {messages:?}");
+            // The record is on disk and the run's end is not: an absent scope may be one a launcher has not made yet, so the
+            // recovery refuses (round 9, 8a F1) and says why.
+            assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "an unsettled run with an absent scope was recovered: {messages:?}");
+            assert!(journal.exists());
+            let note: String = survivor_note(&journal).expect("an unsettled run blocks");
+            assert!(note.contains("did not record its end"), "{note}");
         }
     }
 }

@@ -35,7 +35,7 @@ use rustix::process::{Pid, test_kill_process_group};
 use crate::constants::LOCKFILE_NAME;
 
 /// Imports the control group records and queries for this file.
-use crate::control_group::{Membership, Record, parse_record, query, view_of};
+use crate::control_group::{Identity, Membership, Record, current_identity, parse_record, populated_at, query, read_identity_text, view_of};
 
 /// Imports `crate::crates::{LockSnapshot, read_locks}` for this file.
 use crate::crates::{LockSnapshot, read_locks};
@@ -183,7 +183,27 @@ enum Finding {
 /// function isAcknowledged(directory: string): boolean
 /// ```
 pub(crate) fn is_acknowledged(directory: &Path) -> bool {
-    return fs::read_to_string(directory.join(ACKNOWLEDGED_FILE)).is_ok_and(|text| { return text.lines().next() == Some(ACKNOWLEDGED_HEADER) && text.ends_with('\n') && text.lines().count() == 3; });
+    let file: PathBuf = directory.join(ACKNOWLEDGED_FILE);
+    let Ok(text) = fs::read_to_string(&file) else {
+        return false;
+    };
+    // The whole versioned record: the header, a process id, a time, three lines, each ended by a line feed.
+    let lines: Vec<&str> = text.lines().collect();
+    let complete: bool = text.ends_with('\n')
+        && lines.len() == 3
+        && lines[0] == ACKNOWLEDGED_HEADER
+        && lines[1].parse::<u32>().is_ok()
+        && lines[2].parse::<u64>().is_ok();
+    if !complete {
+        return false;
+    }
+    // A name that is visible is not yet an acknowledgement that survives a crash: the reader makes the file and its directory entry
+    // durable before it relies on them, and an acknowledgement it cannot make durable does not count (round 9, 8a).
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
+        return false;
+    }
+    return make_durable(&file).is_ok();
 }
 
 /// What:
@@ -251,10 +271,35 @@ fn assess(directory: &Path) -> Option<Finding> {
             uncertain = Some(message);
         }
     };
+    let view_text: io::Result<String> = fs::read_to_string(directory.join(VIEW_FILE));
+    // A reboot of the same machine ended every process of the run (assumption a: the run's writers are inside it, and a boot ends them
+    // all). The journal was made by one process in one boot, so its identity covers every record. A different boot id with the same
+    // machine id discharges only the question whether the run's processes live; every other check of a recovery still runs.
+    let recorded_identity: Option<Identity> = view_text.as_ref().ok().and_then(|recorded| { return read_identity_text(recorded); });
+    let rebooted: bool = match (&recorded_identity, current_identity()) {
+        (Some(recorded), Ok(now)) => recorded.machine == now.machine && recorded.boot != now.boot,
+        _ => false,
+    };
+    if rebooted {
+        // The one contradiction that is kept: a recorded scope (its name carries a random token, so it cannot be a reused name)
+        // that has a member after a reboot is not explained by the reboot.
+        for line in text.lines() {
+            if let Ok(Record::Scope { path: scope_path, .. }) = parse_record(line)
+                && populated_at(&scope_path).unwrap_or(false)
+            {
+                return Some(Finding::Live(format!(
+                    "{}: the scope {} of the killed run has a member although the boot id changed since the run; the journal was kept for a later run",
+                    directory.display(),
+                    scope_path.display()
+                )));
+            }
+        }
+        return None;
+    }
     // The view of the journal directory: another mount view of the same path cannot be trusted to hold the same scopes.
-    match fs::read_to_string(directory.join(VIEW_FILE)) {
+    match &view_text {
         Ok(recorded) => {
-            let expected: String = recorded.trim().strip_prefix("view ").unwrap_or("").to_string();
+            let expected: String = recorded.lines().next().unwrap_or("").strip_prefix("view ").unwrap_or("").trim().to_string();
             match view_of(directory) {
                 Ok(seen) if seen.to_string() == expected => {}
                 Ok(seen) => note_uncertain(format!(
@@ -269,26 +314,32 @@ fn assess(directory: &Path) -> Option<Finding> {
     // A "starting" line of the weaker path that no process group line follows: a child may run that no record names.
     let mut announced_without_group: bool = false;
     let mut weaker_path: bool = false;
+    // The scopes of runs that are not settled: an absent one may be a scope its launcher has not made yet.
+    let mut unsettled: Vec<PathBuf> = Vec::new();
     for line in text.lines() {
         match parse_record(line) {
             Err(reason) => note_uncertain(format!(
                 "{}: the record of the containment of the killed run holds a line that is not understood ({reason}), so a child of that run may still be writing; {hint}",
                 directory.display()
             )),
-            Ok(Record::Scope { namespace, parent_view, path: scope_path }) => match query(namespace, parent_view, &scope_path) {
-                Membership::Gone => {}
-                Membership::Alive => {
-                    return Some(Finding::Live(format!(
-                        "{}: a process in the scope {} of the killed run is still running; the journal was kept for a later run",
-                        directory.display(),
-                        scope_path.display()
-                    )));
+            Ok(Record::Settled { path: scope_path }) => unsettled.retain(|open| { return *open != scope_path; }),
+            Ok(Record::Scope { namespace, parent_view, path: scope_path }) => {
+                unsettled.push(scope_path.clone());
+                match query(namespace, parent_view, &scope_path) {
+                    Membership::Gone => {}
+                    Membership::Alive => {
+                        return Some(Finding::Live(format!(
+                            "{}: a process in the scope {} of the killed run is still running; the journal was kept for a later run",
+                            directory.display(),
+                            scope_path.display()
+                        )));
+                    }
+                    Membership::Unknown(reason) => note_uncertain(format!(
+                        "{}: whether the scope of the killed run still has a member cannot be told ({reason}), so a child of that run may still be writing; {hint}",
+                        directory.display()
+                    )),
                 }
-                Membership::Unknown(reason) => note_uncertain(format!(
-                    "{}: whether the scope of the killed run still has a member cannot be told ({reason}), so a child of that run may still be writing; {hint}",
-                    directory.display()
-                )),
-            },
+            }
             Ok(Record::ProcessGroupStarting) => {
                 weaker_path = true;
                 announced_without_group = true;
@@ -308,6 +359,17 @@ fn assess(directory: &Path) -> Option<Finding> {
                     )));
                 }
             }
+        }
+    }
+    for open in unsettled {
+        // A scope that exists and is empty has run its program to the end. One that is absent is either collected after its run or not
+        // made yet by a launcher that is still starting; nothing here can tell which (round 9, 8a F1).
+        if !open.exists() {
+            note_uncertain(format!(
+                "{}: the run that was to make the scope {} did not record its end, and the scope is absent, so its launcher may not have made it yet and a program may still start in it; {hint}",
+                directory.display(),
+                open.display()
+            ));
         }
     }
     if announced_without_group {
