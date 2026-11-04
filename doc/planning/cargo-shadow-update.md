@@ -1197,13 +1197,13 @@ With the fault never armed the test fails (the user's command runs and replaces 
 
 ### Result
 
-The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 11 skipped (the `#[ignore]` helper
+The coverage map of the contract carries the counts: 590 tests, 590 passed, 0 failed, 11 skipped (the `#[ignore]` helper
 entries), for the debug run and the release gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own
 criterion, none certified.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r14-debug1.log`, `r14-gate1.log`, `r14-clippy2.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 14, rewritten TIMESTAMP after the gate)
+## Resume point (round 14, rewritten 2026-11-04T10:02:46-05:00 after the gate)
 
 Done: rounds 10 to 14 (the sections above).
 The review inputs of round 14 are `/var/home/user/temp/agent/reviews/cargo-shadow-14*.diff`, cut from `f463a87151`.
