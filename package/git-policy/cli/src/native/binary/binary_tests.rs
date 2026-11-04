@@ -312,6 +312,10 @@ mod service_commit;
 #[path = "binary_service_mode_tests.rs"]
 mod service_mode;
 
+/// The upgrade from the release with the service as a second program: the unit is rewritten, the old service retires.
+#[path = "binary_service_upgrade_one_executable_tests.rs"]
+mod service_upgrade_one_executable;
+
 /// A commit whose prepared content was pruned before it landed: prepared again once, then a plain failure.
 #[path = "binary_service_pruned_tests.rs"]
 mod service_pruned;

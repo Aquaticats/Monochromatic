@@ -45,7 +45,7 @@ fn finished(mut child: Child) -> Output {
 fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
     let fixture: Fixture = fixture("service-mode-no-socket");
     let journal: PathBuf = fixture.root.join("journal-not-made");
-    for (label, listen_pid, listen_fds) in [("no variables", None, None), ("a socket for another process", Some("1"), Some("1")), ("no descriptor", Some(std::process::id().to_string()), Some(String::from("0")))] {
+    for (label, listen_pid, listen_fds) in [("no variables", None, None), ("a socket for another process", Some("1"), Some("1")), ("a count of none", Some("1"), Some("0"))] {
         let mut command = wrapped(&fixture);
         command.args(["cli-git", "service", "run", "--journal"]).arg(&journal);
         if let (Some(pid), Some(fds)) = (listen_pid.as_ref(), listen_fds.as_ref()) {
