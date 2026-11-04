@@ -1060,19 +1060,19 @@ fn established_record(dir: &Path) -> Result<Option<Established>, StateError> {
         Err(error) => return Err(StateError::Io(error)),
     };
     let fields: Vec<&str> = text.strip_suffix('\n').ok_or(StateError::Damaged)?.split(' ').collect();
-    let [magic, number, generation, hash] = fields[..] else { return Err(StateError::Damaged) };
+    let [magic, written_number, written_generation, hash] = fields[..] else { return Err(StateError::Damaged) };
     let hash_ok: bool = hash.len() == 64 && super::commit_integrity::unhex(hash).is_some();
     if magic != "cli-git-established" || !hash_ok {
         return Err(StateError::Damaged);
     }
-    let (Ok(number), Ok(generation)) = (number.parse::<u64>(), generation.parse::<u64>()) else { return Err(StateError::Damaged) };
+    let (Ok(number), Ok(generation)) = (written_number.parse::<u64>(), written_generation.parse::<u64>()) else { return Err(StateError::Damaged) };
     return Ok(Some(Established { number, generation, hash: hash.to_string() }));
 }
 
 /// Whether the log, as `chosen` was selected from it, honors the established checkpoint: nothing older than its segment is the root, and
 /// when its segment is the root, its first record is the one the record names.
-fn honors_establishment(dir: &Path, established: &Established, chosen: Option<&Selected>) -> Result<bool, StateError> {
-    let Some(chosen) = chosen else { return Ok(false) };
+fn honors_establishment(dir: &Path, established: &Established, selected: Option<&Selected>) -> Result<bool, StateError> {
+    let Some(chosen) = selected else { return Ok(false) };
     if chosen.number < established.number || chosen.generation < established.generation {
         return Ok(false);
     }

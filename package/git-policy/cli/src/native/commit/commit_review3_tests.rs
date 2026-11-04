@@ -95,19 +95,17 @@ fn recovery_forces_the_selected_root_before_it_unlinks_behind_an_uncompleted_rep
 #[test]
 fn the_state_writer_serializes_the_unlink_the_retirement_and_the_seal() {
     let (lane, state, name) = lane_with_saved("rev3-serial");
-    let held: StateWriter = StateWriter::acquire(&state).expect("a writer, as a seal in progress");
-    let refused = retire_saved_content(&lane, &state, &DisposalAuthorization::explicit(&name));
-    assert!(matches!(&refused, Err(error) if error.kind() == io::ErrorKind::WouldBlock), "a retirement began while a writer held the state: {:?}", refused.map(|_| { return () }));
+    let seal_in_progress: StateWriter = StateWriter::acquire(&state).expect("a writer, as a seal in progress");
+    let retirement = retire_saved_content(&lane, &state, &DisposalAuthorization::explicit(&name));
+    assert!(matches!(&retirement, Err(error) if error.kind() == io::ErrorKind::WouldBlock), "a retirement began while a writer held the state");
     assert!(!lane.join("ledger").exists(), "no disposed line was appended before the writer was taken");
-    drop(held);
+    drop(seal_in_progress);
     let retired = retire_saved_content(&lane, &state, &DisposalAuthorization::explicit(&name)).expect("the retirement");
-    let held: StateWriter = StateWriter::acquire(&state).expect("a writer, as a root being published");
-    let refused = unlink_retired(retired);
-    assert!(refused.is_err(), "the unlink ran while another writer held the state");
+    let publishing: StateWriter = StateWriter::acquire(&state).expect("a writer, as a root being published");
+    assert!(unlink_retired(retired).is_err(), "the unlink ran while another writer held the state");
     assert!(lane.join("saved").join(&name).exists(), "the content was deleted without the writer");
-    let seal = seal_for_shutdown(&lane, &state);
-    assert!(seal.is_err(), "a seal ran while a writer held the state");
-    drop(held);
+    assert!(seal_for_shutdown(&lane, &state).is_err(), "a seal ran while a writer held the state");
+    drop(publishing);
 }
 
 /// Part B 1 (split capture and publish): while a disposal holds the writer, a seal cannot start capturing, and after the disposal published

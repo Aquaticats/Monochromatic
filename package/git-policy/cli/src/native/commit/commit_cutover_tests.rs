@@ -178,15 +178,15 @@ fn the_client_step_rings_the_real_service_and_launches_only_when_nobody_answers(
     }
     let lane: PathBuf = lane_with_receipts("service-client");
     let mut spy: Spy = Spy(0);
-    let alone = client_after_accept(&lane, RECEIPT_ID, &mut |lane: &Path| { return ring_running_service(lane); }, &mut spy).expect("the step");
+    let alone = client_after_accept(&lane, RECEIPT_ID, &mut |asked: &Path| { return ring_running_service(asked); }, &mut spy).expect("the step");
     assert_eq!(alone, ClientStep::Launched(Routed::Manager { unit: "unit".to_string() }));
     assert_eq!(spy.0, 1);
     let _service = start_service("client", Some(&lane), Some(3_600_000));
     wait_for_the_doorbell(&lane);
-    let mut spy: Spy = Spy(0);
-    let rung = client_after_accept(&lane, "fedcba9876543210fedcba9876543210", &mut |lane: &Path| { return ring_running_service(lane); }, &mut spy).expect("the step");
+    let mut second_spy: Spy = Spy(0);
+    let rung = client_after_accept(&lane, "fedcba9876543210fedcba9876543210", &mut |asked: &Path| { return ring_running_service(asked); }, &mut second_spy).expect("the step");
     assert_eq!(rung, ClientStep::Rung);
-    assert_eq!(spy.0, 0, "a running service took the ring, so nothing was launched");
+    assert_eq!(second_spy.0, 0, "a running service took the ring, so nothing was launched");
 }
 
 /// The switch: the same binary without `--lane` touches no lane, which is how the shipped units run it.
