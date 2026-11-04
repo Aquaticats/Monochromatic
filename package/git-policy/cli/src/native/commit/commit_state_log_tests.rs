@@ -579,12 +579,6 @@ fn r14_a_retirement_forces_the_ledger_prefix_that_discharges_it() {
     assert!(events.contains(&format!("file-sync:{}", ledger.display())), "the retirement was not backed by a forced ledger prefix: {:?}", events);
 }
 
-/// Creates saved content through the component (`lane/saved/<sha256>`, read-only) and returns its path.
-fn saved_content(lane: &std::path::Path, bytes: &[u8]) -> PathBuf {
-    let entry: ClosureEntry = create_saved_content(lane, bytes).expect("saved content is created through the component");
-    return lane.join(entry.path());
-}
-
 /// Models review 8 (later records and retained-prefix obligations): a later record retains the complete set, not only new request
 /// identities. The record that adds saved content S is selected while S is there, and when a power loss takes S it is no longer eligible and
 /// recovery returns the previous record, whose set still holds.
@@ -896,7 +890,6 @@ fn r16_a_reclaiming_checkpoint_must_retain_what_the_lane_holds_whatever_its_docu
     assert!(state.join("state.log.1").exists());
     let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
     let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
-    let saved: PathBuf = lane.join(content.path());
     assert!(writer.begin_checkpoint(2, b"declares nothing", std::slice::from_ref(&request)).is_err(), "saved content S was left out");
     let ledger: PathBuf = lane.join("ledger");
     std::fs::write(&ledger, ledger_line_of(&"1".repeat(32), "conflicted")).expect("a ledger line");

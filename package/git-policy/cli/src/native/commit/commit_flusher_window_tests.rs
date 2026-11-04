@@ -91,7 +91,7 @@ fn client_joins_in_the_launch_window(name: &str) {
     }
     let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
     let deadline: Instant = Instant::now() + Duration::from_millis(300);
-    while !recorded(&lane).iter().any(|name| { return name == "r1"; }) && Instant::now() < deadline {
+    while !recorded(&lane).iter().any(|recorded_name| { return recorded_name == "r1"; }) && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(5));
     }
     std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");

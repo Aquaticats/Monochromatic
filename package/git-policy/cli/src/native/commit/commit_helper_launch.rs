@@ -460,13 +460,13 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
         libc::close(go_read);
     }
     let deadline: Instant = Instant::now() + if injected(4) { Duration::from_millis(200) } else { LAUNCH_CONFIRM_LIMIT };
-    let report = read_report(read_end, deadline);
+    let outcome = read_report(read_end, deadline);
     super::commit_identity::fault_point("launch:after-report");
     // SAFETY: the read end is this call's own.
     unsafe { libc::close(read_end) };
     // The launcher's copy of what it held goes first; only then does the helper hear that it may start (and so may finish and release).
     drop(holding);
-    let ready: bool = matches!(report, Ok((Some(READY), _)));
+    let ready: bool = matches!(outcome, Ok((Some(READY), _)));
     if ready {
         let go: u8 = 1;
         // SAFETY: `go` is one live byte; a helper that is gone makes the write fail, which is harmless.
@@ -474,7 +474,7 @@ pub fn launch_detached_holding<H: Holding, F: FnOnce(H) -> i32>(holding: H, entr
     }
     // SAFETY: the handover write end is this call's own; closing it also tells a waiting helper that the launcher is gone.
     unsafe { libc::close(go_write) };
-    let (byte, timed_out) = report?;
+    let (byte, timed_out) = outcome?;
     let mut status: Option<libc::c_int> = reap_first_child(first, deadline)?;
     if status.is_none() {
         // The intermediate child did not leave in time and still holds every inherited description: it is killed and reaped here, so that
