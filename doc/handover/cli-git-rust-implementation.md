@@ -553,6 +553,93 @@ each in its own worktree:
   push and invocation files,
   then the merge passes.
 
+Claude Code restart at about 2026-11-04T07:30-05:00 (the owner asked;
+the agents checkpointed first,
+and each resume point is committed on its branch):
+- Models round 14:
+  `feat/git-policy-cli-commit-protocol-models` tip `6d3fff7450` ("partial:
+  ...
+  coverage map test not yet green";
+  `ecc36c5216` was green,
+  380 tests);
+  review items 1,
+  2,
+  3 and 6 done;
+  next item 4 (rewrite the coverage map in `model/model_target_tests.rs`,
+  fix renamed test names),
+  then item 5 (real Git experiments,
+  helper launch with `close_range`,
+  `flusher.lock` contention,
+  non-recursive entry);
+  resume point at the end of `doc/handover/cli-git-commit-protocol-models.md` on that branch.
+- cargo-shadow round 9:
+  `feat/cargo-shadow-cli` tip `c57400b9fa` (partial;
+  the last full debug run before the final edits passed 561,
+  skipped 3);
+  production fixes for 8a F1 to F4 and K1 and the same-machine boot-id rule done,
+  8b test fixes and the seven partial rows written;
+  next:
+  run the suite,
+  clippy and the release gate,
+  the contract's name check,
+  README and planning record,
+  cut `cargo-shadow-9*.diff`;
+  resume point at the end of `doc/planning/cargo-shadow-update.md`.
+- Latency fix round and the planted-control fix:
+  see their reports below this block once they checkpoint.
+- Decision record corrected (`05dc3800a8`,
+  owner's "Correct it now."):
+  `doc/decision/cli-git-concurrent-commits.md` now says landing writes objects with one `fast-import` (small batches loose,
+  large ones a pack,
+  measured with Git 2.56.0),
+  protected by the scratch ref `refs/worktree/cli-git-service/<seq>` until the compare-and-swap.
+
+Veto batch to ask the owner after the restart (the owner said "I'm fully back now, ask me."),
+through the question tool in groups of four,
+each with context,
+the pick,
+the alternative and a ranking:
+- cargo-shadow:
+  delegated transient scope as the default containment;
+  the weaker path promises what pnpm promises and its recovery waits for an acknowledgement;
+  assumptions a (no deliberate same-uid escape),
+  b (pre-existing directories are durable),
+  c amended (same mount and inode at recovery,
+  else refuse),
+  d (storage progress for blocking calls),
+  e (one machine at a time,
+  no checkpoint and restore);
+  a verified-absent scope is proof of no members;
+  same machine id plus a different boot id clears liveness;
+  "Force at leaving,
+  else background" read as the exit barrier only;
+  the `user.delegate` route dropped.
+- Commit design:
+  level 2 disabled on the execution path where its eligibility cannot be shown.
+- Index reclamation:
+  the `flock` on the stale lock's own inode;
+  without `flock` the lock is never removed;
+  `.aside-*` leftovers documented,
+  not swept.
+- Latency:
+  pack-sync option C;
+  `sync_ms` renamed `index_update_ms`.
+- CachyOS containers:
+  `latest` resolved once per run and cached by the pulled id;
+  registry unreachable means a run on the local copy with a warning;
+  Git 2.56.0 from source;
+  Rust from pacman;
+  Node from the tarball;
+  strace pinned.
+- #6261:
+  the `native` layer removal deferred (option A).
+- Older picks still marked veto open in "Picks made under the owner's delegation" and in the planning records (shipped limits,
+  waits,
+  fallback to the real Git,
+  word-level merge pass,
+  cargo-shadow's nine questions):
+  list them for the owner in the same way.
+
 At 2026-11-04T06:55:05-05:00 (main `a72b474e1d`):
 - Merged into main:
   index reclamation as `5d23a0f800` (branch tip `5ae971d1ec`,
