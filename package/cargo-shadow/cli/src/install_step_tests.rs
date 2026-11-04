@@ -1225,3 +1225,56 @@ fn a_recovery_that_cannot_finish_its_journal_stops_the_command_but_a_failed_clea
         }
     }
 }
+
+/// Acceptance row K1 (certification, second pass): the warning about kept files is emitted by the command on every completed run
+/// past the count, with the count, the combined size and the folder, and the completed runs delete none of the kept files.
+/// The central folder and the lockfile's directory are both populated; each run is a stale lockfile that the step updates and
+/// finishes, and the inventory is taken by the test from the directories before and after each run.
+#[test]
+fn the_command_warns_on_every_completed_run_past_the_count_and_deletes_no_kept_file() {
+    use crate::journal::{KEPT_FILES_WARNING_COUNT, QUARANTINE_DIR};
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let central = root.path().join(QUARANTINE_DIR);
+    fs::create_dir_all(&central).expect("the central folder");
+    for index in 0..KEPT_FILES_WARNING_COUNT {
+        fs::write(central.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a central kept file");
+    }
+    fs::write(start.join("Cargo.lock.refused"), "refused text").expect("a kept copy beside the lockfile");
+    fs::write(start.join(".Cargo.lock.shadow-abc.tmp"), "stranded").expect("a stranded temporary");
+    // The kept files of the case: the central folder and the beside-target names, as the test lists them.
+    let inventory = || -> Vec<(std::path::PathBuf, u64)> {
+        let beside = |name: &str| -> bool { return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp")); };
+        let mut found: Vec<(std::path::PathBuf, u64)> = Vec::new();
+        for directory in [&central, &start] {
+            for entry in fs::read_dir(directory).expect("lists").flatten() {
+                let name: String = entry.file_name().to_string_lossy().into_owned();
+                if directory == &central || beside(&name) {
+                    found.push((entry.path(), entry.metadata().expect("size").len()));
+                }
+            }
+        }
+        found.sort();
+        return found;
+    };
+
+    for run in 0..3 {
+        fs::write(start.join("Cargo.lock"), STALE).expect("a stale lockfile for this run");
+        let before = inventory();
+        let _ = crate::bounded_run::take_trace_for_test();
+        let runner: FakeCargo = cargo(SATISFIED);
+
+        let outcome = step(&start, false, &runner, &registry());
+
+        assert!(matches!(outcome, StepOutcome::Updated { .. }), "run {run}: {outcome:?}");
+        let emitted: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("kept notice "); }).collect();
+        assert_eq!(emitted.len(), 1, "run {run}: the warning was not emitted exactly once: {emitted:?}");
+        let bytes: u64 = before.iter().map(|(_, size)| { return *size; }).sum();
+        assert!(emitted[0].contains(&format!("{} files, {bytes} bytes in all", before.len())) && emitted[0].contains(&central.display().to_string()), "run {run}: {}", emitted[0]);
+        // The completed run deleted none of the files that were kept before it.
+        let after = inventory();
+        for (path, _size) in &before {
+            assert!(after.iter().any(|(kept, _)| { return kept == path; }), "run {run}: the completed run deleted the kept file {}", path.display());
+        }
+    }
+}

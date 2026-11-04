@@ -568,6 +568,22 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     });
 }
 
+/// What:
+/// `pub fn announce_kept_notice(notice: &str)` prints the warning about the kept files, and a test build traces the text.
+/// Why:
+/// The warning is promised on every run past the count, so the emission is what a test observes, not only the text the transaction
+/// holds (certification, second pass, K1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function announceKeptNotice(notice: string): void
+/// ```
+pub fn announce_kept_notice(notice: &str) {
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return format!("kept notice {notice}"); });
+    eprintln!("{notice}");
+}
+
 /// The methods of the type above.
 impl Transaction {
     /// What:

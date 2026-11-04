@@ -1109,7 +1109,7 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
     // started stops the update here, before the first cargo call.
     let transaction = begin(request.root, &before, matches!(kind, UpdateKind::Targeted { cargo_args } if cargo_args.iter().map(String::as_str).any(is_breaking_option))).map_err(other_text)?;
     if let Some(notice) = transaction.kept_notice() {
-        eprintln!("{notice}");
+        crate::journal_transaction::announce_kept_notice(notice);
     }
     // What:     `RefCell<Vec<LockSnapshot>>` is a list that can be added to through a shared reference (sibling: `&mut Vec`, which needs exclusive access); `RefCell::new(Vec::new())` makes an empty one.
     // Why:      `produced` starts empty because cargo has not written yet; each cargo write is recorded the moment it succeeded.
