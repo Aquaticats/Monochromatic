@@ -969,6 +969,11 @@ MKY:
  long names are fine;
  jargon nothing can replace is explained in that file's top doc.
 
+VGW:
+ Name files and folders by what their contents do;
+ words fitting any code (`native`, `core`, `utils`, `common`, `shared`, `helpers`) appear in no name.
+Tool-required names (`mod.rs`) are exempt.
+
 LYD:
  Show who depends on whom in the tree:
  every source folder holds a `uses/` folder of links to the folders its code uses;
