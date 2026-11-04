@@ -1,8 +1,9 @@
 /**
  The base images of the container runners: the newest CachyOS image the host CPU runs, on its `latest` tag, plus what
  each runner needs from the network. The gate's base (`native-test-base.Containerfile`) adds the Rust toolchain, the
- build tools and the audited Git; the end-to-end base (`e2e/concurrent-commits.Containerfile`) adds Node and the Git
- versions under test.
+ build tools and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest); the end-to-end base
+ (`e2e/concurrent-commits.Containerfile`) adds Node and Git. Every tool is a current pacman package, with no pin (owner
+ decisions of 2026-11-04, recorded in both Containerfiles).
 
  The gate image builds without network from a content-addressed base, but the repository's container base rule
  (`doc/decision/container-base-distro.md`) forbids pinning a base to a version or a digest. This module keeps both:
@@ -25,7 +26,6 @@ import {
 import {
   buildLimitArguments,
   type ContainerLimits,
-  parallelJobs,
 } from './container-limits.ts';
 import {
   NativeVerificationError,
@@ -297,15 +297,15 @@ export async function pullCachyosLatest(): Promise<PulledCachyos> {
 }
 
 /**
- Build a derived base image on the pulled CachyOS image, with network for the package manager and the downloads.
+ Build a derived base image on the pulled CachyOS image, with network for the package manager.
 
  @param tag - reference to give the image
 
- @param containerfilePath - Containerfile that reads the base and the compile jobs through build arguments
+ @param containerfilePath - Containerfile that reads the base through a build argument
 
  @param cachyosImage - CachyOS image reference passed as the Containerfile's base argument
 
- @param limits - container limits of the build; the compile jobs follow the CPUs
+ @param limits - container limits of the build
 
  @throws NativeVerificationError when the build fails
  */
@@ -351,8 +351,6 @@ async function buildDerivedImage({
       '--pull=never',
       '--build-arg',
       `CACHYOS_IMAGE=${cachyosImage}`,
-      '--build-arg',
-      `BUILD_JOBS=${String(parallelJobs(limits))}`,
       ...buildLimitArguments(limits),
       '--tag',
       tag,

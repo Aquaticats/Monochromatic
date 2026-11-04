@@ -76,6 +76,7 @@ fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> Client
         keep_fresh: None,
         answer_ceiling,
         withdraw_ceiling: PATIENCE,
+        extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: PATIENCE,
     };
 }

@@ -296,10 +296,20 @@ they narrow the window and do not close it.
   eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
   so the Windows-specific branches in the sources have never run; each is marked `UNTESTED ON WINDOWS` in the source.
   A Windows port is deferred to a later version (owner decision, 2026-10-15).
-- Real Git 2.55.0 or newer on `PATH` after the wrapper.
+- Real Git on `PATH` after the wrapper, tested with 2.56.0 (`MINIMUM_GIT_VERSION` in `src/native/invocation/git_version.rs`).
   The wrapper checks the version before work that depends on Git's behavior,
-   such as a commit,
-  and refuses older Git.
+   such as a commit.
+  A Git older than that release is not refused:
+   the wrapper prints one warning that names the Git it found,
+   the release it reported and the release the wrapper was tested with,
+   says that the command continues,
+   and runs the command as usual
+   (owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse.").
+  Only a Git whose release cannot be read stops the command.
+  The constant follows the test image's Git:
+   the gate image installs the distribution's current `git` package,
+   so when `mise run //package/git-policy/cli:test:git-image` reports a newer release,
+   raise the constant to it with the first gate run on that release.
   The wrapper finds the real Git by walking `PATH`,
    skipping itself and anything that leads back to it:
    a link or a copy of the wrapper,
@@ -1077,7 +1087,7 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
   query step,
    300 seconds for a bulk step; both unmeasured), and is quiet again when run a second time. A step that works is
    never ended
-   for being slow, and a step that may not be run twice (a reference update) is waited for.
+   for being slow, and a step that may not be run twice (a reference update) is waited for, with no end of its own: only you end it.
 - The commit service does not start: a start the manager reports as under way is waited for until `START_CEILING` (60
   seconds),
    a start it reports failed ends the wait at once ("commit service did not start"),
@@ -1350,12 +1360,22 @@ and the
 wrapper never waits without saying so. Every bound is in `src/native/service/wait_ceilings.rs` with its measurement,
 and the list of
 every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
-A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
-Every Git step the wrapper starts is ended at a ceiling of its class (reads 120 seconds, bulk steps 10 minutes,
-reference updates
-60 seconds) whatever it shows; a reference update ended after it renamed the branch reports the commit as landed,
-and one ended before
-it withdraws the commit as at the lock ceiling. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+A process that works is waited for until its ceiling; a quiet window ends a wait for quiet, a ceiling ends a wait for length, and
+the one step that is never ended is a write in place that is not safe to run twice.
+A Git step the wrapper starts keeps a ceiling of its class (reads 120 seconds, bulk steps 10 minutes) exactly when it can run twice:
+the owner's criterion, decided by cutting each step at every mutating system call, running it again and comparing the end state
+(`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The branch write (`git update-ref`), `git merge`,
+`git reset --hard`, `git checkout`, `git switch`, `git stash store` and `git read-tree -m` came out different and are never ended
+(the owner, 2026-11-04: "Never cut a branch write (Recommended)", whose option read "Steps that can safely run twice keep their
+ceilings; the branch write is never ended. Your command still returns at its bound with "result not yet known" and the `git log -1`
+and side-ref hint. Con: a truly hung write keeps the service busy, and later commits fail at their own 20-minute ceiling with an
+error naming it."). A command that started such a step stops waiting at its bound plus 7 seconds (`SHORT_EXTRA_WAIT`, the owner's
+"7 s (Recommended)") and exits non-zero saying the result is not known, naming the step and what to check; the step is left running.
+The commit service's landing thread waits for it, and a commit that waits behind it is told what the service is stuck in after a
+minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
+(`journalctl`, and a restart of the service when no program uses the repository). The commit inside the stuck write waits 7 seconds
+past its `ANSWER_CEILING` and then reports that it is not known whether it was made, with `git log -1`, `git status` and the write
+named; the commit lands when the write returns. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
 the commit service's answer until `ANSWER_CEILING` (20 minutes),
 a start until `START_CEILING` (60 seconds), the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
 (10 minutes), and a push whose connection is open and silent until `CONNECTED_PUSH_QUIET_WINDOW` (150 seconds, then the
@@ -1391,15 +1411,23 @@ fractional or non-numeric value is ignored.
   Setting the variable gives every class the same window.
   A step that is safe to run twice and shows no sign of work for the window is ended and run once more;
    if it is quiet again, the command reports which step, its class, the window and how to go on.
-  A step that may not be run twice (a reference update, a commit Git builds) is announced and waited for as long as it
-  lives.
+  A step that cannot be run twice (a branch write above all) is announced and has no ceiling: the commit service waits for it, and
+  any other command stops waiting for it at its bound plus 7 seconds and says the result is not known.
   No hook of yours runs below a step the wrapper starts, and the stop never reaches a process beside the step.
 - The tools and checks that are not Git end on the same rule, with windows that are not measured:
    a package-manager tool of the worktree repair after 600 seconds with no sign of work (with its whole process group),
    the Markdown linter after 60 seconds in which its thread shows none,
    and the standards-review call after 10 seconds of silence on its connection (30 seconds for the script's default).
-  A tool that works, such as an install that downloads for a long time, is never reported as having run past a limit.
-  The 20 second budget around the whole review is gone.
+  Each also has a ceiling on its whole run, whatever it shows (owner, 2026-11-04: "Silence plus a ceiling (Recommended)", which
+   read "Keep ending on silence, and add a generous overall ceiling per tool, measured from real runs, after which it's ended with
+   an error naming the tool. Con: an extremely slow but working run on a huge repository can hit the ceiling."):
+   18 minutes for one repair tool (`REPAIR_TOOL_CEILING`, ended with its whole process group, and the line names the tool, what it
+   was doing and the command to run by hand), 4 minutes for the Markdown check of one file (`LINT_CEILING`, abandoned as a quiet one
+   is), 1 minute for the standards-review call (`REVIEW_CALL_CEILING`) and 2 minutes for the whole review of a commit
+   (`REVIEW_CEILING`, with the command `SHADOW_REVIEW_SHA=<commit> mise run shadow-review` that reviews it again).
+  Each ceiling is the smallest whole number of minutes that is at least five times the longest run measured on this host
+   (`src/native/service/wait_ceilings.rs` has the figures and the method).
+  The ceilings are not variables you can set.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints"),
@@ -1743,7 +1771,7 @@ mise run //package/git-policy/cli:native:test:container
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
 - `native:test:container` is the authority.
-  It builds the crate and runs the tests and Clippy in bounded containers with Git 2.56.0 and no network.
+  It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
   The test run uses `cargo nextest run --no-fail-fast`, so every test runs even after a failure and one flaky test
   never hides the rest; the exit status is still non-zero, and nextest prints its summary and the list of failed tests
@@ -1892,10 +1920,20 @@ The tag is never pinned to a version or a digest, so an upstream CachyOS update 
 Two derived base images carry what the network-free image builds need:
 
 - `native-test-base.Containerfile` builds `localhost/git-policy-native-test-base`:
-  CachyOS, the distribution's Rust (Cargo and Clippy) and build tools, and the audited Git 2.56.0 built from its
-  checksum-pinned kernel.org tarball at `/usr/bin/git`, where the tests expect the real Git.
+  CachyOS, the distribution's Rust (Cargo and Clippy) and build tools, and the tools the tests start: Git (at
+  `/usr/bin/git`, where the tests expect the real Git), Node, pnpm, `strace` and cargo-nextest.
   The gate image and the mutation images build on it.
-- `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`: CachyOS, Node 24.11.0, and Git 2.55.0.
+- `e2e/concurrent-commits.Containerfile` builds `localhost/cli-git-concurrent-e2e`: CachyOS with the distribution's Git
+  and Node and `ssh-keygen`.
+
+Every tool in these two images is the distribution's current pacman package, with no version pin, no source build and no
+downloaded archive (owner decisions of 2026-11-04: "We don't need to pin git because my current system is already using
+git latest.", "We don't need to pin Node too.", and "Pacman for everything it has").
+That is an exception to the repository rule that containers install locked tools from `toolchain.lock.json` rows, for
+these test images only.
+Pacman checks every package signature (`SigLevel = Required DatabaseOptional` in the CachyOS image).
+`mise run //package/git-policy/cli:test:git-image` prints the release of each tool the base image got; the wrapper's
+`MINIMUM_GIT_VERSION` follows the Git release printed there (an older Git draws a warning and is not refused).
 
 Each run of `native:test:container`, `test:git-image`, `test:e2e:concurrent:image` and
 `test:e2e:concurrent:native:image` first pulls the `latest` tag with `podman pull --policy=newer`

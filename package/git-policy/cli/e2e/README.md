@@ -12,9 +12,9 @@ and an invariant checker judges every run.
 
 ```sh
 # package/git-policy/cli: run from the repository root
-mise run //package/git-policy/cli:test:e2e:concurrent:native --git 2.55.0
-mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --git 2.55.0
-mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --scenario shared-file-overlapping-hunks --git 2.55.0
+mise run //package/git-policy/cli:test:e2e:concurrent:native
+mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1
+mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --scenario shared-file-overlapping-hunks
 ```
 
 - `test:e2e:concurrent:native` depends on `test:e2e:concurrent:native:image`,
@@ -26,9 +26,11 @@ mise run //package/git-policy/cli:test:e2e:concurrent:native --seed 1 --scenario
   then a summary.
   The task exits non-zero when any scenario fails or errors.
 - `--scenario` takes comma-separated scenario names;
-  `--git` takes comma-separated versions, and the image provides `2.55.0` only.
-- The native executable requires Git 2.55.0 or newer and runs nothing on an older Git,
-  so the image builds that one version.
+  `--git` takes comma-separated Git releases, and the image provides its installed Git's release only (the report lines
+  name it).
+- The native executable is tested with the image's current Git and prints a warning on an older one without refusing
+  it (owner decision, 2026-11-04: "Raise minimum, drop the test, merely print a warning on older git and not refuse."),
+  so the image no longer builds a second, oldest Git.
   On 2026-10-14 with seed 1, 36 scenarios passed and 2 skipped.
 
 The TypeScript wrapper that this suite first verified is retired;
@@ -150,21 +152,22 @@ its commits now wait prepared at a frozen service while `git gc --prune=now` run
 
 `concurrent-commits.Containerfile` builds `cli-git-concurrent-e2e`:
 
-- Node 24.11.0,
-  the version the suite has always run with;
-- Git 2.55.0,
-  built from a checksum-pinned kernel.org tarball,
-  installed under `/opt/git/2.55.0`;
-- no Git on the default `PATH`,
-  so each scenario picks its Git by `PATH` order.
+- Node, from the distribution's `nodejs` package (owner decision, 2026-11-04: "We don't need to pin Node too.");
+- Git, from the distribution's `git` package at `/usr/bin/git` (owner decision, 2026-11-04: "We don't need to pin git
+  because my current system is already using git latest."), whatever release that is; the suite reads it at run time;
+- `ssh-keygen`, from `openssh`.
+
+The wrapper's directory comes before `/usr/bin` on each scenario's `PATH`, so the wrapper finds the packaged Git behind
+itself.
+Pacman checks package signatures (`SigLevel = Required DatabaseOptional`).
 
 The native image adds `/opt/native/bin/git`,
  a link to the release executable,
  on top of this image.
 
-The native executable requires Git 2.55.0 or newer and runs nothing on an older Git
+The native executable prints a warning on a Git older than the release it was tested with and runs as usual
 (`SPEC.md` "Compatibility and degradation"),
-so the image carries no other version.
+so the image carries one Git, the distribution's current one.
 The rest of this section records why the image once also carried 2.39.5 and 2.40.0:
 the retired TypeScript wrapper degraded on them.
 The `replayPlumbing` skips and the `replay-unavailable-*` scenarios below stay in the catalog for that history,

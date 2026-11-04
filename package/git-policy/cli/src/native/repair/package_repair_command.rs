@@ -45,13 +45,31 @@ pub struct ToolCommand {
 }
 
 /// What:
+///  How long a started program may stay silent and how long it may run in all.
+/// Why:
+///   Two bounds travel together: the quiet window ends a program that shows nothing, and the ceiling ends one that keeps showing
+///  something (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ToolLimits = { window: number; ceiling: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ToolLimits {
+    /// How long the program may show no sign of work.
+    pub window: Duration,
+    /// The longest the program runs, whatever it shows.
+    pub ceiling: Duration,
+}
+
+/// What:
 ///  How a started program ended.
 /// Why:
 ///   The repair words each case differently, so they stay apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ToolEnd = { kind: 'succeeded' } | { kind: 'failed'; reason: string } | { kind: 'timed-out' };
+/// type ToolEnd = { kind: 'succeeded' } | { kind: 'failed'; reason: string } | { kind: 'timed-out' } | { kind: 'ceiling'; afterMs: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ToolEnd {
@@ -61,6 +79,8 @@ pub enum ToolEnd {
     Failed(String),
     /// The program showed no sign of work for its window, and was stopped.
     TimedOut,
+    /// The program ran as long as the ceiling allows, whatever it showed, and was stopped with its whole process group.
+    CeilingReached(Duration),
 }
 
 /// What:
@@ -175,18 +195,19 @@ fn describe_status(status: std::process::ExitStatus) -> String {
 }
 
 /// What:
-///  Run a program to its end, or until it has shown no sign of work for `window`.
+///  Run a program to its end, until it has shown no sign of work for the window, or until it has run as long as the ceiling.
 /// Why:
 ///   The add must not wait for a tool that does nothing, and must keep the tail of its output for the log. A tool that works is
-///  waited for however long it takes. The program leads a process group of its own, so the stop reaches the children it
-///  started too. Where the system counts nothing (no `/proc/<pid>/io`) the tool is never ended, because no wall-clock bound is
-///  the rule. The longest quiet gap of the run is kept in the ledger under the program's name and first argument.
+///  waited for until the ceiling (owner, 2026-11-04, "Silence plus a ceiling (Recommended)"; `wait_ceilings.rs`,
+///  `REPAIR_TOOL_CEILING`), where it is ended like a silent one. The program leads a process group of its own, so the stop reaches the children it
+///  started too. Where the system counts nothing (no `/proc/<pid>/io`) the quiet window never ends the tool, and only the
+///  ceiling does. The longest quiet gap of the run is kept in the ledger under the program's name and first argument.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function runTool(program: string, command: ToolCommand, quietWindowMs: number): Promise<ToolRun>;
+/// async function runTool(program: string, command: ToolCommand, limits: { windowMs: number; ceilingMs: number }): Promise<ToolRun>;
 /// ```
-pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> ToolRun {
+pub fn run_tool(program: &Path, command: &ToolCommand, limits: ToolLimits) -> ToolRun {
     use std::os::unix::process::CommandExt;
     let started: Instant = Instant::now();
     let mut starting: Command = Command::new(program);
@@ -200,10 +221,16 @@ pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> Tool
     };
     let out_reader: Option<std::thread::JoinHandle<Vec<u8>>> = child.stdout.take().map(collect);
     let error_reader: Option<std::thread::JoinHandle<Vec<u8>>> = child.stderr.take().map(collect);
-    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: window }).without_wall_fallback();
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall: limits.window }).without_wall_fallback();
+    let mut at_ceiling: bool = false;
     let status: Option<std::process::ExitStatus> = loop {
         match child.try_wait() {
             Ok(Some(done)) => break Some(done),
+            // The ceiling ends the program whatever it shows (owner, 2026-11-04, "Silence plus a ceiling (Recommended)").
+            Ok(None) if started.elapsed() >= limits.ceiling => {
+                at_ceiling = true;
+                break None;
+            }
             Ok(None) if clock.check().is_some() => break None,
             Ok(None) => std::thread::sleep(POLL_INTERVAL),
             Err(error) => return ToolRun { end: ToolEnd::Failed(format!("{} could not be waited for: {error}", program.display())), millis: started.elapsed().as_millis(), stdout: Vec::new() },
@@ -211,7 +238,7 @@ pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> Tool
     };
     // A clock that reads nothing (no `/proc`) has no quiet gap to keep: its figure would be the elapsed time.
     if clock.measures() {
-        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none());
+        quiet_ledger::note(tool_step(program, command).as_str(), clock.longest_quiet(), status.is_none() && !at_ceiling);
     }
     let Some(finished) = status else {
         stop_group(&child);
@@ -220,7 +247,8 @@ pub fn run_tool(program: &Path, command: &ToolCommand, window: Duration) -> Tool
         for reader in [out_reader, error_reader].into_iter().flatten() {
             let _output = reader.join();
         }
-        return ToolRun { end: ToolEnd::TimedOut, millis: started.elapsed().as_millis(), stdout: Vec::new() };
+        let end: ToolEnd = if at_ceiling { ToolEnd::CeilingReached(limits.ceiling) } else { ToolEnd::TimedOut };
+        return ToolRun { end, millis: started.elapsed().as_millis(), stdout: Vec::new() };
     };
     let stdout: Vec<u8> = out_reader.map(|reader| { return reader.join().unwrap_or_default(); }).unwrap_or_default();
     let errors: Vec<u8> = error_reader.map(|reader| { return reader.join().unwrap_or_default(); }).unwrap_or_default();

@@ -55,9 +55,9 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'git version minimum',
     file: 'src/native/invocation/git_version.rs',
-    from: 'if version < MINIMUM_GIT_VERSION {',
-    to: 'if false {',
-    failing: 'invocation::git_version::tests::an_older_release_is_refused',
+    from: 'if release >= MINIMUM_GIT_VERSION {',
+    to: 'if true {',
+    failing: 'invocation::git_version::tests::an_older_release_draws_a_warning_that_names_both_releases',
   },
   {
     name: 'PID file proof skips the holder scan',

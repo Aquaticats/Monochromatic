@@ -25,7 +25,7 @@ fn scene(name: &str) -> (PathBuf, PathBuf, PathBuf, RepairEnvironment) {
     let bin: PathBuf = root.join("bin");
     std::fs::create_dir_all(&destination).expect("destination");
     std::fs::create_dir_all(&bin).expect("bin");
-    let environment: RepairEnvironment = RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), workers: 1 };
+    let environment: RepairEnvironment = RepairEnvironment { search_path: Some(bin.clone().into_os_string()), quiet_window: Duration::from_secs(60), ceiling: Duration::from_secs(600), workers: 1 };
     return (root, destination, bin, environment);
 }
 

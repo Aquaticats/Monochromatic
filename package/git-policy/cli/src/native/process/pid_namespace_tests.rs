@@ -75,3 +75,18 @@ fn the_patience_boundary_is_exclusive() {
     assert!(age_outlives_patience(FOREIGN_OWNER_PATIENCE + Duration::from_nanos(1)));
     assert!(!age_outlives_patience(FOREIGN_OWNER_PATIENCE - Duration::from_nanos(1)));
 }
+
+/// The patience is derived from the lock ceiling, so the two cannot drift apart again: a hold of another namespace's owner lasts
+/// at most one wait for a foreign `index.lock` plus the work around it, and the patience is twice that wait.
+#[test]
+fn the_patience_is_twice_the_lock_ceiling() {
+    assert_eq!(FOREIGN_OWNER_PATIENCE, 2 * crate::wait_ceilings::LOCK_CEILING);
+}
+
+/// The patience outlasts the longest command measured on this host (the commit timing log, 750.6 s), so a live owner's record is
+/// not judged dead while its command is still running.
+#[test]
+fn the_patience_outlasts_the_longest_measured_command() {
+    const LONGEST_COMMAND_MEASURED: Duration = Duration::from_millis(750_604);
+    assert!(FOREIGN_OWNER_PATIENCE > LONGEST_COMMAND_MEASURED);
+}

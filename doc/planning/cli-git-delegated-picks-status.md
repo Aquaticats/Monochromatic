@@ -24,6 +24,23 @@ non-Git tools during `git worktree add` (silence plus a ceiling),
 the design's R-never (reclaim the lane's own stale `index.lock`),
 and the CM7 carve-out (CM7 unchanged; the package docs record that the test images take tools from pacman).
 
+## Built on `fix/git-policy-cli-branch-write-and-tool-ceilings` (2026-11-04)
+
+Three lines for the answered items above, with the owner's words:
+
+- Branch write: "Never cut a branch write (Recommended)" and "Short extra wait (Recommended)", "7 s (Recommended)".
+  Built:
+  no ceiling for a step that cannot be run twice (decided by the cut experiment, `NUW`, "The cut experiment");
+  the commit inside a stuck branch write returns at its own bound plus `SHORT_EXTRA_WAIT` (7 s) with the not-known error;
+  a commit behind it is withdrawn at its own `ANSWER_CEILING` naming the write;
+  a service stuck in a write never restarts itself.
+- Non-Git tools: "Silence plus a ceiling (Recommended)" and "5x (Recommended)".
+  Built:
+  `REPAIR_TOOL_CEILING` 18 minutes, `LINT_CEILING` 4 minutes, `REVIEW_CALL_CEILING` 1 minute, `REVIEW_CEILING` 2 minutes,
+  each five times the longest measured run rounded up to whole minutes (cold-store runs were shorter than the warm maxima).
+- Pick 7 follow-up (`AUD`, 2976 to 2991): done.
+  `FOREIGN_OWNER_PATIENCE` is `2 * LOCK_CEILING`, 20 minutes, derived in code.
+
 ## Picks the owner kept on 2026-11-04
 
 Every pick in this section was put to the owner through the question tool in grouped questions,
@@ -93,10 +110,8 @@ the unmeasured numbers are still to be replaced by measured values as the logs f
   the 120 s read-only query ceiling sits with the Git steps.
 - Pick 7 (2562 to 2585,
   follow-up 2976 to 2991):
-  a leftover per-directory record owned by another process namespace blocks guarded commands for up to an hour;
-  its basis is gone (`src/native/process/pid_namespace.rs:26` to `31` cites twice the 1800 s lock wait of a deleted `wait_limit.rs`);
-  the follow-up (re-derive it from the lock ceiling,
-  now 10 minutes) never ran.
+  done on `fix/git-policy-cli-branch-write-and-tool-ceilings`:
+  the patience is twice the lock ceiling, 20 minutes, derived in code (see "Built on" above).
 - Picks 8,
   13,
   14,

@@ -10,9 +10,12 @@ const KEY: &str = "test-key-not-a-secret";
 /// A quiet window long enough for loopback and short enough for a timeout test.
 const SHORT: Duration = Duration::from_millis(400);
 
+/// A ceiling no control reaches unless the control is about the ceiling.
+const ROOMY: Duration = Duration::from_secs(3600);
+
 /// A gateway at `url` with the given deadline.
 fn gateway(url: &str, quiet_window: Duration) -> Gateway<'_> {
-    return Gateway { url, api_key: KEY, quiet_window, trusted_pem: None };
+    return Gateway { url, api_key: KEY, quiet_window, ceiling: ROOMY, trusted_pem: None };
 }
 
 /// The request has the method, path, JSON content type, bearer header and the exact body bytes.
@@ -116,5 +119,21 @@ fn a_reply_that_keeps_arriving_is_never_cut_off() {
     let reply: Reply = post_decision(&gateway(url.as_str(), window), "{}").expect("a reply that keeps arriving is read whole");
     assert_eq!(reply.body.len(), bytes);
     assert!(started.elapsed() > window * 2, "the reply took only {:?}", started.elapsed());
+    mock.finish();
+}
+
+/// Owner, 2026-11-04, "Silence plus a ceiling (Recommended)": a reply that keeps arriving is ended at the ceiling all the same, with
+/// an error that names the call, the ceiling and what to run. The mock sends one byte a pause, so it is never silent for the window.
+#[test]
+fn a_reply_that_keeps_arriving_is_ended_at_the_ceiling() {
+    let window: Duration = Duration::from_millis(1200);
+    let ceiling: Duration = Duration::from_millis(1500);
+    let mock: Mock = Mock::start(Answer::Trickle { bytes: 40, pause: Duration::from_millis(200) });
+    let url: String = mock.url.clone();
+    let started: Instant = Instant::now();
+    let failure: String = post_decision(&Gateway { ceiling, ..gateway(url.as_str(), window) }, "{}").expect_err("the ceiling ended the call");
+    let elapsed: Duration = started.elapsed();
+    assert!(failure.contains("standards-review gateway call") && failure.contains("1 seconds") && failure.contains("shadow-review"), "{failure}");
+    assert!(elapsed >= ceiling && elapsed < ceiling * 4, "{elapsed:?}");
     mock.finish();
 }

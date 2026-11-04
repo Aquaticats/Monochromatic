@@ -24,11 +24,8 @@ import {
   imageRootDirectory,
   writeDependencyStubs,
 } from './native-layered-build.ts';
-import { copyNextest, } from './native-nextest-snapshot.ts';
 import { ensureTestBase, } from './native-test-base.ts';
-import { copyPnpm, } from './native-pnpm-snapshot.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
-import { copyStraceSource, } from './native-strace-snapshot.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
 import {
@@ -103,7 +100,7 @@ const evidence = await mkdtemp(join(
   evidenceRoot,
   'native-',
 ));
-// The base is the newest CachyOS image on its `latest` tag with the audited Git 2.56.0 and the Rust toolchain on top
+// The base is the newest CachyOS image on its `latest` tag with pacman's current Git, Node, pnpm, strace, cargo-nextest and the Rust toolchain on top
 // (doc/decision/container-base-distro.md): the pull happens here, once, and every step after it is offline.
 /**
  The derived base image, built now when the registry's current CachyOS image or its Containerfile is new to this host.
@@ -124,9 +121,6 @@ await vendorLockedDependencies({
   vendorName: `${imageRootDirectory}/vendor`,
   configName: `${imageRootDirectory}/.cargo`,
 });
-await copyNextest({ context: context.path });
-await copyPnpm({ context: context.path });
-await copyStraceSource({ context: context.path });
 await writeFile(
   join(
     context.path,

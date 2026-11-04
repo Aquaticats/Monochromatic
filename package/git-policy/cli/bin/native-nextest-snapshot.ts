@@ -4,6 +4,10 @@
  The image has no network, and a binary built on the host links the host's newer C library, so the runner is the
  project's own musl release asset. The host downloads it once, verifies the checksum before anything is extracted, and
  copies the executable into the build context.
+
+ The gate and end-to-end images of this package no longer use it: they install `cargo-nextest` from pacman (owner
+ decision, 2026-11-04, `doc/planning/git-policy-cli-cachyos-test-containers.md`). It stays for the images of
+ `package/git-policy/cli.fuzz` and `package/linter/monochromatic-lint(.fuzz)`, which still start from other bases.
  */
 import { createHash } from 'node:crypto';
 import {

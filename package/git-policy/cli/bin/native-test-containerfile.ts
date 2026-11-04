@@ -1,5 +1,5 @@
 /**
- Containerfile text of the gate's test image: the `strace` stage, then the test stage whose compile is
+ Containerfile text of the gate's test image: one test stage whose compile is
  split into layers, so later runs rebuild only the layer a change reaches.
 
  The test stage orders its layers from the input that changes least to the one that changes most:
@@ -13,12 +13,6 @@ import {
   touchedCargoRun,
   builderPreludeLines,
 } from './native-layered-build.ts';
-import { nextestCopyLines, } from './native-nextest-snapshot.ts';
-import { pnpmCopyLines, } from './native-pnpm-snapshot.ts';
-import {
-  straceCopyLines,
-  straceStageLines,
-} from './native-strace-snapshot.ts';
 import {
   pathCrates,
   subjectCrate,
@@ -83,11 +77,6 @@ export function testContainerfile({
   readonly jobs: number;
 },): string {
   return [
-    // The fault-injection controls run the wrapper under `strace`; without it they report and check nothing.
-    ...straceStageLines({
-      base,
-      jobs,
-    }),
     `FROM ${base}`,
     // One environment step. A test that waits on a lock nothing releases (a mutant that never releases one) fails
     // after 20 seconds instead of waiting out the 30 minute product limit, which cargo-mutants would record as a timeout.
@@ -105,8 +94,6 @@ export function testContainerfile({
         'CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1',
       ].join(' '),
     }),
-    ...nextestCopyLines(),
-    ...straceCopyLines(),
     // Some crate archives carry files only their owner may read, so the tester must own the vendored copy.
     // The stand-in crates, the vendored sources and the Cargo mapping arrive in one step.
     `COPY --chown=1000:1000 ${imageRootDirectory} /work`,
@@ -142,9 +129,6 @@ export function testContainerfile({
       ],
       cargoArguments: compileArguments,
     }),
-    // The controls that run a real pnpm (the relink of a copied `node_modules`) need it in an image that has no network.
-    // These are the last layers so the expensive compile layers before them stay cached.
-    ...pnpmCopyLines(),
     '',
   ].join('\n');
 }

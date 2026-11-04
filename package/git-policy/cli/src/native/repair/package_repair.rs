@@ -14,6 +14,8 @@
 //! repairWorktree({ git, source, destination, switch: { quiet, noCheckout }, environment }, process.stderr);
 //! ```
 
+/// The two bounds one tool runs under.
+use crate::package_repair_command::ToolLimits;
 use crate::add_timing::work;
 use crate::diagnostic_log::debug;
 use crate::package_repair_cargo::repair_cargo;
@@ -131,6 +133,8 @@ pub struct RepairEnvironment {
     pub search_path: Option<OsString>,
     /// How long one tool may show no sign of work before it is stopped.
     pub quiet_window: Duration,
+    /// The longest one tool runs, whatever it shows (`wait_ceilings.rs`, `REPAIR_TOOL_CEILING`).
+    pub ceiling: Duration,
     /// The most threads the repairs use together.
     pub workers: usize,
 }
@@ -147,7 +151,12 @@ impl RepairEnvironment {
     /// ```
     pub fn from_process() -> RepairEnvironment {
         let available: usize = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
-        return RepairEnvironment { search_path: std::env::var_os("PATH"), quiet_window: TOOL_QUIET_WINDOW, workers: workers_for(available) };
+        return RepairEnvironment { search_path: std::env::var_os("PATH"), quiet_window: TOOL_QUIET_WINDOW, ceiling: crate::wait_ceilings::REPAIR_TOOL_CEILING, workers: workers_for(available) };
+    }
+
+    /// The two bounds one tool runs under.
+    pub fn limits(&self) -> ToolLimits {
+        return ToolLimits { window: self.quiet_window, ceiling: self.ceiling };
     }
 
     /// The search path as a borrowed value.

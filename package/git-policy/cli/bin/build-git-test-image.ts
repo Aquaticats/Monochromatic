@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- Build the gate's base image: the newest CachyOS image on its `latest` tag, the Rust toolchain and the audited Git 2.56.0.
+ Build the gate's base image: the newest CachyOS image on its `latest` tag with the Rust toolchain, Git, Node, pnpm, `strace` and
+ cargo-nextest, all current pacman packages, and report which release of each the image got.
 
  `native:test:container` does the same before it builds the gate image, so this runner exists to build the base ahead of
  time, to rebuild it after a CachyOS update with chosen limits, and to prove what it holds. It pulls the `latest` tag and
@@ -32,9 +33,17 @@ import {
 const jsonIndent = 2;
 
 /**
- The version line the base's Git must print: the release the gate's results are evidence about.
+ Pacman packages whose installed releases the build reports: the tools the tests run, taken from the distribution as
+ it is (the owner chose no pins, 2026-11-04), so the release each run got is evidence worth keeping.
  */
-const expectedGitVersion = 'git version 2.56.0';
+const reportedPackages = [
+  'git',
+  'nodejs',
+  'pnpm',
+  'strace',
+  'cargo-nextest',
+  'rust',
+] as const;
 
 /**
  Container limits from the `--memory`, `--cpus` and `--pids-limit` options, and any extra arguments, which are a usage error.
@@ -69,9 +78,38 @@ const evidence = await mkdtemp(join(
  */
 const base = await ensureTestBase({ limits: containerLimits, });
 /**
- Result of asking the base's Git for its version, in a container without network.
+ Result of asking the base which release of each reported package it holds, in a container without network.
  */
 const reported = await runCommand({
+  command: 'podman',
+  args: [
+    'run',
+    '--rm',
+    '--init',
+    '--network=none',
+    ...runLimitArguments({
+      limits: containerLimits,
+      withPidsLimit: true,
+    }),
+    base.id,
+    'pacman',
+    '--query',
+    ...reportedPackages,
+  ],
+  capture: true,
+});
+/**
+ One `<package> <release>` line per reported package, as pacman printed them.
+ */
+const packages = reported.stdout
+  .trim()
+  .split('\n');
+if (packages.length !== reportedPackages.length)
+  throw new NativeVerificationError(`The base image reported ${String(packages.length)} packages, not the ${String(reportedPackages.length)} asked for: ${reported.stdout}`);
+/**
+ Result of asking the base's Git for its version line, in a container without network.
+ */
+const gitReported = await runCommand({
   command: 'podman',
   args: [
     'run',
@@ -89,12 +127,12 @@ const reported = await runCommand({
   capture: true,
 });
 /**
- The version line the base's Git printed, which must be the audited release.
+ The version line the base's Git printed.
  */
-const version = reported.stdout
+const version = gitReported.stdout
   .trim();
-if (version !== expectedGitVersion)
-  throw new NativeVerificationError(`The base image returned an unexpected Git version: ${version}`);
+if (!version.startsWith('git version '))
+  throw new NativeVerificationError(`The base image returned an unexpected Git version line: ${version}`);
 await writeFile(
   join(
     evidence,
@@ -104,9 +142,10 @@ await writeFile(
     {
       ...base,
       version,
+      packages,
     },
     null,
     jsonIndent,
   )}\n`,
 );
-console.log(`${base.built ? 'Built' : 'Found'} the gate base ${base.tag} (${base.id}) on ${base.cachyosImage} (${base.cachyosImageId}); ${version}; evidence ${evidence}`);
+console.log(`${base.built ? 'Built' : 'Found'} the gate base ${base.tag} (${base.id}) on ${base.cachyosImage} (${base.cachyosImageId}); ${version}; ${packages.join(', ')}; evidence ${evidence}`);

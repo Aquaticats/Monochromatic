@@ -96,8 +96,9 @@ pub enum ClientFailure {
     ServiceSilent,
     /// The service kept the request for `minutes` minutes without answering, and the client withdrew it: it will not land.
     StillWithService { minutes: u64, blocker: Option<String> },
-    /// The client stopped waiting and could not confirm the service withdrew the request.
-    WithdrawalUnconfirmed,
+    /// The client stopped waiting and could not confirm the service withdrew the request; `blocker` is what the service last said it
+    ///  was stuck in, such as a branch write that has not returned.
+    WithdrawalUnconfirmed { blocker: Option<String> },
     /// A Git step of the landing ran longer than the wrapper allows and was ended; the commit was withdrawn and kept.
     StepTooSlow,
     /// The request was refused as malformed or unsafe.
@@ -201,11 +202,12 @@ pub fn render(failure: &ClientFailure) -> String {
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`. {NOTHING_CHANGED}",
             blocker.as_ref().map_or_else(String::new, |text| { return format!(" It was waiting for: {text}."); })
         ),
-        ClientFailure::WithdrawalUnconfirmed => format!(
+        ClientFailure::WithdrawalUnconfirmed { blocker } => format!(
             "This commit waited for the commit service until the longest wait the wrapper allows, and the service did not confirm \
-             that it withdrew it, so it is not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to \
+             that it withdrew it, so it is not known whether the commit was made.{} Run `{}` to see whether it was made, and `{}` to \
              see what is still staged. If it was not made, run the commit again; if the service is stuck, look at why with \
              `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}`.",
+            blocker.as_ref().map_or_else(String::new, |text| { return format!(" The service had said: {}", text.trim()); }),
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),
         ClientFailure::StepTooSlow => format!(

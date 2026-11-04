@@ -26,7 +26,9 @@ use crate::claim_time::ClaimTime;
 use crate::service_retry::RetrySchedule;
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
 use crate::service_work::{GitHandlers, Wake, run_round};
-use crate::service_reply::{Reply, write_until_answered};
+use crate::service_busy::{EarlyAnswer, LandingBoard};
+use crate::service_reply::{Reply, write_until_answered_noting};
+use crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER;
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
@@ -81,12 +83,15 @@ pub struct ServeSettings {
     /// The worktree this instance serves, as `service_instance::instance_of` names it; every message about another worktree
     ///  is refused. Nothing in a development run that serves any worktree.
     pub instance: Option<String>,
+    /// How long a write the service never ends runs before the clients behind it are told, and may be withdrawn while the
+    ///  service is inside it (`wait_ceilings.rs`, `NEVER_ENDED_STEP_SLOW_AFTER`); a control shortens it.
+    pub stuck_after: Duration,
 }
 
 impl ServeSettings {
     /// The settings of an ordinary run: the given idle exit and this build's release.
     pub fn new(idle: Duration) -> Self {
-        return Self { idle, release: String::from(RELEASE), instance: None };
+        return Self { idle, release: String::from(RELEASE), instance: None, stuck_after: NEVER_ENDED_STEP_SLOW_AFTER };
     }
 }
 
@@ -281,8 +286,32 @@ const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 /// How long the acceptor waits after a connection it could not give a thread.
 const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 
+/// What:
+///  The note for a connection's beat: what the landing thread is stuck in when it is inside a write that is never ended, said again
+///  only when the words change (they name whole minutes).
+/// Why:
+///   A client queued behind a write that never returns is told why it waits, and the words become the blocker its error names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
+/// ```
+fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>) -> impl FnMut() -> Option<ServiceMessage> + 'a {
+    let mut last: Option<(String, bool)> = None;
+    return move || {
+        let words: String = board.describe()?;
+        // A client whose own request is in the group being landed is told so, because its commit may be on the branch already.
+        let inside: bool = request.is_some_and(|id| { return board.is_in_flight(id); });
+        if last.as_ref().is_some_and(|(sent, was_inside)| { return *sent == words && *was_inside == inside; }) {
+            return None;
+        }
+        last = Some((words.clone(), inside));
+        return Some(if inside { ServiceMessage::InsideWrite { text: words } } else { ServiceMessage::Waiting { text: words } });
+    };
+}
+
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, release: &str, instance: Option<&str>) {
+fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, board: &LandingBoard, release: &str, instance: Option<&str>) {
     let accepted: Instant = Instant::now();
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release.to_string()) });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
@@ -319,15 +348,26 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
             crate::service_fault::queued(id.as_str());
             // This thread has nothing else to do until the request is answered, so it writes the answers the landing thread
-            //  queues and keeps the client told that the service lives.
-            write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
+            //  queues and keeps the client told that the service lives, and what it is stuck in when it is stuck in a write.
+            write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, Some(id.as_str())));
         }
         Ok(ClientMessage::Withdraw { id }) => {
-            // The landing thread answers between two landings, so the answer is either that the commit landed or that it never
-            //  will; meanwhile this thread keeps the client told that the service lives.
-            let (reply, messages) = Reply::new();
-            let _queued = queue.send(Job::Withdraw(id, reply));
-            write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
+            // Behind a write that never returns the landing thread answers nothing, so a request that has not begun to land is
+            //  withdrawn here (`service_busy.rs`); otherwise the landing thread answers between two landings, so the answer is
+            //  either that the commit landed or that it never will, and meanwhile this thread keeps the client told that the
+            //  service lives.
+            match board.withdraw_early(id.as_str()) {
+                EarlyAnswer::Landed(commit) => send(&stream, &ServiceMessage::Landed { id, commit, already: true }),
+                EarlyAnswer::Withdrawn(words) => {
+                    send(&stream, &ServiceMessage::Waiting { text: words });
+                    send(&stream, &ServiceMessage::Withdrawn { id });
+                }
+                EarlyAnswer::Queued => {
+                    let (reply, messages) = Reply::new();
+                    let _queued = queue.send(Job::Withdraw(id, reply));
+                    write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, None));
+                }
+            }
         }
         Ok(ClientMessage::Retire) => {
             log(retire_line(release).as_str());
@@ -626,6 +666,10 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
+    // What this landing thread is inside, for the threads that talk to clients (`service_busy.rs`).
+    let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone(), settings.stuck_after);
+    crate::service_busy::use_on_this_thread(Arc::clone(&board));
+    let connection_board: Arc<LandingBoard> = Arc::clone(&board);
     // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.
     let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);
     start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path())); });
@@ -638,11 +682,12 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             let work: Sender<Wake> = work_sender.clone();
             let release: String = announced_release.clone();
             let counted: Arc<AtomicUsize> = Arc::clone(&connection_busy);
+            let record: Arc<LandingBoard> = Arc::clone(&connection_board);
             let mine: Option<String> = instance.clone();
             // A connection the service cannot give a thread is told so and closed; the acceptor goes on, because a panic here
             //  would end the acceptor and leave a service that is running and answers no one.
             let notice: Option<UnixStream> = connection.try_clone().ok();
-            let spawned = std::thread::Builder::new().spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
+            let spawned = std::thread::Builder::new().spawn(move || { handle_connection(connection, &queue, &work, &counted, &record, release.as_str(), mine.as_deref()); });
             if let Err(error) = spawned {
                 crate::service_error!("no thread for a connection, which is closed after telling the client: {error}");
                 if let Some(stream) = notice {
@@ -729,9 +774,22 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
                 }
             }
         }
-        for (_, group) in groups {
-            let index: Option<std::path::PathBuf> = group.first().map(|(request, _, _)| { return request.index.clone(); });
+        for (_, queued_group) in groups {
+            let index: Option<std::path::PathBuf> = queued_group.first().map(|(request, _, _)| { return request.index.clone(); });
+            // A request whose client was answered "withdrawn" while this thread was stuck in a write is dropped here, and the
+            //  rest are marked as being landed, under one lock (`service_busy.rs`).
+            let ids: Vec<String> = queued_group.iter().map(|(request, _, _)| { return request.id.clone(); }).collect();
+            let dropped: Vec<String> = board.begin_group(ids.as_slice());
+            for id in &dropped {
+                crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
+            }
+            let group: Vec<Queued> = queued_group.into_iter().filter(|(request, _, _)| { return !dropped.contains(&request.id); }).collect();
+            if group.is_empty() {
+                board.end_group(ids.as_slice());
+                continue;
+            }
             land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures);
+            board.end_group(ids.as_slice());
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
             if let Some(next_index) = index {
