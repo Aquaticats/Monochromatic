@@ -13,7 +13,10 @@
 #![cfg(feature = "test-seams")]
 
 use crate::commit_state_log_tests::lane_with_envelope;
+use crate::model_fixture::in_single_threaded_process;
 use git_policy_cli::commit_disposal::{DisposalAuthorization, dispose_saved_content, retire_saved_content, unlink_retired};
+use git_policy_cli::commit_identity::set_fault_point;
+use git_policy_cli::commit_lane_lifecycle::startup_sweep;
 use git_policy_cli::commit_lane_lifecycle::capture_lane_closure;
 use git_policy_cli::commit_state_log::{ClosureEntry, LaneDocument, StateWriter, create_saved_content, read, select};
 use std::path::{Path, PathBuf};
@@ -81,4 +84,63 @@ fn a_disposal_of_content_the_root_does_not_hold_is_refused_before_anything_is_wr
     let other: String = "e".repeat(64);
     assert!(dispose_saved_content(&lane, &state, &DisposalAuthorization::explicit(&other)).is_err());
     assert!(!lane.join("ledger").exists(), "no line was appended for a name the root does not hold");
+}
+
+thread_local! {
+    /// The fault point at which the process of this thread dies (set in the child of `in_single_threaded_process`).
+    static CRASH_AT: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+}
+
+/// The exit status of a child that died at its crash point.
+const CRASHED: i32 = 77;
+
+/// Dies at once (no destructor, no unwinding) when the named fault point is reached.
+fn die_at_the_point(point: &str) {
+    if CRASH_AT.with(|cell| { return cell.get(); }) == Some(point) {
+        // SAFETY: `_exit` takes an integer and never returns.
+        unsafe { libc::_exit(CRASHED) };
+    }
+}
+
+/// The ledger lines that dispose of `name`.
+fn disposed_lines(lane: &Path, name: &str) -> usize {
+    let key: String = name.chars().take(32).collect();
+    return std::fs::read_to_string(lane.join("ledger")).unwrap_or_default().lines().filter(|line| { return line.contains(&format!(" {} disposed ", key)); }).count();
+}
+
+/// Crash injection at each step of the disposal, with the real recovery after each: the process dies after the line, after the replacement
+/// root and after the unlink. At every point recovery selects a root and every saved item that root names exists; the replacement owner's
+/// startup sweep then completes the disposal the person authorized (the durable line is its record), once, and loses nothing else.
+#[test]
+fn a_crash_at_each_step_of_the_disposal_is_recovered_without_loss() {
+    for point in ["disposal:after-line", "disposal:after-root", "disposal:after-unlink"] {
+        let (lane, state, name) = lane_with_saved("dispose-crash-points");
+        let (child_lane, child_state, child_name) = (lane.clone(), state.clone(), name.clone());
+        let status: Option<i32> = in_single_threaded_process(move || {
+            CRASH_AT.with(|cell| { cell.set(Some(point)); });
+            set_fault_point(Some(die_at_the_point));
+            let _ = dispose_saved_content(&child_lane, &child_state, &DisposalAuthorization::explicit(&child_name));
+            return 0;
+        });
+        assert_eq!(status, Some(CRASHED), "the disposal did not reach {}", point);
+        let root = select(&state).expect("readable").unwrap_or_else(|| { panic!("recovery has no root after a crash at {}", point) });
+        let document: LaneDocument = LaneDocument::parse(&root.payload).expect("a checked document");
+        for held in document.saved() {
+            assert!(lane.join("saved").join(held).exists(), "the root names {} which is gone after a crash at {}", held, point);
+        }
+        startup_sweep(&lane, &state).expect("the replacement owner's sweep");
+        assert!(!lane.join("saved").join(&name).exists(), "the authorized disposal was not completed after {}", point);
+        assert!(saved_in_root(&state).is_empty(), "the root still names the item after {}", point);
+        assert_eq!(disposed_lines(&lane, &name), 1, "exactly one disposed line after {}", point);
+        assert!(select(&state).expect("readable").is_some());
+    }
+}
+
+/// The sweep touches only what the person authorized: saved content without a `disposed` line stays, whatever the root says.
+#[test]
+fn the_startup_sweep_removes_no_saved_content_that_has_no_disposed_line() {
+    let (lane, state, name) = lane_with_saved("dispose-sweep-untouched");
+    startup_sweep(&lane, &state).expect("the sweep");
+    assert!(lane.join("saved").join(&name).exists());
+    assert_eq!(saved_in_root(&state), std::slice::from_ref(&name));
 }
