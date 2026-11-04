@@ -411,3 +411,44 @@ fn a_silent_child_is_ended_after_the_quiet_window_and_a_sibling_is_left_alone() 
     assert!(failure.to_string().contains("showed no sign of work for 1 seconds"), "{failure}");
     assert!(!sibling_ended, "the stop reached a process beside the step");
 }
+
+/// A command that keeps showing work (it writes a little every moment) is ended at the ceiling, though the quiet window is an hour:
+/// the step that works is no longer waited for however long it takes. The error is the ceiling's, which a step that may be run
+/// again is not run again after.
+#[test]
+fn a_step_that_keeps_working_is_ended_at_its_ceiling() {
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", "while true; do echo working; sleep 0.05; done"]);
+    let began: Instant = Instant::now();
+    let error = output_watched_within(&mut command, "a working step", "a working step", terms(Duration::from_secs(3600), &sink), true, Duration::from_millis(700))
+        .expect_err("the ceiling ended it");
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    assert!(is_ceiling(&error), "{error}");
+    assert!(error.to_string().contains("a working step ran for") && error.to_string().contains("was ended"), "{error}");
+    assert!(began.elapsed() >= Duration::from_millis(700) && began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
+}
+
+/// A step that may not be ended for being quiet (a reference update) is ended at the ceiling all the same.
+#[test]
+fn a_step_that_is_never_ended_for_being_quiet_is_ended_at_its_ceiling() {
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sleep");
+    command.arg("600");
+    let began: Instant = Instant::now();
+    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(200), &sink), false, Duration::from_millis(700))
+        .expect_err("the ceiling ended it");
+    assert!(is_ceiling(&error), "{error}");
+    assert!(began.elapsed() < Duration::from_secs(30), "{:?}", began.elapsed());
+}
+
+/// A quiet step is ended for being quiet, and that error is not the ceiling's.
+#[test]
+fn a_quiet_step_is_not_reported_as_the_ceiling() {
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sleep");
+    command.arg("600");
+    let error = output_watched_within(&mut command, "a quiet step", "a quiet step", terms(Duration::from_millis(300), &sink), true, Duration::from_secs(600))
+        .expect_err("the quiet window ended it");
+    assert!(!is_ceiling(&error), "{error}");
+}

@@ -16,7 +16,9 @@
 use super::autostash_carry::carry_stash;
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::warn;
-use super::index_holder_wait::{IndexWait, wait_for_index_release_here};
+use super::index_holder_wait::{IndexWait, wait_for_index_release_within};
+use super::wait_ceilings::LOCK_CEILING;
+use super::wait_progress::Cadence;
 use super::inner_git_words::record_words;
 use super::service_index_lock::IndexLock;
 pub use super::service_land_copy::PrivateCopy;
@@ -156,6 +158,15 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 /// await updateIndex(git, repository, index, newCommit, paths)
 /// ```
 pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
+    return update_index_within(git, repository, index, LOCK_CEILING, new, paths);
+}
+
+/// `update_index` that gives up on a holder of the index lock after `ceiling`, with the lock's code.
+///
+/// # Errors
+///
+/// As `update_index`.
+pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ceiling: std::time::Duration, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
     if matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty()) {
         return Ok(());
     }
@@ -167,9 +178,9 @@ pub fn update_index(git: &GitContext, repository: &Path, index: &Path, new: &str
             Err(code) => code,
         };
         if code == FailureCode::IndexInUse {
-            match wait_for_index_release_here(index, "commit") {
+            match wait_for_index_release_within(index, "commit", ceiling, Cadence::from_environment(), &mut std::io::stderr()) {
                 // The diagnostic of a wait that ended on a dead owner is already written.
-                IndexWait::OwnerGone(_) => return Err(code),
+                IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) => return Err(code),
                 // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well.
                 IndexWait::Released(_) => continue,
                 IndexWait::NotHeld => {}

@@ -326,6 +326,12 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
   up to
   `indexLock.unprovenOwnerTimeoutMs` (default 1000), then a diagnostic listing the evidence."
 
+- Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
+  about 12:45-05:00 (see "Every wait has a bound" below): the wait for a foreign `index.lock` (proven alive or not)
+  ends at `LOCK_CEILING`, 10 minutes, unmeasured (no log holds a
+  foreign holder). At the bound the landing is withdrawn before the branch moved, the built commit is kept on
+  `refs/cli-git/kept/<batch>`, and the error names the blocker; the merge names it and ends with Git's refusal.
+
 ### Service hold age limit, 60 seconds
 
 - Outcome (delegated pick 2; open to the owner's veto):
@@ -341,6 +347,12 @@ The socket template sets only the mode (`0600`) and directory mode (`0700`), whi
 - Deviation from pick 2's "short backoff": the measurement contradicts a short age for a live service's own hold,
   so this
   number is not short. It is listed under the open questions.
+
+- Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
+  about 12:45-05:00 (see "Every wait has a bound" below):
+  a hold the mark proves to run is waited for until `SERVICE_HOLD_CEILING`,
+  10 minutes (five times the longest measured hold,
+  119.7 s); `UNASKABLE_HOLD_AGE` (150 s) is unchanged and awaits the owner's approval.
 
 ### Look counts and pauses of the lock wait
 
@@ -676,6 +688,12 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   is left alone. No new number: the interval is the existing `START_WAIT`.
 
 
+- Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
+  about 12:45-05:00 (see "Every wait has a bound" below):
+  a start the manager reports as under way is waited for until `START_CEILING`,
+  60 seconds (58 times the slowest observed
+  start, 1.04 s), then "The commit service did not start".
+
 ### Commit queue wait, 10 minutes
 
 - Outcome (delegated pick 6, option A; open to the owner's veto):
@@ -703,6 +721,13 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 - Limit of the beat: it is sent by the thread that read the request, so it proves the process and the connection live,
   not that
   the landing thread makes progress; a stuck Git child is ended by the step bounds, not by this.
+
+- Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
+  about 12:45-05:00 (see "Every wait has a bound" below): the client's wait for the answer ends at `ANSWER_CEILING`,
+  20 minutes (3.9 times the longest observed answer wait, 308 s;
+  1.6 times the longest whole commit, 751 s). It withdraws the request (protocol 7, `withdraw`/`withdrawn`):
+  the service answers
+  between two landings, so the commit either landed (success) or never will; the error says it will not land by itself.
 
 ### Reconnects, 5
 
@@ -941,6 +966,11 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   No silence of a disconnected push is logged, so nothing determines the number.
   Open question: "The stall window of a push with no connection, and a connection that holds and never answers",
   in "Questions raised while building picks 5 and 12".
+
+- Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
+  about 12:45-05:00 (see "Every wait has a bound" below):
+  a push whose connection is open is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW`, 150 seconds,
+  unmeasured (twice the longest whole push, 72.4 s); the service's retry plan keeps it ("Bound it, keep retrying").
 
 ### Push ceiling, 1800 seconds
 
@@ -1787,6 +1817,43 @@ the owner's practice is to cite the Git 2.56.0 file and line (handover, "Recorde
   The three chunk sizes of argument lists are now one value (`ATTRIBUTE_CHUNK_SIZE` and `COMMIT_CHUNK_SIZE` derive from
   `PATHSPEC_CHUNK_SIZE`, rule `MGN`), and a control checks a chunk of the longest arguments against half the operating
   system's argument limit.
+
+## Every wait has a bound
+
+The owner, about 2026-11-03T12:37-05:00 (quoted): "nothing should ever wait forever or indefinitely".
+The inventory of every wait,
+with the options for the ones not decided, is `doc/planning/cli-git-no-unbounded-waits.md`; the bounds are in
+`src/native/wait_ceilings.rs`, each with its measurement beside it:
+
+- `ANSWER_CEILING` 20 minutes; `WITHDRAW_CEILING` 10 minutes; `START_CEILING` 60 seconds;
+  `SERVICE_HOLD_CEILING` 10 minutes
+  (measured, with the margins given at each entry above).
+- `LOCK_CEILING` 10 minutes and `CONNECTED_PUSH_QUIET_WINDOW` 150 seconds: unmeasured,
+  labelled as the quiet windows are.
+- `PHASE_PATIENCE` 5 minutes: the limit of any test (`.config/nextest.toml`).
+- `PLUMBING_STEP_CEILING` 120 s, `OBJECT_STEP_CEILING` 600 s, `REFERENCE_STEP_CEILING` 60 s:
+  the longest one Git step runs, whatever it
+  shows (the coordinator's pick, under the owner's delegation, veto open). Measured:
+  longest read step 9,663 ms (`reads_ms`, 1,651
+  landings), longest client preparation 250,280 ms (`prepareMs`, 1,400 records), longest object step 1,358 ms,
+  longest reference
+  update 3,438 ms (`ref_ms`).
+- The data read on 2026-11-03: the timing log of this repository (1,329 records; `answerWaitMs` longest 308,267 ms,
+  `totalMs` longest
+  750,604 ms, `startWaitMs` longest 1,041 ms) and the service journal (715 logged holds, longest 119,721 ms;
+  794 pushes, longest 72.4 s).
+  No log holds a foreign index-lock holder or a quiet gap of a connected push.
+
+The owner's answers of about 12:45-05:00: at a bound "Return with an error"; the saved commit does not land later,
+"No, keep it for
+a retry (Recommended)"; pushes "Bound it, keep retrying (Recommended)".
+These replace the unbounded waits of the delegated picks 2
+and 6, the follow-up pick that waited for an unproven owner with no bound, and "Wait while connected".
+Open for the coordinator
+to pick, with options and rankings in the inventory: a ceiling for Git steps that keep working or are never stopped,
+the person's
+own Git and hooks, the value of the connected window,
+and a person's `git commit` with an editor open at the lock ceiling.
 
 ## Exempt limits
 

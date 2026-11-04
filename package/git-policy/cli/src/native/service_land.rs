@@ -19,7 +19,7 @@ use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{INDEXED_EXTENSION, Indexed, Intent, Recovery, OPEN_EXTENSION, Started, indexed_state, list_intents, mark_done, mark_indexed, read_start, recovery_for, remove_start, write_intent, write_start};
 use super::service_land_start::split_by_start;
-use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait, remove_stale, try_acquire};
+use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within, remove_stale, try_acquire};
 use super::service_timing::{LandTiming, wait_line};
 use super::autostash_carry::carry_stages;
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
@@ -40,6 +40,30 @@ pub struct LandContext {
     pub journal: PathBuf,
     /// Test seam: called after the batch's objects exist and before the branch moves.
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
+    /// How long a landing waits for a foreign program's `index.lock` before it is withdrawn (`wait_ceilings.rs`).
+    pub lock_ceiling: std::time::Duration,
+}
+
+/// What:
+///  Keeps the commit built for a batch that was withdrawn on a side ref, and returns the line that tells the person where it is.
+/// Why:
+///   The owner's answer for a wait that reaches its bound is that nothing lands later by itself and the commit is kept for a retry;
+///  the person's staged changes are untouched, so running the commit again builds the same commit, and the side ref lets them
+///  recover this one if the worktree changed meanwhile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['update-ref', `refs/cli-git/kept/${seq}`, tip]); return `kept at refs/cli-git/kept/${seq}`
+/// ```
+fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
+    let name: String = format!("refs/cli-git/kept/{seq}");
+    let made = run(git, repository, &["update-ref", name.as_str(), tip], None);
+    if !made.is_ok_and(|output| { return output.succeeded(); }) {
+        return String::from("cli-git: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
+    }
+    return format!(
+        "cli-git: the commit built for you is kept at {name} (see it with `git log {name}`); nothing lands later by itself, and your staged changes and your worktree are as they were. Run the commit again when the program above is done.\n"
+    );
 }
 
 /// What became of one request of a batch.
@@ -56,8 +80,25 @@ pub enum Outcome {
 fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<GitOutput, FailureCode> {
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
-    let output: GitOutput = run_git(git, &request).map_err(|_| { return FailureCode::Unavailable; })?;
+    let output: GitOutput = run_git(git, &request).map_err(|error| {
+        // A step ended at its ceiling is told apart from every other failure, and its sentence is kept for the answer.
+        if super::child_watch::is_ceiling(&error) {
+            CEILING_STEP.with(|step| { *step.borrow_mut() = Some(error.to_string()); });
+            return FailureCode::StepTooSlow;
+        }
+        return FailureCode::Unavailable;
+    })?;
     return Ok(output);
+}
+
+thread_local! {
+    /// The sentence of the last Git step this thread ended at its ceiling, for the line the clients are told.
+    static CEILING_STEP: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The sentence of the step that was ended at its ceiling, once.
+fn take_ceiling_step() -> Option<String> {
+    return CEILING_STEP.with(|step| { return step.borrow_mut().take(); });
 }
 
 fn checked(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {
@@ -210,6 +251,36 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
 /// The failure code of the landing,
 /// as `land_batch_announcing`.
 pub fn land_batch_timed(
+    context: &LandContext,
+    seq: u64,
+    requests: &[CommitRequest],
+    announce: &dyn Fn(Announce),
+    timing: &mut LandTiming,
+) -> Result<Vec<Outcome>, FailureCode> {
+    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing);
+    // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
+    //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
+    if result == Err(FailureCode::StepTooSlow)
+        && let Some(step) = take_ceiling_step()
+        && let Some(first) = requests.first()
+    {
+        announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
+        let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+        let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
+        if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
+            announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
+            let _deleted = run(&git, first.repository.as_path(), &["update-ref", "-d", scratch.as_str()], None);
+        }
+    }
+    return result;
+}
+
+/// The landing itself; `land_batch_timed` adds what is told when a step is ended at its ceiling.
+///
+/// # Errors
+///
+/// As `land_batch_timed`.
+fn land_batch_body(
     context: &LandContext,
     seq: u64,
     requests: &[CommitRequest],
@@ -377,7 +448,7 @@ pub fn land_batch_timed(
         //  the index stays as it was.
         let waiting_since: Instant = Instant::now();
         let mut notes: WaitNotes = WaitNotes::default();
-        let taken = acquire_noting_wait(first.index.as_path(), seq, announce, &mut notes);
+        let taken = acquire_noting_wait_within(first.index.as_path(), seq, context.lock_ceiling, announce, &mut notes);
         let waited: std::time::Duration = waiting_since.elapsed();
         timing.lock_wait += waited;
         // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.
@@ -394,8 +465,12 @@ pub fn land_batch_timed(
         let held: IndexLock = match taken {
             Ok(lock) => lock,
             Err(failure) => {
-                // Nothing moved: forget the intent and the scratch branch, as for a branch that moved under the batch.
+                // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
+                //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
                 let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+                if failure.code == FailureCode::IndexInUse {
+                    announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
+                }
                 let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
                 return Err(failure.code);
             }
@@ -436,7 +511,31 @@ pub fn land_batch_timed(
         let ref_began: Instant = Instant::now();
         let ran = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()));
         timing.ref_update += ref_began.elapsed();
-        let moved: GitOutput = ran?;
+        let moved: GitOutput = match ran {
+            Ok(output) => output,
+            Err(FailureCode::StepTooSlow) => {
+                // The update was ended at its ceiling. Git writes a reference by renaming its lock file, so the branch is now at
+                //  the request's commit or where it was: the branch is read, and the answer follows what it says.
+                let step: String = take_ceiling_step().unwrap_or_else(|| { return String::from("the reference update ran too long and was ended"); });
+                let tip: Option<String> = checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None).ok();
+                if tip.as_deref() == Some(new.as_str()) {
+                    // It renamed before it was ended: the commit is on the branch. The scratch branch the transaction would have
+                    //  removed is removed here, and the landing goes on as if the update had returned.
+                    let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+                    GitOutput { code: Some(0), stdout: Vec::new(), stderr: Vec::new() }
+                } else {
+                    // It did nothing: the batch is withdrawn like one that met the lock ceiling. The intent goes, so a restart cannot
+                    //  land it; the commit is kept on a side ref; the lock is given up when `held` goes out of scope.
+                    let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+                    remove_start(context.journal.as_path(), seq);
+                    announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
+                    announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
+                    let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+                    return Err(FailureCode::StepTooSlow);
+                }
+            }
+            Err(code) => return Err(code),
+        };
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));

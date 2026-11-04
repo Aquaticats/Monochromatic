@@ -15,7 +15,7 @@ use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
 use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit};
 use git_policy_cli::service_messages::{ClientFailure, SILENT_NOTICE};
 use git_policy_cli::service_protocol::{
-    ALLOWED_MODES, Change, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_service,
+    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
 use git_policy_cli::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
@@ -95,7 +95,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None, keep_fresh: None,
+        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
     };
 }
 
@@ -331,4 +331,105 @@ fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
     assert!(!left_behind.exists(), "the positive control: a directory nobody keeps fresh is swept");
     assert_eq!(removed, 1);
     super::commit::remove_settled(&fixture);
+}
+
+/// How long a control waits for a client that must end at its ceiling before it calls it hung.
+const CEILING_PATIENCE: Duration = Duration::from_secs(15);
+
+/// The ceilings the controls give the client: short, so a control ends in a moment.
+const SHORT_CEILING: Duration = Duration::from_millis(500);
+
+/// Runs the client on a thread and returns what it ended with and printed, or nothing when it was still waiting after
+///  `CEILING_PATIENCE`.
+fn client_within_patience(config: ClientConfig) -> Option<(Result<Submitted, ClientFailure>, String)> {
+    let (finished, ended) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut notices: Vec<u8> = Vec::new();
+        let answered = submit(&config, &request(), &mut notices);
+        let _sent = finished.send((answered, String::from_utf8(notices).expect("UTF-8")));
+    });
+    return ended.recv_timeout(CEILING_PATIENCE).ok();
+}
+
+/// A fake service for the ceiling controls: the first connection is greeted, reads the request and beats for ever; the second is
+///  greeted and reads the line that asks for the withdrawal, which it returns with the answer `reply` gives (nothing: no answer).
+fn serve_a_wait_and_a_withdrawal(service: UnixListener, reply: Option<ServiceMessage>) -> std::thread::JoinHandle<Option<ClientMessage>> {
+    return std::thread::spawn(move || {
+        let (first, _) = service.accept().expect("the first connection");
+        greet(&first);
+        read_request(&first);
+        let beating = std::thread::spawn(move || {
+            while (&first).write_all(&line(&ServiceMessage::Heartbeat)).is_ok() {
+                std::thread::sleep(FAKE_BEAT);
+            }
+        });
+        let (second, _) = service.accept().expect("the withdrawal's connection");
+        greet(&second);
+        let mut asked: String = String::new();
+        BufReader::new(&second).read_line(&mut asked).expect("the withdrawal");
+        let message: Option<ClientMessage> = decode_client(asked.trim_end_matches('\n')).ok();
+        if let Some(answer) = reply {
+            (&second).write_all(&line(&answer)).expect("answer the withdrawal");
+        } else {
+            // The service never answers: the connection stays open until the control ends.
+            std::thread::sleep(CEILING_PATIENCE);
+        }
+        drop(beating);
+        return message;
+    });
+}
+
+/// A wait that passes the answer ceiling, with the service still sending heartbeats, is withdrawn: the client asks the service to
+/// withdraw the request of its identity on a new connection, and when the service says it did, the command ends with the error
+/// that says the commit will not land later and what to run.
+#[test]
+fn a_wait_past_the_answer_ceiling_withdraws_the_request_and_ends_with_the_error() {
+    let name: String = address("ceiling-withdraws");
+    let service: UnixListener = listen(name.as_str());
+    let fake = serve_a_wait_and_a_withdrawal(service, Some(ServiceMessage::Withdrawn { id: String::from("heartbeat-control") }));
+    let config: ClientConfig = ClientConfig { answer_ceiling: SHORT_CEILING, ..config(name.as_str()) };
+    let (answered, _notices) = client_within_patience(config).expect("the client ended at its ceiling");
+    assert!(matches!(answered, Err(ClientFailure::StillWithService { .. })), "{answered:?}");
+    let asked: Option<ClientMessage> = fake.join().expect("fake service");
+    assert_eq!(asked, Some(ClientMessage::Withdraw { id: String::from("heartbeat-control") }));
+}
+
+/// The race: the commit landed just as the bound passed. The service answers the withdrawal with the landed commit, and the
+/// command reports success, not the error.
+#[test]
+fn a_commit_that_landed_as_the_bound_passed_is_reported_as_landed() {
+    let name: String = address("ceiling-race-landed");
+    let service: UnixListener = listen(name.as_str());
+    let commit: String = "9".repeat(40);
+    let landed: ServiceMessage = ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: true };
+    let fake = serve_a_wait_and_a_withdrawal(service, Some(landed));
+    let config: ClientConfig = ClientConfig { answer_ceiling: SHORT_CEILING, ..config(name.as_str()) };
+    let (answered, _notices) = client_within_patience(config).expect("the client ended at its ceiling");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: true }));
+    fake.join().expect("fake service");
+}
+
+/// A service that does not answer the withdrawal ends the wait at the withdrawal's own ceiling, with the error that says it is not
+/// known whether the commit was made.
+#[test]
+fn a_withdrawal_the_service_does_not_answer_ends_at_its_own_ceiling() {
+    let name: String = address("ceiling-unconfirmed");
+    let service: UnixListener = listen(name.as_str());
+    let _fake = serve_a_wait_and_a_withdrawal(service, None);
+    let config: ClientConfig = ClientConfig { answer_ceiling: SHORT_CEILING, withdraw_ceiling: SHORT_CEILING, heartbeat_silence: PATIENCE, ..config(name.as_str()) };
+    let (answered, _notices) = client_within_patience(config).expect("the client ended at its ceilings");
+    assert_eq!(answered, Err(ClientFailure::WithdrawalUnconfirmed));
+}
+
+/// A start the manager reports as under way (`activating`) is waited for only until the start ceiling, then ends with the plain
+/// failure that names the log.
+#[test]
+fn a_start_that_never_finishes_ends_at_the_start_ceiling() {
+    let name: String = address("start-ceiling");
+    MANAGER_SAYS_FAILED.store(false, Ordering::SeqCst);
+    MANAGER_SAYS_INACTIVE.store(false, Ordering::SeqCst);
+    let _service: UnixListener = listen(name.as_str());
+    let config: ClientConfig = ClientConfig { start_ceiling: SHORT_CEILING, ..watched(name.as_str()) };
+    let (answered, _notices) = client_within_patience(config).expect("the client ended at the start ceiling");
+    assert_eq!(answered, Err(ClientFailure::DidNotStart));
 }

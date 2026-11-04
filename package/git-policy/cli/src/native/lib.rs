@@ -1270,6 +1270,9 @@ pub mod service_protocol;
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
+/// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
+pub mod wait_ceilings;
+
 /// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
 
@@ -1504,6 +1507,11 @@ mod no_self_invocation_tests;
 /// The structural check that the review's network client is reachable only from the service run; never in the release build.
 #[cfg(test)]
 mod standards_review_boundary_tests;
+
+/// The shared base of the checks that read the crate's own source text: a strict walk and the module tree, so a check
+/// is right for nested module directories; never in the release build.
+#[cfg(test)]
+mod source_scan_tests;
 
 /// The standards-review shadow run: appending an entry to the shared log without a lock, once per commit, with repair.
 pub mod standards_review_append;

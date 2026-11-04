@@ -21,7 +21,7 @@ fn world(name: &str) -> World {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
     std::fs::create_dir(&journal).expect("journal");
-    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None };
+    let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
     return World { root, repo, context };
 }
 
@@ -450,6 +450,168 @@ fn a_dead_owners_index_lock_changes_nothing() {
     remove(world.root.as_path());
 }
 
+/// How long the controls give a landing that must end at its ceiling before they call it hung.
+const CEILING_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// The ceiling the controls give the lock wait: short, so the control ends in a moment.
+const SHORT_CEILING: std::time::Duration = std::time::Duration::from_millis(300);
+
+/// Runs `land_batch_announcing` for `requests` on a thread of its own with a ceiling of `SHORT_CEILING`, and returns what it
+///  answered and said, or nothing when it was still waiting after `CEILING_PATIENCE`. The thread builds its own context.
+fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> Option<(Result<Vec<Outcome>, FailureCode>, Vec<Announce>)> {
+    let (finished, ended) = std::sync::mpsc::channel();
+    let journal: PathBuf = world.context.journal.clone();
+    std::thread::spawn(move || {
+        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
+        let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+        let answered = land_batch_announcing(&context, 1, requests.as_slice(), &|note: Announce| { said.lock().expect("lock").push(note); });
+        let heard: Vec<Announce> = said.lock().expect("lock").clone();
+        let _sent = finished.send((answered, heard));
+    });
+    return ended.recv_timeout(CEILING_PATIENCE).ok();
+}
+
+/// A foreign owner nothing proves alive that keeps `index.lock` past the ceiling: the batch is withdrawn before anything moved, the
+///  built commit is kept on a side ref that the message names, the person's index and the foreign lock stand, no intent is left,
+///  and a restart of the service lands nothing.
+#[test]
+fn a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_side_ref() {
+    let world: World = world("service-land-ceiling-withdraws");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let (answered, said) = land_at_the_ceiling(&world, vec![request]).expect("the landing ended at its ceiling");
+    assert_eq!(answered, Err(FailureCode::IndexInUse));
+    let kept: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]);
+    assert_eq!(kept, "refs/cli-git/kept/1", "the built commit is kept on a side ref");
+    let subject: String = git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]);
+    assert_eq!(subject, "message of mine", "the side ref holds the commit that was built");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert_eq!(std::fs::read_to_string(&lock).expect("the foreign lock stands"), "foreign");
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no intent is left to land it later");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
+    let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
+    let ending: String = texts.join("");
+    assert!(ending.contains("refs/cli-git/kept/1") && ending.contains("was not made") && ending.contains("still held"), "{ending}");
+    assert!(ending.contains("an owner nothing proves alive"), "the blocker is named with its evidence: {ending}");
+    // A restart of the service finds nothing to settle, and the branch still has not moved.
+    assert!(recover(&world.context).is_empty(), "nothing is left for a restart to land");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
+    remove(world.root.as_path());
+}
+
+/// The same with the owner proven alive (Git's lock PID file names this process): the message names it.
+#[test]
+fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
+    let world: World = world("service-land-ceiling-proven");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let lock: PathBuf = world.repo.join(".git/index.lock");
+    std::fs::write(&lock, "foreign").expect("foreign lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()), format!("pid {}\n", std::process::id())).expect("PID file");
+    let (answered, said) = land_at_the_ceiling(&world, vec![request]).expect("the landing ended at its ceiling");
+    assert_eq!(answered, Err(FailureCode::IndexInUse));
+    let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
+    let ending: String = texts.join("");
+    assert!(ending.contains(format!("PID {}", std::process::id()).as_str()) && ending.contains("still held"), "{ending}");
+    remove(world.root.as_path());
+}
+
+/// A Git that does what the real one does, except that the reference update of the landing (`update-ref --stdin`) never returns:
+///  after it did its work (`after`), or instead of it (`before`). The mode is in a file, so a control can change it.
+fn slow_reference_git(world: &World, mode: &str) -> PathBuf {
+    let mode_file: PathBuf = world.root.join("slow-update-ref-mode");
+    std::fs::write(&mode_file, mode).expect("mode");
+    let program: PathBuf = world.root.join("slow-update-ref-git");
+    let script: String = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *\" update-ref --stdin \"*)\n    case \"$(cat '{mode}')\" in\n      after) '{real}' \"$@\"; sleep 600;;\n      *) sleep 600;;\n    esac;;\n  *) exec '{real}' \"$@\";;\nesac\n",
+        mode = mode_file.display(),
+        real = crate::test_support::REAL_GIT
+    );
+    std::fs::write(&program, script).expect("script");
+    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// The ceiling the reference-update controls give a step: short, so the control ends in moments.
+const SHORT_STEP_CEILING: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// A reference update that is ended at its ceiling after it renamed the reference: the branch is at the request's commit, so the
+/// outcome is `Landed`, the scratch branch is gone, and no intent is left open.
+#[test]
+fn a_reference_update_ended_after_it_renamed_the_branch_reports_landed() {
+    let world: World = world("service-land-ref-ceiling-after");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    context.git.real_git = slow_reference_git(&world, "after");
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
+    let outcomes = land_batch(&context, 1, &[request]).expect("the commit landed although the update never returned");
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    let Outcome::Landed { commit } = &outcomes[0] else { panic!("{outcomes:?}") };
+    assert_eq!(&git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), commit, "the branch is at the commit the answer names");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    remove(world.root.as_path());
+}
+
+/// A reference update that is ended at its ceiling before it renamed anything: the batch is withdrawn like one that met
+/// `LOCK_CEILING`, the branch has not moved, the built commit is kept on a side ref, the line names the step, the lock is given up,
+/// and a restart lands nothing.
+#[test]
+fn a_reference_update_ended_before_it_renamed_the_branch_withdraws_the_commit() {
+    let world: World = world("service-land-ref-ceiling-before");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    context.git.real_git = slow_reference_git(&world, "before");
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert_eq!(answered, Err(FailureCode::StepTooSlow));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]), "refs/cli-git/kept/1");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "the scratch branch is gone");
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0, "no intent is left to land it later");
+    assert!(!world.repo.join(".git/index.lock").exists(), "the lock was given up");
+    let texts: Vec<String> = said.lock().expect("lock").iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
+    let line: String = texts.join("");
+    assert!(line.contains("update-ref") && line.contains("refs/cli-git/kept/1") && line.contains("was not made"), "{line}");
+    assert!(recover(&world.context).is_empty(), "nothing is left for a restart to land");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
+    remove(world.root.as_path());
+}
+
+/// A Git whose `subcommand` never returns and whose other commands are the real one's.
+fn git_that_hangs_on(world: &World, subcommand: &str) -> PathBuf {
+    let program: PathBuf = world.root.join(format!("hang-on-{subcommand}-git"));
+    let script: String = format!("#!/bin/sh\ncase \" $* \" in\n  *\" {subcommand} \"*) sleep 600;;\n  *) exec '{}' \"$@\";;\nesac\n", crate::test_support::REAL_GIT);
+    std::fs::write(&program, script).expect("script");
+    std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    return program;
+}
+
+/// A read step of the landing that never returns is ended at its ceiling, though it shows no fault: the landing ends with the step
+/// named, nothing moved, no intent is open, and the clients are told that this commit was not made.
+#[test]
+fn a_read_step_ended_at_its_ceiling_ends_the_landing_with_the_step_named() {
+    let world: World = world("service-land-read-ceiling");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    context.git.real_git = git_that_hangs_on(&world, "rev-parse");
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
+    crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(None); });
+    assert_eq!(answered, Err(FailureCode::StepTooSlow));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head);
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    let line: String = said.lock().expect("lock").iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect::<Vec<String>>().join("");
+    assert!(line.contains("rev-parse") && line.contains("was not made"), "{line}");
+    remove(world.root.as_path());
+}
+
 /// The hold is measured from the placement of the lock to its release, so it covers the branch move and the index build and
 /// nothing before them.
 #[test]
@@ -728,7 +890,7 @@ fn a_switch_is_found_in_a_reftable_repository() {
     let world: World = World {
         root: root.clone(),
         repo: repo.clone(),
-        context: LandContext { git: git_context(), journal, on_objects_written: None },
+        context: LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING },
     };
     git(repo.as_path(), &["branch", "side"]);
     let on_branch: CommitRequest = request(&world, "kept", "kept.txt", "x\n");

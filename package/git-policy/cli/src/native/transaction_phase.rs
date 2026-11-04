@@ -28,6 +28,8 @@ use std::time::Duration;
 pub const PHASE_SIGNAL_VARIABLE: &str = "CLI_GIT_TEST_ONLY_PHASE_SIGNAL";
 
 /// Poll interval while paused.
+use super::wait_ceilings::PHASE_PATIENCE;
+
 const RELEASE_POLL: Duration = Duration::from_millis(20);
 
 /// What:
@@ -272,8 +274,8 @@ fn kill_self() -> ! {
 /// Why:
 ///   A paused phase lets a test inspect the repository before the transaction continues. The directory is the test's fixture,
 ///  which a test removes as it ends, however it ended; once it is gone nobody can write the release file, and a process that
-///  went on polling would run for ever in a directory that no longer exists. The wait watches the fixture and not a clock, so
-///  a slow host never cuts a pause short.
+///  went on polling would run for ever in a directory that no longer exists. The wait watches the fixture first, and a clock
+///  second: the patience is the longest a test may run, so a slow host never cuts a pause short and a pause never outlives its test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -287,7 +289,23 @@ fn kill_self() -> ! {
 /// # Errors
 /// An I/O error of kind `NotFound` when the directory of the pause no longer exists.
 fn await_release(directory: &Path, release: &Path) -> Result<(), PhaseMarkerError> {
+    return await_release_within(directory, release, PHASE_PATIENCE);
+}
+
+/// `await_release` that gives up with an error of kind `TimedOut` after `patience`: the owner's rule is that nothing waits for ever
+///  (2026-11-03), and a control that armed a pause and then died leaves a directory that still exists.
+///
+/// # Errors
+/// As `await_release`, and `TimedOut` when the release file did not come in time.
+fn await_release_within(directory: &Path, release: &Path, patience: Duration) -> Result<(), PhaseMarkerError> {
+    let began: std::time::Instant = std::time::Instant::now();
     while !release.exists() {
+        if began.elapsed() >= patience {
+            return Err(PhaseMarkerError::Io(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!("nothing released the pause in {} within {} seconds", directory.display(), patience.as_secs()),
+            )));
+        }
         if !directory.exists() {
             return Err(PhaseMarkerError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,

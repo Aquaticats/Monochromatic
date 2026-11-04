@@ -235,6 +235,9 @@ fn place_in_groups<T>(groups: &mut Vec<(GroupKey, Vec<T>)>, key: GroupKey, membe
 enum Job {
     Commit(Box<CommitRequest>, Reply, Arrival),
     Retire,
+    /// The client stopped waiting for the commit of this identity (its ceiling passed): answered with the landed commit, or
+    ///  withdrawn so that it never lands.
+    Withdraw(String, Reply),
     /// After-commit work was announced; it only restarts the idle clock.
     Activity,
     /// A client that held a commit's scratch directory is gone; the directory is removed between batches, never during a
@@ -269,6 +272,10 @@ fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
         std::process::exit(4);
     }
 }
+
+/// How many withdrawn identities the service remembers before it forgets them all: the same count as the finished batches it
+///  remembers (`DONE_RETAINED`), since a client that withdrew sends nothing more for its request.
+const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 
 /// How long the acceptor waits after a connection it could not give a thread.
 const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
@@ -312,6 +319,13 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             super::service_fault::queued(id.as_str());
             // This thread has nothing else to do until the request is answered, so it writes the answers the landing thread
             //  queues and keeps the client told that the service lives.
+            write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
+        }
+        Ok(ClientMessage::Withdraw { id }) => {
+            // The landing thread answers between two landings, so the answer is either that the commit landed or that it never
+            //  will; meanwhile this thread keeps the client told that the service lives.
+            let (reply, messages) = Reply::new();
+            let _queued = queue.send(Job::Withdraw(id, reply));
             write_until_answered(&stream, &messages, HEARTBEAT_EVERY);
         }
         Ok(ClientMessage::Retire) => {
@@ -584,6 +598,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
+    // The identities of the requests their clients withdrew; a request with one of these is never landed.
+    let mut withdrawn: std::collections::HashSet<String> = std::collections::HashSet::new();
     // What the landed commits were captured at: owned by this loop, the only thread that lands and answers.
     let mut captures: CaptureMemory = CaptureMemory::default();
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
@@ -647,11 +663,32 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
                 Err(_) => break,
             }
         }
+        // Withdrawals are answered before anything lands, on this one thread, so each is either after a landing that is over (the
+        //  commit is on the branch, and that is the answer) or before the landing of its request begins (the request is dropped
+        //  and remembered, so it can never land, not even when it reaches the queue after the withdrawal).
+        if withdrawn.len() > WITHDRAWN_RETAINED {
+            withdrawn.clear();
+        }
+        for job in &jobs {
+            if let Job::Withdraw(id, reply) = job {
+                match landed.get(id) {
+                    Some(commit) => reply.send(&ServiceMessage::Landed { id: id.clone(), commit: commit.clone(), already: true }),
+                    None => {
+                        withdrawn.insert(id.clone());
+                        reply.send(&ServiceMessage::Withdrawn { id: id.clone() });
+                    }
+                }
+            }
+        }
         // Branches in order of first arrival; within a branch, arrival order.
         let mut groups: Vec<(GroupKey, Vec<Queued>)> = Vec::new();
         let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
+                Job::Withdraw(..) => {}
+                Job::Commit(request, _dropped, _arrival) if withdrawn.contains(&request.id) => {
+                    crate::service_log!("dropped the request {} that its client withdrew", request.id);
+                }
                 Job::Retire => retiring = true,
                 Job::Activity => {}
                 Job::Release(path) => releases.push(path),

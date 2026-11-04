@@ -959,8 +959,9 @@ Every other pull is native Git's whole (a rebase, `--ff-only`, `--autostash`, `p
 
 Before Git's fast-forward changes anything, the merge waits for any program's hold on `index.lock`
  (the commit service's, a foreign `git`'s, or a lock nothing proves held):
- for as long as the lock stays there, whether its owner is proven alive or not
- (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository).
+ until `LOCK_CEILING` (10 minutes), whether its owner is proven alive or not
+ (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository);
+ at the bound it names the holder and the merge ends with Git's refusal, non-zero, with nothing changed.
 The notice names the merge, says it has changed nothing yet, names the lock and the holder with its proof
  (an open descriptor or Git's PID file), and repeats every `CLI_GIT_WAIT_NOTICE_SECONDS`.
 No lock is ever removed.
@@ -1066,21 +1067,28 @@ Each of these still ends a commit with a nonzero status, with its cause; none is
    300 seconds for a bulk step; both unmeasured), and is quiet again when run a second time. A step that works is
    never ended
    for being slow, and a step that may not be run twice (a reference update) is waited for.
-- The commit service does not start: the wait for it has no clock where the client can ask the service manager,
-  and ends when
-   the manager says twice in a row that the service unit failed ("commit service did not start");
-   where the manager cannot be
-   asked it ends at `START_WAIT` (10 seconds, `service_client.rs`).
-- The service stops answering: a waiting commit hears a heartbeat from the service once a second and has no wait limit
-  of its
-   own; five seconds without a word ask the service again with the same commit, and a service that does not answer then
-   ends the command with "The commit service stopped answering while this commit waited".
+- The commit service does not start: a start the manager reports as under way is waited for until `START_CEILING` (60
+  seconds),
+   a start it reports failed ends the wait at once ("commit service did not start"),
+   and a unit it reports inactive is asked
+   to start after `START_WAIT`.
+- The service does not answer within `ANSWER_CEILING` (20 minutes, heartbeats or not):
+  the client withdraws the request, so it
+   never lands later by itself, and ends with "This commit waited N minutes for the commit service and was withdrawn";
+   if the
+   commit landed at that moment the command reports success.
+   Five seconds without a word ask the service again with the same
+   commit, and a service that does not answer then ends the command with "The commit service stopped answering".
 - The branch keeps changing: `LANDING_ATTEMPTS` (3, `service_land.rs`) landings lost to other commits end with
    `BranchKeepsChanging`, and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
 - A commit that concludes a merge, an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
-- `index.lock` is left by a dead owner (Git's lock PID file names a process that is gone; a diagnostic names it).
-  A holder
-   proven alive, or one nothing proves alive, is waited for with no bound.
+- `index.lock` is held by a program that does not let go within `LOCK_CEILING` (10 minutes),
+  or was left by a dead owner (Git's
+   lock PID file names a process that is gone; a diagnostic names it at once). The commit is withdrawn,
+   kept on a side ref named
+   in the message (`refs/cli-git/kept/<batch>`), your staged changes stay staged, and nothing lands later by itself;
+   run the
+   commit again.
 - The content a commit captured was pruned from the object store before it landed (`ClientFailure::ContentPruned`).
 - A policy finding at error severity, an empty message or a failing signer. A named path in conflict is no longer one of these: it is committed with the markers it holds and a warning that names it (owner, 2026-11-03: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."). A plain `git commit` with no paths while files are still unmerged finishes the merge the same way, with the markers in those files and the same warning for each (owner, 2026-11-03: "Warn and finish the merge (Recommended)"); Git's "Committing is not possible because you have unmerged files" no longer ends it. `git commit -a` over unmerged files commits their markers and warns for each file in the same words.
 
@@ -1308,7 +1316,7 @@ See "Discarding commands" for the pass.
    default `1000`.
   Inert:
   it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
-   and nothing reads it now (the commit service waits for as long as the lock stays there, proven alive or not).
+   and nothing reads it now (the commit service waits for a foreign lock until `LOCK_CEILING`, proven alive or not).
   Older files that set it still load;
   the value is checked and ignored,
    and `git cli-git doctor` names the key and asks for it to be removed.
@@ -1326,22 +1334,25 @@ Concurrent commits cannot be turned off.
 
 ### Waiting and time limits
 
-The wrapper never waits without a limit for another process that shows no sign of work,
-and never waits without saying so.
+Nothing the wrapper waits for waits for ever (owner, 2026-11-03: "nothing should ever wait forever or indefinitely"),
+and the
+wrapper never waits without saying so. Every bound is in `src/native/wait_ceilings.rs` with its measurement,
+and the list of
+every wait is `doc/planning/cli-git-no-unbounded-waits.md`.
 A process that works is waited for however long it takes: a limit ends a wait for quiet, never for slowness.
-It also waits with no limit for a lock holder that is proven alive (an open
-descriptor on the lock, or Git's lock PID file naming a running process), which will let go,
-and for an owner nothing proves
-alive (the person's own `git commit` with its editor open holds the lock so), saying what is known about it,
-and for the commit service for as long
-as it keeps sending heartbeats, once a second.
-A service that goes silent for five seconds is asked again. Where no inotify watch can be set,
-the waits poll every 50 ms.
-A unit the service manager reports inactive after the start wait is asked to start.
-These picks were made by the coordinator while the owner was away and are open to the owner's veto
-(`doc/planning/cli-git-shipped-limits-audit.md`, picks 2,
-4,
-6 and 9).
+Every Git step the wrapper starts is ended at a ceiling of its class (reads 120 seconds, bulk steps 10 minutes,
+reference updates
+60 seconds) whatever it shows; a reference update ended after it renamed the branch reports the commit as landed,
+and one ended before
+it withdraws the commit as at the lock ceiling. A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+the commit service's answer until `ANSWER_CEILING` (20 minutes),
+a start until `START_CEILING` (60 seconds), the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
+(10 minutes), and a push whose connection is open and silent until `CONNECTED_PUSH_QUIET_WINDOW` (150 seconds, then the
+service's retry plan keeps it). At a bound on the commit path the request is withdrawn,
+the commit is kept on a side ref,
+and the command exits non-zero naming the blocker. A service that goes silent for five seconds is asked again. Where no
+inotify watch can be set, the waits poll every 50 ms. These were chosen by the owner's answers of 2026-11-03 and the
+coordinator's reading under the delegation, and are open to the owner's veto.
 The environment variables below set the limits and the pace of the notices,
 each a positive whole number of seconds;
 a zero,
@@ -1391,10 +1402,11 @@ fractional or non-numeric value is ignored.
    sockets), uses processor time, or has a task able to run or waiting for the disk (an `fsync` on a slow volume) is working
    and is not stopped here, however slow; one that does none of these is stopped after this many seconds.
   A run whose connection to the remote is open (the push, the fetch that follows a refused push, and the Git LFS upload)
-   is waiting for the remote and is never stopped for time, however long the remote takes and whatever phase it is in.
-  That is the owner's decision of 2026-11-03, "Wait while connected (Recommended)", extended to no ceiling and no
-   low-speed abort by pick 5 of `doc/planning/cli-git-shipped-limits-audit.md`,
-   which the coordinator made under the owner's delegation and the owner may veto.
+   is waiting for the remote and is ended only when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
+   seconds,
+   unmeasured); the service's retry plan keeps the push and tries it again.
+  The owner's answer of 2026-11-03, "Bound it, keep retrying (Recommended)",
+  replaced "Wait while connected (Recommended)".
   The wrapper says so once, in a line that starts with `cli-git: git push is waiting for the server`
    (`git fetch` or `git-lfs push` for those runs), and waits until the remote answers or the connection closes.
   "Connected" means that a process of the run holds a TCP socket in state `ESTABLISHED`, read from the kernel.
@@ -1499,7 +1511,7 @@ Each line names what the command waits for,
 ```text
 // standard error of a git add that waits for the commit service to finish a commit
 cli-git: git add is waiting for the commit service to finish a commit in this repository, 12 seconds so far;
-this waits for as long as the service holds the index.
+this waits for the service's hold for up to `SERVICE_HOLD_CEILING`, then runs and reports what Git says.
 ```
 
 ## Reading the repository in process

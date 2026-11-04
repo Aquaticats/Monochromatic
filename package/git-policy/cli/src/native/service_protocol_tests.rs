@@ -45,6 +45,7 @@ fn service_messages_round_trip() {
         ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: None },
         ServiceMessage::Position { number: 3, of: 7 },
         ServiceMessage::Heartbeat,
+        ServiceMessage::Withdrawn { id: String::from("x") },
         ServiceMessage::Landed { id: String::from("x"), commit: String::from(BLOB), already: true },
         ServiceMessage::RetryPrepare { id: String::from("x"), base: String::from(BLOB), landed: Vec::new() },
         ServiceMessage::RetryPrepare {
@@ -288,4 +289,15 @@ fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent.clone()))).as_str()).is_ok());
     sent.changes.push(Change { path: String::from("one-more"), mode: ALLOWED_MODES[0], blob: None });
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent))).as_str()).is_err());
+}
+
+/// A withdrawal round trips, and an empty or oversized identity in one is refused.
+#[test]
+fn a_withdrawal_round_trips_and_a_hostile_identity_is_refused() {
+    let sent: ClientMessage = ClientMessage::Withdraw { id: String::from("0f0e0d0c-aaaa-bbbb-cccc-000000000001") };
+    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent));
+    for id in [String::new(), "x".repeat(MAX_ID_BYTES + 1)] {
+        let line: String = encode_client(&ClientMessage::Withdraw { id });
+        assert!(decode_client(line.as_str()).is_err(), "{line}");
+    }
 }

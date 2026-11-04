@@ -15,6 +15,7 @@
 
 use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
 use super::service_index_watch::POLL_PAUSE;
+use super::wait_ceilings::SERVICE_HOLD_CEILING;
 use super::service_index_marker::{holder_is_running, mark_names_a_gone_holder, marker_of};
 use super::wait_progress::{Cadence, Ticker};
 use std::io::{Read, Write};
@@ -69,6 +70,8 @@ pub enum Waited {
     NotHeld,
     /// The service held the index and let it go.
     Released,
+    /// The service still held the index at the ceiling; the line saying that the command runs now was written.
+    GaveUp,
     /// The hold is older than any measured landing lasts and nothing shows its holder runs,
     /// or names a holder that no longer runs,
     /// so it is a dead service's leftover and was not waited for.
@@ -148,6 +151,14 @@ fn gone_line(command: &str) -> String {
     );
 }
 
+/// The line for the person when the wait ran out.
+fn gave_up_line(command: &str, waited: Duration) -> String {
+    return format!(
+        "cli-git: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
+        waited.as_secs()
+    );
+}
+
 /// What:
 ///  Waits while the commit service holds the index of `real_index`, telling `out` what it waits for.
 /// Why:
@@ -160,7 +171,12 @@ fn gone_line(command: &str) -> String {
 /// await waitForServiceHold(realIndex, 'add', cadence, stderr)
 /// ```
 pub fn wait_for_service_hold(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write) -> Waited {
-    return wait_with_watches(real_index, command, cadence, out, &Watch::on);
+    return wait_for_service_hold_within(real_index, command, SERVICE_HOLD_CEILING, cadence, out);
+}
+
+/// `wait_for_service_hold` that gives up after `ceiling`.
+pub fn wait_for_service_hold_within(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write) -> Waited {
+    return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
 }
 
 /// What:
@@ -176,7 +192,7 @@ pub fn wait_for_service_hold(real_index: &Path, command: &str, cadence: Cadence,
 /// ```ts
 /// await waitWithWatches(realIndex, 'add', cadence, stderr, watchDirectory)
 /// ```
-fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> Waited {
+fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> Waited {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
     let mut watch: Option<Watch> = lock.parent().and_then(set_watch);
@@ -204,11 +220,17 @@ fn wait_with_watches(real_index: &Path, command: &str, cadence: Cadence, out: &m
         }
         held = true;
         let elapsed: Duration = began.elapsed();
+        // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the command runs and reports
+        //  what Git says.
+        if elapsed >= ceiling {
+            let _noted = out.write_all(gave_up_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
+            return Waited::GaveUp;
+        }
         if ticker.due(elapsed) {
             // A closed terminal is not a reason to stop the command the person asked for.
             let _noted = out.write_all(waiting_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
         }
-        let pause: Duration = ticker.next_in(elapsed).max(Duration::from_millis(1));
+        let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));
         match watch.as_ref() {
             Some(active) => {
                 if !active.wait(pause, lock_name.as_os_str()) {

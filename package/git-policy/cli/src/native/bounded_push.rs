@@ -45,6 +45,10 @@ use std::time::{Duration, Instant};
 /// Tag used for diagnostics from this module.
 const TAG: &str = "cli-git";
 
+/// What a person is told when a push is ended for showing no progress: the owner's answer of 2026-11-03, "Bound it, keep retrying
+///  (Recommended)", is that the service's retry plan keeps the push and tries it again, and the line says so.
+pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
+
 /// Environment variable that sets the push deadline in whole seconds.
 pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";
 
@@ -602,7 +606,7 @@ pub fn run_bounded_push_once(
             let reason: String = match cause {
                 StopCause::Deadline => format!(
                     "cli-git: git push did not finish within {} seconds and was stopped (limit=deadline); \
-                     {}. Hint: if you were pushing over a slow or \
+                     {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     match patience {
                         Patience::Fixed(limit) => limit.as_secs(),
@@ -612,7 +616,7 @@ pub fn run_bounded_push_once(
                 ),
                 StopCause::Stalled(report) => format!(
                     "cli-git: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
-                     elapsed_seconds={}); {}. Hint: if you were pushing over a slow or \
+                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     report.limit.as_secs(),
                     report.moved,

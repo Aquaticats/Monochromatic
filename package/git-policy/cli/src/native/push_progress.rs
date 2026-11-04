@@ -43,6 +43,7 @@ use super::bounded_push::{Patience, StopCause, StopReport};
 /// The processes below the push, and the identity of each.
 use super::process_tree::{TreeMember, descendants_of, member_of};
 /// The connected sockets of the machine with their byte counts, and the sockets a process holds.
+use super::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;
 use super::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
 /// What each process of the tree was last seen to have moved.
 use std::collections::HashMap;
@@ -336,6 +337,8 @@ pub struct Clock {
     /// Whether a system that counts nothing falls back to the stall window as a fixed deadline; a run that must never end by
     ///  wall time clears it and then goes unjudged where nothing is counted.
     wall_fallback: bool,
+    /// How long a tree with an open connection may show no sign of work before it is stopped (`wait_ceilings.rs`).
+    connected_window: Duration,
 }
 
 impl Clock {
@@ -356,12 +359,19 @@ impl Clock {
             wait_noted: false,
             longest_quiet: Duration::ZERO,
             wall_fallback: true,
+            connected_window: CONNECTED_PUSH_QUIET_WINDOW,
         };
     }
 
     /// The same clock for a run that must never end by wall time: where nothing is counted it is never judged stalled.
     pub fn without_wall_fallback(mut self) -> Self {
         self.wall_fallback = false;
+        return self;
+    }
+
+    /// The same clock with another window for a tree whose connection is open and silent.
+    pub fn with_connected_window(mut self, window: Duration) -> Self {
+        self.connected_window = window;
         return self;
     }
 
@@ -429,6 +439,11 @@ impl Clock {
                 self.last_progress = now;
                 if self.waited.is_none() && now.duration_since(since) >= stall {
                     self.waited = Some(WaitReport { silent: now.duration_since(since), elapsed });
+                }
+                // The owner, 2026-11-03: "Bound it, keep retrying". A connection that stays open and silent for the connected
+                //  window ends the push as a stall; the service's retry plan keeps the push and tries it again.
+                if now.duration_since(since) >= self.connected_window {
+                    return Some(StopCause::Stalled(self.report(self.connected_window, now)));
                 }
             } else {
                 self.waiting_since = None;

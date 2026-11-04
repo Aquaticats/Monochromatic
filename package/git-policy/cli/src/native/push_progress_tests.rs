@@ -385,6 +385,36 @@ fn a_clock_does_not_stall_a_tree_in_disk_wait_and_stalls_it_after() {
     end(child);
 }
 
+/// A push whose connection to the remote is open and silent is ended when the connected window passes (owner, 2026-11-03: "Bound
+/// it, keep retrying"): the clock stops it as a stall, long after the stall window of a push with no connection, and the
+/// service's retry plan keeps the push.
+#[test]
+fn a_silent_open_connection_is_ended_at_the_connected_window() {
+    let listener: std::net::TcpListener = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener");
+    let port: u16 = listener.local_addr().expect("address").port();
+    // The child holds an established connection to the listener and then does nothing: the remote that has not answered.
+    let mut holder: Command = Command::new("bash");
+    holder.args(["-c", format!("exec 3<>/dev/tcp/127.0.0.1/{port}; sleep 30").as_str()]).stdout(Stdio::null()).stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut holder).expect("start the holder");
+    let (_accepted, _) = listener.accept().expect("the holder connects");
+    let stall: Duration = Duration::from_millis(1500);
+    let window: Duration = Duration::from_millis(3500);
+    let mut clock: Clock = Clock::start(child.id(), Patience::Progress { stall }).with_connected_window(window);
+    let began: Instant = Instant::now();
+    let cause: Option<StopCause> = loop {
+        if let Some(cause) = clock.check() {
+            break Some(cause);
+        }
+        if began.elapsed() > window * 4 {
+            break None;
+        }
+        std::thread::sleep(LOOK);
+    };
+    end(child);
+    let Some(StopCause::Stalled(report)) = cause else { panic!("the silent connection was not ended within {:?}", began.elapsed()) };
+    assert!(report.limit == window && began.elapsed() >= window, "ended at the connected window: {:?}", began.elapsed());
+}
+
 /// A `/proc/<pid>/stat` line is read after its last parenthesis: the state, and the user and system ticks added.
 #[test]
 fn a_stat_line_gives_its_state_and_its_processor_ticks() {

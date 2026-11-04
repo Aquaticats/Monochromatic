@@ -19,7 +19,7 @@ const SERVICE: &str = env!("CARGO_BIN_EXE_cli-git-service");
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// A service process that is stopped when the control ends, whether it passed or panicked.
-struct Held(Child);
+pub(super) struct Held(Child);
 
 impl Drop for Held {
     fn drop(&mut self) {
@@ -30,6 +30,11 @@ impl Drop for Held {
 
 /// A service for the control, started the way the unit file starts it, repeating its notices every `notice_seconds`.
 fn service_for(fixture: &Fixture, name: &str, notice_seconds: &str) -> Held {
+    return service_with_arguments(fixture, name, notice_seconds, &[]);
+}
+
+/// `service_for` with more arguments for the service program (a control gives a short lock ceiling this way).
+pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_seconds: &str, extra: &[&str]) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let git_dir: PathBuf = fixture.root.join("repo/.git");
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir.as_path());
@@ -39,6 +44,7 @@ fn service_for(fixture: &Fixture, name: &str, notice_seconds: &str) -> Held {
         .arg(fixture.root.join("journal"))
         .arg("--path")
         .arg(&socket)
+        .args(extra)
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", fixture.root.join("home"))
@@ -219,7 +225,7 @@ fn the_service_sends_heartbeats_to_a_request_that_waits_behind_a_long_foreign_ho
         index: git_dir.join("index"),
         captured: 0,
     };
-    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None, keep_fresh: None };
+    let config: ClientConfig = ClientConfig { address: Bind::Path(socket), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: CLIENT_SILENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
     let (told, hearing) = std::sync::mpsc::channel::<()>();
     let letting_go = std::thread::spawn(move || {
         hearing.recv_timeout(PATIENCE).expect("the client was told the request waits");

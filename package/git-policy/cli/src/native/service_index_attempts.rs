@@ -20,6 +20,7 @@
 
 use super::index_lock_evidence::{
     Verdict, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    ceiling_line, blocker_words,
 };
 use super::index_lock_holders::scan_platform_holders_bounded;
 use super::process_start::resolve_process_start;
@@ -61,6 +62,8 @@ enum Proved {
 /// What a look at the held lock found: what it proved, the line for the person, the holder's words, the processes that
 ///  have the lock open, and the diagnostic to give if the look ends the wait.
 struct Looked {
+    /// The words for the blocker, for the line at the ceiling.
+    blocker: String,
     proved: Proved,
     line: Option<String>,
     who: Option<String>,
@@ -78,10 +81,10 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
     let evidence = match gathered {
         Ok(Some(found)) => found,
         // The lock was released between the placement and this look.
-        Ok(None) => return Looked { proved: Proved::Gone, line: None, who: None, open: None, ending: None },
+        Ok(None) => return Looked { blocker: String::new(), proved: Proved::Gone, line: None, who: None, open: None, ending: None },
         Err(_) => {
             let lock: std::path::PathBuf = super::service_index_lock::lock_path_of(index);
-            return Looked { proved: Proved::Nothing, line: Some(unproven_wait_line(lock.as_path(), None)), who: None, open: None, ending: None };
+            return Looked { blocker: String::from("an owner whose evidence could not be read"), proved: Proved::Nothing, line: Some(unproven_wait_line(lock.as_path(), None)), who: None, open: None, ending: None };
         }
     };
     // The processes the scan saw with the lock open are the one source of `open_by`: the scan is made once, and bounded in time.
@@ -93,9 +96,10 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
             } else {
                 proven_holder_progress_line(pid, by_descriptor, command.as_deref(), evidence.lock_path.as_path(), waited.as_secs())
             };
-            Looked { proved: Proved::Alive, line: Some(line), who: Some(holder_words(pid, command.as_deref())), open, ending: None }
+            Looked { blocker: blocker_words(&evidence), proved: Proved::Alive, line: Some(line), who: Some(holder_words(pid, command.as_deref())), open, ending: None }
         }
         Verdict::Dead(pid) => Looked {
+            blocker: blocker_words(&evidence),
             proved: Proved::Dead,
             line: None,
             who: Some(holder_words(pid, None)),
@@ -103,6 +107,7 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
             ending: Some(dead_owner_diagnostic(evidence.lock_path.as_path(), pid, COMMIT_NOT_MADE)),
         },
         Verdict::EvidenceFree => Looked {
+            blocker: blocker_words(&evidence),
             proved: Proved::Nothing,
             line: Some(unproven_wait_line(evidence.lock_path.as_path(), Some(&evidence))),
             who: None,
@@ -115,8 +120,8 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
 /// How long the wait blocks before it looks again:
 /// the time to the next repetition of the holder's line,
 /// and where no watch can be set no longer than the poll pause.
-fn until_next_wake(to_notice: Duration, watched: bool) -> Duration {
-    let wake: Duration = if watched { to_notice } else { to_notice.min(POLL_PAUSE) };
+fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> Duration {
+    let wake: Duration = if watched { to_notice.min(to_ceiling) } else { to_notice.min(POLL_PAUSE).min(to_ceiling) };
     return wake.max(Duration::from_millis(1));
 }
 
@@ -128,12 +133,14 @@ pub(super) struct Placing<'a> {
     pub(super) lock: &'a Path,
     pub(super) lock_name: &'a std::ffi::OsStr,
     pub(super) index: &'a Path,
+    /// How long a holder is waited for.
+    pub(super) ceiling: Duration,
 }
 
 /// The attempts and the wait of `acquire`,
 /// with the staging file already written.
 pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut Option<Watch>, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<(), LockFailure> {
-    let Placing { staged, held, lock, lock_name, index } = *placing;
+    let Placing { staged, held, lock, lock_name, index, ceiling } = *placing;
     let directory: &Path = lock.parent().unwrap_or(Path::new("."));
     let began: Instant = Instant::now();
     let mut first: bool = true;
@@ -167,7 +174,8 @@ pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         // A wake for something else in the directory repeats nothing: the line comes at the first look and then every interval.
         let due: bool = first || last_notice.elapsed() >= notice_every();
         // The evidence is read at the first look and at each repeat of the line, not at every wake or poll.
-        let looked: Looked = if due { look_at_holder(index, waited, first) } else { Looked { proved: proof, line: None, who: None, open: None, ending: None } };
+        let at_ceiling: bool = waited >= ceiling;
+        let looked: Looked = if due || at_ceiling { look_at_holder(index, waited, first) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None } };
         proof = looked.proved;
         let mut seen: String = describe_lock(lock);
         if let Some(text) = looked.open {
@@ -188,8 +196,9 @@ pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             first = false;
             last_notice = Instant::now();
         }
-        // Only a dead owner ends the wait: nothing will release its lock. A holder proven alive and an owner nothing proves alive
-        //  are waited for however long the lock stays.
+        // A dead owner ends the wait at once, because nothing will release its lock. A holder proven alive and an owner nothing
+        //  proves alive are waited for until the ceiling (owner, 2026-11-03: "nothing should ever wait forever or indefinitely");
+        //  then the wait ends, naming the blocker, and the batch is withdrawn by the caller.
         if proof == Proved::Dead {
             if let Some(text) = looked.ending {
                 announce(Announce::Waiting(text));
@@ -197,9 +206,14 @@ pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             announce(Announce::Holder(looked.who.unwrap_or_else(|| { return String::from("Another program"); })));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
+        if at_ceiling && proof != Proved::Gone {
+            announce(Announce::Waiting(ceiling_line(lock, looked.blocker.as_str(), waited.as_secs(), COMMIT_NOT_MADE)));
+            announce(Announce::Holder(looked.who.unwrap_or_else(|| { return String::from("Another program"); })));
+            return Err(LockFailure { code: FailureCode::IndexInUse });
+        }
         match watch.as_ref() {
             Some(active) => {
-                if !active.wait(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), true), lock_name) {
+                if !active.wait(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), true), lock_name) {
                     // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
                     //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
                     drop(watch.take());
@@ -209,7 +223,7 @@ pub(super) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             // No watch could be set (the limit is reached, or the file system gives none): the lock is looked at again after a
             //  poll pause, and a watch is tried again each time.
             None => {
-                std::thread::sleep(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), false));
+                std::thread::sleep(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), false));
                 *watch = (platform.watch)(directory);
             }
         }

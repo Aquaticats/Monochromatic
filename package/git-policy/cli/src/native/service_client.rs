@@ -69,6 +69,12 @@ pub struct ClientConfig {
     pub start_watch: Option<ManagerWatch>,
     /// A scratch directory of this command to keep from being swept as stale while the command waits.
     pub keep_fresh: Option<FreshScratch>,
+    /// The longest the client waits for the service's answer; then it withdraws the request (`wait_ceilings.rs`).
+    pub answer_ceiling: Duration,
+    /// The longest the client waits for the service to answer the withdrawal.
+    pub withdraw_ceiling: Duration,
+    /// The longest a start is waited for when the service manager can be asked.
+    pub start_ceiling: Duration,
 }
 
 /// What:
@@ -285,8 +291,10 @@ fn reach(
                     cannot_ask = answer.is_none();
                     failed_answers = if answer.as_deref() == Some("failed") { failed_answers + 1 } else { 0 };
                 }
-                // One answer of "failed" can be the unit's last run, before the connection made the manager start it again.
-                if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) {
+                // One answer of "failed" can be the unit's last run, before the connection made the manager start it again. A start the
+                //  manager reports as under way is waited for until the start ceiling and no longer (owner, 2026-11-03: "nothing
+                //  should ever wait forever or indefinitely").
+                if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling {
                     return Err(ClientFailure::DidNotStart);
                 }
             }
@@ -367,6 +375,7 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
             times: super::service_land::LANDING_ATTEMPTS,
         },
         FailureCode::BranchMoved => ClientFailure::BranchMoved { branch: request.reference.trim_start_matches("refs/heads/").to_string() },
+        FailureCode::StepTooSlow => ClientFailure::StepTooSlow,
         FailureCode::Unavailable => ClientFailure::Unavailable,
     };
 }
@@ -423,6 +432,8 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
     let mut last_break_was_silence: bool = false;
     // The scratch directory of a command that waits is renewed at once and then as often as the config says, whatever the
     //  service sends, so a wait longer than the sweep's age never has its directory swept.
+    let waiting_since: Instant = Instant::now();
+    let mut last_blocker: Option<String> = None;
     let mut last_renewed: Option<Instant> = None;
     let mut renew_scratch = |settings: &ClientConfig| {
         if let Some(fresh) = settings.keep_fresh.as_ref()
@@ -453,6 +464,12 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
             if matches!(heard, Heard::Message(_)) {
                 renew_scratch(config);
             }
+            // The wait ends at the ceiling whatever the service sends: the request is withdrawn, and the answer to that is
+            //  the command's end (landed after all, or the error).
+            if waiting_since.elapsed() >= config.answer_ceiling && !matches!(heard, Heard::Message(ServiceMessage::Landed { .. } | ServiceMessage::RetryPrepare { .. } | ServiceMessage::Failed { .. })) {
+                trace.answer_wait += written_at.elapsed();
+                return withdraw(config, request.id.as_str(), last_blocker.take());
+            }
             match heard {
                 Heard::Message(ServiceMessage::Position { number, of }) => {
                     if last_position != Some(number) {
@@ -469,13 +486,14 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
                 Heard::Message(ServiceMessage::Waiting { text }) => {
+                    last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
                     trace.holder_kind = Some(holder_kind_of(text.as_str()));
                     let _written = write!(notices, "{text}");
                 }
                 Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
                 // Each message, this one too, restarts the silence bound; nothing else is needed.
-                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat) => {}
+                Heard::Message(ServiceMessage::Welcome { .. } | ServiceMessage::Heartbeat | ServiceMessage::Withdrawn { .. }) => {}
                 Heard::Silent => {
                     last_break_was_silence = true;
                     break None;
@@ -501,6 +519,43 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         }
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
     }
+}
+
+/// What:
+///  Withdraws the request after the answer ceiling: asks the service, on a connection of its own, to drop the request of this
+///  identity, and turns its answer into the command's end.
+/// Why:
+///   The owner's answer is that a wait that reaches its bound returns an error and the commit never lands later by itself. The
+///  service takes the withdrawal between two landings, so either the commit landed first (the answer is `Landed`, and the command
+///  succeeds) or it never will (`Withdrawn`). A service that does not answer within the withdrawal ceiling leaves it unknown.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await askToWithdraw(config, id); // 'landed' | 'withdrawn' | undefined
+/// ```
+fn withdraw(config: &ClientConfig, id: &str, blocker: Option<String>) -> Result<Submitted, ClientFailure> {
+    let minutes: u64 = config.answer_ceiling.as_secs() / 60;
+    let mut announced: bool = true;
+    let Ok(mut reader) = reach_current(config, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), true) else {
+        return Err(ClientFailure::WithdrawalUnconfirmed);
+    };
+    let mut asking: String = encode_client(&ClientMessage::Withdraw { id: id.to_string() });
+    asking.push('\n');
+    if reader.get_mut().write_all(asking.as_bytes()).is_err() {
+        return Err(ClientFailure::WithdrawalUnconfirmed);
+    }
+    let deadline: Instant = Instant::now() + config.withdraw_ceiling;
+    while Instant::now() < deadline {
+        // No read waits past the withdrawal's ceiling, whatever the silence bound says.
+        let _timeout = reader.get_ref().set_read_timeout(Some(deadline.saturating_duration_since(Instant::now()).max(Duration::from_millis(1)).min(config.heartbeat_silence)));
+        match listen(&mut reader) {
+            Heard::Message(ServiceMessage::Landed { commit, .. }) => return Ok(Submitted::Landed { commit, already: true }),
+            Heard::Message(ServiceMessage::Withdrawn { .. }) => return Err(ClientFailure::StillWithService { minutes, blocker }),
+            Heard::Message(_) => {}
+            Heard::Silent | Heard::Closed => return Err(ClientFailure::WithdrawalUnconfirmed),
+        }
+    }
+    return Err(ClientFailure::WithdrawalUnconfirmed);
 }
 
 /// What:

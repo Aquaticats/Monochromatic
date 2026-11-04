@@ -27,6 +27,7 @@
 //! ```
 
 use super::service_index_attempts::{Placing, wait_and_place};
+use super::wait_ceilings::LOCK_CEILING;
 use super::service_protocol::FailureCode;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -178,7 +179,7 @@ pub fn acquire(index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<In
 /// As `acquire`.
 pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, announce, &mut notes, None);
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LOCK_CEILING, announce, &mut notes, None);
     holder.clone_from(&notes.holder);
     return taken;
 }
@@ -202,12 +203,21 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Fn(Announce)
 ///
 /// As `acquire`.
 pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+    return acquire_noting_wait_within(index, seq, LOCK_CEILING, announce, notes);
+}
+
+/// `acquire_noting_wait` that gives up on a foreign holder after `ceiling`.
+///
+/// # Errors
+///
+/// As `acquire`, and `IndexInUse` when the lock was still held at the ceiling.
+pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
     // The whole of the preparation counts as staging time: taking the marker made ahead, waiting for a flush that fails or is
     //  for another batch, and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
     let prepared: Option<Prestaged> = take(index, seq);
     notes.staging = preparing.elapsed();
-    return acquire_placing(&SYSTEM, index, seq, announce, notes, prepared);
+    return acquire_placing(&SYSTEM, index, seq, ceiling, announce, notes, prepared);
 }
 
 /// `acquire` with the calls of `platform`.
@@ -218,7 +228,16 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Fn(Announce), 
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
 pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, announce, &mut WaitNotes::default(), None);
+    return acquire_placing(platform, index, seq, LOCK_CEILING, announce, &mut WaitNotes::default(), None);
+}
+
+/// `acquire_on` that gives up on a foreign holder after `ceiling`, leaving in `notes` what the wait was for.
+///
+/// # Errors
+///
+/// As `acquire_on`, and `IndexInUse` when the lock was still held at the ceiling.
+pub fn acquire_within(platform: &Platform, index: &Path, seq: u64, ceiling: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+    return acquire_placing(platform, index, seq, ceiling, announce, &mut WaitNotes::default(), None);
 }
 
 /// `acquire_noting_holder` with the calls of `platform`.
@@ -226,6 +245,7 @@ fn acquire_placing(
     platform: &Platform,
     index: &Path,
     seq: u64,
+    ceiling: Duration,
     announce: &dyn Fn(Announce),
     notes: &mut WaitNotes,
     prestaged: Option<Prestaged>,
@@ -262,7 +282,7 @@ fn acquire_placing(
     let placing_began: std::time::Instant = std::time::Instant::now();
     let outcome: Result<(), LockFailure> = wait_and_place(
         platform,
-        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index },
+        &Placing { staged: &staged, held: &held, lock: &lock, lock_name: lock_name.as_os_str(), index, ceiling },
         &mut watch,
         announce,
         notes,

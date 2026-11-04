@@ -163,6 +163,29 @@ fn the_services_hold_is_waited_for_until_it_is_released() {
     remove(root.as_path());
 }
 
+/// A hold the mark proves to run, kept past the ceiling, is given up on: the line says the command runs now and reports what Git
+/// says, and the lock is not touched.
+#[test]
+fn a_hold_that_outlasts_the_ceiling_ends_the_wait_and_stays() {
+    let root: PathBuf = fixture("index-wait-ceiling");
+    let index: PathBuf = index_in(root.as_path());
+    let lock: PathBuf = lock_path_of(index.as_path());
+    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    std::fs::write(&lock, format!("{LOCK_MARKER}9 {} {identity}\n", std::process::id())).expect("lock");
+    let (finished, ended) = std::sync::mpsc::channel();
+    let waiter_index: PathBuf = index.clone();
+    std::thread::spawn(move || {
+        let mut out: Vec<u8> = Vec::new();
+        let outcome: Waited = wait_for_service_hold_within(waiter_index.as_path(), "add", Duration::from_millis(300), QUICK, &mut out);
+        let _sent = finished.send((outcome, String::from_utf8_lossy(&out).into_owned()));
+    });
+    let (outcome, text) = ended.recv_timeout(Duration::from_secs(10)).expect("the wait ended at its ceiling");
+    assert_eq!(outcome, Waited::GaveUp);
+    assert!(text.contains("still finishing a commit") && text.contains("git add runs now"), "{text}");
+    assert!(lock.exists(), "the hold is not the command's to remove");
+    remove(root.as_path());
+}
+
 /// Where no watch can be set, a hold the mark proves to run is polled for until it is released, where the wait used to return at
 ///  once and let the command run into Git's refusal.
 #[test]
@@ -179,7 +202,7 @@ fn where_no_watch_can_be_set_the_services_hold_is_polled_for() {
     });
     let no_watch = |_: &Path| -> Option<Watch> { return None; };
     let mut out: Vec<u8> = Vec::new();
-    let outcome: Waited = wait_with_watches(index.as_path(), "add", QUICK, &mut out, &no_watch);
+    let outcome: Waited = wait_with_watches(index.as_path(), "add", SERVICE_HOLD_CEILING, QUICK, &mut out, &no_watch);
     letting_go.join().expect("the service lets go");
     assert_eq!(outcome, Waited::Released, "{}", String::from_utf8_lossy(&out));
     remove(root.as_path());
@@ -272,7 +295,7 @@ fn a_watch_that_ended_is_set_again_and_the_release_that_follows_is_seen() {
     let began: Instant = Instant::now();
     let mut out: Vec<u8> = Vec::new();
     let slow: Cadence = Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) };
-    let outcome: Waited = wait_with_watches(index.as_path(), "add", slow, &mut out, &set_watch);
+    let outcome: Waited = wait_with_watches(index.as_path(), "add", SERVICE_HOLD_CEILING, slow, &mut out, &set_watch);
     assert_eq!(outcome, Waited::Released);
     assert_eq!(set.get(), 2, "a new watch was set once the first had ended");
     // The poll is 30 seconds apart: a release seen long before the next poll was seen as an event, and the wall time against
@@ -339,7 +362,7 @@ fn the_wait_drops_an_ended_watch_before_it_sets_the_next() {
     let began: Instant = Instant::now();
     let mut out: Vec<u8> = Vec::new();
     let slow: Cadence = Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) };
-    let outcome: Waited = wait_with_watches(index.as_path(), "add", slow, &mut out, &quota_of_one);
+    let outcome: Waited = wait_with_watches(index.as_path(), "add", SERVICE_HOLD_CEILING, slow, &mut out, &quota_of_one);
     assert_eq!(outcome, Waited::Released);
     assert_eq!(calls.get(), 2);
     // The release is seen as an event, long before the poll that is 30 seconds away.

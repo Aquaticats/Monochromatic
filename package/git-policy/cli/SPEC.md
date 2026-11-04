@@ -224,7 +224,7 @@ An older file that sets one still loads, and the value is checked and ignored.
   It was the backoff budget of the wrapper's own wait for a foreign `index.lock` whose owner is dead or unproven.
   The service's wait for a foreign `index.lock` replaced it:
   a holder proven alive and an owner nothing proves alive are both
-  waited for for as long as the lock stays there, and this key no longer sets anything.
+  waited for until the lock ceiling ("Every wait has a bound"), and this key no longer sets anything.
   `git cli-git doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
   positive safe integer,
@@ -1357,7 +1357,9 @@ The signs are the ones the push reads (`src/native/push_progress.rs`): bytes mov
 started,
 processor time, a task able to run or waiting for the disk, and, for a run that holds a connection to a remote, the open
 connection itself.
-A step that is slow and works is waited for however long it takes.
+A step that is slow and works is waited for however long it takes;
+the owner's later rule ("nothing should ever wait forever or indefinitely") puts a ceiling on this too,
+which is for the coordinator to pick (`doc/planning/cli-git-no-unbounded-waits.md`, option set A).
 The windows are in whole seconds and are not measured (see "The quiet windows are labelled unmeasured").
 Linux only: where `/proc/<pid>/io` cannot be read nothing is measured and a run is never ended, because no wall-clock
 bound
@@ -1453,112 +1455,134 @@ A measured interval replaces a number only after the records above hold healthy 
 recorded
 beside the value; no margin is chosen here.
 
-#### Waits on a lock holder and on the service
+#### Every wait has a bound
 
-Delegated picks 2 and 6 of `doc/planning/cli-git-shipped-limits-audit.md` (2026-11-03).
-The owner was away and said: "Pick options as if I had picked them and invite veto when I say I'm back." and clarified:
-"\"As if I had chosen\" means what I would have picked most likely if I'm always here."
-The coordinator picked; both picks are open to the owner's veto.
+The owner, said in the session at about 2026-11-03T12:37-05:00 (quoted):
+"nothing should ever wait forever or indefinitely".
+It is newer than, and overrides, the unbounded waits of the delegated picks 2 and 6 and their follow-ups,
+and the owner's
+earlier "Wait while connected (Recommended)" for pushes; the coordinator flags that conflict for the owner.
+The owner keeps: "Commits should never fail."; "never fail doesn't primarily mean retries!"; "never discard user data";
+"You should (almost) never be waiting."
 
-Owner decisions these waits follow, verbatim:
+The owner answered through the question tool at about 2026-11-03T12:45-05:00, quoted by the options chosen:
 
-- "You should (almost) never be waiting."
-- "Use as few locks as possible."
-- "Commits should never fail."
-- "socket activation (OS starts it) or a loud, clear failure - no,
-  never leak internal things that could be resolved to the
-  user." (2026-11-01T07:37:44-05:00, `DESIGN.md`)
+- at a wait's bound: "Return with an error" ("The command stops waiting and exits non-zero, naming what blocked it;
+  the saved
+  work stays saved.");
+- whether the saved commit still lands by itself later: "No, keep it for a retry (Recommended)" ("Nothing lands later by
+  itself. Your staged changes stay staged, and the commit is also kept on a side ref.
+  The error names the blocker and the
+  command to run again.");
+- pushes: "Bound it, keep retrying (Recommended)" ("A connected push that stops making progress for a measured time is
+  ended; the service's retry plan keeps the push and tries again; the command returns with a line saying the push is
+  queued.").
 
-The decision record `doc/decision/cli-git-concurrent-commits.md`, "Locks", says, and is followed except where noted:
-"An `index.lock` owner proven alive (open holder matched by device and inode,
-or a PID file naming a live process started no
-later than the lock's ctime) gets an unbounded wait with one line naming the holder."
-"A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to `indexLock.unprovenOwnerTimeoutMs`
-(default
-1000), then a diagnostic listing the evidence."
-The code before this change stopped every one of these waits at `CLI_GIT_LOCK_WAIT_SECONDS` (1800 seconds),
-which is gone.
+The inventory of every wait, with the end behavior of each and the options for the ones not decided, is
+`doc/planning/cli-git-no-unbounded-waits.md`. The bounds,
+in `src/native/wait_ceilings.rs` with the measurement beside each:
 
-- A holder proven alive:
-  waited for with no bound.
-  The line names it ("waiting for PID n (command), which holds the lock (proven by an open descriptor | its Git lock PID
-  file)"), repeats every notice interval with the time so far,
-  and says the wait lasts as long as the process holds the lock.
-- An owner nothing proves alive:
-  waited for like one proven alive, with no bound (delegated follow-up pick 1, 2026-11-03).
-  The person's own `git commit` with its editor open holds `index.lock` with no proof,
-  so any bound would make our commit fail
-  after that bound.
-  The line says what is known ("whose owner cannot be proven alive (no process has the lock open,
-  and no Git lock PID file
-  beside it ...)"), repeats every notice interval, and names the file to remove when no program is using the repository,
-  which is the one case the wait cannot end by itself.
-  This replaces the 1000 ms backoff and the diagnostic of the first version of these picks; the key
-  `indexLock.unprovenOwnerTimeoutMs` stays retired (see the configuration section above).
-- A dead owner (the PID file names a process that no longer runs):
-  nothing will release the lock, so the wait stops at once with a diagnostic naming the process.
-  This deviates from the record, which gives a dead owner the same backoff as an unproven one.
-- The service's own hold, for a forwarded `git add`, `rm` or `mv`:
-  a hold whose mark proves the service runs is waited for with no bound;
-  a hold whose holder cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds,
-  a quarter more than
-  the longest of 715 measured holds, 119.7 s; 13 of them ran 58 to 120 seconds, all in the disk sync of the new index).
-  The earlier 60 seconds took those live holds for leftovers.
-- The index reconciliation of a commit whose corrections left no change waits like the merge does;
-  `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) now cover only a lock that was gone by the time it was looked at.
-- Where no inotify watch can be set (the watch limit is reached, or the file system gives none), the merge wait,
-  the landing
-  and the forwarded writers' wait for the service's hold poll every `POLL_PAUSE` (50 ms)
-  and try for a watch again each time,
-  instead of failing the commit or running the command into Git's refusal.
-  The pause is a poll pace, classed as exempt in the audit.
+- `ANSWER_CEILING` 20 minutes: the client's wait for the service's answer,
+  heartbeats or not (3.9 times the longest answer wait
+  in the timing log, 308 s; 1.6 times the longest whole commit, 751 s).
+- `WITHDRAW_CEILING` 10 minutes: the client's wait for the answer to its withdrawal (five times the longest observed
+  landing).
+- `START_CEILING` 60 seconds: a start the service manager reports as under way (58 times the slowest observed start,
+  1.04 s).
+- `LOCK_CEILING` 10 minutes, unmeasured (no log holds a foreign holder): the landing,
+  the merge and the index reconciliation
+  wait for a foreign `index.lock` this long. It is below `ANSWER_CEILING` so the service answers first.
+- `SERVICE_HOLD_CEILING` 10 minutes: a forwarded `git add`, `rm` or `mv` waits for the service's hold,
+  and its whole series of
+  reruns ends, at this (five times the longest of 715 logged holds, 119.7 s).
+- `CONNECTED_PUSH_QUIET_WINDOW` 150 seconds, unmeasured,
+  labelled as the other quiet windows (twice the longest whole push in the
+  journal, 72.4 s): a push whose connection is open and that shows no sign of work for this long is ended as a stall.
+- `PHASE_PATIENCE` 5 minutes: the test marker compiled into the executable ends its pause at the limit of any test.
+- `PLUMBING_STEP_CEILING` 120 seconds, `OBJECT_STEP_CEILING` 10 minutes and `REFERENCE_STEP_CEILING` 60 seconds:
+  the longest one Git
+  step runs, whatever it shows and whether or not it may be ended for being quiet (the longest read step of the
+  service's
+  landings, 9.7 s; the longest client preparation, 250 s; the longest reference update, 3.4 s).
+  All are below `ANSWER_CEILING`.
 
-Not built here: the owner's chosen answer for a commit that meets a live foreign `index.lock`, "Same as the ref lock
-(Recommended)" (a commit lands and exits 0 and the index catches up when the lock frees).
-It comes with the commits-never-fail design.
-Until then a commit behind a dead owner still fails with the diagnostic; one behind any other owner waits.
+What happens at the bound, on the commit path:
 
-The wait for the commit service has no clock of the client's own:
+- The landing waits for a foreign `index.lock` until `LOCK_CEILING`.
+  At the bound the batch is withdrawn before the branch
+  moved: its intent is removed from the journal, so a restart of the service cannot land it;
+  the commit it built is kept on
+  `refs/cli-git/kept/<batch>`; the person's index and worktree are as they were; the client
+  prints the holder (a process proven alive, or an owner nothing proves alive with what was looked at:
+  no process with the lock
+  open, no Git lock PID file), the side ref,
+  and ends with the existing "Another program is using this repository's index"
+  failure; the command to run again is the commit.
+- A client whose wait passes `ANSWER_CEILING` asks the service, on a new connection,
+  to withdraw its request (protocol version 7:
+  `withdraw` and `withdrawn`). The service answers between two landings, on its one landing thread,
+  so a landing in progress
+  finishes first: if the commit landed, the answer is `landed` and the command reports success; if not,
+  the request is dropped
+  and its identity is remembered, so it cannot land even if it reaches the queue after the withdrawal,
+  and the command ends
+  non-zero with "This commit waited N minutes for the commit service and was withdrawn,
+  so it will not land later by itself."
+  A service that does not answer within `WITHDRAW_CEILING` leaves the outcome unknown, and the message says so and gives
+  `git log -1` and `git status`.
+- A Git step of the landing that reaches its ceiling is ended.
+  A reference update ended at its ceiling is followed by a read of the
+  branch: if it is at the request's commit the outcome is `Landed` (the update renamed the reference before it was
+  ended);
+  otherwise the batch is withdrawn as at `LOCK_CEILING` (intent removed, commit kept on `refs/cli-git/kept/<batch>`,
+  lock given up,
+  failure `step-too-slow` with the step named). Any other step ended at its ceiling ends the landing the same way,
+  and an open
+  intent finishes a batch only when its branch has moved, so nothing lands later. Hooks are never ended by the wrapper.
+- A merge waits for a foreign `index.lock` until `LOCK_CEILING`; at the bound it names the holder and ends the wait,
+  and Git's own
+  refusal ends the merge non-zero with nothing changed.
+  The index reconciliation of a commit with no change left ends the same
+  way. A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
+  then runs and reports what Git says.
+- A service that is still starting at `START_CEILING` ends the command with "The commit service did not start" and the
+  journal
+  command. A unit the manager reports `inactive` after `START_WAIT` is asked to start,
+  again after each further `START_WAIT`.
+- A push that shows no sign of work with an open connection for `CONNECTED_PUSH_QUIET_WINDOW` is ended as a stall and
+  left to the
+  service's retry plan, which keeps the push and tries it again.
 
-- The service sends a heartbeat line to every client whose request is queued or landing, once a second
-  (`HEARTBEAT_EVERY`, `service_protocol.rs`), from the thread that read the request.
-  The client waits for the answer for as long as it keeps hearing from the service.
-  The 10-minute `COMMIT_WAIT` and its message, which told the person to raise a setting that does not exist, are gone.
-- A client that hears nothing for `HEARTBEAT_SILENCE` (5 seconds) takes the service for stopped.
-  It prints "The commit service stopped answering; asking it again with the same commit, which cannot land twice.",
-  connects again and sends the same request identity, so nothing lands twice.
-  A service that greets nothing on that connection ends the command with "The commit service stopped answering while
-  this
-  commit waited ... it is not known whether the commit was made", which gives `git log -1`, `git status`,
-  the journal command
-  and the restart command; the exit status is nonzero and the message does not claim that nothing changed.
-  A connection that closes (the service died) is sent the same request again up to `RECONNECTS` (5)
-  times and then ends with
-  the existing "stopped before it confirmed this commit" message.
-- The start of the service is waited for with no clock when the client can ask the service manager:
-  every second it asks for the state of the worktree's service unit,
-  and two answers of "failed" in a row end the wait with
-  "The commit service did not start". Where the manager cannot be asked, the wait ends at `START_WAIT` (10 seconds,
-  ten times
-  the slowest of 52 measured cold starts, 1041 ms) as before.
-  The wait for an older service to retire keeps `START_WAIT` too.
-  A unit the manager reports `inactive` once `START_WAIT` has passed (the socket holds the connection and nothing
-  starts the
-  service) is asked to start through the manager, again after each further `START_WAIT`;
-  a unit that is `activating` is left
-  alone (delegated follow-up pick 3).
-- The protocol version is 6: a service of the version before sends no heartbeat,
-  and the client retires it as it retires any
-  service of another release.
-- A deadlocked landing thread behind a live connection thread is not detected by this beat;
-  only a service that stops as a
-  process, or freezes, is (open question in the audit).
-- A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`,
-  a twenty-fourth of
-  the stale age) at each message from the service, so the scratch sweep never removes the directory of a command that is
-  still waiting, however long the wait; a directory whose command died stops being renewed and ages out as before
-  (delegated
-  follow-up pick 4). Scratch files that have no name are not swept at all.
+Decided by the coordinator under the owner's delegation, veto open (inventory, "Picks"): every step class has a ceiling; the person's
+own Git and hooks are exempt, as with native Git; the connected push window stays 150 seconds; the withdrawal at the lock ceiling
+stays. The withdrawal waits for the landing in progress, so it is answered within the landing's own bounds, and every step of a
+landing now has one.
+
+Kept from the delegated picks, now inside these bounds:
+
+- A holder proven alive and an owner nothing proves alive are waited for the same way until the ceiling,
+  with a line that names
+  what is known (the person's own `git commit` with its editor open holds the lock with no proof);
+  a dead owner (a PID file naming
+  a process that is gone) ends the wait at once with a diagnostic naming it.
+  The key `indexLock.unprovenOwnerTimeoutMs` stays
+  retired.
+- Where no inotify watch can be set the waits poll every `POLL_PAUSE` (50 ms, classed as a poll in the audit).
+- A hold of the service that cannot be asked about is taken for a leftover at `UNASKABLE_HOLD_AGE` (150 seconds,
+  from the longest
+  of 715 measured holds); this number awaits the owner's approval.
+- The service sends a heartbeat every second (`HEARTBEAT_EVERY`) to a client whose request is queued or landing;
+  a client that
+  hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
+  and ends with the "stopped
+  answering" failure when the service greets nothing.
+- A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
+  so the sweep never
+  removes the directory of a command that is still waiting; now that every wait ends,
+  no wait outlasts `SCRATCH_STALE_AFTER`
+  either.
+- `INDEX_ATTEMPTS` (5) and `INDEX_PAUSE` (100 ms) cover only a lock that was gone by the time it was looked at.
+
 
 #### Commands that add commits
 
@@ -1793,7 +1817,7 @@ in-process reader can) gives every value of the multi-valued keys.
   state `D` makes a process wedged for ever in the kernel look alive, and state `R` one that only waits for a processor;
   no total time bounds them (see "Wait while connected" below).
   A server that checks the push after the pack arrived (GitHub's pre-receive hooks) is in state `S` with nothing moving.
-  Wait while connected.
+  Wait while connected (replaced, same day, by "Bound it, keep retrying (Recommended)": see "Every wait has a bound").
   Owner decision (2026-11-03), verbatim: "Wait while connected (Recommended)", meaning that bytes on the push's network
   socket count as progress, and that the push keeps waiting while the connection to the remote is open,
   with a line naming the wait; the owner accepted that a connection that dies without a reset is noticed only when
@@ -2981,12 +3005,11 @@ Each commit passes through three phases:
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
-    A holder proven alive is waited for with no bound.
-    An owner nothing proves alive is waited for the same way, and a dead one not at all;
-    a dead owner ends the commit before the branch moved,
-    removing the batch's intent and scratch branch,
-    with a diagnostic naming the dead process and a plain message
-    ("Waits on a lock holder and on the service", in "Merges and commits never fail").
+    A holder proven alive and an owner nothing proves alive are waited for until `LOCK_CEILING`,
+    and a dead one not at all;
+    either ends the commit before the branch moved,
+    removing the batch's intent, keeping the built commit on a side ref, and naming the blocker
+    ("Every wait has a bound", in "Merges and commits never fail").
     The variable belongs in the environment of the unit that runs the service.
 3.  After landing:
     in the wrapper,
@@ -3370,35 +3393,55 @@ the ported rules are in `doc/planning/cli-git-main-commit-within-native-plus-fiv
 index check in process").
 It runs only for the landing that holds the live index lock, and the type system says so: `reset_index_file` and `build_index`
 take a borrow of the held `IndexLock`, so only the holder can call them, and the in-process update takes a `PrivateCopy`,
-a directory this landing created for itself beside the live index (`service_land_copy.rs`), owner-only from its creation, named
-`cli-git-private-` and a random identifier, and holding the copy, a marker that names the owning process, and whatever Git or
-the in-process update makes for the copy (Git's lock for it, the temporary file of the write). No name beside the live index is
-shared, so the copy is never the live index and never another client's file, a foreign lock of the same name does not stop a
-landing whose live index is absent, the name does not grow with the live index's, and a pile of abandoned copies cannot use up
-names. The copy is created owner-only before its first byte, filled from the live index while the lock is held, and given the
-live index's own mode afterwards (the mode Git gave that file, which an index installed without a change keeps). The directory
-goes with the value; a landing sweeps the directories of a service that died, recognised by the name, the marker and the death
+a directory this landing created for itself beside the live index (`service_land_copy.rs`),
+owner-only from its creation, named
+`cli-git-private-` and a random identifier, and holding the copy, a marker that names the owning process,
+and whatever Git or
+the in-process update makes for the copy (Git's lock for it, the temporary file of the write).
+No name beside the live index is
+shared, so the copy is never the live index and never another client's file,
+a foreign lock of the same name does not stop a
+landing whose live index is absent, the name does not grow with the live index's,
+and a pile of abandoned copies cannot use up
+names. The copy is created owner-only before its first byte, filled from the live index while the lock is held,
+and given the
+live index's own mode afterwards (the mode Git gave that file, which an index installed without a change keeps).
+The directory
+goes with the value; a landing sweeps the directories of a service that died, recognised by the name,
+the marker and the death
 of the process the marker names, never by the name alone. The lock's release renames the copy over the live index
 (`IndexLock::release_with_record`), after syncing the index's directory.
 The only caller is `follow_up` in `service_land.rs`, which owns the lock; it is reached from the landing with the lock that
 `acquire_noting_wait` gave, and from the restart with the lock that `try_acquire` gave.
 So a foreign `git add` finds the lock taken from the copy to the installation, and what it staged before is in the copy.
 The installed index is recorded in the journal (`<batch>.indexed`, holding the commit, synced) after the rename and before the
-lock is removed, and a record that cannot be made (or an installation whose directory cannot be synced, or a panic that unwinds
-through the record) keeps the lock for the restart to reclaim. The finished batch is made durable (its journal directory synced)
-before its completion record is removed. A completion record that exists and cannot be read stops the restart, which leaves the
+lock is removed, and a record that cannot be made (or an installation whose directory cannot be synced,
+or a panic that unwinds
+through the record) keeps the lock for the restart to reclaim.
+The finished batch is made durable (its journal directory synced)
+before its completion record is removed. A completion record that exists and cannot be read stops the restart,
+which leaves the
 batch open and the index alone, because only a missing record means the update was not installed.
 A restart that finds the record does not replay the index update, which would overwrite what another program staged after the
 lock was given up; it retries only the conclusion state, so a cleanup that failed never makes the index update replayable.
-The checked-out branch is read from the Git directory of the worktree the request recorded (not from the directory the index
-sits in), again once the lock is held and before the ref moves (a worktree can switch while the lock is awaited), and once more
-after the ref moved, because Git refuses `symref-verify HEAD` beside an update of the branch `HEAD` names ("multiple updates
-for 'HEAD'"), so the move cannot verify it in its own transaction; a worktree that left the branch in that window keeps its own
-index. A restart that finds the worktree on another branch finishes the batch without touching the worktree's own index, still
-finishes an index kept in another file (`GIT_INDEX_FILE`), and keeps the batch open until the conclusion state is removed.
-The landing records the entries of its index paths under the lock before the branch moves (`<batch>.start`, synced), and a
-restart that has to replay an update that was never installed resets only the paths still at those entries; a path staged since
-keeps its staging and a one-line notice says so. A batch with no record (a commit Git built, an older batch, an index form the
+The checked-out branch is read from the Git directory of the worktree the request recorded (not from the directory the
+index
+sits in), again once the lock is held and before the ref moves (a worktree can switch while the lock is awaited),
+and once more
+after the ref moved, because Git refuses `symref-verify HEAD` beside an update of the branch `HEAD` names ("multiple
+updates
+for 'HEAD'"), so the move cannot verify it in its own transaction;
+a worktree that left the branch in that window keeps its own
+index. A restart that finds the worktree on another branch finishes the batch without touching the worktree's own
+index, still
+finishes an index kept in another file (`GIT_INDEX_FILE`),
+and keeps the batch open until the conclusion state is removed.
+The landing records the entries of its index paths under the lock before the branch moves (`<batch>.start`, synced),
+and a
+restart that has to replay an update that was never installed resets only the paths still at those entries;
+a path staged since
+keeps its staging and a one-line notice says so. A batch with no record (a commit Git built, an older batch,
+an index form the
 entries are not read from) replays every path as before; a record that cannot be read stops the replay.
 The result goes to a temporary file made exclusively beside the copy, given Git's index file mode before any byte is written
 (created as Git creates its lock file, so the mask and any default ACL of the directory apply, then `adjust_shared_perm`'s

@@ -123,9 +123,61 @@ fn where_no_watch_can_be_set_the_merge_wait_polls_until_the_lock_goes() {
     });
     let sink: SharedSink = SharedSink::default();
     let none = |_: &std::path::Path| -> Option<Watch> { return None; };
-    let outcome: IndexWait = wait_with_watches(index.as_path(), "merge", quick(), &mut sink.clone(), &none);
+    let outcome: IndexWait = wait_with_watches(index.as_path(), "merge", LONG_CEILING, quick(), &mut sink.clone(), &none);
     letting_go.join().expect("the lock goes");
     assert!(matches!(outcome, IndexWait::Released(_)), "{outcome:?}");
+    remove(root.as_path());
+}
+
+/// The ceiling the long controls give the wait, so only the controls of the ceiling itself reach it.
+const LONG_CEILING: Duration = Duration::from_secs(3600);
+
+/// The ceiling the controls of the ceiling give the wait, and the time they give it before they call it hung.
+const SHORT_CEILING: Duration = Duration::from_millis(300);
+const CEILING_PATIENCE: Duration = Duration::from_secs(10);
+
+/// Runs the wait with the short ceiling on a thread, and returns what it ended with and said, or nothing when it was still waiting
+///  after `CEILING_PATIENCE`.
+fn wait_at_the_ceiling(index: &std::path::Path) -> Option<(IndexWait, String)> {
+    let (finished, ended) = std::sync::mpsc::channel();
+    let sink: SharedSink = SharedSink::default();
+    let reader: SharedSink = sink.clone();
+    let index_path: std::path::PathBuf = index.to_path_buf();
+    std::thread::spawn(move || {
+        let outcome: IndexWait = wait_for_index_release_within(index_path.as_path(), "merge", SHORT_CEILING, quick(), &mut sink.clone());
+        let _sent = finished.send(outcome);
+    });
+    let outcome: IndexWait = ended.recv_timeout(CEILING_PATIENCE).ok()?;
+    return Some((outcome, reader.text()));
+}
+
+/// A holder proven alive that keeps the lock past the ceiling is given up on: the line names the process and says the command
+/// stops; the lock is left in place.
+#[test]
+fn a_holder_proven_alive_is_given_up_on_at_the_ceiling() {
+    let root: std::path::PathBuf = fixture("holder-wait-ceiling-proven");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("the lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    let (outcome, text) = wait_at_the_ceiling(index.as_path()).expect("the wait ended at its ceiling");
+    assert!(matches!(outcome, IndexWait::GaveUp(waited) if waited >= SHORT_CEILING), "{outcome:?}");
+    assert!(text.contains("still held after") && text.contains(format!("PID {}", std::process::id()).as_str()), "{text}");
+    assert!(lock.exists(), "the wait removes no lock");
+    remove(root.as_path());
+}
+
+/// An owner nothing proves alive is given up on at the ceiling too, with what was looked at.
+#[test]
+fn an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling() {
+    let root: std::path::PathBuf = fixture("holder-wait-ceiling-unproven");
+    let index: std::path::PathBuf = root.join("index");
+    let lock: std::path::PathBuf = root.join("index.lock");
+    std::fs::write(&lock, b"").expect("the lock");
+    let (outcome, text) = wait_at_the_ceiling(index.as_path()).expect("the wait ended at its ceiling");
+    assert!(matches!(outcome, IndexWait::GaveUp(_)), "{outcome:?}");
+    assert!(text.contains("still held after") && text.contains("an owner nothing proves alive"), "{text}");
+    assert!(lock.exists());
     remove(root.as_path());
 }
 

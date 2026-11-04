@@ -92,6 +92,31 @@ fn a_command_that_lost_the_index_to_the_service_runs_again_and_hides_the_lost_at
     remove(root.as_path());
 }
 
+/// A hold that never ends, with a command that is refused every time: the series of reruns ends at the ceiling with Git's words
+/// shown and its status, where the count of fifty starts would have kept it for as long as every wait lasts.
+#[test]
+fn a_hold_that_never_ends_stops_the_reruns_at_the_ceiling() {
+    let root: PathBuf = fixture("hold-retry-ceiling");
+    let index: PathBuf = root.join("index");
+    let lock: PathBuf = lock_path_of(index.as_path());
+    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    std::fs::write(&lock, format!("{LOCK_MARKER}1 {} {identity}\n", std::process::id())).expect("a hold of a service that runs");
+    let (program, count) = fake_git(root.as_path(), usize::MAX, REFUSAL);
+    let (finished, ended) = std::sync::mpsc::channel();
+    let environment = scratch_environment();
+    let index_path: PathBuf = index.clone();
+    std::thread::spawn(move || {
+        let mut shown: Vec<u8> = Vec::new();
+        let ran: ForwardedRun = run_again_within(program.as_path(), &words(&["add"]), &[], environment.as_slice(), index_path.as_path(), "add", Duration::from_millis(400), &mut shown);
+        let _sent = finished.send((ran, String::from_utf8_lossy(&shown).into_owned()));
+    });
+    let (ran, text) = ended.recv_timeout(Duration::from_secs(20)).expect("the reruns ended at their ceiling");
+    assert_eq!(ran, ForwardedRun::Ran(128));
+    assert!(text.contains("index.lock"), "Git's own words are shown at the end: {text}");
+    assert!(starts(count.as_path()) < ATTEMPTS, "the ceiling, not the count, ended it");
+    remove(root.as_path());
+}
+
 /// A lock that is a foreign program's is native Git's business: one start, and Git's words shown.
 #[test]
 fn a_foreign_hold_is_not_waited_for_and_the_refusal_is_shown() {
