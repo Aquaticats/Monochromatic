@@ -281,20 +281,32 @@ fn a_journal_seen_through_another_view_is_refused_and_kept() {
     assert_eq!(survivor_note(&journal), None, "the unchanged view should be accepted: the settled scope is absent and its parent unchanged");
     let recorded: View = view_of(&journal).expect("views");
 
-    fs::write(journal.join("view"), format!("view {}:{}\n", recorded.mount + 1, recorded.inode)).expect("another mount");
-    let other_mount: Option<String> = survivor_note(&journal);
-    fs::write(journal.join("view"), format!("view {}:{}\n", recorded.mount, recorded.inode + 1)).expect("another inode");
-    let other_inode: Option<String> = survivor_note(&journal);
-    fs::remove_file(journal.join("view")).expect("lose the view record");
-    let lost: Option<String> = survivor_note(&journal);
-    let messages: Vec<String> = recover(root.path(), &refusing);
+    // Each changed view (another mount, another inode, no view record) is given to the real recovery: it must refuse, name the view,
+    // leave the live output as it was and keep the journal (certification group 1: a classification alone is not a refusal).
+    let original_view: String = format!("view {}:{}\n", recorded.mount, recorded.inode);
+    let cases: Vec<(&str, Option<String>)> = vec![
+        ("another mount", Some(format!("view {}:{}\n", recorded.mount + 1, recorded.inode))),
+        ("another inode", Some(format!("view {}:{}\n", recorded.mount, recorded.inode + 1))),
+        ("no view record", None),
+    ];
+    for (label, view) in cases {
+        match &view {
+            Some(text) => fs::write(journal.join("view"), text).expect("write the changed view"),
+            None => fs::remove_file(journal.join("view")).expect("lose the view record"),
+        }
+        let note: Option<String> = survivor_note(&journal);
+        let messages: Vec<String> = recover(root.path(), &refusing);
 
-    for note in [other_mount, other_inode, lost] {
-        let text: String = note.expect("a journal in another view blocks");
-        assert!(text.contains("mount") && text.contains("cargo-shadow acknowledge"), "{text}");
+        let text: String = note.unwrap_or_else(|| { panic!("{label}: a journal in another view did not block"); });
+        assert!(text.contains("mount") && text.contains("cargo-shadow acknowledge"), "{label}: {text}");
+        assert!(messages.iter().any(|message| { return message.contains("mount") && message.contains("cargo-shadow acknowledge"); }), "{label}: the recovery did not refuse for the view: {messages:?}");
+        assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{label}: the live output changed: {messages:?}");
+        assert!(journal.exists(), "{label}: the journal was not retained");
     }
-    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{messages:?}");
-    assert!(journal.exists());
+    // The control: with the recorded view back the same recovery settles the journal, so the refusals above came from the view.
+    fs::write(journal.join("view"), original_view).expect("put the recorded view back");
+    let settled: Vec<String> = recover(root.path(), &refusing);
+    assert_eq!(live_lock(root.path()), "original", "the control: the journal in its recorded view was not settled: {settled:?}");
 }
 
 /// Acceptance row "V2, amended c" (the cgroup-parent view):

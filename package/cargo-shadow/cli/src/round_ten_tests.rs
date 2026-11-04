@@ -409,6 +409,9 @@ fn bind_substitution_fixture() {
     let substitute: PathBuf = slice_dir.parent().expect("a directory above the slice").to_path_buf();
     mount_in_namespace(&["--bind", &substitute.display().to_string(), &slice_dir.display().to_string()]);
     let substituted: Option<String> = crate::journal_recover::survivor_note(&journal);
+    // The real recovery too (certification group 1): it must refuse the substituted directory, not only classify it.
+    let recovery: Vec<String> = crate::journal::recover(&root, &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
+    fs::write(root.join("fixture-recovery"), recovery.join("\n")).expect("write what the recovery said");
     fs::write(
         root.join("fixture-result"),
         format!("{}\n{}\n", baseline.unwrap_or_else(|| { return "no survivor".to_string(); }), substituted.unwrap_or_else(|| { return "no survivor".to_string(); })),
@@ -443,8 +446,10 @@ fn a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cg
     assert_eq!(baseline, "no survivor", "the control did not clear, so the refusal below is not caused by the bind: {baseline}");
     assert!(substituted.contains("recorded path may lead somewhere else"), "the substitution was not refused for the cgroup parent view: {substituted}");
     assert!(!substituted.contains("another mount or path"), "the journal view differed too, so the cgroup view was not isolated: {substituted}");
-    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN);
-    assert!(journal.exists());
+    let recovery: String = fs::read_to_string(root.path().join("fixture-recovery")).expect("what the recovery said");
+    assert!(recovery.contains("recorded path may lead somewhere else") && recovery.contains("cargo-shadow acknowledge"), "the recovery did not refuse the substituted directory: {recovery}");
+    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "the recovery changed the live output");
+    assert!(journal.exists(), "the journal was not retained by the recovery");
 }
 
 /// Acceptance row V2, amended c (9b section 2, "every other check"):

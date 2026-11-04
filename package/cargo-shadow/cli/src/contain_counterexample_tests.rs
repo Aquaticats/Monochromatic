@@ -391,7 +391,18 @@ fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
     wrapper.kill().expect("kill the wrapper");
     let _ = wrapper.wait();
     stop_quietly(shell);
-    std::thread::sleep(Duration::from_millis(300));
+    // The recorded launcher (the shell, which is the program) is established gone before the recovery, by the launcher question and
+    // not by an elapsed sleep (certification group 1): an unreaped zombie launcher would itself be alive and block, so the refusal
+    // below is attributable to the scope's member only once the launcher is classified gone.
+    let journal_for_launcher: PathBuf = crate::journal_support::journal_dirs(root.path()).into_iter().next().expect("a journal");
+    let launcher_record: String = fs::read_to_string(journal_for_launcher.join("groups")).expect("the records");
+    let Some(Ok(crate::control_group::Record::Launcher { pid: launcher_pid, start: launcher_start, pid_namespace, path: recorded_scope })) =
+        launcher_record.lines().map(crate::control_group::parse_record).find(|parsed| { return matches!(parsed, Ok(crate::control_group::Record::Launcher { .. })); })
+    else {
+        panic!("no launcher record: {launcher_record:?}");
+    };
+    assert_eq!(launcher_pid, shell, "the recorded launcher is not the shell that ran the program");
+    crate::cgroup_test_support::wait_until("the recorded launcher to be classified gone", &|| { return crate::control_group::launcher_state(launcher_pid, launcher_start, pid_namespace) == crate::control_group::LauncherState::Gone; });
 
     let messages: Vec<String> = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
     let writer_alive: bool = is_running(writer);
@@ -407,7 +418,10 @@ fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
     assert!(writer_alive, "the escaped writer died by itself; the test proves nothing");
     assert_eq!(fs::read_to_string(&lock).expect("lock"), "unchecked output of the killed run", "a recovery restored a file a live writer may change: {messages:?}");
     // The refusal is for the intended reason, the journal is retained, and the run used a delegated scope.
-    assert!(messages.iter().any(|message| { return message.contains("still running"); }), "the recovery did not refuse because a member of the recorded scope lives: {messages:?}");
+    assert!(
+        messages.iter().any(|message| { return message.contains("a process in the scope") && message.contains(&recorded_scope.display().to_string()) && message.contains("still running"); }),
+        "the recovery did not refuse because a member of the recorded scope lives: {messages:?}"
+    );
     let journals: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
     assert_eq!(journals.len(), 1, "the journal was not retained: {journals:?}");
     crate::cgroup_test_support::assert_scope_record(&journals[0].join("groups").display().to_string());
