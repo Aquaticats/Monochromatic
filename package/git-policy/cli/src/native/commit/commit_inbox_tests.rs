@@ -572,3 +572,99 @@ fn p9_a_stop_failure_still_attempts_the_remaining_saves() {
     assert!(events.contains(&format!("file-sync:{}", saved.display())), "the saved content was not forced: {:?}", events);
     assert!(events.contains(&format!("dir:{}", lane.join("state").display())), "the state was not forced: {:?}", events);
 }
+
+/// A second request in the same lane, with its own identity.
+fn second_request() -> Request {
+    let (request, _, _) = one_path_request();
+    let mut variant = request;
+    variant.nonce = vec![9; 16];
+    return with_identity(INSTANCE, variant).expect("identity");
+}
+
+/// Models review 8 (departure, disposition-bound stops): one stop receipt acknowledges the withdrawal of two requests. Accept R and X, create
+/// only `decision/R`, and run a `Withdrawn` departure for both with that stop. Every departing request needs its own stop.
+#[test]
+fn r14_one_stop_receipt_cannot_acknowledge_the_withdrawal_of_two_requests() {
+    let root: PathBuf = scratch("r14-two-stops");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (first, new_files, old_files) = one_path_request();
+    let second: Request = second_request();
+    accept(&lane.join("inbox"), INSTANCE, &first, &new_files, &old_files).expect("accept r");
+    accept(&lane.join("inbox"), INSTANCE, &second, &new_files, &old_files).expect("accept x");
+    state_append(&lane.join("state"), 1, b"adopted both").expect("append");
+    std::fs::create_dir(lane.join("decision")).expect("decision");
+    let only_first: PathBuf = lane.join("decision").join(&first.id);
+    std::fs::write(&only_first, b"").expect("the mark of r only");
+    let ids: Vec<String> = vec![first.id.clone(), second.id.clone()];
+    let outcome = Departure::new(Disposition::Withdrawn, &lane.join("inbox"), &ids, &lane.join("state")).with_stop(&only_first).run();
+    assert!(outcome.is_err(), "x has no stop receipt and the acknowledgment covered it");
+}
+
+/// Models review 8 (complete retained-state forcing): a checkpoint candidate with a valid closure of R's envelope and saved content S is the
+/// state a departure for R acknowledges. The departure must force S as well, or a power loss loses S and recovery rejects the acknowledged
+/// candidate.
+#[test]
+fn r14_a_departure_forces_the_saved_content_of_the_candidate_it_acknowledges() {
+    use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind};
+    let root: PathBuf = scratch("r14-candidate-closure");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"first").expect("append");
+    std::fs::create_dir(lane.join("saved")).expect("saved");
+    let saved: PathBuf = lane.join("saved").join(sha256_hex(b"objects"));
+    std::fs::write(&saved, b"objects").expect("saved content");
+    let entries: Vec<ClosureEntry> = vec![
+        ClosureEntry::capture(&lane, &lane.join("inbox").join(&request.id), EntryKind::InboxEnvelope).expect("capture r"),
+        ClosureEntry::capture(&lane, &saved, EntryKind::Opaque).expect("capture s"),
+    ];
+    commit_state_log::StateWriter::acquire(&lane.join("state")).expect("writer").begin_checkpoint(2, b"adopts r and s", &entries).expect("begin");
+    start_events();
+    Departure::new(Disposition::Saved, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state"))
+        .naming_generation(2)
+        .run()
+        .expect("depart");
+    let events: Vec<String> = take_events();
+    assert!(events.contains(&format!("file-sync:{}", saved.display())), "the saved content of the acknowledged candidate was not forced: {:?}", events);
+}
+
+/// Models review 8 (remaining saves after errors): the stop cannot be forced and a saved-content force fails too. The state, the order file
+/// and the ledger are still attempted, each failure is reported, and nothing is acknowledged.
+#[test]
+fn r14_every_save_is_attempted_after_a_stop_error_and_a_saved_content_error() {
+    let root: PathBuf = scratch("r14-all-attempted");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    std::fs::create_dir(lane.join("decision")).expect("decision");
+    let missing_mark: PathBuf = lane.join("decision").join(&request.id);
+    let missing_saved: PathBuf = lane.join("saved-missing");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, b"").expect("ledger");
+    start_events();
+    let outcome = Departure::new(Disposition::Unresolved, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state"))
+        .with_stop(&missing_mark)
+        .with_closure(&[missing_saved.as_path()])
+        .with_ledger(&ledger)
+        .run();
+    let events: Vec<String> = take_events();
+    assert!(outcome.is_err());
+    assert!(events.contains(&format!("dir:{}", lane.join("state").display())), "the state was not attempted after the errors: {:?}", events);
+    assert!(events.contains(&format!("file-sync:{}", ledger.display())), "the ledger was not attempted after the errors: {:?}", events);
+}
+
+/// Models review 8 (the control the terminal test did not isolate): a valid ledger that holds another request's outcome does not satisfy a
+/// terminal departure for this request. The rejection must come from the request-specific lookup and not from a malformed file.
+#[test]
+fn r14_a_valid_ledger_of_another_request_does_not_satisfy_a_terminal_departure() {
+    let root: PathBuf = scratch("r14-wrong-ledger");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
+    state_append(&lane.join("state"), 1, b"adopted").expect("append");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, ledger_line(&second_request().id)).expect("a valid ledger of another request");
+    let outcome = Departure::new(Disposition::Terminal, &lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).with_ledger(&ledger).run();
+    assert!(matches!(outcome, Err(git_policy_cli::commit_inbox::DepartureError::NotThePromise(_))), "{:?}", outcome.map(|_| ()));
+}

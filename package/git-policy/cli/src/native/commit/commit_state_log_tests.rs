@@ -517,3 +517,71 @@ fn p9_an_established_root_with_a_lost_dependency_fails_closed() {
     assert!(matches!(read(&state), Err(StateError::Damaged)), "recovery must stop and report");
     assert!(state.join("state.log.2").exists(), "the bytes of the root are kept");
 }
+
+/// Models review 8 (mandatory kinds at the validation boundary): a closure entry built field by field with the kind `AppendPrefix` under
+/// `inbox/<id>` validated a torn envelope as a prefix and escaped the live set. An entry under `inbox/` is an envelope whatever its kind.
+#[test]
+fn r14_a_prefix_entry_under_the_inbox_cannot_validate_a_torn_envelope() {
+    let (lane, state, envelope) = lane_with_envelope("r14-prefix-torn");
+    let whole: Vec<u8> = std::fs::read(&envelope).expect("read");
+    let torn: &[u8] = &whole[..whole.len() / 2];
+    std::fs::write(&envelope, torn).expect("tear the envelope");
+    append(&state, 1, b"first").expect("append");
+    let entry: ClosureEntry = ClosureEntry {
+        path: envelope.strip_prefix(&lane).expect("under the lane").to_path_buf(),
+        kind: EntryKind::AppendPrefix,
+        length: torn.len() as u64,
+        sha256: git_policy_cli::commit_integrity::sha256_hex(torn),
+    };
+    let outcome = StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document adopting the request", std::slice::from_ref(&entry));
+    assert!(outcome.is_err(), "a torn envelope was accepted as an append-only prefix");
+    assert!(state.join("state.log.1").exists());
+}
+
+/// Models review 8 (mutable dependency lifetime): a ledger writer already holds an append descriptor when the ledger is captured and the
+/// checkpoint completes (permission bits do not revoke a descriptor). Either the capture of a mutable file as immutable content is refused,
+/// or the root survives the writer's next line.
+#[test]
+fn r14_an_existing_ledger_writer_cannot_invalidate_a_root_that_captured_the_ledger_as_immutable() {
+    let lane: PathBuf = scratch("r14-open-descriptor");
+    let state: PathBuf = lane.join("state");
+    std::fs::create_dir(&state).expect("state directory");
+    let ledger: PathBuf = lane.join("ledger");
+    std::fs::write(&ledger, b"line one\n").expect("ledger");
+    let mut writer_descriptor = std::fs::OpenOptions::new().append(true).open(&ledger).expect("the ledger writer's descriptor");
+    append(&state, 1, b"first").expect("append");
+    let captured = ClosureEntry::capture(&lane, &ledger, EntryKind::Opaque);
+    if let Ok(entry) = captured {
+        let completed = StateWriter::acquire(&state).expect("writer").checkpoint(2, b"document", std::slice::from_ref(&entry));
+        if completed.is_ok() {
+            std::io::Write::write_all(&mut writer_descriptor, b"line two\n").expect("the open descriptor still writes");
+            assert!(read(&state).is_ok_and(|found| { return found.is_some(); }), "the only root was invalidated by its own ledger's writer");
+        }
+    }
+}
+
+/// Models review 8 (retirement discharge): a request is retired because its ledger line is visible, and the replacement authority does not
+/// capture or force that ledger prefix, so a power loss can leave a durable root that retires a request with no durable proof.
+#[test]
+fn r14_a_retirement_forces_the_ledger_prefix_that_discharges_it() {
+    let (lane, state, envelope) = lane_with_envelope("r14-retire");
+    append(&state, 1, b"first").expect("append");
+    let request_id: String = envelope.file_name().expect("name").to_string_lossy().into_owned();
+    let entry: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"adopts the request", std::slice::from_ref(&entry)).expect("checkpoint");
+    let ledger: PathBuf = lane.join("ledger");
+    let line = git_policy_cli::commit_ledger::encode_line(&git_policy_cli::commit_ledger::LedgerEntry {
+        id: request_id.clone(),
+        outcome: "conflicted".to_string(),
+        commit: "-".to_string(),
+        time: "2026-01-01T00:00:00+00:00".to_string(),
+    })
+    .expect("line");
+    std::fs::write(&ledger, line).expect("a visible terminal line");
+    start_events();
+    let mut writer = StateWriter::acquire(&state).expect("writer").with_ledger(&ledger);
+    let candidate = writer.begin_checkpoint_retiring(3, b"the request is retired", &[], std::slice::from_ref(&request_id)).expect("begin");
+    writer.complete_checkpoint(&candidate).expect("complete");
+    let events: Vec<String> = take_events();
+    assert!(events.contains(&format!("file-sync:{}", ledger.display())), "the retirement was not backed by a forced ledger prefix: {:?}", events);
+}
