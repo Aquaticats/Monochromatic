@@ -112,7 +112,7 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
         // resolves to the one executable and is recognized under whatever name it was found. The `&&` joins two
         // conditions inside one `if let`.
         if let Ok(resolved) = fs::canonicalize(&candidate)
-            && skip.contains(&resolved)
+            && (skip.contains(&resolved) || leads_back_to(&resolved, skip))
         {
             continue;
         }
@@ -121,6 +121,48 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option
         return Some(candidate);
     }
     return None;
+}
+
+/// The suffix of the record that the toolchain writes beside a launcher (`mpm-shadow`, `package/mpm-shadow/cli/README.md`, section "The launcher").
+const LAUNCH_RECORD_SUFFIX: &str = ".launch";
+
+/// How many launchers in a row are followed before the chain is taken as one that never reaches a program: a record chain longer than
+/// this is a loop, and a loop leads back.
+const MAX_LAUNCHER_HOPS: usize = 8;
+
+/// What:
+/// `fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool` says whether a PATH candidate is a launcher whose record names a
+/// binary that is one of the skipped paths, directly or through further launchers.
+/// Why:
+/// The toolchain puts a launcher between the link on PATH and the shadow: the launcher is a file of its own, so its resolved path is
+/// not the shadow's, yet starting it starts the shadow again. The record beside the launcher (`<launcher>.launch`, a JSON object
+/// with the `real` binary) names the program it starts, and reading it starts nothing, so the candidate is skipped before it is run
+/// and no second instance of the shadow exists. An unreadable or unparsable record is not a launcher.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leadsBackTo(resolved: string, skip: string[]): boolean
+/// ```
+fn leads_back_to(resolved: &Path, skip: &[PathBuf]) -> bool {
+    let mut current: PathBuf = resolved.to_path_buf();
+    for _hop in 0..MAX_LAUNCHER_HOPS {
+        let mut record_name: std::ffi::OsString = current.as_os_str().to_os_string();
+        record_name.push(LAUNCH_RECORD_SUFFIX);
+        let Ok(text) = fs::read_to_string(PathBuf::from(record_name)) else {
+            return false;
+        };
+        let Some(real) = serde_json::from_str::<serde_json::Value>(&text).ok().and_then(|value| { return value.get("real")?.as_str().map(PathBuf::from); }) else {
+            return false;
+        };
+        let Ok(target) = fs::canonicalize(&real) else {
+            return false;
+        };
+        if skip.contains(&target) {
+            return true;
+        }
+        current = target;
+    }
+    return true;
 }
 
 /// What:

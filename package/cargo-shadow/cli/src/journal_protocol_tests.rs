@@ -1522,7 +1522,7 @@ fn finishing_is_observed_as_outputs_then_marker_then_marker_barrier_then_removal
         match (outcome, failure) {
             (Ok(()), None) => {}
             (Err(error), Some(cleanup_only)) => assert_eq!(error.cleanup_only(), cleanup_only, "{fault:?}: {error}"),
-            (outcome, _) => panic!("{fault:?}: the finish ended as {outcome:?}"),
+            (unexpected, _) => panic!("{fault:?}: the finish ended as {unexpected:?}"),
         }
     }
 }
