@@ -22,7 +22,7 @@
 
 /// Process existence probes.
 #[cfg(unix)]
-use super::process_identity::signal_probe;
+use crate::process_identity::signal_probe;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -88,14 +88,14 @@ pub enum ProcessStart {
 pub fn parse_linux_stat(stat: &str) -> Option<(String, i64)> {
     let command_end: usize = stat.rfind(')')?;
     let after: &str = stat.get(command_end + 2..).unwrap_or("");
-    let fields: Vec<&str> = super::js_text::trim_javascript(after).split(' ').collect();
+    let fields: Vec<&str> = crate::js_text::trim_javascript(after).split(' ').collect();
     let state: &str = fields.first().copied().unwrap_or("");
     let ticks_text: &str = fields.get(START_TICKS_FIELD_INDEX).copied()?;
     if state.is_empty() || ticks_text.is_empty() || !ticks_text.bytes().all(is_digit) {
         return None;
     }
     let ticks: i64 = ticks_text.parse::<i64>().ok()?;
-    if ticks > super::json_record::MAX_SAFE_INTEGER {
+    if ticks > crate::json_record::MAX_SAFE_INTEGER {
         return None;
     }
     return Some((String::from(state), ticks));
@@ -126,7 +126,7 @@ fn is_digit(byte: u8) -> bool {
 /// ```
 pub fn parse_uptime(text: &str) -> Option<f64> {
     let first: &str = text.split(' ').next()?;
-    let trimmed: &str = super::js_text::trim_javascript(first);
+    let trimmed: &str = crate::js_text::trim_javascript(first);
     // `Number('')` is zero, so an empty first field reads as no time since boot.
     let seconds: f64 = if trimmed.is_empty() { 0.0 } else { trimmed.parse::<f64>().ok()? };
     if !seconds.is_finite() {

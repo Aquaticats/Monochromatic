@@ -33,7 +33,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'start ticks past the safe integers are accepted',
-    file: 'package/git-policy/cli/src/native/process_start.rs',
+    file: 'package/git-policy/cli/src/native/process/process_start.rs',
     edits: [{
       from: 'if ticks > super::json_record::MAX_SAFE_INTEGER {',
       to: 'if ticks > i64::MAX {'
@@ -151,7 +151,7 @@ export const plants: readonly Plant[] = [
   },
   {
     name: 'the start time is read from the field before it',
-    file: 'package/git-policy/cli/src/native/process_identity.rs',
+    file: 'package/git-policy/cli/src/native/process/process_identity.rs',
     edits: [{
       from: 'const LINUX_START_FIELD_INDEX: usize = 19;',
       to: 'const LINUX_START_FIELD_INDEX: usize = 18;'

@@ -97,14 +97,14 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: 'signal relay sender check',
-    file: 'src/native/signal_relay.rs',
+    file: 'src/native/process/signal_relay.rs',
     from: 'if !is_process_sender(code) {',
     to: 'if false {',
     failing: 'signal_relay::tests::handler_marks_a_signal_only_for_a_process_sender',
   },
   {
     name: 'signal relay in the handler',
-    file: 'src/native/signal_relay.rs',
+    file: 'src/native/process/signal_relay.rs',
     from: 'PENDING[slot].store(signal, std::sync::atomic::Ordering::SeqCst);',
     to: 'let _ = signal;',
     failing: 'signal_relay::tests::process_signal_is_relayed_and_the_child_outcome_is_reported',

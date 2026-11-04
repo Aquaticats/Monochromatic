@@ -18,7 +18,7 @@
 //! ```
 
 /// Escaping of a step name inside a JSON string.
-use super::json_record::quote;
+use crate::json_record::quote;
 /// A lock around the shared list.
 use std::sync::Mutex;
 /// A span of time.

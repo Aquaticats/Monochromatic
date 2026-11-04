@@ -261,7 +261,7 @@ concurrent recovery of one dead transaction made an incumbent survivor exit 1 wi
 an incumbent hook dispatcher exited 1 with `ESRCH: no such process, read` inside its process birth identity reader
 (mixed `hooked`, seed 3), which left that worker's commit unlanded.
 The native wrapper reads `/proc` records through a path that maps `ESRCH` to an exited process
-(`src/native/process_identity.rs`).
+(`src/native/process/process_identity.rs`).
 
 ## Old-format fixtures
 

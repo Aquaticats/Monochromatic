@@ -23,7 +23,7 @@
 //! ```
 
 /// Text trimming with the incumbent's `.trim()` semantics.
-use super::js_text::trim_javascript;
+use crate::js_text::trim_javascript;
 /// `OnceLock` holds a value computed at most once per process.
 use std::sync::OnceLock;
 

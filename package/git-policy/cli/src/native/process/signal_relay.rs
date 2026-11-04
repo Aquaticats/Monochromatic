@@ -70,12 +70,12 @@ use std::ffi::c_int;
 /// `io` is the input and output error type the spawn and wait calls return.
 use std::io;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::RetryStart;
+use crate::start_retry::RetryStart;
 /// `Command` builds the child, and `ExitStatus` is how it ended.
 use std::process::{Command, ExitStatus};
 
 /// The Git child's end, with the exit-code mapping the wrapper's exit uses.
-use super::forwarding::ChildOutcome;
+use crate::forwarding::ChildOutcome;
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
@@ -416,7 +416,7 @@ fn run_relayed(command: &mut Command) -> io::Result<ChildOutcome> {
     CHILD_PID.store(0, std::sync::atomic::Ordering::SeqCst);
     let status: ExitStatus = reaped?;
     waited?;
-    return Ok(super::forwarding::outcome_of(status));
+    return Ok(crate::forwarding::outcome_of(status));
 }
 
 /// Restore the previous dispositions and release the process-wide slot.
@@ -474,7 +474,7 @@ impl SignalGuard {
     pub fn run_child(&self, command: &mut Command) -> io::Result<ChildOutcome> {
         let mut child: std::process::Child = command.spawn_retrying()?;
         let status: ExitStatus = child.wait()?;
-        return Ok(super::forwarding::outcome_of(status));
+        return Ok(crate::forwarding::outcome_of(status));
     }
 }
 

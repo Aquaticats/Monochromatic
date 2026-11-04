@@ -69,7 +69,7 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   },
   {
     name: 'safe-integer bound on process start ticks',
-    file: 'src/native/process_start.rs',
+    file: 'src/native/process/process_start.rs',
     from: 'if ticks > super::json_record::MAX_SAFE_INTEGER {',
     to: 'if ticks > i64::MAX {',
     failing: 'process_start::tests::a_start_tick_beyond_the_safe_integers_is_refused',

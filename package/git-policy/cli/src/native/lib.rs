@@ -169,11 +169,15 @@ pub mod repository_facts;
 /// appended beside the discard audit.
 pub mod commit_timing;
 
-/// The longest quiet gap of every Git step and tool this process ran, kept until a timing record takes it.
-pub mod quiet_ledger;
+/// Processes:
+///  identities,
+///  trees,
+///  sockets,
+///  signals and quiet-time ledgers.
+pub mod process;
 
-/// Whether a thread of this process is at work, and the clock that says when it has been quiet for a window.
-pub mod thread_quiet;
+/// Re-exports every module of `process` at the crate root, as above.
+pub use process::*;
 
 /// The dependent-version policy:
 ///  manifest and import facts,
@@ -209,12 +213,6 @@ pub mod foundation;
 
 /// Re-exports every module of `foundation` at the crate root, as above.
 pub use foundation::*;
-
-/// The PID namespace an owner record names, and the rule for owners of another one.
-pub mod pid_namespace;
-
-/// Process-birth identities in the incumbent's exact spelling.
-pub mod process_identity;
 
 /// The fail-closed failure of reading or recovering durable transaction state.
 pub mod recovery_error;
@@ -302,11 +300,6 @@ pub mod index;
 /// Re-exports every module of `index` at the crate root, as above.
 pub use index::*;
 
-/// Process start times for lock owners,
-///  read from `/proc`,
-///  `ps` or the Windows process table.
-pub mod process_start;
-
 /// The service's own retry of a push it stopped or that failed: the pauses, the waiting branches, the final failure.
 pub mod push_retry;
 
@@ -331,9 +324,6 @@ pub mod maintenance_decision;
 /// Running automatic maintenance after a landing: the config read, then `git maintenance run --auto`.
 pub mod maintenance_run;
 
-/// Catching SIGINT, SIGTERM, SIGHUP and SIGQUIT while a Git child runs, and relaying only process-sent signals.
-pub mod signal_relay;
-
 /// The per-branch file name of the push failure notice: a reversible, flat, case-safe key.
 pub mod auto_push_branch_key;
 
@@ -357,12 +347,6 @@ pub mod git_directory_roots;
 
 /// The bytes a push and its processes move, sampled, and the clock that stops it on a stall.
 pub mod push_progress;
-
-/// The processes of this host that use a directory or a file.
-pub mod process_use;
-
-/// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
-pub mod process_tree;
 
 /// The connected TCP sockets of the machine with their byte counts, and the sockets a process holds.
 pub mod tcp_sockets;

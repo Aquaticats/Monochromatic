@@ -31,7 +31,7 @@ Neither module is wired into the commit refusal (`Unported::CommitTransaction` i
 
 ## What was built
 
-### Signals (`src/native/signal_relay.rs`)
+### Signals (`src/native/process/signal_relay.rs`)
 
 - `SignalGuard::install()` installs handlers for `SIGINT`, `SIGTERM`, `SIGHUP` and `SIGQUIT`
   with `libc::sigaction`, using `SA_SIGINFO | SA_RESTART`.
@@ -247,7 +247,7 @@ The host proof above is the evidence that the guard tests fail; the container no
 
 Per the lane brief's Trailing gates decision, these gates were not run before the cutover:
 
-- Mutation campaigns (`native:mutation`, cargo-mutants) over `src/native/signal_relay.rs`,
+- Mutation campaigns (`native:mutation`, cargo-mutants) over `src/native/process/signal_relay.rs`,
   `src/native/maintenance_decision.rs`, `src/native/maintenance_run.rs` and `src/native/maintenance_hk_config.rs`.
   Signals and automatic maintenance are non-core modules.
   Remaining: run the scoped mutation task over these files through the slot limiter and record every survivor with a

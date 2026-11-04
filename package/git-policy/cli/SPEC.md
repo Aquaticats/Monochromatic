@@ -1406,7 +1406,7 @@ is the rule.
   An install that downloads for a long time is never reported as having run past a limit.
 - The Markdown linter (`src/native/markdown/markdown_linter_guard.rs`) runs on a thread of the wrapper, so its signs are those
   of that
-  thread (`src/native/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
+  thread (`src/native/process/thread_quiet.rs`): the bytes it read and wrote, its processor ticks and its state, from
   `/proc/self/task/<tid>/`, with a window of 60 seconds. A linter thread that shows none is abandoned as before.
 - The standards-review gateway call (`src/native/standards_review/standards_review_client.rs`) has no total deadline. Resolving,
   connecting and
@@ -1421,7 +1421,7 @@ is the rule.
   last resort), the wait for the signal guard (library tests only), and the notice graces (they time a message, not an
   end).
 
-The longest quiet gap of every Git step and tool a command ran is kept (`src/native/quiet_ledger.rs`) and written into
+The longest quiet gap of every Git step and tool a command ran is kept (`src/native/process/quiet_ledger.rs`) and written into
 the
 timing record the command already writes: `longestQuietMs` (the longest among the steps that ended by themselves) and
 `quietMs` (by step name, in milliseconds, a step that was ended for being quiet listed apart under a name that ends in

@@ -14,9 +14,9 @@
 //! ```
 
 /// The parsing of a `stat` line and the state letters that count as work.
-use super::push_progress::{SAMPLE_INTERVAL, is_working, parse_activity};
+use crate::push_progress::{SAMPLE_INTERVAL, is_working, parse_activity};
 /// The connected sockets of the machine, and those a process holds.
-use super::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
+use crate::tcp_sockets::{ESTABLISHED, established_sockets, socket_inodes_of};
 /// What each socket had carried when it was last seen.
 use std::collections::HashMap;
 /// Shared flags between the thread that judges and the one that waits.
@@ -241,7 +241,7 @@ pub fn measured_quiet<T>(step: &str, job: impl FnOnce() -> T) -> T {
     if let Some(handle) = sampler
         && let Ok(gap) = handle.join()
     {
-        super::quiet_ledger::note(step, gap, false);
+        crate::quiet_ledger::note(step, gap, false);
     }
     return value;
 }
