@@ -780,38 +780,29 @@ fn a_write_through_a_descriptor_that_was_open_across_the_exchange_survives_in_th
 #[test]
 fn a_replacement_edited_in_place_after_the_exchange_is_kept_not_deleted() {
     use crate::journal::replace_if_holds_with_hooks;
+    use std::os::unix::fs::MetadataExt;
     let root = repository("expected");
     let path = root.path().join(CRATE_DIR).join("Cargo.lock");
-    // Closure `|target: &Path|`: an anonymous function, like a TS arrow function.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
+    let replacement_inode: std::cell::Cell<u64> = std::cell::Cell::new(0);
     let first_writer = |target: &Path| { fs::write(target, "first writer").expect("the first writer"); };
-    // Closure `|target: &Path|`: an anonymous function, like a TS arrow function.
     let in_place = |target: &Path| {
-        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-        // `let mut`: a binding that may change.
+        // The replacement is what the live path names right after the exchange; its inode is captured before the second writer writes.
+        replacement_inode.set(fs::metadata(target).expect("the replacement").ino());
         let mut file = fs::OpenOptions::new().write(true).truncate(true).open(target).expect("open in place");
-        // Borrow `&mut file`: lends the value without copying or giving it away.
-        // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
         std::io::Write::write_all(&mut file, b"second writer, in place").expect("write");
     };
 
-    // Borrow `&path`: lends the value without copying or giving it away.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     let outcome = replace_if_holds_with_hooks(&path, "expected", "new text", &first_writer, &in_place).expect("answers");
 
-    // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, ReplaceOutcome::Undone(_)), "{outcome:?}");
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "first writer");
-    // Closure `|name|`: an anonymous function, like a TS arrow function.
-    // Borrow `&root.path`: lends the value without copying or giving it away.
-    // `.collect()`: runs the iterator and gathers the items into the bound collection type.
-    // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-    // Adapter `.filter(`: transforms or selects items with a closure.
-    // Typed binding: `kept: Vec<String>`.
     let kept: Vec<String> = names_in(&root.path().join(CRATE_DIR)).into_iter().filter(|name| { return name.contains("displaced"); }).collect();
-    // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(kept.len(), 1, "{kept:?}");
+    // The kept name holds the in-place writer's bytes and is the captured replacement inode (certification group 3): a placeholder
+    // with another content, or another file, would not satisfy this.
+    let kept_path = root.path().join(CRATE_DIR).join(&kept[0]);
+    assert_eq!(fs::read_to_string(&kept_path).expect("the kept file"), "second writer, in place", "the in-place writer's result was lost");
+    assert_eq!(fs::metadata(&kept_path).expect("the kept file").ino(), replacement_inode.get(), "the kept name is not the replacement inode");
 }
 
 // ---- recovery, second review (2b)
