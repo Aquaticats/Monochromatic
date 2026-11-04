@@ -3889,7 +3889,15 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     R2 (circular EROFS inventory,
     conflict and undo preservation failures unexercised),
     V3/V4 and V5 partly;
-    the fixes go to the agent once group 3 returns;
+    group 3:
+    A1/A2 shown;
+    V6 partly (pipe draining has no bounded-return assertion;
+    helper bodies missing from the bundle);
+    4 of 16 rows shown across the pass,
+    no production defect;
+    all four groups' fixes sent to the agent,
+    with a cutter that fails when a named test's helpers are not in its group,
+    and as many smaller groups as needed;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
