@@ -335,8 +335,15 @@ mod fakes_cargo;
 #[cfg(test)]
 mod cargo_installs_tests;
 
+/// The record of postinstall links made, and the retirement of those the lock no longer declares.
+pub mod postinstall_links;
+
 /// The failure of a repository crate whose `cargo binstall` found no usable release archive.
 pub mod binstall_no_archive;
+
+/// The unit tests of the retirement of stale postinstall links.
+#[cfg(all(test, unix))]
+mod postinstall_links_tests;
 
 /// The unit tests of the `cargo binstall` command: which crates may fall back to compiling.
 #[cfg(test)]
