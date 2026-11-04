@@ -223,19 +223,89 @@ pub enum Contained<T> {
     Busy,
 }
 
-/// How many jobs the caller stopped waiting for are still running.
-static OUTSTANDING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// What:
+///  The one job a runner has at a time, as the runner knows it: nothing, one the caller waits for, or one the caller stopped waiting
+///  for and that still runs.
+/// Why:
+///   Admission, the caller's give-up and the worker's end are each one atomic change of this state, so two callers cannot both be
+///  admitted (sol-2 round 2, P2), and a worker that panics releases it by a guard that runs on unwinding (sol-2 round 2, P1). The
+///  production runner is `RUNNER`; a control makes its own, so the controls do not see one another's jobs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Containment { state: 'idle' | 'running' | 'abandoned' }
+/// ```
+pub struct Containment {
+    /// The generation of the job in the high bits and `IDLE`, `RUNNING` or `ABANDONED` in the low two. A change names the generation
+    ///  it expects, so a caller that gave up on job 7 can never change the state of job 8.
+    state: std::sync::atomic::AtomicU64,
+}
 
-/// The state of a job's thread, shared with the caller that waits for it.
-const RUNNING: u8 = 0;
-/// The job ended while the caller still waited, or the caller got its value.
-const ENDED: u8 = 1;
-/// The caller stopped waiting while the job ran.
-const ABANDONED: u8 = 2;
+/// No job.
+const IDLE: u64 = 0;
+/// A job the caller waits for.
+const RUNNING: u64 = 1;
+/// A job the caller stopped waiting for, still running.
+const ABANDONED: u64 = 2;
+/// The bits of the state that hold the status.
+const STATUS: u64 = 3;
+
+/// The runner of the service's reviews.
+pub static RUNNER: Containment = Containment::new();
+
+impl Containment {
+    /// A runner with no job.
+    pub const fn new() -> Self {
+        return Self { state: std::sync::atomic::AtomicU64::new(IDLE) };
+    }
+
+    /// How many jobs the caller stopped waiting for are still running: zero or one.
+    pub fn outstanding(&self) -> usize {
+        return usize::from(self.state.load(std::sync::atomic::Ordering::SeqCst) & STATUS == ABANDONED);
+    }
+
+    /// Admit a job when there is none: the new generation, or nothing.
+    fn admit(&self) -> Option<u64> {
+        use std::sync::atomic::Ordering;
+        let seen: u64 = self.state.load(Ordering::SeqCst);
+        if seen & STATUS != IDLE {
+            return None;
+        }
+        let generation: u64 = (seen >> 2) + 1;
+        return self.state.compare_exchange(seen, (generation << 2) | RUNNING, Ordering::SeqCst, Ordering::SeqCst).ok().map(|_| { return generation; });
+    }
+
+    /// Move job `generation` from `from` to `to`; false when the state is not that job's in that status any more.
+    fn change(&self, generation: u64, from: u64, to: u64) -> bool {
+        use std::sync::atomic::Ordering;
+        return self.state.compare_exchange((generation << 2) | from, (generation << 2) | to, Ordering::SeqCst, Ordering::SeqCst).is_ok();
+    }
+}
+
+impl Default for Containment {
+    fn default() -> Self {
+        return Self::new();
+    }
+}
+
+/// Releases a runner's job when it goes out of scope, whether the job returned or panicked.
+struct Release<'a> {
+    /// The runner the job belongs to.
+    runner: &'a Containment,
+    /// The job.
+    generation: u64,
+}
+
+impl Drop for Release<'_> {
+    fn drop(&mut self) {
+        // Whatever status the job has (waited for or abandoned), it ends idle; a state that is another job's is left alone.
+        let _released: bool = self.runner.change(self.generation, RUNNING, IDLE) || self.runner.change(self.generation, ABANDONED, IDLE);
+    }
+}
 
 /// How many reviews the service stopped waiting for that are still running.
 pub fn outstanding_reviews() -> usize {
-    return OUTSTANDING.load(std::sync::atomic::Ordering::SeqCst);
+    return RUNNER.outstanding();
 }
 
 /// What:
@@ -245,48 +315,49 @@ pub fn outstanding_reviews() -> usize {
 ///  of the job ends by itself on no progress or at its own ceiling; the ceiling here covers the whole job, including the one step
 ///  with no judge of its own, the local write of the log entry (owner, 2026-11-04, "Silence plus a ceiling (Recommended)";
 ///  `wait_ceilings.rs`, `REVIEW_CEILING`). A thread cannot be stopped from outside, so the caller stops waiting and the thread ends
-///  with the process, or when its write returns.
+///  with the process, or when the step it is stuck in returns; meanwhile no other job starts (`Contained::Busy`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await Promise.race([job().catch(() => PANICKED), after(ceilingMs).then(() => CEILING)])
 /// ```
 pub fn run_contained<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
-    use std::sync::atomic::Ordering;
-    // A review the caller stopped waiting for may still hold the log: a second one would queue behind it, and be abandoned in its
-    // turn (sol-2, B). Nothing starts until the earlier one has ended.
-    if OUTSTANDING.load(Ordering::SeqCst) > 0 {
+    return run_contained_in(&RUNNER, job, ceiling);
+}
+
+/// `run_contained` on a runner of the caller's own.
+pub fn run_contained_in<T: Send + 'static>(runner: &'static Containment, job: impl FnOnce() -> T + Send + 'static, ceiling: Duration) -> Contained<T> {
+    // One atomic step admits the job: a review the caller stopped waiting for may still hold the log, and a second one would queue
+    // behind it and be abandoned in its turn (sol-2, B); two callers at once cannot both pass.
+    let Some(generation) = runner.admit() else {
         return Contained::Busy;
-    }
+    };
     let (sender, receiver) = mpsc::channel::<T>();
-    let state: std::sync::Arc<std::sync::atomic::AtomicU8> = std::sync::Arc::new(std::sync::atomic::AtomicU8::new(RUNNING));
-    let worker_state: std::sync::Arc<std::sync::atomic::AtomicU8> = std::sync::Arc::clone(&state);
     let worker = std::thread::Builder::new().name(String::from("standards-review")).spawn(move || {
-        let _ = sender.send(job());
-        // The job is over: if the caller had stopped waiting, it was counted as outstanding, and it is not any more.
-        if worker_state.swap(ENDED, Ordering::SeqCst) == ABANDONED {
-            OUTSTANDING.fetch_sub(1, Ordering::SeqCst);
-        }
+        // Released when the job ends, before its value is sent, so a caller that has the value finds the runner free; and on
+        // unwinding, so a job that panics after the caller gave up does not keep the runner closed.
+        let release: Release<'static> = Release { runner, generation };
+        let value: T = job();
+        drop(release);
+        let _ = sender.send(value);
     });
     if worker.is_err() {
+        let _released: bool = runner.change(generation, RUNNING, IDLE);
         return Contained::Panicked;
     }
     return match receiver.recv_timeout(ceiling) {
         Ok(value) => Contained::Finished(value),
+        // The thread ended without a value: it panicked, and its guard released the runner.
+        Err(mpsc::RecvTimeoutError::Disconnected) => Contained::Panicked,
         Err(mpsc::RecvTimeoutError::Timeout) => {
-            // Counted before the state changes, so the worker's decrement can never come before the count.
-            OUTSTANDING.fetch_add(1, Ordering::SeqCst);
-            match state.compare_exchange(RUNNING, ABANDONED, Ordering::SeqCst, Ordering::SeqCst) {
-                Ok(_) => Contained::CeilingReached(ceiling),
-                Err(_) => {
-                    // The job ended between the timeout and now: it is not outstanding, and its value is in the channel.
-                    OUTSTANDING.fetch_sub(1, Ordering::SeqCst);
-                    receiver.recv().map_or(Contained::Panicked, Contained::Finished)
-                }
+            if runner.change(generation, RUNNING, ABANDONED) {
+                Contained::CeilingReached(ceiling)
+            } else {
+                // The job ended between the timeout and now: its value is in the channel, or it panicked.
+                receiver.recv().map_or(Contained::Panicked, Contained::Finished)
             }
         }
-        Err(mpsc::RecvTimeoutError::Disconnected) => Contained::Panicked,
-    };
+    }
 }
 
 /// Controls stay out of the release executable.

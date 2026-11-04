@@ -15,7 +15,7 @@
 //! ```
 
 use crate::standards_review_input::has_shadow_log;
-use crate::standards_review_run::{Contained, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained};
+use crate::standards_review_run::{Containment, Contained, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in};
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
 use crate::standards_review_text::commit_subject;
 use crate::service_review_key::{KEY_VARIABLES, ReviewKey};
@@ -140,20 +140,42 @@ pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions
 
 /// `review_item` where the whole review is waited for at most `ceiling`; a control shortens it.
 pub fn review_item_within(context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
-    if !has_shadow_log(Path::new(item.repository.as_str())) {
-        return Verdict::Done;
-    }
+    return review_item_in(&crate::standards_review_run::RUNNER, context, item, options, ceiling);
+}
+
+/// What:
+///  `review_item_within` on a runner of the caller's own.
+/// Why:
+///   The look for the repository's shadow log is inside the contained job: it reads the worktree, which can stall like any other
+///  read, and nothing that can block runs on the service's work thread outside the ceiling (sol-2 round 2). Controls give each its
+///  own runner, so they do not see one another's reviews.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runner.contain(() => hasShadowLog(repository) ? reviewLanded(...) : undefined, ceiling)
+/// ```
+pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
     // The service serves many repositories, so its own context names none; the Git command that takes input needs the
     // item's Git directory for its input file, as the landing sets it for each request.
     let owned_context: GitContext = GitContext { common_dir: Some(PathBuf::from(item.git_dir.as_str())), ..context.clone() };
     let owned: WorkItem = item.clone();
-    let outcome: Contained<ReviewOutcome> = run_contained(move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); }, ceiling);
+    let outcome: Contained<Option<ReviewOutcome>> = run_contained_in(
+        runner,
+        move || {
+            if !has_shadow_log(Path::new(owned.repository.as_str())) {
+                return None;
+            }
+            return Some(run_review(&owned_context, &owned, &options, &wall_clock_millis));
+        },
+        ceiling,
+    );
     return match outcome {
         Contained::Panicked => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
         Contained::CeilingReached(reached) => Verdict::Failed(ceiling_reason(item.oid.as_str(), reached)),
         Contained::Busy => Verdict::Failed(busy_reason(item.oid.as_str())),
-        Contained::Finished(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message)) => Verdict::Failed(message),
-        Contained::Finished(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged) => Verdict::Done,
+        Contained::Finished(None) => Verdict::Done,
+        Contained::Finished(Some(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message))) => Verdict::Failed(message),
+        Contained::Finished(Some(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged)) => Verdict::Done,
     };
 }
 

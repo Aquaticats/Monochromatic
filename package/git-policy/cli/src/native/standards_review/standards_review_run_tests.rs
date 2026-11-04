@@ -212,16 +212,17 @@ fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
 /// refused without a thread, and the runner takes work again once the first has ended.
 #[test]
 fn no_second_job_starts_while_a_job_the_runner_stopped_waiting_for_is_still_running() {
+    static OWN: Containment = Containment::new();
     let (release, blocked) = mpsc::channel::<()>();
-    let first: Contained<u8> = run_contained(move || {
+    let first: Contained<u8> = run_contained_in(&OWN, move || {
         let _ = blocked.recv();
         return 1_u8;
     }, Duration::from_millis(300));
     assert_eq!(first, Contained::CeilingReached(Duration::from_millis(300)));
-    assert_eq!(outstanding_reviews(), 1);
+    assert_eq!(OWN.outstanding(), 1);
     let started: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&started);
-    let second: Contained<u8> = run_contained(move || {
+    let second: Contained<u8> = run_contained_in(&OWN, move || {
         flag.store(true, std::sync::atomic::Ordering::SeqCst);
         return 2_u8;
     }, Duration::from_secs(60));
@@ -229,25 +230,78 @@ fn no_second_job_starts_while_a_job_the_runner_stopped_waiting_for_is_still_runn
     assert!(!started.load(std::sync::atomic::Ordering::SeqCst), "the refused job never ran");
     drop(release);
     let waiting_since: std::time::Instant = std::time::Instant::now();
-    while outstanding_reviews() > 0 {
+    while OWN.outstanding() > 0 {
         assert!(waiting_since.elapsed() < Duration::from_secs(20), "the first job never ended");
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert_eq!(run_contained(|| return 3_u8, Duration::from_secs(60)), Contained::Finished(3));
+    assert_eq!(run_contained_in(&OWN, || return 3_u8, Duration::from_secs(60)), Contained::Finished(3));
 }
 
 /// A job that ends just as the runner gives up is not left counted as outstanding: whichever side is first, the count returns to
 /// zero and the runner takes work.
 #[test]
 fn a_job_that_ends_as_the_runner_gives_up_leaves_nothing_outstanding() {
+    static OWN: Containment = Containment::new();
     for round in 0..200_u64 {
         let ceiling: Duration = Duration::from_micros(round * 20);
-        let outcome: Contained<u8> = run_contained(|| return 1_u8, ceiling);
+        let outcome: Contained<u8> = run_contained_in(&OWN, || return 1_u8, ceiling);
         assert!(matches!(outcome, Contained::Finished(1) | Contained::CeilingReached(_)), "{outcome:?}");
         let waiting_since: std::time::Instant = std::time::Instant::now();
-        while outstanding_reviews() > 0 {
+        while OWN.outstanding() > 0 {
             assert!(waiting_since.elapsed() < Duration::from_secs(20), "round {round}: a count was left behind");
             std::thread::sleep(Duration::from_millis(1));
         }
+    }
+}
+
+/// A review that panics after the runner stopped waiting for it is no longer outstanding (sol-2 round 2, P1): the accounting is
+/// released by a guard that runs on unwinding, so later reviews are not refused for ever. The control times out, lets the worker
+/// panic, sees zero outstanding, and starts a new review.
+#[test]
+fn a_review_that_panics_after_its_timeout_leaves_nothing_outstanding() {
+    static OWN: Containment = Containment::new();
+    let (release, blocked) = mpsc::channel::<()>();
+    let first: Contained<u8> = run_contained_in(&OWN, move || {
+        let _ = blocked.recv();
+        panic!("the review panics after the runner stopped waiting");
+    }, Duration::from_millis(300));
+    assert_eq!(first, Contained::CeilingReached(Duration::from_millis(300)));
+    assert_eq!(OWN.outstanding(), 1);
+    release.send(()).expect("let the worker go on to its panic");
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while OWN.outstanding() > 0 {
+        assert!(waiting_since.elapsed() < Duration::from_secs(20), "the panicked review stayed outstanding");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(run_contained_in(&OWN, || return 5_u8, Duration::from_secs(60)), Contained::Finished(5), "a new review starts");
+}
+
+/// Two callers that arrive together are never both admitted (sol-2 round 2, P2): each job counts how many jobs run at once while it
+/// does, so the control sees a second admission whichever way the threads are scheduled, and the count never passes one.
+#[test]
+fn two_callers_that_arrive_together_are_never_admitted_at_once() {
+    static OWN: Containment = Containment::new();
+    static ACTIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    static MOST: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    for round in 0..100 {
+        let barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let callers: Vec<std::thread::JoinHandle<Contained<u8>>> = (0..2)
+            .map(|_| {
+                let shared = std::sync::Arc::clone(&barrier);
+                return std::thread::spawn(move || {
+                    shared.wait();
+                    return run_contained_in(&OWN, || {
+                        let now: usize = ACTIVE.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                        MOST.fetch_max(now, std::sync::atomic::Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(15));
+                        ACTIVE.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                        return 1_u8;
+                    }, Duration::from_secs(60));
+                });
+            })
+            .collect();
+        let outcomes: Vec<Contained<u8>> = callers.into_iter().map(|caller| { return caller.join().expect("caller"); }).collect();
+        assert!(outcomes.iter().all(|outcome| { return matches!(outcome, Contained::Finished(1) | Contained::Busy); }), "round {round}: {outcomes:?}");
+        assert_eq!(MOST.load(std::sync::atomic::Ordering::SeqCst), 1, "round {round}: two jobs ran at once");
     }
 }
