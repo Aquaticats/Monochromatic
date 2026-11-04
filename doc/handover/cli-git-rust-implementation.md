@@ -293,6 +293,36 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   so they are owner decisions now.
   Both sent to the agent,
   which records them in the planning doc.
+- cargo-shadow round 20 (tip `7d66717bb6`,
+  gate 652/652,
+  clippy clean) merged to main (`fd6a3cd183`):
+  the second start stops at once with exit 2 (`src/arrival.rs`),
+  and a test runs both printed fixes as printed;
+  the chosen real cargo is checked again before each start.
+  0.1.3 published (crates.io 2026-11-04T21:59:45Z,
+  publish run 41921008620 built from `a9901d3503`),
+  locked and installed as `cargo` (`9c51ac07f2`) after the launcher trace passed again
+  (`~/temp/agent/cgs-trace-013.log`).
+  Sixth certification pass (14 groups,
+  every packet with its manifest,
+  `~/temp/agent/reviews/cargo-shadow-cert6-sol-<n>.txt`):
+  groups 2 and 4 "certified after named fixes",
+  the other 12 "not certified";
+  all sent to the agent.
+  Round 21 (agent `ae0fbdf78c31bd757`):
+  the check-to-start window is closed for a compiled real cargo by starting the checked file through its descriptor
+  (`execveat` with `AT_EMPTY_PATH`;
+  the real cargo here is rustup's ELF proxy);
+  scripts keep the pathname and the re-check,
+  because `man 3 fexecve` and `man 2 execveat` say a script started through a close-on-exec descriptor fails with
+  `ENOENT`,
+  and a hit there ends at the arrival stop.
+  Coordinator's reading,
+  not an owner question:
+  the owner's rule "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively."
+  determines it.
+  Then the open list of the fifth pass and every sixth-pass group's named fixes,
+  groups 2 and 4 first.
 - Worktree adds into `~/temp/agent` take over 15 minutes and fill the disk queue:
   `~/temp/agent` is `/var/mnt/encrypted/temp/agent`,
   another filesystem than the main checkout,
