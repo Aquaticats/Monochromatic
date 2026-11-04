@@ -3241,6 +3241,22 @@ section "Owner questions for revision 12"):
   as with native Git).
   The coordinator applies the same rule to today's landing (the integration agent in "Agents and gates running").
 
+### Commit protocol question 8 answer
+
+Asked at 2026-11-04T05:07-05:00 through the question tool,
+after the review of revision 19 (`commits-never-fail-sol-19a.txt`) found it "accurate after one small precision edit",
+which was applied (`b98b3cad18`).
+The owner picked "Retry it,
+leave a notice (Recommended)":
+when recovery after a power loss finds no decisive positive authority for a request that had returned success,
+it makes a fresh attempt and the next wrapper command in that worktree prints an outcome-specific stored notice
+(published with the new commit's id and the command to drop it,
+or why it stopped).
+The rare case where a commit removed on purpose comes back,
+not promised to happen only once,
+is accepted.
+Recorded as decision 19 in the design.
+
 ### Commit protocol revision 15 answers
 
 The owner,
