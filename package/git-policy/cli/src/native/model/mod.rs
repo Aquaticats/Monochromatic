@@ -343,3 +343,19 @@ mod model_submission_r15;
 /// The controls of the submission window.
 #[path = "model_submission_r15_tests.rs"]
 mod model_submission_r15_tests;
+
+/// Reclamation during capture: a departure's acknowledgment against a concurrent checkpoint that removes the segment (plan step 1).
+#[path = "model_capture_reclaim_r23.rs"]
+mod model_capture_reclaim_r23;
+
+/// The controls of reclamation during capture.
+#[path = "model_capture_reclaim_r23_tests.rs"]
+mod model_capture_reclaim_r23_tests;
+
+/// The disposal of saved content: the `disposed` line durable before the content is removed (plan step 1).
+#[path = "model_disposal_r23.rs"]
+mod model_disposal_r23;
+
+/// The controls of the disposal of saved content.
+#[path = "model_disposal_r23_tests.rs"]
+mod model_disposal_r23_tests;

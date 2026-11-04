@@ -17,7 +17,7 @@ use std::path::PathBuf;
 const LABEL: &str = "//! Historical control, not approval evidence for revision 13:";
 
 /// The modules that are evidence for revision 13, and the tools and test files that are not models.
-const CURRENT: [&str; 37] = [
+const CURRENT: [&str; 41] = [
     "model_explore.rs",
     "model_fixture.rs",
     "model_w1_r13.rs",
@@ -55,6 +55,10 @@ const CURRENT: [&str; 37] = [
     "model_m1_reclaim_r19_tests.rs",
     "model_helper_bound_r20.rs",
     "model_helper_bound_r20_tests.rs",
+    "model_capture_reclaim_r23.rs",
+    "model_capture_reclaim_r23_tests.rs",
+    "model_disposal_r23.rs",
+    "model_disposal_r23_tests.rs",
 ];
 
 /// Every model module is current or labelled historical.
