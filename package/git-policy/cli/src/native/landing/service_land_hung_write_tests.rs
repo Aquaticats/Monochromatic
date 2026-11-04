@@ -114,6 +114,25 @@ fn wait_for(path: &Path) {
     }
 }
 
+/// Waits until the service has finished with the batches it landed: none is open, its markers are gone and the index lock is given up. The service goes on
+/// working in the fixture after the answer (the index build, the records), and a fixture removed under it is not empty when the
+/// removal reaches it.
+fn wait_until_settled(world: &World) {
+    let began: Instant = Instant::now();
+    loop {
+        let open: usize = crate::service_journal::list_intents(world.context.journal.as_path(), crate::service_journal::OPEN_EXTENSION).len();
+        // The landing thread removes the markers of its group after it has answered.
+        let marked: bool = std::fs::read_dir(world.context.journal.join("busy")).is_ok_and(|mut entries| { return entries.next().is_some(); });
+        if open == 0 && !marked && !world.repo.join(".git/index.lock").exists() {
+            break;
+        }
+        assert!(began.elapsed() < PATIENCE, "the service never finished with its batches");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // The after-commit work (push, upkeep) of the last landing starts a moment after the answer.
+    std::thread::sleep(Duration::from_millis(500));
+}
+
 /// The subjects on the branch after `base`, oldest first.
 fn subjects_since(world: &World, base: &str) -> String {
     return git_text(world.repo.as_path(), &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]);
@@ -152,6 +171,7 @@ fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_it
     let (third_answer, third_notices) = third.join().expect("third client");
     assert!(matches!(third_answer, Ok(Submitted::Landed { .. })), "{third_answer:?} {third_notices}");
     assert_eq!(subjects_since(&world, base.as_str()), "message of first\nmessage of third", "the withdrawn commit never landed");
+    wait_until_settled(&world);
     remove(serving.directory.as_path());
     remove(world.root.as_path());
 }
@@ -186,6 +206,7 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
         assert!(released_at.elapsed() < PATIENCE, "the commit never landed: {}", subjects_since(&world, base.as_str()));
         std::thread::sleep(Duration::from_millis(50));
     }
+    wait_until_settled(&world);
     remove(serving.directory.as_path());
     remove(world.root.as_path());
 }
