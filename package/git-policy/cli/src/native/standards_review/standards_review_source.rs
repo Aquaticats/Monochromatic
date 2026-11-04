@@ -12,8 +12,8 @@
 //! const patch = git('show', '--format=', '--patch', sha); const blobs = catFileBatch(codeFiles.map((name) => `${sha}:${name}`));
 //! ```
 
-use super::standards_review_input::{LandedCommit, MAX_EXCERPT_FILES};
-use super::transaction_git::{GitContext, GitRequest, run_git};
+use crate::standards_review_input::{LandedCommit, MAX_EXCERPT_FILES};
+use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::Path;

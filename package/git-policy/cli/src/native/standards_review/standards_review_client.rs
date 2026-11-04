@@ -16,7 +16,7 @@
 //! ```
 
 /// The measuring of a call's quiet gap, beside the call.
-use super::thread_quiet::measured_quiet;
+use crate::thread_quiet::measured_quiet;
 use std::time::Duration;
 use ureq::tls::{Certificate, RootCerts, TlsConfig};
 

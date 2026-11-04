@@ -11,7 +11,7 @@
 //! const body = JSON.stringify({ model, input, questions: [...] }); const verdict = readAnswer(await response.text());
 //! ```
 
-use super::standards_review_text::{js_number_text, utf16_prefix};
+use crate::standards_review_text::{js_number_text, utf16_prefix};
 use serde_json::Value;
 
 /// The hosted decision model.

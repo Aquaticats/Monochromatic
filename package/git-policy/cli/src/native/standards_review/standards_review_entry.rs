@@ -10,9 +10,9 @@
 //! entry('- Date:'); entry(`  ${new Date().toISOString()}`); // ...
 //! ```
 
-use super::standards_review_request::ROUTE;
-use super::standards_review_input::CAP_LINES;
-use super::standards_review_text::on_one_line;
+use crate::standards_review_request::ROUTE;
+use crate::standards_review_input::CAP_LINES;
+use crate::standards_review_text::on_one_line;
 
 /// Leading characters of the commit name the log prints.
 ///  Exempt from a citation under `LQM` (class: display cap): it limits how much text a message, log field or record

@@ -1044,33 +1044,14 @@ pub mod repo_read_query_quiet;
 /// In-process repository reads: the two runner entry points that try the answers before starting Git.
 pub mod repo_read_hook;
 
-/// The standards-review shadow run: JavaScript text behaviors the log depends on (UTF-16 lengths, number text).
-pub mod standards_review_text;
+/// The standards-review shadow run:
+///  its request,
+///  the patch it covers,
+///  its one HTTPS call and the result it appends.
+pub mod standards_review;
 
-/// The standards-review shadow run: a file's changed old-side ranges read from the patch.
-pub mod standards_review_patch;
-
-/// The standards-review shadow run: which commits get an entry, and the capped model input.
-pub mod standards_review_input;
-
-/// The standards-review shadow run: the Decisions API request body and the answer reading.
-pub mod standards_review_request;
-
-/// The standards-review shadow run: log entry rendering and appending.
-pub mod standards_review_entry;
-
-/// The standards-review shadow run: the in-process HTTPS call to the decisions gateway, with a total deadline.
-pub mod standards_review_client;
-
-/// The standards-review shadow run: the two real-Git reads (patch and file texts) of a landed commit.
-pub mod standards_review_source;
-
-/// The standards-review shadow run, end to end, and its bounded runner. Nothing calls it yet.
-pub mod standards_review_run;
-
-/// A loopback HTTP server for the standards-review tests; never in the release build.
-#[cfg(test)]
-mod standards_review_mock;
+/// Re-exports every module of `standards_review` at the crate root, as above.
+pub use standards_review::*;
 
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
@@ -1330,9 +1311,6 @@ mod standards_review_boundary_tests;
 /// is right for nested module directories; never in the release build.
 #[cfg(test)]
 mod source_scan_tests;
-
-/// The standards-review shadow run: appending an entry to the shared log without a lock, once per commit, with repair.
-pub mod standards_review_append;
 
 /// The service's handler for a review work item, bounded by a call deadline and a total budget.
 pub mod service_review;

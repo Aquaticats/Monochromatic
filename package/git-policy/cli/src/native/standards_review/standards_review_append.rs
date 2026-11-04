@@ -16,8 +16,8 @@
 //! if (!(await readLog(log)).includes(sha12)) await appendFile(log, text); // one write on an 'a' handle
 //! ```
 
-use super::private_storage::create_private_directory_all;
-use super::standards_review_entry::SHORT_SHA_LENGTH;
+use crate::private_storage::create_private_directory_all;
+use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use std::io::Write;
 use std::path::Path;
 
@@ -62,7 +62,7 @@ fn append_whole(log: &Path, text: &str) -> std::io::Result<()> {
     {
         // The trait adds `.mode` and `.custom_flags` to open options on Unix.
         use std::os::unix::fs::OpenOptionsExt;
-        options.mode(super::private_storage::PRIVATE_FILE_MODE).custom_flags(libc::O_NOFOLLOW);
+        options.mode(crate::private_storage::PRIVATE_FILE_MODE).custom_flags(libc::O_NOFOLLOW);
     }
     let mut file: std::fs::File = options.open(log)?;
     return file.write_all(text.as_bytes());

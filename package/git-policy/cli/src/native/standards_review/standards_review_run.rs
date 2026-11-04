@@ -14,13 +14,13 @@
 //! const outcome = await reviewLanded({ names, sha, subject, read, options, clock });
 //! ```
 
-use super::iso_time::format_iso_milliseconds;
-use super::standards_review_client::{Gateway, Reply, SCRIPT_QUIET_WINDOW, post_decision};
-use super::standards_review_append::{deliver, names_commit};
-use super::standards_review_entry::{ReviewEntry, render_review, render_skipped};
-use super::standards_review_input::{LandedCommit, Plan, ReviewInput, build_input, plan_for, shared_log_path};
-use super::standards_review_request::{ENDPOINT, Judged, read_answer, request_body};
-use super::standards_review_text::seconds_with_tenth;
+use crate::iso_time::format_iso_milliseconds;
+use crate::standards_review_client::{Gateway, Reply, SCRIPT_QUIET_WINDOW, post_decision};
+use crate::standards_review_append::{deliver, names_commit};
+use crate::standards_review_entry::{ReviewEntry, render_review, render_skipped};
+use crate::standards_review_input::{LandedCommit, Plan, ReviewInput, build_input, plan_for, shared_log_path};
+use crate::standards_review_request::{ENDPOINT, Judged, read_answer, request_body};
+use crate::standards_review_text::seconds_with_tenth;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -35,7 +35,7 @@ pub const SHA_VARIABLE: &str = "SHADOW_REVIEW_SHA";
 pub const ALLOW_VARIABLE: &str = "SHADOW_REVIEW_ALLOW";
 
 /// The credential variable, and the stop-hook credential used when it is unset.
-pub const KEY_VARIABLES: [&str; 2] = super::service_review_key::KEY_VARIABLES;
+pub const KEY_VARIABLES: [&str; 2] = crate::service_review_key::KEY_VARIABLES;
 
 /// The failure line written when no credential is set.
 pub const NO_KEY_MESSAGE: &str = "no SHADOW_REVIEW_LLMGATEWAY_API_KEY or STOP_REMINDER_LLMGATEWAY_API_KEY in the environment";

@@ -11,10 +11,14 @@ use crate::source_scan_tests::{CrateRoot, classified_sources, module_name, real_
 mod fixtures;
 
 /// The one file that may name the HTTP library.
-const CLIENT_FILE: &str = "standards_review_client.rs";
+const CLIENT_FILE: &str = "standards_review/standards_review_client.rs";
 
 /// The module names that carry the network client, the run that calls it, and the service handler that calls the run.
 const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_review_run", "service_review"];
+
+/// The path prefixes, relative to the source root, of the files of those modules and their tests.
+const SERVICE_ONLY_FILE_PREFIXES: [&str; 3] =
+    ["standards_review/standards_review_client", "standards_review/standards_review_run", "service_review"];
 
 /// Files outside the client path that may name the service-only modules: their own files and tests, the module
 /// declarations, the service's work consumer (which owns the handler that calls the review), and this test with its
@@ -23,7 +27,7 @@ fn may_name_service_modules(file: &str) -> bool {
     return file == "lib.rs"
         || file.starts_with("standards_review_boundary_")
         || file.starts_with("service_work")
-        || SERVICE_ONLY_MODULES.iter().any(|module| return file.starts_with(module));
+        || SERVICE_ONLY_FILE_PREFIXES.iter().any(|prefix| return file.starts_with(prefix));
 }
 
 /// The source files of this crate that ship in the executable or its library, or are compiled for its tests: every
@@ -64,7 +68,7 @@ fn without_declarations(text: &str) -> String {
 fn violations(sources: &[(String, String)]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for (file, text) in sources {
-        let client_tests: bool = file.starts_with("standards_review_client");
+        let client_tests: bool = file.starts_with("standards_review/standards_review_client");
         if text.contains("ureq") && !client_tests && !file.starts_with("standards_review_boundary_") {
             found.push(format!("{file} names the HTTP library"));
         }

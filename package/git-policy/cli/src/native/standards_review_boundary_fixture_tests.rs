@@ -55,9 +55,10 @@ fn a_nested_file_with_the_name_of_an_exempt_file_is_still_checked() {
     let found: Vec<String> = scan(
         "boundary-scan-exempt-name",
         &[
-            ("lib.rs", "mod standards_review_client;\nmod standards_review_run;\nmod nested;\n"),
-            ("standards_review_client.rs", "let agent = ureq::Agent::new_with_defaults();\n"),
-            ("standards_review_run.rs", "use super::standards_review_client::post_decision;\n"),
+            ("lib.rs", "mod standards_review;\nmod nested;\n"),
+            ("standards_review/mod.rs", "mod standards_review_client;\nmod standards_review_run;\n"),
+            ("standards_review/standards_review_client.rs", "let agent = ureq::Agent::new_with_defaults();\n"),
+            ("standards_review/standards_review_run.rs", "use super::standards_review_client::post_decision;\n"),
             ("nested/mod.rs", "mod standards_review_client;\nmod standards_review_run;\n"),
             ("nested/standards_review_client.rs", "let agent = ureq::Agent::new_with_defaults();\n"),
             ("nested/standards_review_run.rs", "use crate::service_review::run;\n"),

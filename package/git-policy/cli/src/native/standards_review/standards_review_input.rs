@@ -11,8 +11,8 @@
 //! const plan = classify(names); const input = buildReviewInput({ commit });
 //! ```
 
-use super::standards_review_patch::{NewSpan, new_spans};
-use super::standards_review_text::{utf16_length, utf16_prefix};
+use crate::standards_review_patch::{NewSpan, new_spans};
+use crate::standards_review_text::{utf16_length, utf16_prefix};
 use std::collections::BTreeMap;
 
 /// The tracked log's repository-relative path: the repository's switch for the review, and the file a commit changes
