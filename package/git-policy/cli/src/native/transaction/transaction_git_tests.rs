@@ -780,9 +780,9 @@ fn a_merge_that_does_not_return_gives_the_not_known_error_and_is_left_running() 
     assert!(waited >= Duration::from_secs(1) && waited < Duration::from_secs(30), "{waited:?}");
     assert!(started.exists() && !finished.exists(), "the step was not ended");
     std::fs::write(root.join("release"), b"").expect("release");
-    let began: std::time::Instant = std::time::Instant::now();
+    let waiting_since: std::time::Instant = std::time::Instant::now();
     while !finished.exists() {
-        assert!(began.elapsed() < Duration::from_secs(30), "the step never finished");
+        assert!(waiting_since.elapsed() < Duration::from_secs(30), "the step never finished");
         std::thread::sleep(Duration::from_millis(50));
     }
     remove(root.as_path());
