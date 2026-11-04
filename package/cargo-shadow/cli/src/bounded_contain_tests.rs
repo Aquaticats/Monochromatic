@@ -32,25 +32,24 @@ fn bound(limit: Duration) -> Bound {
 }
 
 /// The script of a parent that starts a writer in a session of its own (it also closes every standard stream,
-/// so no pipe
-/// reaches it),
-/// waits until the writer says it escaped,
+/// so no pipe reaches it),
+/// waits until the writer says it escaped (its process id is in a file, then a ready file exists),
 /// and then does `after`.
-/// The writer writes the target file after `delay` seconds.
-fn script_with_escaped_writer(directory: &Path, delay: u32, after: &str) -> String {
+/// The writer lives on until it is stopped.
+fn script_with_escaped_writer(directory: &Path, after: &str) -> String {
     let ready = directory.join("ready");
-    let target = directory.join("target");
+    let pid_file = directory.join("pid");
     return format!(
-        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; sleep {delay}; echo late > {target}' & \
-         i=0; while [ ! -e {ready} ] && [ $i -lt 200 ]; do sleep 0.05; i=$((i+1)); done; {after}",
+        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; echo $$ > {pid}; : > {ready}; exec sleep 600' & \
+         while [ ! -e {ready} ]; do sleep 0.02; done; {after}",
         ready = ready.display(),
-        target = target.display()
+        pid = pid_file.display()
     );
 }
 
-/// Waits long enough for an escaped writer that was not stopped to write its file.
-fn wait_for_a_late_write(delay: u32) {
-    std::thread::sleep(Duration::from_millis(u64::from(delay) * 1000 + 700));
+/// The process id the escaped writer recorded.
+fn writer_pid(directory: &Path) -> i32 {
+    return crate::contain_counterexample_tests::read_pid(&directory.join("pid"));
 }
 
 /// Round 6 (5a F1,
@@ -59,13 +58,13 @@ fn wait_for_a_late_write(delay: u32) {
 #[test]
 fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
     let directory = scratch();
-    let script = script_with_escaped_writer(directory.path(), 2, "echo done");
+    let script = script_with_escaped_writer(directory.path(), "echo done");
 
     let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(20))).expect("runs");
-    wait_for_a_late_write(2);
+    let writer = writer_pid(directory.path());
 
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
-    assert!(!directory.path().join("target").exists(), "a descendant wrote after the run had returned");
+    assert!(!crate::contain_counterexample_tests::is_running(writer), "a descendant is still running after the run had returned");
 }
 
 /// Round 6 (5a F1,
@@ -74,13 +73,13 @@ fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
 #[test]
 fn a_writer_in_another_session_is_stopped_at_the_bound() {
     let directory = scratch();
-    let script = script_with_escaped_writer(directory.path(), 3, "sleep 30");
+    let script = script_with_escaped_writer(directory.path(), "sleep 30");
 
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(1)));
-    wait_for_a_late_write(3);
+    let writer = writer_pid(directory.path());
 
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
-    assert!(!directory.path().join("target").exists(), "a descendant wrote after the run had returned");
+    assert!(!crate::contain_counterexample_tests::is_running(writer), "a descendant is still running after the run had returned");
 }
 
 /// Round 6 (5a P1,

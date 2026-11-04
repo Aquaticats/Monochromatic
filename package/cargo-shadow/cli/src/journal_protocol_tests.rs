@@ -1142,3 +1142,82 @@ fn a_leftover_temporary_of_a_killed_replacement_is_reported_and_kept() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(messages.iter().any(|message| { return message.contains(".Cargo.lock.shadow-1-2-3.tmp") && message.contains("may hold"); }), "{messages:?}");
 }
+
+/// Every name under a directory (recursively) that is a hard link of the inode.
+fn names_of_inode(directory: &Path, inode: u64) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in fs::read_dir(directory).expect("lists").flatten() {
+        let path: PathBuf = entry.path();
+        let metadata = fs::symlink_metadata(&path).expect("examines");
+        if metadata.is_dir() {
+            found.extend(names_of_inode(&path, inode));
+        } else if metadata.ino() == inode {
+            found.push(path);
+        }
+    }
+    return found;
+}
+
+/// Acceptance row R2:
+/// the preferred kept directory refuses the link (`EMLINK`, `ENOSPC`, `EXDEV`, `EACCES`),
+/// and the protocol falls back to a name beside the target:
+/// the displaced inode keeps a protected name.
+#[test]
+fn a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a_name() {
+    for (label, code) in [("EMLINK", rustix::io::Errno::MLINK), ("ENOSPC", rustix::io::Errno::NOSPC), ("EXDEV", rustix::io::Errno::XDEV), ("EACCES", rustix::io::Errno::ACCESS)] {
+        let root = repository("expected");
+        let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+        let kept_dir = root.path().join("kept");
+        let displaced: u64 = fs::metadata(&path).expect("examines").ino();
+        let refuse_in_kept = |existing: &Path, new: &Path| -> std::io::Result<()> {
+            if new.starts_with(&kept_dir) { return Err(std::io::Error::from_raw_os_error(code.raw_os_error())); }
+            return fs::hard_link(existing, new);
+        };
+
+        let outcome = replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &refuse_in_kept, &real_sync_file, &real_sync_dir);
+
+        assert!(outcome.is_ok(), "{label}: {:?}", outcome.err().map(|error| { return error.to_string(); }));
+        let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
+        assert!(!names.is_empty(), "{label}: the displaced inode lost its last name");
+        assert!(names.iter().all(|name| { return !name.starts_with(&kept_dir); }), "{label}: {names:?}");
+    }
+}
+
+/// Acceptance row R2:
+/// every link fails,
+/// or a barrier fails:
+/// the replacement is not reported as settled, the displaced inode still has a name,
+/// and the message says where it is.
+#[test]
+fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_name_and_the_message_says_where() {
+    let refuse_all = |_existing: &Path, _new: &Path| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(rustix::io::Errno::MLINK.raw_os_error())); };
+    let failing_file = |_path: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected data barrier failure")); };
+    let failing_dir = |_path: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected directory barrier failure")); };
+    type Link<'a> = &'a dyn Fn(&Path, &Path) -> std::io::Result<()>;
+    type Barrier<'a> = &'a dyn Fn(&Path) -> std::io::Result<()>;
+    let cases: Vec<(&str, Link, Barrier, Barrier)> = vec![
+        ("every link fails", &refuse_all, &real_sync_file, &real_sync_dir),
+        ("the data barrier fails", &real_link, &failing_file, &real_sync_dir),
+        ("the directory barrier fails", &real_link, &real_sync_file, &failing_dir),
+    ];
+    for (label, link, sync_file, sync_dir) in cases {
+        let root = repository("expected");
+        let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+        let displaced: u64 = fs::metadata(&path).expect("examines").ino();
+
+        let outcome = replace_with(&path, &KeepAs::next_to_target(".displaced"), link, sync_file, sync_dir);
+
+        // Every link failing is an outcome (the file stays under its temporary name and the path is returned); a failing barrier is an error.
+        let message: String = match outcome {
+            Ok(found) => {
+                let shown: String = format!("{found:?}");
+                assert!(shown.starts_with("Displaced("), "{label}: reported as settled: {shown}");
+                shown
+            }
+            Err(error) => error.to_string(),
+        };
+        let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
+        assert!(!names.is_empty(), "{label}: the displaced inode lost its last name");
+        assert!(message.contains(&names[0].display().to_string()) || message.contains(".shadow-") || message.contains("displaced"), "{label}: the message does not say where the file is: {message}");
+    }
+}

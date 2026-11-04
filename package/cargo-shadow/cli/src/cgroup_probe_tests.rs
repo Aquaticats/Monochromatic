@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use crate::cgroup_test_support::{delegated_route, start_in_scope, wait_until};
+use crate::cgroup_test_support::{delegated_route, start_in_scope, start_in_scope_without_waiting, wait_until};
 use crate::contain_counterexample_tests::{compile_leader, is_running};
 use crate::control_group::{Membership, Record, RouteSettings, View, detect_route, kill_file_present, parse_record, query, view_of};
 use crate::test_scratch::scratch;
@@ -100,8 +100,8 @@ fn probe_2_an_ordinary_member_is_stopped_and_the_scope_is_empty_or_absent() {
 fn probe_2_a_thread_group_with_an_exited_leader_stays_populated_until_it_is_stopped() {
     let directory = scratch();
     let leader: PathBuf = compile_leader(directory.path());
-    let target: PathBuf = directory.path().join("target");
-    let Some(mut scope) = start_in_scope(Command::new(&leader).arg("600").arg(&target)) else {
+    let ready: PathBuf = directory.path().join("ready");
+    let Some(mut scope) = start_in_scope(Command::new(&leader).arg(&ready)) else {
         return;
     };
     let pid: i32 = i32::try_from(scope.child.id()).expect("a process id");
@@ -192,12 +192,13 @@ fn probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_assumption_a()
     }
     let own: String = group_of("self");
     let leaf: PathBuf = Path::new("/sys/fs/cgroup").join(own.trim_start_matches("0::").trim_start_matches('/'));
-    let Some(mut scope) = start_in_scope(Command::new("sh").args(["-c", "echo 0 > \"$1\"/cgroup.procs; exec sleep 600", "sh"]).arg(&leaf)) else {
+    let Some(mut scope) = start_in_scope_without_waiting(Command::new("sh").args(["-c", "echo 0 > \"$1\"/cgroup.procs; exec sleep 600", "sh"]).arg(&leaf)) else {
         return;
     };
     let pid: i32 = i32::try_from(scope.child.id()).expect("a process id");
 
-    wait_until("the member's move out", &|| { return scope.group.members().map(|found| { return found.is_empty(); }).unwrap_or(false); });
+    // The handshake is the member's own record: its group is the leaf it moved into, not the scope it started in.
+    wait_until("the member's move out", &|| { return group_of(&pid.to_string()) == own; });
     let escaped_alive: bool = is_running(pid);
     let _ = scope.child.kill();
     let _ = scope.child.wait();

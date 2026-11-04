@@ -1006,3 +1006,80 @@ fn the_cleanup_failure_happens_after_the_completion_marker_was_published() {
     let journals = crate::journal_support::journal_dirs(root.path());
     assert!(journals.iter().any(|journal| { return journal.to_string_lossy().ends_with(".done"); }), "no completion marker at the point of the cleanup failure: {journals:?}");
 }
+
+/// Acceptance row A3, A4 (the actual completion rename):
+/// an accepted run whose completion rename fails stops the command.
+#[test]
+fn an_accepted_run_whose_completion_rename_fails_stops_the_command() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner: FakeCargo = cargo(SATISFIED);
+    crate::failpoints::arm(crate::failpoints::Point::CompletionRename);
+
+    let outcome = step(&start, false, &runner, &registry());
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("completion"), "{message}"),
+        other => panic!("a failed completion rename read as {other:?}"),
+    }
+}
+
+/// Acceptance row A3, A4 (the actual completion-parent sync):
+/// an accepted run whose sync of the marker's directory fails stops the command.
+#[test]
+fn an_accepted_run_whose_completion_directory_sync_fails_stops_the_command() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner: FakeCargo = cargo(SATISFIED);
+    crate::failpoints::arm(crate::failpoints::Point::CompletionSync);
+
+    let outcome = step(&start, false, &runner, &registry());
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("completion"), "{message}"),
+        other => panic!("a failed completion directory sync read as {other:?}"),
+    }
+}
+
+/// Acceptance row A3 (refused outcome):
+/// a refusal survives a failed completion marker and the message names the marker too.
+#[test]
+fn a_refusal_survives_a_failed_completion_marker_and_names_it() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = cargo_that_writes_a_refused_release();
+    crate::failpoints::arm(crate::failpoints::Point::CompletionRename);
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1") && message.contains("completion"), "{message}"),
+        other => panic!("the refusal was replaced: {other:?}"),
+    }
+}
+
+/// Acceptance row R3:
+/// cargo failed after writing a lockfile and the rollback fails too:
+/// the step stops the command (so the `--locked` fallback never builds the unrestored lockfile),
+/// without depending on permissions.
+#[test]
+fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_falling_back() {
+    let young: String = format!("# satisfied\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        }
+        if arguments[0] == "update" {
+            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+            return Ok(CargoOutcome { ok: false, output: "failed after writing".to_string(), stdout: String::new() });
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+    crate::failpoints::arm(crate::failpoints::Point::Restore);
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &registry(), lock_base: None, trust_base: "HEAD" });
+
+    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would fall back onto the unrestored lockfile: {outcome:?}");
+}

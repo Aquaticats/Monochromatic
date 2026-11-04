@@ -30,35 +30,49 @@ const CRATE_DIR: &str = "package/c/one";
 /// How long a test waits for a file that a helper promised to make.
 const FILE_WAIT: Duration = Duration::from_secs(30);
 
-/// The C source of a process whose first thread ends while a second thread lives on and writes a file.
+/// The C source of a process whose first thread ends while a second thread lives on.
+/// The second thread says when the first thread is a zombie in `/proc` (the handshake), then lives on.
 /// The comments are for a reader who knows only TypeScript.
 const LEADER_SOURCE: &str = r#"
 /* What: includes the thread library and the standard helpers. Why: pthread_create starts a second thread, sleep waits. */
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-/* The second thread: waits `delay` seconds, then writes the file named by `path`, like a late write to a lockfile.
-   In TS you'd write (pseudocode): setTimeout(() => writeFileSync(path, "late"), delay * 1000) */
-struct job { unsigned delay; const char *path; };
-static void *late_writer(void *argument) {
-  struct job *work = (struct job *) argument;
-  sleep(work->delay);
-  FILE *out = fopen(work->path, "w");
-  if (out != NULL) { fputs("late", out); fclose(out); }
+/* The second thread: waits until /proc shows the first thread (the thread group leader) as a zombie, then creates the file named by
+   the first argument, and lives on.
+   In TS you'd write (pseudocode): while (!leaderIsZombie()) await sleep(1); writeFileSync(ready, ""); await sleep(600_000); */
+static const char *ready_path;
+static int leader_is_zombie(void) {
+  char name[64];
+  char text[512];
+  snprintf(name, sizeof name, "/proc/%d/stat", (int) getpid());
+  FILE *stat = fopen(name, "r");
+  if (stat == NULL) { return 0; }
+  size_t count = fread(text, 1, sizeof text - 1, stat);
+  fclose(stat);
+  text[count] = 0;
+  char *after = strrchr(text, ')');
+  return after != NULL && after[1] == ' ' && after[2] == 'Z';
+}
+static void *live_thread(void *argument) {
+  (void) argument;
+  while (!leader_is_zombie()) { usleep(1000); }
+  FILE *out = fopen(ready_path, "w");
+  if (out != NULL) { fputs("ready", out); fclose(out); }
+  sleep(600);
   return NULL;
 }
 
-/* The first thread (the thread group leader) starts the writer and then ends alone with pthread_exit.
+/* The first thread (the thread group leader) starts the second and then ends alone with pthread_exit.
    The process lives on in the second thread while /proc shows the leader as a zombie. */
 int main(int count, char **arguments) {
-  static struct job work;
   pthread_t thread;
   (void) count;
-  work.delay = (unsigned) atoi(arguments[1]);
-  work.path = arguments[2];
-  pthread_create(&thread, NULL, late_writer, &work);
+  ready_path = arguments[1];
+  pthread_create(&thread, NULL, live_thread, NULL);
   pthread_exit(NULL);
 }
 "#;
@@ -119,41 +133,67 @@ pub(crate) fn compile_leader(directory: &Path) -> PathBuf {
     return program;
 }
 
-/// Round 7 (6a R1 A):
-/// a thread group whose leader ended while another thread still lives is not quiescent,
-/// although `/proc` shows the leader as a zombie.
+/// Whether a process has a thread that is not a zombie (a zombie leader with a live thread has one).
+pub(crate) fn has_live_thread(pid: i32) -> bool {
+    let Ok(tasks) = fs::read_dir(format!("/proc/{pid}/task")) else {
+        return false;
+    };
+    return tasks.flatten().any(|task| {
+        let stat: String = fs::read_to_string(task.path().join("stat")).unwrap_or_default();
+        return stat.rsplit(')').next().unwrap_or("").trim_start().chars().next().is_some_and(|state| { return state != 'Z'; });
+    });
+}
+
+/// Round 7 (6a R1 A), round 8 with handshakes:
+/// a thread group whose leader ended while another thread lives is not quiescent,
+/// although `/proc` shows the leader as a zombie:
+/// the run stops it before a normal exit returns.
+/// The program waits for the fixture's own statement that its leader is a zombie, and after the run the process has no live thread.
 #[test]
 fn a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
     let directory = scratch();
     let leader: PathBuf = compile_leader(directory.path());
-    let target: PathBuf = directory.path().join("target");
-    let script: String = format!("setsid {} 2 {} </dev/null >/dev/null 2>&1 & sleep 0.6; echo done", leader.display(), target.display());
+    let ready: PathBuf = directory.path().join("ready");
+    let pid_file: PathBuf = directory.path().join("pid");
+    let script: String = format!(
+        "setsid {} {} </dev/null >/dev/null 2>&1 & echo $! > {}; while [ ! -e {} ]; do sleep 0.02; done; echo done",
+        leader.display(),
+        ready.display(),
+        pid_file.display(),
+        ready.display()
+    );
 
-    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(20))).expect("runs");
-    std::thread::sleep(Duration::from_millis(2_700));
+    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(30))).expect("runs");
 
+    let pid: i32 = read_pid(&pid_file);
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
-    assert!(!target.exists(), "a thread of a process whose leader had ended wrote after the run returned");
+    assert!(!has_live_thread(pid), "a thread of a process whose leader had ended is still alive after the run returned");
 }
 
 /// Round 7 (6a R1 B):
 /// many short-lived parents that leave orphans while the run ends are all stopped.
 /// This one passed before the change in most schedules:
-/// the reviewer's schedule depends on the order in which `/proc` is read.
+/// the reviewer's schedule depends on the order in which `/proc` is read, so it is a regression test and no deterministic red.
 #[test]
 fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
     let directory = scratch();
-    let target: PathBuf = directory.path().join("target");
+    let pids: PathBuf = directory.path().join("pids");
+    // Forty orphans: each double-forked child records its process id and lives on; the program waits until all forty have.
     let script: String = format!(
-        "i=0; while [ $i -lt 40 ]; do ( ( sleep 2; echo late >> {} ) & ) & i=$((i+1)); done; echo done",
-        target.display()
+        "i=0; while [ $i -lt 40 ]; do ( ( echo $$ >> {pids}; exec sleep 600 ) & ) & i=$((i+1)); done; \
+         while [ \"$(wc -l < {pids} 2>/dev/null || echo 0)\" -lt 40 ]; do sleep 0.02; done; echo done",
+        pids = pids.display()
     );
 
-    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(20))).expect("runs");
-    std::thread::sleep(Duration::from_millis(2_700));
+    let output = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(30))).expect("runs");
 
+    let recorded: Vec<i32> = fs::read_to_string(&pids).expect("the orphans' process ids").lines().filter_map(|line| { return line.trim().parse::<i32>().ok(); }).collect();
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done");
-    assert!(!target.exists(), "an orphan of the run wrote after the run returned");
+    assert_eq!(recorded.len(), 40);
+    assert!(recorded.iter().all(|pid| { return !is_running(*pid); }), "an orphan of the run is still running after the run returned");
 }
 
 /// Round 7 (6a R3):

@@ -35,8 +35,6 @@ thread_local! {
     /// Whether the next durability barrier of a recovery on this thread fails.
     static RECOVER_DURABILITY: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
-    static DIRECTORY_BARRIER: Cell<bool> = const { Cell::new(false) };
-    /// Whether the next use of this step on this thread fails.
     static COMPLETION_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static COMPLETION_RENAME: Cell<bool> = const { Cell::new(false) };
@@ -69,8 +67,6 @@ pub enum Point {
     FinishCleanup,
     /// The forcing of live files to disk before a recovery deletes the durable copies that made them recoverable.
     RecoverDurability,
-    /// The next sync of a kept copy's directory fails.
-    DirectoryBarrier,
     /// The sync of the directory that lists the completion marker fails (after the real rename).
     CompletionSync,
     /// The rename that publishes the completion marker fails (the real rename is not made).
@@ -123,7 +119,6 @@ pub fn arm(point: Point) {
         Point::FinishDurability => FINISH.with(|slot| { slot.set(true); }),
         Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
         Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
-        Point::DirectoryBarrier => DIRECTORY_BARRIER.with(|slot| { slot.set(true); }),
         Point::CompletionSync => COMPLETION_SYNC.with(|slot| { slot.set(true); }),
         Point::CompletionRename => COMPLETION_RENAME.with(|slot| { slot.set(true); }),
         Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(|slot| { slot.set(true); }),
@@ -154,7 +149,6 @@ pub fn fires(point: Point) -> bool {
         Point::FinishDurability => FINISH.with(Cell::take),
         Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
         Point::RecoverDurability => RECOVER_DURABILITY.with(Cell::take),
-        Point::DirectoryBarrier => DIRECTORY_BARRIER.with(Cell::take),
         Point::CompletionSync => COMPLETION_SYNC.with(Cell::take),
         Point::CompletionRename => COMPLETION_RENAME.with(Cell::take),
         Point::ListingEntryNotFound => LISTING_ENTRY_NOT_FOUND.with(Cell::take),

@@ -415,7 +415,8 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         Err(message) => return Err(io::Error::other(message)),
     };
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    let kept_notice: Option<String> = kept_folder_notice(root);
+    let crate_roots: Vec<String> = snapshots.iter().map(LockSnapshot::crate_dir_text).collect();
+    let kept_notice: Option<String> = kept_folder_notice(root, &crate_roots);
     // A child of an earlier killed run may still be writing the files this transaction would snapshot:
     // starting now would let two runs mutate one workspace, so the transaction is refused.
     let earlier: Vec<PathBuf> = match crate::journal_recover::list_journals(&root.join(JOURNAL_DIR)) {
@@ -696,8 +697,17 @@ pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
     };
     let name: String = directory.file_name().map(|found| { return found.to_string_lossy().to_string(); }).unwrap_or_default();
     let done: PathBuf = if name.ends_with(DONE_SUFFIX) { directory.to_path_buf() } else { parent.join(format!("{name}{DONE_SUFFIX}")) };
+    // The two real steps of the marker each have a failpoint, so a test fails the rename itself and the sync that follows it.
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::CompletionRename) {
+        return Err(io::Error::other("injected failure of the completion rename"));
+    }
     if done != directory {
         fs::rename(directory, &done)?;
+    }
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::CompletionSync) {
+        return Err(io::Error::other("injected failure of the completion directory sync"));
     }
     sync_directory(&parent)?;
     return Ok(done);
@@ -736,9 +746,25 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
 }
 
 /// What:
-/// `fn kept_folder_notice(root: &Path) -> Option<String>` is the warning for a kept folder that holds more than
-/// `KEPT_FILES_WARNING_COUNT` files:
-/// how many,
+/// `fn is_kept_beside_a_lockfile(name: &str) -> bool` says whether a file name in a crate root is a kept copy or a stranded temporary
+/// of this tool.
+/// Why:
+/// The replace protocol keeps a displaced file as `Cargo.lock.displaced*` or `Cargo.lock.refused*` beside its target when the central
+/// folder cannot take it, and a killed replacement leaves `.Cargo.lock.shadow-*.tmp`;
+/// they are kept files too and count toward the warning (contract K1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isKeptBesideALockfile(name: string): boolean
+/// ```
+fn is_kept_beside_a_lockfile(name: &str) -> bool {
+    return name.starts_with("Cargo.lock.displaced") || name.starts_with("Cargo.lock.refused") || (name.starts_with(".Cargo.lock.shadow-") && name.ends_with(".tmp"));
+}
+
+/// What:
+/// `fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String>` is the warning for kept files past
+/// `KEPT_FILES_WARNING_COUNT`:
+/// how many (in the central folder and beside the lockfiles of the crate roots),
 /// how many bytes,
 /// and where to look.
 /// Why:
@@ -749,43 +775,72 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
 /// kept files may be someone's work,
 /// so the tool neither deletes them nor stops working;
 /// it tells the person on every run past the count.
-/// A folder that cannot be read is also reported,
+/// A place that cannot be read is also reported,
 /// never taken as small.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function keptFolderNotice(root: string): string | undefined
+/// function keptFolderNotice(root: string, crateRoots: string[]): string | undefined
 /// ```
-fn kept_folder_notice(root: &Path) -> Option<String> {
+fn kept_folder_notice(root: &Path, crate_roots: &[String]) -> Option<String> {
     let directory: PathBuf = root.join(QUARANTINE_DIR);
-    let listing = match fs::read_dir(&directory) {
-        Ok(listing) => listing,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
+    let mut central: usize = 0;
+    let mut beside: usize = 0;
+    let mut bytes: u64 = 0;
+    let mut unreadable: usize = 0;
+    match fs::read_dir(&directory) {
+        Ok(listing) => {
+            for entry in listing {
+                match entry.and_then(|found| { return found.metadata(); }) {
+                    Ok(metadata) => {
+                        central += 1;
+                        bytes += metadata.len();
+                    }
+                    Err(_) => unreadable += 1,
+                }
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
             return Some(format!(
                 "cargo-shadow: {} could not be read ({error}), so the number of files kept there is unknown; look at it",
                 directory.display()
             ));
         }
-    };
-    let mut count: usize = 0;
-    let mut bytes: u64 = 0;
-    let mut unreadable: usize = 0;
-    for entry in listing {
-        match entry.and_then(|found| { return found.metadata(); }) {
-            Ok(metadata) => {
-                count += 1;
-                bytes += metadata.len();
+    }
+    for crate_root in crate_roots {
+        let place: PathBuf = root.join(crate_root);
+        match fs::read_dir(&place) {
+            Ok(listing) => {
+                for entry in listing {
+                    match entry {
+                        Ok(found) => {
+                            if is_kept_beside_a_lockfile(&found.file_name().to_string_lossy()) {
+                                match found.metadata() {
+                                    Ok(metadata) => {
+                                        beside += 1;
+                                        bytes += metadata.len();
+                                    }
+                                    Err(_) => unreadable += 1,
+                                }
+                            }
+                        }
+                        Err(_) => unreadable += 1,
+                    }
+                }
             }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(_) => unreadable += 1,
         }
     }
+    let count: usize = central + beside;
     if count + unreadable <= KEPT_FILES_WARNING_COUNT {
         return None;
     }
     let unread: String = if unreadable == 0 { String::new() } else { format!(" ({unreadable} more could not be read)") };
+    let besides: String = if beside == 0 { String::new() } else { format!(" and {beside} more are kept beside the lockfiles of the crate roots (Cargo.lock.displaced*, Cargo.lock.refused*, .Cargo.lock.shadow-*.tmp)") };
     return Some(format!(
-        "cargo-shadow: {} holds {count} files, {bytes} bytes in all{unread}. They were moved aside instead of deleted because they may be someone's work. Nothing was deleted and cargo keeps working; review the folder when you can. Before you remove any of them, check that no program still has it open.",
+        "cargo-shadow: {} holds {central} files{besides}: {count} files, {bytes} bytes in all{unread}. They were moved aside instead of deleted because they may be someone's work. Nothing was deleted and cargo keeps working; review them when you can. Before you remove any of them, check that no program still has it open.",
         directory.display()
     ));
 }

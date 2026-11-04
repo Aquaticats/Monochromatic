@@ -92,14 +92,28 @@ impl Drop for TestScope {
 /// export function startInScope(command: Command): TestScope | undefined
 /// ```
 pub(crate) fn start_in_scope(command: &mut Command) -> Option<TestScope> {
+    let scope: TestScope = start_in_scope_without_waiting(command)?;
+    wait_until("the program in the scope", &|| { return scope.group.members().map(|found| { return !found.is_empty(); }).unwrap_or(false); });
+    return Some(scope);
+}
+
+/// What:
+/// `pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> Option<TestScope>` starts the command in a fresh
+/// delegated scope and returns at once.
+/// Why:
+/// A program that leaves the scope as its first act (the escape probe) is never listed as a member when the caller looks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function startInScopeWithoutWaiting(command: Command): TestScope | undefined
+/// ```
+pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> Option<TestScope> {
     let route: Route = delegated_route()?;
     let group: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let mut launch: Command = group.launcher(&route, command, false);
     launch.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::inherit());
     let child: Child = launch.spawn().expect("starts the launcher");
-    let scope: TestScope = TestScope { child, group };
-    wait_until("the program in the scope", &|| { return scope.group.members().map(|found| { return !found.is_empty(); }).unwrap_or(false); });
-    return Some(scope);
+    return Some(TestScope { child, group });
 }
 
 /// What:

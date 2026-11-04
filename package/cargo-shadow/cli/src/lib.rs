@@ -370,6 +370,8 @@ mod cgroup_test_support;
 #[cfg(test)]
 mod survivor_discovery_tests;
 #[cfg(test)]
+mod acceptance_rows_tests;
+#[cfg(test)]
 mod quiescence_failure_tests;
 #[cfg(test)]
 mod finish_phase_tests;
