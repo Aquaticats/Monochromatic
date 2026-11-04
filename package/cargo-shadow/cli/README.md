@@ -666,21 +666,23 @@ and an HTTP 429 is retried after its `Retry-After`.
   Right after the wrapper spawns the launcher (which becomes the program) it appends
   `launcher <pid> <start time> <pid namespace> <scope path>` to the journal, without a sync (a lost or torn line is only a missing
   proof).
+  The question is answered through a pidfd and the `Pid:` line of its `fdinfo`, which show that the mounted procfs numbers the
+  process as this process's own namespace does; a procfs of another namespace gives "unknown", never "gone".
   A recovery asks about that process before it reads the scope: a launcher that no longer exists (no such process, or the id belongs
   to a process with another start time, in the recorded process id namespace) can never join the scope, so an absent or empty scope
   is final and the journal recovers by itself; a launcher that still exists blocks, and no acknowledgement overrides that.
   What the line cannot prove waits for `cargo-shadow acknowledge <journal directory>` (a person's assertion that every process of
   that run has stopped): another process id namespace, a journal with no launcher line (an older version, a failed append, a wrapper
   killed between the spawn and the append), a line for a scope the journal does not list, a torn line, a launcher that cannot be
-  inspected.
+  inspected (including a procfs of another namespace).
   A scope that has a member blocks even then.
   Nothing waits in-process.
   A record that cannot be written leaves the journal unsettled, which is the safe side.
   The journal's view record also holds the machine id (`/etc/machine-id`) and the boot id
   (`/proc/sys/kernel/random/boot_id`) of the system that made it, written before any record of a scope or a process group.
   Both ids must have their format (the boot id a lowercase UUID, the machine id 32 lowercase hexadecimal digits), a record with a
-  repeated field or an unknown line has no identity, and the boot id file must be the kernel's own: served by procfs and not the root
-  of a mount of its own, because a bind mount can put another file over it without a reboot (`systemd-nspawn` does it on purpose).
+  repeated field or an unknown line has no identity, and the boot id file must be the kernel's own: opened without following a link, served by procfs and not the root
+  of a mount of its own (checked and read on one descriptor), because a bind mount can put another file over it without a reboot (`systemd-nspawn` does it on purpose).
   An identity that fails any of this is no identity and keeps the refusal.
   A recovery on the same machine id with a different boot id treats the run's process liveness as discharged, because a reboot
   ended every process of the run (assumption e: one machine at a time, no checkpoint and restore); it then does not compare the

@@ -1037,15 +1037,81 @@ for the debug run and the release gate; `lint:clippy` with warnings denied is cl
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r11-debug1.log`, `r11-gate1.log`, `r11-clippy3.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 11, rewritten 2026-11-04T09:12:24-05:00 after the gate)
+## Round 12 (2026-11-04): the answers to the round 10 and 11 reviews
 
-Done: rounds 10 and 11 (the sections above).
-The review inputs cover `16249ffe94` to the tip of round 11, in `/var/home/user/temp/agent/reviews/cargo-shadow-11*.diff`.
+Reviews answered: `cargo-shadow-sol-11a.txt` (production, "does not meet the list for this part") and `cargo-shadow-sol-11b.txt` (tests,
+"meets it after named fixes"), in `/var/home/user/temp/agent/reviews/`; both say no acceptance row is needed, and none is added.
+
+### 11a
+
+- The launcher check and the procfs of another namespace.
+  `kill` and `/proc/<pid>/stat` read a process id in different namespaces when a child namespace keeps an ancestor's procfs, and
+  `/proc/self/ns/pid` names only the caller's, so the check could read a live launcher as a reused id and say "gone".
+  Fix (`start_of` in `src/control_group.rs`): `pidfd_open(pid)` names the process in the caller's namespace, and the `Pid:` line of
+  `/proc/self/fdinfo/<fd>` (read through the procfs) gives the number this procfs has for that very process; only when it equals the
+  id is `/proc/<pid>/stat` read, otherwise the answer is unknown.
+  The same function reads the start time when the line is written.
+  No process with that id in the caller's namespace is gone without any procfs.
+  If the entry has vanished after the match, a second look at the pidfd's number (it reads -1 for an ended process) separates "ended"
+  from "hidden".
+  Red then green: `a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher` (a helper as the first process of a new user and
+  pid namespace; with the ancestor's procfs the start time is not recorded and the question is unknown, with a procfs of its own the
+  control moves: alive, a reused id and an ended launcher are gone).
+  Red `301faaf776`, green `87da96a05f`.
+- The boot id authority followed a symbolic link and raced with the read.
+  Fix: `read_authoritative_boot_id` opens the file with `O_NOFOLLOW`, runs `fstatfs` and `statx` (`AT_EMPTY_PATH`) on that descriptor,
+  and reads from it.
+  Red then green: the `symlink` mode of `a_boot_id_put_over_the_kernels_file_is_not_an_identity` (the genuine directory is saved at
+  another path and a replacement directory whose `boot_id` is a link to the genuine `uuid` is bound over the real one).
+  The race has no test: no test makes a mount appear between the checks and the read; it is closed by construction.
+- `reap_within` counted every `try_wait` error as a reap.
+  Fix: only `Ok(Some(_))` is a reap; a failed wait keeps trying until the deadline and then reports the program as not reaped.
+  Red then green: `a_wait_that_fails_is_not_a_reap` (a new `ReapError` failpoint).
+- `read_identity_text` accepted `view nonsense`.
+  Fix: the first line must be exactly `view <mount>:<inode>` with decimal numbers.
+  Red then green: `a_view_header_that_is_not_mount_and_inode_gives_no_identity` (ten malformed headers, and a whole header as the control).
+
+### 11b
+
+- 2.1, one deadline against two budgets: the bound is 1.5 s, the return must come within 0.7 s of it.
+- 2.2, K2: one ordered log of links and barriers; the protected name must be published by a logged link and a successful barrier of the
+  target directory must follow it; both inodes are inventoried after every failure.
+- 2.3, the real launcher: the payload publishes its own process id, waits at a release gate, and the record's process id, start time,
+  namespace and scope are compared with it before the wrapper is killed; the kill waits for a whole launcher line; the launcher's
+  disappearance and the scope's collection are awaited separately; the journal must be removed.
+- 2.4, `a_gone_launcher_does_not_clear_a_scope_with_a_member` (with an acknowledgement that does not override), and the live launcher
+  with an empty scope is acknowledged too.
+- 2.5, the reboot control must end with no journal.
+- 2.6, `a_torn_launcher_line_never_reads_as_a_gone_launcher` cuts the bytes production appends at every length, including the text
+  without its line feed.
+  That cut was red: a launcher line complete but for its line feed was read as a whole line.
+  The production rule now is that a last launcher line without its line feed is not understood (commit `8ea7a0b63c`, red log
+  `logs/r12-red2.log`).
+  The writer's file sync is faulted (`an_acknowledgement_whose_file_cannot_be_synced_is_not_published`, a new `PublicationFileSync`
+  failpoint in `create_exclusive`), and a real publisher is killed between its finished temporary file and the rename
+  (`a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged`, a test hook in `atomic_write`).
+- 2.7, the discovery fixture: an observer thread establishes, before the deadline, that the descendant is ready and alive when the
+  direct program has exited.
+
+Not done: nothing named in 11a or 11b is left open.
+The rows A2/R4 (the shim and a sentinel) and V3/V4 (real preparation cuts) stay partly, as before.
+
+### Result
+
+The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 8 skipped (the `#[ignore]` helper entries),
+for the debug run and the release gate; `lint:clippy` with warnings denied is clean.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r12-debug1.log`, `r12-gate1.log`, `r12-clippy3.log`.
+Nothing was published and nothing was merged into main.
+
+## Resume point (round 12, rewritten TIMESTAMP after the gate)
+
+Done: rounds 10, 11 and 12 (the sections above).
+The review inputs of round 12 are `/var/home/user/temp/agent/reviews/cargo-shadow-12*.diff`, cut from `2c20baf0e6`.
 
 Open for the owner: the picks of rounds 8 to 11 stay veto-open as listed in their sections; the first publication needs the owner's
 explicit approval.
 
 Next:
 
-1. The coordinator launches the cross-vendor review of the round 10 and 11 diffs against the contract.
+1. The coordinator launches the cross-vendor review of the round 12 diffs against the contract.
 2. Nothing is merged into main and nothing is published.

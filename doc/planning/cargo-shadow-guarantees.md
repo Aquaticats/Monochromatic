@@ -1,6 +1,9 @@
 # What cargo-shadow promises and what it assumes
 
 Status:
+amended for round 12 (the review of rounds 10 and 11, `cargo-shadow-sol-11a.txt`, `-11b.txt`) with the launcher question answered only through a
+procfs that numbers processes as the caller's namespace does (guarantee A1), a boot id read from the one object that was checked
+(assumption c) and a failed wait that is not a reap (guarantee V6);
 amended for round 11 (the owner's pick of 2026-11-04, "Record the launcher") with the launcher record (guarantee A1: a launcher that is
 gone can never join its scope, so a recovery that finds it gone reads the scope as final without an acknowledgement);
 amended once more after the round 9 reviews (`cargo-shadow-sol-9a.txt`, `-9b.txt`; round 10, written 2026-11-04T08:57:09-05:00) with
@@ -58,12 +61,22 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   or populated by a descendant) is final: absent or empty is read as ended, populated blocks.
   A launcher that exists blocks, whatever the scope looks like, and no acknowledgement overrides it; an unreaped zombie counts as
   existing, because only its reaping shows that it ended.
+  The question is answered only when the mounted procfs numbers processes as the caller's own namespace does (round 12, 11a):
+  `kill` and `pidfd_open` read a process id in the caller's namespace, but `/proc/<pid>` reads it in the namespace of the procfs
+  mount, and `/proc/self/ns/pid` names only the caller's, so a child namespace that still uses an ancestor's procfs would make the
+  two name different processes.
+  A pidfd is opened for the id, and the `Pid:` line of its `fdinfo`, read through the procfs, gives the number this procfs has for
+  that very process: only when it equals the id is `/proc/<pid>/stat` read, and otherwise the answer is unknown, never gone.
+  The same check precedes the reading of the start time when the line is written, so a start time is never taken from another
+  process.
   Durability of this line: it is appended with one `write` and no sync.
   It is read only after the wrapper was killed (the page cache keeps what a process wrote), or after a power loss or a reboot, where a
   lost or torn line is read as no proof (an unsettled scope without a launcher line waits for an acknowledgement) and the boot rule
   decides first.
-  Every proper prefix of a launcher line, as a torn write leaves it, keeps the journal blocked (the line fields are in the order pid,
-  start time, namespace, path, so a cut leaves a line that is not understood, a different namespace, or a different path).
+  Every proper prefix of the bytes that are appended (the line and its line feed), as a torn write leaves it, keeps the journal
+  blocked (the line fields are in the order pid, start time, namespace, path, so a cut leaves a line that is not understood, a
+  different namespace, or a different path; a last launcher line without its line feed is not understood either, because a cut can
+  fall exactly there).
   The later `settled` line is synced and carries the earlier lines with it.
   What the launcher record cannot prove, and that therefore still waits for `cargo-shadow acknowledge <journal directory>` (one
   command by a person, which tries the workspace lock and does not wait):
@@ -190,7 +203,8 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   the start and the stop of the manager's scope, the lifetime of a command, the draining of its pipes, the reaping of its direct
   child, and every lock (a busy workspace lock or internal lock returns at once with the holder, it does not wait).
   The discovery of the manager reads its output, kills its program and reaps it under the same deadline (the reaping spends what is
-  left of it, and a program that is not reaped by then is reported as not reaped), so a descendant that keeps the pipes open does
+  left of it, only a successful wait counts as a reap, and a program that is not reaped by then, or whose wait failed, is reported as
+  not reaped), so a descendant that keeps the pipes open does
   not extend it; the caches and registries it keeps are read with `try_lock`, so a caller that finds one busy asks again or
   answers conservatively and does not wait for the holder.
   A shutdown that did not succeed within its deadline produces uncertainty (`NotQuiescent`), not a longer wait.
@@ -298,8 +312,11 @@ Round 10 (9a D2 and section 4) makes the identity strict and authoritative:
   unknown line leaves the record without an identity.
   A malformed id is not evidence of a reboot: it keeps the refusal (the reviewer's schedule: `boot not-a-boot-id` beside a live
   process group).
-- The boot id file must be the kernel's own file: `statfs` reports procfs (`0x9fa0`), and `statx` reports that the file is not the
-  root of a mount (`STATX_ATTR_MOUNT_ROOT` clear, and a kernel that does not report the attribute is an error).
+- The boot id file must be the kernel's own file: it is opened once, without following a final symbolic link (round 12, 11a: a link to
+  a genuine procfs file passes every check of its target), and on that descriptor `fstatfs` reports procfs (`0x9fa0`) and `statx`
+  reports that the file is not the root of a mount (`STATX_ATTR_MOUNT_ROOT` clear, and a kernel that does not report the attribute
+  is an error); the text is then read from the same descriptor, so a mount that appears after the checks cannot change what is read.
+  The record's first line must be exactly `view <mount>:<inode>` with two decimal numbers.
   Measured in a disposable user and mount namespace on 2026-11-04: a bind mount of a regular file over the boot id file reports
   another file system, a bind mount of another procfs file reports a mount root, and a read-only bind of the directory that holds
   the file (the way container runtimes mask paths) reports neither, so it is accepted.
@@ -312,8 +329,10 @@ Round 10 (9a D2 and section 4) makes the identity strict and authoritative:
   the check above, so such a container gets the acknowledgement, not the clearance.
 Tests: `a_malformed_recorded_identity_is_not_a_reboot`, `a_malformed_current_identity_is_not_a_reboot`,
 `the_current_identity_is_read_strictly_from_its_files`, and, end to end in a new user and mount namespace,
-`a_boot_id_put_over_the_kernels_file_is_not_an_identity` (a regular file, another procfs file and a tmpfs over the directory are
-replaced and keep a live group blocking; a read-only bind of the directory is not a replacement).
+`a_boot_id_put_over_the_kernels_file_is_not_an_identity` (a regular file, another procfs file, a symbolic link to a genuine procfs
+file inside a replacement directory, and a tmpfs over the directory are replaced and keep a live group blocking; a read-only bind of
+the directory is not a replacement), `a_view_header_that_is_not_mount_and_inode_gives_no_identity`.
+No test makes a mount appear between the checks and the read; that the read is from the checked descriptor is by construction.
 Tests: `a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal`,
 `another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_refusal`,
 `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member`.
@@ -596,21 +615,23 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written 2026-11-04T09:12:24-05:00 against the tip that carries it (round 11); the round 10 text it replaces was written at
-2026-11-04T08:57:09-05:00.
+Written NOW against the tip that carries it (round 12); the round 11 text it replaces was written at 2026-11-04T09:12:24-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
-No row is certified by this map: the cross-vendor review of rounds 10 and 11 has not run, and the round 9 review of the tests
-(`cargo-shadow-sol-9b.txt`) said that "16 rows shown" was not established by the attachments it saw.
+No row is certified by this map: the cross-vendor review of round 12 has not run, and the reviews of rounds 10 and 11 said that
+"14 rows shown" was not established by the attachments they saw, whose unchanged tests they could not see.
 Counts: 16 rows, 14 shown, 2 partly (A2/R4: the call-site test has no shim and no user-command sentinel behind it; V3/V4: the
 preparation windows are built by hand, not cut at the real boundaries), 0 not yet.
-Suite counts at the round 11 code tip `2146b4cb70`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran 578 tests: 578 passed, 0 failed, 6 skipped; `lint:clippy` with warnings
+The writer-side file sync of an acknowledgement and a real interrupted publication, named gaps of the round 10 review, are closed
+in round 12 (`an_acknowledgement_whose_file_cannot_be_synced_is_not_published`,
+`a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged`); the weaker-path row stays shown.
+Suite counts at the round 12 code tip `CODETIP`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran COUNT tests: COUNT passed, 0 failed, 8 skipped; `lint:clippy` with warnings
 denied is clean.
-The 6 skipped are the `#[ignore]` helper entries that six other tests start as child processes (their names are in the `ignore`
-attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs` and
-`src/round_eleven_tests.rs`); they are not run on their own.
-Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r11-debug1.log`, `r11-gate1.log`, `r11-clippy3.log`.
+The 8 skipped are the `#[ignore]` helper entries that eight other tests start as child processes (their names are in the `ignore`
+attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,
+`src/round_eleven_tests.rs` and `src/round_twelve_tests.rs`); they are not run on their own.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r12-debug1.log`, `r12-gate1.log`, `r12-clippy3.log`.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 to 10 the new guards were removed from the committed tests and the tests failed, then the guard was put back:
@@ -624,6 +645,11 @@ round 9: `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_e
 `an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses`,
 `a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal`,
 `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member`;
+round 12 (red at `301faaf776`, green at `87da96a05f`): `a_wait_that_fails_is_not_a_reap`,
+`a_view_header_that_is_not_mount_and_inode_gives_no_identity`, `a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher`
+(a new user and pid namespace that keeps the ancestor's procfs, with a procfs of its own as the control), the `symlink` mode of
+`a_boot_id_put_over_the_kernels_file_is_not_an_identity`; and the line feed rule of a launcher line, red with the fix switched off
+(`logs/r12-red2.log`, commit `8ea7a0b63c`): `a_torn_launcher_line_never_reads_as_a_gone_launcher`;
 round 11 (red at `37c5524be1`, green at `e6fab10dd4`): `a_gone_launcher_lets_the_recovery_read_the_scope_as_final`,
 `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty`, `a_torn_launcher_line_never_reads_as_a_gone_launcher`,
 `a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` (four red on the scaffold that parsed the record and ignored it);
@@ -663,13 +689,17 @@ written with the code.
   `a_scope_that_appears_between_the_query_and_the_judgement_is_not_read_as_a_run_that_ended` (the race between two observations),
   and the launcher record of round 11: `a_launcher_record_reads_back_and_a_damaged_one_is_not_understood`,
   `the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie`,
-  `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty` (no acknowledgement clears it),
+  `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty` (no acknowledgement clears it, with the scope absent or empty),
   `a_gone_launcher_lets_the_recovery_read_the_scope_as_final` (absent and empty; a reused process id reads as gone),
+  `a_gone_launcher_does_not_clear_a_scope_with_a_member` (round 12: no acknowledgement overrides it),
   `what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement` (another namespace, no line, a line for another scope, a line
   not understood),
-  `a_torn_launcher_line_never_reads_as_a_gone_launcher` (every proper prefix; the whole line is the control),
-  `a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` (a real wrapper killed while its program runs: blocked while it
-  lives, settled without an acknowledgement after the program ended and the scope was collected),
+  `a_torn_launcher_line_never_reads_as_a_gone_launcher` (every proper prefix of the bytes production appends, including the line
+  without its line feed; the whole bytes are the control),
+  `a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` (a real wrapper killed, once its launcher record is whole, while its
+  program waits at a release gate; the record's process id, start time, namespace and scope are compared with the program; blocked
+  while it lives; settled, and the journal removed, without an acknowledgement after the launcher is shown gone and the scope was
+  collected),
   `a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone`.
 - **A2, R4 (7a F3): partly.**
   Shown: the joined runner-to-install test, the fault classes and the unstoppable member.
@@ -718,8 +748,9 @@ written with the code.
   `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction`,
   `a_directory_left_unsynced_by_a_failed_attempt_is_not_taken_as_durable`, `a_failing_directory_barrier_is_not_reported_as_preserved`,
   `failing_each_directory_barrier_of_a_preservation_in_turn_never_loses_the_name_or_reports_the_unsynced_chain` (round 10, 9b 3.2: a
-  reported preservation needs a `.displaced` name beside the target and a successful barrier of that directory, and at least one
-  failed barrier must end in a reported preservation so the branch runs),
+  reported preservation needs a `.displaced` name beside the target, published by a logged link, and a successful barrier of that
+  directory after that link in one ordered log; both inodes are inventoried after every failure, and at least one failed barrier
+  must end in a reported preservation so the branch runs),
   `a_higher_ancestor_the_user_cannot_open_is_never_touched` (skips with a printed reason for a user who opens a directory without
   the read permission), `a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path`.
 - **V1 (7b P1-2): shown.**
@@ -738,7 +769,7 @@ written with the code.
   `another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_refusal`,
   `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member` (a missing snapshot, an incomplete listing and a scope with
   a member) and `a_reboot_still_publishes_the_completion_marker_of_the_recovery_or_keeps_the_journal` (round 10, 9b section 2: the
-  failed completion rename keeps the journal after a reboot discharge, and the control settles it),
+  failed completion rename keeps the journal after a reboot discharge, and the control completes it: the journal is removed),
   and round 10: `a_malformed_recorded_identity_is_not_a_reboot`, `a_malformed_current_identity_is_not_a_reboot`,
   `the_current_identity_is_read_strictly_from_its_files`, `a_boot_id_put_over_the_kernels_file_is_not_an_identity`,
   `a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace` (9b 2.4: with the cgroup namespace
@@ -764,8 +795,10 @@ written with the code.
   the unready and ready tests of `journal_recover_tests.rs`.
 - **V6: shown.**
   `a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline`, `a_discovery_whose_descendant_holds_the_pipes_ends_at_its_deadline`
-  (round 10, 9b 3.7: the descendant records its id, is alive at the return, and the direct program is gone),
-  `a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so` (9a D3),
+  (round 12, 11b 2.7: an observer thread establishes, before the deadline, that the descendant is ready and alive when the direct
+  program has exited),
+  `a_discovery_that_cannot_reap_its_child_returns_at_the_deadline_and_says_so` (9a D3; round 12, 11b 2.1: a bound of 1.5 s, so one
+  deadline returns within 0.7 s of it and a second budget does not), `a_wait_that_fails_is_not_a_reap` (11a),
   `a_busy_unsynced_registry_returns_at_once_and_answers_conservatively`,
   `the_route_cache_does_not_make_a_caller_wait_for_a_discovery_in_flight`,
   `a_direct_child_that_cannot_be_reaped_makes_the_run_not_quiescent`, `a_child_that_outlives_its_bound_is_stopped_and_named`,
