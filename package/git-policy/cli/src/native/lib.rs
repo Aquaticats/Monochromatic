@@ -1276,6 +1276,9 @@ pub mod wait_ceilings;
 /// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
 
+/// Where the landing's own syncs wait: queued for a background thread when the landing publishes, made before return otherwise.
+pub mod service_durable;
+
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;
 

@@ -216,9 +216,8 @@ impl IndexLock {
                 let synced: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
                     Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
                 } else {
-                    std::fs::File::open(built).and_then(|file| { return file.sync_all(); })
+                    std::fs::File::open(built).and_then(|file| { return super::service_durable::flush_index(&file, "built-index"); })
                 };
-                crate::service_fault::note("sync-built-index");
                 if let Err(error) = synced {
                     crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
                     return Err(error);
@@ -229,8 +228,7 @@ impl IndexLock {
         // From the installation on, the lock is given up only by this function's own removal: a failure or an unwinding panic
         //  in what follows leaves it for the restart, because an installed index must never be left unlocked and replayable.
         self.armed = false;
-        let durable: std::io::Result<()> = self.index.parent().map_or(Ok(()), |directory| { return std::fs::File::open(directory)?.sync_all(); });
-        crate::service_fault::note("sync-index-dir");
+        let durable: std::io::Result<()> = self.index.parent().map_or(Ok(()), |directory| { return super::service_durable::flush_directory(directory, "index-dir"); });
         let recorded: std::io::Result<()> = durable.and_then(|()| { return record(); });
         if let Err(error) = recorded {
             crate::service_error!(

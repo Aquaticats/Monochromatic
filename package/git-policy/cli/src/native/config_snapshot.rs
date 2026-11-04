@@ -256,6 +256,60 @@ impl ConfigSnapshot {
     }
 
     /// What:
+    ///  Whether `core.fsync` names the index, so native Git flushes its index writes in this repository; `None` when the value is
+    ///  one this does not model.
+    /// Why:
+    ///   Git's own writes follow `core.fsync` and the service writes the index in process, so it follows the same setting.
+    ///  Read from Git 2.56.0 (`environment.c`, `parse_fsync_components`; `write-or-die.h`): the last `core.fsync` entry decides
+    ///  alone and starts from the platform default, `committed,-loose-object`, which names no index. In one value `none` (only
+    ///  as the whole rest of the value) clears the set, a word with a `-` is removed and any other is added, a word names every
+    ///  component whose name it is a prefix of (`ind` is `index`), a word that names none is ignored with a warning, and the
+    ///  result is the set without the removed components plus the added ones. The components that include the index are
+    ///  `index`, `added` and `all`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const value = entries('core.fsync').at(-1); // undefined: the default, which names no index
+    /// ```
+    pub fn hardens_index(&self) -> Option<bool> {
+        let Some(entry) = self.entries.iter().rfind(|entry| { return entry.key == "core.fsync"; }) else { return Some(false) };
+        let value: &str = std::str::from_utf8(entry.value.as_deref()?).ok()?;
+        const WITH_INDEX: [&str; 3] = ["index", "added", "all"];
+        const ALL_NAMES: [&str; 11] = ["loose-object", "pack", "pack-metadata", "commit-graph", "index", "objects", "reference", "derived-metadata", "committed", "added", "all"];
+        let mut current: bool = false;
+        let (mut positive, mut negative): (bool, bool) = (false, false);
+        let mut rest: &str = value;
+        loop {
+            rest = rest.trim_start_matches([',', ' ', '\t', '\n', '\r']);
+            let end: usize = rest.find(',').unwrap_or(rest.len());
+            if rest == "none" {
+                current = false;
+            } else {
+                let (negated, word): (bool, &str) = match rest[..end].strip_prefix('-') {
+                    Some(removed) => (true, removed),
+                    None => (false, &rest[..end]),
+                };
+                if word.is_empty() {
+                    break;
+                }
+                let names_index: bool = ALL_NAMES.iter().any(|name| { return name.starts_with(word) && WITH_INDEX.contains(name); });
+                if names_index {
+                    if negated {
+                        negative = true;
+                    } else {
+                        positive = true;
+                    }
+                }
+            }
+            if end >= rest.len() {
+                break;
+            }
+            rest = &rest[end..];
+        }
+        return Some((current && !negative) || positive);
+    }
+
+    /// What:
     ///  The entries in listing order.
     /// Why:
     ///   Consumers that scan for a family of keys (hook definitions) read them directly.

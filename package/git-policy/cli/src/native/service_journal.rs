@@ -202,12 +202,9 @@ pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, intent.seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
     file.write_all(intent_text(intent).as_bytes())?;
-    file.sync_all()?;
-    crate::service_fault::note("sync-intent-file");
+    super::service_durable::flush_file(&file, "intent-file")?;
     fs::rename(&temporary, batch_path(dir, intent.seq, OPEN_EXTENSION))?;
-    let synced: std::io::Result<()> = File::open(dir)?.sync_all();
-    crate::service_fault::note("sync-intent-dir");
-    return synced;
+    return super::service_durable::flush_directory(dir, "intent-dir");
 }
 
 /// The extension of the record that a batch's index update is installed.
@@ -228,13 +225,10 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{new}\n").as_bytes())?;
-    file.sync_all()?;
-    crate::service_fault::note("sync-indexed-file");
+    super::service_durable::flush_file(&file, "indexed-file")?;
     fs::rename(&temporary, batch_path(dir, seq, INDEXED_EXTENSION))?;
     crate::service_fault::note("indexed-recorded");
-    let synced: std::io::Result<()> = File::open(dir)?.sync_all();
-    crate::service_fault::note("sync-indexed-dir");
-    return synced;
+    return super::service_durable::flush_directory(dir, "indexed-dir");
 }
 
 /// The extension of the record of the live index file a batch started from.
@@ -328,8 +322,7 @@ pub fn indexed_state(dir: &Path, seq: u64, new: &str) -> Indexed {
 /// ```
 pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
     fs::rename(batch_path(dir, seq, OPEN_EXTENSION), batch_path(dir, seq, DONE_EXTENSION))?;
-    File::open(dir)?.sync_all()?;
-    crate::service_fault::note("sync-journal-dir");
+    super::service_durable::flush_directory(dir, "journal-dir")?;
     crate::service_fault::note("remove-indexed");
     let _record_removed = fs::remove_file(batch_path(dir, seq, INDEXED_EXTENSION));
     remove_start(dir, seq);

@@ -28,6 +28,7 @@ use super::service_land_finish::finish_after_move;
 use super::service_land_start::witness_of;
 use super::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
 use super::service_timing::{LandTiming, wait_line};
+use super::config_snapshot::read_config_snapshot;
 use super::service_land_follow::{classify, storage_failure};
 use super::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
@@ -232,6 +233,15 @@ pub fn land_batch_timed(
     announce: &dyn Fn(Announce),
     timing: &mut LandTiming,
 ) -> Result<Vec<Outcome>, FailureCode> {
+    // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
+    //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
+    //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
+    let hardens_index: bool = requests
+        .first()
+        .and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); })
+        .and_then(|snapshot| { return snapshot.hardens_index(); })
+        .unwrap_or(true);
+    let deferral = super::service_durable::begin(hardens_index);
     let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
@@ -247,6 +257,8 @@ pub fn land_batch_timed(
             let _deleted = run(&git, first.repository.as_path(), &["update-ref", "-d", scratch.as_str()], None);
         }
     }
+    let published: bool = result.as_ref().is_ok_and(|outcomes| { return outcomes.iter().any(|outcome| { return matches!(outcome, Outcome::Landed { .. }); }); });
+    deferral.settle(published);
     return result;
 }
 

@@ -1245,68 +1245,101 @@ fn a_switch_after_the_last_check_leaves_the_index_of_the_new_branch_alone() {
     remove(world.root.as_path());
 }
 
-/// An installed index is made durable before its completion is recorded, and the finished batch before its record is removed:
-/// a power loss between a rename and the sync of its directory otherwise loses the rename while the record survives.
+/// The writes of a landing are made in the order a restart after a killed process relies on: the index is installed before its
+/// completion is recorded, and the done mark is renamed before the record is removed. Their flushes are queued, not waited for
+/// (owner, 2026-11-03: "Force at leaving, else background"), so a power loss may lose the end of the sequence, exactly as native
+/// Git loses its last writes; a killed process loses nothing, because the page cache holds every write.
 #[test]
-fn the_installed_index_and_the_finished_batch_are_made_durable_before_what_depends_on_them() {
+fn the_installed_index_and_the_finished_batch_are_recorded_in_the_order_a_restart_relies_on() {
     let world: World = world("service-land-durable");
     crate::service_fault::hooks::take_events();
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
     let events: Vec<String> = crate::service_fault::hooks::take_events();
     let at = |name: &str| -> usize { return events.iter().position(|event| { return event == name; }).unwrap_or(usize::MAX); };
-    assert!(at("sync-index-dir") < at("indexed-recorded"), "the installed index is durable before it is recorded: {events:?}");
-    assert!(at("indexed-recorded") < at("sync-journal-dir"), "{events:?}");
-    assert!(at("sync-journal-dir") < at("remove-indexed"), "the done mark is durable before the record is removed: {events:?}");
+    // What a killed process leaves is what the page cache holds, in the order the writes were made; the flushes are queued in that
+    //  order and the background thread makes them together, so a power cut may lose any suffix of them, as it may for native Git.
+    assert!(at("sync-queued:index-dir") < at("indexed-recorded"), "the index is installed before it is recorded: {events:?}");
+    assert!(at("indexed-recorded") < at("sync-queued:journal-dir"), "{events:?}");
+    assert!(at("sync-queued:journal-dir") < at("remove-indexed"), "the done mark is renamed before the record is removed: {events:?}");
     remove(world.root.as_path());
 }
 
-/// The syncs a landing waits for, in order. The person waits for each of them (the commit is answered after the last), so the
-/// list is the foreground cost that native Git does not have: its commit forces nothing to disk by default (measured: no
-/// `fsync` in a strace of native `git commit` on a 20,740-file repository), and every entry here is a flush that a loaded disk
-/// can stall for seconds. A sync that protects nothing is not on the list: the private copy of the index is replaced by a new
-/// file that is synced itself before it is renamed over the copy, so the copy's own flush made nothing durable.
+/// The syncs of the landing that are made while the person waits, and the ones it only queues, from its events in order.
+fn syncs_of(events: &[String]) -> (Vec<String>, Vec<String>) {
+    let waited: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-waited:").map(str::to_string); }).collect();
+    let queued: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-queued:").map(str::to_string); }).collect();
+    return (waited, queued);
+}
+
+/// The owner's rule for the commit protocol, "Force at leaving, else background": a landing that publishes a commit waits for no
+/// sync of the wrapper's own records. Native Git forces nothing by default (a traced native commit makes no sync call), so each
+/// sync on the person's wait is a flush that a loaded disk can stall for seconds (production: `journal_ms` up to 40 s, `sync_ms`
+/// up to 119 s). The syncs are queued, and the background thread makes them; the list is the records a power cut may lose.
 #[test]
-fn a_landing_waits_for_no_sync_that_protects_nothing() {
+fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
     let world: World = world("service-land-syncs");
+    crate::service_fault::hooks::take_events();
+    let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    let outcome = land_batch(&world.context, 1, &[landed]).expect("landed");
+    assert!(matches!(outcome.as_slice(), [Outcome::Landed { .. }]), "{outcome:?}");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let (waited, queued) = syncs_of(events.as_slice());
+    // Positive control: the records are synced, only elsewhere, so a landing that stopped reporting its syncs fails here.
+    assert!(!queued.is_empty(), "the landing queues its syncs: {events:?}");
+    assert_eq!(waited, Vec::<String>::new(), "the person waited for a sync: {events:?}");
+    let expected: Vec<&str> = vec!["intent-file", "intent-dir", "lock-marker", "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
+    assert_eq!(queued, expected, "the records one landing queues: {events:?}");
+    crate::service_durable::drain();
+    let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
+    assert!(made >= queued.len() as u64, "the background thread made the {} queued syncs, made {made}", queued.len());
+    remove(world.root.as_path());
+}
+
+/// Git's own index write follows `core.fsync`, and the in-process writer follows it too: a repository that names the index
+/// there (`added`) gets the flush of the new index before it is installed, on the person's wait as native Git makes it, and the
+/// wrapper's own records stay queued.
+#[test]
+fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does() {
+    let world: World = world("service-land-core-fsync");
+    git(world.repo.as_path(), &["config", "core.fsync", "added"]);
     crate::service_fault::hooks::take_events();
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
     let events: Vec<String> = crate::service_fault::hooks::take_events();
-    let syncs: Vec<&str> = events.iter().map(String::as_str).filter(|event| { return event.starts_with("sync-"); }).collect();
-    // Positive control: the list is not empty, so a landing that stopped reporting its syncs would fail here and not pass.
-    assert!(!syncs.is_empty(), "the landing reports its syncs: {events:?}");
-    let expected: Vec<&str> = vec![
-        "sync-intent-file",
-        "sync-intent-dir",
-        "sync-lock-marker",
-        "sync-index-publish",
-        "sync-index-dir",
-        "sync-indexed-file",
-        "sync-indexed-dir",
-        "sync-journal-dir",
-    ];
-    assert_eq!(syncs, expected, "the syncs of one landing: {events:?}");
+    let (waited, queued) = syncs_of(events.as_slice());
+    assert_eq!(waited, vec![String::from("index-publish")], "only the index flush that core.fsync asks for is waited for: {events:?}");
+    assert!(queued.contains(&String::from("intent-file")), "{events:?}");
+    crate::service_durable::drain();
     remove(world.root.as_path());
 }
 
-/// The landing reads the branch it moves without starting Git: the in-process readers answer `rev-parse --verify --quiet
-/// <ref>^{commit}` from the ref files and the object store, and the same question without `^{commit}` is none they know, so
-/// it started a Git for every landing (measured in a strace of the service: one `rev-parse` of about 10 ms warm for each
-/// commit, and a cold start of the Git executable and its libraries when the host has evicted them).
+/// A landing that publishes nothing forces its records before it returns: a foreign index lock that outlasts the ceiling
+/// withdraws the commit and keeps it on a side ref, and the intent and the other records the landing wrote are synced, on the
+/// wait, because the command reports what it kept and that promise must survive a power cut.
 #[test]
-fn a_landing_reads_the_branch_it_moves_without_starting_git() {
-    let mut world: World = world("service-land-branch-read");
-    let (mut recorded, log) = crate::recording_git::recording_context(world.root.as_path());
-    // The recorder switches the in-process readers off; the landing under test runs with them on, as the service does.
-    recorded.overlay.retain(|(name, _)| { return name != crate::repo_read_hook::SWITCH_VARIABLE; });
-    world.context.git = recorded;
-    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
-    land_batch(&world.context, 1, &[landed]).expect("landed");
-    let words: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
-    // Positive control: the landing does start Git for the import and the move, so a recorder that saw nothing would fail here.
-    assert!(words.iter().any(|start| { return start.starts_with("update-ref"); }), "the recorder sees the starts: {words:?}");
-    assert!(!words.iter().any(|start| { return start.starts_with("rev-parse"); }), "the landing started a rev-parse: {words:?}");
+fn a_withdrawal_forces_the_records_it_wrote() {
+    let world: World = world("service-land-withdrawal-syncs");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    std::fs::write(world.repo.join(".git/index.lock"), "foreign").expect("foreign lock");
+    let journal: PathBuf = world.context.journal.clone();
+    let (finished, ended) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        crate::service_fault::hooks::take_events();
+        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
+        let answered = land_batch(&context, 1, &[request]);
+        let _sent = finished.send((answered, crate::service_fault::hooks::take_events()));
+    });
+    let (answered, events) = ended.recv_timeout(CEILING_PATIENCE).expect("the landing ended at its ceiling");
+    assert_eq!(answered, Err(FailureCode::IndexInUse));
+    let (waited, queued) = syncs_of(events.as_slice());
+    assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
+    let mut forced: Vec<String> = waited.clone();
+    let mut asked: Vec<String> = queued.clone();
+    forced.sort();
+    asked.sort();
+    assert_eq!(forced, asked, "every sync the landing queued was made before it returned: {events:?}");
     remove(world.root.as_path());
 }
 
@@ -1405,18 +1438,21 @@ pub(super) fn git_with_index(repository: &Path, index: &Path, arguments: &[&str]
 #[test]
 fn the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed() {
     let mut world: World = world("service-land-flush-once");
+    // The repository names the index in `core.fsync`, so the index is flushed on the wait as native Git flushes it.
+    git(world.repo.as_path(), &["config", "core.fsync", "added"]);
     world.context.git.overlay.extend(crate::repo_read_hook::switch_off());
     crate::service_fault::hooks::take_events();
     let by_git: CommitRequest = request(&world, "by-git", "by-git.txt", "x\n");
     land_batch(&world.context, 1, &[by_git]).expect("landed");
     let events: Vec<String> = crate::service_fault::hooks::take_events();
-    let at = |name: &str| -> usize { return events.iter().position(|event| { return event == name; }).unwrap_or(usize::MAX); };
-    assert!(at("sync-built-index") < at("sync-index-dir"), "Git's file is flushed by the release, before its directory entry: {events:?}");
+    let (waited, _queued) = syncs_of(events.as_slice());
+    assert_eq!(waited, vec![String::from("built-index")], "Git's file is flushed once, by the release: {events:?}");
     world.context.git.overlay.retain(|(name, _)| { return name != crate::repo_read_hook::SWITCH_VARIABLE; });
     let in_process: CommitRequest = request(&world, "in-process", "in-process.txt", "x\n");
     land_batch(&world.context, 2, &[in_process]).expect("landed");
     let in_process_events: Vec<String> = crate::service_fault::hooks::take_events();
-    assert!(in_process_events.iter().any(|event| { return event == "sync-index-dir"; }), "the landing installed an index: {in_process_events:?}");
-    assert!(!in_process_events.iter().any(|event| { return event == "sync-built-index"; }), "the update's own flush is not repeated: {in_process_events:?}");
+    let (in_process_waited, in_process_queued) = syncs_of(in_process_events.as_slice());
+    assert!(in_process_queued.contains(&String::from("index-dir")), "the landing installed an index: {in_process_events:?}");
+    assert_eq!(in_process_waited, vec![String::from("index-publish")], "the update's own flush is not repeated: {in_process_events:?}");
     remove(world.root.as_path());
 }

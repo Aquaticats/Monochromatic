@@ -648,10 +648,14 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
             Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) > 0 => continue,
             Err(RecvTimeoutError::Timeout) => {
+                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
+                super::service_durable::drain();
                 log(exit_line(ExitReason::Idle, serving_since.elapsed()).as_str());
                 return;
             }
             Err(RecvTimeoutError::Disconnected) => {
+                // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
+                super::service_durable::drain();
                 log(exit_line(ExitReason::Error, serving_since.elapsed()).as_str());
                 return;
             }
@@ -726,6 +730,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
     }
+    // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
+    super::service_durable::drain();
     log(exit_line(ExitReason::Retire, serving_since.elapsed()).as_str());
 }
 

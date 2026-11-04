@@ -57,8 +57,8 @@ fn a_changed_copy_is_synced_before_it_is_installed() {
     lock.release_with_record(built.as_path(), &|| { crate::service_fault::note("recorded"); return Ok(()); }).expect("released");
     let events: Vec<String> = hooks::take_events();
     let at = |name: &str| -> usize { return events.iter().position(|event| { return event == name; }).unwrap_or(usize::MAX); };
-    assert!(at("sync-built-index") < at("sync-index-dir"), "the file is synced before its directory entry: {events:?}");
-    assert!(at("sync-index-dir") < at("recorded"), "{events:?}");
+    assert!(at("sync-waited:built-index") < at("sync-waited:index-dir"), "the file is synced before its directory entry: {events:?}");
+    assert!(at("sync-waited:index-dir") < at("recorded"), "{events:?}");
     remove(root.as_path());
 }
 
