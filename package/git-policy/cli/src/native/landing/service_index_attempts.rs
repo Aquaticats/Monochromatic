@@ -166,7 +166,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                     Reclaimed::Stuck => return Err(LockFailure { code: FailureCode::Unavailable }),
                     Reclaimed::Busy => busy = true,
                     Reclaimed::Unguarded(marked) => left_stale = Some(stale_lock_words(lock, &marked)),
-                    Reclaimed::Kept => {}
+                    Reclaimed::Foreign { .. } | Reclaimed::Kept => {}
                 }
             }
             Err(error) => {

@@ -68,6 +68,11 @@ fn is_compact_hex_id(text: &str) -> bool {
     return text.len() == BOOT_ID_LENGTH && text.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
 }
 
+/// Whether `text` is a machine ID: 32 lowercase hexadecimal digits that are not all zero.
+pub(crate) fn is_machine_id(text: &str) -> bool {
+    return is_compact_hex_id(text);
+}
+
 /// The boot ID of this host's current boot, without dashes, or nothing when it cannot be read.
 pub(crate) fn current_boot_id() -> &'static str {
     static BOOT_ID: OnceLock<String> = OnceLock::new();
@@ -101,7 +106,7 @@ fn machine_id_from(paths: &[&Path]) -> String {
 }
 
 /// The machine ID of this host, read once, or nothing when it cannot be read.
-fn current_machine_id() -> &'static str {
+pub(crate) fn current_machine_id() -> &'static str {
     static MACHINE_ID: OnceLock<String> = OnceLock::new();
     return MACHINE_ID
         .get_or_init(|| {

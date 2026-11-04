@@ -43,6 +43,10 @@ pub enum Reclaimed {
     ///  gives no `flock` and refuses to place the claim): the file is left where it is, and the person is told how to remove it.
     ///  It carries the marker read from the very file that was judged, so the notice never describes a file that replaced it.
     Unguarded(Marked),
+    /// The file (the lock, or a claim in the way of its removal) was written by a service on another machine, or on one whose
+    ///  machine cannot be compared with this one: nothing proves its maker gone, so it is left where it is and the person is
+    ///  told how to remove it. It carries the marker read from the file.
+    Foreign { file: PathBuf, marked: Marked },
 }
 
 /// What:
@@ -247,4 +251,11 @@ pub fn stale_lock_words(lock: &Path, marked: &Marked) -> String {
         lock.display(),
         lock.display()
     );
+}
+
+/// The words for a file left because its maker is on another machine: the file, the batch and process, why it stays, and how to
+///  remove it. (Stub: filled in with the change.)
+pub fn foreign_words(file: &Path, marked: &Marked) -> String {
+    let _ = (file, marked);
+    return String::new();
 }

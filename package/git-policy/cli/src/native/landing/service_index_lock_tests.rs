@@ -612,7 +612,7 @@ fn an_unreadable_proc_is_no_evidence_that_a_writer_died() {
     std::fs::write(&path, "").expect("an empty file");
     let suffix: String = format!("-4242.{scope}-1-token");
     let nothing_runs = |_: i64| -> Result<Option<String>, ProcessIdentityError> { return Ok(None) };
-    let agreeing = ReaderView { boot: "0123456789abcdef0123456789abcdef", scope: Some(scope), procfs_agrees: true };
+    let agreeing = ReaderView { boot: "0123456789abcdef0123456789abcdef", scope: Some(scope), machine: None, procfs_agrees: true };
     let disagreeing = ReaderView { procfs_agrees: false, ..agreeing };
     assert!(staging_is_dead_in(&path, suffix.as_bytes(), &agreeing, &nothing_runs));
     assert!(!staging_is_dead_in(&path, suffix.as_bytes(), &disagreeing, &nothing_runs), "a /proc that disagrees proves nothing");
@@ -1107,7 +1107,7 @@ fn a_marker_of_another_boot_is_gone_though_the_same_number_and_tick_run() {
 fn a_reader_that_cannot_compare_like_with_like_says_unknown_not_gone() {
     let boot: &str = "0123456789abcdef0123456789abcdef";
     let holder: (i64, String) = (100, format!("linux:777#{boot}#4026532000"));
-    let view = |at_boot: &'static str, scope: Option<&'static str>, procfs_agrees: bool| -> ReaderView<'static> { return ReaderView { boot: at_boot, scope, procfs_agrees }; };
+    let view = |at_boot: &'static str, scope: Option<&'static str>, procfs_agrees: bool| -> ReaderView<'static> { return ReaderView { boot: at_boot, scope, machine: None, procfs_agrees }; };
     let boot_now: &'static str = "0123456789abcdef0123456789abcdef";
     let asked: Cell<usize> = Cell::new(0);
     let missing = |_: i64| -> Result<Option<String>, ProcessIdentityError> {

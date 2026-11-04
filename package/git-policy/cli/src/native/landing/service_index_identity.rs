@@ -60,6 +60,8 @@ pub struct ReaderView<'a> {
     /// The PID namespace of the reader,
     /// where it can be read.
     pub scope: Option<&'a str>,
+    /// The machine ID of the reader's host (32 lowercase hexadecimal digits, not all zero), where it can be read.
+    pub machine: Option<&'a str>,
     /// Whether the reader's `/proc` numbers the reader as the operating system does.
     pub procfs_agrees: bool,
 }
@@ -116,7 +118,7 @@ fn read_procfs_agreement() -> bool {
 impl ReaderView<'static> {
     /// What this process can say now.
     pub fn current() -> ReaderView<'static> {
-        return ReaderView { boot: current_boot_id(), scope: current_pid_scope(), procfs_agrees: current_procfs_agrees() };
+        return ReaderView { boot: current_boot_id(), scope: current_pid_scope(), machine: None, procfs_agrees: current_procfs_agrees() };
     }
 }
 
@@ -181,6 +183,16 @@ pub fn own_identity() -> Result<String, ProcessIdentityError> {
 /// `ProcMismatch` when `stat` names another PID than `own`,
 /// `BootUnavailable` and `ScopeUnavailable` on Linux when the boot or the namespace is not known.
 pub fn identity_in_view(stat: &[u8], own: u32, boot: &str, scope: Option<&str>) -> Result<String, ProcessIdentityError> {
+    return identity_in_view_on(stat, own, boot, scope, None);
+}
+
+/// `identity_in_view` on the machine `machine`.
+///
+/// # Errors
+///
+/// As `identity_in_view`.
+pub fn identity_in_view_on(stat: &[u8], own: u32, boot: &str, scope: Option<&str>, machine: Option<&str>) -> Result<String, ProcessIdentityError> {
+    let _ = machine;
     check_procfs_view(stat, own)?;
     let birth: String = current_birth_identity()?;
     #[cfg(target_os = "linux")]
