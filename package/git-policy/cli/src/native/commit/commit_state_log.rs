@@ -190,6 +190,89 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
     return Ok(());
 }
 
+/// The first line of a document in the checked representation.
+const LANE_DOCUMENT_MAGIC: &str = "cli-git-lane-document 1\n";
+
+/// What:
+///  The checked representation of a state document: the requests it adopts, the saved content it holds and the extent of the lane ledger it
+///  relies on, and nothing else. Its dependencies are exactly these references, so the component can derive and check them against the
+///  lane. Only a document in this representation can be checkpointed with reclamation; any other document is opaque to the component and
+///  its checkpoints never remove a predecessor.
+/// Why:
+///  A document's dependencies cannot be read out of opaque bytes (a dependency outside the places the component knows, an order file, say,
+///  has no line to omit and no scan that finds it). A representation that cannot express such a dependency cannot hide one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LaneDocument = { requests: string[]; saved: string[]; ledgerLength: number | null };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LaneDocument {
+    /// Request identities, sorted.
+    requests: Vec<String>,
+    /// Saved content names (the checksum), sorted.
+    saved: Vec<String>,
+    /// The length of the lane ledger the document relies on.
+    ledger_length: Option<u64>,
+}
+
+impl LaneDocument {
+    /// The document that names exactly what `closure` holds; `None` when the closure holds an append-only file that is not the lane ledger,
+    /// which this representation cannot express.
+    pub fn from_closure(closure: &[ClosureEntry]) -> Option<LaneDocument> {
+        let mut document: LaneDocument = LaneDocument::default();
+        for entry in closure {
+            let name: String = entry.path.file_name().and_then(|name| { return name.to_str(); })?.to_string();
+            match entry.kind {
+                EntryKind::InboxEnvelope => document.requests.push(name),
+                EntryKind::Opaque => document.saved.push(name),
+                EntryKind::AppendPrefix if entry.path == Path::new(LANE_LEDGER) => document.ledger_length = Some(entry.length),
+                EntryKind::AppendPrefix => return None,
+            }
+        }
+        document.requests.sort();
+        document.saved.sort();
+        return Some(document);
+    }
+
+    /// The document's bytes.
+    pub fn encode(&self) -> Vec<u8> {
+        let mut text: String = String::from(LANE_DOCUMENT_MAGIC);
+        for request in &self.requests {
+            text.push_str(&format!("request {}\n", request));
+        }
+        for saved in &self.saved {
+            text.push_str(&format!("saved {}\n", saved));
+        }
+        if let Some(length) = self.ledger_length {
+            text.push_str(&format!("ledger {}\n", length));
+        }
+        return text.into_bytes();
+    }
+
+    /// Reads `bytes` as a document in this representation; `None` for anything else (an opaque document, extra lines, a repeated line).
+    pub fn parse(bytes: &[u8]) -> Option<LaneDocument> {
+        let text: &str = std::str::from_utf8(bytes).ok()?.strip_prefix(LANE_DOCUMENT_MAGIC)?;
+        let mut document: LaneDocument = LaneDocument::default();
+        for line in text.lines() {
+            if let Some(id) = line.strip_prefix("request ") {
+                document.requests.push(id.to_string());
+            } else if let Some(name) = line.strip_prefix("saved ") {
+                document.saved.push(name.to_string());
+            } else if let Some(length) = line.strip_prefix("ledger ") {
+                if document.ledger_length.is_some() {
+                    return None;
+                }
+                document.ledger_length = Some(length.parse().ok()?);
+            } else {
+                return None;
+            }
+        }
+        let canonical: bool = document.requests.windows(2).all(|pair| { return pair[0] < pair[1]; }) && document.saved.windows(2).all(|pair| { return pair[0] < pair[1]; });
+        return if canonical { Some(document) } else { None };
+    }
+}
+
 /// The directory of the lane that holds immutable saved content, one file per content, named by the SHA-256 of its bytes.
 const SAVED: &str = "saved";
 
@@ -1136,6 +1219,11 @@ impl StateWriter {
     /// older file stays on any refusal.
     pub fn complete_checkpoint(&mut self, candidate: &Candidate) -> io::Result<()> {
         return complete_checkpoint(&self.dir, candidate);
+    }
+
+    /// A reclaiming checkpoint of a document in the checked representation (stub: see the round 17 notes).
+    pub fn checkpoint_reclaiming(&mut self, generation: u64, document: &LaneDocument, closure: &[ClosureEntry]) -> io::Result<u64> {
+        return self.checkpoint(generation, &document.encode(), closure);
     }
 
     /// Seals the current segment and replaces it by a checkpoint in one owner step; future appends go to the new segment.

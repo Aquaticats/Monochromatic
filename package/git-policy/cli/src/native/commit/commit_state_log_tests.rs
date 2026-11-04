@@ -940,3 +940,77 @@ fn r16_a_checkpoint_that_changes_the_document_does_not_cover_an_earlier_acknowle
     assert!(!state.join("state.log.1").exists(), "the acknowledged record's segment was reclaimed");
     assert!(!git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "a checkpoint that changed the document covered the acknowledgment");
 }
+
+/// An order file in the lane, outside the places the component scans, with the line the state depends on.
+fn lane_with_order_file(label: &str) -> (PathBuf, PathBuf, ClosureEntry) {
+    let (lane, state, envelope) = lane_with_envelope(label);
+    std::fs::write(lane.join("order"), b"adopt a\n").expect("an unforced order file");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture a");
+    return (lane, state, request);
+}
+
+/// Review 11 section 1, 2A: an opaque document whose state requires an order file O outside the places the component scans, with no
+/// `needs` line, was checkpointed with a closure that covered everything the scan requires, and the predecessor was reclaimed; with O lost,
+/// recovery accepted the document. The component cannot derive an opaque document's dependencies, so its checkpoints never reclaim.
+#[test]
+fn r17_an_opaque_document_that_needs_a_file_outside_the_derived_places_never_reclaims_its_predecessor() {
+    let (_lane, state, request) = lane_with_order_file("r17-order-file");
+    append(&state, 1, b"first").expect("a durable predecessor");
+    StateWriter::acquire(&state).expect("writer").checkpoint(2, b"the state that requires the order file", std::slice::from_ref(&request)).expect("checkpoint");
+    assert!(state.join("state.log.1").exists(), "the predecessor of an opaque checkpoint was reclaimed");
+    assert_eq!(read(&state).expect("readable").expect("state").0, 2);
+}
+
+/// Review 11 section 1, 2A: a plain append reclaims nothing, but a later checkpoint that compacts it would. The compaction of an append
+/// whose dependencies the component cannot prove does not reclaim either.
+#[test]
+fn r17_a_checkpoint_cannot_compact_an_opaque_append_and_reclaim_its_segment() {
+    let (_lane, state, request) = lane_with_order_file("r17-compact-append");
+    append(&state, 1, b"first").expect("append");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.append_with(2, b"an append whose dependencies cannot be proven", std::slice::from_ref(&request)).expect("append");
+    writer.checkpoint(2, b"an append whose dependencies cannot be proven", std::slice::from_ref(&request)).expect("the compaction");
+    assert!(state.join("state.log.1").exists(), "the compaction of an opaque append removed the segment that holds it");
+}
+
+/// Review 11 section 1, 2E: D and E are opaque records retaining the same set; D is acknowledged; E is checkpointed as the head. Head equality
+/// credited every record of the chain, so D's hash entered the lineage and D's segment was reclaimed, with nothing showing that E contains
+/// what D promised. A checkpoint covers an earlier acknowledgment only when its document is shown to contain that acknowledgment's promised
+/// state; otherwise the segment that holds it is not reclaimed.
+#[test]
+fn r17_a_compaction_of_a_later_opaque_record_does_not_reclaim_or_cover_an_earlier_acknowledgment() {
+    let (_lane, state, request) = lane_with_order_file("r17-head-equality");
+    append(&state, 1, b"first").expect("append");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.append_with(2, b"d adopts the request and promises more", std::slice::from_ref(&request)).expect("append d");
+    let promised: Prefix = sync_prefix(&state).expect("d is acknowledged");
+    writer.append_with(3, b"e adopts the request and omits d's promise", std::slice::from_ref(&request)).expect("append e");
+    writer.checkpoint(3, b"e adopts the request and omits d's promise", std::slice::from_ref(&request)).expect("the compaction of e");
+    assert!(state.join("state.log.1").exists(), "the segment that holds the acknowledged record was reclaimed");
+    assert!(!git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "a record that was never shown to contain the promise covered it");
+}
+
+/// The checked representation: a document that names exactly what the lane holds is checkpointed with reclamation, and it covers an earlier
+/// acknowledgment of a document in the same representation whose references it contains. Anything the representation cannot express (an
+/// opaque document, a document that differs from its closure, an append-only file that is not the ledger) is refused for reclamation.
+#[test]
+fn r17_a_checked_document_reclaims_and_covers_and_anything_unchecked_is_refused_for_reclamation() {
+    let (lane, state, request) = lane_with_order_file("r17-lane-document");
+    let first: git_policy_cli::commit_state_log::LaneDocument = git_policy_cli::commit_state_log::LaneDocument::from_closure(std::slice::from_ref(&request)).expect("expressible");
+    let mut writer: StateWriter = StateWriter::acquire(&state).expect("writer");
+    writer.append_with(1, &first.encode(), std::slice::from_ref(&request)).expect("a checked record");
+    let promised: Prefix = sync_prefix(&state).expect("acknowledged");
+    let content: ClosureEntry = create_saved_content(&lane, b"objects of b").expect("create s");
+    let both: Vec<ClosureEntry> = vec![request.clone(), content.clone()];
+    let document: git_policy_cli::commit_state_log::LaneDocument = git_policy_cli::commit_state_log::LaneDocument::from_closure(&both).expect("expressible");
+    let order: ClosureEntry = ClosureEntry::capture(&lane, &lane.join("order"), EntryKind::AppendPrefix).expect("capture the order file");
+    let with_order: Vec<ClosureEntry> = vec![request.clone(), content.clone(), order];
+    assert!(git_policy_cli::commit_state_log::LaneDocument::from_closure(&with_order).is_none(), "an order file has no place in the representation");
+    assert!(writer.checkpoint_reclaiming(2, &document, &with_order).is_err(), "a closure with an inexpressible file was reclaimed");
+    let other: git_policy_cli::commit_state_log::LaneDocument = git_policy_cli::commit_state_log::LaneDocument::from_closure(std::slice::from_ref(&request)).expect("expressible");
+    assert!(writer.checkpoint_reclaiming(2, &other, &both).is_err(), "a document that differs from its closure was reclaimed");
+    assert!(git_policy_cli::commit_state_log::LaneDocument::parse(b"an opaque document").is_none());
+    writer.checkpoint_reclaiming(2, &document, &both).expect("the checked document is reclaimed");
+    assert!(!state.join("state.log.1").exists(), "the contained predecessor was not reclaimed");
+    assert!(git_policy_cli::commit_state_log::state_covers(&state, &promised).expect("readable"), "a document that contains the acknowledged references did not cover it");
+}
