@@ -239,7 +239,8 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 ### Normative state machine (revision 19, first committed 2026-11-04T05:03:49-05:00 in a880da667d)
 
 Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea, and revision 13 at
-2026-11-03T20:22:09-05:00 in 4a7bea95a2.
+2026-11-03T20:22:09-05:00 in 4a7bea95a2, revision 14 at 2026-11-03T21:53:06-05:00 in 94d9d80188, revision 15 at 2026-11-03T22:13:12-05:00 in d2682fb03f,
+revision 16 at 2026-11-04T03:27:31-05:00 in 5073225ed4, revision 17 at 2026-11-04T04:12:54-05:00 in 35d6bd87be, and revision 18 at 2026-11-04T04:53:45-05:00 in e01406097f.
 
 This is the one operative statement of the protocol. The narrative subsections that follow explain it and add rationale and test
 requirements; where one of them reads differently, this section governs. Every transition names its preconditions (Pre), its durable
