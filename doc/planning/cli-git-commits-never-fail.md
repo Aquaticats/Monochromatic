@@ -256,7 +256,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 13, first committed REV13_TIME)
+### Normative state machine (revision 13, first committed 2026-11-03T20:22:09-05:00 in 4a7bea95a2)
 
 Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea.
 
@@ -496,12 +496,13 @@ The register (waiting process; condition; bound and its basis; action at the bou
   reconcile merge, a request whose client was killed from outside: the existing outside-cause rule finishes
   handed-over work on the next run); the derived follow-up of a published commit (M1, MG3: it is not a commit landing
   later; the command makes one attempt at it, takes a single try of `index.lock`, and waits for no foreign program).
+- Forwarded maintenance (revision 13): a forwarded `git gc`, `prune` or `maintenance` that the wrapper runs in the
+  foreground for the person has no bound, as covered by decision 9 as the owner saw it listed; it is its own line so a
+  later decision can bound it without touching the rest.
 - The person's own programs, not a wait on another party (revision 12; owner decision 9: no bound): the editor,
-  `pre-commit`, `commit-msg`, `prepare-commit-msg`, a signer's prompt and clean or smudge filters
-  that the command runs in its own foreground before any request exists, as native Git does, and a forwarded `git gc`,
-  `prune` or `maintenance` that the wrapper runs for the person. The command is that work, as the owner decided
-  (decision 9); owner decision 1 forbids
-  ending the person's hook; the person ends the command.
+  `pre-commit`, `commit-msg`, `prepare-commit-msg`, a signer's prompt and clean or smudge filters that the command
+  runs in its own foreground before any request exists, as native Git does, The command is that work, as the owner
+  decided (decision 9); owner decision 1 forbids ending the person's hook; the person ends the command.
 
 Lane transitions (the owner and its incarnation)
 - L1 acquire. Pre: none. Do: open `lane/owner` (a file created once and never replaced) with close-on-exec, wait for the exclusive lock.
@@ -571,8 +572,10 @@ Withdrawal (revision 13)
   the client leaves with an attempt it submitted and has not seen close (the COMMITTING exit); `EEXIST` is the same
   outcome. The mark means: no new attempt of this request may start, ever. (3) if a P2 attempt of this request is
   open, write `abort` on its pipe (an open attempt that the client did not submit; the client never writes `abort`
-  after it wrote `commit`); (4) wait for W2 to record the withdrawal in the state, at most `WAIT_WITHDRAW` (starting
-  from `STOP_GRACE`), so the capture-visible state no longer holds the request;
+  after it wrote `commit`); (4) for a plain `withdraw`, wait for W2 to record the withdrawal in the state, at most
+  `WAIT_WITHDRAW` (starting from `STOP_GRACE`), so the capture-visible state no longer holds the request (the
+  unresolved exit waits for nothing here: its request stays pending until its attempt resolves, and goes straight to
+  step (5));
   (5) force the D-set of this exit (rule V, departure barrier) within `WAIT_DEPART`; (6) look the identity up again:
   an `outcome` line that became durable meanwhile is reported, otherwise print the refusal naming the blocker, what is
   kept and the command to run again, and exit non-zero. Crash: the mark is the only fact; a client killed before (2)
@@ -593,13 +596,15 @@ Withdrawal (revision 13)
   reader exists, MG1, Q1, every held-hook completion and L4, so no step starts work for a withdrawn request. Do, in
   this order (T0): (1) append `outcome <id> withdrawn` (or the outcome of the unresolved exit when its attempt ends)
   to the lane's ledger unless the ledger already holds an `outcome` line for the identity (the first line wins; a
-  later one is ignored by every reader); (2) one S1 replacement making the request `withdrawn`, dropping its
-  consumption entries, removing it from the logical tail, and sending every request whose built commit has the
-  withdrawn commit as an ancestor in the tail back to `resume = B1` (its `ready` record is discarded; it is replayed
-  on the new tail), so the capture-visible head and tail no longer contain withdrawn work (R12-6); (3) keep the built
-  commit on `refs/cli-git/<instance>/withdrawn/<id>` best effort (the spool is the guarantee). A held hook is not
-  ended (its completion is discarded as in B3). A P2 attempt needs no action here beyond the abort of an open one.
-  Crash: repeated; L4 reads the marks first.
+  later one is ignored by every reader); (2) one S1 replacement making the request `withdrawn` (for
+  `withdraw-unresolved` this step and step (3) run only when E1 resolves the attempt: `published` goes the M1 way, and
+  `unresolved` or `rewritten-away` removes the request with the re-basing below), dropping its consumption entries,
+  removing it from the logical tail, and sending every request whose built commit has the withdrawn commit as an
+  ancestor in the tail back to `resume = B1` (its `ready` record is discarded; it is replayed on the new tail), so the
+  capture-visible head and tail no longer contain withdrawn work (R12-6); (3) keep the built commit on
+  `refs/cli-git/<instance>/withdrawn/<id>` best effort (the spool is the guarantee). A held hook is not ended (its
+  completion is discarded as in B3). A P2 attempt needs no action here beyond the abort of an open one. Crash:
+  repeated; L4 reads the marks first.
 
 Capture and acceptance (client)
 - C0 ensure the lane. Pre: C1 finds the marker set, or an open recovery journal (defined next), or no owner and a state document that does not
@@ -621,23 +626,26 @@ Capture and acceptance (client)
   next acquirer (L1 to L4) repeats the repair.
 - C1 capture. Pre: C0 passed, and the publication target is determined (target rule below). Do: read the newest valid
   record of `lane/state.log` once (taking `g`, the marker, the logical head, the logical tail, the consumption map);
-  for every request in the tail and the map `stat` `lane/decision/<id>`. A request that has a mark and is still in the
-  document means the lane has not yet applied W2, so the logical head and tail still contain withdrawn work and a
-  capture against them would omit its staging (R12-6): the capture does not proceed, the client waits for the document
-  to change within CAPTURE, and CAPTURE ends it with the busy error and no request. This is the whole repair: the
-  consumption entries and the base are never interpreted around a mark, because W1 returns only after W2 has recorded
-  the withdrawal (W1 step (4)) or after `WAIT_WITHDRAW`, and until then C1 refuses. The cost is one `stat` per
-  in-flight request and no sync. Read the branch tip `B` and the base closure from the immutable objects `B` names;
-  read the real index file once (it is replaced by rename, so one read is a consistent snapshot) and the worktree
-  files into the spool; an index entry that equals, in every field, the `E` of a live consumption entry of either kind
-  for its path is not staging, and any other index entry for that path is staging (a `merge-install` path has its own
-  rule, MG2); read the document again and accept only an unchanged `g` with the marker `none`, else repeat, within
-  CAPTURE. The tip is not re-read to validate: a tip that moved during capture does not invalidate the capture,
-  because the delta is relative to the logical head and is replayed on the actual tip at adoption. Foreign changes to
-  the index or the worktree after the single reads are later staging, not an inconsistency, and cause no retry. Crash:
-  nothing durable. Starvation, stated: C1 repeats only when the lane's own state changed between its two reads, so a
-  lane that never stops changing delays it, and CAPTURE ends that delay with an error and no request; it never waits
-  on a foreign program.
+  for every request in the tail and the map `stat` `lane/decision/<id>`. A request that has a plain `withdraw` mark
+  and is still in the document means the lane has not yet applied W2, so the logical head and tail still contain
+  withdrawn work and a capture against them would omit its staging (R12-6): the capture does not proceed, the client
+  waits for the document to change within CAPTURE, and CAPTURE ends it with the busy error and no request. A request
+  with a `withdraw-unresolved` mark is different: its attempt may still land, so it stays pending in the tail with its
+  entries live (the accepted consumed-entry limitation while a request is pending), C1 does not refuse for it, and a
+  wedged Git child therefore never freezes the lane's later commits. This is the whole repair: the consumption entries
+  and the base are never interpreted around a mark, because W1 returns only after W2 has recorded the withdrawal (W1
+  step (4)) or after `WAIT_WITHDRAW`, and until then C1 refuses. The cost is one `stat` per in-flight request and no
+  sync. Read the branch tip `B` and the base closure from the immutable objects `B` names; read the real index file
+  once (it is replaced by rename, so one read is a consistent snapshot) and the worktree files into the spool; an
+  index entry that equals, in every field, the `E` of a live consumption entry of either kind for its path is not
+  staging, and any other index entry for that path is staging (a `merge-install` path has its own rule, MG2); read the
+  document again and accept only an unchanged `g` with the marker `none`, else repeat, within CAPTURE. The tip is not
+  re-read to validate: a tip that moved during capture does not invalidate the capture, because the delta is relative
+  to the logical head and is replayed on the actual tip at adoption. Foreign changes to the index or the worktree
+  after the single reads are later staging, not an inconsistency, and cause no retry. Crash: nothing durable.
+  Starvation, stated: C1 repeats only when the lane's own state changed between its two reads, so a lane that never
+  stops changing delays it, and CAPTURE ends that delay with an error and no request; it never waits on a foreign
+  program.
 - C2 spool and request (revision 12: one file). Pre: C1. Do: build the whole request in memory (record, manifest,
   every captured side), draw a fresh invocation nonce for this invocation, compute its checksum and its identity (the
   content hash, nonce included, plus the lane instance; rule V), write
@@ -731,54 +739,55 @@ Build and publication (lane)
   recovery, and a path is never reused, because a late writer must not be able to address a later attempt) with a
   named pipe `in`, a file `out` for standard output, a file `result` and a file for Git's trace events (E1). Pipe
   bootstrap, as a specification to check by experiment: open the read end `O_RDONLY | O_NONBLOCK` (it succeeds with no
-  writer), open a write end `O_WRONLY` (it succeeds because a reader exists), clear `O_NONBLOCK` on the read end, pass
-  it as the child's standard input, and close the owner's copy of the read end after the spawn; every other descriptor
-  is close-on-exec. Start `update-ref --stdin` (never `--no-deref`; a detached target names `HEAD`) with `LC_ALL=C`
-  and `out` as standard output; check for the mark once more now that the reader exists (a mark found closes the write
-  end and ends the attempt as W2); write `start`, `update <ref> <new> <old>` and `prepare`. Pipe discipline: every
-  line is one `write` of at most `PIPE_BUF` bytes, repeated on `EINTR`, with a short write or `EPIPE` treated as
-  failure of that writer; a writer holds a write end only for its one write, never idle. `update-ref` reads one line
-  at a time and finishes each command before it reads the next (`builtin/update-ref.c:712-770`), so a line written
-  while a hook runs waits in the pipe; stdio may read ahead into its buffer, but dispatch is still in order. `prepare`
-  takes the ref lock and runs the person's `reference-transaction` hook in `preparing` before the locks and in
-  `prepared` after them (`refs.c:2713-2726`); it prints `prepare: ok` (`update-ref.c:621-631`) to `out`. While
-  prepared, any line but `abort` or `commit` makes `update-ref` die (`update-ref.c:760-763`). P2b decide. The pipe
-  orders instructions; it does not make an instruction, its execution and the ref write one event. What the order
-  gives, for one live transaction process and writes as above: `update-ref` executes the first closing line it reads,
-  and a second closing line only makes it die with "transaction is closed" after the first has run
-  (`update-ref.c:765-768`) when the first handler returned successfully. So `commit` then `abort` does not undo the
-  commit, and `abort` then `commit` does not commit that transaction; a successful write is not proof that Git has
-  read, begun or finished the instruction. The decider is the attached client while its client lock (a `flock` on
-  `lane/client/<id>`, held for the life of the command and released by the kernel at its death) is held, otherwise the
-  owner. The client reads `prepare: ok` from `out` (a change notification, not a poll), and if at least
-  `COMMIT_MARGIN` (starting from `WAIT_COMMITTING`) of its FOREGROUND budget remains, records `submitted a` in its own
-  state and writes `commit`; otherwise it runs W1, which writes `abort`. The owner decides only for a request with no
-  client: it writes `commit` on `prepare: ok`, or `abort` when a mark exists. When the client lock is released with no
-  mark and no `outcome` line (the client was killed from outside, so a normal exit, which always leaves a mark, is
-  told apart), the owner becomes the decider and writes `commit`: the request now has no client and may land later,
-  which the outside-cause rule allows. If no closing line appears within `PREPARED_HOLD` of `prepare: ok`, the owner
-  writes `abort`. PREPARED-HOLD bounds when an instruction is enqueued, not when the lock is released: `abort` is
-  executed when Git reads it, and a Git child that never reads again is a wedge of Git's own (not on the owner's
-  outside list; the C-kind pick exempts `update-ref` from X1), so the register states the residue and no process of
-  ours waits on it: the client has already left, and other programs' wait on the branch lock is theirs. P2c commit.
-  `update-ref` executes `commit` (the backend writes the ref, then runs the `committed` hook, `refs.c:2783-2785`), so
-  the ref can be written before `commit: ok` is printed. The landing evidence is `commit: ok` on `out`, or the tip
-  equal to `new` or having it as an ancestor (R2); the client prints `published` on the first of them. The owner
-  records the end of the child in `result` and then `closed a` or `unresolved a` (E1). `commit` failing makes
-  `update-ref` die on standard error with no line on standard output (`update-ref.c:645-658`). The exception the owner
-  approved (decision 7): the client has submitted `commit` and neither the landing evidence nor a positive close has
-  been seen when its COMMITTING bound passes. That is an instruction already submitted, whether Git has read it or
-  not, and not only a disk write already begun. The client leaves by the unresolved exit of W1. The extra wait
-  `WAIT_COMMITTING` improves the observed outcome of a slow write; it is not a correctness bound. Owner death: the
-  child is ended by the parent-death signal that L5 sets and is reaped by L2; Git removes its own lock files when it
-  ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`), a backend obligation to check for the signal L5 sets;
-  a lock stranded by an uncatchable kill is the residue of choice R (the lane never removes a ref lock). End of input
-  aborts a prepared transaction only when every write end is closed and the buffered input is consumed, and a `commit`
-  already in the buffer is not cancelled by later end of input. After `commit` was written, `update-ref` finishes on
-  its own; recovery classes R1 to R5 decide what happened, and the mark rule above forbids a new attempt after a
-  normal exit. Nothing but L6 and the lifetime owner lock `lane/owner` is held across P2. Crash: the recovery classes
-  apply; a request with an attached client waits as in FOREGROUND for the next attempt (Q1) only when its last attempt
-  closed by class F, and W1 stays available.
+  writer), open a write end `O_WRONLY` (it succeeds because a reader exists; every later writer opens with
+  `O_WRONLY | O_NONBLOCK`, so a dead reader gives `ENXIO` and not a blocked open), clear `O_NONBLOCK` on the read end,
+  pass it as the child's standard input, and close the owner's copy of the read end after the spawn; every other
+  descriptor is close-on-exec. Start `update-ref --stdin` (never `--no-deref`; a detached target names `HEAD`) with
+  `LC_ALL=C` and `out` as standard output; check for the mark once more now that the reader exists (a mark found
+  closes the write end and ends the attempt as W2); write `start`, `update <ref> <new> <old>` and `prepare`. Pipe
+  discipline: every line is one `write` of at most `PIPE_BUF` bytes, repeated on `EINTR`, with a short write or
+  `EPIPE` treated as failure of that writer; a writer holds a write end only for its one write, never idle.
+  `update-ref` reads one line at a time and finishes each command before it reads the next
+  (`builtin/update-ref.c:712-770`), so a line written while a hook runs waits in the pipe; stdio may read ahead into
+  its buffer, but dispatch is still in order. `prepare` takes the ref lock and runs the person's
+  `reference-transaction` hook in `preparing` before the locks and in `prepared` after them (`refs.c:2713-2726`); it
+  prints `prepare: ok` (`update-ref.c:621-631`) to `out`. While prepared, any line but `abort` or `commit` makes
+  `update-ref` die (`update-ref.c:760-763`). P2b decide. The pipe orders instructions; it does not make an
+  instruction, its execution and the ref write one event. What the order gives, for one live transaction process and
+  writes as above: `update-ref` executes the first closing line it reads, and a second closing line only makes it die
+  with "transaction is closed" after the first has run (`update-ref.c:765-768`) when the first handler returned
+  successfully. So `commit` then `abort` does not undo the commit, and `abort` then `commit` does not commit that
+  transaction; a successful write is not proof that Git has read, begun or finished the instruction. The decider is
+  the attached client while its client lock (a `flock` on `lane/client/<id>`, held for the life of the command and
+  released by the kernel at its death) is held, otherwise the owner. The client reads `prepare: ok` from `out` (a
+  change notification, not a poll), and if at least `COMMIT_MARGIN` (starting from `WAIT_COMMITTING`) of its
+  FOREGROUND budget remains, records `submitted a` in its own state and writes `commit`; otherwise it runs W1, which
+  writes `abort`. The owner decides only for a request with no client: it writes `commit` on `prepare: ok`, or `abort`
+  when a mark exists. When the client lock is released with no mark and no `outcome` line (the client was killed from
+  outside, so a normal exit, which always leaves a mark, is told apart), the owner becomes the decider and writes
+  `commit`: the request now has no client and may land later, which the outside-cause rule allows. If no closing line
+  appears within `PREPARED_HOLD` of `prepare: ok`, the owner writes `abort`. PREPARED-HOLD bounds when an instruction
+  is enqueued, not when the lock is released: `abort` is executed when Git reads it, and a Git child that never reads
+  again is a wedge of Git's own (not on the owner's outside list; the C-kind pick exempts `update-ref` from X1), so
+  the register states the residue and no process of ours waits on it: the client has already left, and other programs'
+  wait on the branch lock is theirs. P2c commit. `update-ref` executes `commit` (the backend writes the ref, then runs
+  the `committed` hook, `refs.c:2783-2785`), so the ref can be written before `commit: ok` is printed. The landing
+  evidence is `commit: ok` on `out`, or the tip equal to `new` or having it as an ancestor (R2); the client prints
+  `published` on the first of them. The owner records the end of the child in `result` and then `closed a` or
+  `unresolved a` (E1). `commit` failing makes `update-ref` die on standard error with no line on standard output
+  (`update-ref.c:645-658`). The exception the owner approved (decision 7): the client has submitted `commit` and
+  neither the landing evidence nor a positive close has been seen when its COMMITTING bound passes. That is an
+  instruction already submitted, whether Git has read it or not, and not only a disk write already begun. The client
+  leaves by the unresolved exit of W1. The extra wait `WAIT_COMMITTING` improves the observed outcome of a slow write;
+  it is not a correctness bound. Owner death: the child is ended by the parent-death signal that L5 sets and is reaped
+  by L2; Git removes its own lock files when it ends on a catchable signal (`lockfile.c:83`, `tempfile.c:93`), a
+  backend obligation to check for the signal L5 sets; a lock stranded by an uncatchable kill is the residue of choice
+  R (the lane never removes a ref lock). End of input aborts a prepared transaction only when every write end is
+  closed and the buffered input is consumed, and a `commit` already in the buffer is not cancelled by later end of
+  input. After `commit` was written, `update-ref` finishes on its own; recovery classes R1 to R5 decide what happened,
+  and the mark rule above forbids a new attempt after a normal exit. Nothing but L6 and the lifetime owner lock
+  `lane/owner` is held across P2. Crash: the recovery classes apply; a request with an attached client waits as in
+  FOREGROUND for the next attempt (Q1) only when its last attempt closed by class F, and W1 stays available.
 - P3 published. Pre: P2 succeeded. Do: in one S1 replacement record `published` and update the logical state (no marker: nothing outside the document changes). Crash: recovery class R2.
 - P4 swap-failed. Pre: P2a failed or `commit` failed, and E1 classified it `store-failure`, or the attempt was closed
   without landing (owner death, `PREPARED_HOLD`). Do: in one S1 replacement record
@@ -910,25 +919,24 @@ Materialization and retirement
 - T1 retire (revision 12; R11-3). Pre: the request has a terminal outcome already published to the ledger (T0), its
   terminal ledger line and the log record that removes it from the state are D (rule V, reclamation barrier), and the
   maintenance registry, listed once as `L0` (the names in `maintenance/`) together with the highest reservation number
-  `n0`, has every entry `terminal` by G3 (an
-  entry that is not `terminal` blocks, whatever its scope: an entry with an empty or absent scope and a live launcher
-  is not terminal, because that launcher may still launch). Two kinds. T1-commit, for a request whose commit is in the
-  object store and published (materialized or voided). T1-nocommit, for a request that has no commit to publish
-  (`superseded`, `refused`, `withdrawn`, `conflicted`, a held version): the hook execution tree of the version is
-  empty and no consumption entry remains for it; it needs no connectivity check. A request that is saved (`pending`,
-  `landing`, `rewritten-away`, a `withdrawn` or `conflicted` request whose inputs the person has not disposed of)
-  never loses its spool. Do, in this order: (1) write `releases/<instance>/<id>` (the release intent) by the link
-  method of C3, V; (2) for T1-commit, run the connectivity check from the tip; (3) after the check has ended, probe
-  the name `maintenance/<n0 + 1>` (one `stat`; reservations are numbered consecutively, G1) and list the registry
-  again as `L1`, and require that the probe finds nothing, that `L1` has the same names as `L0` and that every entry
-  read in `L1` is `terminal`; any other result (a name in `L1` that is not in `L0`, whether or not it is terminal, or
-  an entry not
-  `terminal`) withdraws the intent and keeps everything, and a later T1 repeats from its Pre with a new `L0`; (4)
-  append `retired <id>` to this lane's ledger; (5) release the spool; (6) remove the hold ref if there is one; (7)
-  remove the intent. Crash: the intent names an unfinished release; L4 keeps the intent and repeats T1 from its Pre
-  with a fresh `L0` (never from step (2) with a baseline lost in the crash), so the comparison always brackets the
-  check it follows; the ledger line is D before any release, so retention is never released first. Retirement is
-  retention, not a wait: nothing blocks on it,
+  `n0` (valid only if the numbers are dense from `maintenance/floor` to `n0`; a gap means a reservation in progress or
+  a missed name, and T1 withdraws), has every entry `terminal` by G3 (an entry that is not `terminal` blocks, whatever
+  its scope: an entry with an empty or absent scope and a live launcher is not terminal, because that launcher may
+  still launch). Two kinds. T1-commit, for a request whose commit is in the object store and published (materialized
+  or voided). T1-nocommit, for a request that has no commit to publish (`superseded`, `refused`, `withdrawn`,
+  `conflicted`, a held version): the hook execution tree of the version is empty and no consumption entry remains for
+  it; it needs no connectivity check. A request that is saved (`pending`, `landing`, `rewritten-away`, a `withdrawn`
+  or `conflicted` request whose inputs the person has not disposed of) never loses its spool. Do, in this order: (1)
+  write `releases/<instance>/<id>` (the release intent) by the link method of C3, V; (2) for T1-commit, run the
+  connectivity check from the tip; (3) after the check has ended, probe the name `maintenance/<n0 + 1>` (one `stat`;
+  reservations are numbered consecutively, G1) and list the registry again as `L1`, and require that the probe finds
+  nothing, that `L1` has the same names as `L0` and that every entry read in `L1` is `terminal`; any other result (a
+  name in `L1` that is not in `L0`, whether or not it is terminal, or an entry not `terminal`) withdraws the intent
+  and keeps everything, and a later T1 repeats from its Pre with a new `L0`; (4) append `retired <id>` to this lane's
+  ledger; (5) release the spool; (6) remove the hold ref if there is one; (7) remove the intent. Crash: the intent
+  names an unfinished release; L4 keeps the intent and repeats T1 from its Pre with a fresh `L0` (never from step (2)
+  with a baseline lost in the crash), so the comparison always brackets the check it follows; the ledger line is D
+  before any release, so retention is never released first. Retirement is retention, not a wait: nothing blocks on it,
   and it may be deferred for as long as a run keeps appearing (the cost is disk). Why a late maintenance admission
   cannot take the closure (revision 12; R11-3). Revision 11's proof read "terminal at the final registry read" as
   "finished before the connectivity check", and it is not: a run admitted after T1's Pre can take its view while the
@@ -949,10 +957,9 @@ Materialization and retirement
   `L0` is found by the probe or by `L1`, and one not yet linked takes its views after the check. Compaction removes
   only a prefix of old terminal entries, after writing the new lowest number to `maintenance/floor`, and only when no
   release intent that predates their `terminal` records exists. The hold ref is extra protection where the ref store
-  allows it, advanced best effort; its absence
-  changes nothing in this argument. Obligations for step 1 and for the backend: G1 is visible before G2 for every
-  wrapper-started run; a run takes no reachability view before it is launched; a deletion by a run precedes its
-  `terminal` record.
+  allows it, advanced best effort; its absence changes nothing in this argument. Obligations for step 1 and for the
+  backend: G1 is visible before G2 for every wrapper-started run; a run takes no reachability view before it is
+  launched; a deletion by a run precedes its `terminal` record.
   deletion by a run precedes its `terminal` record.
 Merges (revision 13: publish first, the owner's decision 8, "Branch first, files after"). A merge is a request of the
 same lane, with the same adoption order, withdrawal, publication and
@@ -1614,7 +1621,7 @@ with base `B`, ours `C`, theirs `T` (`git merge-tree --write-tree --merge-base=B
 A conflict is an allowed outcome: the replay stops with the conflict recorded and the captured inputs kept. The commit's parents
 are `C` (and `T`'s other parent for a conclusion).
 
-## What is guaranteed to complete, and what may wait (revision 12)
+## What is guaranteed to complete, and what may wait (revision 13)
 
 No wait below is called designed out, and every wait of a command ends at a bound of the register in rule B.
 
