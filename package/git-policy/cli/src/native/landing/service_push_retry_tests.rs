@@ -419,7 +419,7 @@ fn a_rejection_the_release_does_not_know_is_tried_again_and_named_in_the_journal
 /// The directories a service of this instance was woken for, as the journal of a service that ended holds them.
 fn watched_by_an_earlier_service(stage: &Stage) -> PathBuf {
     let store: PathBuf = stage.root.join("journal").join(WATCH_DIRECTORY);
-    ClaimWatch::restored(store.as_path()).remember(stage.repo.join(".git").as_path());
+    ClaimWatch::restored(store.as_path(), None).remember(stage.repo.join(".git").as_path());
     return store;
 }
 
@@ -447,7 +447,7 @@ fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>,
 /// The same with the first pause of a push that is tried again given.
 fn start_service_watching_with<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, first: Duration, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     let (sender, receiver) = channel::<Wake>();
-    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(first, plans), ClaimWatch::restored(watched)); });
+    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(first, plans), ClaimWatch::restored(watched, None)); });
     return (sender, running);
 }
 
@@ -485,7 +485,7 @@ fn a_wake_writes_the_repository_down_for_the_next_service() {
     let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
     let handlers: GitHandlers = GitHandlers::new(git_context());
     let busy: AtomicUsize = AtomicUsize::new(0);
-    assert!(ClaimWatch::restored(store.as_path()).directories().is_empty(), "a new journal watches nothing");
+    assert!(ClaimWatch::restored(store.as_path(), None).directories().is_empty(), "a new journal watches nothing");
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
         sender.send((git_dir.clone(), None)).expect("the service takes the wake");
@@ -493,7 +493,7 @@ fn a_wake_writes_the_repository_down_for_the_next_service() {
         drop(sender);
         running.join().expect("the service ends");
     });
-    assert_eq!(ClaimWatch::restored(store.as_path()).directories(), vec![git_dir], "the next service looks at the repository by itself");
+    assert_eq!(ClaimWatch::restored(store.as_path(), None).directories(), vec![git_dir], "the next service looks at the repository by itself");
     remove(stage.root.as_path());
 }
 
@@ -564,6 +564,70 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     std::thread::scope(|scope| {
         let (sender, running) = start_service_watching_with(scope, &handlers, FAR_PLAN_PAUSE, plans.as_path(), store.as_path(), &busy);
         assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the claim was run although the push plan is due only after {FAR_PLAN_PAUSE:?}");
+        assert!(wait_until(&|| { return !claimed.exists(); }), "the claim was settled");
+        drop(sender);
+        running.join().expect("the service ends");
+    });
+    remove(stage.root.as_path());
+}
+
+/// How long the controls of a fault in the notes wait for the service to try again: the pause, the slack and a margin for a loaded host.
+const NOTE_RETRY_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+
+/// Puts a file where the notes' directory should be, so that nothing can be written or listed under it, and gives the store's path.
+fn block_the_notes(stage: &Stage) -> (PathBuf, PathBuf) {
+    let blocker: PathBuf = stage.root.join("note-blocker");
+    std::fs::write(&blocker, b"not a directory\n").expect("the blocker");
+    return (blocker.clone(), blocker.join(WATCH_DIRECTORY));
+}
+
+/// A note that cannot be written when the service first drains a repository does not stop the work, and is written once the fault
+/// is mended, without another wake: a service killed after that finds the repository, so a full disk at the first commit does not
+/// leave the last commit's push to wait for a commit that may never come.
+#[test]
+fn a_note_that_could_not_be_written_is_written_after_the_fault_is_mended() {
+    let stage: Stage = stage("push-claim-note-unwritable");
+    let_pushes_through(&stage);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let (blocker, store): (PathBuf, PathBuf) = block_the_notes(&stage);
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
+        sender.send((git_dir.clone(), None)).expect("the service takes the wake");
+        assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the push was made although the note could not be written");
+        assert!(wait_until(&|| { return busy.load(Ordering::SeqCst) == 1; }), "the service stays up for the note it has to write");
+        std::fs::remove_file(&blocker).expect("the fault is mended");
+        let began: Instant = Instant::now();
+        while ClaimWatch::restored(store.as_path(), None).directories().is_empty() && began.elapsed() < NOTE_RETRY_PATIENCE {
+            std::thread::sleep(LOOK_EVERY);
+        }
+        assert_eq!(ClaimWatch::restored(store.as_path(), None).directories(), vec![git_dir.clone()], "the note was written by the retry");
+        drop(sender);
+        running.join().expect("the service ends");
+    });
+    remove(stage.root.as_path());
+}
+
+/// A store of notes that cannot be listed when the service starts does not end the look: the service stays up, lists it again
+/// after a pause, and runs the claim of the repository the note names.
+#[test]
+fn a_store_that_could_not_be_listed_at_the_start_is_listed_again_and_its_claim_is_run() {
+    let stage: Stage = stage("push-claim-store-unlistable");
+    let_pushes_through(&stage);
+    let (blocker, store): (PathBuf, PathBuf) = block_the_notes(&stage);
+    let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), crate::service_work::CLAIM_LEASE - Duration::from_secs(2));
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let (sender, running) = start_service_watching(scope, &handlers, plans.as_path(), store.as_path(), &busy);
+        assert!(wait_until(&|| { return busy.load(Ordering::SeqCst) == 1; }), "the service stays up for the store it has to list again");
+        // The fault is mended and the note an earlier service wrote is there.
+        std::fs::remove_file(&blocker).expect("the fault is mended");
+        ClaimWatch::restored(store.as_path(), None).remember(stage.repo.join(".git").as_path());
+        assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the claim was run once the store could be listed");
         assert!(wait_until(&|| { return !claimed.exists(); }), "the claim was settled");
         drop(sender);
         running.join().expect("the service ends");
