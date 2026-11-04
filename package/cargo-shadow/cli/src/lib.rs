@@ -138,6 +138,9 @@ pub mod git_native;
 /// The loop guard that keeps a launcher or link leading back to the shadow from being run as the real `cargo`.
 pub mod guard;
 
+/// The message of a cargo-shadow that was started by cargo-shadow.
+pub mod arrival;
+
 /// Registry versions in a lockfile and the difference between lockfile sets.
 pub mod lockfile;
 

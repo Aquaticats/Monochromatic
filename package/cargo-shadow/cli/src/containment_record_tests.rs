@@ -233,7 +233,7 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     // bound, and the writer's own delay follows the bound (a second after it) so that it still writes only after the stop.
     let writer_file = plain.path().join("writer-pid");
     let started = std::time::Instant::now();
-    let (result, limit) = crate::cgroup_test_support::run_until_the_payload_started(
+    let (result, limit, judged) = crate::cgroup_test_support::run_until_the_payload_started(
         Duration::from_millis(1500),
         &|| { let _ = fs::remove_file(&ready); let _ = fs::remove_file(&marker); },
         &|| { return ready.exists(); },
@@ -253,6 +253,7 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
     std::thread::sleep(limit + Duration::from_millis(1_200));
     assert!(!alive_at_return, "the writer of the process group still ran when the run returned");
     assert!(elapsed < limit * 8 + crate::bounded_run::QUIESCE_BOUND * 2, "the run returned after {elapsed:?}, long after its bound of {limit:?}");
+    assert!(judged >= limit && judged < limit + crate::bounded_run::QUIESCE_BOUND * 2, "the judged run ended after {judged:?}, not at its bound of {limit:?}");
 
     // The result is the timeout (certification group 3), the writer started, and the run was the weaker path.
     assert!(matches!(result, Err(crate::bounded_run::RunError::TimedOut { .. })), "the run should have passed its bound: {result:?}");
@@ -513,20 +514,32 @@ fn a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_
     let Some(route) = delegated_route() else {
         return;
     };
-    let root = repository();
-    let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
-    let Record::Scope { namespace, parent_view, path } = planned.record() else {
-        panic!("a scope record");
-    };
-    let wrong: Record = Record::Scope { namespace, parent_view: View { mount: parent_view.mount + 1, inode: parent_view.inode }, path };
-    let journal: PathBuf = journal_with_records(root.path(), &format!("{wrong}\nsettled {}\n", planned.directory().display()));
+    // The mount id and the inode of the parent are each changed on their own (fifth certification pass): a check of only one of them
+    // is red for the other; the unchanged view is the control, which is read as ended.
+    for (label, mount_step, inode_step) in [("an unchanged view", 0_u64, 0_u64), ("another mount id", 1, 0), ("another inode", 0, 1)] {
+        let root = repository();
+        let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
+        let Record::Scope { namespace, parent_view, path } = planned.record() else {
+            panic!("a scope record");
+        };
+        let seen: Record = Record::Scope { namespace, parent_view: View { mount: parent_view.mount + mount_step, inode: parent_view.inode + inode_step }, path };
+        let journal: PathBuf = journal_with_records(root.path(), &format!("{seen}\nsettled {}\n", planned.directory().display()));
 
-    let note: String = survivor_note(&journal).expect("a different parent view blocks");
-    let messages: Vec<String> = recover(root.path(), &refusing);
+        let note: Option<String> = survivor_note(&journal);
+        let messages: Vec<String> = recover(root.path(), &refusing);
 
-    assert!(note.contains("recorded path may lead somewhere else"), "{note}");
-    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{messages:?}");
-    assert!(journal.exists());
+        if mount_step == 0 && inode_step == 0 {
+            assert_eq!(note, None, "{label}: the control did not read the settled, absent scope as ended: {messages:?}");
+            assert!(!journal.exists(), "{label}: the control journal was not recovered: {messages:?}");
+        } else {
+            let text: String = note.unwrap_or_else(|| { panic!("{label}: a different parent view did not block"); });
+            assert!(text.contains("recorded path may lead somewhere else"), "{label}: {text}");
+            assert!(messages.iter().any(|message| { return message.contains("recorded path may lead somewhere else"); }), "{label}: the recovery did not give the reason: {messages:?}");
+            assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{label}: {messages:?}");
+            assert!(journal.exists(), "{label}: the journal was removed");
+            assert!(begin(root.path(), &[snapshot("second")], false).is_err(), "{label}: a transaction was admitted beside a journal whose parent view differs");
+        }
+    }
 }
 
 /// The helper process of the mount-view test:
@@ -748,4 +761,52 @@ fn a_started_child_whose_process_group_was_never_recorded_is_a_possible_survivor
     let note = survivor_note(&journal);
 
     assert!(note.is_some_and(|text| { return text.contains("never recorded"); }), "a recovery would restore files a child may still be writing");
+}
+
+/// The environment variable that tells the notice-concurrency helper process to run.
+const FIXTURE_NOTICE_RACE: &str = "CARGO_SHADOW_NOTICE_RACE_FIXTURE";
+
+/// The helper process of the notice-concurrency test (a fresh process, because the notice is given once per process): the first
+/// weaker-path run wins the notice and is held inside its emission; a second weaker-path run on another thread must complete while
+/// the winner is still held. Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_run_does_not_wait_for_another_runs_slow_notice"]
+fn notice_concurrency_fixture() {
+    use std::sync::atomic::Ordering;
+    if std::env::var(FIXTURE_NOTICE_RACE).is_err() {
+        return;
+    }
+    let plain = scratch();
+    let settings = RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() };
+    let gate = crate::bounded_run::NOTICE_GATE.lock().expect("the gate");
+    let first_settings = settings.clone();
+    let first = std::thread::spawn(move || {
+        use_route_settings_for_test(Some(first_settings));
+        return output_within(Command::new("sh").args(["-c", "echo first"]), None, &bound());
+    });
+    crate::cgroup_test_support::wait_until("the first run to be inside its notice", &|| { return crate::bounded_run::NOTICE_ENTERED.load(Ordering::SeqCst); });
+    let second = crate::round_sixteen_tests::answers_within("the second weaker-path run", Duration::from_secs(20), move || {
+        use_route_settings_for_test(Some(settings));
+        return output_within(Command::new("sh").args(["-c", "echo second"]), None, &bound());
+    });
+    assert!(second.is_ok_and(|output| { return output.status.success(); }), "the second run did not complete");
+    drop(gate);
+    assert!(first.join().expect("first thread").is_ok_and(|output| { return output.status.success(); }));
+}
+
+/// Acceptance rows V6 and "Weaker path" (fifth certification pass): the weaker-path notice, given once per process, does not make
+/// another run wait for the winner's slow write. A helper process holds the winner inside the emission and requires the second run to
+/// answer; the notice is on standard error exactly once.
+#[test]
+fn a_run_does_not_wait_for_another_runs_slow_notice() {
+    let output = Command::new(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "containment_record_tests::notice_concurrency_fixture", "--nocapture"])
+        .env(FIXTURE_NOTICE_RACE, "1")
+        .output()
+        .expect("the helper");
+
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "the helper failed: {stderr}");
+    let notices: usize = stderr.lines().filter(|line| { return line.starts_with("cargo-shadow: no delegated control group"); }).count();
+    assert_eq!(notices, 1, "the notice was not given exactly once: {stderr}");
 }
