@@ -26,6 +26,7 @@ use std::path::{Path, PathBuf};
 
 use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file};
 use super::commit_integrity::{crc32, is_identity, is_object_name};
+use super::commit_state_log::{open_regular, open_regular_with, read_regular};
 
 /// What:
 ///  `struct LedgerEntry { ... }`: the four fields of a terminal line.
@@ -235,18 +236,16 @@ fn torn_path(ledger: &Path) -> PathBuf {
 /// function repairTail(path: string): Repair;
 /// ```
 fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
-    let mut bytes: Vec<u8> = Vec::new();
-    match File::open(ledger) {
-        Ok(mut file) => {
-            file.read_to_end(&mut bytes)?;
-        }
+    // Read as a regular file to the length it has now: a link, a FIFO or a device at the ledger's name is refused, not followed or waited for.
+    let bytes: Vec<u8> = match read_regular(ledger) {
+        Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return Ok(Repair { kept: 0, cut: 0 });
         }
         Err(error) => {
             return Err(LedgerError::Io(error));
         }
-    }
+    };
     record_event_lazy(|| { return format!("read-bytes:{}", bytes.len()); });
     let (valid_end, damaged_middle) = scan(&bytes);
     if let Some(number) = damaged_middle {
@@ -254,12 +253,12 @@ fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
     }
     let cut: usize = bytes.len() - valid_end;
     if cut > 0 {
-        let mut saved: File = OpenOptions::new().create(true).append(true).open(torn_path(ledger))?;
+        let mut saved: File = open_regular_with(OpenOptions::new().create(true).append(true), &torn_path(ledger))?;
         saved.write_all(&bytes[valid_end..])?;
         sync_file(&saved, &torn_path(ledger))?;
         sync_parent(&torn_path(ledger))?;
         fault_point("ledger:before-truncate");
-        let file: File = OpenOptions::new().write(true).open(ledger)?;
+        let file: File = open_regular_with(OpenOptions::new().write(true), ledger)?;
         file.set_len(valid_end as u64)?;
         record_event_lazy(|| { return format!("truncate:{}", ledger.display()); });
         sync_file(&file, ledger)?;
@@ -279,7 +278,7 @@ fn repair_tail(ledger: &Path) -> Result<Repair, LedgerError> {
 /// function cleanTail(path: string): Repair | undefined;
 /// ```
 fn clean_tail(ledger: &Path) -> Result<Option<Repair>, LedgerError> {
-    let mut file: File = match File::open(ledger) {
+    let mut file: File = match open_regular(ledger) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Some(Repair { kept: 0, cut: 0 })),
         Err(error) => return Err(LedgerError::Io(error)),
@@ -359,7 +358,7 @@ fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), Ledge
     if clean_tail(ledger)?.is_none() {
         repair_tail(ledger)?;
     }
-    let mut file: File = OpenOptions::new().create(true).append(true).open(ledger)?;
+    let mut file: File = open_regular_with(OpenOptions::new().create(true).append(true), ledger)?;
     file.write_all(&line)?;
     sync_file(&file, ledger)?;
     // Always, through the caller's durable anchor: the file or a directory above it may exist because a writer that died created
@@ -378,7 +377,7 @@ fn append(anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), Ledge
 /// function lookup(path: string, id: string): LedgerEntry | undefined;
 /// ```
 pub fn lookup(ledger: &Path, id: &str) -> Result<Option<LedgerEntry>, LedgerError> {
-    let bytes: Vec<u8> = match fs::read(ledger) {
+    let bytes: Vec<u8> = match read_regular(ledger) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(LedgerError::Io(error)),
@@ -420,7 +419,7 @@ pub fn complete_entries(prefix: &[u8]) -> Option<Vec<LedgerEntry>> {
 
 /// Reads the whole ledger once and refuses a damaged middle; a torn tail is allowed (an append repairs it) and a missing file is empty.
 fn validate_history(ledger: &Path) -> Result<(), LedgerError> {
-    let bytes: Vec<u8> = match fs::read(ledger) {
+    let bytes: Vec<u8> = match read_regular(ledger) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(LedgerError::Io(error)),
@@ -464,7 +463,7 @@ impl LedgerOwner {
         {
             return Err(LedgerError::InvalidField("the owner lock path is not a regular file"));
         }
-        let lock: File = std::os::unix::fs::OpenOptionsExt::custom_flags(OpenOptions::new().create(true).write(true).truncate(false), libc::O_NONBLOCK)
+        let lock: File = std::os::unix::fs::OpenOptionsExt::custom_flags(OpenOptions::new().create(true).write(true).truncate(false), libc::O_NONBLOCK | libc::O_NOFOLLOW)
             .open(lock_path)?;
         match lock.try_lock() {
             Ok(()) => {

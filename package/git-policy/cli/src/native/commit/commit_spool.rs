@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::Request;
+use super::commit_state_log::read_regular;
 
 /// What:
 ///  `enum SpoolError { ... }`: why a spool operation failed.
@@ -117,7 +118,7 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
     let directory: &Path = target.parent().ok_or(SpoolError::InvalidIdentity)?;
     // A resend finds the complete final file first and writes no duplicate (a full disk must not fail it); the name may have been linked
     // by a writer that died before syncing the directory, so the directory is synced before the answer.
-    match fs::read(target) {
+    match read_regular(target) {
         Ok(existing) => {
             if existing == bytes {
                 sync_directory(directory)?;
@@ -145,7 +146,7 @@ fn link_complete(target: &Path, bytes: &[u8]) -> Result<(), SpoolError> {
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             // The name may have been linked by a writer that died before syncing the directory.
             sync_directory(directory)?;
-            if fs::read(target)? == bytes {
+            if read_regular(target)? == bytes {
                 // What:     `return Ok(x)` / `return Err(e)` ends the function with a success or a failure value.
                 // Why:      Hand the result to the caller.
                 //
@@ -208,7 +209,7 @@ pub fn write_spool(root: &Path, id: &str, files: &[Vec<u8>], old_files: &[Vec<u8
 /// ```
 pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
     let directory: PathBuf = spool_directory(root, id)?;
-    let manifest: String = match fs::read_to_string(directory.join("manifest")) {
+    let manifest: String = match read_regular(directory.join("manifest")).and_then(|bytes| { return String::from_utf8(bytes).map_err(|error| { return io::Error::new(io::ErrorKind::InvalidData, error); }); }) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Err(SpoolError::Incomplete),
         Err(error) => return Err(SpoolError::Io(error)),
@@ -246,7 +247,7 @@ pub fn verify_spool(root: &Path, id: &str) -> Result<Vec<String>, SpoolError> {
             return Err(SpoolError::Mismatch(format!("manifest record {} is not {} {}", position, kind, number)));
         }
         let name: String = if kind == "old" { format!("{}.old", number) } else { number.to_string() };
-        let bytes: Vec<u8> = fs::read(directory.join(&name))?;
+        let bytes: Vec<u8> = read_regular(directory.join(&name))?;
         // What:     `|x| expr` is a closure (an unnamed function; TS: `(x) => expr`). It is passed to a method that calls it.
         // Why:      Say in one place what to do for each element or error.
         //
@@ -327,7 +328,7 @@ pub fn read_closure(root: &Path, request: &Request) -> Result<Vec<ClosureEntry>,
         let new: Option<(String, Vec<u8>)> = if change.mode == "000000" {
             None
         } else {
-            let bytes: Vec<u8> = fs::read(directory.join(number.to_string()))?;
+            let bytes: Vec<u8> = read_regular(directory.join(number.to_string()))?;
             if sha256_hex(&bytes) != change.sha256 {
                 return Err(SpoolError::Mismatch(format!("new bytes of change {}", number)));
             }
@@ -343,7 +344,7 @@ pub fn read_closure(root: &Path, request: &Request) -> Result<Vec<ClosureEntry>,
         let old: Option<(String, Vec<u8>)> = if change.old_mode == "000000" {
             None
         } else {
-            let bytes: Vec<u8> = fs::read(directory.join(format!("{}.old", number)))?;
+            let bytes: Vec<u8> = read_regular(directory.join(format!("{}.old", number)))?;
             if sha256_hex(&bytes) != change.old_sha256 {
                 return Err(SpoolError::Mismatch(format!("old bytes of change {}", number)));
             }

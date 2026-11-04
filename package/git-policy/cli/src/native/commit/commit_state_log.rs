@@ -39,6 +39,18 @@ pub(super) fn open_regular(path: &Path) -> io::Result<File> {
     return Ok(file);
 }
 
+/// Opens `path` with `options` (read, write, append, create) as a regular file only: without following a link and without blocking, and
+/// refused when what was opened is a FIFO, a device or a directory. The writes of the ledger and the other lane files go through here, so
+/// an append never lands in a file outside the lane that a link leads to, and never waits for a reader of a FIFO.
+pub(super) fn open_regular_with(options: &mut OpenOptions, path: &Path) -> io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let file: File = options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "a file of the lane is not a regular file"));
+    }
+    return Ok(file);
+}
+
 /// Opens the directory `name` of the lane without following a link: a `saved/`, `inbox/` or `decision/` that is a link to somewhere else is
 /// not the lane's directory, and what is read or removed through it belongs to someone else. `Ok(None)` when the lane has no such directory.
 pub(super) fn open_lane_subdirectory(lane: &Path, name: &str) -> io::Result<Option<File>> {

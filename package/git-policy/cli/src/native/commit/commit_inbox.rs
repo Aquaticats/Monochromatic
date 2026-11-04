@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use super::commit_identity::{create_dir_all_durable, fault_point, record_event_lazy, sync_chain, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::{is_identity, sha256_hex};
 use super::commit_request::{Request, RequestError, decode, encode};
-use super::commit_state_log::{ClosureEntry, EntryKind, Prefix, force_item, select, state_covers, sync_prefix};
+use super::commit_state_log::{ClosureEntry, EntryKind, Prefix, force_item, open_regular, read_regular, select, state_covers, sync_prefix};
 
 /// What:
 ///  `enum InboxError { ... }`: why a request cannot be encoded, decoded or accepted.
@@ -232,7 +232,7 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
     let target: PathBuf = inbox.join(&request.id);
     // Only absence lets acceptance go on: another read failure leaves the request's status unknown, and the caller must not treat it as
     // "not accepted" (an accepted request may already be in place).
-    match fs::read(&target) {
+    match read_regular(&target) {
         Ok(existing) => {
             if existing == bytes {
                 return Ok(Accepted::AlreadyPresent);
@@ -262,7 +262,7 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
             if let Err(cleanup_error) = cleanup {
                 record_event_lazy(|| { return format!("accept:cleanup-failed:{:?}", cleanup_error.kind()); });
             }
-            let existing: Vec<u8> = fs::read(&target).map_err(InboxError::StatusUnknown)?;
+            let existing: Vec<u8> = read_regular(&target).map_err(InboxError::StatusUnknown)?;
             if existing == bytes {
                 return Ok(Accepted::AlreadyPresent);
             }
@@ -305,7 +305,7 @@ impl InboxRepairer {
         {
             return Err(InboxError::Invalid("the repair lock path is not a regular file"));
         }
-        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK).open(&path)?;
+        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(&path)?;
         match lock.try_lock() {
             Ok(()) => return Ok(InboxRepairer { _lock: lock, inbox: absolute }),
             Err(std::fs::TryLockError::WouldBlock) => return Err(InboxError::Io(io::Error::new(io::ErrorKind::WouldBlock, "another repairer holds the inbox"))),
@@ -322,10 +322,11 @@ impl InboxRepairer {
         }
         let target: PathBuf = self.inbox.join(id);
         // The inspected object is held open, so its inode cannot be freed and reused while the repair decides.
-        let mut inspected: File = File::open(&target)?;
+        let mut inspected: File = open_regular(&target)?;
         let before = inspected.metadata()?;
         let mut existing: Vec<u8> = Vec::new();
-        inspected.read_to_end(&mut existing)?;
+        // To the length it had when it was opened: a request file that is being appended to is inspected as it was.
+        Read::read_to_end(&mut Read::take(&mut inspected, before.len()), &mut existing)?;
         if existing.starts_with(b"cli-git-inbox ") && !existing.starts_with(b"cli-git-inbox 1\n") {
             return Err(InboxError::Unsupported);
         }
@@ -346,7 +347,7 @@ impl InboxRepairer {
         let moved: PathBuf = temporary_name(&directory)?;
         fs::rename(&target, &moved)?;
         // The archive obligation: the evidence, its directory entry and the inbox directory are forced here, on the repair path.
-        sync_file(&File::open(&moved)?, &moved)?;
+        sync_file(&open_regular(&moved)?, &moved)?;
         sync_directory(&directory)?;
         sync_directory(&self.inbox)?;
         return Ok(moved);
@@ -584,7 +585,7 @@ impl<'a> Departure<'a> {
         if self.disposition == Disposition::Handover
             && let Some(order) = self.order
         {
-            let text: Vec<u8> = fs::read(order)?;
+            let text: Vec<u8> = read_regular(order)?;
             for id in self.ids {
                 let wanted: String = format!("adopt {}", id);
                 if !text.split(|byte| { return *byte == b'\n'; }).any(|line| { return line == wanted.as_bytes(); }) {
@@ -609,7 +610,7 @@ impl<'a> Departure<'a> {
         }
         for id in self.ids {
             let path: PathBuf = self.inbox.join(id);
-            let result: io::Result<()> = File::open(&path).and_then(|file| { return sync_file(&file, &path); });
+            let result: io::Result<()> = open_regular(&path).and_then(|file| { return sync_file(&file, &path); });
             saves.attempt("request", result, &path);
         }
         if let Err(error) = sync_directory(self.inbox) {
@@ -709,7 +710,7 @@ impl<'a> Departure<'a> {
 
     /// Forces a file, its directory, and (with an anchor) the chain above the directory.
     fn force_with_name(&self, path: &Path) -> io::Result<()> {
-        sync_file(&File::open(path)?, path)?;
+        sync_file(&open_regular(path)?, path)?;
         let parent: &Path = parent_directory(path);
         sync_directory(parent)?;
         if let Some(anchor) = self.anchor {
