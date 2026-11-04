@@ -3837,10 +3837,30 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   Cross-vendor review running:
   `commit-models-sol-12.txt` (prompt `commit-models-prompt-12.txt`),
   asked whether those misses are real under the target and whether any bounded protocol avoids them.
-  The owner question on 3B (built release-recheck-exit with the bound stated,
-  token to exit,
-  or a wait) goes out once that review returns,
-  with its answer folded in.
+  Review `commit-models-sol-12.txt`:
+  "no, as submitted";
+  2A,
+  2E,
+  the successful-launch windows,
+  the unchecked calls and the descriptor leaks closed;
+  the two 3B misses are genuine but disprove only reliance on the service's retry,
+  and the reviewer names a singleton service-independent retry owner per lane holding the token for its lifetime;
+  new defects:
+  launcher death before handover leaves joined receipts unowned,
+  a failed grandchild can still hold the lock after the failure was recorded,
+  and `LaneDocument` dependencies are not validated on append admission or recovery.
+  Round 18 sent to the models agent:
+  fix those three,
+  and model the bound's candidates (the reviewer's singleton owner,
+  a sealed-lane inline force by the client,
+  any other,
+  the built one as comparison) with misses,
+  helper count,
+  waits,
+  locks,
+  recursion and foreground cost each,
+  building none;
+  the owner question on the bound goes out with that table.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
