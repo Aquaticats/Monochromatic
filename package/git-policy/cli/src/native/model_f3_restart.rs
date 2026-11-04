@@ -488,3 +488,14 @@ pub fn limits() -> Limits {
 pub fn check(rules: Rules) -> Report {
     return explore(vec![initial(rules, false), initial(rules, true)], steps, invariant, end_state, limits());
 }
+
+/// The goal of the liveness check: the owner is not wedged, is dead, or is wedged holding the gate (the accepted B-hand narrowing).
+pub fn owner_is_not_stuck(state: &State) -> bool {
+    return !state.owner_alive || !state.owner_wedged || state.gate_shared != 0;
+}
+
+/// Explores `rules` for the general liveness property: from every state the protocol's own steps can reach a state where the owner is
+/// not stuck. Quiescence alone misses a cycle of own steps (a restarter that starts again and again).
+pub fn check_eventually(rules: Rules) -> Report {
+    return crate::model_explore::explore_eventually(vec![initial(rules, false), initial(rules, true)], steps, owner_is_not_stuck, limits());
+}

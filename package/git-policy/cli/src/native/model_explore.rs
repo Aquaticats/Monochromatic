@@ -535,3 +535,81 @@ pub fn explore_bounded_by<S: Clone + Eq + Hash>(
     }
     return Report { states: nodes.len(), deepest, exhausted, violation: None };
 }
+
+/// What:
+///  Checks that the protocol can always finish: from every reachable state that is not a goal, a path of the protocol's own steps
+///  (steps that are not `outside:` or `environment:`) leads to a goal state. A reachable cycle of non-goal states with no such
+///  exit, and a non-goal state with no own step, are both reported, with the trace to the first such state.
+///  The search assumes a fair choice among own steps (an exit that is always available is eventually taken); it does not assume the
+///  environment ever helps.
+/// Why:
+///  `explore` calls its `terminal` check only at states with no own step, so a cycle of own steps that never completes (a restarter
+///  that starts again and again against an owner it can never restart) is never examined. This is the general liveness check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exploreEventually<S>(initials: S[], successors: (s: S) => [string, S][], goal: (s: S) => boolean, limits: Limits): Report;
+/// ```
+pub fn explore_eventually<S: Clone + Eq + Hash>(
+    initials: Vec<S>,
+    successors: fn(&S) -> Vec<(String, S)>,
+    goal: fn(&S) -> bool,
+    limits: Limits,
+) -> Report {
+    let mut nodes: Vec<Node<S>> = Vec::new();
+    let mut seen: HashMap<S, usize> = HashMap::new();
+    let mut edges: Vec<Vec<usize>> = Vec::new();
+    let mut exhausted: bool = true;
+    for initial in initials {
+        if !seen.contains_key(&initial) {
+            seen.insert(initial.clone(), nodes.len());
+            nodes.push(Node { state: initial, parent: usize::MAX, label: String::new(), depth: 0 });
+        }
+    }
+    let mut next: usize = 0;
+    while next < nodes.len() {
+        let at: usize = next;
+        next += 1;
+        let state: S = nodes[at].state.clone();
+        let depth: usize = nodes[at].depth;
+        let mut own: Vec<usize> = Vec::new();
+        for (label, after) in successors(&state) {
+            let index: usize = match seen.get(&after) {
+                Some(found) => *found,
+                None => {
+                    if nodes.len() >= limits.max_states || depth >= limits.max_depth {
+                        exhausted = false;
+                        continue;
+                    }
+                    seen.insert(after.clone(), nodes.len());
+                    nodes.push(Node { state: after, parent: at, label: label.clone(), depth: depth + 1 });
+                    nodes.len() - 1
+                }
+            };
+            if !is_environment(label.as_str()) {
+                own.push(index);
+            }
+        }
+        edges.push(own);
+    }
+    // Backward fixpoint: a state can finish if it is a goal or some own step leads to a state that can.
+    let mut can_finish: Vec<bool> = nodes.iter().map(|node| { return goal(&node.state); }).collect();
+    let mut changed: bool = true;
+    while changed {
+        changed = false;
+        for index in 0..edges.len() {
+            if !can_finish[index] && edges[index].iter().any(|target| { return can_finish[*target]; }) {
+                can_finish[index] = true;
+                changed = true;
+            }
+        }
+    }
+    for index in 0..edges.len() {
+        if !can_finish[index] {
+            let trace: Vec<String> = trace_to(&nodes, index);
+            let message: String = "a state from which the protocol's own steps can never complete".to_string();
+            return Report { states: nodes.len(), deepest: nodes[index].depth, exhausted: false, violation: Some(Violation { message, trace }) };
+        }
+    }
+    return Report { states: nodes.len(), deepest: 0, exhausted, violation: None };
+}

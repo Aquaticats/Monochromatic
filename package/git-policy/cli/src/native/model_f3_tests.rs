@@ -223,3 +223,13 @@ fn nine_ends_a_wedged_owner_with_sigkill_and_still_needs_the_gate() {
     assert!(report.exhausted);
     println!("F3 nine: {} states, deepest {}", report.states, report.deepest);
 }
+
+/// Review 2a P2: in a foreign PID namespace the restarter's namespace precondition and "a new client starts" form a cycle that
+/// `terminal` never examines; the general liveness check finds that a wedged owner can never be got unstuck there.
+#[test]
+fn nine_in_a_foreign_namespace_can_never_get_a_wedged_owner_unstuck() {
+    let report = crate::model_f3_restart::check_eventually(Rules::Nine);
+    let violation = report.violation.expect("a wedged owner no restarter can reach");
+    assert_eq!(violation.message, "a state from which the protocol's own steps can never complete");
+    assert!(violation.trace.iter().any(|label| { return label.contains("wedges"); }));
+}

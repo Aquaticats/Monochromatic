@@ -230,3 +230,38 @@ fn a_waiters_own_step_that_does_not_end_the_wait_exceeds_the_bound() {
     let report = crate::model_explore::explore_bounded_by(vec![0], cycle_steps, never, always_waiting, counts_the_waiters_steps, 3, limits);
     assert_eq!(report.violation.expect("exceeded").message, "a wait lasted more than 3 steps of the protocol's own");
 }
+
+/// The toy model of the liveness check: 0 to 2 is a chain to the goal 3, 10 and 11 are a retry loop with no exit, 20 is stuck.
+fn finish_steps(state: &Counter) -> Vec<(String, Counter)> {
+    let mut found: Vec<(String, Counter)> = Vec::new();
+    if *state < 3 {
+        found.push(("advance".to_string(), *state + 1));
+    }
+    if *state == 10 {
+        found.push(("retry".to_string(), 11));
+    }
+    if *state == 11 {
+        found.push(("retry".to_string(), 10));
+    }
+    if *state == 20 {
+        found.push(("environment: someone helps".to_string(), 3));
+    }
+    return found;
+}
+
+/// The goal of the toy model.
+fn at_three(state: &Counter) -> bool {
+    return *state == 3;
+}
+
+/// Review 2a P2: a cycle of own steps with no exit to a goal, and a state only the environment can leave, are both reported; a chain
+/// to the goal is not.
+#[test]
+fn a_cycle_with_no_exit_and_a_state_only_the_environment_can_leave_never_complete() {
+    let limits = || { return Limits { max_states: 100, max_depth: 100 }; };
+    assert!(crate::model_explore::explore_eventually(vec![0], finish_steps, at_three, limits()).violation.is_none());
+    let looping = crate::model_explore::explore_eventually(vec![10], finish_steps, at_three, limits());
+    assert_eq!(looping.violation.expect("a loop").message, "a state from which the protocol's own steps can never complete");
+    let stuck = crate::model_explore::explore_eventually(vec![20], finish_steps, at_three, limits());
+    assert!(stuck.violation.is_some());
+}
