@@ -4299,7 +4299,7 @@ or of `/var/lib/dbus/machine-id` when the first holds none,
 read once per process.
 A file that is missing,
 empty,
-or not 32 hexadecimal digits (a fresh image holds `uninitialized`) counts as no machine ID.
+or not 32 lowercase hexadecimal digits that are not all zero (a fresh image holds `uninitialized`) counts as no machine ID.
 The boot ID alone cannot say the holder is dead,
 because boot IDs are random per kernel boot and two hosts that drain one work directory on a shared filesystem
 have unrelated ones:
