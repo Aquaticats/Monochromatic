@@ -441,8 +441,13 @@ fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> Pa
 
 /// Run `work_loop` on a thread as a service that has just started: the plan and the watch are read from the journal, and no wake is sent.
 fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+    return start_service_watching_with(scope, handlers, PAUSE, plans, watched, busy);
+}
+
+/// The same with the first pause of a push that is tried again given.
+fn start_service_watching_with<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, first: Duration, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     let (sender, receiver) = channel::<Wake>();
-    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::restored(watched)); });
+    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(first, plans), ClaimWatch::restored(watched)); });
     return (sender, running);
 }
 
@@ -524,6 +529,42 @@ fn a_claim_whose_holder_renewed_it_is_left_alone_while_pending_work_is_run() {
         assert!(wait_until(&|| { return remote_tip(&stage) == newer; }), "the pending push was run at the start");
         assert!(wait_until(&|| { return work_directory(git_dir.as_path()).join("done").join(format!("push-{newer}")).exists(); }), "the pending push was settled");
         assert!(claimed.exists(), "the claim of a holder that renewed a moment ago was not taken");
+        drop(sender);
+        running.join().expect("the service ends");
+    });
+    remove(stage.root.as_path());
+}
+
+/// How far off the first try of a push plan is in the control that has one: far past what the control waits for.
+const FAR_PLAN_PAUSE: Duration = Duration::from_secs(600);
+
+/// A repository that has a push plan due much later is still looked at at once when the service starts: the plan is the push's
+///  own schedule and must not hide the claim of a dead holder, which runs out its lease long before.
+#[test]
+fn a_push_plan_due_later_does_not_hide_the_startup_look() {
+    let stage: Stage = stage("push-claim-plan-later");
+    let_pushes_through(&stage);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let store: PathBuf = watched_by_an_earlier_service(&stage);
+    let claimed: PathBuf = claim_as_a_dead_service_did(&stage, stage.landed.as_str(), crate::service_work::CLAIM_LEASE - Duration::from_secs(2));
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let planned: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: stage.repo.display().to_string(),
+        git_dir: git_dir.display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: stage.landed.clone(),
+        parent: String::new(),
+        created: String::from("2026-11-04T05:40:00.000Z"),
+        tries: 0,
+    };
+    crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan { git_dir: git_dir.clone(), item: planned, attempt: 1 }).expect("the plan is kept");
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let (sender, running) = start_service_watching_with(scope, &handlers, FAR_PLAN_PAUSE, plans.as_path(), store.as_path(), &busy);
+        assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the claim was run although the push plan is due only after {FAR_PLAN_PAUSE:?}");
+        assert!(wait_until(&|| { return !claimed.exists(); }), "the claim was settled");
         drop(sender);
         running.join().expect("the service ends");
     });
