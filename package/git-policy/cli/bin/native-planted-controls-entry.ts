@@ -14,8 +14,14 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'self-exclusion by identity and content',
     file: 'src/native/invocation/real_git_candidate.rs',
-    from: 'if same_file(candidate, own_executable) || identical_content(candidate, own_executable) {',
-    to: 'if false {',
+    // The guard also tests for a launcher record; keeping that test leaves only the identity and content checks removed.
+    from: [
+      '    if same_file(candidate, own_executable)',
+      '        || is_wrapper_launcher(candidate, Some(own_executable))',
+      '        || identical_content(candidate, own_executable)',
+      '    {',
+    ].join('\n'),
+    to: '    if is_wrapper_launcher(candidate, Some(own_executable)) {',
     failing: 'resolution::wrapper_never_selects_itself_or_a_copy_of_itself',
   },
   {
