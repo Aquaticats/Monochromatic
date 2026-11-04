@@ -533,20 +533,22 @@ fn a_hard_link_in_the_error_records_place_is_refused_at_the_clearing() {
 
 //region recovery that finishes a disposal a newer record retains only in its closure
 
-/// The fifth review of the diffs: a crash after the `disposed` line, and then a newer record that retains the item only in its closure
-/// (admitted by the public append). Recovery must replace that root and finish the disposal; without the closure test it refuses the unlink
-/// and fails on every start.
+/// The fifth review of the diffs, and the third review of step 3 (B, 1): a record that retains the item in its closure only and predates the
+/// authorization (the public append admits it). A crash after the `disposed` line leaves it the root; recovery must replace that root and
+/// finish the disposal, and without the closure test in the retired list it fails on every start. (A record written after the line is a
+/// renewed retention, and the authorization lapses: `a_renewed_retention_between_the_retirement_and_the_unlink_ends_the_authorization`.)
 #[test]
-fn recovery_finishes_a_disposal_that_a_newer_record_retains_only_in_its_closure() {
-    let (lane, state, name) = lane_with_saved("rev5-closure-only-recovery");
-    let (child_lane, child_state, child_name) = (lane.clone(), state.clone(), name.clone());
-    assert_eq!(crash_at("disposal:after-line", move || { let _ = dispose_saved_content(&child_lane, &child_state, &DisposalAuthorization::explicit(&child_name)); }), Some(CRASHED));
-    let saved: ClosureEntry = ClosureEntry::capture_sealed_saved(&lane, &lane.join("saved").join(&name)).expect("the item is still on disk");
+fn recovery_finishes_a_disposal_that_the_root_retains_only_in_its_closure() {
+    let (lane, state, _envelope) = lane_with_envelope("rev5-closure-only-recovery");
+    let saved: ClosureEntry = create_saved_content(&lane, b"closure only").expect("saved content");
+    let name: String = saved.path().file_name().expect("name").to_string_lossy().to_string();
     let mut items: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    items.retain(|entry| { return entry.path() != saved.path(); });
     let document: LaneDocument = LaneDocument::from_closure(&items).expect("a document that does not list the item");
     items.push(saved);
-    let generation: u64 = select(&state).expect("readable").expect("root").generation + 1;
-    StateWriter::acquire(&state).expect("writer").append_with(generation, &document.encode(), &items).expect("an over-approximating record is admitted");
+    StateWriter::acquire(&state).expect("writer").append_with(1, &document.encode(), &items).expect("an over-approximating record is admitted");
+    let (child_lane, child_state, child_name) = (lane.clone(), state.clone(), name.clone());
+    assert_eq!(crash_at("disposal:after-line", move || { let _ = dispose_saved_content(&child_lane, &child_state, &DisposalAuthorization::explicit(&child_name)); }), Some(CRASHED));
     assert_eq!(resume_disposals(&lane, &state).expect("the recovery finishes the disposal"), 1);
     assert!(!lane.join("saved").join(&name).exists(), "the item is still there");
     assert_eq!(resume_disposals(&lane, &state).expect("a second recovery"), 0, "nothing is left to finish");

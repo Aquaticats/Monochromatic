@@ -17,13 +17,12 @@ use crate::model_fixture::{in_single_threaded_process, scratch};
 use git_policy_cli::commit_disposal::{DisposalAuthorization, dispose_saved_content, resume_disposals, retire_saved_content, unlink_retired};
 use git_policy_cli::commit_flusher::{FlusherLock, RECEIPT_DIR};
 use git_policy_cli::commit_flusher_unit::{inject_nonce, open_lane};
-use git_policy_cli::commit_identity::{set_fault_point, start_events, take_events};
+use git_policy_cli::commit_identity::set_fault_point;
 use git_policy_cli::commit_lane_lifecycle::{capture_lane_closure, seal_for_shutdown, syncer_pass};
 use git_policy_cli::commit_state_log::{ClosureEntry, LaneDocument, StateWriter, create_saved_content, select};
 use std::cell::RefCell;
 use std::ffi::CString;
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 
 /// A lane with a request and saved content retained by a first checked record.
@@ -131,6 +130,15 @@ fn a_retained_item_reached_through_a_directory_that_became_a_link_is_not_the_lan
 thread_local! {
     /// The place the segment hook puts a valuable file, and the segment it replaces.
     static APPEND_SWAP: RefCell<Option<(PathBuf, PathBuf)>> = const { RefCell::new(None) };
+    /// How many receipts the flusher was about to force.
+    static FORCED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Counts the receipts the flusher is about to force.
+fn count_forcing(point: &str) {
+    if point == "flusher:before-force" {
+        FORCED.with(|cell| { cell.set(cell.get() + 1); });
+    }
 }
 
 /// Replaces the state segment by a link to the valuable file, once, between the append's selection and its writable open.
@@ -225,25 +233,22 @@ fn an_unreadable_error_record_does_not_stop_the_receipts_from_being_forced() {
     let outside: PathBuf = scratch("rev7-hint-outside").join("record");
     fs::write(&outside, b"r1\told\n").expect("a record elsewhere");
     std::os::unix::fs::symlink(&outside, lane.join("receipt-errors")).expect("a link at the record's name");
-    start_events();
+    set_fault_point(Some(count_forcing));
     let pass = syncer_pass(&lane);
-    let events: Vec<String> = take_events();
+    set_fault_point(None);
     assert!(pass.is_err(), "the unsafe record was not reported");
-    let receipt: String = format!("file-sync:{}", lane.join(RECEIPT_DIR).join("r1").display());
-    assert!(events.contains(&receipt), "the receipt was not forced because the record was unsafe: {:?}", events);
+    assert_eq!(FORCED.with(std::cell::Cell::get), 1, "the receipt was not forced because the record was unsafe");
     assert_eq!(fs::read(&outside).expect("the target"), b"r1\told\n", "the record's target was changed");
     fs::remove_file(lane.join("receipt-errors")).expect("remove the link");
     make_fifo(&lane.join("receipt-errors"));
     let fifo_lane: PathBuf = lane.clone();
     let outcome: Option<i32> = in_single_threaded_process(move || {
-        start_events();
+        FORCED.with(|cell| { cell.set(0); });
+        set_fault_point(Some(count_forcing));
         let pass = syncer_pass(&fifo_lane);
-        let events: Vec<String> = take_events();
-        let receipt: String = format!("file-sync:{}", fifo_lane.join(RECEIPT_DIR).join("r1").display());
-        return if pass.is_err() && events.contains(&receipt) { 0 } else { 1 };
+        return if pass.is_err() && FORCED.with(std::cell::Cell::get) == 1 { 0 } else { 1 };
     });
     assert_eq!(outcome, Some(0), "a FIFO at the record's name blocked the pass (None) or stopped the forcing (1)");
-    let _: Option<io::Error> = None;
 }
 
 //endregion

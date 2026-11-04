@@ -63,6 +63,19 @@ pub(super) fn open_lane_subdirectory(lane: &Path, name: &str) -> io::Result<Opti
     };
 }
 
+/// Refuses an entry whose directory in the lane (`inbox/`, `saved/`, `decision/`) is a link or not a directory: what is read through it is
+/// not the lane's. The check is by name, immediately before the open, and is not atomic with it; the atomic form needs the lane's
+/// descriptor carried through the state component, which is not done (stated in the handover).
+fn require_lane_directory_of(lane: &Path, relative: &Path) -> io::Result<()> {
+    let mut parts = relative.components();
+    let (Some(first), Some(_leaf)) = (parts.next(), parts.next()) else { return Ok(()) };
+    let Some(name) = first.as_os_str().to_str() else { return Ok(()) };
+    return match open_lane_subdirectory(lane, name)? {
+        Some(_directory) => Ok(()),
+        None => Err(io::Error::new(io::ErrorKind::NotFound, format!("{} of the lane is gone", name))),
+    };
+}
+
 /// The path through which the entries of an opened directory are listed: the descriptor's own, so the listing is of the directory that was
 /// checked and not of whatever the name leads to by then.
 pub(super) fn listing_path(directory: &File) -> PathBuf {
@@ -332,10 +345,11 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
 /// ```
 pub fn capture_lane_closure(lane: &Path) -> io::Result<Vec<ClosureEntry>> {
     let mut closure: Vec<ClosureEntry> = Vec::new();
-    // Saved content whose `disposed` line is in the ledger is never captured again: a root that retained it once more would be invalidated by
-    // the unlink that finishes the disposal (review of step 2).
+    // Saved content whose disposal is pending (a `disposed` line that no `disposal-done` line has ended) is never captured again: a root that
+    // retained it once more would be invalidated by the unlink that finishes the disposal (review of step 2). Content saved again after a
+    // finished disposal is a new incarnation and is captured.
     let disposed: BTreeSet<String> = match read_regular(lane.join(LANE_LEDGER)) {
-        Ok(bytes) => super::commit_ledger::complete_entries(&bytes).map_or_else(BTreeSet::new, |entries| { return entries.into_iter().filter(|entry| { return entry.outcome == "disposed"; }).map(|entry| { return entry.id; }).collect(); }),
+        Ok(bytes) => super::commit_ledger::complete_entries(&bytes).map_or_else(BTreeSet::new, |entries| { return super::commit_ledger::pending_disposals(&entries); }),
         Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeSet::new(),
         Err(error) => return Err(error),
     };
@@ -713,7 +727,10 @@ fn fill_and_seal(file: &mut File, bytes: &[u8]) -> io::Result<()> {
 pub fn create_saved_content(lane: &Path, bytes: &[u8]) -> io::Result<ClosureEntry> {
     let directory: PathBuf = lane.join(SAVED);
     fs::create_dir_all(&directory)?;
-    let name: PathBuf = directory.join(sha256_hex(bytes));
+    // The content enters the directory that was opened here, without following a link: a `saved` that leads out of the lane would let the
+    // rename replace a file that is not the lane's.
+    let opened: File = open_lane_subdirectory(lane, SAVED)?.ok_or_else(|| { return io::Error::new(io::ErrorKind::NotFound, "the saved directory of the lane is gone"); })?;
+    let name: PathBuf = listing_path(&opened).join(sha256_hex(bytes));
     let staging: PathBuf = ensure_staging(lane)?;
     let temporary: PathBuf = super::commit_identity::temporary_name(&staging)?;
     let linked: bool = match unnamed_file(&staging)? {
@@ -826,6 +843,7 @@ fn validate_entry(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     if kind_of_path(&entry.path)? != entry.kind {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "a closure entry claims a kind its path does not have"));
     }
+    require_lane_directory_of(lane, &entry.path)?;
     let bytes: Vec<u8> = read_regular(lane.join(&entry.path))?;
     let identity_ok: bool = match entry.kind {
         EntryKind::AppendPrefix => usize::try_from(entry.length).ok().and_then(|length| { return bytes.get(..length); }).is_some_and(|prefix| { return sha256_hex(prefix) == entry.sha256; }),
@@ -1244,6 +1262,15 @@ fn ledger_prefix_has(lane: &Path, items: &[ClosureEntry], id: &str, outcome: Opt
     });
 }
 
+/// The entries of the ledger prefix that the retained set `items` identifies, when that prefix is still the file's prefix.
+pub(super) fn retained_ledger_entries(lane: &Path, items: &[ClosureEntry]) -> Option<Vec<super::commit_ledger::LedgerEntry>> {
+    let entry: &ClosureEntry = items.iter().find(|entry| { return entry.kind == EntryKind::AppendPrefix && entry.path == Path::new(LANE_LEDGER); })?;
+    validate_entry(lane, entry).ok()?;
+    let bytes: Vec<u8> = read_regular(lane.join(&entry.path)).ok()?;
+    let prefix = bytes.get(..usize::try_from(entry.length).ok()?)?;
+    return super::commit_ledger::complete_entries(prefix);
+}
+
 /// The outcomes that promise nothing saved: a request that ends this way no longer needs its envelope. Any other terminal outcome
 /// (`withdrawn`, `conflicted`, `unresolved`, `rewritten-away`) promises the request's saved inputs, and the envelope is one of them: it
 /// stays until a `disposed` line for the request is in the ledger (the design, "Retention lifecycle and the spool closure").
@@ -1339,7 +1366,11 @@ fn append(dir: &Path, generation: u64, document: &[u8], items: &[ClosureEntry], 
     let path: PathBuf = log_path(dir, number);
     let (record, _) = encode_record(generation, &previous, &encode_body(items, document));
     fault_point("state:before-append-open");
-    let mut file: File = OpenOptions::new().create(true).write(true).truncate(false).open(&path)?;
+    // Without following a link and without blocking, and refused when the segment has a second name: truncating it would cut another file.
+    let mut file: File = open_regular_with(OpenOptions::new().create(true).write(true).truncate(false), &path)?;
+    if std::os::unix::fs::MetadataExt::nlink(&file.metadata()?) != 1 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "a state segment with a second name is not appended to"));
+    }
     if keep as u64 != file.metadata()?.len() {
         file.set_len(keep as u64)?;
     }
@@ -1589,6 +1620,7 @@ pub fn force_item(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     let path: PathBuf = lane.join(&entry.path);
     // The retained set was validated when the record was selected; the item can be replaced by then, and the open below judges what is there now.
     fault_point("state:before-item-force");
+    require_lane_directory_of(lane, &entry.path)?;
     let file: File = open_regular(&path)?;
     sync_file(&file, &path)?;
     sync_chain(path.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")), lane)?;

@@ -141,7 +141,7 @@ pub fn open_lane(lane: &Path) -> Result<std::fs::File, String> {
     for name in ["state", "saved", "inbox", "decision"] {
         match std::fs::symlink_metadata(pinned.join(name)) {
             Ok(metadata) if !metadata.file_type().is_dir() => return Err(format!("{} of the lane is not a directory of the lane (a link does not count)", name)),
-            Ok(_) => {}
+            Ok(metadata) => own(&format!("the {} directory", name), &metadata)?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("{} of the lane cannot be read: {}", name, error)),
         }

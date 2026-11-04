@@ -46,15 +46,43 @@ fn key_of(name: &str) -> String {
     return name.chars().take(32).collect();
 }
 
-/// Whether the ledger already holds the `disposed` line for `key` (complete valid lines only).
-fn has_disposed_line(ledger: &Path, key: &str) -> io::Result<bool> {
+/// The complete entries of the ledger; a missing ledger is empty, and a torn or damaged line is an error.
+fn ledger_entries(ledger: &Path) -> io::Result<Vec<LedgerEntry>> {
     let bytes: Vec<u8> = match super::commit_state_log::read_regular(ledger) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(error),
     };
-    let entries = super::commit_ledger::complete_entries(&bytes).ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the ledger has a torn or damaged line; repair it first"); })?;
-    return Ok(entries.iter().any(|entry| { return entry.id == key && entry.outcome == "disposed"; }));
+    return super::commit_ledger::complete_entries(&bytes).ok_or_else(|| { return io::Error::new(io::ErrorKind::InvalidData, "the ledger has a torn or damaged line; repair it first"); });
+}
+
+/// Whether a disposal of `key` is authorized and not yet ended: the last of its disposal lines is a `disposed` line.
+fn disposal_pending(ledger: &Path, key: &str) -> io::Result<bool> {
+    return Ok(super::commit_ledger::pending_disposals(&ledger_entries(ledger)?).contains(key));
+}
+
+/// Appends one disposal line for `key` as the ledger's owner.
+fn append_disposal_line(lane: &Path, ledger: &Path, key: &str, outcome: &str) -> io::Result<()> {
+    let mut owner: LedgerOwner = LedgerOwner::acquire_in(lane, ledger).map_err(|error| { return io::Error::other(format!("the ledger could not be owned: {:?}", error)); })?;
+    return owner
+        .append(lane, ledger, &LedgerEntry { id: key.to_string(), outcome: outcome.to_string(), commit: "-".to_string(), time: crate::iso_time::now_iso() })
+        .map_err(|error| { return io::Error::other(format!("the {} line could not be appended: {:?}", outcome, error)); });
+}
+
+/// Ends the authorization of `key`: the content was removed, or it is retained again by a root written after the authorization. The line
+/// is what makes content saved again afterwards a new incarnation. A failure to write it is logged: the unlink it follows has happened, and
+/// the next recovery that finds the authorization still pending applies the same rule and writes it.
+fn end_authorization(lane: &Path, key: &str) {
+    let ledger: PathBuf = lane.join(super::commit_state_log::LANE_LEDGER);
+    match disposal_pending(&ledger, key) {
+        Ok(true) => {
+            if let Err(error) = append_disposal_line(lane, &ledger, key, super::commit_ledger::OUTCOME_DISPOSAL_DONE) {
+                crate::service_error!("the end of the disposal of {key} could not be recorded: {error}");
+            }
+        }
+        Ok(false) => {}
+        Err(error) => crate::service_error!("the ledger could not be read to end the disposal of {key}: {error}"),
+    }
 }
 
 /// The newest root, parsed: its generation, the selected record and its checked document.
@@ -118,11 +146,8 @@ pub fn retire_saved_content(lane: &Path, state: &Path, authorization: &DisposalA
     }
     let key: String = key_of(&authorization.name);
     let ledger: PathBuf = lane.join(super::commit_state_log::LANE_LEDGER);
-    if !has_disposed_line(&ledger, &key)? {
-        let mut owner: LedgerOwner = LedgerOwner::acquire_in(lane, &ledger).map_err(|error| { return io::Error::other(format!("the ledger could not be owned: {:?}", error)); })?;
-        owner
-            .append(lane, &ledger, &LedgerEntry { id: key, outcome: "disposed".to_string(), commit: "-".to_string(), time: crate::iso_time::now_iso() })
-            .map_err(|error| { return io::Error::other(format!("the disposed line could not be appended: {:?}", error)); })?;
+    if !disposal_pending(&ledger, &key)? {
+        append_disposal_line(lane, &ledger, &key, super::commit_ledger::OUTCOME_DISPOSED)?;
     }
     fault_point("disposal:after-line");
     replace_root_without_disposed(lane, &mut writer, state)?;
@@ -141,7 +166,12 @@ pub fn unlink_retired(retired: Retired) -> io::Result<()> {
     // eligibility depends on every retained entry. A root that retains the item in its closure alone would be made ineligible by the unlink.
     let retained_in_closure: bool = selected.items.iter().any(|entry| { return entry.path() == Path::new("saved").join(&retired.name); });
     if document.saved().contains(&retired.name) || retained_in_closure {
+        // The retention is newer than the authorization: the authorization lapses with the stale token.
+        end_authorization(&retired.lane, &key_of(&retired.name));
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "the current root retains this saved content again, so the retirement is stale and nothing is deleted"));
+    }
+    if !disposal_pending(&retired.lane.join(super::commit_state_log::LANE_LEDGER), &key_of(&retired.name))? {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "no disposal of this saved content is authorized any more, so nothing is deleted"));
     }
     let prefix = super::commit_state_log::sync_prefix(&retired.state)?;
     super::commit_state_log::force_items(&retired.lane, &prefix.items)?;
@@ -155,7 +185,9 @@ pub fn unlink_retired(retired: Retired) -> io::Result<()> {
         record_event_lazy(|| { return format!("unlink:{}", path.display()); });
     }
     fault_point("disposal:after-unlink");
-    return opened.sync_all();
+    opened.sync_all()?;
+    end_authorization(&retired.lane, &key_of(&retired.name));
+    return Ok(());
 }
 
 /// Removes the entry `name` of the opened directory `directory`: `true` when it removed one, `false` when the entry was gone already.
@@ -189,13 +221,15 @@ pub fn dispose_saved_content(lane: &Path, state: &Path, authorization: &Disposal
 /// ```
 pub fn resume_disposals(lane: &Path, state: &Path) -> io::Result<usize> {
     let Some(opened) = super::commit_state_log::open_lane_subdirectory(lane, "saved")? else { return Ok(0) };
-    let entries = std::fs::read_dir(super::commit_state_log::listing_path(&opened))?;
+    let listing = std::fs::read_dir(super::commit_state_log::listing_path(&opened))?;
     let ledger: PathBuf = lane.join(super::commit_state_log::LANE_LEDGER);
+    let entries: Vec<LedgerEntry> = ledger_entries(&ledger)?;
+    let authorized = super::commit_ledger::pending_disposals(&entries);
     let mut pending: Vec<String> = Vec::new();
-    for listed in entries {
+    for listed in listing {
         let name: String = listed?.file_name().to_string_lossy().into_owned();
         let is_content: bool = name.len() == 64 && super::commit_integrity::unhex(&name).is_some();
-        if is_content && has_disposed_line(&ledger, &key_of(&name))? {
+        if is_content && authorized.contains(&key_of(&name)) {
             pending.push(name);
         }
     }
@@ -207,6 +241,18 @@ pub fn resume_disposals(lane: &Path, state: &Path) -> io::Result<usize> {
         Ok(mut writer) => {
             let (selected, document) = newest_checked_root(state)?;
             let retained = |name: &String| -> bool { return document.saved().contains(name) || selected.items.iter().any(|entry| { return entry.path() == Path::new("saved").join(name); }); };
+            // A root that retains the item and was written after the authorization (its ledger prefix holds every `disposed` line of the key)
+            // is a retention the person did not authorize the disposal of: the authorization lapses and the item stays.
+            let held_ledger = super::commit_state_log::retained_ledger_entries(lane, &selected.items);
+            let renewed = |name: &String| -> bool {
+                let key: String = key_of(name);
+                return retained(name) && held_ledger.as_ref().is_some_and(|held| { return super::commit_ledger::disposed_lines(held, &key) == super::commit_ledger::disposed_lines(&entries, &key); });
+            };
+            let lapsed: Vec<String> = pending.iter().filter(|name| { return renewed(name); }).cloned().collect();
+            for name in &lapsed {
+                end_authorization(lane, &key_of(name));
+            }
+            pending.retain(|name| { return !lapsed.contains(name); });
             if pending.iter().any(retained) {
                 replace_root_without_disposed(lane, &mut writer, state)?;
             }

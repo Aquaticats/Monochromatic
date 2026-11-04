@@ -160,7 +160,17 @@ impl FlusherLock {
         {
             return Err(FlushError::Invalid("the flusher lock path is not a regular file"));
         }
-        let opened: File = OpenOptions::new().create(true).write(true).truncate(false).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(&path)?;
+        let opened: File = OpenOptions::new().create(true).write(true).truncate(false).mode(0o600).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW).open(&path)?;
+        // The inode names the holder that sweeps this lane: one that others can open could be locked by them and never sweep, and one with a
+        // second name is the lock of another lane too, whose flusher would be taken for this lane's.
+        {
+            use std::os::unix::fs::MetadataExt;
+            let found = opened.metadata()?;
+            // SAFETY: `geteuid` takes no argument and touches no memory.
+            if !found.file_type().is_file() || found.uid() != unsafe { libc::geteuid() } || found.mode() & 0o077 != 0 || found.nlink() != 1 {
+                return Err(FlushError::Invalid("the flusher lock is not a regular file private to this account with one name"));
+            }
+        }
         // The lock is handed to a helper that redirects descriptors 0 to 2; a process with one of them closed would otherwise hold it there.
         // The descriptor has an owner at every step: a failed move closes it.
         let file: File = File::from(move_above_streams(std::os::fd::OwnedFd::from(opened))?);

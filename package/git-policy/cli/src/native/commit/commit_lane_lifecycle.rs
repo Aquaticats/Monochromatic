@@ -103,14 +103,19 @@ pub struct SyncPass {
 /// emptied; a line recorded meanwhile makes the length differ and nothing is removed (the next pass retries the old lines again, which is
 /// idempotent).
 pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<SyncPass, FlushError> {
-    let (read, whole): (Vec<u8>, bool) = match super::commit_flusher::open_error_record(lane, false) {
-        Ok(mut file) => super::commit_flusher::read_error_record(&mut file).map_err(FlushError::Io)?,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => (Vec::new(), true),
-        Err(error) => return Err(FlushError::Io(error)),
+    // The record is a hint; the receipt directory is the authority. A record that cannot be read safely (a link, a FIFO, a second name) is
+    // reported after the receipts are forced, and is neither cleared nor allowed to stop the forcing.
+    let (read, whole, unusable): (Vec<u8>, bool, Option<io::Error>) = match super::commit_flusher::open_error_record(lane, false).and_then(|mut file| { return super::commit_flusher::read_error_record(&mut file); }) {
+        Ok((bytes, whole)) => (bytes, whole, None),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (Vec::new(), true, None),
+        Err(error) => (Vec::new(), false, Some(error)),
     };
     let retried: usize = read.iter().filter(|byte| { return **byte == b'\n'; }).count();
     after_read();
     let flushed: Flushed = flush_lane_one_round(lane)?;
+    if let Some(error) = unusable {
+        return Err(FlushError::Io(error));
+    }
     match flushed {
         Flushed::Held => return Ok(SyncPass { forced: 0, retried: 0, held: true, more: false }),
         Flushed::Finished { forced } | Flushed::Handed { forced } | Flushed::Yielded { forced } => {

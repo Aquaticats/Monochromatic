@@ -513,3 +513,29 @@ impl LedgerOwner {
         return append(anchor, ledger, entry);
     }
 }
+
+/// The outcome word of the line that records the person's authorization to dispose of saved content (and, for a request, that its inputs
+/// may go).
+pub const OUTCOME_DISPOSED: &str = "disposed";
+
+/// The outcome word of the line that ends a disposal authorization: the content was removed, or a root retained it again after the
+/// authorization and the authorization lapsed. Content saved again afterwards is a new incarnation that the old line does not touch.
+pub const OUTCOME_DISPOSAL_DONE: &str = "disposal-done";
+
+/// The keys whose last disposal line is a `disposed` line that no `disposal-done` line has ended: the disposals still to be carried out.
+pub fn pending_disposals(entries: &[LedgerEntry]) -> std::collections::BTreeSet<String> {
+    let mut pending: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for entry in entries {
+        if entry.outcome == OUTCOME_DISPOSED {
+            pending.insert(entry.id.clone());
+        } else if entry.outcome == OUTCOME_DISPOSAL_DONE {
+            pending.remove(&entry.id);
+        }
+    }
+    return pending;
+}
+
+/// How many `disposed` lines the entries hold for `key`.
+pub fn disposed_lines(entries: &[LedgerEntry], key: &str) -> usize {
+    return entries.iter().filter(|entry| { return entry.id == key && entry.outcome == OUTCOME_DISPOSED; }).count();
+}
