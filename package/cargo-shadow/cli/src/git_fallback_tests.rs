@@ -19,7 +19,8 @@
 // ```
 use std::fs;
 // Imports `std::os::unix::fs::{PermissionsExt, symlink}`.
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt, symlink};
+use std::process::Command;
 // Imports `std::path::{Path, PathBuf}`.
 // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
 // Why:      Joined or stored paths are owned; paths passed in are borrowed.
@@ -1070,4 +1071,22 @@ fn a_declined_choice_counts_the_start_that_asked_for_the_system_configuration() 
     let started: usize = fs::read_to_string(&log).expect("the start log").lines().count();
     assert!(base.commit.is_ok(), "{base:?}");
     assert_eq!(usize::try_from(base.git_starts).expect("count"), started, "reported {} starts, Git was started {started} times", base.git_starts);
+}
+
+/// Round 6 (5a F7): a path that was replaced by a FIFO after it was checked cannot make the reader wait.
+#[test]
+fn opening_a_fifo_for_reading_returns_without_waiting() {
+    let directory = scratch();
+    let fifo: PathBuf = directory.path().join("object");
+    let made = Command::new("mkfifo").arg(&fifo).status().expect("mkfifo");
+    assert!(made.success());
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let probe: PathBuf = fifo.clone();
+    std::thread::spawn(move || { let _ = sender.send(crate::git_objects::open_regular(&probe).is_err()); });
+
+    let answered = receiver.recv_timeout(Duration::from_secs(2));
+
+    assert_eq!(answered, Ok(true), "the open of a FIFO waited for a writer");
+    // Release a reader that may still be blocked, so no thread outlives the test.
+    let _ = fs::OpenOptions::new().write(true).custom_flags(0o4000).open(&fifo);
 }

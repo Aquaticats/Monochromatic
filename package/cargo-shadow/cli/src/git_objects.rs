@@ -327,37 +327,27 @@ const MAX_COMMIT_BYTES: u64 = 16 * 1024 * 1024;
 /// object count).
 const PACK_HEADER_BYTES: usize = 12;
 
+fn is_regular_file(path: &Path) -> bool {
+    return fs::symlink_metadata(path).map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
+}
+
 /// What:
-/// `fn is_regular_file(path: &Path) -> bool` says whether the path is a regular file,
-/// without following a link.
+/// `pub(crate) fn open_regular(path: &Path) -> Result<File, String>` opens a file that the object reader may read,
+/// or says why only Git reads it.
 /// Why:
-/// Review finding (4a 7):
-/// opening a FIFO blocks,
-/// and a link is not what Git reads as an object file;
-/// anything that is not a regular file is Git's to judge.
+/// Round 6 (5a F7): the check and the open must be one operation on the path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isRegularFile = (path: string): boolean => lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false;
+/// function openRegular(path: string): FileHandle  // throws when the path is not a regular file
 /// ```
-fn is_regular_file(path: &Path) -> bool {
-    // Closure `|metadata|`: an anonymous function, like a TS arrow function.
-    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
-    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // value ?? fallback
-    // ```
-    // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-    // Why:      They express one step of a pipeline without an index loop.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // list.map(f).filter(g)
-    // ```
-    return fs::symlink_metadata(path).map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
+pub(crate) fn open_regular(path: &Path) -> Result<File, String> {
+    let file: File = File::open(path).map_err(|error| { return format!("{} cannot be read: {error}", path.display()); })?;
+    let is_file: bool = file.metadata().map(|metadata| { return metadata.file_type().is_file(); }).unwrap_or(false);
+    if !is_file {
+        return Err(format!("{} is not a regular file, so only Git reads it", path.display()));
+    }
+    return Ok(file);
 }
 
 /// What:
