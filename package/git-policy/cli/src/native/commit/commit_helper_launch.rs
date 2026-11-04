@@ -493,6 +493,13 @@ pub fn launch_detached_holding<H: Holding, T, P: FnOnce() -> io::Result<T>, F: F
     if first == 0 {
         // SAFETY: as above; every path of this branch ends in `_exit` or becomes the helper, which ends in `_exit`.
         unsafe {
+            if injected(6) {
+                // The intermediate child is delayed before it closes anything: it still holds every inherited description.
+                libc::alarm(20);
+                loop {
+                    libc::pause();
+                }
+            }
             libc::close(report_read.as_raw_fd());
             libc::close(go_write.as_raw_fd());
             for number in &kept {
@@ -506,7 +513,7 @@ pub fn launch_detached_holding<H: Holding, T, P: FnOnce() -> io::Result<T>, F: F
                 libc::_exit(2);
             }
             if second > 0 {
-                if injected(4) || injected(6) {
+                if injected(4) {
                     libc::alarm(20);
                     loop {
                         libc::pause();

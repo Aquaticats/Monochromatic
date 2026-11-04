@@ -331,3 +331,63 @@ fn a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_reco
     let names: Vec<String> = recorded(&lane);
     assert!(names.iter().any(|name| { return name == "r1"; }) && names.iter().any(|name| { return name == "r2"; }), "{:?}", names);
 }
+
+/// The fault point of review 13 section 1 A: the launcher is paused longer than the helper waits for the handover (a short wait is
+/// injected), client X creates a receipt that cannot be forced in the pause, and the launcher dies before it accounts for anything.
+fn launcher_slow_then_dead(name: &str) {
+    if name != "launch:after-report" {
+        return;
+    }
+    let Some(lane) = LAUNCH_WINDOW.with(|cell| { return cell.borrow_mut().take(); }) else { return };
+    std::thread::sleep(Duration::from_millis(400));
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
+    let _ = launch_flusher(&lane);
+    // SAFETY: `_exit` takes an integer; the launcher dies here, before it holds anything to account for.
+    unsafe { libc::_exit(0) };
+}
+
+/// Review 13 section 1 A: the helper's handover wait expires while the launcher is slow, the helper finds the launcher's lock taken and
+/// ends, and the launcher dies before it accounts. Neither process was left responsible for X, who found the lock held. No process holds
+/// the lock for the launch any more, so X finds it free (or held by the helper that works) and has an executor, and the receipts of the
+/// lane are not left to a launcher that may not survive.
+#[test]
+fn a_helper_that_times_out_while_the_launcher_is_slow_and_then_loses_it_leaves_every_receipt_with_an_executor() {
+    let lane: PathBuf = lane_with("flusher-timeout-then-death", &[]);
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("r1")).expect("the launching client's receipt that cannot be forced");
+    let launch_lane: PathBuf = lane.clone();
+    let _ = in_single_threaded_process(move || {
+        LAUNCH_WINDOW.with(|cell| { *cell.borrow_mut() = Some(launch_lane.clone()); });
+        git_policy_cli::commit_helper_launch::inject_launch_fault(Some(git_policy_cli::commit_helper_launch::LaunchFault::ShortHandoverWait));
+        set_fault_point(Some(launcher_slow_then_dead));
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    let deadline: Instant = Instant::now() + Duration::from_secs(5);
+    while !(recorded(&lane).iter().any(|name| { return name == "x"; }) && recorded(&lane).iter().any(|name| { return name == "r1"; })) {
+        assert!(Instant::now() < deadline, "a receipt has no executor and no record: {:?}", recorded(&lane));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// Review 13 section 1 B: the intermediate child inherits the lock when the launcher forks and can still hold that copy when the launcher
+/// gives up on it (the kill is refused here, standing for a child that is not gone within the bound), drops its own copy and records.
+/// Client X, arriving after that, found the lock held by the child, who never accounts. Nothing but the helper holds the lock now, so X
+/// finds it free and starts its own flusher.
+#[test]
+fn a_client_that_arrives_after_a_launch_that_could_not_reap_its_intermediate_child_has_an_executor() {
+    let lane: PathBuf = lane_with("flusher-unreaped-child", &["r1"]);
+    let launch_lane: PathBuf = lane.clone();
+    let failed: Option<i32> = in_single_threaded_process(move || {
+        git_policy_cli::commit_helper_launch::inject_launch_fault(Some(git_policy_cli::commit_helper_launch::LaunchFault::KillRefused));
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    assert_eq!(failed, Some(12), "the launch failed because the intermediate child could not be killed");
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("x")).expect("client X's receipt that cannot be forced");
+    let second_lane: PathBuf = lane.clone();
+    let second: Option<i32> = in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&second_lane)); });
+    assert_eq!(second, Some(0));
+    let deadline: Instant = Instant::now() + Duration::from_secs(5);
+    while !recorded(&lane).iter().any(|name| { return name == "x"; }) {
+        assert!(Instant::now() < deadline, "X found the lock held by the unreaped intermediate child: {:?}", recorded(&lane));
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
