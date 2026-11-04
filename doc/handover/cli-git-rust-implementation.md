@@ -188,8 +188,11 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   e2e kill scenarios green on seeds 1 to 3):
   main merged in cleanly,
   gate `gpc-gate-service-startup-wake-with-main-20261104T160613-0500` running,
-  review `~/temp/agent/reviews/service-startup-wake-sol.txt` running;
-  it merges to main when that gate passes.
+  review `~/temp/agent/reviews/service-startup-wake-sol.txt` returned "correct after named fixes"
+  (fixes on `fix/git-policy-cli-claim-watch-identity-and-errors`);
+  the gate passed 4866/4866 and the branch is merged to main.
+  Main now holds it together with the leaked one-executable commit,
+  first gated together by the one-executable branch's gate.
 - QWD tightened as the owner chose ("Tighten QWD (Recommended)",
   `3abcbf585e`).
 - Leak to main:
@@ -231,7 +234,10 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   put the `cargo` link back,
   then the fifth certification pass (bundles `~/temp/agent/reviews/cargo-shadow-cert5-*.txt`,
   15 groups).
-  0.1.2 dispatched 2026-11-04T16:31-05:00 as run 41915068040 (`release:wait` following);
+  0.1.2 published (crates.io 2026-11-04T21:23:13Z,
+  publish run 41915321457 built from `b96ca268de`),
+  locked and installed without the `cargo` link (`3a59c6cc1c`);
+  launcher trace (`~/temp/agent/cgs-installed-launcher-trace.ts`) running before the link goes back;
   the fifth pass is running (`run-cert5-reviews.ts`,
   groups read from the manifest,
   outputs `cargo-shadow-cert5-sol-<n>.txt`).
