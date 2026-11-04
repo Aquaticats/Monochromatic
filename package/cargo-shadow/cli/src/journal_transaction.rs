@@ -251,7 +251,7 @@ fn write_ready(directory: &Path, listed: &[String], manifests: bool) -> io::Resu
 /// Dropping it without calling `finish` is what a killed run looks like to a recovery:
 /// the journal stays,
 /// the lock is free,
-/// and the process groups of the children it started are recorded in the journal.
+/// and the control groups of the children it started are recorded in the journal.
 pub struct Transaction {
     /// The repository root.
     root: PathBuf,
@@ -271,7 +271,7 @@ pub struct Transaction {
     /// The notice that the kept folder is large,
     /// when it is.
     kept_notice: Option<String>,
-    /// Where the process groups of this transaction's children are recorded,
+    /// Where the control groups of this transaction's children are recorded,
     /// and whether any of them left writers behind;
     /// it also keeps the transaction on the thread that began it.
     scope: RunScope,
@@ -397,7 +397,7 @@ pub fn take_workspace(root: &Path) -> io::Result<Result<File, String>> {
 /// The directory is created,
 /// never reused,
 /// so an earlier journal's snapshots are never truncated.
-/// The process group of every child this thread starts is recorded in the journal,
+/// The control group of every child this thread starts is recorded in the journal before the child starts,
 /// so a recovery can see a survivor.
 ///
 /// In TS you'd write (pseudocode):

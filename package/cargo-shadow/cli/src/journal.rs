@@ -165,8 +165,8 @@ pub(crate) const INDEX_FILE: &str = "index.txt";
 /// the process id and the process start time.
 pub(crate) const OWNER_FILE: &str = "owner";
 
-/// The file in which the process groups of the children a transaction started are recorded,
-/// one group id per line.
+/// The file in which the containment (a control group, or in the weaker path a process group) of the children a transaction started is recorded,
+/// one record per line.
 pub(crate) const GROUPS_FILE: &str = "groups";
 
 /// The number of kept files past which every run warns (count,

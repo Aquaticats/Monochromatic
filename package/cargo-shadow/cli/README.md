@@ -642,21 +642,29 @@ and an HTTP 429 is retried after its `Retry-After`.
   The lock is close-on-exec,
   so a program that cargo starts (a compiler cache daemon,
   say) cannot keep it held forever.
-  A killed wrapper's cargo is found another way:
-  the process group of every child the run starts is written and synced by the child itself before it executes anything
-  (a child whose group cannot be recorded is not started),
-  and a recovery or a new transaction stops while any journal of the workspace names a group that still has a member,
-  or holds a group record that cannot be read or understood (it names the journal and the record to remove once you are sure).
-  Only the groups are recorded:
-  a descendant that left its group and outlived a killed wrapper is not found by a recovery.
-  A control group per run would find it.
-  It was probed as available in the session that built this (a child group could be created,
-  and `cgroup.kill` and `cgroup.events`
-  were present),
-  but it is not built,
-  and it needs a writable control group that a login session may not offer.
-  The subreaper and process-tree containment was chosen instead;
-  this is a pick open to the owner's veto.
+  A killed wrapper's cargo is found another way, by the control group it ran in (round 7, replacing the process group of round 5
+  and the subreaper with a `/proc` scan of round 6, which both failed to show that every process had stopped):
+  before a child starts, the wrapper makes an empty cgroup v2 group inside its own group, writes the group's id, cgroup namespace
+  and path to the journal's `groups` file and syncs it (a child whose record cannot be written is not started), and the child is
+  started with the wrapper inside the group for the span of one `spawn` (so no hook runs between `fork` and `exec`).
+  A recovery or a new transaction stops while any journal of the workspace names a group with a thread left (`cgroup.events` says
+  `populated 1`), or holds a record it cannot read or understand, or has lost its record while other files remain, or lies in
+  another cgroup namespace than the one the record was made in; it names the journal, and a recorded group that is gone, or whose
+  id is different now, had no member (the kernel refuses to remove a group that has one).
+  A journal directory that holds nothing at all is what a cut-off `begin` leaves and is removed.
+  The record file is created first in every journal, so a directory without it that holds other files is uncertain, never empty.
+  The group is killed with `cgroup.kill`, and then each listed process gets `SIGKILL` through a pidfd, because `cgroup.kill`
+  alone left a thread group alive whose leader had already exited (measured on Linux 7.2.15,
+  `doc/planning/cargo-shadow-update.md`, "Round 7: control group probes"); the stop ends only when the kernel says `populated 0`.
+  What the group cannot do: a member of the same user that writes its own id into another group's `cgroup.procs` leaves the group
+  (probed: it does), so the group contains `setsid`, `setpgid`, double forks, closed pipes and daemons, not a process that
+  deliberately moves itself out. A cgroup namespace closer is not built and is the owner's decision.
+  Where no group can be had (the own group is owned by someone else, as a login session's is, or there is no cgroup v2, or the
+  kernel is older than 5.14), the run goes on in a process group of its own, prints one line naming the missing capability, and
+  claims no quiescence for what leaves the process group; the journal records the process group, and a recovery only asks that
+  group (the weaker path, the coordinator's pick of round 7, open to the owner's veto).
+  A trivial run (`true`, debug build, 39 runs after one warm-up) took 6.8 ms at the median with a control group and 6.4 ms in the
+  weaker path, because the wait for the child ends at its exit through a pidfd instead of a 10 ms sleep.
   Every run keeps a journal under `.cache/cargo-shadow/journal/<unique name>/`,
   created exclusively (a journal is never reused or truncated),
   with the snapshots synced and a `ready` record written last that lists every file with its length;
@@ -676,20 +684,25 @@ and an HTTP 429 is retried after its `Retry-After`.
   otherwise it is kept and named,
   because a lost ready record looks the same.
   A replacement temporary left by a killed run is reported and never deleted.
-  Finishing a run forces its outputs to disk before the completion marker (the owner's "Force at leaving"):
-  each lockfile and journaled manifest and its directory are synced,
-  then the journal is renamed to `.done`,
-  the parent is synced,
-  and the journal is removed.
+  Finishing a run has three phases that fail differently (round 7):
+  the outputs are forced to disk (the owner's "Force at leaving"; each lockfile and journaled manifest and its directory are
+  synced); the completion marker is published (the journal is renamed to `.done` and the parent is synced); the journal is
+  removed.
+  A failure of the first two stops the command and is never hidden behind another error (an operational error of the install
+  step, which would let the shim run the command again with `--locked`, is joined with it); only the removal of a journal that
+  is already marked done is a warning.
+  "Force at leaving, else background" has no background carrier in a command that exits, so cargo-shadow forces what must be
+  durable at its exit barrier and syncs nothing else (the coordinator's pick of round 7, open to the owner's veto).
   A removal that stopped partway is finished by the next recovery,
   which syncs the parent before it deletes anything.
   Data is synced before it is relied on:
   the displaced file (a failed data barrier is an error,
   never a settled outcome),
-  every directory from the kept directory up to the nearest directory that also holds the replaced file,
+  every directory from the resolved kept directory up to the root of the file system,
   every time a file is linked into it
-  (that directory is the durable anchor:
-  the replaced file could not be there if it were not durable).
+  (round 7: the directory that holds the replaced file is not a durable anchor just because the file is there, since its own
+  entry in its parent may not be durable; the path is resolved first, so a symbolic link and a relative path name the directories
+  that really hold the entries).
   Power-loss behavior depends on the filesystem honoring `fsync` and is not tested by fault injection.
   The kept directory is never capped and never emptied by the tool.
   Owner answer of round 6,
@@ -710,22 +723,18 @@ and an HTTP 429 is retried after its `Retry-After`.
   "nothing should ever wait forever or indefinitely").
   Locks are tried,
   never waited for.
-  Every child process runs in its own process group under a bound,
-  and while it runs this process is a child subreaper
-  (Linux `PR_SET_CHILD_SUBREAPER`),
-  so a descendant that left the group with `setsid` or `setpgid` and closed its pipes
-  is still a descendant and is found by a scan of `/proc`.
-  At the bound the group and every descendant are killed and shown to be gone,
-  and the error names the call and the command the user ran (quoted so it can be copied);
-  after a normal exit any descendant left is killed too.
-  A descendant that cannot be killed (an uninterruptible wait) is "not quiescent":
+  Every child process runs in a control group of its own under a bound (above, "A killed wrapper's cargo"; the weaker path is a
+  process group).
+  At the bound the group and every process in it are killed and the run waits for `populated 0`;
+  the error names the call and the command the user ran (quoted so it can be copied);
+  after a normal exit any process left is killed too.
+  A process that cannot be killed (an uninterruptible wait) is "not quiescent":
   install and update then stop with the lockfiles
   neither rolled back nor accepted and the journal kept,
   and the command is not run.
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
-  Only one bounded run is in flight in a process,
-  because adopted orphans cannot be told apart between two runs.
+  Two runs of one process do not wait for each other: only the span of one `spawn` is serialized, with a bound.
   The bounds,
   with what was measured in this repository on 2026-11-04 (load average 6.2 to 6.9 on 32 CPUs,
   3 runs each):
@@ -744,8 +753,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   collisions not counted).
   A per-call bound is not an end-to-end bound:
   five registry requests with four pauses can take about 18 minutes.
-  The owner's rule justifies that a bound exists,
-  not its number.
+  The owner's rule justifies that a bound exists, not its number; each number is a measurement named beside it in the source, or a
+  delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back" (handover "Picks made
+  under the owner's delegation"), open to veto.
   The one exemption is the user's own command that the shim starts after the checks (`cargo build`,
   `cargo run` and the like):
   it runs as long as the user lets it,

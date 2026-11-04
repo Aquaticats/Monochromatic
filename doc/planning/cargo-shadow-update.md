@@ -664,3 +664,78 @@ Files are under `/var/home/user/temp/agent/reviews/`.
   dispatch, capture, policy, HTTP, name allocation, registration of `rerun_tests.rs`).
 - Added by round 7: a transient user scope as the second way to a writable group (probe 1), the cgroup namespace closer
   (probe 3).
+
+## Round 7: the P1 set of the sixth review (2026-11-04)
+
+Where an earlier section of this record says the process tree, the subreaper, the recorded process group, "one bounded run in
+flight in a process" or "the directory that holds the replaced file is the durable anchor", this section is current.
+Each P1 below was written first as the reviewer's own counterexample and failed on the round 6 code (the commit with the red
+tests is `939dcb31d1`: eleven failed, and the churn test, which needs a lucky schedule, passed); the green commit follows it.
+
+- 6a R1 A (a zombie leader with a live writer thread): `a_zombie_leader_with_a_live_writer_thread_is_stopped_before_a_normal_exit_returns`
+  (a C fixture compiled by `cc` in the test; the leader ends with `pthread_exit`); the group is populated until stopped
+  (`probe_2_a_thread_group_with_an_exited_leader_stays_populated_until_it_is_stopped`).
+- 6a R1 B (a parent map that is not one snapshot): the parent map is gone;
+  `orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped` is a regression test that passed on the old code in most
+  schedules, so there is no deterministic red for it.
+- 6a R2 and 6c R2 (a killed wrapper and an escaped writer): `a_killed_wrapper_with_an_escaped_writer_stops_the_recovery` (the test
+  kills the wrapper helper and the direct child and keeps a `setsid` writer alive; a recovery must not restore the lockfile);
+  a recorded group with a member, an unreadable record, a lost record, another namespace and a weaker-path group are all
+  survivors (`survivor_note`).
+- 6a R3 (an ownership heuristic): `a_grandchild_adopted_during_the_run_that_the_run_did_not_start_survives` and
+  `a_subprocess_another_thread_starts_during_the_run_survives`; the group is the run's own, nothing else is signalled.
+- 6b 1 (the directory-entry sync): `every_ancestor_of_the_kept_directory_is_synced_up_to_the_filesystem_root` and
+  `a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path`; the walk is over the resolved absolute path to `/`,
+  so it cannot end short, and a path that cannot be resolved fails the preservation.
+  Not tested: a relative kept directory (resolving it needs the process's working directory, which a test cannot change safely
+  while others run) and a power-loss model.
+- 6b2 1 (survivor discovery that fails open): `a_journal_listing_that_fails_stops_the_recovery` and
+  `a_journal_listing_that_fails_stops_a_new_transaction` (a failpoint stands for an entry or metadata error; `list_journals`
+  propagates both, `fs::metadata` replaces `Path::is_dir`).
+- 6b2 2 (missing group and ready records): `a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor`; positive
+  counterparts `an_empty_journal_directory_is_no_survivor`, `a_journal_with_an_empty_group_record_is_no_survivor` and
+  `a_recovery_removes_an_empty_journal_directory`.
+  The protocol that makes "no child started" distinguishable: the `groups` file is the first file of every journal, and a record
+  is forced to disk before every child.
+  The advertised repair for an unreadable record (6b2 7, a P2) now says to restore by hand and remove the journal directory;
+  an acknowledgement procedure is queued.
+- 6b2 5 (outputs durable is not "only cleanup failed"): `a_completion_marker_that_cannot_be_published_stops_the_command`,
+  `the_cleanup_failure_happens_after_the_completion_marker_was_published`, `a_completion_failure_is_not_cleanup_and_leaves_the_journal_active`,
+  `a_removal_failure_after_the_marker_is_cleanup_only`; `FinishError` has three phases.
+- 6c R1 (an operational install error bypasses the finish classification):
+  `an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_keeps_both_diagnostics` and, for the update,
+  `an_update_error_with_a_failed_mandatory_phase_reports_both` (`settle_finish`).
+
+Coordinator's picks under the delegation, written beside the code they govern (veto open):
+
+- Where no delegated group can be had, a run goes on in a process group with a one-line notice naming the capability
+  (`bounded_run.rs`, `weaker_notice`); a recovery of a weaker-path journal asks only the recorded process group.
+  This is weaker than the review's "fail closed on a journal whose quiescence cannot be established" (6c R2): a descendant that left
+  the process group of a killed wrapper's run is not found there.
+  The alternative the owner can pick instead is to refuse every recovery of such a journal until a person acknowledges it, which
+  needs the acknowledgement procedure of 6b2 7.
+- "Force at leaving, else background" has no background carrier in a command that exits: cargo-shadow forces what must be durable
+  at its exit barrier and syncs nothing else (`Transaction::finish_with`).
+- Every shipped limit cites a measurement, or the delegation record with the owner's quote (this round rewrote the comments of the
+  runner constants, the HTTP and registry limits, the name searches, the set-aside rounds, the guard hop count and the
+  dump ceilings).
+
+Picks of the agent, also open to veto:
+
+- A run does not wait for another run: the old refusal of a second run in one process is gone; only the span of one `spawn`
+  (the wrapper is inside the run's group for it) is serialized, with the run's bound.
+- The wait for the child ends at its exit through a pidfd instead of a 10 ms sleep.
+  Measured in the debug build, 39 runs of `true` after one warm-up, on 2026-11-04: 6.8 ms median with a control group,
+  6.4 ms with a process group; the sleep-polling run took 11.3 ms at best.
+  `clone3` with `CLONE_INTO_CGROUP` would avoid entering the group, and is not reachable from `std` or `rustix` 1.1.6.
+- The tests that need a control group fail loudly where none can be had; `CARGO_SHADOW_ALLOW_NO_CGROUP=1` turns that into a printed
+  skip for a host that cannot delegate (some CI runners and containers).
+
+What the new design does not do, so a later review does not read it as done:
+
+- A same-uid member can leave the group (probe 3); the cgroup namespace closer is not built.
+- A wrapper killed in the span of one `spawn` leaves itself in the new group; the group then holds the wrapper's pid until it
+  is reaped, which a recovery reads as a survivor, and that is the safe side.
+- Login sessions (root-owned group) take the weaker path; a transient user scope is the second way to a group and is queued.
+- Journal retention of `groups` lines grows by one line per run; the lines are removed with the journal.
+- The weaker path records the process group after the child starts (the child can run for a moment before the record is durable).
