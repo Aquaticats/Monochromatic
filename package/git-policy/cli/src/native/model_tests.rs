@@ -218,3 +218,11 @@ mod model_watch_r13;
 /// The controls of `attach-watch` and T1's registry comparison.
 #[path = "model_watch_r13_tests.rs"]
 mod model_watch_r13_tests;
+
+/// P2a's pipe bootstrap and discipline, and the syncer's separation from the owner's loop.
+#[path = "model_pipe_r13.rs"]
+mod model_pipe_r13;
+
+/// The controls of the pipe discipline.
+#[path = "model_pipe_r13_tests.rs"]
+mod model_pipe_r13_tests;
