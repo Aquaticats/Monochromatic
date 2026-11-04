@@ -3571,8 +3571,70 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   the step left running;
   the service never restarts itself out of a stuck write;
   cold-store `pnpm install` and Cargo stage measured before the ceilings are fixed.
-  Asked of the owner:
-  the multiple for the tool ceilings and the length of the short extra wait.
+  Owner answers (question tool,
+  2026-11-04):
+  tool ceilings "5x (Recommended)" (five times the longest measured run,
+  rounded up to whole minutes,
+  recomputed with the cold-store case if longer);
+  short extra wait "7 s (Recommended)" (twice the longest measured branch write,
+  3,438 ms of 2,093);
+  both sent to the agent.
+  Follow-up done (tip `bafebbd512`,
+  main `64031356d8` merged in;
+  gate r5 4801/4801;
+  clippy clean):
+  `SHORT_EXTRA_WAIT` 7 s with a backward-readable `InsideWrite` notice (one extra field on the `waiting` line);
+  the cut experiment (Git 2.56.0,
+  kill at every mutating system call,
+  rerun,
+  compare) decided which steps keep a ceiling,
+  and the first build's list was wider than the criterion;
+  a person's command stops waiting at the step's class bound (120 s quick,
+  10 min bulk) plus 7 s with a not-known error and leaves the step running;
+  only the landing thread waits without a bound;
+  cold `pnpm install` 20.9 s and `cargo fetch` 7.6 s were shorter than the warm maxima,
+  so the ceilings stand.
+  Cross-vendor reviews running:
+  `branch-write-sol-1.txt` (step bounds,
+  135 KB) and `branch-write-sol-2.txt` (tool ceilings and docs,
+  127 KB).
+  Owner answer (question tool,
+  2026-11-04) on a person's command inside a step that cannot run twice:
+  "Class ceiling + 7 s (Recommended)" (as built:
+  2 min 7 s for quick steps,
+  10 min 7 s for bulk steps,
+  then a not-known error with the step left running);
+  to be cited in `doc/planning/cli-git-no-unbounded-waits.md` with the review fixes.
+- Index lock claims always plus machine id:
+  built on `fix/git-policy-cli-index-lock-claims-always` (tip `69650ced17`,
+  gate 4780/4780,
+  clippy clean,
+  red first);
+  `Reclaimed::Foreign` leaves another machine's lock or claim and names it.
+  Two cross-vendor attempts by the agent timed out empty (exit 124);
+  the third (`claims-always-sol-3.txt`) returned "Merge after named fixes":
+  legacy foreign markers must fail closed,
+  a previous-release `flock` reclaimer and a claim reclaimer can still race on one lock,
+  a permanently unjudgeable claim reads as a transient `Busy`,
+  and a lost placement answer can strand this process's own claim;
+  sent to the agent with the test fixes.
+  Branch-write reviews (`branch-write-sol-1.txt`,
+  `branch-write-sol-2.txt`):
+  both "merge after named fixes";
+  P1s:
+  a commit can be answered withdrawn after it landed,
+  failed markers count as a withdrawal,
+  an early withdrawal is one-shot,
+  a step "left running" dies of SIGPIPE when the command exits,
+  and the classifier fails open on forms the experiment never ran;
+  also the 7 s path misses a write that starts within 60 s of the answer ceiling,
+  repair output collection is unbounded,
+  a timed-out review keeps the review log,
+  and the 20-minute foreign-owner patience can authorize reclaiming a still-live owner now that writes may run past any ceiling
+  (the agent designs options;
+  owner question to follow).
+  All sent to the agent.
+  Release 0.5.31 waits for both branches' fixes and their re-reviews.
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
@@ -3710,6 +3772,106 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     to be verified from the kernel source),
     else Unknown on any start mismatch whose basis is unproven;
     both test assertions tightened.
+    Round 15 done (tip `946615ef52`,
+    2026-11-04T10:23:39-05:00;
+    592 run,
+    592 passed,
+    12 skipped;
+    clippy clean):
+    the review's recycled-number schedule was built unprivileged and went red first;
+    fix:
+    Gone only when no process has the id in the recorded pid namespace,
+    any other start time is Unknown (a reused pid now needs `cargo-shadow acknowledge`),
+    and the time-namespace number left the record;
+    pidfs inode rejected after reading `fs/pidfs.c` (an `ida`,
+    reused,
+    from 6.9 to 6.13);
+    both assertions tightened.
+    Change review `cargo-shadow-sol-15.txt`:
+    "Meets the list for the changes; ready for the separate certification pass";
+    no defect,
+    two wording qualifications (namespace recycling after the last reference;
+    "blocks" applies to a launcher classified Alive).
+    Sent to the agent:
+    those wording fixes and the certification bundles (row groups under 250 KB each,
+    whole named test files plus the support they call,
+    manifest `cargo-shadow-cert-manifest.md`).
+    Wording fixed (tip `d5a8753488`);
+    bundles ready (three groups of about 232 KB:
+    group 1 rows A1,
+    V1,
+    V2 amended c,
+    V6;
+    group 2 A1/V3,
+    A1/A2,
+    A2/R4,
+    V3/V4;
+    group 3 A3/A4,
+    R1,
+    R2,
+    R3/R5,
+    K1,
+    K2,
+    V5,
+    weaker path).
+    Certification reviews of groups 1 and 2 running (`cargo-shadow-cert-sol-1.txt`,
+    `cargo-shadow-cert-sol-2.txt`);
+    group 3 queued for the next free review slot (prompt `cargo-shadow-cert-prompt-3.txt` written);
+    group 2 `cargo-shadow-cert-sol-2.txt`:
+    "not certified" (scope lifecycle shown;
+    spawn isolation,
+    post-start failures and recording partly shown:
+    the overlap misses the real spawn boundary,
+    no post-spawn startup-completion failure,
+    fault arming not told apart from consumption,
+    no write-sync-launch ordering,
+    no proof of the containment kind attempted);
+    no production defect;
+    sent to the agent as evidence fixes;
+    group 1 `cargo-shadow-cert-sol-1.txt`:
+    "not certified" (V1 shown;
+    A1,
+    V2 amended c and V6 partly:
+    direct-child reaping not observed,
+    zombie fixture not run through the timeout,
+    malformed and survivor tests accept another blocking cause,
+    view tests only classify,
+    no stalled scope-startup or shutdown deadline,
+    lock tests do not time the answer,
+    the pipe-holder `alive` oracle fails open,
+    one timeout test checks only text);
+    sent to the agent as well;
+    group 3 `cargo-shadow-cert-sol-3.txt`:
+    "Not certified" (all eight rows partly shown:
+    completion failures with an operational error,
+    kept files not read back,
+    one inode not inventoried,
+    rollback refusal cause unasserted,
+    combined kept size,
+    the barrier after the kept link,
+    active recovery's own finish,
+    weaker-path capability classes,
+    lock and two-journal schedules;
+    and the shared `journal_dirs` helper reads an unreadable directory as empty);
+    no production defect;
+    all three groups' fixes sent;
+    done (tip `d5ab71ea62`,
+    609 run,
+    609 passed,
+    13 skipped;
+    clippy clean;
+    16 of 31 items with a planted-regression red run;
+    gaps:
+    no real uninterruptible-member shutdown,
+    no plant for five tests);
+    bundles rebuilt in four groups (`cargo-shadow-cert-1-a1-v2amendedc-weakerpath.txt` 239 KB,
+    `-2-a1v3-r1-r2-v3v4-v5` 235 KB,
+    `-3-a1a2-v6` 230 KB,
+    `-4-a2r4-a3a4-r3r5-k1-k2-v1` 235 KB);
+    prompts `cargo-shadow-cert2-prompt-1..4.txt` written (group 1 without the manifest to stay under 250 KB);
+    queued behind the index-lock and branch-write reviews;
+    after they pass,
+    the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
     a certification pass that attaches the test bodies the map names,
     split by row group under 250 KB per review,
@@ -3786,8 +3948,130 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   decided by the fixed acceptance target:
   build that protocol,
   so the 3B narrowing is withdrawn.
-  Round 17 sent to the models agent (`a9c775c9196f1d836`) with all of these;
-  its parts go to `commit-models-12-part-<n>-<topic>.diff`.
+  Round 17 done (tip `8425cf376f`;
+  462 model tests passed;
+  both clippy variants clean;
+  map unchanged at 64,
+  17,
+  9,
+  17):
+  the handover wait and the intermediate child fixed (reap,
+  close the launcher copy,
+  then the byte,
+  then an acknowledgment);
+  checked kill and reap;
+  every descriptor owned on every path (EMFILE tests);
+  only a checked `LaneDocument` checkpoint reclaims,
+  and lineage names only reclaimed records.
+  Coordinator direction,
+  from the review's two options and the bounded log:
+  extend `LaneDocument` with whatever the real lane state needs once that state is built;
+  only states not yet represented stay non-reclaiming.
+  3B not built:
+  the model checker finds two schedules where the reviewer's token-to-exit protocol misses a receipt
+  (a planned shutdown with no owner left to retry,
+  and a client that cannot start one during the shutdown);
+  the launch-bound row stays Narrower.
+  Cross-vendor review running:
+  `commit-models-sol-12.txt` (prompt `commit-models-prompt-12.txt`),
+  asked whether those misses are real under the target and whether any bounded protocol avoids them.
+  Review `commit-models-sol-12.txt`:
+  "no, as submitted";
+  2A,
+  2E,
+  the successful-launch windows,
+  the unchecked calls and the descriptor leaks closed;
+  the two 3B misses are genuine but disprove only reliance on the service's retry,
+  and the reviewer names a singleton service-independent retry owner per lane holding the token for its lifetime;
+  new defects:
+  launcher death before handover leaves joined receipts unowned,
+  a failed grandchild can still hold the lock after the failure was recorded,
+  and `LaneDocument` dependencies are not validated on append admission or recovery.
+  Round 18 sent to the models agent:
+  fix those three,
+  and model the bound's candidates (the reviewer's singleton owner,
+  a sealed-lane inline force by the client,
+  any other,
+  the built one as comparison) with misses,
+  helper count,
+  waits,
+  locks,
+  recursion and foreground cost each,
+  building none;
+  the owner question on the bound goes out with that table.
+  Round 18 done (tip `e07d9e2fbe`;
+  471 model tests passed;
+  clippy clean;
+  map unchanged):
+  A,
+  B and C fixed red first (only the launcher carries the lock during a launch,
+  the helper takes it after the handover;
+  the launcher's drop is the last release before receipts are recorded;
+  checked documents validated at admission,
+  checkpoint start and recovery).
+  Bound comparison (`model_helper_bound_r20.rs`):
+  built release-recheck-exit no miss,
+  helpers grow with clients;
+  singleton owner no miss,
+  two processes,
+  but a lasting owner needs the unbuilt unit route (logout ends the fallback scope);
+  inline only while sealed misses;
+  inline whenever the token is held,
+  token to exit:
+  no miss,
+  one helper,
+  the client syncs its own receipt only when a flusher is at work (median 11.4 ms,
+  max 77.1 ms,
+  20 samples at load 14);
+  baton no miss but needs the unit route;
+  the agent ranks inline-whenever-held first.
+  Review `commit-models-sol-13.txt`:
+  "no, as submitted";
+  C closed;
+  A and B reopen through deeper timings (a handover timeout then launcher death;
+  the intermediate child's inherited lock copy before its first close with failed cleanup);
+  protocol 4 misses a receipt when the client dies before its own force,
+  its one-helper bound breaks while launched helpers are delayed before taking the lock,
+  and no time bound is shown for its foreground sync;
+  the comparison omits client death,
+  worker death,
+  launch interleaving and mixed versions,
+  and its crash exemption is too broad;
+  new plain bug:
+  a helper that fails to take the lock is acknowledged as a launched executor.
+  Third "no" in a row where each closed finding is replaced by a deeper interleaving of the same family
+  (launch,
+  handover,
+  death,
+  cleanup);
+  the coordinator stopped sending fix-everything rounds (second opinion concurred).
+  The helper-count bound is the reviewer's acceptance target ("launch is non-recursive and resource-bounded"),
+  not an owner rule;
+  the supported scope was fixed by the coordinator,
+  veto open.
+  Sent to the models agent now:
+  the plain bug and the map and comparison corrections only.
+  Owner answer (question tool,
+  2026-11-04):
+  "Keep built,
+  state limit (Recommended)"
+  (keep release,
+  recheck and exit;
+  the helper count is bounded only by the commits that arrive during those milliseconds,
+  overriding the reviewer's limit;
+  the plain launch bugs still get fixed).
+  Plain bug fixed (tip `2ba400d898`,
+  472 model tests passed:
+  a helper that cannot take the lock is a failed launch with every receipt recorded,
+  and it records them itself too;
+  `record_errors` writes each line in one write after interleaved lines were seen);
+  map and comparison claims narrowed,
+  the round 18 ranking withdrawn.
+  Round 19 sent:
+  record the owner's override in the map and the target notes,
+  and fix the two save-losing schedules of review 13 (handover timeout then launcher death;
+  the intermediate child's inherited lock copy with failed cleanup);
+  parts to `commit-models-14-part-<n>-<topic>.diff`.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
@@ -4384,8 +4668,18 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   There is always more work."
   and
   "Avoid wasting compute on stuff that would be shortly superseded."
-- Cross-vendor reviews run through `pi` (see `CLAUDE.md`);
-  keep at most three running.
+- Cross-vendor reviews run through `pi` (see `CLAUDE.md`),
+  each in its own scope (1 CPU,
+  2 GiB),
+  as many at once as there is work:
+  the owner asked "make sure we're running everything that can be run in parallel in parallel".
+  An earlier "keep at most three running" was the coordinator's own unmeasured guess at the cause of the timeouts
+  (added 2026-11-02,
+  `f0780fff47`),
+  never an owner rule;
+  removed 2026-11-04 after the owner asked who set it.
+  Whether concurrency affects the timeouts is unmeasured;
+  record each run's concurrency and outcome before limiting again.
   Several have timed out at 3600 s with no output and an empty session folder
   (`~/.pi/agent/sessions/--var-mnt-encrypted-temp-agent-review-*--/`):
   the run stalled inside `pi` before sending.
