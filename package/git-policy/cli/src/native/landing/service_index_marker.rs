@@ -105,3 +105,12 @@ pub fn marker_of(path: &Path) -> Option<Marked> {
 pub fn is_reclaimable(lock: &Path) -> bool {
     return marker_of(lock).is_some_and(|marked| { return holder_is_gone(marked.holder.as_ref()); });
 }
+
+/// The marker of the already open `file`, read from its start, when it holds one.
+pub fn marker_of_file(file: &std::fs::File) -> Option<Marked> {
+    let mut text: String = String::new();
+    // A shared reference reads from the file's own position, which a fresh descriptor has at the start.
+    let mut reader: &std::fs::File = file;
+    (&mut reader).take(MARKER_LIMIT).read_to_string(&mut text).ok()?;
+    return parse_marker(text.as_str());
+}

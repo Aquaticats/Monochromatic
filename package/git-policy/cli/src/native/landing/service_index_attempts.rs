@@ -25,9 +25,8 @@ use crate::index_lock_evidence::{
 use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::process_start::resolve_process_start;
 use crate::service_index_lock::{Announce, LockFailure, notice_every};
-use crate::service_index_marker::is_reclaimable;
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
-use crate::service_index_placement::{Platform, log_placement_failure, place_marked, reclaim};
+use crate::service_index_placement::{Platform, Reclaimed, log_placement_failure, place_marked, reclaim};
 use crate::service_index_staging::refresh_age;
 use crate::service_index_watch::{POLL_PAUSE, Watch};
 use crate::service_protocol::FailureCode;
@@ -153,13 +152,14 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 // A lock with the service's marker whose holder is gone is a dead instance's: it is removed, and the
-                //  attempt is made again at once. A live holder of any release is waited for like a foreign one. A lock
-                //  that cannot be removed ends the wait: more waiting would not change that.
-                if is_reclaimable(lock) {
-                    if !reclaim(platform, lock) {
-                        return Err(LockFailure { code: FailureCode::Unavailable });
-                    }
-                    continue;
+                //  attempt is made again at once; so is a lock that was replaced while it was judged. A live holder of any
+                //  release is waited for like a foreign one, and so is a stale lock another reclaimer is removing (the watch
+                //  wakes when it is gone, and the notice timer looks again if that reclaimer died). A lock that cannot be
+                //  removed ends the wait: more waiting would not change that.
+                match reclaim(platform, lock) {
+                    Reclaimed::Removed | Reclaimed::Changed => continue,
+                    Reclaimed::Stuck => return Err(LockFailure { code: FailureCode::Unavailable }),
+                    Reclaimed::Busy | Reclaimed::Kept => {}
                 }
             }
             Err(error) => {

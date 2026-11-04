@@ -248,13 +248,12 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
 }
 
 /// Removes the stale `lock`,
-/// whose holder is gone.
-/// False,
-/// after saying why in the log,
-/// when it is still there;
-/// a lock that is already gone counts as removed.
-pub fn reclaim(platform: &Platform, lock: &Path) -> bool {
-    return reclaim_if(platform, lock, &crate::service_index_marker::is_reclaimable);
+/// whose holder is gone,
+/// while no other reclaimer holds it;
+/// what came of it is the answer (`Reclaimed`),
+/// and the log says why a stale lock stays.
+pub fn reclaim(platform: &Platform, lock: &Path) -> Reclaimed {
+    return reclaim_if(platform, lock, &|marked: &crate::service_index_marker::Marked| { return crate::service_index_marker::holder_is_gone(marked.holder.as_ref()); });
 }
 
-pub use crate::service_index_reclaim::reclaim_if;
+pub use crate::service_index_reclaim::{Reclaimed, reclaim_if};
