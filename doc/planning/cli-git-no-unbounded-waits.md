@@ -804,6 +804,10 @@ named fixes. Each finding, with its disposition and its test (red first unless s
   when it fails. Tests: `a_form_the_cut_experiment_did_not_run_has_no_ceiling` (extended),
   `a_step_keeps_its_ceiling_exactly_when_the_cut_experiment_ran_it_twice_to_the_same_state`,
   `symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs`.
+  The reflog setting must be the last `-c` of its key (the key is not case-sensitive and `--config-env` of it is refused), and the
+  `init` form is the exact argv of `shadow_create.rs`; those two controls were written after their code and not run red first.
+  `core.logAllRefUpdates=false` stops a reflog from being created and does not stop an append to one that exists, so the proof for
+  `refs/cli-git/kept/<seq>` rests on the sequence number being new at each use (noted beside `is_side_ref`).
 - Unbounded capture read (sol-1 P1, sol-2 A). The output is read once as a snapshot of the last `STEP_OUTPUT_LIMIT` bytes of the
   sizes found when the read began, with a note for what was left out and for a read that failed; the files are emptied after the
   read and when the command stops waiting for a step. Tests in `output_capture_tests.rs`

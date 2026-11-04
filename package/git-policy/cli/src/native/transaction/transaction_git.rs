@@ -385,6 +385,21 @@ pub(crate) fn subcommand_of(arguments: &[OsString]) -> Option<(usize, String)> {
     return None;
 }
 
+/// Whether `words` are the one `init` the wrapper runs (`shadow_create.rs`): `--bare --template= --object-format=<format>
+///  --ref-format=reftable <path>`, and nothing else, so no `--separate-git-dir`, template or relocation can stand in it.
+fn is_shadow_creation(words: &[String]) -> bool {
+    return match words {
+        [bare, template, format, refs, path] => {
+            bare == "--bare"
+                && template == "--template="
+                && format.strip_prefix("--object-format=").is_some_and(|name| { return matches!(name, "sha1" | "sha256"); })
+                && refs == "--ref-format=reftable"
+                && !path.starts_with('-')
+        }
+        _ => false,
+    };
+}
+
 /// What:
 ///  Whether a `symbolic-ref` is a form the wrapper runs that may be run again: a read (`--quiet`, `--short`, `--no-recurse`, one name),
 ///  or, in a shadow repository the wrapper made for one transaction, the write of one name to one target without any option.
@@ -433,7 +448,7 @@ fn may_be_rerun(request: &GitRequest) -> bool {
         "remote" => return rest.first().is_some_and(|word| { return word == "get-url"; }),
         "add" | "reset" | "read-tree" | "update-index" => return request.index.is_some(),
         "symbolic-ref" => return symbolic_ref_may_be_rerun(&Words::of(rest.as_slice()), request.without_prefix),
-        "init" => return request.without_prefix && rest.iter().any(|option| { return option == "--bare"; }),
+        "init" => return request.without_prefix && is_shadow_creation(&rest),
         other => return RERUNNABLE.contains(&other),
     }
 }
@@ -634,14 +649,28 @@ impl<'a> Words<'a> {
 ///  second run, so the setting is on the command line (it wins over the configuration files) and the classifier requires it.
 pub(crate) const NO_REFLOG_SETTING: &str = "core.logAllRefUpdates=false";
 
-/// Whether the global options before the subcommand carry `-c <setting>`.
+/// What:
+///  Whether the last `-c` setting of the global options before the subcommand that names `setting`'s key gives it the value `setting`
+///  gives, and no other option sets the key another way.
+/// Why:
+///   Git takes the last `-c` for a key, so `-c core.logAllRefUpdates=false -c core.logAllRefUpdates=always` logs the update; and a key's
+///  spelling is not case-sensitive, and `--config-env` sets a key too (sol-1 round 2: the classifier requires the exact argv).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settings = globals.filter(isSettingOf(key)); settings.at(-1) === wanted && !globals.some(isConfigEnvOf(key))
+/// ```
 fn has_global_setting(arguments: &[OsString], setting: &str) -> bool {
+    let Some((key, _)) = setting.split_once('=') else { return false };
+    let mut last: Option<String> = None;
     let mut index: usize = 0;
     while index < arguments.len() {
         let text: String = arguments[index].to_string_lossy().into_owned();
         if text == "-c" {
-            if arguments.get(index + 1).is_some_and(|pair| { return pair.to_string_lossy() == setting; }) {
-                return true;
+            if let Some(pair) = arguments.get(index + 1).map(|word| { return word.to_string_lossy().into_owned(); })
+                && pair.split_once('=').map_or(pair.as_str(), |(name, _)| { return name; }).eq_ignore_ascii_case(key)
+            {
+                last = Some(pair);
             }
             index += 2;
             continue;
@@ -651,16 +680,21 @@ fn has_global_setting(arguments: &[OsString], setting: &str) -> bool {
             continue;
         }
         if text.starts_with('-') {
+            if text.strip_prefix("--config-env=").is_some_and(|rest| { return rest.split_once('=').map_or(rest, |(name, _)| { return name; }).eq_ignore_ascii_case(key); }) {
+                return false;
+            }
             index += 1;
             continue;
         }
-        return false;
+        break;
     }
-    return false;
+    return last.as_deref() == Some(setting);
 }
 
 /// Whether `word` names a side ref the wrapper makes for itself: `refs/cli-git/kept/<number>` or
-///  `refs/worktree/cli-git-service/<number>`. The number is all digits, so no `..` and no further path can stand in it. That the ref
+///  `refs/worktree/cli-git-service/<number>`. The number is all digits, so no `..` and no further path can stand in it. The sequence
+///  number is new at each use, so the ref has no reflog file yet: `core.logAllRefUpdates=false` stops a reflog from being created
+///  but does not stop an append to one that exists, so reusing a number would void the proof. That the ref
 ///  is a plain ref and has no reflog is not assumed: the classifier requires `--no-deref` and `NO_REFLOG_SETTING` on the exact
 ///  argv (`is_proven_to_run_twice`).
 fn is_side_ref(word: &str) -> bool {

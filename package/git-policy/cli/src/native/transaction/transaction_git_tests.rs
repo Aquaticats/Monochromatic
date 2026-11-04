@@ -815,6 +815,10 @@ fn a_form_the_cut_experiment_did_not_run_has_no_ceiling() {
         &["-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
         &["-c", "core.logAllRefUpdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
         &["-c", "core.logAllRefUpdates=false", "update-ref", "-d", "refs/worktree/cli-git-service/1"],
+        // The last setting of the key wins in Git, a key is not case-sensitive, and `--config-env` sets one too.
+        &["-c", "core.logAllRefUpdates=false", "-c", "core.logAllRefUpdates=always", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "-c", "core.logallrefupdates=true", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
+        &["-c", "core.logAllRefUpdates=false", "--config-env=core.logAllRefUpdates=LOGGING", "update-ref", "--no-deref", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
         &["-c", "core.logAllRefUpdates=false", "update-ref", "--no-deref", "--create-reflog", "refs/cli-git/kept/1", "0123456789abcdef0123456789abcdef01234567"],
         // A ref under the prefix is not any ref under it: the wrapper makes numbered ones, and `..` is not a number.
         &["update-ref", "refs/cli-git/../heads/main", "0123456789abcdef0123456789abcdef01234567"],
@@ -882,6 +886,11 @@ fn symbolic_ref_and_init_are_run_again_only_in_the_forms_the_wrapper_runs() {
     assert!(!may(&["symbolic-ref", "--delete", "--quiet", "HEAD"], false));
     // The shadow's creation.
     assert!(may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(may(&["init", "--bare", "--template=", "--object-format=sha256", "--ref-format=reftable", "/shadow"], true));
+    // Any other words, or an extra one, are not the form the wrapper runs.
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=reftable", "--separate-git-dir=/x", "/shadow"], true));
+    assert!(!may(&["init", "--bare", "--template=/templates", "--object-format=sha1", "--ref-format=reftable", "/shadow"], true));
+    assert!(!may(&["init", "--bare", "--template=", "--object-format=sha1", "--ref-format=files", "/shadow"], true));
     // Any other `init` can relocate or re-initialize the repository of the person.
     assert!(!may(&["init", "--bare", "--template=", "/shadow"], false));
     assert!(!may(&["init", "--quiet", "--initial-branch=main"], true));

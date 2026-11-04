@@ -1388,7 +1388,7 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"). The rule is a whitelist of the exact forms the experiment
   ran, parsed by their options and words, so a form it did not run has no ceiling: `update-ref` set or delete of one numbered side
   ref (`refs/cli-git/kept/<number>`, `refs/worktree/cli-git-service/<number>`) only with `--no-deref` and with
-  `-c core.logAllRefUpdates=false` on the same argv, which the wrapper passes at each of its call sites in
+  `-c core.logAllRefUpdates=false` on the same argv as the last setting of that key (Git takes the last; `--config-env` of the key is refused too), which the wrapper passes at each of its call sites in
   `src/native/landing/service_land.rs` (the repository's own `core.logAllRefUpdates=always` and a side ref that is a symbolic ref
   were both run), `stash list
   --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index` with only `--refresh`, only `--index-info` (and
@@ -1400,7 +1400,7 @@ Linux only: where `/proc/<pid>/io` cannot be read nothing is measured, so no qui
   wrapper's own stream and found a marks lock a cut left that the second run could not pass). `RERUNNABLE` no longer names
   `symbolic-ref` or `init`: `symbolic-ref` may be run again as a read (`--quiet`, `--short`, one name) or, on a shadow repository the
   wrapper made, as a write of one name to one target with no option (identical in the experiment), and `init` only as the shadow's
-  creation (`--bare` on a shadow request), which the experiment found different after a second run (reftable names are random) and
+  creation (the one argv `shadow_create.rs` runs, on a shadow request), which the experiment found different after a second run (reftable names are random) and
   which is private and thrown away with its transaction when it fails. Everything else, every other `update-ref`, `stash`, `merge`, `reset`, `read-tree`,
   `checkout`, `switch`, `config --add`, `gc` and the rest, is never ended. On the commit service's landing thread such a step is
   announced at the usual interval and waited for as long as it lives. Any other command stops waiting at the bound of the step's
