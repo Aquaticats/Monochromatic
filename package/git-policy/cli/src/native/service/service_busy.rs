@@ -15,8 +15,9 @@
 //!  when the name exists and which shows the file whole: the landing thread tries to create it with the content `landing` before it
 //!  lands the request, a connection thread tries to create it with `withdrawn` before it answers a withdrawal, and exactly one
 //!  creation succeeds. The loser reads what the winner wrote. A request that is `landing` is the landing thread's to answer; a
-//!  request that is `withdrawn` is dropped whenever a copy of it reaches a group, as often as it comes, until the file ages out
-//!  (the same bounded memory a normal withdrawal has). A `landing` file is removed when its group is done, after the batch is in the
+//!  request that is `withdrawn` is dropped whenever a copy of it reaches a group, as often as it comes, until the retention forgets it
+//!  (the same bounded memory a normal withdrawal has; only the landing thread forgets, between two groups). A `withdrawn` decision
+//!  carries the token of its maker and counts as a cancellation for anyone else only when the file `<id>.<token>.cancelled` exists. A `landing` file is removed when its group is done, after the batch is in the
 //!  journal, so a withdrawal that wins afterwards asks the journal again before it answers, and answers `landed` for a request the
 //!  journal names. Anything that cannot be established, a file that cannot be made or read, a journal that cannot be read, is never
 //!  evidence of a cancellation: the withdrawal is left to the landing thread, and a request that cannot be admitted is answered
@@ -50,11 +51,14 @@ const DECISION_EXTENSION: &str = "decision";
 /// What the decision file says when the landing thread took the request.
 const LANDING: &str = "landing";
 
-/// What the decision file says when a withdrawal took the request.
+/// What the decision file says when a withdrawal took the request: this word, a colon and the token of the withdrawer that made it.
 const WITHDRAWN: &str = "withdrawn";
 
-/// The extension of the file that confirms a withdrawal: the withdrawer that won the decision made it after it asked the journal a
-///  second time and found no batch naming the request. A decision without it is provisional: nobody but its creator may rely on it.
+/// The extension of the file that confirms a withdrawal, named `<id>.<token>.cancelled` with the token the decision carries: the
+///  withdrawer that won the decision made it after it asked the journal a second time and found no batch naming the request. A
+///  decision without its confirmation is provisional: nobody but its creator may rely on it. The token ties the confirmation to
+///  that one decision, so a confirmation that outlives its decision (the retention removes the pair in two steps) confirms nothing
+///  of the decision that replaces it.
 const CANCELLED_EXTENSION: &str = "cancelled";
 
 /// The longest request identity the record keeps a decision for; a longer one, or one with a character outside letters, digits and
@@ -127,8 +131,18 @@ impl Drop for TemporaryFile {
     }
 }
 
-/// Distinguishes the temporary files of concurrent decisions.
+/// Distinguishes the temporary files of concurrent decisions, and the tokens of withdrawals.
 static TEMPORARY_NUMBER: AtomicU64 = AtomicU64::new(0);
+
+/// A token no other withdrawal in any service has, made of letters, digits and hyphens so it can stand in a file name.
+fn new_token() -> String {
+    return format!("{}-{}-{}", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed), now_millis());
+}
+
+/// The token a `withdrawn` decision carries, when `content` is one.
+fn withdrawal_token(content: &str) -> Option<&str> {
+    return content.strip_prefix(WITHDRAWN).and_then(|rest| { return rest.strip_prefix(':'); }).filter(|token| { return !token.is_empty(); });
+}
 
 /// What:
 ///  The shared record of the landing thread's work.
@@ -164,9 +178,9 @@ impl LandingBoard {
         return self.directory.join(format!("{id}.{DECISION_EXTENSION}"));
     }
 
-    /// The file that confirms the withdrawal of a request.
-    fn cancelled_path(&self, id: &str) -> PathBuf {
-        return self.directory.join(format!("{id}.{CANCELLED_EXTENSION}"));
+    /// The file that confirms the withdrawal of a request that carries `token`.
+    fn cancelled_path(&self, id: &str, token: &str) -> PathBuf {
+        return self.directory.join(format!("{id}.{token}.{CANCELLED_EXTENSION}"));
     }
 
     /// What:
@@ -183,6 +197,8 @@ impl LandingBoard {
         // Removed whichever way this function leaves, a failed write included (a leaked file is an inode the recovery needs).
         let beside: TemporaryFile = TemporaryFile(self.directory.join(format!("{id}.{}.{}.tmp", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed))));
         std::fs::File::create(beside.0.as_path()).and_then(|mut file| { return file.write_all(outcome.as_bytes()); })?;
+        #[cfg(test)]
+        AFTER_THE_TEMPORARY_IS_WRITTEN.with(|hook| { return hook.borrow().as_ref().map_or(Ok(()), |fail| { return fail(); }); })?;
         let linked: std::io::Result<()> = std::fs::hard_link(beside.0.as_path(), self.decision_path(id));
         return match linked {
             Ok(()) => Ok(Decision::Won),
@@ -233,7 +249,7 @@ impl LandingBoard {
             match self.decide(id.as_str(), LANDING) {
                 Ok(Decision::Won) => {}
                 Ok(Decision::Lost(content)) if content == LANDING => {}
-                Ok(Decision::Lost(content)) if content == WITHDRAWN => admission.dropped.push(id.clone()),
+                Ok(Decision::Lost(content)) if withdrawal_token(content.as_str()).is_some() => admission.dropped.push(id.clone()),
                 Ok(Decision::Lost(_)) | Err(_) => admission.unavailable.push(id.clone()),
             }
         }
@@ -243,6 +259,7 @@ impl LandingBoard {
     /// The group is landed (or given up): its requests are the landing thread's no more, and each is in the journal if it landed.
     ///  A tombstone of a withdrawal stays.
     pub fn end_group(&self, ids: &[String]) {
+        self.prune_withdrawals();
         for id in ids.iter().filter(|id| { return is_plain(id.as_str()); }) {
             if std::fs::read_to_string(self.decision_path(id.as_str())).is_ok_and(|content| { return content == LANDING; }) {
                 let _removed = std::fs::remove_file(self.decision_path(id.as_str()));
@@ -333,12 +350,16 @@ impl LandingBoard {
             Naming::Open | Naming::Unknown => return EarlyAnswer::Queued,
             Naming::No => {}
         }
-        match self.decide(id, WITHDRAWN) {
+        let token: String = new_token();
+        match self.decide(id, format!("{WITHDRAWN}:{token}").as_str()) {
             Err(_) => return EarlyAnswer::Queued,
-            // Another withdrawer won. Its decision is acknowledged only when it has confirmed it; before that it is provisional, and
-            // may still be taken back (the journal may name the request when the winner asks again).
-            Ok(Decision::Lost(content)) if content == WITHDRAWN && self.cancelled_path(id).exists() => return EarlyAnswer::Withdrawn(words),
-            Ok(Decision::Lost(_)) => return EarlyAnswer::Queued,
+            // Another withdrawer won. Its decision is acknowledged only when it has confirmed it, with the confirmation that carries
+            // the token of that decision; before that it is provisional, and may still be taken back (the journal may name the
+            // request when the winner asks again). A confirmation of an earlier decision of this request has another token.
+            Ok(Decision::Lost(content)) => {
+                let confirmed: bool = withdrawal_token(content.as_str()).is_some_and(|theirs| { return self.cancelled_path(id, theirs).exists(); });
+                return if confirmed { EarlyAnswer::Withdrawn(words) } else { EarlyAnswer::Queued };
+            }
             Ok(Decision::Won) => {}
         }
         #[cfg(test)]
@@ -348,12 +369,11 @@ impl LandingBoard {
         match self.naming(id) {
             Naming::No => {
                 // Confirmed: from now on any withdrawer may acknowledge it, and nothing removes it but the retention.
-                if std::fs::File::create_new(self.cancelled_path(id)).is_err() {
+                if std::fs::File::create_new(self.cancelled_path(id, token.as_str())).is_err() {
                     // Not confirmed, and nobody may have acknowledged a decision that was not: it is taken back.
                     let _undone = std::fs::remove_file(self.decision_path(id));
                     return EarlyAnswer::Queued;
                 }
-                self.prune_withdrawals();
                 return EarlyAnswer::Withdrawn(words);
             }
             // Never confirmed, so never acknowledged by anyone else: taken back.
@@ -368,7 +388,18 @@ impl LandingBoard {
         }
     }
 
-    /// Forget the oldest confirmed withdrawals once more than `WITHDRAWALS_RETAINED` are remembered.
+    /// What:
+    ///  Forget the oldest confirmed withdrawals once more than `WITHDRAWALS_RETAINED` are remembered.
+    /// Why:
+    ///   Only the landing thread calls this (from `end_group`), so there is one pruner and no two work from the same listing. A
+    ///  decision is removed only while it still carries the token of the confirmation being removed, and before that
+    ///  confirmation: a decision that replaced it has another token and stays, and a confirmation left standing without its decision
+    ///  (a pause between the two removals) confirms nothing of any later decision, which has a token of its own.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// for (const [id, token] of oldestConfirmations(surplus)) { if (read(decision(id)) === `withdrawn:${token}`) rm(decision(id)); rm(confirmation(id, token)); }
+    /// ```
     fn prune_withdrawals(&self) {
         let Ok(entries) = std::fs::read_dir(self.directory.as_path()) else { return };
         let mut remembered: Vec<(SystemTime, PathBuf)> = entries
@@ -381,9 +412,15 @@ impl LandingBoard {
         }
         remembered.sort();
         let surplus: usize = remembered.len() - WITHDRAWALS_RETAINED;
+        #[cfg(test)]
+        AFTER_THE_LISTING.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
         for (_, confirmation) in remembered.into_iter().take(surplus) {
-            // The decision first, so the confirmation is never left standing for a decision that is gone.
-            let _forgotten = std::fs::remove_file(confirmation.with_extension(DECISION_EXTENSION));
+            let Some(name) = confirmation.file_stem().and_then(|text| { return text.to_str(); }) else { continue };
+            let Some((id, token)) = name.split_once('.') else { continue };
+            let decision: PathBuf = self.decision_path(id);
+            if std::fs::read_to_string(decision.as_path()).is_ok_and(|content| { return withdrawal_token(content.as_str()) == Some(token); }) {
+                let _forgotten = std::fs::remove_file(decision);
+            }
             let _also = std::fs::remove_file(confirmation);
         }
     }
@@ -391,6 +428,10 @@ impl LandingBoard {
 
 #[cfg(test)]
 thread_local! {
+    /// A control may fail a decision on this thread after its temporary file was made and written, which is where the real write fails.
+    pub(crate) static AFTER_THE_TEMPORARY_IS_WRITTEN: RefCell<Option<Box<dyn Fn() -> std::io::Result<()>>>> = const { RefCell::new(None) };
+    /// A control may stop the retention on this thread between its listing and its removals, where another decision can replace one.
+    pub(crate) static AFTER_THE_LISTING: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
     /// A control may stop a withdrawal on this thread between the moment it wins the decision and the moment it asks the journal again,
     ///  which is where the reviews found the window.
     pub(crate) static AFTER_THE_DECISION_IS_WON: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
