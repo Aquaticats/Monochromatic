@@ -4,7 +4,7 @@
 use super::*;
 use crate::service_fault::hooks;
 use crate::service_index_claim::{CLAIM_INFIX, claim_key, claim_path};
-use crate::service_index_marker::{LOCK_MARKER, own_identity};
+use crate::service_index_marker::{LOCK_MARKER, marker_of_file, own_identity};
 use crate::service_index_placement::rename_noreplace;
 use crate::test_support::{fixture, remove};
 
@@ -53,7 +53,9 @@ fn index_in(name: &str) -> (PathBuf, PathBuf, PathBuf) {
 
 /// The claim at `slot` for the file now at `lock`.
 fn claim_at(lock: &Path, slot: usize) -> PathBuf {
-    let key: String = claim_key(&std::fs::File::open(lock).expect("the stale lock")).expect("its identity");
+    let file = std::fs::File::open(lock).expect("the stale lock");
+    let marked = marker_of_file(&file).expect("a marker");
+    let key: String = claim_key(&file, &marked).expect("its identity");
     return claim_path(lock, key.as_str(), slot);
 }
 
@@ -253,5 +255,90 @@ fn a_flock_that_fails_for_want_of_memory_is_a_back_off_not_a_fallback() {
     let platform: Platform = Platform { flock: &transient, ..SYSTEM };
     assert_eq!(reclaim(&platform, &lock), Reclaimed::Busy);
     assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "no claim was placed");
+    remove(root.as_path());
+}
+
+/// What the refusals that mean "this file system gives no `flock`" are: what the file systems that define the operation return.
+const NO_FLOCK_ERRNOS: [i32; 5] = [libc::ENOLCK, libc::EOPNOTSUPP, libc::ENOSYS, libc::EINVAL, libc::EBADF];
+
+/// Allowed: each refusal that means "no `flock` here" takes the claim path and removes the stale lock.
+#[test]
+fn every_refusal_that_means_no_flock_takes_the_claim_path() {
+    for errno in NO_FLOCK_ERRNOS {
+        let (root, _index, lock) = index_in("claim-errnos");
+        let refusing = move |_: &std::fs::File| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(errno)); };
+        let platform: Platform = Platform { flock: &refusing, ..SYSTEM };
+        assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed, "errno {errno}");
+        remove(root.as_path());
+    }
+}
+
+/// Refused: a `flock` that fails in a way that does not say the file system has none (an I/O error from a lock manager) may be
+///  failing for one call while another reclaimer holds the `flock`; the claim path beside it would not keep the two apart, so the
+///  stale lock stays and the caller is told (`Unguarded`).
+#[test]
+fn a_flock_that_fails_in_an_unrecognised_way_leaves_the_lock_and_says_so() {
+    let (root, _index, lock) = index_in("claim-eio");
+    let failing = |_: &std::fs::File| -> std::io::Result<()> { return Err(std::io::Error::from_raw_os_error(libc::EIO)); };
+    let platform: Platform = Platform { flock: &failing, ..SYSTEM };
+    let outcome: Reclaimed = reclaim(&platform, &lock);
+    assert!(matches!(outcome, Reclaimed::Unguarded(_)), "{outcome:?}");
+    assert_eq!(names_in(&root), vec![String::from("index"), String::from("index.lock")], "no claim was placed");
+    remove(root.as_path());
+}
+
+/// Allowed: a placement whose answer is an error although it took effect (a network file system can lose the answer of a link
+///  or rename) is this attempt's own claim, found by its text; it is held and removed, not left as a running claimer's claim.
+#[test]
+fn a_placement_whose_answer_was_lost_is_still_this_attempts_claim() {
+    let (root, _index, lock) = index_in("claim-lost-answer");
+    let lost = |from: &Path, to: &Path| -> std::io::Result<()> {
+        rename_noreplace(from, to)?;
+        return Err(std::io::Error::from_raw_os_error(libc::EIO));
+    };
+    let platform: Platform = Platform { flock: &no_flock, rename: &lost, ..SYSTEM };
+    assert_eq!(reclaim(&platform, &lock), Reclaimed::Removed);
+    assert_eq!(names_in(&root), vec![String::from("index")], "no claim is left standing as a running claimer's");
+    remove(root.as_path());
+}
+
+/// Allowed: every reclaimer derives the same claim name from the marker of the stale lock, whatever the device and inode it
+///  reached the file by (two mounts of one remote tree give one file different device numbers).
+#[test]
+fn the_claim_name_comes_from_the_marker_and_not_from_the_files_device_and_inode() {
+    let root: PathBuf = fixture("claim-key");
+    let text: String = gone_marker(5);
+    let (first, second) = (root.join("first"), root.join("second"));
+    std::fs::write(&first, &text).expect("a lock");
+    std::fs::write(&second, &text).expect("the same lock seen by another mount");
+    let key_of = |path: &Path| -> String {
+        let file = std::fs::File::open(path).expect("the lock");
+        let marked = marker_of_file(&file).expect("a marker");
+        return claim_key(&file, &marked).expect("a key");
+    };
+    assert_eq!(key_of(&first), key_of(&second));
+    remove(root.as_path());
+}
+
+/// Allowed: a claim is readable by every account whatever the umask of its maker, because a reclaimer that cannot read a claim
+///  takes its maker to run.
+#[test]
+fn a_claim_is_readable_by_other_accounts_whatever_the_makers_umask() {
+    let (root, _index, lock) = index_in("claim-mode");
+    let own: PathBuf = claim_at(&lock, 0);
+    let seen = std::rc::Rc::new(std::cell::Cell::new(0_u32));
+    let (hook_seen, hook_own) = (std::rc::Rc::clone(&seen), own.clone());
+    hooks::set("reclaim-claim-placed", std::rc::Rc::new(move || {
+        hook_seen.set(std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(&hook_own).expect("the claim").permissions()));
+    }));
+    // SAFETY: `umask` takes a mode only; each control runs in its own process under nextest.
+    let before: libc::mode_t = unsafe { libc::umask(0o077) };
+    let platform: Platform = Platform { flock: &no_flock, ..SYSTEM };
+    let outcome: Reclaimed = reclaim(&platform, &lock);
+    // SAFETY: as above.
+    unsafe { libc::umask(before) };
+    assert_eq!(outcome, Reclaimed::Removed);
+    let readable: u32 = 0o444;
+    assert_eq!(seen.get() & readable, readable, "the claim's mode was {:o}", seen.get());
     remove(root.as_path());
 }

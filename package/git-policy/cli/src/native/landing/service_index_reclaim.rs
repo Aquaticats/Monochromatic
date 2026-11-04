@@ -93,7 +93,14 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
     match hold(platform, &file) {
         Hold::Taken => {}
         Hold::Busy => return Reclaimed::Busy,
-        Hold::Unavailable(error) => match take_claim(platform, lock, &file) {
+        Hold::Failed(error) => {
+            crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: the hold that keeps two reclaimers apart failed in a way that does not say the file system has no flock ({error}), so a removal could take a live lock; \
+                 remove it by hand once no git command runs in this repository",
+                lock.display()
+            );
+            return Reclaimed::Unguarded(marked);
+        }
+        Hold::NotThere(error) => match take_claim(platform, lock, &file, &marked) {
             Claim::Held(held) => {
                 crate::service_log!("the index lock {} is reclaimed under the claim chain, because the file system gives no flock on it ({error})", lock.display());
                 claim = Some(held);
@@ -151,9 +158,13 @@ enum Hold {
     Taken,
     /// Another reclaimer holds it.
     Busy,
-    /// The file system gives no `flock`, or the call failed for a reason that waiting does not change: the claim chain takes
-    ///  the `flock`'s place.
-    Unavailable(std::io::Error),
+    /// The file system answered that it gives no `flock` (`ENOLCK`, `EOPNOTSUPP`, `ENOSYS`, `EINVAL`, `EBADF`: what the file
+    ///  systems that define the operation return, `fs/nfs/file.c`, `fs/9p/vfs_file.c`, `fs/smb/client/file.c`): the claim chain
+    ///  takes the `flock`'s place.
+    NotThere(std::io::Error),
+    /// The call failed for a reason that is neither a hold by another nor a refusal known to mean "no `flock` here" (an I/O
+    ///  error, a stale handle, a timeout): another reclaimer may hold it, so nothing is removed and the person is told.
+    Failed(std::io::Error),
 }
 
 /// What:
@@ -172,7 +183,10 @@ fn hold(platform: &Platform, file: &std::fs::File) -> Hold {
         //  again by the wait, like a hold another reclaimer has taken: neither says the file system has no `flock`, and a
         //  reclaimer that took the claim path beside one that holds the `flock` would not be kept apart from it.
         Err(error) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted | std::io::ErrorKind::OutOfMemory) => Hold::Busy,
-        Err(error) => Hold::Unavailable(error),
+        Err(error) if matches!(error.raw_os_error(), Some(libc::ENOLCK | libc::EOPNOTSUPP | libc::ENOSYS | libc::EINVAL | libc::EBADF)) => Hold::NotThere(error),
+        // Any other answer could be a lock manager that is failing for one call while it works for another reclaimer, which
+        //  holds the `flock` without a claim: taking the claim path beside it would not keep the two apart.
+        Err(error) => Hold::Failed(error),
     };
 }
 
