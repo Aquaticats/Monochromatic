@@ -183,7 +183,7 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_stale_lock() {
     assert!(lock.exists(), "the stale lock stays for the reclaimer that holds it");
     assert!(try_acquire(&index, 9).is_none(), "a restart's single attempt leaves the batch open");
     drop(holding);
-    let taken = acquire_within(&SYSTEM, &index, 9, ceiling, &|_| {}).expect("the stale lock is reclaimed once nobody holds it");
-    drop(taken);
+    let reclaimed = acquire_within(&SYSTEM, &index, 9, ceiling, &|_| {}).expect("the stale lock is reclaimed once nobody holds it");
+    drop(reclaimed);
     remove(root.as_path());
 }
