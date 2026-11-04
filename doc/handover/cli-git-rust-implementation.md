@@ -214,8 +214,32 @@ two delegate agents and four cross-vendor reviews running:
   final forcing cannot repair a failed disposition creation;
   planned shutdown can still end a protected hook);
   `commit-models-sol-6b.txt` "Not sound" (a checkpoint can erase a still-live R1 and the invariant accepts it).
-  Design revision 17 started from these and review 16a (the design agent resumed);
-  review 16b goes to it when it lands.
+  Design revision 17 done:
+  tip `34a3c22f2f` (2026-11-04T04:14:48-05:00),
+  design 244 KB;
+  R16a-1 to R16a-6 and R16a-8 to R16a-10 closed in the rule,
+  R16a-7 narrowed (receipts queued for a flusher;
+  with no service a detached one-shot flusher through the manager,
+  else a detached child;
+  if neither starts the command exits success saying the receipt is not yet forced);
+  components 2.1 to 2.5 and 3.x and the models' checkpoint finding closed in the rule,
+  open in the component;
+  question 8 rewritten (recommends A,
+  accept the residual window;
+  option B dropped) in `commits-never-fail-questions-34a3c22f2f.md`.
+  Review 16b had not landed (still running since 2026-11-04T03:31:40-05:00);
+  revision 17 does not include it.
+  Review 17 running in two parts (`commits-never-fail-sol-17a.txt`:
+  R16a closure,
+  the detached flusher against "We should never invoke ourselves recursively.",
+  and question 8;
+  `-17b.txt`:
+  the whole design).
+  Models round 12 started (the models agent resumed):
+  the P1s of components 8,
+  models 6a and 6b,
+  built on revision 17's rules;
+  P2 and P3 queued for round 13.
 - cargo-shadow sixth review,
   four parts (`cargo-shadow-sol-6a.txt`,
   `-6b.txt`,
