@@ -14,7 +14,7 @@
 
 use crate::journald_native::Priority;
 use crate::service_fault::reach;
-use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, read_commit};
+use crate::service_built_checks::{BuiltCommit, adds_only_present_objects, history_is_plain, read_commit};
 use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
 use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
@@ -50,6 +50,14 @@ pub struct LandContext {
     pub on_objects_written: Option<Box<dyn Fn() + Send + Sync>>,
     /// How long a landing waits for a foreign program's `index.lock` before it is withdrawn (`wait_ceilings.rs`).
     pub lock_ceiling: std::time::Duration,
+}
+
+/// What the landing reads once before it starts and hands to its body.
+struct Settings<'a> {
+    /// The `core.fsync` value for the one import, when the repository's own would flush a pack that is thrown away or leave a kept one unflushed.
+    import_fsync: Option<&'a str>,
+    /// Whether Git shows the history the commit objects say, so the object store may answer the checks of a commit Git built.
+    plain_history: bool,
 }
 
 /// What:
@@ -243,7 +251,12 @@ pub fn land_batch_timed(
     //  temporary pack, flushes it and deletes it, so the flush is dropped unless the repository asks for flushed objects.
     let import_fsync: Option<String> = snapshot.as_ref().and_then(ConfigSnapshot::import_fsync_value);
     let deferral = crate::service_durable::begin(hardens_index);
-    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, import_fsync.as_deref());
+    // The object store may answer the checks of a commit Git built only where Git shows the history the files say: the settings that
+    //  change it (a shallow or graft file elsewhere, another replacement namespace, replacements switched off) are read here from
+    //  the environment and configuration the landing's Git children run under, and a configuration that cannot be read counts as one.
+    let plain_history: bool = requests.first().is_some_and(|first| { return history_is_plain(first.common_dir.as_path(), &context.git, snapshot.as_ref()); });
+    let settings: Settings<'_> = Settings { import_fsync: import_fsync.as_deref(), plain_history };
+    let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
     if result == Err(FailureCode::StepTooSlow)
@@ -274,7 +287,7 @@ fn land_batch_body(
     requests: &[CommitRequest],
     announce: &dyn Fn(Announce),
     timing: &mut LandTiming,
-    import_fsync: Option<&str>,
+    settings: &Settings<'_>,
 ) -> Result<Vec<Outcome>, FailureCode> {
     let first: &CommitRequest = requests.first().ok_or(FailureCode::Rejected)?;
     if requests.iter().any(|request| {
@@ -319,7 +332,7 @@ fn land_batch_body(
         // Only an amend uses the parents of the commit it replaces; they are read from the object store, and listed by Git when the
         //  store cannot say (the same rule as for the commit Git built).
         let amended_parents: Vec<String> = if alone && !unborn && first.amend {
-            match read_commit(first.common_dir.as_path(), first.base.as_str()) {
+            match settings.plain_history.then(|| { return read_commit(first.common_dir.as_path(), first.base.as_str()); }).flatten() {
                 Some(replaced) => replaced.parents,
                 None => {
                     let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
@@ -369,7 +382,7 @@ fn land_batch_body(
             //  commit has the branch tip first (a merge conclusion has the merged commits after it).
             // The parents are read from the object store; a commit it cannot read as a plain commit is listed by Git, whose
             //  answer is the one that counts (a repository with grafts, a shallow history or replacement objects).
-            let read: Option<BuiltCommit> = read_commit(first.common_dir.as_path(), built);
+            let read: Option<BuiltCommit> = settings.plain_history.then(|| { return read_commit(first.common_dir.as_path(), built); }).flatten();
             let (named_itself, parents): (bool, Vec<String>) = match &read {
                 Some(commit) => (true, commit.parents.clone()),
                 None => {
@@ -408,6 +421,7 @@ fn land_batch_body(
             let marks_argument: String = format!("--export-marks={}", marks.display());
             // The `core.fsync` of the import is a global option of this one start; it reaches the `unpack-objects` child too, where
             //  it names the same loose-object flush the repository has.
+            let import_fsync: Option<&str> = settings.import_fsync;
             let fsync_setting: String = import_fsync.map(|value| { return format!("core.fsync={value}"); }).unwrap_or_default();
             let mut import_arguments: Vec<&str> = Vec::new();
             if import_fsync.is_some() {

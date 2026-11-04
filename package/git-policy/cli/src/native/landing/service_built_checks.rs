@@ -18,6 +18,8 @@ use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 use crate::repo_read_odb::ObjectDatabase;
 use crate::repo_read_tree::{MODE_GITLINK, TreeEntry, is_tree_mode, parse_commit, parse_tree};
+use crate::config_snapshot::ConfigSnapshot;
+use crate::transaction_git::GitContext;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -54,9 +56,50 @@ fn format_of(hex: &str) -> ObjectFormat {
     return if hex.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
 }
 
-/// Whether the repository has anything that makes `rev-list` show another history than the commit objects say.
+/// The environment variables that change which history, which replacements or which object store Git reads.
+const HISTORY_VARIABLES: [&str; 6] = [
+    "GIT_SHALLOW_FILE",
+    "GIT_GRAFT_FILE",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+];
+
+/// Whether the repository has anything that makes `rev-list` show another history than the commit objects say, at the places
+///  Git looks by default.
 fn history_is_rewritten(common_dir: &Path) -> bool {
     return common_dir.join("shallow").exists() || common_dir.join("info").join("grafts").exists();
+}
+
+/// What:
+///  Whether Git, started the way the landing starts it, shows the history the commit objects say.
+/// Why:
+///   The checks of a commit Git built are answered from the object store only then. Git reads its history from the files at the
+///  default places unless a variable names others (`GIT_SHALLOW_FILE`, `GIT_GRAFT_FILE`), shows replacements from a namespace a
+///  variable names (`GIT_REPLACE_REF_BASE`) unless they are switched off (`GIT_NO_REPLACE_OBJECTS`, `--no-replace-objects`,
+///  `core.useReplaceRefs`), and reads another object store when told (`GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES`). The
+///  environment is the service's own and the overlay of the landing's Git context; the configuration is the snapshot the landing
+///  read. A configuration that could not be read, a setting of any of these and a file at a default place all say "not plain".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// snapshot !== undefined && !HISTORY_VARIABLES.some(isSet) && !prefix.some(changesReplacements) && !hasKey('core.usereplacerefs') && !filesAtDefaultPlaces()
+/// ```
+pub fn history_is_plain(common_dir: &Path, git: &GitContext, snapshot: Option<&ConfigSnapshot>) -> bool {
+    let Some(read) = snapshot else { return false };
+    if history_is_rewritten(common_dir) {
+        return false;
+    }
+    let overlay_sets = |name: &str| -> bool { return git.overlay.iter().any(|(key, _)| { return key.to_string_lossy() == name; }); };
+    if HISTORY_VARIABLES.iter().any(|name| { return std::env::var_os(name).is_some() || overlay_sets(name); }) {
+        return false;
+    }
+    let prefix_changes_replacements = git.global_prefix.iter().any(|word| {
+        let text = word.to_string_lossy().to_ascii_lowercase();
+        return text == "--no-replace-objects" || text.starts_with("--replace-refs") || text.contains("core.usereplacerefs");
+    });
+    return !prefix_changes_replacements && !read.entries().iter().any(|entry| { return entry.key == "core.usereplacerefs"; });
 }
 
 /// What:
