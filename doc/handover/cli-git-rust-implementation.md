@@ -3579,6 +3579,23 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     14,
     15).
     No delegated pick is left open.
+- cargo-shadow round 10 (tip `5be23af4b7`;
+  debug and release 571 passed,
+  5 skipped helpers;
+  map 14 rows shown,
+  2 partly) flagged two choices:
+  - A killed run whose start was not fully recorded:
+    "Record the launcher (Recommended)":
+    the launcher's process id,
+    start time and namespace are recorded,
+    recovery proves it gone before reading the scope,
+    and the acknowledgement stays only for what that cannot prove;
+    built as round 11 before the review,
+    which then covers rounds 10 and 11 from `16249ffe94`.
+  - Trusting the boot id:
+    "Check and state premise (Recommended)":
+    procfs magic and no mount on top of `boot_id`,
+    plus the stated premise that the serving kernel ran the old run.
   The other container picks (resolve `latest` once per run,
   run on the local copy with a loud warning when the registry is unreachable) were not addressed and stand.
 - #6261 native-layer move:
