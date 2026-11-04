@@ -53,28 +53,47 @@ pub const PROCESS_LIMIT: std::time::Duration = std::time::Duration::from_secs(12
 /// ```
 pub fn run_bounded(command: &mut Command, limit: std::time::Duration) -> Result<Output, String> {
     use std::io::Read;
+    use std::os::unix::process::CommandExt;
     use std::process::Stdio;
+    use std::sync::mpsc;
+    // The child leads its own process group so a timeout can end its descendants too, not only the leader.
+    command.process_group(0);
     let mut child = command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|error| { return error.to_string(); })?;
+    let group: i32 = i32::try_from(child.id()).map_err(|error| { return error.to_string(); })?;
     let mut stdout = child.stdout.take().ok_or("no stdout".to_string())?;
     let mut stderr = child.stderr.take().ok_or("no stderr".to_string())?;
-    let out_reader = std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stdout.read_to_end(&mut bytes); return bytes; });
-    let err_reader = std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stderr.read_to_end(&mut bytes); return bytes; });
+    let (out_sender, out_receiver) = mpsc::channel::<Vec<u8>>();
+    let (err_sender, err_receiver) = mpsc::channel::<Vec<u8>>();
+    // The readers send their bytes when their pipe closes; the waiter below never joins them without a deadline.
+    std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stdout.read_to_end(&mut bytes); let _ = out_sender.send(bytes); });
+    std::thread::spawn(move || { let mut bytes: Vec<u8> = Vec::new(); let _ = stderr.read_to_end(&mut bytes); let _ = err_sender.send(bytes); });
     let deadline = std::time::Instant::now() + limit;
+    let timed_out = |child: &mut std::process::Child| -> String {
+        // A negative pid addresses the whole process group the child leads.
+        // SAFETY: `kill` takes plain integers and has no memory preconditions.
+        unsafe { libc::kill(-group, libc::SIGKILL); }
+        let _ = child.kill();
+        let _ = child.wait();
+        return format!("the process timed out after {:?} and was killed with its descendants", limit);
+    };
     let status = loop {
         match child.try_wait().map_err(|error| { return error.to_string(); })? {
             Some(status) => break status,
             None => {
                 if std::time::Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(format!("the process timed out after {:?} and was killed", limit));
+                    return Err(timed_out(&mut child));
                 }
                 std::thread::sleep(std::time::Duration::from_millis(5));
             }
         }
     };
-    let stdout_bytes: Vec<u8> = out_reader.join().map_err(|_| { return "stdout reader".to_string(); })?;
-    let stderr_bytes: Vec<u8> = err_reader.join().map_err(|_| { return "stderr reader".to_string(); })?;
+    let remaining = |now: std::time::Instant| -> std::time::Duration { return deadline.saturating_duration_since(now); };
+    let Ok(stdout_bytes) = out_receiver.recv_timeout(remaining(std::time::Instant::now())) else {
+        return Err(timed_out(&mut child));
+    };
+    let Ok(stderr_bytes) = err_receiver.recv_timeout(remaining(std::time::Instant::now())) else {
+        return Err(timed_out(&mut child));
+    };
     return Ok(Output { status, stdout: stdout_bytes, stderr: stderr_bytes });
 }
 
