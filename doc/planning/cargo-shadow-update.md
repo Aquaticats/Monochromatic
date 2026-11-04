@@ -1103,15 +1103,71 @@ for the debug run and the release gate; `lint:clippy` with warnings denied is cl
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r12-debug1.log`, `r12-gate1.log`, `r12-clippy3.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 12, rewritten 2026-11-04T09:32:34-05:00 after the gate)
+## Round 13 (2026-11-04): the answers to the round 12 reviews
 
-Done: rounds 10, 11 and 12 (the sections above).
-The review inputs of round 12 are `/var/home/user/temp/agent/reviews/cargo-shadow-12*.diff`, cut from `2c20baf0e6`.
+Reviews answered: `cargo-shadow-sol-12a.txt` (production, "does not meet the list for this part") and `cargo-shadow-sol-12b.txt` (tests,
+"meets it after named fixes"), in `/var/home/user/temp/agent/reviews/`; neither adds a row, and none is added.
+The owner's decision, quoted: "Out of scope, keep cheap guards (Recommended)": "Extend assumption a: no program running as you
+deliberately changes mounts or `/proc` while recovery runs. Guards that cost little (the pinned `/proc` read, no-follow opens) stay;
+the review then judges against that premise."
 
-Open for the owner: the picks of rounds 8 to 11 stay veto-open as listed in their sections; the first publication needs the owner's
+### 12a
+
+- Assumption a of the contract is amended: no program running as the user deliberately changes mounts or `/proc` (bind mounts,
+  overmounts, replacing a procfs view) while a run or a recovery is in progress, alongside the premise that run writers do not
+  deliberately leave the containment.
+- Classified as excluded by that assumption, not as defects: the schedule of replacing `/proc` between the pidfd's fdinfo check and the
+  stat read (at recovery and at recording), and the overmount of `/proc/<pid>` with a native procfs directory of another process.
+  Neither has a test, and the contract says so.
+- Kept as cheap guards and built: `open_proc_root` opens `/proc` once, requires a procfs (`fstatfs`), a mount root (`statx`) and a
+  `self` link that names the caller's own pid; `read_in_proc` reads every later file (`<own>/fdinfo/<pidfd>`, `<pid>/stat`) with
+  `openat2` and `RESOLVE_BENEATH | RESOLVE_NO_XDEV | RESOLVE_NO_SYMLINKS` through that descriptor.
+  Cost: a handful of system calls per question, asked only when a journal names an unsettled scope and once per launched program.
+  Kernel floor: `openat2` is Linux 5.6; below it the lookup errors and the answer is unknown (never gone); the strong path needs 5.14
+  anyway.
+- Fixed because it needs no tampering: after a failed stat lookup, a changed positive number is unknown.
+  `missing_entry_verdict` returns gone only for `-1`, the number the kernel prints for an ended, reaped process; measured by
+  `the_fdinfo_of_a_pidfd_says_minus_one_only_for_a_reaped_process` (an unreaped zombie keeps its number).
+  Red `69be31fb74`, green `77e48d7c5e`: `only_the_ended_process_number_shows_a_gone_process`.
+- The contract, this record and the README no longer claim that a start time can never come from another process or that no procfs
+  of another namespace can ever give "gone": they say what the guards cover and what assumption a excludes.
+
+### 12b
+
+- 3.1: the payload of the real-launcher test publishes its own `/proc/self/cgroup`; the test compares it with the scope the journal
+  recorded (`assert_ran_in_recorded_scope`) and with the wrapper's own group, so the comparison is no longer the journal with itself.
+- 3.2: the inherited-procfs case now records the readable ancestor entry under the launcher's number (its name must not be `sleep`)
+  and requires the specific refusal ("another process id namespace"), not any inspection error.
+- 3.3: after the second acknowledgement of the interrupted publication the journal must be gone, not only the lockfile restored.
+- The two admitted gaps are closed:
+  `a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively` (V3/V4: a `cfg(test)` hook after each step of
+  `begin`; a real wrapper is killed after the directory, the record, the view, the owner file, the snapshot, the index and the ready
+  record; before any snapshot the journal is removed and the lockfile untouched, with a snapshot or an index and no ready record the
+  journal is kept and the lockfile untouched, with the ready record the recovery restores and completes), and
+  `a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` (A2/R4: `run_shim` for `cargo check` in a helper
+  process, a stale lock, a fake cargo whose user command creates a sentinel; the second run of the install step, the update, cannot
+  be stopped; the shim exits with the install-failed code, the sentinel is absent, the lock the update wrote is neither rolled back
+  nor accepted, the journal is kept).
+  Both passed at their first run of the final form, so they are evidence for rows that had hand-built or lower-level tests, not red
+  controls.
+
+### Result
+
+The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 10 skipped (the `#[ignore]` helper
+entries), for the debug run and the release gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own
+criterion, none certified.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r13-debug1.log`, `r13-gate1.log`, `r13-clippy2.log`.
+Nothing was published and nothing was merged into main.
+
+## Resume point (round 13, rewritten TIMESTAMP after the gate)
+
+Done: rounds 10 to 13 (the sections above).
+The review inputs of round 13 are `/var/home/user/temp/agent/reviews/cargo-shadow-13*.diff`, cut from `a8c7fbf8c2`.
+
+Open for the owner: the picks of rounds 8 to 13 stay veto-open as listed in their sections; the first publication needs the owner's
 explicit approval.
 
 Next:
 
-1. The coordinator launches the cross-vendor review of the round 12 diffs against the contract.
+1. The coordinator launches the cross-vendor review of the round 13 diffs against the contract.
 2. Nothing is merged into main and nothing is published.

@@ -1,6 +1,8 @@
 # What cargo-shadow promises and what it assumes
 
 Status:
+amended for round 13 (the owner's pick of 2026-11-04, "Out of scope, keep cheap guards") with the extension of assumption a to
+mounts and `/proc`, the launcher question read through one pinned procfs descriptor, and the number that shows an ended process;
 amended for round 12 (the review of rounds 10 and 11, `cargo-shadow-sol-11a.txt`, `-11b.txt`) with the launcher question answered only through a
 procfs that numbers processes as the caller's namespace does (guarantee A1), a boot id read from the one object that was checked
 (assumption c) and a failed wait that is not a reap (guarantee V6);
@@ -61,14 +63,20 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   or populated by a descendant) is final: absent or empty is read as ended, populated blocks.
   A launcher that exists blocks, whatever the scope looks like, and no acknowledgement overrides it; an unreaped zombie counts as
   existing, because only its reaping shows that it ended.
-  The question is answered only when the mounted procfs numbers processes as the caller's own namespace does (round 12, 11a):
+  The question is answered only when the mounted procfs numbers processes as the caller's own namespace does (round 12, 11a;
+  round 13: through one procfs descriptor, opened once, whose root and whose number for the caller are checked, with every later
+  lookup made by `openat2` beneath it without crossing a mount or following a link; deliberate remounts while a recovery runs are
+  outside the contract, assumption a):
   `kill` and `pidfd_open` read a process id in the caller's namespace, but `/proc/<pid>` reads it in the namespace of the procfs
   mount, and `/proc/self/ns/pid` names only the caller's, so a child namespace that still uses an ancestor's procfs would make the
   two name different processes.
   A pidfd is opened for the id, and the `Pid:` line of its `fdinfo`, read through the procfs, gives the number this procfs has for
   that very process: only when it equals the id is `/proc/<pid>/stat` read, and otherwise the answer is unknown, never gone.
-  The same check precedes the reading of the start time when the line is written, so a start time is never taken from another
-  process.
+  When the stat lookup then fails, only the number `-1` that the kernel prints for a process that ended and was reaped (measured:
+  `the_fdinfo_of_a_pidfd_says_minus_one_only_for_a_reaped_process`; an unreaped zombie keeps its number) shows the process gone; the
+  same number is a hidden process and any other number (another positive id, `0`) is unknown.
+  The same check precedes the reading of the start time when the line is written, so a start time is not taken from another
+  process through a procfs that is simply the wrong one.
   Durability of this line: it is appended with one `write` and no sync.
   It is read only after the wrapper was killed (the page cache keeps what a process wrote), or after a power loss or a reboot, where a
   lost or torn line is read as no proof (an unsettled scope without a launcher line waits for an acknowledgement) and the boot rule
@@ -239,6 +247,20 @@ Ordinary behavior stays covered:
 `fork`, threads, double forks, `setsid`, closed standard streams, and a descendant that outlives its parent are all inside the
 scope and are stopped with it.
 The manager is assumed not to migrate surviving members of a scope outside the recorded scope either.
+Round 13 (the owner's pick of 2026-11-04, "Out of scope, keep cheap guards"): no program running as the user deliberately changes
+mounts or `/proc` while a run or a recovery is in progress, which covers bind mounts, overmounts of a file or a directory
+(`/proc` itself, a `/proc/<pid>` directory, the boot id file, a cgroup directory) and replacing a procfs view by another one.
+This is the same kind of premise as the one above: a same-user process that does so can equally write `Cargo.lock` directly.
+The cheap guards that exist stay, because they cost a few system calls and cover accidents and configuration:
+the procfs is opened once and every numeric lookup of one launcher question goes through that descriptor with `openat2` beneath it,
+without crossing a mount point and without following a link (Linux 5.6 or later; below it the lookup fails and the answer is
+"unknown", never "gone"; the strong path needs 5.14 anyway), the boot id file is opened without following a link and checked and read
+on one descriptor, and the formats of the identity are strict.
+A schedule that needs a deliberate remount while a recovery runs is therefore excluded by this assumption, not a defect:
+round 12's 12a schedules of replacing `/proc` between the check of a pidfd and the read of a stat file, and of overmounting
+`/proc/<pid>` with a native procfs directory of another process.
+What stays a defect is anything that needs no tampering: a procfs of a different namespace that is simply mounted (inherited, as in a
+container), and a changed number that is not the number of an ended process.
 
 Reason:
 a same-user process can write `Cargo.lock` directly after the run, and no wrapper can prevent that, so a containment that tried
@@ -615,23 +637,25 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written 2026-11-04T09:32:34-05:00 against the tip that carries it (round 12); the round 11 text it replaces was written at 2026-11-04T09:12:24-05:00.
+Written NOW against the tip that carries it (round 13); the round 12 text it replaces was written at 2026-11-04T09:32:35-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
-No row is certified by this map: the cross-vendor review of round 12 has not run, and the reviews of rounds 10 and 11 said that
-"14 rows shown" was not established by the attachments they saw, whose unchanged tests they could not see.
-Counts: 16 rows, 14 shown, 2 partly (A2/R4: the call-site test has no shim and no user-command sentinel behind it; V3/V4: the
-preparation windows are built by hand, not cut at the real boundaries), 0 not yet.
-The writer-side file sync of an acknowledgement and a real interrupted publication, named gaps of the round 10 review, are closed
-in round 12 (`an_acknowledgement_whose_file_cannot_be_synced_is_not_published`,
-`a_publisher_killed_before_its_rename_leaves_the_journal_unacknowledged`); the weaker-path row stays shown.
-Suite counts at the round 12 code tip `4e4c187533`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran 584 tests: 584 passed, 0 failed, 8 skipped; `lint:clippy` with warnings
+No row is certified by this map: the cross-vendor review of round 13 has not run, and the reviews of rounds 10 to 12 said that the
+count of shown rows was not established by the attachments they saw, whose unchanged tests they could not see.
+Counts: 16 rows, 16 shown, 0 partly, 0 not yet.
+The two gaps that kept A2/R4 and V3/V4 partly are closed in round 13:
+`a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` (the shim itself, a stale lock, a fake cargo whose user
+command creates a sentinel file, a second run of the install step that cannot show its scope empty: the shim exits with the
+install-failed code, the sentinel is absent, the lock cargo wrote is neither rolled back nor accepted, the journal is kept) and
+`a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively` (a real wrapper killed after each step of `begin`:
+directory, record, view, owner, snapshot, index, ready).
+Suite counts at the round 13 code tip `CODETIP`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran COUNT tests: COUNT passed, 0 failed, 10 skipped; `lint:clippy` with warnings
 denied is clean.
-The 8 skipped are the `#[ignore]` helper entries that eight other tests start as child processes (their names are in the `ignore`
+The 10 skipped are the `#[ignore]` helper entries that ten other tests start as child processes (their names are in the `ignore`
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,
-`src/round_eleven_tests.rs` and `src/round_twelve_tests.rs`); they are not run on their own.
-Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r12-debug1.log`, `r12-gate1.log`, `r12-clippy3.log`.
+`src/round_eleven_tests.rs`, `src/round_twelve_tests.rs` and `src/round_thirteen_tests.rs`); they are not run on their own.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r13-debug1.log`, `r13-gate1.log`, `r13-clippy2.log`.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 to 10 the new guards were removed from the committed tests and the tests failed, then the guard was put back:
@@ -645,6 +669,8 @@ round 9: `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_e
 `an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses`,
 `a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal`,
 `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member`;
+round 13 (red at `69be31fb74`, green at `77e48d7c5e`): `only_the_ended_process_number_shows_a_gone_process` (another positive
+number was read as gone);
 round 12 (red at `301faaf776`, green at `87da96a05f`): `a_wait_that_fails_is_not_a_reap`,
 `a_view_header_that_is_not_mount_and_inode_gives_no_identity`, `a_procfs_of_another_pid_namespace_never_reads_as_a_gone_launcher`
 (a new user and pid namespace that keeps the ancestor's procfs, with a procfs of its own as the control), the `symlink` mode of
@@ -701,10 +727,10 @@ written with the code.
   while it lives; settled, and the journal removed, without an acknowledgement after the launcher is shown gone and the scope was
   collected),
   `a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone`.
-- **A2, R4 (7a F3): partly.**
-  Shown: the joined runner-to-install test, the fault classes and the unstoppable member.
-  Not shown (9b section 2): the call-site test does not invoke the shim and does not place a user-command sentinel behind the
-  refusal.
+- **A2, R4 (7a F3): shown.**
+  The joined runner-to-install test, the fault classes and the unstoppable member, and, round 13,
+  `a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` (the shim with a user-command sentinel behind the
+  refusal).
   `a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent`,
   `a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_kept_and_nothing_after_it` (a fake cargo whose update goes
   through the bounded runner with an injected fault: refusal, lockfile kept, journal kept, no call after the update),
@@ -775,10 +801,11 @@ written with the code.
   `a_bind_mount_over_the_directory_of_a_recorded_scope_is_refused_in_the_same_cgroup_namespace` (9b 2.4: with the cgroup namespace
   and every recorded view equal, a bind mount of another cgroup directory over the directory that held the scope is refused for the
   parent view; the control before the bind clears).
-- **V3, V4: partly.**
-  Shown: the record is visible, written and synced before the program starts, and the faults of the write and of the sync are each
-  reached and surface as the refusal (round 10, 9b 3.6).
-  Not shown: the cuts in preparation are hand-built files, not a wrapper stopped at each real boundary of `begin`.
+- **V3, V4: shown.**
+  The record is visible, written and synced before the program starts, and the faults of the write and of the sync are each reached
+  and surface as the refusal (round 10, 9b 3.6); and, round 13, `a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively`
+  kills a real wrapper after each step of the preparation of the journal (the hand-built states stay as
+  `a_journal_cut_off_during_its_preparation_is_removed_without_touching_the_lockfile`).
   `the_scope_record_is_visible_before_the_program_starts` (visibility at the boundary),
   `a_record_that_cannot_be_written_or_made_durable_starts_no_program` (a failed write and a failed sync, both containments: the
   sync precedes the start),
@@ -826,6 +853,10 @@ written with the code.
   runner choosing it when it has one; the tests that read a journal record or the program's own group show the choice
   (`assert_scope_record`, the program's group).
 - The identity tests give the recovery a different identity; no machine was rebooted.
+- The 12a schedules that need a deliberate remount while a recovery runs (replacing `/proc` between the pidfd check and the stat
+  read, overmounting `/proc/<pid>`) are excluded by assumption a as amended in round 13 and have no test; the guards that cover them
+  (one pinned procfs descriptor, `openat2` beneath it without crossing a mount) are exercised by every launcher question, not by a
+  schedule that tampers.
 - The launcher record's premise that a launcher which is gone cannot join a scope is the process model; no test makes a manager
   handle a request after its sender died.
   The launcher is a stand-in process (a shell at a gate) in the planted-journal tests and a real `systemd-run` launcher only in the

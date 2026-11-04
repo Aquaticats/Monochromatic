@@ -666,8 +666,13 @@ and an HTTP 429 is retried after its `Retry-After`.
   Right after the wrapper spawns the launcher (which becomes the program) it appends
   `launcher <pid> <start time> <pid namespace> <scope path>` to the journal, without a sync (a lost or torn line is only a missing
   proof).
-  The question is answered through a pidfd and the `Pid:` line of its `fdinfo`, which show that the mounted procfs numbers the
-  process as this process's own namespace does; a procfs of another namespace gives "unknown", never "gone".
+  The question is answered through one procfs descriptor that is opened once and checked (a procfs root that numbers this process
+  as its own namespace does), a pidfd and the `Pid:` line of its `fdinfo`, which show that the procfs numbers the launcher's process
+  as the launcher's id, and an `openat2` lookup beneath that descriptor that crosses no mount and follows no link; a procfs of another
+  namespace, a lookup that cannot be made (a kernel before 5.6) and any number other than the `-1` of an ended process give
+  "unknown", never "gone".
+  A program that deliberately changes mounts or `/proc` while a run or a recovery is in progress is outside what the wrapper
+  promises (assumption a of the contract), like a same-user process that writes `Cargo.lock` directly.
   A recovery asks about that process before it reads the scope: a launcher that no longer exists (no such process, or the id belongs
   to a process with another start time, in the recorded process id namespace) can never join the scope, so an absent or empty scope
   is final and the journal recovers by itself; a launcher that still exists blocks, and no acknowledgement overrides that.
