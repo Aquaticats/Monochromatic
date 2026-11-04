@@ -703,16 +703,21 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
         }
     };
     let refuse_all = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> { return vec!["dep@1.0.1 refused".to_string()]; };
+    // The prerequisite is decided while the directory really is read-only and before the recovery: a user that can write there
+    // (root) cannot build the failure this way, and the test says so and stops; for anyone else the failure must be reached.
+    fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o555)).expect("make the crate directory read-only");
+    let bypassed: bool = fs::write(failing_directory.join(".probe"), "x").is_ok();
+    fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o755)).expect("make it writable again");
+    let _ = fs::remove_file(failing_directory.join(".probe"));
+    if bypassed {
+        eprintln!("skipped: permissions do not stop this user, so a failed restore cannot be built this way");
+        return;
+    }
 
     let messages: Vec<String> = crate::journal::recover_with(root.path(), &refuse_all, &hook);
     fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o755)).expect("make it writable again");
 
     let read = |crate_dir: &str, name: &str| -> String { return fs::read_to_string(root.path().join(crate_dir).join(name)).expect("a file"); };
-    if fs::write(failing_directory.join(".probe"), "x").is_ok() && messages.iter().all(|message| { return !message.contains("could not recover a killed run"); }) {
-        // The user can write into a read-only directory (root): the failure cannot be built here.
-        eprintln!("skipped: permissions do not stop this user, so a failed restore cannot be built this way");
-        return;
-    }
     assert!(messages.iter().any(|message| { return message.contains(failing) && message.contains("could not recover a killed run"); }), "the failed root was not reported: {messages:?}");
     assert_eq!(read(failing, "Cargo.lock"), format!("output of {failing}"), "the failed root's lockfile changed");
     assert_eq!(read(failing, "Cargo.toml"), format!("edited manifest of {failing}"), "the manifest of a root whose lockfile could not be restored was put back, splitting the pair");
