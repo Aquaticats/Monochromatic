@@ -14,8 +14,8 @@
 use crate::model_fixture::scratch;
 use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable};
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
-use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, append, encode_line, lane_ledger_path, lookup, parse_line, repair_tail};
-use git_policy_cli::commit_request::{Change, Operation, Published, Request, RequestError, content_hash, decode, encode, publish};
+use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, LedgerOwner, append, encode_line, lane_ledger_path, lookup, parse_line, repair_tail};
+use git_policy_cli::commit_request::{Change, Eligibility, Operation, Published, Request, RequestError, content_hash, decode, eligibility, encode, publish};
 use git_policy_cli::commit_spool::{SpoolError, read_closure, verify_against_request, verify_spool, write_spool};
 use std::path::{Path, PathBuf};
 
@@ -409,25 +409,25 @@ fn a_request_with_no_changes_is_valid() {
     assert_eq!(decode(&bytes).expect("decode"), empty);
 }
 
-/// Re-review E: an empty commit and a message-only amend are different requests with different hashes, and an ordinary commit
-/// with no change, an empty commit with changes and an amend of a non-object are refused.
+/// Re-review E: an empty commit is a request of its own kind; an ordinary commit with no change and an empty commit with changes are
+/// refused. An amendment is not accepted (its target is not recoverable from the record): it is classified for the native fallback.
 #[test]
-fn the_operation_kind_and_amend_target_are_part_of_the_request() {
+fn the_operation_kind_is_part_of_the_request_and_an_amendment_goes_native() {
     let mut empty: Request = request('7', "checkpoint");
     empty.changes = Vec::new();
     empty.operation = Operation::EmptyCommit;
-    let mut amend: Request = empty.clone();
-    amend.operation = Operation::Amend { target: "c".repeat(40), parents: vec!["d".repeat(40)] };
-    assert_ne!(content_hash(&empty).expect("hash"), content_hash(&amend).expect("hash"));
-    assert_eq!(decode(&encode(&amend).expect("encode")).expect("decode"), amend);
+    assert_eq!(decode(&encode(&empty).expect("encode")).expect("decode"), empty);
     let mut bare: Request = empty.clone();
     bare.operation = Operation::Commit;
     assert!(matches!(encode(&bare), Err(RequestError::Invalid("changes"))));
     let mut full: Request = request('7', "m");
     full.operation = Operation::EmptyCommit;
     assert!(matches!(encode(&full), Err(RequestError::Invalid("changes"))));
-    amend.operation = Operation::Amend { target: "zz".to_string(), parents: Vec::new() };
-    assert!(matches!(encode(&amend), Err(RequestError::Invalid("amend target"))));
+    let mut amend: Request = empty.clone();
+    amend.operation = Operation::Amend { target: "c".repeat(40), parents: vec!["d".repeat(40)] };
+    assert!(matches!(encode(&amend), Err(RequestError::Invalid("amend"))));
+    assert!(matches!(eligibility(&amend), Eligibility::NativeFallback(_)));
+    assert_eq!(eligibility(&request('7', "m")), Eligibility::Accept);
 }
 
 /// Re-review: paths and branch names are bytes (a tracked path need not be UTF-8).
@@ -492,18 +492,39 @@ fn spool_refuses_a_manifest_that_is_not_byte_canonical() {
     }
 }
 
-/// Review 3: a gitlink change is refused before acceptance (the spool has no representation of a submodule commit), and an
-/// amendment carries its target's parents so it can be rebuilt after the target is pruned.
+/// Review 4: a gitlink change is refused before acceptance and classified for the native fallback, and the fallback works: real Git
+/// commits the submodule pointer and amends it, in a disposable repository.
 #[test]
-fn gitlinks_are_refused_and_an_amendment_carries_its_targets_parents() {
+fn gitlinks_and_amendments_are_refused_before_acceptance_and_real_git_commits_them() {
     let mut gitlink: Request = request('3', "m");
     gitlink.changes[1].mode = "160000".to_string();
     assert!(matches!(encode(&gitlink), Err(RequestError::Invalid("mode"))));
-    let mut amend: Request = request('3', "m");
-    amend.changes = Vec::new();
-    amend.operation = Operation::Amend { target: "c".repeat(40), parents: vec!["d".repeat(40), "e".repeat(40)] };
-    assert_eq!(decode(&encode(&amend).expect("encode")).expect("decode"), amend);
-    let mut other: Request = amend.clone();
-    other.operation = Operation::Amend { target: "c".repeat(40), parents: vec!["d".repeat(40)] };
-    assert_ne!(content_hash(&amend).expect("hash"), content_hash(&other).expect("hash"));
+    assert!(matches!(eligibility(&gitlink), Eligibility::NativeFallback(_)));
+    let repository: PathBuf = scratch("fallback-native");
+    crate::model_fixture::git(&repository, &["init", "--quiet", "--initial-branch=main"]);
+    crate::model_fixture::git(&repository, &["commit", "--quiet", "--allow-empty", "--message=root"]);
+    let pointer: String = crate::model_fixture::git_text(&repository, &["rev-parse", "HEAD"]);
+    crate::model_fixture::git(&repository, &["update-index", "--add", "--cacheinfo", &format!("160000,{},sub", pointer)]);
+    crate::model_fixture::git(&repository, &["commit", "--quiet", "--message=submodule pointer"]);
+    assert!(crate::model_fixture::git_text(&repository, &["ls-tree", "HEAD"]).starts_with("160000 commit"));
+    crate::model_fixture::git(&repository, &["commit", "--quiet", "--amend", "--message=submodule pointer, amended"]);
+    assert_eq!(crate::model_fixture::git_text(&repository, &["log", "-1", "--format=%s"]), "submodule pointer, amended");
+}
+
+/// Review 4 P2: the standalone repair has its contract in the type: only the holder of the ledger's exclusive owner lock may repair
+/// or append through it, a second acquirer is refused at once (never waits), and the lock ends with its holder.
+#[test]
+fn only_the_exclusive_owner_of_a_ledger_may_repair_it() {
+    let directory: PathBuf = scratch("ledger-owner");
+    let ledger: PathBuf = directory.join("ledger");
+    let owner: LedgerOwner = LedgerOwner::acquire(&ledger).expect("first owner");
+    assert!(matches!(LedgerOwner::acquire(&ledger), Err(LedgerError::OwnedElsewhere)));
+    owner.append(&directory, &ledger, &entry('1', "published")).expect("append");
+    let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
+    bytes.extend_from_slice(b"abc");
+    std::fs::write(&ledger, &bytes).expect("torn");
+    let repair = owner.repair_tail(&directory, &ledger).expect("repair");
+    assert_eq!(repair.cut, 3);
+    drop(owner);
+    assert!(LedgerOwner::acquire(&ledger).is_ok(), "the lock ends with its holder");
 }

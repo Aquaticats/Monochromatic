@@ -74,6 +74,37 @@ pub enum Operation {
 }
 
 /// What:
+///  `enum Eligibility { ... }`: whether a request can be accepted by the lane or goes the way of real Git before acceptance.
+/// Why:
+///  An amendment cannot be rebuilt from this record once its target is pruned (its author, committer and tree are not here), and the
+///  spool has no representation of a submodule commit; both are refused before acceptance and run natively, so the commit never fails
+///  for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Eligibility = { kind: 'accept' } | { kind: 'native-fallback'; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Eligibility {
+    /// The lane can accept the request.
+    Accept,
+    /// The request is run by real Git, with the reason.
+    NativeFallback(&'static str),
+}
+
+/// The eligibility of `request`, decided from its operation and modes alone (so it works on a request that validation would refuse).
+pub fn eligibility(request: &Request) -> Eligibility {
+    if matches!(request.operation, Operation::Amend { .. }) {
+        return Eligibility::NativeFallback("an amendment is not recoverable from the record");
+    }
+    let gitlink = |mode: &str| -> bool { return mode == "160000"; };
+    if request.changes.iter().any(|change| { return gitlink(&change.mode) || gitlink(&change.old_mode); }) {
+        return Eligibility::NativeFallback("a submodule commit has no representation in the spool");
+    }
+    return Eligibility::Accept;
+}
+
+/// What:
 ///  `struct Request { ... }`: the whole immutable request.
 /// Why:
 ///  Everything the lane needs to replay a commit from the spool: identity, branch, captured base, message, changes.
@@ -194,9 +225,7 @@ pub fn validate(request: &Request) -> Result<(), RequestError> {
     match &request.operation {
         Operation::Commit if request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
         Operation::EmptyCommit if !request.changes.is_empty() => return Err(RequestError::Invalid("changes")),
-        Operation::Amend { target, parents } if !is_object_name(target) || !parents.iter().all(|parent| { return is_object_name(parent); }) => {
-            return Err(RequestError::Invalid("amend target"));
-        }
+        Operation::Amend { .. } => return Err(RequestError::Invalid("amend")),
         _ => {}
     }
     // What:     `None` is the absent case of `Option` (TS: `undefined`).

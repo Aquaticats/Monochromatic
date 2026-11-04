@@ -67,6 +67,8 @@ pub enum LedgerError {
     InvalidField(&'static str),
     /// A line that is not the last one fails its check; the lines behind it are intact and nothing was truncated.
     DamagedLine(usize),
+    /// Another process holds the exclusive owner lock of this ledger.
+    OwnedElsewhere,
 }
 
 impl From<io::Error> for LedgerError {
@@ -384,4 +386,52 @@ pub fn lookup(ledger: &Path, id: &str) -> Result<Option<LedgerEntry>, LedgerErro
         }
     }
     return Ok(None);
+}
+
+/// What:
+///  `struct LedgerOwner { ... }`: the exclusive owner of one lane's ledger, proved by a non-blocking exclusive lock on `<ledger>.owner`
+///  that lives as long as the value. Only an owner may repair or append through it.
+/// Why:
+///  Repair truncates and an append writes behind the end; two processes doing either on one ledger can truncate each other's record.
+///  The contract "exactly one appender" is enforced by the lock, not by convention, and a second acquirer is refused at once, never
+///  made to wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LedgerOwner { static acquire(ledger: string): LedgerOwner; /* throws OwnedElsewhere */ }
+/// ```
+#[derive(Debug)]
+pub struct LedgerOwner {
+    /// The locked file; closing it (dropping the owner) releases the lock.
+    _lock: File,
+}
+
+impl LedgerOwner {
+    /// Takes the ledger's owner lock without waiting; `OwnedElsewhere` when another process (or another owner value) holds it.
+    pub fn acquire(ledger: &Path) -> Result<LedgerOwner, LedgerError> {
+        let mut name: std::ffi::OsString = ledger.as_os_str().to_os_string();
+        name.push(".owner");
+        let lock: File = OpenOptions::new().create(true).write(true).truncate(false).open(PathBuf::from(name))?;
+        match lock.try_lock() {
+            Ok(()) => return Ok(LedgerOwner { _lock: lock }),
+            Err(std::fs::TryLockError::WouldBlock) => return Err(LedgerError::OwnedElsewhere),
+            Err(std::fs::TryLockError::Error(error)) => return Err(LedgerError::Io(error)),
+        }
+    }
+
+    /// Repairs the torn tail of `ledger` after making its parent chain durable through `anchor` (so the saved bytes cannot sit under a
+    /// name a power loss could remove).
+    pub fn repair_tail(&self, anchor: &Path, ledger: &Path) -> Result<Repair, LedgerError> {
+        let parent: PathBuf = match ledger.parent() {
+            Some(directory) if !directory.as_os_str().is_empty() => directory.to_path_buf(),
+            _ => PathBuf::from("."),
+        };
+        create_dir_all_durable(anchor, &parent)?;
+        return repair_tail(ledger);
+    }
+
+    /// Appends one line as `append` does, as the ledger's owner.
+    pub fn append(&self, anchor: &Path, ledger: &Path, entry: &LedgerEntry) -> Result<(), LedgerError> {
+        return append(anchor, ledger, entry);
+    }
 }

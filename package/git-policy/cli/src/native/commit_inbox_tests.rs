@@ -107,7 +107,7 @@ fn a_departure_syncs_the_promised_records_in_dependency_order_before_it_returns(
     accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("accept");
     write_state(&lane.join("state"), 1, b"adopted").expect("state");
     start_events();
-    depart(&lane.join("inbox"), &[request.id.clone()], &lane.join("state")).expect("depart");
+    depart(&lane.join("inbox"), std::slice::from_ref(&request.id), &lane.join("state")).expect("depart");
     let events: Vec<String> = take_events();
     assert_eq!(
         events,
