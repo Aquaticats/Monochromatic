@@ -348,17 +348,25 @@ impl Identity {
 pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
     let mut boot_text: Option<String> = None;
     let mut machine_text: Option<String> = None;
-    for line in text.lines() {
+    let mut lines = text.lines();
+    if !lines.next()?.starts_with("view ") {
+        return None;
+    }
+    for line in lines {
         if let Some(found) = line.strip_prefix("boot ") {
-            boot_text = Some(found.trim().to_string());
+            if boot_text.replace(found.to_string()).is_some() {
+                return None;
+            }
         } else if let Some(found) = line.strip_prefix("machine ") {
-            machine_text = Some(found.trim().to_string());
+            if machine_text.replace(found.to_string()).is_some() {
+                return None;
+            }
+        } else {
+            return None;
         }
     }
-    return match (boot_text, machine_text) {
-        (Some(boot), Some(machine)) if !boot.is_empty() && !machine.is_empty() => Some(Identity { boot, machine }),
-        _ => None,
-    };
+    let identity: Identity = Identity { boot: boot_text?, machine: machine_text? };
+    return identity.is_well_formed().then_some(identity);
 }
 
 /// What:

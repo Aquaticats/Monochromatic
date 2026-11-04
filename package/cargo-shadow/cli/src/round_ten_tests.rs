@@ -215,3 +215,94 @@ fn the_current_identity_is_read_strictly_from_its_files() {
     let read: Identity = read_current_identity(real_boot, &machine).expect("a well-formed machine id and this host's boot id");
     assert_eq!(read.machine, "0123456789abcdef0123456789abcdef");
 }
+
+/// The environment variable that gives the helper process its workspace.
+const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_TEN_FIXTURE_ROOT";
+
+/// The environment variable that tells the helper process which replacement of the boot id file to make.
+const FIXTURE_MODE: &str = "CARGO_SHADOW_ROUND_TEN_FIXTURE_MODE";
+
+/// Runs `mount` with the arguments inside the helper's own mount namespace and panics when it fails.
+fn mount_in_namespace(arguments: &[&str]) {
+    let status = Command::new("mount").args(arguments).status().expect("mount must be installed");
+    assert!(status.success(), "mount {arguments:?} failed: {status:?}");
+}
+
+/// The helper process of the boot authority test:
+/// it runs in a new user and mount namespace (the host's `/proc` is not touched), puts a replacement over the boot id file in the way
+/// its mode says, then reads the identity and recovers the journal the test planted, and writes both results to files.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_boot_id_put_over_the_kernels_file_is_not_an_identity"]
+fn boot_authority_fixture() {
+    let Ok(root_text) = std::env::var(FIXTURE_ROOT) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(root_text);
+    let mode: String = std::env::var(FIXTURE_MODE).expect("a mode");
+    let fake: PathBuf = root.join("fake-boot-id");
+    let boot_file: &str = crate::control_group::BOOT_ID_PATH;
+    match mode.as_str() {
+        "baseline" => {}
+        "file" => mount_in_namespace(&["--bind", &fake.display().to_string(), boot_file]),
+        "uuid" => mount_in_namespace(&["--bind", "/proc/sys/kernel/random/uuid", boot_file]),
+        "masked-directory" => {
+            mount_in_namespace(&["--bind", "/proc/sys/kernel/random", "/proc/sys/kernel/random"]);
+            mount_in_namespace(&["-o", "remount,bind,ro", "/proc/sys/kernel/random"]);
+        }
+        "tmpfs-directory" => {
+            mount_in_namespace(&["-t", "tmpfs", "tmpfs", "/proc/sys/kernel/random"]);
+            fs::write(boot_file, fs::read_to_string(&fake).expect("fake")).expect("a boot id file on the tmpfs");
+        }
+        other => panic!("unknown mode {other}"),
+    }
+    let identity: String = match current_identity() {
+        Ok(found) => format!("ok {}", found.boot),
+        Err(reason) => format!("err {reason}"),
+    };
+    // The journal was made with the real identity; the helper gives it the view this namespace has of it, so only the identity matters.
+    for journal in crate::journal_support::journal_dirs(&root) {
+        let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
+        let rest: String = recorded.lines().skip(1).map(|line| { return format!("{line}\n"); }).collect();
+        fs::write(journal.join("view"), format!("view {}\n{rest}", view_of(&journal).expect("views"))).expect("rewrite the view");
+    }
+    let note: Option<String> = crate::journal_recover::survivor_note(&crate::journal_support::journal_dirs(&root).into_iter().next().expect("a journal"));
+    fs::write(root.join("fixture-result"), format!("{identity}\n{}\n", note.unwrap_or_else(|| { return "no survivor".to_string(); }))).expect("write the result");
+}
+
+/// Acceptance rows V2, amended c, and the weaker path (9a section 4, the authority of the boot rule):
+/// a boot id file that was put over the kernel's, by a bind mount of a regular file, of another procfs file, or of a file system over
+/// its directory, is not an identity, and a live process group of the journal keeps blocking on the same running machine.
+/// A read-only bind of the directory that holds the file (the way container runtimes mask paths) is not a replacement.
+#[test]
+fn a_boot_id_put_over_the_kernels_file_is_not_an_identity() {
+    let now: Identity = current_identity().expect("this host's boot id is the kernel's, which the test needs");
+    let replacement: String = format!("{}\n", after_a_reboot().boot);
+    for (mode, replaced) in [("baseline", false), ("file", true), ("uuid", true), ("tmpfs-directory", true), ("masked-directory", false)] {
+        let root = repository();
+        fs::write(root.path().join("fake-boot-id"), &replacement).expect("write the replacement");
+        let mut group = live_group();
+        let _journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
+        let status = Command::new("unshare")
+            .args(["--user", "--map-root-user", "--mount", "--"])
+            .arg(std::env::current_exe().expect("this test executable"))
+            .args(["--ignored", "--exact", "round_ten_tests::boot_authority_fixture", "--nocapture"])
+            .env(FIXTURE_ROOT, root.path())
+            .env(FIXTURE_MODE, mode)
+            .status()
+            .expect("unshare must be installed and allowed to make a user and mount namespace for this test");
+        let _ = group.kill();
+        let _ = group.wait();
+
+        assert!(status.success(), "{mode}: the helper process failed: {status:?}");
+        let said: String = fs::read_to_string(root.path().join("fixture-result")).expect("the helper's result");
+        let (identity, note): (&str, &str) = said.split_once('\n').expect("two lines");
+        if replaced {
+            assert!(identity.starts_with("err "), "{mode}: a replaced boot id file was read as an identity: {identity}");
+            assert!(note.contains("still running"), "{mode}: a replaced boot id cleared a live process group: {note}");
+        } else {
+            assert_eq!(identity, format!("ok {}", now.boot), "{mode}: the real boot id was refused");
+            assert!(note.contains("still running"), "{mode}: the group is live and the boot is the same: {note}");
+        }
+    }
+}

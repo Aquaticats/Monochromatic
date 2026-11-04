@@ -298,8 +298,10 @@ fn assess(directory: &Path) -> Option<Finding> {
     // all). The journal was made by one process in one boot, so its identity covers every record. A different boot id with the same
     // machine id discharges only the question whether the run's processes live; every other check of a recovery still runs.
     let recorded_identity: Option<Identity> = view_text.as_ref().ok().and_then(|recorded| { return read_identity_text(recorded); });
+    // Both identities must be well formed (the reader already refuses a malformed or repeated record): an id that is not an id differs
+    // from every real one and is no evidence of a reboot (round 10, 9a D2).
     let rebooted: bool = match (&recorded_identity, current_identity()) {
-        (Some(recorded), Ok(now)) => recorded.machine == now.machine && recorded.boot != now.boot,
+        (Some(recorded), Ok(now)) => recorded.is_well_formed() && now.is_well_formed() && recorded.machine == now.machine && recorded.boot != now.boot,
         _ => false,
     };
     if rebooted {
