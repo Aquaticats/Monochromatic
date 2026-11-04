@@ -159,6 +159,18 @@ fn the_launcher_question_tells_gone_from_alive_reused_other_namespace_and_zombie
     assert_eq!(launcher_state(zombie_pid, zombie_start, namespace), LauncherState::Gone);
 }
 
+/// The real recovery and the real admission refuse while the launcher lives (certification, third pass): the recovery names the
+/// running launcher, restores nothing and keeps the journal, and a new transaction is not admitted beside it; this holds also after
+/// an acknowledgement, which no entry point may let override a live launcher.
+fn assert_entry_points_refuse(root: &Path, journal: &Path, label: &str) {
+    let messages: Vec<String> = recover(root, &refusing);
+    assert!(messages.iter().any(|message| { return message.contains("launcher") && message.contains("still running"); }), "{label}: the recovery did not name the running launcher: {messages:?}");
+    assert_eq!(live_lock(root), LEFT_BY_THE_KILLED_RUN, "{label}: a recovery went ahead beside a live launcher: {messages:?}");
+    assert!(journal.exists(), "{label}: the journal was removed beside a live launcher: {messages:?}");
+    assert!(begin(root, &[snapshot("original")], false).is_err(), "{label}: a transaction was admitted beside a live launcher");
+    assert_eq!(journal_dirs(root).len(), 1, "{label}: the refused admission left a journal behind");
+}
+
 /// Acceptance rows A1, V2 (round 11): a launcher that is alive keeps blocking, whatever the scope looks like, and no acknowledgement
 /// overrides it:
 /// the scope is absent (the launcher has not reached the manager) and the scope exists and is empty (created, not attached),
@@ -179,14 +191,18 @@ fn a_live_launcher_blocks_whether_its_scope_is_absent_or_empty() {
     let journal: PathBuf = journal_with_records(root.path(), &format!("{}\n{}\n", planned.record(), held.record(planned.directory())));
 
     let absent: Option<String> = survivor_note(&journal);
+    assert_entry_points_refuse(root.path(), &journal, "absent");
     acknowledge(&journal).expect("acknowledges");
     let absent_acknowledged: Option<String> = survivor_note(&journal);
+    assert_entry_points_refuse(root.path(), &journal, "absent and acknowledged");
     fs::remove_file(journal.join("acknowledged")).expect("take the acknowledgement away");
 
     fs::create_dir(planned.directory()).expect("the manager makes the control group before it attaches the launcher");
     let empty: Option<String> = survivor_note(&journal);
+    assert_entry_points_refuse(root.path(), &journal, "empty");
     acknowledge(&journal).expect("acknowledges");
     let empty_acknowledged: Option<String> = survivor_note(&journal);
+    assert_entry_points_refuse(root.path(), &journal, "empty and acknowledged");
     fs::remove_dir(planned.directory()).expect("remove it again");
 
     for (label, note) in [("absent", absent), ("absent and acknowledged", absent_acknowledged), ("empty", empty), ("empty and acknowledged", empty_acknowledged)] {

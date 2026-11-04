@@ -56,8 +56,19 @@ fn a_journal_listing_that_fails_in_any_way_stops_the_recovery() {
         let _first = plant(root.path(), &[snapshot("original")], &[]);
         let _second = plant(root.path(), &[snapshot("original")], &[]);
         arm(fault);
+        let _ = crate::bounded_run::take_trace_for_test();
 
         let messages: Vec<String> = recover(root.path(), &refusing);
+
+        // The fault fired where the schedule says: at the second entry, after the first journal was accumulated into the partial
+        // listing (the open of the directory has no entry yet). An injection at an earlier boundary would leave no such event.
+        let trace: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("listing fault "); }).collect();
+        if matches!(fault, Point::ListingOpen) {
+            assert!(trace.is_empty(), "{fault:?}: {trace:?}");
+        } else {
+            assert_eq!(trace.len(), 1, "{fault:?}: {trace:?}");
+            assert!(trace[0].contains("at entry 1 after 1 accumulated"), "{fault:?}: {}", trace[0]);
+        }
 
         let live: String = fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock");
         assert_eq!(live, LEFT_BY_THE_KILLED_RUN, "{fault:?}: a recovery went ahead on a journal set it could not list: {messages:?}");
@@ -113,6 +124,16 @@ fn a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor() {
     let note: Option<String> = survivor_note(&journal);
 
     assert!(note.is_some(), "a journal with lost records was read as one that never started a child");
+
+    // The consequences, through the real consumers (certification, third pass): the recovery keeps the journal, restores nothing and
+    // says why, and a new transaction is not admitted beside it.
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    assert_eq!(journal_dirs(root.path()), vec![journal.clone()], "the journal with lost records was removed or replaced: {messages:?}");
+    assert_eq!(fs::read_to_string(root.path().join(CRATE_DIR).join("Cargo.lock")).expect("lock"), LEFT_BY_THE_KILLED_RUN, "a recovery restored beside a journal with lost records: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains(journal.to_string_lossy().as_ref()); }), "the recovery did not name the journal: {messages:?}");
+    let admitted = crate::journal::begin(root.path(), &[snapshot(LEFT_BY_THE_KILLED_RUN)], false);
+    assert!(admitted.is_err(), "a transaction was admitted beside a journal with lost records");
+    assert_eq!(journal_dirs(root.path()), vec![journal], "the refused admission left a journal behind");
 }
 
 /// Round 7 (6b2 2), positive counterpart:

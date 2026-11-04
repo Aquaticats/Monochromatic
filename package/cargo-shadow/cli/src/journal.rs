@@ -613,6 +613,10 @@ pub(crate) fn decode_path(text: &str) -> Option<PathBuf> {
 /// export function makeDurable(path: string): void  // fsync the file, then its directory
 /// ```
 pub fn make_durable(path: &Path) -> io::Result<()> {
+    // A test build traces the barrier by the name of the file it makes durable, so a test of the ordinary `finish` sees the real
+    // output barrier and not a callback of its own (certification, third pass, A4).
+    #[cfg(test)]
+    crate::bounded_run::trace(|| { return format!("durable {}", path.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default()); });
     // `match`: picks the arm whose pattern fits the value.
     match fs::File::open(path) {
         // `Ok(...)`: builds the success or the failure variant of a `Result`.

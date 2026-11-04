@@ -138,6 +138,34 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
     drop(transaction);
 }
 
+/// Acceptance rows A1, V3 (certification, third pass): the settled-only branch of verified absence.
+/// A run that recorded its end and whose scope was collected is read as ended even when no launcher record remains to prove that the
+/// launcher is gone: the `settled` line is the proof, so the real recovery removes the journal without an acknowledgement.
+/// The first test of this pair keeps the launcher line and so could pass through the gone launcher; this one removes it.
+#[test]
+fn a_settled_run_whose_scope_was_collected_is_read_as_ended_without_any_launcher_record() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let journal: PathBuf = journal_dirs(root.path()).into_iter().next().expect("a journal");
+    output_within(&mut Command::new("true"), None, &bound()).expect("runs");
+    let groups: PathBuf = journal.join("groups");
+    let scope: PathBuf = scope_directory_of(&groups.display().to_string());
+    wait_until("the manager to collect the scope", &|| { return !scope.exists(); });
+    let record: String = fs::read_to_string(&groups).expect("the record");
+    assert!(record.lines().any(|line| { return line.starts_with("launcher "); }), "the run recorded no launcher, so the removal below proves nothing: {record:?}");
+    let without_launcher: String = record.lines().filter(|line| { return !line.starts_with("launcher "); }).map(|line| { return format!("{line}\n"); }).collect();
+    assert!(without_launcher.lines().any(|line| { return line.starts_with("settled "); }), "{without_launcher:?}");
+    fs::write(&groups, without_launcher).expect("remove the launcher proof");
+    drop(transaction);
+
+    assert_eq!(survivor_note(&journal), None, "a settled run with a collected scope was held back for want of a launcher record");
+    let messages = crate::journal::recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+    assert!(journal_dirs(root.path()).is_empty(), "the journal of a settled, collected run was not recovered without an acknowledgement: {messages:?}");
+}
+
 /// Acceptance row V6 (8a F2):
 /// a discovery program whose descendant keeps its pipes open after it exited is still answered by the deadline,
 /// not after the descendant ends.
@@ -255,6 +283,18 @@ fn the_route_cache_does_not_make_a_caller_wait_for_a_discovery_in_flight() {
     assert_eq!(answered, Ok(true), "a caller waited for the discovery in flight");
     assert!(slow_result.is_ok());
     assert!(CACHE.get_or_discover(&|| { return Err(crate::control_group::GroupUnavailable { reason: "must not be asked".to_string() }); }).is_ok(), "the answer was not kept");
+}
+
+/// Acceptance row V6 (certification, third pass), the production cache with its own mutex held:
+/// a caller that finds the cache's mutex held answers at once, discovering for itself, and does not wait for the holder.
+/// The holder keeps the mutex until the answer arrived, so a caller that waited for the lock would never answer in the window.
+#[test]
+fn the_route_cache_answers_at_once_while_its_own_mutex_is_held() {
+    static CACHE: RouteCache = RouteCache::new();
+    CACHE.hold_for_test(|| {
+        let answered: bool = crate::round_sixteen_tests::answers_within("a caller of the route cache", Duration::from_secs(10), || { return CACHE.get_or_discover(&|| { return Ok(some_route()); }).is_ok(); });
+        assert!(answered, "the caller did not get an answer from its own discovery");
+    });
 }
 
 /// Acceptance row "Weaker path" (8a F4):
@@ -616,4 +656,55 @@ fn two_roots_with_manifests_are_restored_or_kept_together_per_root() {
     assert_eq!(read(second, "Cargo.lock"), format!("output of {second}"), "the accepted root's lockfile was restored");
     assert_eq!(read(second, "Cargo.toml"), format!("edited manifest of {second}"), "the accepted root's manifest was restored");
     assert!(journal_dirs(root.path()).is_empty());
+}
+
+/// Acceptance row V5 (certification, third pass): a root whose lockfile restore fails keeps its manifest as it is, never splitting the
+/// pair, while another root of the same journal is still restored with its manifest, and the journal is kept for a later run.
+/// The failure is a crate directory that cannot take the temporary file of the replacement (made read-only by the hook that runs
+/// right before the replacement), so the restore of that root returns an error.
+#[test]
+fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_is_restored_with_its_own() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch();
+    let failing: &str = "package/n/failing";
+    let fine: &str = "package/n/fine";
+    for crate_dir in [failing, fine] {
+        fs::create_dir_all(root.path().join(crate_dir)).expect("dir");
+        fs::write(root.path().join(crate_dir).join("Cargo.lock"), format!("output of {crate_dir}")).expect("lock");
+        fs::write(root.path().join(crate_dir).join("Cargo.toml"), format!("edited manifest of {crate_dir}")).expect("manifest");
+    }
+    let snapshots: Vec<LockSnapshot> = [failing, fine].iter().map(|crate_dir| { return LockSnapshot { crate_dir: (*crate_dir).to_string(), source: format!("snapshot of {crate_dir}") }; }).collect();
+    let manifests: Vec<crate::manifest_edit::ManifestEdit> = [failing, fine]
+        .iter()
+        .map(|crate_dir| { return crate::manifest_edit::ManifestEdit { crate_dir: (*crate_dir).to_string(), path: root.path().join(crate_dir).join("Cargo.toml"), before: format!("manifest of {crate_dir}"), produced: None }; })
+        .collect();
+    let journal: PathBuf = plant(root.path(), &snapshots, &manifests);
+    let failing_directory: PathBuf = root.path().join(failing);
+    // The first replacement in the failing directory (its lockfile) finds the directory read-only and fails; any later one (its manifest,
+    // if the recovery wrongly tried it) finds the directory writable, so only the coupling rule, not the permission, keeps the manifest.
+    let attempts: std::cell::Cell<u32> = std::cell::Cell::new(0);
+    let hook = |target: &Path| {
+        if target.starts_with(&failing_directory) {
+            attempts.set(attempts.get() + 1);
+            let mode: u32 = if attempts.get() == 1 { 0o555 } else { 0o755 };
+            fs::set_permissions(&failing_directory, fs::Permissions::from_mode(mode)).expect("set the crate directory mode");
+        }
+    };
+    let refuse_all = |_before: &[LockSnapshot], _live: &[LockSnapshot]| -> Vec<String> { return vec!["dep@1.0.1 refused".to_string()]; };
+
+    let messages: Vec<String> = crate::journal::recover_with(root.path(), &refuse_all, &hook);
+    fs::set_permissions(&failing_directory, fs::Permissions::from_mode(0o755)).expect("make it writable again");
+
+    let read = |crate_dir: &str, name: &str| -> String { return fs::read_to_string(root.path().join(crate_dir).join(name)).expect("a file"); };
+    if fs::write(failing_directory.join(".probe"), "x").is_ok() && messages.iter().all(|message| { return !message.contains("could not recover a killed run"); }) {
+        // The user can write into a read-only directory (root): the failure cannot be built here.
+        eprintln!("skipped: permissions do not stop this user, so a failed restore cannot be built this way");
+        return;
+    }
+    assert!(messages.iter().any(|message| { return message.contains(failing) && message.contains("could not recover a killed run"); }), "the failed root was not reported: {messages:?}");
+    assert_eq!(read(failing, "Cargo.lock"), format!("output of {failing}"), "the failed root's lockfile changed");
+    assert_eq!(read(failing, "Cargo.toml"), format!("edited manifest of {failing}"), "the manifest of a root whose lockfile could not be restored was put back, splitting the pair");
+    assert_eq!(read(fine, "Cargo.lock"), format!("snapshot of {fine}"), "the other root was not restored: {messages:?}");
+    assert_eq!(read(fine, "Cargo.toml"), format!("manifest of {fine}"), "the other root's manifest was not restored with its lockfile");
+    assert_eq!(journal_dirs(root.path()), vec![journal], "the journal of an unsettled recovery was not kept");
 }

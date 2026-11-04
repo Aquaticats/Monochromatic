@@ -203,3 +203,47 @@ fn a_launcher_of_another_program_a_broken_record_and_a_record_loop() {
     symlink(&a, loop_links.path().join(NAME)).expect("link");
     assert_eq!(find_in_path(NAME, &path_value(&[loop_links.path()]), &skip), None, "a loop of launcher records was followed or taken for a real cargo");
 }
+
+/// Third certification pass (the launcher row): a hard link to the shadow resolves to another pathname than the shadow's own and is
+/// still the same executable, so a PATH candidate that is a hard link to it is skipped by file identity, not taken for the real cargo.
+/// A symlink-only fixture cannot show this: a symlink canonicalizes to the shadow's own path.
+#[test]
+fn a_hard_link_to_the_shadow_is_skipped_by_file_identity() {
+    let shadow_directory = scratch();
+    let alias_directory = scratch();
+    let real_directory = scratch();
+    let shadow: PathBuf = shadow_directory.path().join(NAME);
+    std::fs::write(&shadow, "#!/bin/sh\n").expect("the shadow");
+    std::fs::set_permissions(&shadow, std::fs::Permissions::from_mode(EXECUTABLE_MODE)).expect("set the mode");
+    let alias: PathBuf = alias_directory.path().join(NAME);
+    std::fs::hard_link(&shadow, &alias).expect("a hard link of the shadow");
+    assert_ne!(std::fs::canonicalize(&alias).expect("resolves"), std::fs::canonicalize(&shadow).expect("resolves"), "the alias must resolve to another pathname for this test to mean anything");
+    let expected: PathBuf = write_program(real_directory.path(), EXECUTABLE_MODE);
+    let skip: Vec<PathBuf> = vec![std::fs::canonicalize(&shadow).expect("resolves")];
+
+    let found = find_in_path(NAME, &path_value(&[shadow_directory.path(), alias_directory.path(), real_directory.path()]), &skip);
+
+    assert_eq!(found, Some(expected), "a hard link to the shadow was taken for the real cargo");
+}
+
+/// Third certification pass: a launcher whose record names a hard-linked alias of the shadow leads back to the shadow, so it is
+/// skipped, directly and through a second launcher.
+#[test]
+fn a_launcher_record_that_names_a_hard_linked_alias_of_the_shadow_is_skipped() {
+    let tree = scratch();
+    let alias_directory = scratch();
+    let launchers = scratch();
+    let links = scratch();
+    let real_directory = scratch();
+    let shadow: PathBuf = tree.path().join("cargo-shadow");
+    std::fs::write(&shadow, "shadow").expect("the shadow binary");
+    let alias: PathBuf = alias_directory.path().join("alias-of-the-shadow");
+    std::fs::hard_link(&shadow, &alias).expect("a hard link of the shadow");
+    let skip: Vec<PathBuf> = vec![std::fs::canonicalize(&shadow).expect("resolves")];
+    let expected: PathBuf = write_program(real_directory.path(), EXECUTABLE_MODE);
+    write_launcher_link(launchers.path(), links.path(), "direct", &alias);
+
+    let found = find_in_path(NAME, &path_value(&[links.path(), real_directory.path()]), &skip);
+
+    assert_eq!(found, Some(expected), "a launcher whose record names a hard link of the shadow was taken for the real cargo");
+}

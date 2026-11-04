@@ -739,6 +739,11 @@ SLW:
  make it cheaper,
  or move it off the waiting path.
 
+SUF:
+ A test that passes alone but fails in its suite is a contention or ordering defect until measured otherwise;
+ report the measured cause,
+ never host load.
+
 NHP:
  Normal here,
  never excuses:

@@ -190,3 +190,34 @@ fn the_acknowledge_subcommand_acknowledges_the_journal_the_refusal_named() {
     assert_eq!(crate::journal_recover::survivor_note(&journal), None);
     let _ = Path::new("");
 }
+
+/// Acceptance row K1 (certification, third pass; "Warn past a count, never refuse"): kept entries with huge sparse lengths do not
+/// make the inventory panic or wrap: the total is the exact sum and the transaction is admitted.
+/// Three entries of `i64::MAX` bytes exceed `u64::MAX` together; no content is written or read, only the length is set.
+/// A file system that refuses a length that large cannot show the schedule; the test says so and stops (btrfs, this host, allows it).
+#[test]
+fn kept_entries_with_huge_sparse_lengths_are_summed_exactly_and_never_refuse() {
+    let root = repository("original");
+    let kept = root.path().join(QUARANTINE_DIR);
+    fs::create_dir_all(&kept).expect("kept directory");
+    let huge: u64 = u64::try_from(i64::MAX).expect("positive");
+    let big_names = ["Cargo.lock.displaced.huge-a", "Cargo.lock.displaced.huge-b", "Cargo.lock.displaced.huge-c"];
+    for name in big_names {
+        let file = fs::File::create(kept.join(name)).expect("a kept entry");
+        if let Err(error) = file.set_len(huge) {
+            eprintln!("skipped: this file system refuses a length of {huge} bytes ({error}), so the overflow schedule cannot be built here");
+            return;
+        }
+    }
+    for index in 0..KEPT_FILES_WARNING_COUNT {
+        fs::write(kept.join(format!("Cargo.lock.displaced.{index}")), "kept").expect("a small kept file");
+    }
+    let expected_total: u128 = u128::from(huge) * u128::try_from(big_names.len()).expect("small") + u128::try_from(KEPT_FILES_WARNING_COUNT).expect("small") * 4;
+    assert!(expected_total > u128::from(u64::MAX), "the schedule must overflow a 64-bit sum");
+
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("a kept folder never refuses, whatever its size");
+
+    let notice: String = transaction.kept_notice().map(str::to_string).expect("past the count");
+    assert!(notice.contains(&format!("{expected_total} bytes in all")), "the total is not the exact sum: {notice}");
+    drop(transaction);
+}
