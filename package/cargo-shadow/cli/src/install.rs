@@ -787,7 +787,13 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        let restored: std::io::Result<Vec<String>> = restore_if_unchanged(request.root, &before, &produced.borrow());
+        let (restore_found, restore_failure) = restore_if_unchanged(request.root, &before, &produced.borrow());
+        // A failed root must not hide what the other roots reported: the warnings travel in the failure's text.
+        let restored: std::io::Result<Vec<String>> = match restore_failure {
+            None => Ok(restore_found),
+            Some(error) if restore_found.is_empty() => Err(error),
+            Some(error) => Err(std::io::Error::other(format!("{error}; the other lockfiles reported: {}", restore_found.join("; ")))),
+        };
         // Review finding (2c 1): output of this run's cargo that is still live after the rollback is unapproved, and the shim's
         // `--locked` fallback would build it, so the step stops instead of reporting an operational failure.
         let still_live: Vec<String> = unapproved_roots(request.root, &produced.borrow());

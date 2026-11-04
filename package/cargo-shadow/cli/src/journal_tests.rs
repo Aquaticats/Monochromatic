@@ -42,11 +42,39 @@ fn lock(root: &Path) -> String {
     return fs::read_to_string(root.join(CRATE_DIR).join("Cargo.lock")).expect("read");
 }
 
+/// The warnings of a restore that must not have failed.
+fn restored(result: (Vec<String>, Option<std::io::Error>)) -> Vec<String> {
+    assert!(result.1.is_none(), "the restore failed: {:?}", result.1);
+    return result.0;
+}
+
+/// Round 6 (5b 2): a restore that fails on one root still restores the others and returns the warnings it collected,
+/// beside the failure, so the person is told about every retained path.
+#[test]
+fn a_failed_root_does_not_hide_the_warnings_or_stop_the_restore_of_the_others() {
+    let root = scratch();
+    let names = ["package/j/a", "package/j/b", "package/j/c"];
+    for name in names {
+        fs::create_dir_all(root.path().join(name)).expect("dir");
+    }
+    fs::write(root.path().join(names[0]).join("Cargo.lock"), "written by someone else").expect("a: changed by another process");
+    fs::create_dir(root.path().join(names[1]).join("Cargo.lock")).expect("b: a directory where the lockfile should be, so reading it fails");
+    fs::write(root.path().join(names[2]).join("Cargo.lock"), "produced").expect("c: still what the run produced");
+    let snapshots: Vec<LockSnapshot> = names.iter().map(|name| { return LockSnapshot { crate_dir: name.to_string(), source: "original".to_string() }; }).collect();
+    let produced: Vec<LockSnapshot> = names.iter().map(|name| { return LockSnapshot { crate_dir: name.to_string(), source: "produced".to_string() }; }).collect();
+
+    let (warnings, failure) = restore_if_unchanged(root.path(), &snapshots, &produced);
+
+    assert!(failure.is_some(), "the unreadable root was not reported as a failure");
+    assert!(warnings.iter().any(|warning| { return warning.contains(names[0]) && warning.contains("another process"); }), "the warning of the first root was lost: {warnings:?}");
+    assert_eq!(fs::read_to_string(root.path().join(names[2]).join("Cargo.lock")).expect("c"), "original", "the root after the failed one was not restored");
+}
+
 #[test]
 fn a_lock_that_still_holds_what_the_run_produced_is_replaced_by_the_snapshot() {
     let root = repository("produced");
 
-    let warnings = restore_if_unchanged(root.path(), &[snapshot("original")], &[snapshot("produced")]).expect("restores");
+    let warnings = restored(restore_if_unchanged(root.path(), &[snapshot("original")], &[snapshot("produced")]));
 
     assert!(warnings.is_empty());
     assert_eq!(lock(root.path()), "original");
@@ -56,7 +84,7 @@ fn a_lock_that_still_holds_what_the_run_produced_is_replaced_by_the_snapshot() {
 fn a_lock_another_process_wrote_meanwhile_is_left_alone_with_a_warning() {
     let root = repository("written by someone else");
 
-    let warnings = restore_if_unchanged(root.path(), &[snapshot("original")], &[snapshot("produced")]).expect("restores");
+    let warnings = restored(restore_if_unchanged(root.path(), &[snapshot("original")], &[snapshot("produced")]));
 
     assert_eq!(lock(root.path()), "written by someone else");
     assert_eq!(warnings.len(), 1);
@@ -67,7 +95,7 @@ fn a_lock_another_process_wrote_meanwhile_is_left_alone_with_a_warning() {
 fn a_lock_that_already_equals_the_snapshot_needs_nothing_and_no_temporary_file_is_left() {
     let root = repository("original");
 
-    let warnings = restore_if_unchanged(root.path(), &[snapshot("original")], &[snapshot("produced")]).expect("restores");
+    let warnings = restored(restore_if_unchanged(root.path(), &[snapshot("original")], &[snapshot("produced")]));
 
     assert!(warnings.is_empty());
     let leftovers: Vec<String> = fs::read_dir(root.path().join(CRATE_DIR))
@@ -336,7 +364,7 @@ fn a_lock_the_run_never_produced_is_left_alone_even_when_it_differs_from_the_sna
 
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let warnings = restore_if_unchanged(root.path(), &[snapshot("original")], &[]).expect("restores");
+    let warnings = restored(restore_if_unchanged(root.path(), &[snapshot("original")], &[]));
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "written by someone else");
@@ -367,7 +395,7 @@ fn a_lockfile_published_between_the_comparison_and_the_replacement_is_not_lost()
 
     // Borrow `&[`: lends the value without copying or giving it away.
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    let warnings = restore_if_unchanged_with(root.path(), &[snapshot("original")], &[snapshot("produced")], &publish).expect("restores");
+    let warnings = restored(restore_if_unchanged_with(root.path(), &[snapshot("original")], &[snapshot("produced")], &publish));
 
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.
     assert_eq!(lock(root.path()), "published by another writer in the gap");

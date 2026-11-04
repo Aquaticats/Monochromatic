@@ -324,7 +324,7 @@ fn snapshot_of<'a>(snapshots: &'a [LockSnapshot], crate_dir: &str) -> Option<&'a
 /// ```ts
 /// export function restoreIfUnchanged(root: string, snapshots: LockSnapshot[], produced: LockSnapshot[]): string[]
 /// ```
-pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> io::Result<Vec<String>> {
+pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot]) -> (Vec<String>, Option<io::Error>) {
     return restore_if_unchanged_with(root, snapshots, produced, &no_hook);
 }
 
@@ -339,7 +339,15 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
 /// ```ts
 /// export function restoreIfUnchangedWith({ root, snapshots, produced, between }): string[]
 /// ```
-pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> io::Result<Vec<String>> {
+pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> (Vec<String>, Option<io::Error>) {
+    return match restore_stopping_at_first_failure(root, snapshots, produced, between) {
+        Ok(warnings) => (warnings, None),
+        Err(error) => (Vec::new(), Some(error)),
+    };
+}
+
+/// The restore as it was before round 6: it stops at the first failure and drops the warnings.
+fn restore_stopping_at_first_failure(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> io::Result<Vec<String>> {
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::Restore) {
         // `Err(...)`: builds the success or the failure variant of a `Result`.

@@ -1134,7 +1134,8 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         // Borrow `&before`: lends the value without copying or giving it away.
         // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
         // `.map_err(...)`: converts the callee's error into this function's error type.
-        restore_warnings = restore_if_unchanged(request.root, &before, &produced.borrow()).map_err(other_text)?;
+        let (lock_warnings, lock_failure) = restore_if_unchanged(request.root, &before, &produced.borrow());
+        restore_warnings = lock_warnings;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         // Borrow `&edits`: lends the value without copying or giving it away.
         // `.map_err(...)`: converts the callee's error into this function's error type.
@@ -1142,7 +1143,10 @@ pub fn update_rust_lockfiles(request: &UpdateRequest, kind: &UpdateKind) -> Resu
         restore_warnings.extend(manifest_warnings);
         // `Some`: the present or the absent value of an `Option`.
         // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-        if let Some(error) = manifest_failure {
+        if let Some(error) = lock_failure.or(manifest_failure) {
+            for warning in &restore_warnings {
+                eprintln!("cargo-shadow: warning: {warning}");
+            }
             // `Err(...)`: builds the success or the failure variant of a `Result`.
             return Err(other_text(error));
         }
