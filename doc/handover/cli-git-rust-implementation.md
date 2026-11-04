@@ -233,12 +233,19 @@ two delegate agents and four cross-vendor reviews running:
   since 17b reads the whole revision 17 design that replaces revision 16.
   If 17b (250 KB) fails the same way,
   split the design into two halves for review.
-  Review 17 running in two parts (`commits-never-fail-sol-17a.txt`:
-  R16a closure,
-  the detached flusher against "We should never invoke ourselves recursively.",
-  and question 8;
-  `-17b.txt`:
-  the whole design).
+  Review 17a (`commits-never-fail-sol-17a.txt`):
+  R16a closure "not closed";
+  question 8 "accurate after named edits" (R17a-10,
+  ten points);
+  P1s R17a-1 (receipt forcing at L4 brings back a foreground wait),
+  R17a-2 (a running service or a started child is not yet durable responsibility),
+  R17a-3 (detached flushers need descriptor,
+  ownership and resource-lifetime rules),
+  R17a-4 (equal content in some predecessor is not enough support),
+  R17a-5 (optional verification cannot become unprotected by declaration).
+  Review 17b (the whole design) running.
+  Revisions 12 to 17 each drew new P1s;
+  the next round narrows its scope before it starts.
   Models round 12 started (the models agent resumed):
   the P1s of components 8,
   models 6a and 6b,
