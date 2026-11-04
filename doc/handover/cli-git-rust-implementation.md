@@ -3598,8 +3598,13 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   `branch-write-sol-1.txt` (step bounds,
   135 KB) and `branch-write-sol-2.txt` (tool ceilings and docs,
   127 KB).
-  Open for the owner:
-  whether a person's command gets a bound other than the step's class ceiling.
+  Owner answer (question tool,
+  2026-11-04) on a person's command inside a step that cannot run twice:
+  "Class ceiling + 7 s (Recommended)" (as built:
+  2 min 7 s for quick steps,
+  10 min 7 s for bulk steps,
+  then a not-known error with the step left running);
+  to be cited in `doc/planning/cli-git-no-unbounded-waits.md` with the review fixes.
 - Index lock claims always plus machine id:
   built on `fix/git-policy-cli-index-lock-claims-always` (tip `69650ced17`,
   gate 4780/4780,
