@@ -126,6 +126,7 @@ fn every_acceptance_control_has_its_test() {
 
 /// The sixteenth review's controls (revision 17's list) that these models and components carry, with the test for each. Controls not listed
 /// here are not covered yet and are queued in the branch notes.
+#[cfg(feature = "test-seams")]
 const ACCEPTANCE_R17: [(u8, &str, &str); 8] = [
     (13, "commit_state_log_tests.rs", "p1_a_background_synced_candidate_with_a_lost_dependency_loses_to_its_predecessor"),
     (13, "commit_state_log_tests.rs", "p1_a_torn_envelope_named_as_a_dependency_is_not_a_satisfied_dependency"),
