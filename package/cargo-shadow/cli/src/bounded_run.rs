@@ -1049,7 +1049,7 @@ fn start_contained(command: &mut Command, containment: &Containment, scope: Opti
             run_start_hook();
             let mut launch: Command = group.launcher(route, command, clean_environment);
             configure_stdio(&mut launch, has_input);
-            trace(|| { return "launch scope".to_string(); });
+            trace(|| { return format!("launch scope {}", group.directory().file_name().map_or_else(String::new, |name| { return name.to_string_lossy().into_owned(); })); });
             let child: Child = launch.spawn().map_err(RunError::Io)?;
             if let Some(state) = scope {
                 note_launcher(&state.log, group.directory(), &child);

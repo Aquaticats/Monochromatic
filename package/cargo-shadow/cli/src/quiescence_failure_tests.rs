@@ -185,15 +185,21 @@ fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_bo
             at_start_sender.send(()).expect("announce the held start");
             release.recv_timeout(Duration::from_secs(60)).expect("released");
         })));
-        return output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(30)));
+        let _ = crate::bounded_run::take_trace_for_test();
+        let output = output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(30)));
+        return (output, crate::bounded_run::take_trace_for_test());
     });
     at_start.recv_timeout(Duration::from_secs(60)).expect("the first run reached its start");
 
     let mut unrelated = Command::new("sleep").arg("600").spawn().expect("an unrelated child");
     let group_during: String = fs::read_to_string("/proc/self/cgroup").expect("own group");
+    let _ = crate::bounded_run::take_trace_for_test();
     let second = output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(30))).expect("the second run completes while the first is inside its start");
+    let second_planned: String = crate::round_sixteen_tests::launched_scope(&crate::bounded_run::take_trace_for_test());
     release_sender.send(()).expect("release the first run");
-    let first_output = first.join().expect("first run thread").expect("the first run completes");
+    let (first_result, first_trace) = first.join().expect("first run thread");
+    let first_output = first_result.expect("the first run completes");
+    let first_planned: String = crate::round_sixteen_tests::launched_scope(&first_trace);
 
     let unrelated_alive: bool = unrelated.try_wait().expect("asks").is_none();
     let unrelated_group: String = fs::read_to_string(format!("/proc/{}/cgroup", unrelated.id())).unwrap_or_default();
@@ -203,8 +209,11 @@ fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_bo
     let second_group: String = String::from_utf8_lossy(&second.stdout).trim().to_string();
     assert_eq!(group_during, original, "the wrapper changed its group during a start");
     assert_eq!(fs::read_to_string("/proc/self/cgroup").expect("own group"), original);
-    assert!(first_group.ends_with(".scope") && second_group.ends_with(".scope"), "{first_group} / {second_group}");
-    assert_ne!(first_group, second_group, "the two runs shared a scope");
+    // Compared as control group paths (the file's `0::` prefix removed from every one), each against the scope its own run launched.
+    let (first_path, second_path, own_path) = (crate::round_sixteen_tests::reported_path(&first_group), crate::round_sixteen_tests::reported_path(&second_group), crate::round_sixteen_tests::reported_path(&original));
+    assert!(first_path.ends_with(&first_planned) && second_path.ends_with(&second_planned), "{first_path} / {second_path} against {first_planned} / {second_planned}");
+    assert_ne!(first_path, second_path, "the two runs shared a scope");
+    assert!(first_path != own_path && second_path != own_path, "a program ran in the wrapper's own group");
     assert!(unrelated_alive, "an unrelated child was stopped by a cleanup");
     assert_eq!(unrelated_group, original, "the unrelated child was moved into a run's scope");
 }

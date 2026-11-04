@@ -38,9 +38,23 @@ pub(crate) fn answers_within<T: Send + 'static>(what: &str, window: Duration, wo
     return receiver.recv_timeout(window).unwrap_or_else(|_| { panic!("{what} did not answer within {window:?} while the lock was held: it waited for the holder"); });
 }
 
-/// The group line of a process, or an empty text for one that cannot be read.
-fn group_of(pid: &str) -> String {
-    return fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_default().trim().to_string();
+/// The group line of a process; a process whose group cannot be read stops the test, because equal failed observations would otherwise
+/// pass for equal groups (certification, second pass).
+pub(crate) fn group_of(pid: &str) -> String {
+    return fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_else(|error| { panic!("the group of {pid} cannot be read: {error}"); }).trim().to_string();
+}
+
+/// The scope a bounded run planned and launched, read from the run's own trace (`launch scope <name>`); the trace is the thread's, so
+/// it is taken on the thread that ran.
+pub(crate) fn launched_scope(trace: &[String]) -> String {
+    let launches: Vec<&String> = trace.iter().filter(|event| { return event.starts_with("launch scope "); }).collect();
+    assert_eq!(launches.len(), 1, "a run launches one scope: {trace:?}");
+    return launches[0].trim_start_matches("launch scope ").to_string();
+}
+
+/// The control group path a program reported from `cat /proc/self/cgroup`, without the `0::` prefix of the file's format.
+pub(crate) fn reported_path(report: &str) -> String {
+    return report.trim().strip_prefix("0::").unwrap_or_else(|| { panic!("not a cgroup v2 line: {report:?}"); }).to_string();
 }
 
 //region the launch boundary
@@ -84,10 +98,14 @@ struct Seen {
     unrelated: String,
     /// Whether the unrelated child lived to the end.
     unrelated_alive: bool,
-    /// The scope the first program reported.
+    /// The control group path the first program reported, in the file's own format.
     first_scope: String,
-    /// The scope the second program reported.
+    /// The control group path the second program reported.
     second_scope: String,
+    /// The scope the first run planned and launched, from its own trace.
+    first_planned: String,
+    /// The scope the second run planned and launched.
+    second_planned: String,
     /// The wrapper's group at the end.
     wrapper_after: String,
 }
@@ -105,7 +123,9 @@ fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen 
         if let Some(procs) = move_into {
             on_start_for_test(Some(Rc::new(move || { fs::write(&procs, std::process::id().to_string()).expect("move the wrapper"); })));
         }
-        return output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(60)));
+        let _ = take_trace_for_test();
+        let output = output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(60)));
+        return (output, take_trace_for_test());
     });
     wait_for_file(&directory.join("pid-1"));
     let first_launcher: String = fs::read_to_string(directory.join("pid-1")).expect("pid").trim().to_string();
@@ -114,7 +134,9 @@ fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen 
 
     let second = std::thread::spawn(move || {
         use_route_settings_for_test(Some(settings));
-        return output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(60)));
+        let _ = take_trace_for_test();
+        let output = output_within(Command::new("sh").args(["-c", "cat /proc/self/cgroup"]), None, &bound(Duration::from_secs(60)));
+        return (output, take_trace_for_test());
     });
     wait_for_file(&directory.join("pid-2"));
     let second_launcher: String = fs::read_to_string(directory.join("pid-2")).expect("pid").trim().to_string();
@@ -125,8 +147,10 @@ fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen 
 
     fs::write(directory.join("open-2"), "go").expect("let the second launcher go");
     fs::write(directory.join("open-1"), "go").expect("let the first launcher go");
-    let first_output = first.join().expect("first thread").expect("the first run completes");
-    let second_output = second.join().expect("second thread").expect("the second run completes");
+    let (first_result, first_trace) = first.join().expect("first thread");
+    let (second_result, second_trace) = second.join().expect("second thread");
+    let first_output = first_result.expect("the first run completes");
+    let second_output = second_result.expect("the second run completes");
     let unrelated_alive: bool = unrelated.try_wait().expect("asks").is_none();
     let _ = unrelated.kill();
     let _ = unrelated.wait();
@@ -140,6 +164,8 @@ fn at_the_launch_boundary(directory: &Path, move_into: Option<PathBuf>) -> Seen 
         unrelated_alive,
         first_scope: String::from_utf8_lossy(&first_output.stdout).trim().to_string(),
         second_scope: String::from_utf8_lossy(&second_output.stdout).trim().to_string(),
+        first_planned: launched_scope(&first_trace),
+        second_planned: launched_scope(&second_trace),
         wrapper_after: group_of("self"),
     };
 }
@@ -164,9 +190,14 @@ fn two_launchers_held_at_the_launch_boundary_and_an_unrelated_spawn_share_the_wr
     assert_eq!(seen.unrelated, seen.original, "the unrelated child was born in another group than the wrapper's");
     assert_eq!(seen.wrapper_second, seen.original, "the wrapper changed its group at the second launch");
     assert_eq!(seen.launcher_second, seen.original, "the second launcher was born in another group than the wrapper's");
-    assert!(seen.first_scope.ends_with(".scope") && seen.second_scope.ends_with(".scope"), "{} / {}", seen.first_scope, seen.second_scope);
-    assert_ne!(seen.first_scope, seen.second_scope, "the two runs shared a scope");
-    assert_ne!(seen.first_scope, seen.original.trim_start_matches("0::"), "a program ran in the wrapper's own group");
+    // Each program ran in the scope its own run planned and launched, and in neither the wrapper's group nor the other run's scope; all
+    // are compared as control group paths (the file's `0::` prefix removed from every one).
+    let own: String = reported_path(&seen.original);
+    let (first, second) = (reported_path(&seen.first_scope), reported_path(&seen.second_scope));
+    assert!(first.ends_with(&seen.first_planned) && second.ends_with(&seen.second_planned), "{first} / {second} against {} / {}", seen.first_planned, seen.second_planned);
+    assert_ne!(seen.first_planned, seen.second_planned, "the two runs planned one scope");
+    assert_ne!(first, second, "the two runs shared a scope");
+    assert!(first != own && second != own, "a program ran in the wrapper's own group: {first} / {second} against {own}");
     assert!(seen.unrelated_alive, "an unrelated child was stopped by a cleanup");
     assert_eq!(seen.wrapper_after, seen.original);
 }
@@ -240,7 +271,9 @@ fn the_record_is_written_made_durable_and_only_then_the_program_is_launched() {
 
         output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(30))).expect("runs");
         use_route_settings_for_test(None);
-        let trace: Vec<String> = take_trace_for_test();
+        // The scope's name follows the launch event, and a weaker-path notice comes first and is observed by its own test; the order of the
+        // record, its sync and the launch is what is compared here.
+        let trace: Vec<String> = take_trace_for_test().into_iter().filter(|event| { return !event.starts_with("notice "); }).map(|event| { return if event.starts_with("launch scope ") { "launch scope".to_string() } else { event }; }).collect();
 
         let kind: &str = if weaker { "pgroup-starting" } else { "scope" };
         let launch: &str = if weaker { "launch pgroup" } else { "launch scope" };
