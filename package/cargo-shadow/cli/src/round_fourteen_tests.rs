@@ -271,6 +271,53 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     let Some(route) = delegated_route() else {
         return;
     };
+    // The namespace numbers are handed out by one allocator for the whole host, so another session that creates a namespace between the
+    // writer's death and the recovery's creation takes the freed number (which the first full gate of round 16 met). The schedule is
+    // therefore tried again, a bounded number of times, until the freed number is reused; the test fails if it never is.
+    let mut last: Option<Attempt> = None;
+    for _attempt in 0..8 {
+        let made: Attempt = recycled_attempt(&route);
+        let reused: bool = made.reused();
+        last = Some(made);
+        if reused {
+            break;
+        }
+    }
+    let made: Attempt = last.expect("an attempt");
+    assert!(made.still_alive, "the launcher did not outlive its writer's time namespace, so the schedule was not made");
+    assert!(made.reused(), "the freed time namespace number was not reused by the recovery's namespace in any attempt, so the schedule was not made: {}", made.result);
+    let result: &str = &made.result;
+    let own: u64 = result.lines().find_map(|line| { return line.strip_prefix("own start "); }).and_then(|text| { return text.parse::<u64>().ok(); }).unwrap_or_else(|| { panic!("the recovery did not read a start time: {result}"); });
+    assert_ne!(own, made.start, "the recovery read the recorded start time, so the bases were the same: {result}");
+    assert!(result.contains("question Unknown("), "the question did not answer unknown: {result}");
+    assert!(!result.contains("Gone"), "a live launcher was read as gone through a recycled time namespace number: {result}");
+    let recovery: &str = result.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
+    assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery did not refuse for the start times: {recovery}");
+}
+
+/// What one attempt at the recycled-number schedule saw.
+struct Attempt {
+    /// Whether the launcher was alive after its writer's time namespace had no process.
+    still_alive: bool,
+    /// The writer's time namespace number.
+    time_namespace: u64,
+    /// The start time the writer recorded.
+    start: u64,
+    /// What the recovery's helper wrote.
+    result: String,
+}
+
+/// The methods of an attempt.
+impl Attempt {
+    /// Whether the recovery's time namespace received the number of the writer's destroyed one.
+    fn reused(&self) -> bool {
+        return self.result.lines().find_map(|line| { return line.strip_prefix("time namespace here "); }).and_then(|text| { return text.parse::<u64>().ok(); }) == Some(self.time_namespace);
+    }
+}
+
+/// One attempt: a writer in a time namespace of its own with its launcher in another, the writer's processes killed, and a recovery
+/// in a new time namespace created right after.
+fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
     let root = scratch();
     let mut outer: Child = Command::new("unshare")
         .args(["--user", "--map-root-user", "--time", "--boottime", "3600", "--fork", "--"])
@@ -294,7 +341,7 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     let _ = outer.wait();
     let still_alive: bool = crate::contain_counterexample_tests::is_running(pid);
 
-    let planned: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
+    let planned: ControlGroup = ControlGroup::plan(route).expect("a scope name");
     let record: Record = Record::Launcher { pid, start, pid_namespace, path: planned.directory().to_path_buf() };
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
     let journal: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
@@ -303,14 +350,5 @@ fn a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone() {
     // (a new user namespace would take the freed number first).
     let result: String = run_time_fixture_in(root.path(), &format!("{pid} {start} {pid_namespace}"), true, Some(pid));
     crate::contain_counterexample_tests::stop_quietly(pid);
-
-    assert!(still_alive, "the launcher did not outlive its writer's time namespace, so the schedule was not made");
-    let here: u64 = result.lines().find_map(|line| { return line.strip_prefix("time namespace here "); }).and_then(|text| { return text.parse::<u64>().ok(); }).expect("the recovery's time namespace");
-    assert_eq!(here, time_namespace, "the freed time namespace number was not reused by the recovery's namespace, so the schedule was not made: {result}");
-    let own: u64 = result.lines().find_map(|line| { return line.strip_prefix("own start "); }).and_then(|text| { return text.parse::<u64>().ok(); }).unwrap_or_else(|| { panic!("the recovery did not read a start time: {result}"); });
-    assert_ne!(own, start, "the recovery read the recorded start time, so the bases were the same: {result}");
-    assert!(result.contains("question Unknown("), "the question did not answer unknown: {result}");
-    assert!(!result.contains("Gone"), "a live launcher was read as gone through a recycled time namespace number: {result}");
-    let recovery: &str = result.lines().find_map(|line| { return line.strip_prefix("recovery "); }).expect("the recovery line");
-    assert!(recovery != "no survivor" && recovery.contains("start time"), "the recovery did not refuse for the start times: {recovery}");
+    return Attempt { still_alive, time_namespace, start, result };
 }
