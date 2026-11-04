@@ -318,39 +318,38 @@ fn a_reclaimer_that_finds_a_live_lock_leaves_no_event_on_the_lock_name() {
     remove(root.as_path());
 }
 
-/// Files an earlier release's reclaim left at a taken-aside name are removed when no process has them open, and what they held
-///  is in the log line; the files that only look like them are not touched.
+/// The notice for a stale lock that is not removed describes the file the reclaimer judged, not whatever stands at the name when the
+///  notice is written: when the stale lock is replaced by a live landing's lock in between, the notice names the stale lock's
+///  process, and never calls the live lock's process gone.
 #[test]
-fn stranded_aside_files_nobody_has_open_are_removed() {
-    let (root, index) = index_in("reclaim-sweep");
+fn the_notice_names_the_judged_stale_lock_and_not_a_live_replacement() {
+    let (root, index) = index_in("reclaim-notice-replaced");
     let lock: PathBuf = lock_path_of(&index);
-    let stranded: PathBuf = root.join("index.lock.aside-123-abc");
-    let other: PathBuf = root.join("index.lock.other");
-    std::fs::write(&stranded, stale_lock_text(5)).expect("stranded");
-    std::fs::write(&other, "not an aside file").expect("other");
-    remove_stranded_asides(&lock);
-    assert!(!stranded.exists(), "the stranded file is removed");
-    assert!(other.exists(), "a file with another name stays");
-    assert!(index.exists());
-    remove(root.as_path());
-}
-
-/// Refused: an aside file that a process has open (a live holder's lock), and one with another name too (a lock being put back by
-///  a hard link), stay.
-#[test]
-fn an_aside_file_a_process_has_open_or_another_name_has_stays() {
-    let (root, index) = index_in("reclaim-sweep-kept");
-    let lock: PathBuf = lock_path_of(&index);
-    let open: PathBuf = root.join("index.lock.aside-1-a");
-    let linked: PathBuf = root.join("index.lock.aside-2-b");
-    std::fs::write(&open, "held by a process").expect("open");
-    std::fs::write(&linked, "put back by a link").expect("linked");
-    std::fs::hard_link(&linked, root.join("index.lock.second-name")).expect("a second name");
-    let mut holder = std::process::Command::new("sleep").arg("60").stdin(std::fs::File::open(&open).expect("the file")).spawn().expect("a process that holds the file");
-    remove_stranded_asides(&lock);
-    holder.kill().expect("stopped");
-    holder.wait().expect("reaped");
-    assert!(open.exists(), "a file a process has open stays");
-    assert!(linked.exists(), "a file with another name too stays");
+    let stale: String = stale_lock_text(5);
+    let stale_marked: Marked = parse_marker(stale.as_str()).expect("a marker");
+    let stale_pid: i64 = stale_marked.holder.as_ref().expect("a holder").0;
+    std::fs::write(&lock, &stale).expect("stale lock");
+    let live_cell: std::cell::RefCell<Option<IndexLock>> = std::cell::RefCell::new(None);
+    // The hold fails once, and the stale lock is reclaimed by another instance and replaced by a live landing's lock meanwhile.
+    let replacing = |_: &std::fs::File| -> std::io::Result<()> {
+        if live_cell.borrow().is_none() {
+            std::fs::remove_file(&lock).expect("the other reclaimer removes the stale lock");
+            *live_cell.borrow_mut() = Some(try_acquire(&index, 8).expect("the live landing places its lock"));
+        }
+        return Err(std::io::Error::from_raw_os_error(libc::ENOLCK));
+    };
+    let platform: Platform = Platform { flock: &replacing, ..SYSTEM };
+    let said = std::cell::RefCell::new(Vec::<String>::new());
+    let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 4;
+    let _failure = acquire_within(&platform, &index, 9, ceiling, &|announce| {
+        if let Announce::Waiting(line) = announce {
+            said.borrow_mut().push(line);
+        }
+    })
+    .expect_err("the live lock is held to the ceiling");
+    let first: String = said.borrow().first().cloned().expect("a notice");
+    assert!(first.contains(&format!("process {stale_pid}")), "the notice names the judged stale lock's process: {first}");
+    assert!(!first.contains(&format!("process {}", std::process::id())), "the notice calls the live lock's process gone: {first}");
+    drop(live_cell.borrow_mut().take());
     remove(root.as_path());
 }

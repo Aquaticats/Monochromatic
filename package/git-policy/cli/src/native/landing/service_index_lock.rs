@@ -43,7 +43,7 @@ pub use crate::service_index_placement::{Platform, SYSTEM, placement_failure_tex
 pub use crate::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use crate::service_index_watch::Watch;
 use crate::service_index_placement::{log_placement_failure, place_marked, reclaim};
-pub use crate::service_index_reclaim::{Reclaimed, remove_stale, remove_stranded_asides, stale_lock_words};
+pub use crate::service_index_reclaim::{Reclaimed, remove_stale, stale_lock_words};
 use crate::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
@@ -132,7 +132,6 @@ pub fn try_acquire_on(platform: &Platform, index: &Path, seq: u64) -> Option<Ind
         return None;
     }
     remove_dead_staging(&lock);
-    remove_stranded_asides(&lock);
     return Some(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
 }
 
@@ -295,7 +294,6 @@ fn acquire_placing(
     let _removed = std::fs::remove_file(&staged);
     outcome?;
     remove_dead_staging(&lock);
-    remove_stranded_asides(&lock);
     return Ok(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
 }
 
