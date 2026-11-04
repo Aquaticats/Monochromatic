@@ -361,6 +361,29 @@ Where an earlier section of this record says a finding was "fixed" and this sect
   Not fixed: a system configuration in a place no list knows of.
 - `cargo add` and `cargo remove` are an explicit exclusion: the policy is enforced by the install step of the next command.
 
+## Review findings of the fourth cross-vendor review (started 2026-11-03T18:56:11Z)
+
+- One workspace lock replaces the per-journal lock (delegated pick, open to the owner's veto; "Use as few locks as possible.").
+  A transaction and a recovery both take it without waiting, so a recovery cannot race a transaction that starts, and a
+  transaction that finds it held stops with the holder's process id.
+  The lock is close-on-exec, because an inherited descriptor kept by a daemon that cargo starts would make the workspace
+  unrecoverable indefinitely; the children of a killed wrapper are found by the process groups recorded in the journal instead.
+- Every child runs in its own process group; at a bound the group is killed and shown to be gone, a normal exit kills what is left in
+  the group, and output is returned only when complete.
+- Finishing a run forces its outputs to disk before the completion marker (the owner's durability answer "Force at leaving, else
+  background"); the background half (syncing what a command did not promise) is not built.
+- Kept files are capped (1,000; the number needs an owner decision) and never deleted by the tool.
+- The system configuration of the Git reader is what the answering Git reports, cached per Git program.
+- Limits are measured or labeled unmeasured beside their values (repository rule LQM); the numbers measured on 2026-11-04 are in
+  the README.
+- pnpm oracle (pnpm 12.16.1, `minimumReleaseAge: 5256000`, a lockfile pinning `is-odd@3.0.1`, whose dependency `is-number@6.0.0` is
+  also younger than the cutoff): `pnpm install --lockfile-only` fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`; `pnpm update`
+  fails the same way (and, when the policy is not strict, first adds the entries to `minimumReleaseAgeExclude`); `pnpm update
+  is-odd` fails with `ERR_PNPM_NO_MATURE_MATCHING_VERSION` when strict and with the same violation for `is-number@6.0.0` when not.
+  So pnpm, too, refuses an unchanged update that leaves a too-young version locked; the update verification here does not
+  overshoot the owner's "follow pnpm semantics".
+  The one difference: pnpm's non-strict mode edits `minimumReleaseAgeExclude` as a side effect, and cargo-shadow does not.
+
 ## Delegated picks of 2026-11-03
 
 The owner is away for about 8 hours and delegated the open questions of the review work:
