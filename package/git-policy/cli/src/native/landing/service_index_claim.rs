@@ -253,7 +253,7 @@ pub fn take_claim(platform: &Platform, lock: &Path, stale: &std::fs::File, marke
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match look_at(path.as_path()) {
                 Slot::Dead => slot += 1,
                 Slot::Live | Slot::Free => break Claim::Busy,
-                Slot::Elsewhere(marked) => break Claim::Foreign { file: path, marked },
+                Slot::Elsewhere(theirs) => break Claim::Foreign { file: path, marked: theirs },
             },
             // An interrupted call, or one that found no memory, is not a refusal of the file system: asked again by the wait.
             Err(error) if matches!(error.kind(), std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock | std::io::ErrorKind::OutOfMemory) => break Claim::Busy,

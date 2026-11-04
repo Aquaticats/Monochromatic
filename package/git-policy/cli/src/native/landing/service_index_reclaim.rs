@@ -99,7 +99,7 @@ pub fn reclaim_if(platform: &Platform, lock: &Path, is_stale: &dyn Fn(&Marked) -
     let claim: ClaimHold = match take_claim(platform, lock, &file, &marked) {
         Claim::Held(held) => held,
         Claim::Busy => return Reclaimed::Busy,
-        Claim::Foreign { file, marked } => return Reclaimed::Foreign { file, marked },
+        Claim::Foreign { file: in_the_way, marked: theirs } => return Reclaimed::Foreign { file: in_the_way, marked: theirs },
         Claim::Unavailable(why) => {
             crate::service_error!("the index lock {} was left by a service that is gone, and it is not removed: no claim file could be placed beside it to keep two reclaimers apart ({why}), so a removal could take a live lock; \
                  remove it by hand once no git command runs in this repository",
