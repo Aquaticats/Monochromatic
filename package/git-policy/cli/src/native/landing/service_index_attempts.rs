@@ -27,7 +27,7 @@ use crate::process_start::resolve_process_start;
 use crate::service_index_lock::{Announce, LockFailure, notice_every};
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
 use crate::service_index_placement::{Platform, Reclaimed, log_placement_failure, place_marked, reclaim};
-use crate::service_index_reclaim::{foreign_words, stale_lock_words};
+use crate::service_index_reclaim::{foreign_words, stale_lock_words, unjudged_words};
 use crate::service_index_staging::refresh_age;
 use crate::service_index_watch::{POLL_PAUSE, Watch};
 use crate::service_protocol::FailureCode;
@@ -167,6 +167,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                     Reclaimed::Busy => busy = true,
                     Reclaimed::Unguarded(marked) => left_stale = Some((stale_lock_words(lock, &marked), "A service that is gone")),
                     Reclaimed::Foreign { file, marked } => left_stale = Some((foreign_words(file.as_path(), &marked), "A service on another machine")),
+                    Reclaimed::Unjudged { file, marked } => left_stale = Some((unjudged_words(file.as_path(), marked.as_ref()), "A reclaimer that cannot be judged")),
                     Reclaimed::Kept => {}
                 }
             }

@@ -38,12 +38,15 @@ Read-only commands,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
   A commit the service was landing when it died is settled by the service from its journal when it starts again.
   A stale `index.lock` that a killed service left (its marker names a process that is gone) is removed by one reclaimer at a time,
-   on every file system: reclaimers take their place in a chain of numbered claim files beside the lock and check that the name still
-   refers to the file they judged before they unlink, so no `flock` is involved. A killed reclaimer can leave inert
-   `index.lock.cli-reclaim-*` files, which `SPEC.md` ("The claim chain") says how to remove.
+   on every file system: reclaimers take their place in a chain of numbered claim files (`cli-reclaim-*`) beside the lock and check that
+   the name still refers to the file they judged before they unlink, so no `flock` is involved. A killed reclaimer can leave inert
+   claim files, which `SPEC.md` ("The claim chain") says how to remove.
   A marker carries the machine ID of its host: a reboot of the same machine ends the holder, and a lock or claim of a service on another
-   machine (a repository on a shared file system) is never taken for stale; the commit waits and the notice gives the `rm` for a person who knows
-   that service is gone.
+   machine (a repository on a shared file system) is never taken for stale. Neither is a marker of an earlier release, which names no
+   machine and is reclaimed by that release's own exclusion: such a lock, or a claim that cannot be judged, stays, the commit waits as for
+   any held lock, and the notice names the file and gives `rm -- '<path>'` for a person who knows the service is gone. A stale lock that a
+   service of an earlier release left is removed by hand once after the upgrade; every lock this release writes reads
+   `cli-git-service v2 ...`, which an earlier release leaves alone.
   A lock that cannot be proven stale is never removed (a running Git's lock, or one held by a process of another PID namespace).
 - Merges that do not fail (the owner's rules of 2026-11-03: "Auto merging should never fail." and
    "Manual merge should never fail too.").

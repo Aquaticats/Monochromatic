@@ -3224,7 +3224,7 @@ The chain is used on every file system and the `flock` on the stale lock's file 
 always"): a reclaimer on the `flock` path and one on the claim path of one file system would not see each other, and a lock manager
 can answer one call and refuse the next. A placement of a claim that is interrupted or finds no memory (`EINTR`, `ENOMEM`, `EWOULDBLOCK`)
 is a back-off; any other refusal of the placement is Unguarded.
-There are seven answers, and each has its own consequence:
+There are eight answers, and each has its own consequence:
 
 - Removed: the stale file was removed, or was already gone; the placement is tried again.
 - Changed: the name refers to another file than the one judged (the stale lock was reclaimed and a live one placed); nothing is
@@ -3238,10 +3238,15 @@ There are seven answers, and each has its own consequence:
   (never a second read of the name, which a live landing may hold by then), names the lock, the batch and the dead process, and says to
   remove the lock by hand once no git command and no commit of the service is running and the file's first line still reads as
   quoted. A restart leaves the batch open.
-- Foreign: the lock, or a claim in the way, was written by a service on another machine (its marker names a machine ID that is not
-  this reader's, or this reader has none): that service is neither proven gone nor proven running, so the file stays. A landing waits
-  as for any held lock to its ceiling and withdraws the commit; its notice names the file, the batch and the process, says the maker is
-  on another machine and not proven gone, and gives the `rm` for a person who knows that service is not running. A restart leaves the
+- Foreign: the file (the lock, or a claim in the way) is not proven gone on this machine: its marker names a machine ID that is not
+  this reader's (or this reader has none), or names none and a boot other than this one while this reader has a machine ID, or names no
+  process at all, or the lock is in the format of an earlier release (see "The marker format and earlier releases" below). It stays. A landing
+  waits as for any held lock to its ceiling and withdraws the commit; its notice, which is also written to the log on every path
+  (the restart's too), names the file, the batch and the process, says why it is not removed, and gives `rm -- '<path>'` (the path quoted
+  for a shell) for a person who knows that service is not running. A restart leaves the batch open.
+- Unjudged: a claim in the way cannot be judged: its maker is in another PID namespace or this reader's `/proc` does not agree, or the
+  claim cannot be read. It is neither passed over nor removed, and it is not passing contention (Busy is a claimer proven to run): the
+  notice names the claim and gives the `rm -- '<path>'`; a landing waits as for any held lock to its ceiling, and a restart leaves the
   batch open.
 - Kept: the file is not a stale lock of the service (a live holder's, Git's, or unreadable); it is left where it is.
 - Stuck: the file is stale and cannot be removed; the log says why, and the landing fails as before.
@@ -3249,20 +3254,22 @@ There are seven answers, and each has its own consequence:
 #### The claim chain
 
 Used by every reclaim, on every file system, and it needs no `flock` anywhere.
-A claim is a file named `<lock>.cli-reclaim-<key>-<slot>`, where the key is made from the marker of the stale lock (its batch, process,
-and the birth identity, with the bytes a file name cannot hold escaped), so that every reclaimer reaching the file by any mount derives one name: the device number of
-one remote tree can differ between two mounts of it. The process that marker names is gone and places no further lock with that marker,
-so a claim left under a key is inert; a marker that names no process (an earlier release's) is keyed on its batch number alone.
+A claim is a file named `cli-reclaim-<digest>-<slot>` in the lock's directory, where the digest is the first sixteen bytes of the SHA-256 of
+the lock's file name and a key made from the marker of the stale lock (its batch, process and birth identity), so that every reclaimer
+reaching the file by any mount derives one name, whatever the device number of that mount, and the name has a fixed length however long the
+lock's own name is. The process that marker names is gone and places no further lock with that marker, so a claim left under a key is
+inert. A marker that names no process is never judged stale (below), so no claim is ever made for one.
 A claim is mode 0644 whatever the umask, so that a reclaimer of another account can read it (one that cannot read a claim takes its
 maker to run). It holds the service marker of its maker with a random token in the batch field, is written to a staging file and placed
 whole by a rename that does not replace (else a hard link), and is judged as a lock holder is (`holder_state_in`): a maker that is gone
-is passed over; a maker that runs, cannot be judged or whose claim cannot be read makes the reclaimer back off (`Busy`); a maker on
-another machine makes it leave the claim and answer Foreign. A placement
-that answers with an error although it took effect (a network file system can lose the answer) is recognised by the claim's text
-and is the reclaimer's own.
+is passed over; a maker that is proven to run makes the reclaimer back off (`Busy`); a maker on another machine makes it leave the claim and
+answer Foreign; one that cannot be judged, or a claim that cannot be read, makes it answer Unjudged. A placement that answers with an error
+although it took effect (a network file system can lose the answer) is recognised by the claim's text and is the reclaimer's own; when
+the claim cannot be read back at that moment, the thread remembers the claim it may have made and its next attempt removes it if it is
+there with exactly that text (per thread, so another thread's attempt in the same process is never taken for it).
 The reclaimer places its claim at the first slot not taken by a running claimer, then reads every slot below its own again: all
 must still exist and name a gone maker, or it removes its own claim and backs off. It then runs the same name check and unlink as
-under the `flock`, and removes the claims from zero to its own once the name no longer refers to the stale file; when the unlink
+and removes the claims from zero to its own once the name no longer refers to the stale file; when the unlink
 fails it removes only its own.
 A claim of a dead maker is never removed while the stale file stands at its name, so a slot read as gone stays gone and in
 place, and no reclaimer can be placed below it; two holders would need one slot to be read as gone by the other, which its own
@@ -3270,9 +3277,21 @@ claim or the exclusive placement prevents. The rule needs no birth time of the f
 the same key is a gone claim at a low slot and is passed over. A file at a claim's name that holds no whole marker is passed
 over too, since a placed claim is whole.
 Limits: a claimer killed after the unlink and before its cleanup leaves inert `<lock>.cli-reclaim-*` files, which the next reclaim of
-a file with that key removes and which a person may remove with `rm -- "$(git rev-parse --absolute-git-dir)"/index.lock.cli-reclaim-*`
-once no commit of the service runs (an alternate index: the directory of that index); a claim cannot be placed on a full disk,
+a file with that key removes and which a person may remove with `rm -- "$(git rev-parse --absolute-git-dir)"/cli-reclaim-*`
+once no commit of the service runs (an alternate index: the directory of that index; `rm -- "$(git rev-parse --absolute-git-dir)"/cli-reclaim-*`); a claim cannot be placed on a full disk,
 where the landing's own lock cannot be either; and two machines with the same machine ID (cloned images) are judged as one machine.
+
+#### The marker format and earlier releases
+
+A marker of this release reads `cli-git-service v2 <batch> <process> <identity>`. An earlier release's reader takes the word after the
+prefix for a batch number, finds `v2`, and reads no marker in the file: it leaves the lock as a lock it does not know, so no earlier
+release's reclaimer (which holds a `flock` on the file) ever acts on a lock of this release. In the other direction this release does not
+remove a stale lock in the earlier format (no `v2`), because that release's reclaimers and this one's claims cannot see each other and both
+could unlink the file: such a lock is left, named, with the `rm` (answer Foreign), and the first line the notice quotes is the file's own.
+A marker that names no process is never read as gone (it could be a live service on another machine), and neither is one that names no
+machine ID and another boot when this reader has a machine ID: it cannot be told from a service on another machine. After an upgrade, a
+stale lock an older release's killed service left is therefore removed by hand once; every lock this release writes is reclaimed on its own.
+After a downgrade, the locks of this release are left to the person by the older release (stop `cli-git@*` first, as for any downgrade).
 
 The exclusion is the one that `doc/planning/cli-git-one-reclaimer-per-index.md` argues for: the unit is the one file being
 reclaimed, the hold lasts a few system calls, and a dead claimer's claim is passed over, so no leftover can block a reclaim.
@@ -3413,13 +3432,16 @@ A reader answers one of three things about the holder a marker names:
   the boot is not the current one, on the same machine (every process died with that boot,
   whatever the reader's numbering; a marker that names a machine ID is read so only when the reader's machine ID is the same),
   or no process runs under that number,
-  or the process under it was born at another tick,
-  or the marker names no holder (an earlier release's).
+  or the process under it was born at another tick
+  (a marker that names no holder is not gone: it is unknown; and a marker that names no machine ID is read by its boot only by a reader
+  that has none either).
 - Running:
   the same boot,
   the same namespace,
   and the process there is the one born then.
 - Unknown:
+  the marker names no process (an earlier release's),
+  it names no machine ID and a boot other than this one while the reader has a machine ID,
   the marker names a machine ID that is not the reader's, is not valid, or the reader has none (a boot ID that differs there says
   nothing about the service, which may run on its machine; the lock or claim stays, a landing waits to its ceiling and the notice
   gives the `rm`),

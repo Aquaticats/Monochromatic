@@ -110,6 +110,10 @@ fn machine_id_from(paths: &[&Path]) -> String {
 
 /// The machine ID of this host, read once, or nothing when it cannot be read.
 pub(crate) fn current_machine_id() -> &'static str {
+    #[cfg(test)]
+    if let Some(injected) = test_machine::injected() {
+        return injected;
+    }
     static MACHINE_ID: OnceLock<String> = OnceLock::new();
     return MACHINE_ID
         .get_or_init(|| {
@@ -117,6 +121,26 @@ pub(crate) fn current_machine_id() -> &'static str {
             return machine_id_from(paths.as_slice());
         })
         .as_str();
+}
+
+/// A machine ID a control gives this thread in place of the host's, so that a control does not depend on the host having one.
+#[cfg(test)]
+pub(crate) mod test_machine {
+    use std::cell::Cell;
+
+    thread_local! {
+        static INJECTED: Cell<Option<&'static str>> = const { Cell::new(None) };
+    }
+
+    /// What this thread's machine ID is: the injected text (empty for a host with none), or nothing injected.
+    pub(crate) fn injected() -> Option<&'static str> {
+        return INJECTED.with(Cell::get);
+    }
+
+    /// Gives this thread the machine ID `id` (empty for a host with none) until the thread ends.
+    pub(crate) fn inject(id: &'static str) {
+        INJECTED.with(|cell| { cell.set(Some(id)); });
+    }
 }
 
 /// Methods over a reading.
@@ -242,7 +266,8 @@ impl ClaimTime {
         let wall_seconds: u64 = parts[2].parse().ok()?;
         let machine_id: &str = parts.get(PARTS_WITH_MACHINE - 1).copied().unwrap_or("");
         let boot_id_fits: bool = boot_id.is_empty() || is_compact_hex_id(boot_id);
-        let machine_id_fits: bool = parts.len() == PARTS_WITHOUT_MACHINE || is_machine_id(machine_id);
+        // A stored stamp is read as it was written: an uppercase or all-zero machine ID that an earlier release accepted still decodes.
+        let machine_id_fits: bool = parts.len() == PARTS_WITHOUT_MACHINE || is_compact_hex_id(machine_id);
         if !boot_id_fits || !machine_id_fits {
             return None;
         }

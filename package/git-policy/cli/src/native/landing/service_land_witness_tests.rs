@@ -257,7 +257,7 @@ fn a_session_that_stages_between_the_stale_lock_and_the_restart_is_kept() {
     let mut child = std::process::Command::new("true").spawn().expect("a short process");
     let dead: u32 = child.id();
     child.wait().expect("reaped");
-    std::fs::write(world.repo.join(".git/index.lock"), format!("{}1 {dead} gone\n", crate::service_index_lock::LOCK_MARKER)).expect("stale lock");
+    std::fs::write(world.repo.join(".git/index.lock"), format!("{}{}1 {dead} gone\n", crate::service_index_lock::LOCK_MARKER, crate::service_index_marker::MARKER_VERSION)).expect("stale lock");
     let repo: PathBuf = world.repo.clone();
     hooks::set("restart-unlocked", std::rc::Rc::new(move || {
         std::fs::write(repo.join("a.txt"), "C\n").expect("write");

@@ -11,7 +11,8 @@ fn stale_lock_text(seq: u64) -> String {
     let mut child = std::process::Command::new("true").spawn().expect("a short process");
     let pid: i64 = i64::from(child.id());
     child.wait().expect("reaped");
-    return format!("{LOCK_MARKER}{seq} {pid} gone\n");
+    // The format of this release: the claim chain reclaims no other.
+    return format!("{LOCK_MARKER}{}{seq} {pid} gone\n", crate::service_index_marker::MARKER_VERSION);
 }
 
 fn index_in(name: &str) -> (PathBuf, PathBuf) {

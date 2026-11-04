@@ -336,23 +336,72 @@ always did. Every caller of the boot comparison was searched for: `holder_state_
 `work_item_recovery.rs`) already compare the machine ID; the reference-lock judge reads the boot time by the wall clock only.
 Machines cloned with one machine ID cannot be told apart and are judged as one machine.
 
-Release overlap: the release before this one reclaims under the `flock` and this one under claims, and the two do not see each other.
-The service of one worktree never runs two releases at once (an upgrade retires the old release first, `SPEC.md`, "One marker-writing
-taker at a time"), so the overlap needs two worktrees sharing one alternate index across an upgrade, or a host that runs both releases
-on one repository; stop the older service first, as `SPEC.md` says for a downgrade.
+Release overlap: closed by the marker format, see "The third cross-vendor review" below (an earlier release reads no marker in a lock of
+this release, and this release leaves every lock in the earlier format).
 
-Where this does not hold, in addition: an earlier release's reader on another machine still reads the marker of this release as gone (the
-boot comparison comes first in the earlier code); a claim name `<lock>.cli-reclaim-<key>-<slot>` is the lock's file name plus about a
-hundred more bytes (the birth identity is written as it is), so a lock whose own name is near the limit of a file name (255 bytes) cannot have
-a claim placed beside it and the reclaim answers `Unguarded`; the control covers a 45-byte lock name.
 
 Strictness of the machine ID: `is_machine_id` also governs the claims of work (`claim_time.rs`), so an uppercase or all-zero machine ID there
 now reads as none. That is safe: `machine-id(5)` specifies 32 lowercase hexadecimal digits and says an all-zero value is not valid, so no
 real host is affected, and a reading with no machine ID falls back to the wall clock, as before for hosts without one.
 
-Where this does not hold: a service on another machine whose marker carries no machine ID (written by a release before this one, or by a
-host with no valid machine ID) is read as before, so over a shared file system a live holder of that kind can still read as gone.
+Where this still does not hold: a service on another machine whose host has no valid machine ID writes a marker with none, and a reader
+that also has none keeps the earlier reading, so between two such hosts over a shared file system a live holder can still read as gone.
 No Linux call can tell a process of another machine from a gone one by the marker alone; the machine ID is the only evidence.
+
+## The third cross-vendor review (2026-11-04)
+
+`/var/home/user/temp/agent/reviews/claims-always-sol-3.txt`, verdict "Merge after named fixes". What was done for each finding.
+
+### A: markers without a machine ID
+
+The review's schedule: a live service on machine A writes a marker with no machine ID (an earlier release, or a host with no valid one);
+machine B reads another boot as gone and removes the live lock. Now: a marker that names no process is never gone; a marker that names no
+machine ID and another boot is unknown to a reader that has a machine ID (it cannot be told from another machine), and keeps the earlier
+reading only for a reader that has none either (nothing better exists there). The cost: after the upgrade, a stale lock that an older
+release's killed service left (and which names another boot) stays, with a notice and the `rm`, instead of being removed.
+
+### B: earlier releases that reclaim under a `flock`
+
+The review's schedule: an earlier release takes the `flock` and this release a claim, both pass the name check, one unlinks, a landing
+places its lock, the other unlinks it. No call lets a claim reclaimer and a `flock` reclaimer exclude each other without this release
+taking the `flock` too (a second lock, and the owner retired it) or waiting without bound for an earlier release's reclaimer it cannot see.
+The transition rule that needs neither: each release reclaims only the locks of its own format, and the formats are told apart by the
+marker itself. A marker of this release reads `cli-git-service v2 <batch> <process> <identity>`; an earlier release's parser takes `v2`
+for a batch number, fails, and reads no marker, so it leaves the lock (`Kept`) and its landing waits as for a foreign lock. This release
+in turn leaves every stale lock in the earlier format (answer Foreign, with words that say why). So no lock can be reclaimed by both
+mechanisms, on any worktree or alias of one physical index, with no prerequisite about which services run. The claim names also changed
+(a digest in place of the escaped identity); an earlier release's claim files are never read by this one and the reverse, which is now
+harmless for the same reason. Cost: a stale lock in the earlier format is removed by hand once, and after a downgrade the locks of
+this release are the person's to remove. Owner veto is open on this trade (a stale lock from an older release that needs one `rm`
+against a possible second unlink of a live lock).
+
+### C: claims that cannot be judged
+
+A claim whose maker is in another PID namespace (or that cannot be read) used to read as a running claimer and so as passing contention.
+Now it is `Slot::Unjudged`, the answer `Reclaimed::Unjudged { file, marked }`, and `unjudged_words` names the claim, says it keeps the stale
+lock from being reclaimed, and gives the quoted `rm`. It is never treated as gone. The landing still waits only to its ceiling.
+
+### D: an abandoned ambiguous claim
+
+A placement that took effect but answered with an error, followed by a failed read of the claim, could leave a live-looking claim of the
+service's own process that no later attempt recognised (each attempt writes a new token). The attempt now records the path and text per
+thread, and the next attempt of that thread removes the claim if it still holds exactly that text. Per thread, because the same process
+number serves concurrent attempts of other threads (the service reclaims on one thread; a second thread's attempt is never taken for an
+abandoned one). A claim whose recorder never returns stays until the process ends, which then reads as gone.
+
+### The limits assessment
+
+- Cloned machine IDs: unchanged; deployment must regenerate them.
+- An older reader deleting a new marker on another boot: closed by the format (it reads no marker).
+- Holderless keys: a marker that names no process is never judged stale now, so no claim is ever made for one; the key function keeps a
+  defensive branch for it.
+- Long lock names: the claim name is a digest of fixed length (the first sixteen bytes of SHA-256), so a claim is placed beside any lock
+  whose own name and staging name fit a file name; the control places a claim beside a lock with a 150-byte name.
+- Work-claim stamps: the first fix made `decode` return nothing for a whole stamp whose machine ID was uppercase or all zero, which
+  moves such a claim to wall-clock expiry or drops it; that was wrong. `decode` again accepts what an earlier release wrote, and only the
+  host's own reading is strict (an uppercase `/etc/machine-id` reads as none, so the wall clock judges). The control goes through the
+  claim-name parser the recovery uses, and was shown red against the strict decode.
+- `rm` in the words: the path is single-quoted for a shell and `rm --` is used.
 
 ## A busy stale lock
 
