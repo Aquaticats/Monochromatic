@@ -144,5 +144,8 @@ pub mod service_land_finish;
 /// The removal of a stale index lock, by a rename and a second look.
 pub mod service_index_reclaim;
 
+/// The claim chain that keeps two reclaimers apart where the file system gives no `flock`.
+pub mod service_index_claim;
+
 /// Whether a new index file holds the live index's bytes.
 pub mod service_index_same;
