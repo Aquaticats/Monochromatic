@@ -383,6 +383,8 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
         recorder.calls(),
         vec![
             format!("stop {LEGACY_SOCKET_UNIT_NAME}"),
+            // The service is asked to retire and given the wait to finish its batch before the manager is asked to stop it.
+            format!("state {LEGACY_SERVICE_UNIT_NAME}"),
             format!("stop {LEGACY_SERVICE_UNIT_NAME}"),
             format!("state {LEGACY_SOCKET_UNIT_NAME}"),
             format!("state {LEGACY_SERVICE_UNIT_NAME}"),
@@ -430,7 +432,7 @@ fn an_instance_starts_only_after_the_earlier_service_has_stopped() {
     let calls: Vec<String> = recorder.calls();
     let service_states: Vec<usize> =
         calls.iter().enumerate().filter(|(_, call)| { return call.as_str() == format!("state {LEGACY_SERVICE_UNIT_NAME}"); }).map(|(index, _)| { return index; }).collect();
-    assert_eq!(service_states.len(), 3, "asked until it was inactive: {calls:?}");
+    assert!(service_states.len() >= 3, "asked until it was inactive: {calls:?}");
     assert!(position(&calls, format!("start {}", instance_socket()).as_str()) > service_states[2], "{calls:?}");
     remove(machine.root.as_path());
 }
@@ -608,5 +610,37 @@ fn an_earlier_unit_the_wrapper_did_not_write_is_not_stopped() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop "); }), "{:?}", recorder.calls());
     assert!(directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
+    remove(machine.root.as_path());
+}
+
+/// A service that does not leave by itself when it is asked to retire may be in the middle of a landing, and the manager's stop
+/// ends the whole unit, Git children included (sol-1 round 2, upgrade): the stop is sent only to a service that has left, and a
+/// service that is still there when the wait ends fails the commit with a sentence that names the stop for the person to choose.
+#[test]
+fn an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper() {
+    let machine: Machine = machine("provision-retire-polite-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active"]);
+    let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("the service kept working");
+    assert!(matches!(&failure, ClientFailure::CouldNotStart(reason) if reason.contains(LEGACY_SERVICE_UNIT_NAME)), "{failure:?}");
+    let calls: Vec<String> = recorder.calls();
+    assert!(!calls.contains(&format!("stop {LEGACY_SERVICE_UNIT_NAME}")), "a service that may be landing is not stopped: {calls:?}");
+    remove(machine.root.as_path());
+}
+
+/// A service that leaves between the question and the stop is stopped after it left, never before.
+#[test]
+fn the_earlier_service_is_stopped_only_after_it_has_left() {
+    let machine: Machine = machine("provision-retire-after-leaving-lib");
+    earlier_service_files(&machine, runtime_unit_dir(machine.host.runtime_dir.as_path()).as_path());
+    let mut recorder: Recorder = Recorder::default();
+    script(&recorder, LEGACY_SERVICE_UNIT_NAME, &["active", "deactivating", "inactive"]);
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let calls: Vec<String> = recorder.calls();
+    let stop: usize = position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str());
+    let service_states: Vec<usize> =
+        calls.iter().enumerate().filter(|(_, call)| { return call.as_str() == format!("state {LEGACY_SERVICE_UNIT_NAME}"); }).map(|(index, _)| { return index; }).collect();
+    assert!(service_states.iter().filter(|index| { return **index < stop; }).count() >= 3, "it was asked until it was inactive before the stop: {calls:?}");
     remove(machine.root.as_path());
 }
