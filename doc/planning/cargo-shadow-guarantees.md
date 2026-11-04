@@ -1,6 +1,8 @@
 # What cargo-shadow promises and what it assumes
 
 Status:
+amended for round 14 (the review of round 13, `cargo-shadow-sol-13.txt`) with the time namespace of the launcher record (guarantee A1):
+a start time is compared only within the time namespace it was read in;
 amended for round 13 (the owner's pick of 2026-11-04, "Out of scope, keep cheap guards") with the extension of assumption a to
 mounts and `/proc`, the launcher question read through one pinned procfs descriptor, and the number that shows an ended process;
 amended for round 12 (the review of rounds 10 and 11, `cargo-shadow-sol-11a.txt`, `-11b.txt`) with the launcher question answered only through a
@@ -53,9 +55,13 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   overrides it.
   The launcher record (round 11, the owner's pick "Record the launcher") removes the refusal for a launcher that is gone.
   Right after it spawns the launcher, which becomes the program (same process), the wrapper appends
-  `launcher <pid> <start time> <pid namespace> <scope path>` to the journal's `groups` file: the process id, field 22 of
-  `/proc/<pid>/stat` (clock ticks since boot, so the id with its start time names one process in one boot) and the inode of the
-  process id namespace.
+  `launcher <pid> <start time> <pid namespace> <time namespace> <scope path>` to the journal's `groups` file: the process id, field
+  22 of `/proc/<pid>/stat` (clock ticks since boot, so the id with its start time names one process in one boot), the inode of the
+  process id namespace and the inode of the time namespace (round 14: field 22 is relative to the boot-time offset of the time
+  namespace of the process that reads it, so a recovery in another time namespace reads the same live process's start time
+  differently; measured on this host, an offset of two hours moved it by 720000 ticks).
+  A line of an older version has no time namespace and is read as unknown; so is a line whose time namespace differs from the
+  recovery's, or whose time namespace cannot be read on either side.
   A recovery asks about the launcher before it reads the scope.
   The launcher is gone only when the recovery is in the recorded process id namespace and no process with that id and that start
   time exists (no such process, or the id was reused by a process with another start time).
@@ -88,7 +94,8 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   The later `settled` line is synced and carries the earlier lines with it.
   What the launcher record cannot prove, and that therefore still waits for `cargo-shadow acknowledge <journal directory>` (one
   command by a person, which tries the workspace lock and does not wait):
-  a recovery in another process id namespace than the record; a journal with no launcher line for an unsettled scope (a journal of an
+  a recovery in another process id namespace or another time namespace than the record, or a line without a time namespace;
+  a journal with no launcher line for an unsettled scope (a journal of an
   older version, a line that could not be appended, a wrapper killed between the spawn and the append); a launcher line for a scope
   the journal does not list; a launcher line that is torn or not understood; a launcher whose process cannot be inspected (a `/proc`
   that hides it, an unreadable stat file).
@@ -637,25 +644,20 @@ These are acceptance tests, not a claim that finite testing mathematically prove
 
 ## Coverage map
 
-Written 2026-11-04T09:48:48-05:00 against the tip that carries it (round 13); the round 12 text it replaces was written at 2026-11-04T09:32:35-05:00.
+Written NOW against the tip that carries it (round 14); the round 13 text it replaces was written at 2026-11-04T09:48:49-05:00.
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
-No row is certified by this map: the cross-vendor review of round 13 has not run, and the reviews of rounds 10 to 12 said that the
+No row is certified by this map: the cross-vendor review of round 14 has not run, and the reviews of rounds 10 to 13 said that the
 count of shown rows was not established by the attachments they saw, whose unchanged tests they could not see.
 Counts: 16 rows, 16 shown, 0 partly, 0 not yet.
-The two gaps that kept A2/R4 and V3/V4 partly are closed in round 13:
-`a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` (the shim itself, a stale lock, a fake cargo whose user
-command creates a sentinel file, a second run of the install step that cannot show its scope empty: the shim exits with the
-install-failed code, the sentinel is absent, the lock cargo wrote is neither rolled back nor accepted, the journal is kept) and
-`a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservatively` (a real wrapper killed after each step of `begin`:
-directory, record, view, owner, snapshot, index, ready).
-Suite counts at the round 13 code tip `1403e21768`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
-(`mise run //package/cargo-shadow/cli:test`) each ran 588 tests: 588 passed, 0 failed, 10 skipped; `lint:clippy` with warnings
+Suite counts at the round 14 code tip `CODETIP`: the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate
+(`mise run //package/cargo-shadow/cli:test`) each ran COUNT tests: COUNT passed, 0 failed, 11 skipped; `lint:clippy` with warnings
 denied is clean.
-The 10 skipped are the `#[ignore]` helper entries that ten other tests start as child processes (their names are in the `ignore`
+The 11 skipped are the `#[ignore]` helper entries that eleven other tests start as child processes (their names are in the `ignore`
 attributes of `src/contain_counterexample_tests.rs`, `src/containment_record_tests.rs`, `src/round_ten_tests.rs`,
-`src/round_eleven_tests.rs`, `src/round_twelve_tests.rs` and `src/round_thirteen_tests.rs`); they are not run on their own.
-Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r13-debug1.log`, `r13-gate1.log`, `r13-clippy2.log`.
+`src/round_eleven_tests.rs`, `src/round_twelve_tests.rs`, `src/round_thirteen_tests.rs` and `src/round_fourteen_tests.rs`); they are not
+run on their own.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r10/logs/r14-debug1.log`, `r14-gate1.log`, `r14-clippy2.log`.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 to 10 the new guards were removed from the committed tests and the tests failed, then the guard was put back:
@@ -669,6 +671,9 @@ round 9: `a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_e
 `an_unreadable_crate_root_gives_an_unknown_inventory_warning_and_never_refuses`,
 `a_reboot_of_the_same_machine_discharges_the_liveness_of_a_weaker_path_journal`,
 `the_boot_discharge_keeps_every_other_check_and_a_scope_with_a_member`;
+round 14 (red at the commit "red control for the launcher start time read from another time namespace", green at the commit
+"the launcher record carries the time namespace of its writer"): `a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone`
+(red `logs/r14-red.log`);
 round 13 (red at `69be31fb74`, green at `77e48d7c5e`): `only_the_ended_process_number_shows_a_gone_process` (another positive
 number was read as gone);
 round 12 (red at `301faaf776`, green at `87da96a05f`): `a_wait_that_fails_is_not_a_reap`,
@@ -718,6 +723,11 @@ written with the code.
   `a_live_launcher_blocks_whether_its_scope_is_absent_or_empty` (no acknowledgement clears it, with the scope absent or empty),
   `a_gone_launcher_lets_the_recovery_read_the_scope_as_final` (absent and empty; a reused process id reads as gone),
   `a_gone_launcher_does_not_clear_a_scope_with_a_member` (round 12: no acknowledgement overrides it),
+  `a_launcher_record_carries_the_time_namespace_and_an_older_line_has_none` and
+  `a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone` (round 14: a helper in a new user and time namespace
+  with a two-hour boot-time offset, the same process id, mount and cgroup namespaces, the launcher held alive; its own reading of the
+  start time differs from the recorded one, the question and a recovery of a planted journal answer unknown and never gone, and the
+  same question in the writer's own time namespace is alive, the control),
   `what_the_launcher_record_cannot_prove_waits_for_an_acknowledgement` (another namespace, no line, a line for another scope, a line
   not understood),
   `a_torn_launcher_line_never_reads_as_a_gone_launcher` (every proper prefix of the bytes production appends, including the line
@@ -730,7 +740,8 @@ written with the code.
 - **A2, R4 (7a F3): shown.**
   The joined runner-to-install test, the fault classes and the unstoppable member, and, round 13,
   `a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` (the shim with a user-command sentinel behind the
-  refusal).
+  refusal; round 14: the helper's journal must record a scope, the weaker-path notice must be absent, the armed scope fault must have
+  been reached, and the refusal must be the not-quiescent one; with the fault never armed the test fails).
   `a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent`,
   `a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_kept_and_nothing_after_it` (a fake cargo whose update goes
   through the bounded runner with an injected fault: refusal, lockfile kept, journal kept, no call after the update),
@@ -853,6 +864,10 @@ written with the code.
   runner choosing it when it has one; the tests that read a journal record or the program's own group show the choice
   (`assert_scope_record`, the program's group).
 - The identity tests give the recovery a different identity; no machine was rebooted.
+- Nothing else in the launcher identity or the boot rule reads a time-namespace-relative value: the boot rule uses the boot id and
+  the machine id only, and the code reads no uptime, `btime` or `CLOCK_BOOTTIME`; only field 22 of the stat file is relative.
+  The time-namespace helper needs `unshare` with permission for a user and time namespace and a kernel with time namespaces
+  (Linux 5.6); a host that refuses fails the test loudly.
 - The 12a schedules that need a deliberate remount while a recovery runs (replacing `/proc` between the pidfd check and the stat
   read, overmounting `/proc/<pid>`) are excluded by assumption a as amended in round 13 and have no test; the guards that cover them
   (one pinned procfs descriptor, `openat2` beneath it without crossing a mount) are exercised by every launcher question, not by a

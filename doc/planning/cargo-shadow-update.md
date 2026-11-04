@@ -1159,15 +1159,59 @@ criterion, none certified.
 Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r13-debug1.log`, `r13-gate1.log`, `r13-clippy2.log`.
 Nothing was published and nothing was merged into main.
 
-## Resume point (round 13, rewritten 2026-11-04T09:48:48-05:00 after the gate)
+## Round 14 (2026-11-04): the answers to the round 13 review
 
-Done: rounds 10 to 13 (the sections above).
-The review inputs of round 13 are `/var/home/user/temp/agent/reviews/cargo-shadow-13*.diff`, cut from `a8c7fbf8c2`.
+Review answered: `cargo-shadow-sol-13.txt` ("does not meet the list"; every 12a finding closed or excluded by the amended assumption a,
+the 12b repairs closed; no row needed) in `/var/home/user/temp/agent/reviews/`.
+
+### Section 3: the start time and the time namespace
+
+Defect: field 22 of `/proc/<pid>/stat` is relative to the boot-time offset of the time namespace of the reader, so a recovery in a
+time namespace prepared beforehand read a live launcher's start time differently and took the difference for a reused id.
+This needs no remount, so the owner's exclusion of round 13 does not cover it.
+Measured here (`unshare --user --map-root-user --time --boottime 7200`): the same process read 16018424 outside and 16738423 inside,
+a difference of 720000 ticks for two hours.
+Fix: the launcher line carries the inode of the writer's time namespace (`launcher <pid> <start> <pid ns> <time ns> <path>`); the
+question compares it with the reader's and answers unknown on a difference, when either side cannot be read, and for a line of an
+older version that has none (it still parses, with no time namespace).
+Red then green: `a_recovery_in_another_time_namespace_never_reads_a_live_launcher_as_gone`: a helper in a new user and time namespace
+(same process id, mount and cgroup namespaces) with a two-hour offset reads a different start time for the held launcher (the
+prerequisite, asserted), and both the question and a recovery of a planted journal answer unknown, never gone; the same helper
+without the shift is the control (alive, the start time equal).
+It was red with the time namespace recorded and ignored (`logs/r14-red.log`).
+The test needs `unshare` with permission for a user and time namespace; this host allows it.
+The other tests of the line were updated for the new field.
+
+Other time-relative values: none.
+The boot rule uses the boot id and machine id; the code reads no uptime, `btime` or `CLOCK_BOOTTIME`; the realtime clock used for the
+acknowledgement time is not namespaced.
+Only field 22 depends on the reader's time namespace.
+
+### Section 1: the shim test
+
+`a_run_that_cannot_show_quiescence_stops_the_shim_before_the_users_command` now reads the helper's journal and requires a scope
+record, requires the absence of the weaker-path notice, requires that the armed `ContainmentStopStuck` was consumed (the helper
+writes whether it was), and requires the refusal text of a run that could not be shown empty ("could not be stopped, so it may still
+write the lockfiles"), besides the exit code, the absent sentinel, the kept lock and journal.
+With the fault never armed the test fails (the user's command runs and replaces the helper), shown once with the arming moved aside.
+
+### Result
+
+The coverage map of the contract carries the counts: COUNT tests, COUNT passed, 0 failed, 11 skipped (the `#[ignore]` helper
+entries), for the debug run and the release gate; `lint:clippy` with warnings denied is clean; 16 rows, 16 shown by the map's own
+criterion, none certified.
+Logs in `/var/home/user/temp/agent/cargo-shadow-r10/logs/`: `r14-debug1.log`, `r14-gate1.log`, `r14-clippy2.log`.
+Nothing was published and nothing was merged into main.
+
+## Resume point (round 14, rewritten TIMESTAMP after the gate)
+
+Done: rounds 10 to 14 (the sections above).
+The review inputs of round 14 are `/var/home/user/temp/agent/reviews/cargo-shadow-14*.diff`, cut from `f463a87151`.
 
 Open for the owner: the picks of rounds 8 to 13 stay veto-open as listed in their sections; the first publication needs the owner's
 explicit approval.
 
 Next:
 
-1. The coordinator launches the cross-vendor review of the round 13 diffs against the contract.
+1. The coordinator launches the cross-vendor review of the round 14 diffs against the contract.
 2. Nothing is merged into main and nothing is published.
