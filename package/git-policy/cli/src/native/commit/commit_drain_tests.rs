@@ -15,8 +15,11 @@
 use git_policy_cli::commit_drain::{DRAIN_IN_PROGRESS, DrainAnswer, wait_for_drain};
 use std::time::{Duration, Instant};
 
-/// The longest a test lets a bounded wait run.
+/// The longest a test lets a drain that completes run.
 const TEST_LIMIT: Duration = Duration::from_secs(10);
+
+/// How many times its bound a bounded wait may take in a test (scheduling slack, not a promise of the shipped value).
+const SLACK_FACTOR: u32 = 20;
 
 /// A drain that completes inside the bound is reported as drained, after as many polls as it took.
 #[test]
@@ -36,7 +39,7 @@ fn a_drain_that_never_ends_returns_in_progress_at_the_bound_and_is_not_cancelled
     let mut polls: u32 = 0;
     let answer: DrainAnswer = wait_for_drain(bound, Duration::from_millis(2), &mut || { polls += 1; return false; });
     assert_eq!(answer, DrainAnswer::InProgress);
-    assert!(started.elapsed() >= bound && started.elapsed() < TEST_LIMIT, "{:?}", started.elapsed());
+    assert!(started.elapsed() >= bound && started.elapsed() < bound * SLACK_FACTOR, "{:?}", started.elapsed());
     assert!(polls >= 2, "the caller kept asking until the bound");
     assert_eq!(DRAIN_IN_PROGRESS, "draining, upgrade not applied");
 }

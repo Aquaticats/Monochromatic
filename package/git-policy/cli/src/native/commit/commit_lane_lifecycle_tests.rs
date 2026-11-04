@@ -310,9 +310,11 @@ fn the_transient_unit_runs_the_internal_flusher_entry_and_waits_for_the_start() 
 #[test]
 fn the_real_user_manager_runs_the_flusher_entry_of_the_service_program() {
     use git_policy_cli::commit_flusher_unit::TransientUnitRoute;
-    let probe = std::process::Command::new("systemd-run").args(["--user", "--collect", "--quiet", "--wait", "--", "/bin/true"]).output();
-    if !probe.as_ref().is_ok_and(|output| { return output.status.success(); }) {
-        eprintln!("SKIPPED: no user manager answers systemd-run --user here ({:?})", probe.map(|output| { return output.status; }));
+    let mut probe_command = std::process::Command::new("systemd-run");
+    probe_command.args(["--user", "--collect", "--quiet", "--wait", "--", "/bin/true"]);
+    let probe = git_policy_cli::commit_flusher_unit::run_within(probe_command, FLUSHER_WAIT);
+    if probe.is_err() {
+        eprintln!("SKIPPED: no user manager answers systemd-run --user here ({:?})", probe);
         return;
     }
     let lane: PathBuf = scratch("life-real-manager");
@@ -468,4 +470,25 @@ fn request_order_and_consumption_data_survive_the_seal_and_a_recovery() {
     assert_eq!(recovery.generation, Some(2));
     let bytes: Vec<u8> = read(&state).expect("readable").expect("state").1;
     assert_eq!(LaneDocument::parse(&bytes).expect("a checked document").state(), &carried);
+}
+
+/// The manager's start confirmation is not a worker's readiness: a unit that executes and dies at once is reported as started (the execution
+/// was confirmed), and the receipt stays in the directory for the next sweep. The test records this limit; it is not a promise that the
+/// receipt was served. Skipped without a user manager.
+#[test]
+fn a_unit_that_executes_and_dies_is_reported_started_and_leaves_the_receipt_for_the_next_sweep() {
+    use git_policy_cli::commit_flusher_unit::{ManagerRoute, TransientUnitRoute, run_within};
+    let mut probe_command = std::process::Command::new("systemd-run");
+    probe_command.args(["--user", "--collect", "--quiet", "--wait", "--", "/bin/true"]);
+    if run_within(probe_command, FLUSHER_WAIT).is_err() {
+        eprintln!("SKIPPED: no user manager answers systemd-run --user here");
+        return;
+    }
+    let lane: PathBuf = scratch("life-dies-at-once");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    fs::write(lane.join(RECEIPT_DIR).join(RECEIPT_ID), b"receipt").expect("the receipt");
+    let mut route: TransientUnitRoute = TransientUnitRoute::new(PathBuf::from("systemd-run"), PathBuf::from("/bin/false"));
+    assert!(route.start(&lane).is_ok(), "the program was executed, so the start is confirmed");
+    assert!(lane.join(RECEIPT_DIR).join(RECEIPT_ID).exists(), "the receipt stays for the next sweep");
+    assert!(syncer_pass(&lane).is_ok(), "and the sweep serves it");
 }

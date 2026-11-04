@@ -19,6 +19,8 @@ const CHECKPOINTS: &str = "owner: checkpoints a root that no longer names the it
 const FORCES_ROOT: &str = "owner: forces the root without the item";
 const REMOVES: &str = "owner: removes the saved content";
 const RETIRES: &str = "owner: retires the request and removes its saved content";
+const CHECKS: &str = "owner: reads the current root before the unlink and finds it without the item";
+const RESEALS: &str = "owner: a seal captures the lane and its root names the item again";
 const LOSS: &str = "environment: power is lost";
 const PERSISTS_REMOVAL: &str = "environment: write-back persists the removal of the saved content";
 
@@ -38,7 +40,7 @@ fn the_ordered_procedure_is_green_over_every_schedule() {
 /// Positive control: the green search reaches a removal after the durable replacement root, and a power loss then leaves an eligible root.
 #[test]
 fn the_green_search_reaches_a_removal_after_a_durable_replacement_root() {
-    let done: State = replay(initial(Rules::Ordered), steps, &[AUTHORIZES, APPENDS, FORCES_LINE, CHECKPOINTS, FORCES_ROOT, REMOVES, PERSISTS_REMOVAL]);
+    let done: State = replay(initial(Rules::Ordered), steps, &[AUTHORIZES, APPENDS, FORCES_LINE, CHECKPOINTS, FORCES_ROOT, CHECKS, REMOVES, PERSISTS_REMOVAL]);
     assert!(done.world.durable & GONE != 0 && invariant(&done).is_none());
     let lost: State = replay(done, steps, &[LOSS]);
     assert!(recovery_has_a_root(&lost));
@@ -65,8 +67,43 @@ fn a_removal_on_a_durable_line_alone_leaves_recovery_with_no_eligible_root() {
     assert!(!recovery_has_a_root(&lost));
 }
 
+/// The review's re-retention schedule (step 2, parts A and B): the replacement root is durable, the item is still on disk, a seal captures
+/// the lane and publishes a root that names the item again (reclaiming the replacement), and the unlink then deletes the item.
+#[test]
+fn a_seal_that_names_the_retired_item_again_leaves_recovery_with_no_eligible_root() {
+    let (message, trace) = red(Rules::SealRescansRetired);
+    assert!(message.contains("neither the old root nor a durable replacement root"), "{}", message);
+    assert!(trace.iter().any(|label| { return label == RESEALS; }), "{:?}", trace);
+    let lost: State = replay(
+        initial(Rules::SealRescansRetired),
+        steps,
+        &[AUTHORIZES, APPENDS, FORCES_LINE, CHECKPOINTS, FORCES_ROOT, RESEALS, "environment: write-back persists the root that names the item again", REMOVES, PERSISTS_REMOVAL, LOSS],
+    );
+    assert!(!recovery_has_a_root(&lost));
+}
+
+/// Under the checked rule no seal names the item once its line is appended, so the schedule above does not exist.
+#[test]
+fn under_the_checked_rule_a_seal_after_the_line_does_not_name_the_item() {
+    let after_line: State = replay(initial(Rules::Ordered), steps, &[AUTHORIZES, APPENDS, FORCES_LINE, CHECKPOINTS]);
+    assert!(steps(&after_line).iter().all(|(label, _)| { return label != RESEALS; }));
+    let before_line: State = replay(initial(Rules::Ordered), steps, &[AUTHORIZES]);
+    assert!(steps(&before_line).iter().all(|(label, _)| { return label != RESEALS; }), "the root without the item does not exist yet, so there is nothing to re-adopt over");
+}
+
+/// A recheck of the current root before the unlink is not the exclusion: the seal can publish between the read and the unlink, so the
+/// control with only the recheck is red too.
+#[test]
+fn a_recheck_alone_does_not_close_the_race_with_a_seal() {
+    let (message, trace) = red(Rules::RecheckOnly);
+    assert!(message.contains("neither the old root nor a durable replacement root"), "{}", message);
+    assert!(trace.iter().any(|label| { return label == RESEALS; }), "{:?}", trace);
+}
+
 /// A replacement root without the ledger proof is not eligible either: the control that removes the content on the durable root alone,
-/// whose line was never forced, is red with a lost-content schedule.
+/// whose line was never forced, is red with a lost-content schedule. It is a combined weakening (it changes when the root may be made and
+/// when the content may be removed); each of those two guards is safety-equivalent to the model only individually, because the other still
+/// holds, which is not evidence that either ordering is unnecessary.
 #[test]
 fn a_replacement_root_without_its_ledger_proof_does_not_make_the_removal_safe() {
     let (message, trace) = red(Rules::RemovesOnRootWithoutLineProof);

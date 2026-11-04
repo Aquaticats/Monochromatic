@@ -24,6 +24,8 @@ pub const LINE: u32 = 1;
 pub const GONE: u32 = 2;
 /// The root document that no longer names the item.
 pub const DROPPED: u32 = 4;
+/// A root, written by a seal that captured the lane, that names the item again (re-retention).
+pub const RETAINED: u32 = 8;
 
 /// How many power losses the search may inject.
 pub const MAX_LOSSES: u8 = 1;
@@ -35,8 +37,16 @@ pub enum Rules {
     Ordered,
     /// Control: the content is removed once the line is durable, before the root without the item is (the first version's rule).
     RemovesBeforeRootDurable,
-    /// Control: the root without the item is checkpointed and made durable although the line is not, and the content is removed on that root alone.
+    /// Control, a combined weakening (it changes both when the root without the item may be made and when the content may be removed): the
+    /// root without the item is checkpointed and made durable although the line is not, and the content is removed on that root alone.
     RemovesOnRootWithoutLineProof,
+    /// Control (review of step 2): a seal captures everything the lane holds, so it names the retired item again; the unlink then deletes
+    /// content a root names, and no earlier root is left.
+    SealRescansRetired,
+    /// Control: the seal still rescans, but the unlink first reads the current root and refuses when it names the item. A check-then-act race
+    /// remains (the seal publishes between the read and the unlink), so this is red too: the exclusion has to be the rule that a seal never
+    /// captures an item whose `disposed` line exists.
+    RecheckOnly,
     /// Control: retirement of the request removes its saved content, with no authorization from the person.
     RetirementRemoves,
 }
@@ -52,27 +62,37 @@ pub struct State {
     pub authorized: bool,
     /// The owner has been told of the authorization (the command's request reached the lane before a power loss ended it).
     pub requested: bool,
+    /// The owner read the current root before the unlink and found it without the item (the recheck of a stale token); a read, not a hold.
+    pub checked: bool,
     /// Power losses so far.
     pub losses: u8,
 }
 
 /// The start state: the item is saved, the root names it, nothing is authorized.
 pub fn initial(rules: Rules) -> State {
-    return State { rules, world: World { visible: 0, durable: 0 }, authorized: false, requested: false, losses: 0 };
+    return State { rules, world: World { visible: 0, durable: 0 }, authorized: false, requested: false, checked: false, losses: 0 };
 }
 
 /// Whether recovery after a power loss has an eligible root: the old root is eligible only while the item's file exists, and the root
 /// without the item only when it is durable together with the ledger prefix its closure holds.
 pub fn recovery_has_a_root(state: &State) -> bool {
-    let old_root_eligible: bool = state.world.durable & GONE == 0;
-    let new_root_eligible: bool = state.world.durable & DROPPED != 0 && state.world.durable & LINE != 0;
-    return old_root_eligible || new_root_eligible;
+    let item_present: bool = state.world.durable & GONE == 0;
+    // The newest durable root decides, and a seal reclaims the root it replaces: a root that names the item again is eligible only while the
+    // item exists; the replacement root without the item is eligible when its ledger proof is durable too; otherwise the root is the
+    // original one, which names the item.
+    if state.world.durable & RETAINED != 0 {
+        return item_present;
+    }
+    if state.world.durable & DROPPED != 0 && state.world.durable & LINE != 0 {
+        return true;
+    }
+    return item_present;
 }
 
 /// Every step enabled in `state`.
 pub fn steps(state: &State) -> Vec<(String, State)> {
     let mut found: Vec<(String, State)> = Vec::new();
-    for (fact, name) in [(LINE, "the disposed line"), (GONE, "the removal of the saved content"), (DROPPED, "the root without the item")] {
+    for (fact, name) in [(LINE, "the disposed line"), (GONE, "the removal of the saved content"), (DROPPED, "the root without the item"), (RETAINED, "the root that names the item again")] {
         if state.world.visible & fact != 0 && state.world.durable & fact == 0 {
             let mut after: State = state.clone();
             after.world = sync(after.world, fact);
@@ -113,11 +133,35 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.world = sync(after.world, DROPPED);
         push_step(&mut found, "owner: forces the root without the item", after);
     }
-    let removal_ready: bool = match state.rules {
-        Rules::Ordered | Rules::RetirementRemoves => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
+    // A seal captures the lane. The checked rule skips an item whose `disposed` line exists (the line is appended before the replacement
+    // root, so from then on no seal names the item); the controls do not.
+    let seal_sees_the_item: bool = match state.rules {
+        Rules::Ordered | Rules::RetirementRemoves | Rules::RemovesBeforeRootDurable | Rules::RemovesOnRootWithoutLineProof => state.world.visible & LINE == 0,
+        Rules::SealRescansRetired | Rules::RecheckOnly => true,
+    };
+    if seal_sees_the_item && state.world.visible & GONE == 0 && state.world.visible & DROPPED != 0 && state.world.visible & RETAINED == 0 {
+        let mut after: State = state.clone();
+        after.world = make_visible(after.world, RETAINED);
+        push_step(&mut found, "owner: a seal captures the lane and its root names the item again", after);
+    }
+    let recheck: bool = matches!(state.rules, Rules::Ordered | Rules::RetirementRemoves | Rules::RecheckOnly);
+    let removal_gates: bool = match state.rules {
+        Rules::Ordered | Rules::RetirementRemoves | Rules::SealRescansRetired | Rules::RecheckOnly => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
         Rules::RemovesBeforeRootDurable => state.world.durable & LINE != 0,
         Rules::RemovesOnRootWithoutLineProof => state.world.durable & DROPPED != 0,
     };
+    // The recheck is a read of the current root at one moment; the unlink is a later step, and a seal can publish between the two.
+    if recheck && removal_gates && !state.checked && state.world.visible & RETAINED == 0 && state.world.visible & GONE == 0 {
+        let mut after: State = state.clone();
+        after.checked = true;
+        push_step(&mut found, "owner: reads the current root before the unlink and finds it without the item", after);
+    }
+    let removal_ready: bool = (!recheck || state.checked)
+        && match state.rules {
+            Rules::Ordered | Rules::RetirementRemoves | Rules::SealRescansRetired | Rules::RecheckOnly => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
+            Rules::RemovesBeforeRootDurable => state.world.durable & LINE != 0,
+            Rules::RemovesOnRootWithoutLineProof => state.world.durable & DROPPED != 0,
+        };
     if removal_ready && state.world.visible & GONE == 0 {
         let mut after: State = state.clone();
         after.world = make_visible(after.world, GONE);
