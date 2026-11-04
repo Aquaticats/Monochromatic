@@ -207,3 +207,47 @@ fn a_repeated_item_asks_nothing_and_a_missing_log_is_created() {
     assert_eq!(text.matches(&"0123456789abcdefff"[..SHORT_SHA_LENGTH]).count(), 1, "the repeated item added nothing");
     remove(directory.as_path());
 }
+
+/// A job the runner stopped waiting for is outstanding until it ends, and no second job starts behind it (sol-2, B): the second is
+/// refused without a thread, and the runner takes work again once the first has ended.
+#[test]
+fn no_second_job_starts_while_a_job_the_runner_stopped_waiting_for_is_still_running() {
+    let (release, blocked) = mpsc::channel::<()>();
+    let first: Contained<u8> = run_contained(move || {
+        let _ = blocked.recv();
+        return 1_u8;
+    }, Duration::from_millis(300));
+    assert_eq!(first, Contained::CeilingReached(Duration::from_millis(300)));
+    assert_eq!(outstanding_reviews(), 1);
+    let started: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&started);
+    let second: Contained<u8> = run_contained(move || {
+        flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        return 2_u8;
+    }, Duration::from_secs(60));
+    assert_eq!(second, Contained::Busy);
+    assert!(!started.load(std::sync::atomic::Ordering::SeqCst), "the refused job never ran");
+    drop(release);
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while outstanding_reviews() > 0 {
+        assert!(waiting_since.elapsed() < Duration::from_secs(20), "the first job never ended");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(run_contained(|| return 3_u8, Duration::from_secs(60)), Contained::Finished(3));
+}
+
+/// A job that ends just as the runner gives up is not left counted as outstanding: whichever side is first, the count returns to
+/// zero and the runner takes work.
+#[test]
+fn a_job_that_ends_as_the_runner_gives_up_leaves_nothing_outstanding() {
+    for round in 0..200_u64 {
+        let ceiling: Duration = Duration::from_micros(round * 20);
+        let outcome: Contained<u8> = run_contained(|| return 1_u8, ceiling);
+        assert!(matches!(outcome, Contained::Finished(1) | Contained::CeilingReached(_)), "{outcome:?}");
+        let waiting_since: std::time::Instant = std::time::Instant::now();
+        while outstanding_reviews() > 0 {
+            assert!(waiting_since.elapsed() < Duration::from_secs(20), "round {round}: a count was left behind");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+}

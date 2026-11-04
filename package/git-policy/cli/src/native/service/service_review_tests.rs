@@ -6,6 +6,7 @@ use crate::standards_review_input::{TRACKED_LOG_RELATIVE, shared_log_path};
 use crate::standards_review_mock::{Answer, Mock, SILENT_AT_MOST, http_reply};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::work_item::WorkKind;
+use std::os::unix::fs::OpenOptionsExt;
 
 /// A stand-in credential.
 const KEY: &str = "test-key-not-a-secret";
@@ -313,4 +314,47 @@ fn a_review_stopped_at_the_ceiling_names_the_review_the_ceiling_and_the_command(
 fn the_review_ceiling_is_past_the_call_ceiling_and_the_quiet_window() {
     assert!(crate::wait_ceilings::REVIEW_CEILING > crate::wait_ceilings::REVIEW_CALL_CEILING);
     assert!(crate::wait_ceilings::REVIEW_CALL_CEILING > CALL_QUIET_WINDOW);
+}
+
+/// A review whose log write stalls (sol-2, B): the log is a named pipe that nobody reads, so the review blocks at the log. The
+/// service stops waiting for it at the ceiling and fails it; a second item is refused and starts no thread behind the stalled one;
+/// when the pipe is read the stalled review ends, and the same item, reviewed again, is done.
+#[test]
+fn a_stalled_log_blocks_later_reviews_without_piling_threads_and_the_item_is_reviewed_again_after() {
+    let fixture: Fixture = fixture_with_log("review-log-stall");
+    let first: WorkItem = commit(&fixture, &[("src/a.rs", "fn a() {}\n")], "feat(a): add a");
+    let second: WorkItem = commit(&fixture, &[("src/b.rs", "fn b() {}\n")], "feat(b): add b");
+    let pipe: PathBuf = fixture.parent.join("stalled-log");
+    let made = std::ffi::CString::new(pipe.to_str().expect("UTF-8")).expect("no NUL");
+    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode, and touches no memory.
+    assert_eq!(unsafe { libc::mkfifo(made.as_ptr(), 0o600) }, 0, "the named pipe");
+    let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
+    let mut stalled: ReviewOptions = options(&first, mock.url.as_str());
+    stalled.log_path = pipe.clone();
+    let ceiling: Duration = Duration::from_millis(700);
+    let verdict: Verdict = review_item_within(&git_context(), &first, stalled, ceiling);
+    let Verdict::Failed(reason) = verdict else { panic!("{verdict:?}") };
+    assert!(reason.contains(&first.oid) && reason.contains("SHADOW_REVIEW_SHA"), "{reason}");
+    assert_eq!(crate::standards_review_run::outstanding_reviews(), 1, "the stalled review is tracked");
+    let refused: Verdict = review_item_within(&git_context(), &second, options(&second, mock.url.as_str()), ceiling);
+    let Verdict::Failed(busy) = refused else { panic!("{refused:?}") };
+    assert!(busy.contains("was not started") && busy.contains(&format!("SHADOW_REVIEW_SHA={}", second.oid)), "{busy}");
+    assert_eq!(crate::standards_review_run::outstanding_reviews(), 1, "no thread was added behind the stalled one");
+    assert_eq!(log_of(&fixture), "", "nothing was written for the refused item");
+    // The pipe is replaced at its path by nothing (the review then finds no log and makes one), and a writer is opened on the pipe by
+    // its other name, which wakes the stalled review's open of it, so the review runs on and ends.
+    let other_name: PathBuf = fixture.parent.join("stalled-log-other-name");
+    std::fs::hard_link(&pipe, &other_name).expect("a second name for the pipe");
+    std::fs::remove_file(&pipe).expect("the pipe leaves its path");
+    let waiting_since: std::time::Instant = std::time::Instant::now();
+    while crate::standards_review_run::outstanding_reviews() > 0 {
+        assert!(waiting_since.elapsed() < Duration::from_secs(30), "the stalled review never ended");
+        let _poked = std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(other_name.as_path());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let again: Verdict = review_item_within(&git_context(), &first, options(&first, mock.url.as_str()), Duration::from_secs(60));
+    assert_eq!(again, Verdict::Done, "the same item is reviewed once the earlier review has ended");
+    assert!(log_of(&fixture).contains(&first.oid[..crate::standards_review_entry::SHORT_SHA_LENGTH]));
+    mock.finish();
+    remove(fixture.parent.as_path());
 }

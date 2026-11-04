@@ -135,6 +135,11 @@ fn wall_clock_millis() -> u64 {
 /// await reviewItem(context, item, options)
 /// ```
 pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions) -> Verdict {
+    return review_item_within(context, item, options, crate::wait_ceilings::REVIEW_CEILING);
+}
+
+/// `review_item` where the whole review is waited for at most `ceiling`; a control shortens it.
+pub fn review_item_within(context: &GitContext, item: &WorkItem, options: ReviewOptions, ceiling: Duration) -> Verdict {
     if !has_shadow_log(Path::new(item.repository.as_str())) {
         return Verdict::Done;
     }
@@ -142,13 +147,31 @@ pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions
     // item's Git directory for its input file, as the landing sets it for each request.
     let owned_context: GitContext = GitContext { common_dir: Some(PathBuf::from(item.git_dir.as_str())), ..context.clone() };
     let owned: WorkItem = item.clone();
-    let outcome: Contained<ReviewOutcome> = run_contained(move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); }, crate::wait_ceilings::REVIEW_CEILING);
+    let outcome: Contained<ReviewOutcome> = run_contained(move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); }, ceiling);
     return match outcome {
         Contained::Panicked => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
-        Contained::CeilingReached(ceiling) => Verdict::Failed(ceiling_reason(item.oid.as_str(), ceiling)),
+        Contained::CeilingReached(reached) => Verdict::Failed(ceiling_reason(item.oid.as_str(), reached)),
+        Contained::Busy => Verdict::Failed(busy_reason(item.oid.as_str())),
         Contained::Finished(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message)) => Verdict::Failed(message),
         Contained::Finished(ReviewOutcome::NoEntry | ReviewOutcome::Skipped | ReviewOutcome::Reviewed(_) | ReviewOutcome::AlreadyLogged) => Verdict::Done,
     };
+}
+
+/// What:
+///  The reason of a review that was not started because an earlier one, stopped at its ceiling, is still running.
+/// Why:
+///   The earlier review may hold the review log, and a second one would only queue behind it (sol-2, B); this one is refused with
+///  the command that does it when the earlier one has ended, and the service starts no further thread meanwhile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the standards review of ${oid} was not started because an earlier review is still running; run SHADOW_REVIEW_SHA=${oid} mise run shadow-review`
+/// ```
+pub fn busy_reason(oid: &str) -> String {
+    return format!(
+        "the standards review of {oid} was not started because an earlier review, stopped at its ceiling, is still running and may hold the \
+         review log; review it again, once that review has ended, with `SHADOW_REVIEW_SHA={oid} mise run shadow-review`"
+    );
 }
 
 /// What:

@@ -552,7 +552,11 @@ fn a_branch_write_that_outlasts_the_step_ceiling_is_not_ended() {
     let world: World = world("service-land-branch-write-not-ended");
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
+    // The write outlasts the bound of its class and the extra wait together (3 s and 1 s against 6 s), and runs on the landing
+    // thread, which waits for it without a bound; a command that left it running would have given up at 4 s.
     context.git.real_git = late_reference_git(&world, SHORT_STEP_CEILING.as_secs() * 2);
+    crate::service_busy::use_on_this_thread(crate::service_busy::LandingBoard::new(world.root.join("busy-journal"), crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER));
+    crate::transaction_git::EXTRA_WAIT_FOR_THIS_THREAD.with(|cell| { cell.set(Some(std::time::Duration::from_secs(1))); });
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
     let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
     let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });

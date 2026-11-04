@@ -61,7 +61,7 @@ pub const PLUMBING_STEP_CEILING: Duration = Duration::from_secs(2 * 60);
 ///  (`objects_ms`). Ten minutes is 2.4 times the longest preparation and below `ANSWER_CEILING`.
 pub const OBJECT_STEP_CEILING: Duration = Duration::from_secs(10 * 60);
 
-/// How long a write that the wrapper never ends (`transaction_git.rs`, `cannot_run_twice`: the branch write above all) runs before
+/// How long a write that the wrapper never ends (`transaction_git.rs`, `may_be_ended`: the branch write above all) runs before
 ///  the commit service tells the clients queued behind it what it is stuck in, and before it lets a queued client be withdrawn
 ///  while the landing thread is inside it (`service_busy.rs`). This is a notice threshold, not a bound: nothing ends the write.
 ///  Measured: the longest of 2,093 reference updates in the service journal (`answered` lines, `ref_ms`, 2026-11-02T04:01:38-05:00

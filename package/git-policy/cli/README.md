@@ -1369,8 +1369,10 @@ the owner's criterion, decided by cutting each step at every mutating system cal
 (the owner, 2026-11-04: "Never cut a branch write (Recommended)", whose option read "Steps that can safely run twice keep their
 ceilings; the branch write is never ended. Your command still returns at its bound with "result not yet known" and the `git log -1`
 and side-ref hint. Con: a truly hung write keeps the service busy, and later commits fail at their own 20-minute ceiling with an
-error naming it."). A command that started such a step stops waiting at its bound plus 7 seconds (`SHORT_EXTRA_WAIT`, the owner's
-"7 s (Recommended)") and exits non-zero saying the result is not known, naming the step and what to check; the step is left running.
+error naming it."). A command that started such a step stops waiting at the step's class bound plus 7 seconds (`SHORT_EXTRA_WAIT`; the owner's
+"Class ceiling + 7 s (Recommended)" and "7 s (Recommended)") and exits non-zero saying the result is not known, naming the step and
+what to check; the step is left running, with its output in files that outlive the command. Only the exact forms the cut experiment
+ran (the table in `doc/planning/cli-git-no-unbounded-waits.md`) keep a ceiling; any other form of a writing step has none.
 The commit service's landing thread waits for it, and a commit that waits behind it is told what the service is stuck in after a
 minute (`NEVER_ENDED_STEP_SLOW_AFTER`) and is withdrawn at its own `ANSWER_CEILING` with an error that names the write and the way out
 (`journalctl`, and a restart of the service when no program uses the repository). The commit inside the stuck write waits 7 seconds

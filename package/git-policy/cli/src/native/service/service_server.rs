@@ -26,7 +26,7 @@ use crate::claim_time::ClaimTime;
 use crate::service_retry::RetrySchedule;
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
 use crate::service_work::{GitHandlers, Wake, run_round};
-use crate::service_busy::{EarlyAnswer, LandingBoard};
+use crate::service_busy::{EarlyAnswer, GroupAdmission, LandingBoard};
 use crate::service_reply::{Reply, write_until_answered_noting};
 use crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER;
 use crate::service_protocol::{
@@ -297,16 +297,23 @@ const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
 fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>) -> impl FnMut() -> Option<ServiceMessage> + 'a {
-    let mut last: Option<(String, bool)> = None;
+    let mut last: Option<String> = None;
     return move || {
+        // A client whose own request is in the group being landed is told so when the write starts, because its commit may be on
+        // the branch already; the key changes when the longer words of a minute's stuck write replace the first ones.
+        if let Some((key, words)) = request.and_then(|id| { return board.inside_notice(id); }) {
+            if last.as_deref() == Some(key.as_str()) {
+                return None;
+            }
+            last = Some(key);
+            return Some(ServiceMessage::InsideWrite { text: words });
+        }
         let words: String = board.describe()?;
-        // A client whose own request is in the group being landed is told so, because its commit may be on the branch already.
-        let inside: bool = request.is_some_and(|id| { return board.is_in_flight(id); });
-        if last.as_ref().is_some_and(|(sent, was_inside)| { return *sent == words && *was_inside == inside; }) {
+        if last.as_deref() == Some(words.as_str()) {
             return None;
         }
-        last = Some((words.clone(), inside));
-        return Some(if inside { ServiceMessage::InsideWrite { text: words } } else { ServiceMessage::Waiting { text: words } });
+        last = Some(words.clone());
+        return Some(ServiceMessage::Waiting { text: words });
     };
 }
 
@@ -356,6 +363,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             //  withdrawn here (`service_busy.rs`); otherwise the landing thread answers between two landings, so the answer is
             //  either that the commit landed or that it never will, and meanwhile this thread keeps the client told that the
             //  service lives.
+            let withdrawing: String = id.clone();
             match board.withdraw_early(id.as_str()) {
                 EarlyAnswer::Landed(commit) => send(&stream, &ServiceMessage::Landed { id, commit, already: true }),
                 EarlyAnswer::Withdrawn(words) => {
@@ -365,7 +373,9 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
                 EarlyAnswer::Queued => {
                     let (reply, messages) = Reply::new();
                     let _queued = queue.send(Job::Withdraw(id, reply));
-                    write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, None));
+                    // The connection keeps the identity of the request, so a client that withdrew too early to have been told it is
+                    // inside the write is told now.
+                    write_until_answered_noting(&stream, &messages, HEARTBEAT_EVERY, &mut stuck_notice(board, Some(withdrawing.as_str())));
                 }
             }
         }
@@ -779,11 +789,18 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             // A request whose client was answered "withdrawn" while this thread was stuck in a write is dropped here, and the
             //  rest are marked as being landed, under one lock (`service_busy.rs`).
             let ids: Vec<String> = queued_group.iter().map(|(request, _, _)| { return request.id.clone(); }).collect();
-            let dropped: Vec<String> = board.begin_group(ids.as_slice());
-            for id in &dropped {
+            let admission: GroupAdmission = board.begin_group(ids.as_slice());
+            for id in &admission.dropped {
                 crate::service_log!("dropped the request {id} that its client withdrew while the service was stuck in a write");
             }
-            let group: Vec<Queued> = queued_group.into_iter().filter(|(request, _, _)| { return !dropped.contains(&request.id); }).collect();
+            for id in &admission.unavailable {
+                crate::service_error!("the request {id} could not be admitted to its group (the record of the landing thread cannot be written), so it is answered with a failure and not landed");
+            }
+            let (unavailable, admitted): (Vec<Queued>, Vec<Queued>) = queued_group.into_iter().filter(|(request, _, _)| { return !admission.dropped.contains(&request.id); }).partition(|(request, _, _)| { return admission.unavailable.contains(&request.id); });
+            for (request, stream, _) in &unavailable {
+                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Unavailable });
+            }
+            let group: Vec<Queued> = admitted;
             if group.is_empty() {
                 board.end_group(ids.as_slice());
                 continue;

@@ -546,52 +546,160 @@ fn step_subject(request: &GitRequest) -> String {
     );
 }
 
+/// Steps that change nothing, or that write only objects nothing refers to, and that `RERUNNABLE` does not name. A second run of an
+///  object writer writes the same bytes and a partial result is a loose object or a temporary pack that no reference names, so
+///  ending one costs nothing. Only the name is judged: none of these steps writes a reference, the index, the worktree or the
+///  configuration whatever its options.
+const READS_AND_OBJECT_WRITERS: [&str; 16] = [
+    "rev-list",
+    "merge-base",
+    "log",
+    "ls-tree",
+    "status",
+    "var",
+    "diff-files",
+    "check-attr",
+    "check-ignore",
+    "stripspace",
+    "fmt-merge-msg",
+    "show-ref",
+    "name-rev",
+    "commit-tree",
+    "fast-import",
+    "mktree",
+];
+
+/// The words of a request after its subcommand, sorted into the options before a `--`, the other words before it, and the words
+///  after it. Only options that a proven form lists are accepted, so no option here takes a value the next word could be mistaken
+///  for.
+struct Words<'a> {
+    /// The words that start with a hyphen, before any `--`.
+    options: Vec<&'a str>,
+    /// The other words before any `--`.
+    before: Vec<&'a str>,
+    /// The words after a `--`, when there was one.
+    after: Option<Vec<&'a str>>,
+}
+
+impl<'a> Words<'a> {
+    /// Sort `words`.
+    fn of(words: &'a [String]) -> Self {
+        let mut sorted: Words<'a> = Words { options: Vec::new(), before: Vec::new(), after: None };
+        for word in words.iter().map(String::as_str) {
+            match sorted.after.as_mut() {
+                Some(after) => after.push(word),
+                None if word == "--" => sorted.after = Some(Vec::new()),
+                None if word.starts_with('-') && word.len() > 1 => sorted.options.push(word),
+                None => sorted.before.push(word),
+            }
+        }
+        return sorted;
+    }
+
+    /// Whether every option is one of `allowed`.
+    fn only_options(&self, allowed: &[&str]) -> bool {
+        return self.options.iter().all(|option| { return allowed.contains(option); });
+    }
+
+    /// Whether the option `wanted` is there.
+    fn has(&self, wanted: &str) -> bool {
+        return self.options.contains(&wanted);
+    }
+}
+
+/// Whether `word` names a side ref the wrapper makes for itself: `refs/cli-git/kept/<number>` or
+///  `refs/worktree/cli-git-service/<number>`. Assumptions, written down because the classification rests on them: the wrapper makes
+///  these refs as plain refs and never as symbolic refs, nothing configures a reflog for them (`core.logAllRefUpdates=always` would),
+///  and the number is all digits, so no `..` and no further path can stand in it.
+fn is_side_ref(word: &str) -> bool {
+    return ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"]
+        .iter()
+        .any(|prefix| { return word.strip_prefix(prefix).is_some_and(|number| { return !number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); }); }); });
+}
+
+/// Whether `word` is an object name of full length in hexadecimal.
+fn is_object_id(word: &str) -> bool {
+    return matches!(word.len(), 40 | 64) && word.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
+}
+
 /// What:
-///  Whether the request's step is one that cannot be run twice: it changes the repository in place and, cut part way and run again,
-///  did not come out in the state an uncut run leaves.
+///  Whether the request's step is one the cut experiment ran twice to the same state, in the exact form it ran.
 /// Why:
 ///   The owner's criterion (2026-11-04, "Never cut a branch write (Recommended)"): "Steps that can safely run twice keep their
 ///  ceilings". Decided by experiment and not by reading (`doc/planning/cli-git-no-unbounded-waits.md`, "The cut experiment"): each
-///  form below was ended with SIGKILL and with SIGTERM at every mutating system call of its run on a throwaway repository, the lock
+///  form was ended with SIGKILL and with SIGTERM at every mutating system call of its run on a throwaway repository, the lock
 ///  files a killed Git leaves were removed as the wrapper's sweep removes them, the step was run again, and the refs, reflogs,
 ///  index, worktree, stash list, configuration and every file of the Git directory were compared with an uncut run's.
-///  Identical every time, and so ended at the ceiling of their class: `update-ref` of a ref under `refs/cli-git/` or
-///  `refs/worktree/cli-git-service/` (set, or delete one), `stash list`, `clean`, `read-tree --reset`, `update-index` with
-///  `--refresh`, `--index-info` or `--cacheinfo`, `add`, `checkout-index`, `restore`, `reset <commit> -- <paths>`, and `config`
-///  writes. Different at some cut, and so never ended: `update-ref` of anything else (a branch has a reflog, which a second run
-///  doubles, and a compare-and-swap or a transaction of two refs fails or leaves the scratch ref), `stash store`, `merge`,
-///  `reset --hard`, `reset --soft`, `read-tree -m`, `checkout` and `switch`. A form no experiment ran is counted with the
-///  different ones, because data is lost by guessing wrong and a wait is not. Requests `may_be_rerun` accepts, the readers, and
-///  the writers of unreferenced objects (`commit-tree`, `fast-import`, `mktree`) are not in question and are ended.
+///  This is a whitelist of those forms, parsed by their options and words (sol-1: a rule by the name of the step ended
+///  `config --add`, `stash -m list` and `update-ref --create-reflog`, which are not the forms that were run): `update-ref` set or delete
+///  of one of the wrapper's own side refs, `stash list --format=%H`, `clean --force -d`, `read-tree --reset -u <tree>`, `update-index`
+///  with `--refresh`, with `--index-info` (and `-z`) or with `--add --cacheinfo <triple>`, `add --update` or `add --all` with
+///  optional pathspecs, `checkout-index --all --force`, `restore` with `--staged`, `--worktree`, `--source=` and paths after `--`,
+///  `reset [--quiet] <commit> -- <paths>`, and `config [--local] <key> <value>`. The experiment ran these on Git 2.56.0 with
+///  `core.fsync=none`, the files ref backend, no hooks and no concurrent writer.
+///  Any other form of any of them, and any other step, is not proven and has no ceiling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// !mayBeRerun(request) && CUT_EXPERIMENT_DIFFERED.has(formOf(request))
+/// PROVEN_FORMS.some((form) => form.matches(parse(subcommand, words)))
 /// ```
-pub(crate) fn cannot_run_twice(request: &GitRequest) -> bool {
+fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
+    let words: Words<'_> = Words::of(rest);
+    let no_paths = words.after.is_none();
+    return match name {
+        "update-ref" => {
+            let plain: bool = words.after.is_none() && words.only_options(&["-d"]);
+            let delete: bool = words.has("-d") && words.before.len() == 1 && is_side_ref(words.before[0]);
+            let set: bool = !words.has("-d") && words.before.len() == 2 && is_side_ref(words.before[0]) && is_object_id(words.before[1]);
+            plain && (delete || set)
+        }
+        "stash" => rest.first().is_some_and(|first| { return first == "list"; }) && rest.len() == 2 && rest[1] == "--format=%H",
+        "clean" => no_paths && words.before.is_empty() && words.only_options(&["--force", "-d"]) && words.has("--force") && words.has("-d"),
+        "read-tree" => no_paths && words.before.len() == 1 && words.only_options(&["--reset", "-u"]) && words.has("--reset") && words.has("-u"),
+        "update-index" => {
+            let refresh: bool = no_paths && words.before.is_empty() && words.options == ["--refresh"];
+            let index_info: bool = no_paths && words.before.is_empty() && words.has("--index-info") && words.only_options(&["--index-info", "-z"]);
+            let cache_info: bool = no_paths && words.before.len() == 1 && words.only_options(&["--add", "--cacheinfo"]) && words.has("--add") && words.has("--cacheinfo");
+            refresh || index_info || cache_info
+        }
+        "add" => {
+            let one_of: usize = ["--update", "-u", "--all", "-A"].iter().filter(|option| { return words.has(option); }).count();
+            words.only_options(&["--update", "-u", "--all", "-A"]) && one_of == 1
+        }
+        "checkout-index" => no_paths && words.before.is_empty() && words.only_options(&["--all", "-a", "--force", "-f"]) && (words.has("--all") || words.has("-a")) && (words.has("--force") || words.has("-f")),
+        "restore" => {
+            let options_known: bool = words.options.iter().all(|option| { return matches!(*option, "--staged" | "--worktree" | "--quiet" | "-q") || option.starts_with("--source="); });
+            options_known && words.before.is_empty() && words.after.as_ref().is_some_and(|paths| { return !paths.is_empty(); })
+        }
+        "reset" => words.only_options(&["--quiet", "-q"]) && words.before.len() == 1 && words.after.as_ref().is_some_and(|paths| { return !paths.is_empty(); }),
+        "config" => no_paths && words.only_options(&["--local"]) && words.before.len() == 2,
+        _ => false,
+    };
+}
+
+/// What:
+///  Whether the request's step may be ended at a ceiling: it can be run twice, by the allow-list `may_be_rerun`, or it only reads
+///  or writes unreferenced objects, or it is a proven form.
+/// Why:
+///   Anything else has no ceiling, because data is lost by guessing wrong and a wait is not (the coordinator's reading of the owner's
+///  criterion): the commit service's landing thread waits for it, and any other command stops waiting and leaves it running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mayBeRerun(request) || READS_AND_OBJECT_WRITERS.includes(name) || isProvenToRunTwice(name, words)
+/// ```
+pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
     if may_be_rerun(request) {
-        return false;
+        return true;
     }
     let Some((position, name)) = subcommand_of(request.arguments.as_slice()) else {
         return false;
     };
+    if READS_AND_OBJECT_WRITERS.contains(&name.as_str()) {
+        return true;
+    }
     let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
-    let has = |flag: &str| -> bool { return rest.iter().any(|word| { return word == flag; }); };
-    let positional: Vec<&str> = rest.iter().map(String::as_str).filter(|word| { return !word.starts_with('-'); }).collect();
-    let side_ref = |reference: &str| -> bool { return reference.starts_with("refs/cli-git/") || reference.starts_with("refs/worktree/cli-git-service/"); };
-    return match name.as_str() {
-        "update-ref" => {
-            let plain_delete: bool = has("-d") && positional.len() == 1 && side_ref(positional[0]);
-            let plain_set: bool = !has("-d") && !has("--stdin") && positional.len() == 2 && side_ref(positional[0]);
-            !(plain_delete || plain_set)
-        }
-        "stash" => !positional.first().is_some_and(|word| { return *word == "list"; }),
-        "merge" | "checkout" | "switch" => true,
-        "reset" => has("--hard") || has("--soft") || has("--merge") || has("--keep") || !has("--"),
-        "read-tree" => !has("--reset") || has("-m"),
-        "update-index" => !(has("--refresh") || has("--index-info") || has("--cacheinfo")),
-        _ => false,
-    };
+    return is_proven_to_run_twice(name.as_str(), rest.as_slice());
 }
 
 /// What:
@@ -616,7 +724,7 @@ fn step_bound(request: &GitRequest) -> StepBound {
         ChildClass::Plumbing => PLUMBING_STEP_CEILING,
         ChildClass::Object => OBJECT_STEP_CEILING,
     });
-    if !cannot_run_twice(request) {
+    if may_be_ended(request) {
         return StepBound::EndAt(class_ceiling);
     }
     if crate::service_busy::on_landing_thread() {
