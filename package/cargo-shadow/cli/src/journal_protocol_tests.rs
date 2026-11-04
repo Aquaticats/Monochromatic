@@ -1322,8 +1322,59 @@ fn a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named() {
     assert!(shown.contains("Displaced"), "a read-only file system was reported as settled: {shown}");
     assert!(!names_of_inode(other.path(), displaced).is_empty(), "the displaced inode lost its last name");
     assert_eq!(fs::read_to_string(&other_path).expect("the live file"), "new text", "the replacement is not live");
-    let replacement: u64 = fs::metadata(&other_path).expect("examines").ino();
-    assert!(names_of_inode(other.path(), replacement).contains(&other_path), "the replacement inode has no name");
+    // The replacement inode is the one captured at the exchange (not read from the live path afterwards, which would only show that
+    // whatever is live is named where it is): a faulty cleanup that replaced it with a fresh inode of the same text would pass the
+    // latter and fail this (certification, second pass).
+    let captured: Cell<Option<u64>> = Cell::new(None);
+    let capture = |live: &Path| { captured.set(Some(fs::metadata(live).expect("examines the live path at the exchange").ino())); };
+    let third = repository("expected");
+    let third_path = third.path().join(CRATE_DIR).join("Cargo.lock");
+    let third_displaced: u64 = fs::metadata(&third_path).expect("examines").ino();
+    let _ = replace_with_seams(&third_path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &Seams { between: &none, after_exchange: &capture, swap: &swap, link: &read_only, sync_file: &real_sync_file, sync_dir: &real_sync_dir });
+    let replacement: u64 = captured.get().expect("the exchange was reached");
+    assert_ne!(replacement, third_displaced, "the exchange put the displaced inode back");
+    assert_eq!(fs::metadata(&third_path).expect("examines").ino(), replacement, "the live path holds another inode than the one exchanged in");
+    assert!(names_of_inode(third.path(), replacement).contains(&third_path), "the replacement inode that was live lost its name");
+    assert!(!names_of_inode(third.path(), third_displaced).is_empty(), "the displaced inode lost its last name");
+}
+
+/// Acceptance row R2 (relevant rename failure after a conflict):
+/// another writer changes the target between the comparison and the exchange, the exchange succeeds, and the undo exchange fails:
+/// the other writer's inode (now at the temporary name) and the replacement (live) both keep a name,
+/// and the outcome names where the other writer's file stays.
+#[test]
+fn a_conflict_whose_undo_exchange_fails_keeps_the_other_writers_inode_named_and_reports_where() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let writers: u64 = fs::metadata(&path).expect("examines").ino();
+    // Another writer changes the file in place (same inode) after the first comparison.
+    let other_writer = |live: &Path| { fs::write(live, "another writer's text").expect("the other writer writes"); };
+    let captured: Cell<Option<u64>> = Cell::new(None);
+    let capture = |live: &Path| { captured.set(Some(fs::metadata(live).expect("examines the live path at the exchange").ino())); };
+    let calls: Cell<usize> = Cell::new(0);
+    // The first exchange is real; the undo exchange (the second call) fails.
+    let swap = |first: &Path, second: &Path| -> std::io::Result<()> {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            return crate::journal_replace::exchange_paths(first, second);
+        }
+        return Err(std::io::Error::other("injected undo failure"));
+    };
+
+    let outcome = replace_with_seams(&path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &Seams { between: &other_writer, after_exchange: &capture, swap: &swap, link: &real_link, sync_file: &real_sync_file, sync_dir: &real_sync_dir }).expect("a failed undo is an outcome, not an error");
+
+    assert_eq!(calls.get(), 2, "the undo exchange was not attempted");
+    let ReplaceOutcome::Displaced(kept) = outcome else {
+        panic!("expected the other writer's file reported as displaced, got {outcome:?}");
+    };
+    let replacement: u64 = captured.get().expect("the exchange was reached");
+    assert_ne!(replacement, writers);
+    assert_eq!(fs::read_to_string(&path).expect("the live file"), "new text", "the replacement is not live");
+    assert_eq!(fs::metadata(&path).expect("examines").ino(), replacement);
+    assert_eq!(fs::metadata(&kept).expect("the reported path exists").ino(), writers, "the reported path is not the other writer's inode");
+    assert_eq!(fs::read_to_string(&kept).expect("reads the kept file"), "another writer's text", "the other writer's text was not kept");
+    assert!(names_of_inode(root.path(), writers).contains(&kept), "the other writer's inode does not survive under the reported name");
+    assert!(names_of_inode(root.path(), replacement).contains(&path), "the replacement inode lost its name");
 }
 
 /// Acceptance row K2 (each barrier of the creation chain):
