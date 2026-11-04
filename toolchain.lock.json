@@ -626,7 +626,16 @@
         "linux"
       ],
       "env": {},
-      "options": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "cargo-shadow",
+            "linkName": "cargo",
+            "linkDir": ".cache/cargo-shadow-bin"
+          }
+        }
+      },
       "artifacts": {}
     },
     "cargo:monochromatic-pnpm-shadow": {
@@ -1516,5 +1525,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:b5a6029506be3f22e945690ddaf327839851a44c33071d59e1abb651f7463e74"
+  "digest": "sha256:2ec4522d90cf809de6e754a3f2285cfda57ed66f7b1fc74e17aafbc5494fad34"
 }
