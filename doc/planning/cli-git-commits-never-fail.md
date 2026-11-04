@@ -236,7 +236,7 @@ Adoptions from standing rules (the coordinator adopted them; the owner may veto;
 - Corruption by another tool after recovery data is released is on the owner's outside list ("Corrupt repository"). Maintenance the
   wrapper itself starts is coordinated over its whole lifetime, not admitted only at an idle lane.
 
-### Normative state machine (revision 17, first committed REV17_TIME)
+### Normative state machine (revision 17, first committed 2026-11-04T04:12:54-05:00 in 35d6bd87be)
 
 Revision 12 of this machine was first committed at 2026-11-03T13:39:22-05:00 in 0cfe831dea, and revision 13 at
 2026-11-03T20:22:09-05:00 in 4a7bea95a2.
@@ -386,12 +386,14 @@ made D first; revision 15 adds the owner's decision that this final save is neve
   exists. With a service running, the receipt is queued first in the syncer's queue, ahead of every other V record and
   with no dependence on the stop barrier. With no service running, the command that returns success starts a detached
   one-shot flusher (a transient unit through the manager, else a detached child of the command) that forces the
-  receipt file and then `lane/receipt/` and exits; where neither can be started the command forces the receipt itself
-  before it exits (the only case in which the success path waits for a sync of ours, and a rare one). A normal service
-  shutdown forces every outstanding receipt before it exits, and the next owner's L4 forces any that remain before it
-  dispatches anything. `SYNC_LAG` is a scheduling target for the queue, not a completion bound: the time to force is
-  the disk's. The residual ambiguity (a power loss before the receipt is D, a deliberate removal that persisted, no
-  reflog evidence) is owner question 8.
+  receipt file and then `lane/receipt/` and exits; where neither can be started (a process-count cap or a similar
+  limit set by someone else, which is on the owner's outside list) the command exits success saying the receipt is not
+  yet forced, the receipt stays V, and the next owner's L4 forces it first; no success path waits for a sync of ours.
+  A detached flusher started by an inline owner sits in that incarnation's scope, and the next owner's L2 may reap it
+  mid-sync; L4's forcing of outstanding receipts covers it. A normal service shutdown forces every outstanding receipt
+  before it exits, and the next owner's L4 forces any that remain before it dispatches anything. `SYNC_LAG` is a
+  scheduling target for the queue, not a completion bound: the time to force is the disk's. The residual ambiguity (a
+  power loss before the receipt is D, a deliberate removal that persisted, no reflog evidence) is owner question 8.
 - Preservation barrier (R12-5B). Before the recovery authority of a version that only the person had is replaced (the
   staged-only blob saved by MG3, a displaced inode of the carry-forward protocol, the pre-merge file `N`), the
   preserving file, its directory entry and the log record that names it are D. The carry-forward protocol's own
@@ -694,14 +696,15 @@ kept apart.
   held off until the closing replacement. Everything else is handed off: the command records `resume = M1` or `MG3`,
   asks the manager to start the service, and returns `published` saying the files follow; the service acquires the
   lane and L4 runs the install, which is idempotent by the rule of M1. With no service and no manager the install
-  stays deferred. A later wrapper command in that worktree may then run the preparation of a non-class install, and
-  only under an overall non-renewable command deadline `WAIT_PREPARE` (a named constant that must be measured): the
-  Git child works on a private copy, X1 may cancel it, and a conversion or filter that needs a protected program is
-  never run in the foreground; at `WAIT_PREPARE` the command stops the child, leaves the install recorded, and returns
-  without having touched the real index. The real mutation (the rename of the prepared copy and the closing
-  replacement) is entered only when its remaining steps meet the class contract; otherwise the install stays deferred
-  for a persistent executor, and no command is required to finish it. No mutation is abandoned and no version is
-  discarded to meet a deadline.
+  stays deferred. A later wrapper command in that worktree may then run the preparation of a non-class install, only
+  after that command has reported its own result and as background work within it, or when the person runs the install
+  explicitly, and only under an overall non-renewable deadline `WAIT_PREPARE` (a named constant that must be
+  measured): the Git child works on a private copy, X1 may cancel it, and a conversion or filter that needs a
+  protected program is never run in the foreground; at `WAIT_PREPARE` the command stops the child, leaves the install
+  recorded, and returns without having touched the real index. The real mutation (the rename of the prepared copy and
+  the closing replacement) is entered only when its remaining steps meet the class contract; otherwise the install
+  stays deferred for a persistent executor, and no command is required to finish it. No mutation is abandoned and no
+  version is discarded to meet a deadline.
 - Hooks that the client runs in its own build before handover (the person's `pre-commit`, `commit-msg`) are the
   person's foreground programs, not the lane's (see the register: the person's own programs).
 
@@ -1311,46 +1314,47 @@ expiry and START expiry before exposure: no request, nothing changed. START or s
 signer failure or a hook or filter refusal after exposure: the command's exit guard runs W1 (plain) or the terminal
 route forces the absorbing outcome's ledger line first, so no exposed request is left clientless and publishable;
 signer failure is B1 (iii) then W1. Plain W1 (deadline, Ctrl-C, inline-owner planned exit, ACQUIRE or REAP exit): the
-stop disposition is D before the command returns (decision 14: the final save is never cut short), so the request
-cannot publish after the error, and the index and worktree are unchanged because nothing was written before
-publication; what remains is a power loss or a kill before the barrier completes, when no error has been reported yet.
-The unresolved COMMITTING exit: only the attempt in flight may complete, and its message does not say that staging is
-unchanged, because the attempt may publish and its follow-up may run. `published`: after a process crash the receipt
-forbids a fresh attempt; after a power loss the tip decides, and the remaining residue is the conjunction, inside the
-syncer's lag, of a lost receipt, a deliberate reset that removed the publication and an erased reflog, in which
-recovery lands the commit with a notice under owner decision 3 ("Land it": the publication cannot be told from a
-deliberate removal); whether that decision was meant to cover a command that already returned success is not
-established by the supplied owner wording and is owner question 8; the follow-up is materialized under
-`WAIT_MATERIALIZE` or explicitly continues under the service. `conflicted`, `rewritten-away`, `unresolved`: the D-set
-of rule V; "staging as it was" is said only for unpublished withdrawal and refusal, and a rewritten-away request is
-reported with what was materialized. `already` and a superseded client: terminal, following the successor without
-renewing the deadline. Query and resend: C3 answers `withdrawn` only for a plain mark and says for
-`withdraw-unresolved` that the original attempt may still complete. A push that returns `queued`: the approved
-exception. The person's own foreground programs: decision 9. Outside kill, OOM or power loss: the outside-cause rule,
-with the stop disposition and the client lock deciding whether a fresh attempt is authorized. Owner and helper exits:
-a failed recovery-helper acquisition mutates nothing and the caller re-evaluates within CAPTURE; a helper that
-finishes L4 dispatches nothing; SERVICE-ACQUIRE and REAP expiry mutate nothing; an L6 gate failure admits nothing; an
-L7 restarter that cannot take the gate or finds a changed incarnation aborts. Planned service shutdown (revision 15,
-R14-9): a draining shutdown, never a cancellation. The service stops admitting new work, records `draining` in the
-log, lets every running protected execution and every open P2 attempt finish by its own result, and exits when they
-are done; for a prepared attempt of a request with no client it enqueues `abort` without claiming that it cancels a
-buffered `commit` (a line Git has already read into its buffer is invisible in the pipe) and classifies the result P,
-F or U; for a client-held attempt it does nothing; it never ends a person's hook. A planned exit is a drain, so it
-never causes the parent-death signal of L5 to end a protected execution: that signal acts only after an outside kill
-of the owner, and L5 sets it only on children that are not the runner of a protected execution, which lives in its own
-scope. The installed service unit must make the drain possible (R15-7): its stop timeout is infinity and its kill mode
-does not signal the protected executions, and the wrapper's own upgrade or restart path is a drain request whose
-caller waits at most `WAIT_DRAIN` (a named constant that must be measured) for the result and then returns non-zero
-saying the drain is in progress and the upgrade has not been applied, while the service goes on draining (R16a-3); an
-upgrade that cannot proceed safely does not proceed, and its foreground command is not blocked for ever; the wrapper
-never ships or invokes a finite forced-stop timeout. The installed unit and every package, restart and shutdown caller
-are verification gates and not facts of this document. Genuinely external force (a person's `kill`, the kernel, a
-manager configured by someone else) is an outside kill and the owner-death rules apply. An indefinitely running hook
-delays the drain, which protects the hook; it does not lengthen an attached command's own bounds. A client-held
-attempt keeps its client as decider throughout the drain. When a submitted `commit` is followed by the death of the
-child with no positive evidence (a parent-death signal, an L2 reap, a kill), the attempt is class U: the client stays
-in COMMITTING and leaves through the unresolved form, and plain W1 is not available. An internal error in the owner
-after a request is exposed is an owner death, not a normal exit, so recovery and the client lock decide.
+stop disposition is D before the command returns (decision 14: the final save is never cut short), except the
+outside-fault exit of a returned I/O error, which says so, so the request cannot publish after the error, and the
+index and worktree are unchanged because nothing was written before publication; what remains is a power loss or a
+kill before the barrier completes, when no error has been reported yet. The unresolved COMMITTING exit: only the
+attempt in flight may complete, and its message does not say that staging is unchanged, because the attempt may
+publish and its follow-up may run. `published`: after a process crash the receipt forbids a fresh attempt; after a
+power loss the tip decides, and the remaining residue is the conjunction, inside the syncer's lag, of a lost receipt,
+a deliberate reset that removed the publication and an erased reflog, in which recovery lands the commit with a notice
+under owner decision 3 ("Land it": the publication cannot be told from a deliberate removal); whether that decision
+was meant to cover a command that already returned success is not established by the supplied owner wording and is
+owner question 8; the follow-up is materialized under `WAIT_MATERIALIZE` or explicitly continues under the service.
+`conflicted`, `rewritten-away`, `unresolved`: the D-set of rule V; "staging as it was" is said only for unpublished
+withdrawal and refusal, and a rewritten-away request is reported with what was materialized. `already` and a
+superseded client: terminal, following the successor without renewing the deadline. Query and resend: C3 answers
+`withdrawn` only for a plain mark and says for `withdraw-unresolved` that the original attempt may still complete. A
+push that returns `queued`: the approved exception. The person's own foreground programs: decision 9. Outside kill,
+OOM or power loss: the outside-cause rule, with the stop disposition and the client lock deciding whether a fresh
+attempt is authorized. Owner and helper exits: a failed recovery-helper acquisition mutates nothing and the caller
+re-evaluates within CAPTURE; a helper that finishes L4 dispatches nothing; SERVICE-ACQUIRE and REAP expiry mutate
+nothing; an L6 gate failure admits nothing; an L7 restarter that cannot take the gate or finds a changed incarnation
+aborts. Planned service shutdown (revision 15, R14-9): a draining shutdown, never a cancellation. The service stops
+admitting new work, records `draining` in the log, lets every running protected execution and every open P2 attempt
+finish by its own result, and exits when they are done; for a prepared attempt of a request with no client it enqueues
+`abort` without claiming that it cancels a buffered `commit` (a line Git has already read into its buffer is invisible
+in the pipe) and classifies the result P, F or U; for a client-held attempt it does nothing; it never ends a person's
+hook. A planned exit is a drain, so it never causes the parent-death signal of L5 to end a protected execution: that
+signal acts only after an outside kill of the owner, and L5 sets it only on children that are not the runner of a
+protected execution, which lives in its own scope. The installed service unit must make the drain possible (R15-7):
+its stop timeout is infinity and its kill mode does not signal the protected executions, and the wrapper's own upgrade
+or restart path is a drain request whose caller waits at most `WAIT_DRAIN` (a named constant that must be measured)
+for the result and then returns non-zero saying the drain is in progress and the upgrade has not been applied, while
+the service goes on draining (R16a-3); an upgrade that cannot proceed safely does not proceed, and its foreground
+command is not blocked for ever; the wrapper never ships or invokes a finite forced-stop timeout. The installed unit
+and every package, restart and shutdown caller are verification gates and not facts of this document. Genuinely
+external force (a person's `kill`, the kernel, a manager configured by someone else) is an outside kill and the
+owner-death rules apply. An indefinitely running hook delays the drain, which protects the hook; it does not lengthen
+an attached command's own bounds. A client-held attempt keeps its client as decider throughout the drain. When a
+submitted `commit` is followed by the death of the child with no positive evidence (a parent-death signal, an L2 reap,
+a kill), the attempt is class U: the client stays in COMMITTING and leaves through the unresolved form, and plain W1
+is not available. An internal error in the owner after a request is exposed is an owner death, not a normal exit, so
+recovery and the client lock decide.
 
 Cancellation
 - X1 cancel a stalled child. Pre: the child makes no progress for the measured interval, and its exact invocation (the subcommand, its options and the
@@ -2267,18 +2271,20 @@ to drop it. Example: you run `git commit`, it prints success, you run `git reset
 the power fails one second after that; the reset reached the disk, its reflog record and the receipt did not. What the
 design already does about the window. The receipt is queued first for forcing. With a service running the service's
 flusher forces it; with no service the command that returned success starts a detached one-shot flusher for it
-(through the service manager, else as a detached child), and only if neither can be started does the command force the
-receipt itself before it exits. A normal service shutdown forces every outstanding receipt before it exits, and the
-next start forces any that remain before it does anything else. So the unbounded exposure of "no service running" is
-removed by mechanism. What remains is the time the flusher needs, which the disk sets and which has not been measured
-(a scheduling target exists, not a completion bound), and the ambiguity itself.
+(through the service manager, else as a detached child), and only if neither can be started (a process-count cap or
+similar, which is outside our control) does the receipt stay unforced until the next wrapper command in that worktree
+forces it first. A normal service shutdown forces every outstanding receipt before it exits, and the next start forces
+any that remain before it does anything else. So the unbounded exposure of "no service running" is removed by
+mechanism. What remains is the time the flusher needs, which the disk sets and which has not been measured (a
+scheduling target exists, not a completion bound), and the ambiguity itself.
 - Option A, accept the remaining window; make the fresh attempt with a notice (Recommended). Visible here: after the
   reboot the next wrapper command in that worktree prints the retained notice that a fresh attempt was made (the
   notice is stored, so it is delivered even if recovery ran in a service with no terminal), naming the commit and how
   to drop it. Risk: in the bad case a commit you removed on purpose is published again; it is not promised to happen
-  only once (another crash before the new attempt's own records are on disk can repeat the ambiguity). No additional
-  foreground receipt barrier is added to an ordinary commit; the flusher works in the background, and an inline
-  materialization may still force its own preservation copies.
+  only once (another crash before the new attempt's own records are on disk can repeat the ambiguity). No foreground
+  receipt barrier is added to any commit; the flusher works in the background, and an inline materialization may still
+  force its own preservation copies. If no flusher can be started, the window lasts until the next wrapper command in
+  that worktree.
 - Option B, force the receipt to disk before the command returns success, on every commit. This extends your "Force at
   leaving, else background" to a barrier before a success return. Visible here: two forced writes (the receipt file
   and its directory) wait on every successful commit, which can push a commit past native Git plus five seconds when
