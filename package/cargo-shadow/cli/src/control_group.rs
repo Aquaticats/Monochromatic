@@ -330,6 +330,23 @@ impl Identity {
 }
 
 /// What:
+/// `fn is_view_line(line: &str) -> bool` says whether a line is exactly `view <mount>:<inode>` with two decimal numbers.
+/// Why:
+/// The header of the record is part of the format the identity is read from (round 12, 11a); a leading sign or space is not a number
+/// of the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isViewLine(line: string): boolean
+/// ```
+fn is_view_line(line: &str) -> bool {
+    let Some((mount_text, inode_text)) = line.strip_prefix("view ").and_then(|rest| { return rest.split_once(':'); }) else {
+        return false;
+    };
+    return [mount_text, inode_text].iter().all(|number| { return !number.is_empty() && number.bytes().all(|byte| { return byte.is_ascii_digit(); }) && number.parse::<u64>().is_ok(); });
+}
+
+/// What:
 /// `pub(crate) fn read_identity_text(text: &str) -> Option<Identity>` reads the `boot` and `machine` lines of a journal's view record.
 /// Why:
 /// A missing, repeated, unknown or malformed identity is uncertainty, never a match and never a different boot (round 10, 9a D2):
@@ -344,7 +361,7 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
     let mut boot_text: Option<String> = None;
     let mut machine_text: Option<String> = None;
     let mut lines = text.lines();
-    if !lines.next()?.starts_with("view ") {
+    if !is_view_line(lines.next()?) {
         return None;
     }
     for line in lines {
@@ -365,8 +382,8 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
 }
 
 /// What:
-/// `pub(crate) fn boot_id_authority(path: &Path) -> Result<(), String>` checks that the file is the kernel's own boot id file and
-/// not a file put over it.
+/// `pub(crate) fn read_authoritative_boot_id(path: &Path) -> Result<String, String>` opens the boot id file once and returns its text
+/// only if the opened object is the kernel's own file and not one put over it.
 /// Why:
 /// A bind mount can replace `/proc/sys/kernel/random/boot_id` without a reboot (measured in a disposable user and mount namespace on
 /// 2026-11-04T08:36:57-05:00), and `systemd-nspawn` does it on purpose to give each container its own id
@@ -374,31 +391,38 @@ pub(crate) fn read_identity_text(text: &str) -> Option<Identity> {
 /// The kernel serves the file from procfs; a file of another file system, or a file that is itself the root of a mount
 /// (`STATX_ATTR_MOUNT_ROOT`), is a replacement.
 /// A kernel that does not say whether the file is a mount root is an error, not a pass (round 10, 9a section 4).
+/// Round 12 (11a): the file is opened without following a final symbolic link (a link to a genuine procfs file is a replacement that
+/// the checks of the target would pass), and the checks and the read are made on the one descriptor, so a mount that appears after
+/// the checks cannot change what is read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function bootIdAuthority(path: string): void  // throws the reason
+/// export function readAuthoritativeBootId(path: string): string  // throws the reason
 /// ```
-pub(crate) fn boot_id_authority(path: &Path) -> Result<(), String> {
-    let found = rustix::fs::statfs(path).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
+pub(crate) fn read_authoritative_boot_id(path: &Path) -> Result<String, String> {
+    let opened: OwnedFd = rustix::fs::open(path, rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
+        .map_err(|error| { return format!("{} cannot be opened without following a link ({error})", path.display()); })?;
+    let found = rustix::fs::fstatfs(&opened).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
     if u64::try_from(found.f_type).unwrap_or(0) != PROC_MAGIC {
         return Err(format!("{} is not served by procfs, so it may be a file put over the kernel's", path.display()));
     }
-    let attributes = statx(CWD, path, AtFlags::empty(), StatxFlags::TYPE).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
+    let attributes = statx(&opened, "", AtFlags::EMPTY_PATH, StatxFlags::TYPE).map_err(|error| { return format!("{} cannot be examined ({error})", path.display()); })?;
     if !attributes.stx_attributes_mask.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
         return Err("the kernel does not say whether the boot id file is the root of a mount".to_string());
     }
     if attributes.stx_attributes.contains(rustix::fs::StatxAttributes::MOUNT_ROOT) {
         return Err(format!("{} is the root of a mount of its own, so it was put over the kernel's file", path.display()));
     }
-    return Ok(());
+    let mut text: String = String::new();
+    fs::File::from(opened).read_to_string(&mut text).map_err(|error| { return format!("the boot id cannot be read ({error})"); })?;
+    return Ok(text);
 }
 
 /// What:
 /// `pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Result<Identity, String>` reads and validates the
 /// boot id and the machine id from the given files.
 /// Why:
-/// The boot file must pass the authority check and both ids must have their format; the paths are parameters so a test can show
+/// The boot file must pass the authority check (made on the descriptor that is read) and both ids must have their format; the paths are parameters so a test can show
 /// each refusal on a file it controls.
 ///
 /// In TS you'd write (pseudocode):
@@ -406,9 +430,8 @@ pub(crate) fn boot_id_authority(path: &Path) -> Result<(), String> {
 /// export function readCurrentIdentity(bootPath: string, machinePath: string): Identity  // throws the reason
 /// ```
 pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Result<Identity, String> {
-    boot_id_authority(boot_path)?;
     let single_line = |text: String| -> String { return text.strip_suffix('\n').unwrap_or(&text).to_string(); };
-    let boot: String = single_line(fs::read_to_string(boot_path).map_err(|error| { return format!("the boot id cannot be read ({error})"); })?);
+    let boot: String = single_line(read_authoritative_boot_id(boot_path)?);
     let machine: String = single_line(fs::read_to_string(machine_path).map_err(|error| { return format!("the machine id cannot be read ({error})"); })?);
     let identity: Identity = Identity { boot, machine };
     if !identity.is_well_formed() {
@@ -421,7 +444,7 @@ pub(crate) fn read_current_identity(boot_path: &Path, machine_path: &Path) -> Re
 /// `pub(crate) fn current_identity() -> Result<Identity, String>` reads the boot id and the machine id of this system.
 /// Why:
 /// Both are recorded with a journal, so a recovery can tell a reboot of the same machine from another machine.
-/// Either unreadable, malformed, or not the kernel's own (`boot_id_authority`) is an error, and the caller keeps the refusal.
+/// Either unreadable, malformed, or not the kernel's own (`read_authoritative_boot_id`) is an error, and the caller keeps the refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -462,18 +485,86 @@ pub(crate) fn pid_namespace_id() -> io::Result<u64> {
     return Ok(fs::metadata("/proc/self/ns/pid")?.ino());
 }
 
+/// What `start_of` found about a process id.
+enum StartOf {
+    /// No process has this id in this process's namespace.
+    Gone,
+    /// The process, with its start time, read through a procfs that numbers it with this id.
+    Process(
+        /// The start time in clock ticks since boot.
+        u64,
+    ),
+    /// The question cannot be answered, with the reason.
+    Unknown(
+        /// Why.
+        String,
+    ),
+}
+
+/// What:
+/// `fn start_of(pid: i32) -> StartOf` reads the start time of a process id after showing that the mounted procfs numbers processes
+/// as this process's own namespace does.
+/// Why:
+/// `kill`, `pidfd_open` and the other system calls read a process id in the caller's active namespace, but `/proc/<pid>` reads it in
+/// the namespace of the procfs mount, and `/proc/self/ns/pid` names only the caller's (round 12, 11a: a child namespace that still
+/// uses an ancestor's procfs would make the two name different processes).
+/// A pidfd names the process of the first reading, and its `fdinfo` (read through the procfs) gives the number that this procfs
+/// has for that same process: only when it is the id asked for does `/proc/<pid>` name that process.
+/// Anything else is unknown, never gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startOf(pid: number): { gone } | { start: number } | { unknown: string }
+/// ```
+fn start_of(pid: i32) -> StartOf {
+    use std::os::fd::AsRawFd;
+    let Some(found) = Pid::from_raw(pid) else {
+        return StartOf::Unknown(format!("{pid} is not a process id"));
+    };
+    let pidfd: OwnedFd = match pidfd_open(found, PidfdFlags::empty()) {
+        Ok(opened) => opened,
+        Err(Errno::SRCH) => return StartOf::Gone,
+        Err(error) => return StartOf::Unknown(format!("a pidfd for process {pid} cannot be opened ({error})")),
+    };
+    let number_in_procfs = || -> Result<i32, String> {
+        let info: String = fs::read_to_string(format!("/proc/self/fdinfo/{}", pidfd.as_raw_fd())).map_err(|error| { return format!("the pidfd of process {pid} cannot be examined through procfs ({error})"); })?;
+        let line: &str = info.lines().find_map(|candidate| { return candidate.strip_prefix("Pid:"); }).ok_or_else(|| { return format!("the pidfd of process {pid} has no Pid line in procfs"); })?;
+        return line.trim().parse::<i32>().map_err(|error| { return format!("the Pid line of the pidfd of process {pid} is not a number ({error})"); });
+    };
+    match number_in_procfs() {
+        Ok(number) if number == pid => {}
+        Ok(number) => return StartOf::Unknown(format!("the mounted procfs numbers process {pid} as {number}, so it serves another process id namespace than this process is in")),
+        Err(reason) => return StartOf::Unknown(reason),
+    }
+    return match read_stat(pid) {
+        Ok((start, _)) => StartOf::Process(start),
+        // The same process was numbered `pid` a moment ago: if procfs now has no entry, it ended (its number is then -1), or procfs hides it.
+        Err(error) if error.kind() == io::ErrorKind::NotFound => match number_in_procfs() {
+            Ok(number) if number == pid => StartOf::Unknown(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({error})")),
+            Ok(_) => StartOf::Gone,
+            Err(reason) => StartOf::Unknown(reason),
+        },
+        Err(error) => StartOf::Unknown(format!("/proc/{pid}/stat cannot be read ({error})")),
+    };
+}
+
 /// What:
 /// `pub(crate) fn process_start(pid: i32) -> io::Result<u64>` is the start time of a process, in clock ticks since boot
 /// (field 22 of `/proc/<pid>/stat`).
 /// Why:
 /// A process id alone can be reused; the id with its start time cannot name two processes in one boot.
+/// It is an error, never a guess, when the procfs does not number processes as this process's namespace does (`start_of`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function processStart(pid: number): number
 /// ```
 pub(crate) fn process_start(pid: i32) -> io::Result<u64> {
-    return Ok(read_stat(pid)?.0);
+    return match start_of(pid) {
+        StartOf::Process(start) => Ok(start),
+        StartOf::Gone => Err(io::Error::new(io::ErrorKind::NotFound, format!("process {pid} does not exist"))),
+        StartOf::Unknown(reason) => Err(io::Error::other(reason)),
+    };
 }
 
 /// What:
@@ -501,8 +592,10 @@ fn read_stat(pid: i32) -> io::Result<(u64, char)> {
 /// still join its scope.
 /// Why:
 /// The launcher becomes the program, and a process that is gone cannot be attached to a scope later (round 11).
-/// It is gone only when this process is in the namespace of the record and no process with that id and that start time exists;
-/// a different namespace, a hidden or unreadable process and a state that is not understood are "unknown", never "gone".
+/// It is gone only when this process is in the namespace of the record and no process with that id and that start time exists,
+/// read through a procfs that numbers processes as this namespace does (`start_of`, round 12);
+/// a different namespace, another namespace's procfs, a hidden or unreadable process and a state that is not understood are
+/// "unknown", never "gone".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -514,26 +607,11 @@ pub(crate) fn launcher_state(pid: i32, start: u64, pid_namespace: u64) -> Launch
         Ok(_) => return LauncherState::Unknown(format!("the launcher {pid} was recorded in another process id namespace than this process is in")),
         Err(error) => return LauncherState::Unknown(format!("the process id namespace of this process cannot be identified ({error})")),
     }
-    let Some(found) = Pid::from_raw(pid) else {
-        return LauncherState::Unknown(format!("{pid} is not a process id"));
-    };
-    let exists: bool = match rustix::process::test_kill_process(found) {
-        Ok(()) | Err(Errno::PERM) => true,
-        Err(Errno::SRCH) => false,
-        Err(error) => return LauncherState::Unknown(format!("whether process {pid} exists cannot be told ({error})")),
-    };
-    if !exists {
-        return LauncherState::Gone;
-    }
-    return match read_stat(pid) {
-        Ok((seen, _)) if seen != start => LauncherState::Gone,
-        Ok(_) => LauncherState::Alive,
-        // The process exists but its stat cannot be read: hidden by a `/proc` mount option, or ended between the two looks.
-        Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(Errno::SRCH.raw_os_error()) => match rustix::process::test_kill_process(found) {
-            Err(Errno::SRCH) => LauncherState::Gone,
-            _ => LauncherState::Unknown(format!("process {pid} exists but /proc/{pid}/stat cannot be read ({error})")),
-        },
-        Err(error) => LauncherState::Unknown(format!("/proc/{pid}/stat cannot be read ({error})")),
+    return match start_of(pid) {
+        StartOf::Gone => LauncherState::Gone,
+        StartOf::Process(seen) if seen != start => LauncherState::Gone,
+        StartOf::Process(_) => LauncherState::Alive,
+        StartOf::Unknown(reason) => LauncherState::Unknown(reason),
     };
 }
 
@@ -699,7 +777,7 @@ fn reap_within(child: &mut std::process::Child, deadline: Instant) -> bool {
     let injected_error: bool = false;
     loop {
         let waited: io::Result<Option<std::process::ExitStatus>> = if injected_error { Err(io::Error::other("injected wait failure")) } else { child.try_wait() };
-        if !stuck && !matches!(waited, Ok(None)) {
+        if !stuck && matches!(waited, Ok(Some(_))) {
             return true;
         }
         let now: Instant = Instant::now();
