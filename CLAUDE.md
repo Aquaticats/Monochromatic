@@ -1039,6 +1039,12 @@ MKY:
  long names are fine;
  jargon nothing can replace is explained in that file's top doc.
 
+VGW:
+ Each file and folder name says what its contents do;
+ a word that fits any code (`native`, `core`, `helpers`) never stands alone:
+ `helpers_for_git_push`, not `helpers`.
+Package folders are exempt.
+
 LYD:
  Show who depends on whom in the tree:
  every source folder holds a `uses/` folder of links to the folders its code uses;

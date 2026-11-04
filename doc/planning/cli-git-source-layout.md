@@ -16,6 +16,10 @@ Owner, 2026-11-04, verbatim:
 - "Principle 3: Who depends on who must be immediately visible from looking at the file structure."
 - "Consider monkey someone who only knows what git commit and git push are."
 - "Don't discard work, but aside from layout + linting fixes, pause everything else - but let work already in flight run to their natural conclusions. Layout + linting fixes are the biggest priority."
+- "Add in AGENTS.md to not use vague words like `native` when naming dirents." (AGENTS.md VGW;
+  the draft names in section "Proposed top-level folder names" follow it, and `src/native/` goes away.)
+  Then: "helper_<specific> is fine. The rule language needs to be better."
+  So a vague word is allowed beside the specific part and never alone; VGW was reworded to say so.
 
 Question tool answers, 2026-11-04:
 
@@ -47,6 +51,15 @@ Question tool answers, 2026-11-04:
   and the package's lint fails any file or folder that breaks its layer.
 - Scope: "Repo-wide rules (Recommended)": AGENTS.md MKY, LYD and LYF (`b1955e0b49`).
 - TypeScript in the crate: "A: port all to Rust (Recommended)" (separate work, paused).
+- Question tool answers, 2026-11-04 (after the group order and the draft names were shown):
+  - Top-level folder names: "A: plain sentences (Recommended)",
+    the list in section "Proposed top-level folder names", with `src/native/` gone and the folders directly in `src/`.
+  - The two in-process recursions (`stacked_merge_push` planning a new invocation,
+    `merge_second_pass_finish` running a nested command): "A: hand back 'run this next' (Recommended)":
+    the part returns the next command and the top level runs it in its own loop.
+  - The four smaller call changes (current-step record, the watcher's after-stop action from its caller,
+    the system settings path passed to the reader, "finished" results for commands that only finish):
+    "Make all four (Recommended)".
 
 ## What the code looks like now
 
@@ -184,6 +197,154 @@ The usual fix is a third file at the bottom of the folder that holds the shared 
 used by both.
 Some need a closer look at the functions,
 for example the placement, reclaim and claim files of the `index.lock` hold, which may call each other in a cycle.
+
+## Proposed top-level folder names (draft for the owner, nothing renamed)
+
+Each name is meant to be understood by someone who knows only `git commit` and `git push`.
+Each folder's top doc explains its words further, and its `uses/` folder holds one link per folder its code uses.
+Listed from the folder that uses nothing to the folder that uses everything.
+
+1. `saving_files_starting_programs_and_keeping_time`:
+   saving files safely, starting other programs and watching that they still make progress, clocks, log lines.
+   Uses nothing.
+2. `reading_what_git_saved_on_disk`:
+   Git keeps your commits and settings as files in the hidden `.git` folder;
+   this reads them directly, which is faster than starting Git.
+   Uses: `saving_files_starting_programs_and_keeping_time`.
+3. `understanding_the_git_command_you_typed`:
+   reads the words after `git` the way Git does, and the words meant for this wrapper.
+   Uses: `saving_files_starting_programs_and_keeping_time`.
+4. `running_the_real_git_program`:
+   this wrapper only pretends to be `git`;
+   this finds the real `git` on the computer, starts it, and answers some of its questions without starting it.
+   Uses: 1 to 3 by name: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`,
+   `understanding_the_git_command_you_typed`.
+5. `waiting_your_turn_to_change_git_files`:
+   Git puts a "lock" file beside a file it is changing so that nothing else changes it at the same time;
+   this waits for those, takes them, and removes the ones a crashed program left behind.
+   Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `running_the_real_git_program`.
+6. `running_git_push_with_a_time_limit`:
+   runs `git push`, stops it when it stops making progress, and runs one push at a time.
+   Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `running_the_real_git_program`,
+   `waiting_your_turn_to_change_git_files`.
+7. `your_settings_for_this_wrapper`:
+   reads `cli-git.config.jsonc`, where checks are turned on and off, and Git's own settings.
+   Uses: `saving_files_starting_programs_and_keeping_time`, `understanding_the_git_command_you_typed`, `running_the_real_git_program`.
+8. `checking_your_changes_before_they_are_saved`:
+   the checks a commit or a push must pass (no secrets in files, every file ends with a newline,
+   package versions raised, and so on), and the files each check reads.
+   Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `understanding_the_git_command_you_typed`,
+   `running_the_real_git_program`, `your_settings_for_this_wrapper`.
+9. `talking_to_the_background_commit_helper`:
+   commits are saved by a helper program that keeps running in the background,
+   so that many commits go through quickly one after another;
+   this is how a command asks it to save a commit and hears back.
+   Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `running_the_real_git_program`,
+   `waiting_your_turn_to_change_git_files`, `your_settings_for_this_wrapper`, `checking_your_changes_before_they_are_saved`.
+10. `combining_two_versions_of_the_same_file`:
+    when two people changed the same file, Git combines the two;
+    where Git gives up on a line, this tries again word by word.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `running_the_real_git_program`,
+    `checking_your_changes_before_they_are_saved`, `talking_to_the_background_commit_helper`.
+11. `a_hidden_copy_of_git_data_for_preparing_commits`:
+    to prepare a commit without touching your work, the wrapper makes a hidden second Git folder
+    that shares your saved commits.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `running_the_real_git_program`, `your_settings_for_this_wrapper`,
+    `checking_your_changes_before_they_are_saved`, `talking_to_the_background_commit_helper`,
+    `combining_two_versions_of_the_same_file`.
+12. `instant_folder_copies_on_btrfs_disks`:
+    btrfs is a kind of disk that can copy a whole folder instantly;
+    this converts a project folder so it can be copied that way.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `running_the_real_git_program`.
+13. `fixing_installed_tools_in_a_copied_project_folder`:
+    after a project folder is copied, its installed packages still point at the old folder; this repairs them.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `running_the_real_git_program`.
+14. `uploading_big_files_kept_outside_git`:
+    Git LFS keeps big files (pictures, videos) on a separate server; this uploads them before a push.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `understanding_the_git_command_you_typed`,
+    `running_the_real_git_program`, `running_git_push_with_a_time_limit`, `your_settings_for_this_wrapper`.
+15. `what_happens_when_you_type_git_push`:
+    the push you type, the push the wrapper makes for you after each commit,
+    and what happens when someone else pushed first.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `understanding_the_git_command_you_typed`,
+    `running_the_real_git_program`, `running_git_push_with_a_time_limit`, `your_settings_for_this_wrapper`,
+    `checking_your_changes_before_they_are_saved`, `talking_to_the_background_commit_helper`,
+    `combining_two_versions_of_the_same_file`, `uploading_big_files_kept_outside_git`.
+16. `extra_working_folders_for_one_project`:
+    Git can give one project several working folders ("worktrees");
+    this makes new ones quickly and copies over the files Git ignores.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `understanding_the_git_command_you_typed`,
+    `running_the_real_git_program`, `your_settings_for_this_wrapper`, `checking_your_changes_before_they_are_saved`,
+    `talking_to_the_background_commit_helper`, `instant_folder_copies_on_btrfs_disks`,
+    `fixing_installed_tools_in_a_copied_project_folder`, `what_happens_when_you_type_git_push`.
+17. `keeping_what_a_command_would_throw_away`:
+    some commands throw away work that is not committed yet, or keep one side of a file two changes disagree on;
+    this saves a copy first and records what happened.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `understanding_the_git_command_you_typed`,
+    `running_the_real_git_program`, `your_settings_for_this_wrapper`, `checking_your_changes_before_they_are_saved`,
+    `talking_to_the_background_commit_helper`, `a_hidden_copy_of_git_data_for_preparing_commits`,
+    `instant_folder_copies_on_btrfs_disks`.
+18. `running_every_check_in_order`:
+    runs all the checks one after another, including the ones that look at the saved copies.
+    Uses: `understanding_the_git_command_you_typed`, `running_the_real_git_program`, `your_settings_for_this_wrapper`,
+    `checking_your_changes_before_they_are_saved`, `keeping_what_a_command_would_throw_away`.
+19. `what_happens_when_you_type_git_merge_or_git_pull`.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `understanding_the_git_command_you_typed`,
+    `running_the_real_git_program`, `waiting_your_turn_to_change_git_files`, `your_settings_for_this_wrapper`,
+    `checking_your_changes_before_they_are_saved`, `talking_to_the_background_commit_helper`,
+    `combining_two_versions_of_the_same_file`, `what_happens_when_you_type_git_push`,
+    `keeping_what_a_command_would_throw_away`.
+20. `checking_that_your_setup_works`: the `git cli-git doctor` report.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `running_the_real_git_program`, `your_settings_for_this_wrapper`,
+    `checking_your_changes_before_they_are_saved`, `instant_folder_copies_on_btrfs_disks`,
+    `keeping_what_a_command_would_throw_away`.
+21. `the_background_commit_helper`:
+    the background program itself: it saves commits one batch at a time, then pushes them and tidies up.
+    Uses: `saving_files_starting_programs_and_keeping_time`, `reading_what_git_saved_on_disk`, `running_the_real_git_program`,
+    `waiting_your_turn_to_change_git_files`, `running_git_push_with_a_time_limit`, `your_settings_for_this_wrapper`,
+    `checking_your_changes_before_they_are_saved`, `talking_to_the_background_commit_helper`,
+    `a_hidden_copy_of_git_data_for_preparing_commits`, `uploading_big_files_kept_outside_git`,
+    `what_happens_when_you_type_git_push`, `extra_working_folders_for_one_project`,
+    `keeping_what_a_command_would_throw_away`.
+22. `what_happens_when_you_type_git_commit`.
+    Uses: every folder from 1 to 21 by name except `waiting_your_turn_to_change_git_files`,
+    `running_git_push_with_a_time_limit`, `instant_folder_copies_on_btrfs_disks`,
+    `fixing_installed_tools_in_a_copied_project_folder`, `what_happens_when_you_type_git_push`,
+    `what_happens_when_you_type_git_merge_or_git_pull` and `checking_that_your_setup_works`.
+23. `deciding_what_to_do_with_each_command_you_type`:
+    the first stop of every command:
+    reads what was typed, then hands it to the real Git, runs one of the other folders, or refuses and says why.
+    Uses every other folder.
+
+The list numbers here only order this draft; they appear in no folder name.
+Code that only tests use goes in `setup_code_for_tests`; `lib.rs` and `main.rs` stay at the crate root.
+The folders sit directly in `src/`: today's `src/native/` is named by a word that fits any code (`AGENTS.md` VGW),
+so it goes away.
+The large folders (`checking_your_changes_before_they_are_saved`, `extra_working_folders_for_one_project`,
+`the_background_commit_helper`, `what_happens_when_you_type_git_commit`) get folders inside them the same way,
+each with its own `uses/`.
+
+### The `uses/` links and cargo
+
+Measured on 2026-11-04 with cargo 1.101.0-nightly (31d3246e0 2026-10-27) on a throwaway crate
+(`src/top/uses/middle -> ../../middle`, `src/middle/uses/bottom -> ../../bottom`):
+`cargo package --list` follows the links and packs nested copies
+(`src/top/uses/middle/uses/bottom/mod.rs`),
+so across the wrapper's many folders the published crate would hold the same files many times over.
+With `exclude = ["**/uses"]` in `Cargo.toml` the list holds each file once, and the crate builds.
+The wrapper's `Cargo.toml` is managed by file-enforcer (`CLAUDE.md` WC2),
+so the line goes into its source.
+Other tools that follow links (the repository linter's walker, editors' indexers) are checked when the links are built.
+
+## Oversized files
+
+The 37 files over the `rust/max-lines` limit overlap with the file loops
+(`transaction_git`, `service_land`, `child_watch`, the `index.lock` files, `bounded_push`, `service_work`).
+They are split now by the lint agents (branches `refactor/git-policy-cli-lint-*`, from `7663284896`),
+each given its folders' loop list so a split moves shared types into a file of their own and breaks a loop
+rather than adding one.
+The layout pass then renames and moves the resulting files;
+the scan reruns on the merged result before the owner sees the tree.
 
 ## Next
 
