@@ -195,7 +195,9 @@ pub fn steps(state: &Lane) -> Vec<(String, Lane)> {
         Rules::Fifteen => {
             (has(durable, CKPT) && has(durable, REQ2) && has(durable, OUT1)) || (has(durable, CKPT_BOTH) && has(durable, REQ1) && has(durable, REQ2))
         }
-        Rules::Thirteen | Rules::UnsafeCheckpoint | Rules::FifteenDropsLive => has(durable, CKPT),
+        // The drop control differs from revision 15 only in naming R2 alone: it keeps R2's durability guard.
+        Rules::FifteenDropsLive => has(durable, CKPT) && has(durable, REQ2),
+        Rules::Thirteen | Rules::UnsafeCheckpoint => has(durable, CKPT),
     };
     if completes && !has(visible, SEG_GONE) {
         write(SEG_GONE, "lane: completes the checkpoint and removes the old segment", &mut found);

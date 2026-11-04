@@ -115,7 +115,7 @@ fn p1_a_checkpoint_never_erases_a_still_live_request() {
     // The earlier variant names only R2 and the schedule reaches the drop (the red the review reported).
     let reached = replay(initial(Rules::FifteenDropsLive), steps, &schedule);
     let message = invariant(&reached).expect("R1 is live in the surviving facts and the checkpoint dropped it");
-    assert!(message.contains("live"), "{}", message);
+    assert_eq!(message, "a request that is live in the surviving facts was dropped by the checkpoint that recovery chose");
     // Revision 17's rule writes the checkpoint that names both requests; the same schedule (with that label) keeps R1, and the search is green.
     let mut kept: Vec<&str> = schedule.to_vec();
     kept[8] = "lane: writes the checkpoint whose document names both requests as live";
@@ -123,7 +123,29 @@ fn p1_a_checkpoint_never_erases_a_still_live_request() {
     let preserved = replay(initial(Rules::Fifteen), steps, &kept);
     assert_eq!(invariant(&preserved), None);
     assert!(recover(Rules::Fifteen, preserved.world.visible).r1_live && recover(Rules::Fifteen, preserved.world.visible).r2_live);
-    assert!(check(Rules::FifteenDropsLive).violation.is_some());
+    let dropped = check(Rules::FifteenDropsLive).violation.expect("the drop control is red");
+    assert_eq!(dropped.message, "a request that is live in the surviving facts was dropped by the checkpoint that recovery chose", "red for the drop and for nothing else");
     let search: Report = check(Rules::Fifteen);
     assert!(search.violation.is_none() && search.exhausted, "{:?}", search.violation.map(|found| { return (found.message, found.trace); }));
+}
+
+/// Models review 7, 3 (P2, red against the previous control): `FifteenDropsLive` must differ from revision 15 only in the non-drop
+/// obligation. It also removed R2's durability guard, so its search could be red for a missing R2 file and not for the dropped R1. With R2's
+/// request not yet durable, completion must not be enabled in the control either, and the dedicated replay's diagnostic is the specific one.
+#[test]
+fn p7_the_drop_control_keeps_the_durability_guard_and_is_red_for_the_drop_alone() {
+    let completion = "lane: completes the checkpoint and removes the old segment";
+    let before_forcing_r2 = [
+        "lane: writes the request file of R1",
+        "lane: writes the request file of R2",
+        "lane: appends the adopt line of R1 to the segment",
+        "lane: appends the adopt line of R2 to the segment",
+        "lane: forces R1's request file",
+        "lane: forces R1's adopt line",
+        "lane: forces R2's adopt line",
+        "lane: writes the checkpoint whose document names R2 as live",
+        "lane: forces the checkpoint",
+    ];
+    let state = replay(initial(Rules::FifteenDropsLive), steps, &before_forcing_r2);
+    assert!(steps(&state).iter().all(|step| { return step.0 != completion; }), "completion needs R2's request durable in the control as in revision 15");
 }
