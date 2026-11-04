@@ -392,3 +392,53 @@ fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_boun
     assert!(gone_soon(pid_in(&pid_file)), "the descendant still runs");
     drop(transaction);
 }
+
+/// The environment variable that gives the record helper the journal record file it appends to.
+const FIXTURE_RECORD_FILE: &str = "CARGO_SHADOW_FIXTURE_RECORD_FILE";
+
+/// The helper process of the record syscall test: it appends one synced containment record through the production function and exits.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of the_record_sync_is_given_to_the_kernel_after_the_write"]
+fn record_sync_fixture() {
+    let Ok(file) = std::env::var(FIXTURE_RECORD_FILE) else {
+        return;
+    };
+    crate::bounded_run::append_record_with(std::path::Path::new(&file), &crate::control_group::Record::ProcessGroupStarting, true).expect("appends the record");
+}
+
+/// Acceptance row V3 (certification, fourth pass): the sync of a containment record is observed at the system call, after the write.
+/// A regression that keeps the traces and the failpoint and drops the real `fsync` is invisible in the process; the helper runs under
+/// `strace` and the test reads the calls the kernel was given: `write` of the record line, then `fsync` of the record file.
+/// A host without `strace` says so and stops (this host has it).
+#[test]
+fn the_record_sync_is_given_to_the_kernel_after_the_write() {
+    if std::process::Command::new("strace").arg("--version").output().is_err() {
+        eprintln!("skipped: strace is not installed, so the system calls of the record cannot be observed here");
+        return;
+    }
+    let directory = crate::test_scratch::scratch();
+    let record: std::path::PathBuf = directory.path().join("groups");
+    std::fs::write(&record, "").expect("the record file");
+    let log: std::path::PathBuf = directory.path().join("strace.log");
+
+    let status = std::process::Command::new("strace")
+        .args(["-f", "-y", "-e", "trace=write,fsync", "-o"])
+        .arg(&log)
+        .arg(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "bounded_run_tests::record_sync_fixture", "--nocapture"])
+        .env(FIXTURE_RECORD_FILE, &record)
+        .status()
+        .expect("strace runs the helper");
+
+    assert!(status.success(), "{status:?}");
+    let text: String = std::fs::read_to_string(&log).expect("the strace log");
+    let shown: String = format!("<{}>", record.display());
+    let calls: Vec<&str> = text.lines().filter(|line| { return line.contains(&shown); }).collect();
+    let write_at = calls.iter().position(|line| { return line.contains("write(") && line.contains("pgroup starting"); });
+    let sync_at = calls.iter().position(|line| { return line.contains("fsync(") && line.contains("= 0"); });
+    let (Some(written), Some(synced)) = (write_at, sync_at) else {
+        panic!("the kernel was not given a write of the record and an fsync of its file: {calls:?}");
+    };
+    assert!(written < synced, "the record file was synchronized before it was written: {calls:?}");
+}

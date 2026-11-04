@@ -35,6 +35,7 @@ thread_local! {
     /// Whether the next durability barrier of a recovery on this thread fails.
     static RECOVER_DURABILITY: Cell<bool> = const { Cell::new(false) };
     static OUTPUT_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
+    static RECORD_SHORT_WRITE: Cell<bool> = const { Cell::new(false) };
     static OUTPUT_DIRECTORY_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static ACKNOWLEDGEMENT_PUBLISH: Cell<bool> = const { Cell::new(false) };
@@ -91,6 +92,8 @@ pub enum Point {
     RecoverDurability,
     /// The sync of an output file inside `make_durable`, the real barrier that finishing and recovery use for lockfiles and manifests.
     OutputFileSync,
+    /// The write of a containment record is cut short: only the first half of the line reaches the file.
+    RecordShortWrite,
     /// The sync of the directory that lists an output file inside `make_durable`.
     OutputDirectorySync,
     /// The publication of an acknowledgement fails before it is visible.
@@ -167,6 +170,7 @@ pub fn arm(point: Point) {
         Point::FinishCleanup => FINISH_CLEANUP.with(|slot| { slot.set(true); }),
         Point::RecoverDurability => RECOVER_DURABILITY.with(|slot| { slot.set(true); }),
         Point::OutputFileSync => OUTPUT_FILE_SYNC.with(|slot| { slot.set(true); }),
+        Point::RecordShortWrite => RECORD_SHORT_WRITE.with(|slot| { slot.set(true); }),
         Point::OutputDirectorySync => OUTPUT_DIRECTORY_SYNC.with(|slot| { slot.set(true); }),
         Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(|slot| { slot.set(true); }),
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(|slot| { slot.set(true); }),
@@ -209,6 +213,7 @@ pub fn fires(point: Point) -> bool {
         Point::FinishCleanup => FINISH_CLEANUP.with(Cell::take),
         Point::RecoverDurability => RECOVER_DURABILITY.with(Cell::take),
         Point::OutputFileSync => OUTPUT_FILE_SYNC.with(Cell::take),
+        Point::RecordShortWrite => RECORD_SHORT_WRITE.with(Cell::take),
         Point::OutputDirectorySync => OUTPUT_DIRECTORY_SYNC.with(Cell::take),
         Point::AcknowledgementPublish => ACKNOWLEDGEMENT_PUBLISH.with(Cell::take),
         Point::AcknowledgementDurability => ACKNOWLEDGEMENT_DURABILITY.with(Cell::take),

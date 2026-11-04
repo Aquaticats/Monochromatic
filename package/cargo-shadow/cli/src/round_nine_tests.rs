@@ -720,3 +720,31 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
     assert_eq!(read(fine, "Cargo.toml"), format!("manifest of {fine}"), "the other root's manifest was not restored with its lockfile");
     assert_eq!(journal_dirs(root.path()), vec![journal], "the journal of an unsettled recovery was not kept");
 }
+
+/// Acceptance rows V3 and V4 (certification, fourth pass): a record write that returns having written only part of the line starts no
+/// program, in the delegated path and in the weaker path. The cut-short write is the real result of the write call (half the line
+/// reaches the file), so the length check after it is what refuses; a regression that drops the check lets the program start.
+#[test]
+fn a_record_that_is_written_only_in_part_starts_no_program() {
+    for weaker in [false, true] {
+        let plain = scratch();
+        if weaker {
+            crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+        } else if delegated_route().is_none() {
+            return;
+        }
+        let root = repository();
+        let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+        let marker: PathBuf = root.path().join("ran");
+        arm(Point::RecordShortWrite);
+
+        let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
+        crate::bounded_run::use_route_settings_for_test(None);
+
+        assert!(!crate::failpoints::fires(Point::RecordShortWrite), "weaker={weaker}: the short write was never reached");
+        let refusal: String = result.expect_err("the program ran although its record was cut short").to_string();
+        assert!(refusal.contains("cut short"), "weaker={weaker}: the refusal is not the cut-short record: {refusal}");
+        assert!(!marker.exists(), "weaker={weaker}: the program started after an incomplete record");
+        drop(transaction);
+    }
+}

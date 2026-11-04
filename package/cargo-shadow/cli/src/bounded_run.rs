@@ -417,7 +417,7 @@ fn append_record(log: &Path, record: &Record) -> io::Result<()> {
 /// ```ts
 /// function appendRecordWith(log: string, record: Record, sync: boolean): void
 /// ```
-fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()> {
+pub(crate) fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()> {
     let file: OwnedFd = open(log, OFlags::WRONLY | OFlags::APPEND | OFlags::CLOEXEC | OFlags::NONBLOCK | OFlags::NOFOLLOW, Mode::empty()).map_err(io::Error::from)?;
     let kind: FileType = FileType::from_raw_mode(fstat(&file).map_err(io::Error::from)?.st_mode);
     if kind != FileType::RegularFile {
@@ -436,7 +436,12 @@ fn append_record_with(log: &Path, record: &Record, sync: bool) -> io::Result<()>
     if crate::failpoints::fires(crate::failpoints::Point::RecordWrite) {
         return Err(io::Error::other("injected failure to write the containment record"));
     }
-    let written: usize = rustix::io::write(&file, line.as_bytes()).map_err(io::Error::from)?;
+    // A test cuts the write short (only the first half of the line reaches the file), as a full disk would partway through the line.
+    #[cfg(test)]
+    let to_write: &[u8] = if crate::failpoints::fires(crate::failpoints::Point::RecordShortWrite) { &line.as_bytes()[..line.len() / 2] } else { line.as_bytes() };
+    #[cfg(not(test))]
+    let to_write: &[u8] = line.as_bytes();
+    let written: usize = rustix::io::write(&file, to_write).map_err(io::Error::from)?;
     if written != line.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "the containment record was cut short"));
     }
