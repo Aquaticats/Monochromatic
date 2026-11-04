@@ -54,8 +54,9 @@ pub enum Rules {
     EighteenErrorNoRelist,
     /// Control: the flusher lives in the incarnation scope that the next owner's L2 reaps, and the next owner does not sweep at startup.
     EighteenReapedFlusherNoStartupSweep,
-    /// Option for the open finding: the running owner's syncer also retries the receipts that carry a recorded error.
-    EighteenSyncerRetriesErrors,
+    /// Control: the running owner's syncer never retries a recorded error; only a next owner's start does, so a record written while an
+    /// owner runs can wait without end (the coordinator pick of round 15 makes the retry the rule).
+    EighteenSyncerNeverRetries,
 }
 
 /// A receipt's durability.
@@ -162,9 +163,6 @@ pub struct State {
     pub killed: bool,
     /// A forcing error happened once.
     pub errored: bool,
-    /// An error record was written since the last startup sweep. OPEN FINDING (round 15): the design retries a recorded error at the next
-    /// owner's start; a running owner does not retry one, so a record written after the last startup sweep waits for yet another owner.
-    pub fresh_record: bool,
     /// The unrelated command.
     pub dispatch: Dispatch,
 }
@@ -187,7 +185,6 @@ pub fn initial(rules: Rules) -> State {
         crashed: false,
         killed: false,
         errored: false,
-        fresh_record: false,
         dispatch: Dispatch::Done,
     };
 }
@@ -244,7 +241,6 @@ fn record_errors(state: &mut State, mask: u8) {
     for (at, receipt) in state.receipts.iter_mut().enumerate() {
         if mask & (1 << at) != 0 && *receipt == Receipt::V {
             *receipt = Receipt::Err;
-            state.fresh_record = true;
         }
     }
 }
@@ -342,7 +338,7 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
 fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
     match state.service {
         Service::Running => {
-            if state.rules == Rules::EighteenSyncerRetriesErrors && !state.stalled && state.receipts.iter().any(|receipt| { return *receipt == Receipt::Err; }) {
+            if state.rules != Rules::EighteenSyncerNeverRetries && !state.stalled && state.receipts.iter().any(|receipt| { return *receipt == Receipt::Err; }) {
                 let mut after: State = state.clone();
                 force(&mut after.receipts, unforced(&state.receipts));
                 push_step(found, "owner: the running syncer retries the receipts that carry a recorded error", after);
@@ -426,7 +422,6 @@ fn service_steps(state: &State, found: &mut Vec<(String, State)>) {
             after.service = Service::Running;
             after.bell = false;
             after.replaced = true;
-            after.fresh_record = false;
             for client in after.clients.iter_mut() {
                 // A receipt whose flusher could not start is the next owner's to sweep; from here on no outside cause excuses it.
                 if *client == Client::NotYet {
@@ -517,14 +512,6 @@ pub fn invariant(state: &State) -> Option<String> {
 /// excuse a stalled disk, a crash of the service, a flusher killed from outside, and a launch refused by someone else's cap, each only until
 /// a next owner has swept. A forcing error does not excuse a receipt: the error is recorded per receipt.
 pub fn terminal(state: &State) -> Option<String> {
-    return terminal_with(state, false);
-}
-
-/// `terminal`, and with `strict` also a recorded error that was written after the last startup sweep while an owner is running and will
-/// not retry it (waiting for the next owner's start is the design when no owner runs): the open finding of round 15. The
-/// design retries recorded errors at the next owner's start only; under `Rules::EighteenSyncerRetriesErrors` the running owner's syncer also
-/// retries them and the strict check is green.
-pub fn terminal_with(state: &State, strict: bool) -> Option<String> {
     // A command that arrives while the service is in its shutdown sweep waits for the lane, and that wait is the register's ACQUIRE entry,
     // bounded by its own deadline; only a command that reached L4 on a running service is the property here.
     let lane_busy_with_shutdown: bool = matches!(state.service, Service::Sealed | Service::Enumerated(_) | Service::Forced);
@@ -539,7 +526,7 @@ pub fn terminal_with(state: &State, strict: bool) -> Option<String> {
         if state.receipts[c] == Receipt::V && !excused && state.clients[c] != Client::NotYet {
             return Some(format!("client {}'s receipt is V and no executor is responsible for it", c));
         }
-        if state.receipts[c] == Receipt::Err && state.replaced && (!state.fresh_record || (strict && state.service == Service::Running)) {
+        if state.receipts[c] == Receipt::Err && state.replaced && state.service == Service::Running {
             return Some(format!("client {}'s recorded forcing error was not retried after the next owner took over", c));
         }
     }
@@ -554,11 +541,6 @@ pub fn limits() -> Limits {
 /// Explores every schedule under `rules`.
 pub fn check(rules: Rules) -> Report {
     return explore(vec![initial(rules)], steps, invariant, terminal, limits());
-}
-
-/// Explores every schedule under `rules` with the strict terminal check (the open finding of round 15 counts).
-pub fn check_strict(rules: Rules) -> Report {
-    return explore(vec![initial(rules)], steps, invariant, |state| { return terminal_with(state, true); }, limits());
 }
 
 /// Explores every schedule under `rules` with an unrelated command that may reach L4 at any point.

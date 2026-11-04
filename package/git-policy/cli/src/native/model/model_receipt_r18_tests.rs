@@ -13,7 +13,7 @@
 //! ```
 
 use crate::model_explore::{Report, replay};
-use crate::model_receipt_r18::{Client, Dispatch, Flusher, Receipt, Rules, Service, State, check, check_dispatch, check_strict, initial, initial_with_unrelated_command, invariant, steps, terminal};
+use crate::model_receipt_r18::{Client, Dispatch, Flusher, Receipt, Rules, Service, State, check, check_dispatch, initial, initial_with_unrelated_command, invariant, steps, terminal};
 
 const C0_CREATES: &str = "client 0: creates its receipt";
 const C1_CREATES: &str = "client 1: creates its receipt";
@@ -228,16 +228,25 @@ fn revision_eighteen_is_exhaustively_green() {
     assert!(green(Rules::Eighteen));
 }
 
-/// OPEN FINDING of round 15 (found when the error path was split into phases; it was excluded by the atomic error transition before): the
-/// design retries a recorded forcing error at the next owner's start. A receipt that joins a flusher in its error path after the next owner
-/// already did its startup sweep is recorded, and nothing retries it until yet another owner starts; the running owner's syncer wakes only on
-/// a ring. The default check excuses exactly this and names it; the strict check finds it, and the option in which the running syncer also
-/// retries recorded errors is green under it. The choice between them is the design's (handover, round 15).
+/// Round 15, coordinator pick: a recorded forcing error is retried by the running owner's syncer and not only by a next owner's start,
+/// because waiting for another owner start can wait without end ("nothing should ever wait forever or indefinitely"). The schedule was
+/// excluded by the atomic error transition before the error path was split: the next owner already did its startup sweep, a receipt then
+/// joins the flusher's error path and is recorded, and no owner start follows while the owner runs. The control whose syncer never retries
+/// a record is red; the rule is green.
 #[test]
-fn an_error_recorded_after_the_startup_sweep_waits_for_another_owner_unless_the_running_syncer_retries_it() {
-    let found = check_strict(Rules::Eighteen).violation.expect("the open finding is reachable");
-    assert!(found.message.contains("recorded forcing error was not retried"), "{}", found.message);
-    let option: Report = check_strict(Rules::EighteenSyncerRetriesErrors);
-    assert!(option.violation.is_none() && option.exhausted, "{:?}", option.violation.map(|violation| { return (violation.message, violation.trace); }));
-    assert!(green(Rules::Eighteen), "the default check names and excuses the finding and nothing else");
+fn a_running_owner_retries_an_error_recorded_after_its_startup_sweep() {
+    let schedule = [
+        SHUTDOWN_SEALED, ENUMERATE, FORCE_FINAL, EXIT, C0_CREATES, C0_READS, C0_STARTS, F0_ENUM, F0_ERROR_LISTS, NEXT_OWNER, STARTUP_SWEEP,
+        C1_CREATES, C1_READS, "environment: the running service rejects client 1's enqueue", C1_STARTS, F0_RECORDS, F0_RELEASES, F0_RELISTS,
+    ];
+    let recorded: State = replay(initial(Rules::Eighteen), steps, &schedule);
+    assert_eq!(recorded.service, Service::Running);
+    assert_eq!(recorded.receipts[1], Receipt::Err, "client 1's receipt carries a record written after the startup sweep");
+    let retried: State = replay(recorded.clone(), steps, &["owner: the running syncer retries the receipts that carry a recorded error"]);
+    assert_eq!(retried.receipts, [Receipt::D, Receipt::D]);
+    assert_eq!(terminal(&retried), None);
+    let never: State = replay(initial(Rules::EighteenSyncerNeverRetries), steps, &schedule);
+    assert!(terminal(&never).is_some_and(|message| { return message.contains("recorded forcing error was not retried"); }), "{:?}", terminal(&never));
+    assert!(red(Rules::EighteenSyncerNeverRetries).contains("recorded forcing error was not retried"));
+    assert!(green(Rules::Eighteen));
 }
