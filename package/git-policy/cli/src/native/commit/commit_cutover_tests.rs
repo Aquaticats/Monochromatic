@@ -145,8 +145,11 @@ fn the_real_service_sweeps_the_lane_at_its_start() {
 #[test]
 fn the_real_services_periodic_pass_serves_a_receipt_nobody_rang_for() {
     let lane: PathBuf = lane_with_receipts("service-periodic");
+    // Readiness is read from the startup sweep (a receipt there before the start is recorded), never by ringing: a ring would run a pass
+    // itself and the test would not tell the periodic pass from it.
+    unforceable(&lane, "ready");
     let _service = start_service("periodic", Some(&lane), Some(50));
-    wait_for_the_doorbell(&lane);
+    wait_recorded(&lane, "ready");
     unforceable(&lane, "orphan");
     wait_recorded(&lane, "orphan");
 }

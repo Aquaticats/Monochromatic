@@ -219,6 +219,15 @@ fn fresh_nonces_are_distinct() {
 fn the_internal_flush_mode_validates_its_lane() {
     let base: PathBuf = scratch("fix-validate-lane");
     assert!(validate_lane(Path::new("relative-lane")).is_err(), "a relative path");
+    // A relative path to a directory that is a lane: the working directory of the process that starts the unit is not the client's.
+    let relative_base: PathBuf = scratch("fix-validate-relative");
+    fs::create_dir_all(relative_base.join("lane").join(RECEIPT_DIR)).expect("a lane");
+    let child_base: PathBuf = relative_base.clone();
+    let relative_refused: Option<i32> = in_single_threaded_process(move || {
+        std::env::set_current_dir(&child_base).expect("the working directory");
+        return if validate_lane(Path::new("lane")).is_err() { 0 } else { 1 };
+    });
+    assert_eq!(relative_refused, Some(0), "a relative path to a real lane was accepted");
     assert!(validate_lane(&base.join("missing")).is_err(), "a missing directory");
     fs::write(base.join("file"), b"x").expect("a file");
     assert!(validate_lane(&base.join("file")).is_err(), "a file");
