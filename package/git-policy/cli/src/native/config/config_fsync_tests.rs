@@ -147,3 +147,38 @@ fn only_index_added_and_all_name_the_index() {
     assert!(FsyncComponents::parse("added,-index").names_index(), "an added component stays when it is also removed, as in Git");
     assert!(!FsyncComponents::parse("-index").names_index());
 }
+
+/// The value that adds the packs keeps every other component and flushes the pack and its index as well: `index-pack` makes
+/// as many flushes under it as under a value that names the packs alone, and the loose object and the reference are flushed
+/// exactly as under the person's own value.
+#[test]
+fn the_value_with_packs_flushes_the_pack_and_its_index_and_keeps_the_other_components() {
+    let root: PathBuf = fixture("config-fsync-with-packs");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let trace: PathBuf = root.join("trace.json");
+    let pack: Vec<u8> = history_pack(repo.as_path());
+    for (position, value) in VALUES.iter().enumerate() {
+        let set: FsyncComponents = FsyncComponents::parse(value);
+        let spelled: String = set.with_packs().value();
+        let name: String = format!("p{position}");
+        assert_eq!(FsyncComponents::parse(spelled.as_str()).bits, set.with_packs().bits & !OBJECT_MAP, "{value:?} spelled as {spelled:?}");
+        assert!(set.with_packs().names_pack_and_metadata());
+        // The same flushes as a value that names the packs alone make (the pack, its index and what Git writes beside it).
+        assert_eq!(
+            pack_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), pack.as_slice()),
+            pack_flushes(repo.as_path(), trace.as_path(), Some("pack,pack-metadata,none"), pack.as_slice()),
+            "the pack and its index under {spelled:?} (from {value:?})"
+        );
+        assert_eq!(
+            loose_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()) > 0,
+            set.names_loose_object(),
+            "loose objects under {spelled:?} (from {value:?})"
+        );
+        assert_eq!(
+            reference_flushes(repo.as_path(), trace.as_path(), Some(spelled.as_str()), name.as_str()) > 0,
+            set.names_reference(),
+            "references under {spelled:?} (from {value:?})"
+        );
+    }
+    remove(root.as_path());
+}

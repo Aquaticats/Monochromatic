@@ -153,6 +153,11 @@ impl FsyncComponents {
         return self.bits & (PACK | PACK_METADATA) != 0;
     }
 
+    /// Whether both a pack file and a pack's metadata are flushed.
+    pub fn names_pack_and_metadata(self) -> bool {
+        return self.bits & (PACK | PACK_METADATA) == PACK | PACK_METADATA;
+    }
+
     /// Whether the files of the reference store are flushed.
     pub fn names_reference(self) -> bool {
         return self.bits & REFERENCE != 0;
@@ -170,6 +175,20 @@ impl FsyncComponents {
     /// ```
     pub fn without_packs(self) -> Self {
         return Self { bits: self.bits & !(PACK | PACK_METADATA) };
+    }
+
+    /// What:
+    ///  This set with the pack file and the pack's metadata added.
+    /// Why:
+    ///   Where loose objects are flushed, a pack that the import keeps instead of unpacking holds the same objects and is
+    ///  flushed with its index.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// set.with('pack', 'pack-metadata')
+    /// ```
+    pub fn with_packs(self) -> Self {
+        return Self { bits: self.bits | PACK | PACK_METADATA };
     }
 
     /// What:

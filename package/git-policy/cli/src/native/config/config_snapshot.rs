@@ -295,8 +295,9 @@ impl ConfigSnapshot {
     /// Why:
     ///   Native Git writes the objects of a commit as loose objects, which its default `core.fsync` does not flush, while
     ///  `fast-import` flushes the temporary pack it writes (and deletes again when the batch is small). A repository that
-    ///  names `loose-object` (or sets the deprecated `core.fsyncObjectFiles`, or has a value this does not model) is left
-    ///  alone, so a person who asked for flushed objects still gets them; any other gets the set it has without the packs.
+    ///  names `loose-object` (or sets the deprecated `core.fsyncObjectFiles`) gets its set with the pack and its metadata
+    ///  added when it lacks them, so a pack the import keeps is flushed as the loose objects would be; any other gets the set
+    ///  it has without the packs; a value this does not model is left alone.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -304,14 +305,21 @@ impl ConfigSnapshot {
     /// ```
     pub fn import_fsync_value(&self) -> Option<String> {
         let set: FsyncComponents = self.fsync_components()?;
-        if set.names_loose_object() || !set.names_pack() {
-            return None;
-        }
         // The deprecated switch makes Git flush every loose object file; a value that is not a plain boolean is not modelled.
         let legacy = self.entries.iter().rfind(|entry| { return entry.key == "core.fsyncobjectfiles"; });
-        if let Some(entry) = legacy
-            && canonical_bool(entry.value.as_deref()) != Some(false)
-        {
+        let legacy_flush: bool = match legacy {
+            None => false,
+            Some(entry) => match canonical_bool(entry.value.as_deref()) {
+                Some(flushed) => flushed,
+                None => return None,
+            },
+        };
+        if set.names_loose_object() || legacy_flush {
+            // Native Git flushes the objects it writes, and a pack that the import keeps instead of unpacking holds the same
+            //  objects, so the pack and its index are flushed too; the unpacked case flushes its loose objects as the repository says.
+            return if set.names_pack_and_metadata() { None } else { Some(set.with_packs().value()) };
+        }
+        if !set.names_pack() {
             return None;
         }
         return Some(set.without_packs().value());
