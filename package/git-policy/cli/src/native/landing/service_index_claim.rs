@@ -1,22 +1,25 @@
 //! What:
-//!  The claim chain: how one reclaimer at a time is chosen to remove a stale index lock on a file system that gives no `flock`,
-//!  using only files placed whole beside the lock and the judgement of whether their makers are gone.
+//!  The claim chain: how one reclaimer at a time is chosen to remove a stale index lock, using only files placed whole beside the
+//!  lock and the judgement of whether their makers are gone. Every reclaim goes through it, on every file system.
 //! Why:
 //!  A removal by name removes whatever the name holds by then, so two reclaimers of one stale file must not both go on to unlink
-//!  it (the second would remove the live lock a landing placed after the first). Where the kernel has no `flock` for the file
-//!  system, the exclusion is a numbered chain of claim files named from the stale file's device and inode. A reclaimer places
-//!  its claim at the lowest slot whose claims below it are all made by gone processes, and holds only when it finds every
-//!  slot below its own still there and gone. A dead claimer's claim is never removed while the stale file stands at its name,
-//!  because removing a claim by name would be the same race one level down; claims are added, a reclaimer removes its own live
-//!  claim only when it backs off, and every claim is removed after the stale file left its name, when nothing destructive is
-//!  left to guard (`doc/planning/cli-git-one-reclaimer-per-index.md`, "The claim chain").
+//!  it (the second would remove the live lock a landing placed after the first). A `flock` on the stale file would do where the
+//!  file system gives one, but a reclaimer on that path and one on the claim path would not see each other, and a lock manager
+//!  can answer one call and refuse the next; one mechanism for all reclaimers closes that. The exclusion is a numbered chain of
+//!  claim files named from the stale lock's marker. A reclaimer places its claim at the lowest slot whose claims below it are
+//!  all made by gone processes, and holds only when it finds every slot below its own still there and gone. A dead claimer's
+//!  claim is never removed while the stale file stands at its name, because removing a claim by name would be the same race one
+//!  level down; claims are added, a reclaimer removes its own live claim only when it backs off, and every claim is removed
+//!  after the stale file left its name, when nothing destructive is left to guard
+//!  (`doc/planning/cli-git-one-reclaimer-per-index.md`, "The claim chain"). A claim whose maker is on another machine is neither
+//!  passed over nor waited for as a running one: it stays and the person is told.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! takeClaim(platform, lock, staleFile) // 'held' | 'busy' | { unavailable: error }
+//! takeClaim(platform, lock, staleFile, marked) // 'held' | 'busy' | { foreign: { file, marked } } | { unavailable: error }
 //! ```
 
-use crate::service_index_marker::{Marked, holder_is_gone, marker_text, parse_marker};
+use crate::service_index_marker::{Marked, holder_is_elsewhere, holder_is_gone, marker_text, parse_marker};
 use crate::service_index_placement::{Platform, place_marked};
 use crate::service_index_staging::stage_marker;
 use std::io::Read;
@@ -39,6 +42,8 @@ pub enum Claim {
     Held(ClaimHold),
     /// A claimer that runs (or cannot be judged) is ahead, or a claim could not be read: not this reclaimer's turn.
     Busy,
+    /// A claim in the way was made by a service on another machine: it is not proven gone, so it stays and is named.
+    Foreign { file: PathBuf, marked: Marked },
     /// A claim could not be placed or this process cannot name itself: nothing is removed, and the caller says so.
     Unavailable(std::io::Error),
 }
@@ -53,6 +58,8 @@ enum Slot {
     Dead,
     /// A claim whose maker runs or cannot be judged, or a file that could not be read.
     Live,
+    /// A claim whose maker is on another machine, or on one this machine cannot be compared with.
+    Elsewhere(Marked),
 }
 
 /// The claim a reclaimer holds: slots zero to its own are the chain it removes when the stale file has left its name.
@@ -148,8 +155,10 @@ fn look_at(path: &Path) -> Slot {
         }
     }
     return match parse_marker(text.as_str()) {
-        Some(marked) if !holder_is_gone(marked.holder.as_ref()) => Slot::Live,
-        _ => Slot::Dead,
+        Some(marked) if holder_is_gone(marked.holder.as_ref()) => Slot::Dead,
+        Some(marked) if holder_is_elsewhere(marked.holder.as_ref()) => Slot::Elsewhere(marked),
+        Some(_) => Slot::Live,
+        None => Slot::Dead,
     };
 }
 
@@ -189,10 +198,10 @@ fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
 /// return allBelowDead(slot) ? held : (remove(slot), 'busy')
 /// ```
 pub fn take_claim(platform: &Platform, lock: &Path, stale: &std::fs::File, marked: &Marked) -> Claim {
-    // Lock kept: two reclaimers of one stale lock must not both unlink its name, and the file system gives no `flock` to say so.
-    //  The claim is a file placed whole beside the lock, named from the stale file's device and inode; the hold is a few system
-    //  calls long, is one file per reclaimer (never the repository or the directory), and a dead reclaimer's claim is passed
-    //  over, never waited for, because its maker's marker says it is gone.
+    // Lock kept: two reclaimers of one stale lock must not both unlink its name, and no system call unlinks a name only if it
+    //  still names a given file. The claim is a file placed whole beside the lock, named from the stale lock's marker; the hold
+    //  is a few system calls long, is one file per reclaimer (never the repository or the directory), and a dead reclaimer's
+    //  claim is passed over, never waited for, because its maker's marker says it is gone.
     let key: String = match claim_key(stale, marked) {
         Ok(key) => key,
         Err(error) => return Claim::Unavailable(error),
@@ -244,7 +253,10 @@ pub fn take_claim(platform: &Platform, lock: &Path, stale: &std::fs::File, marke
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match look_at(path.as_path()) {
                 Slot::Dead => slot += 1,
                 Slot::Live | Slot::Free => break Claim::Busy,
+                Slot::Elsewhere(marked) => break Claim::Foreign { file: path, marked },
             },
+            // An interrupted call, or one that found no memory, is not a refusal of the file system: asked again by the wait.
+            Err(error) if matches!(error.kind(), std::io::ErrorKind::Interrupted | std::io::ErrorKind::WouldBlock | std::io::ErrorKind::OutOfMemory) => break Claim::Busy,
             Err(error) => break Claim::Unavailable(error),
             Ok(()) => unreachable!("a placement that succeeded is the attempt's own claim"),
         }

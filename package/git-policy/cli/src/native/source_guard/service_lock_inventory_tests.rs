@@ -37,7 +37,7 @@ const LOCK_WORDS: &[&str] = &["Mutex", "RwLock", "Condvar", "flock(", "LOCK_EX",
 const REASON_MARKER: &str = "Lock kept:";
 
 /// The locks that stay, by file: what each protects is in the comment block above it, and in `SPEC.md`.
-const INVENTORY: &[&str] = &["landing/service_index_reclaim.rs", "service/journald_native.rs"];
+const INVENTORY: &[&str] = &["service/journald_native.rs"];
 
 /// Every `.rs` file below `root`,
 ///  as `/`-separated paths relative to it,

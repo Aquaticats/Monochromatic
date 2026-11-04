@@ -21,7 +21,7 @@
 //! const identity = ownIdentity(); const state = holderState(holder, readerView); // 'gone' | 'running' | 'unknown'
 //! ```
 
-use crate::claim_time::current_boot_id;
+use crate::claim_time::{current_boot_id, current_machine_id, is_machine_id};
 use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
 use crate::service_index_marker::{Marked, marker_of};
 use std::path::Path;
@@ -41,9 +41,10 @@ pub enum HolderState {
     /// or a boot that has ended.
     Gone,
     /// The process runs now,
-    /// in the same boot and the same PID namespace.
+    /// in the same boot, on the same machine and in the same PID namespace.
     Running,
     /// The reader cannot compare:
+    /// another machine,
     /// another PID namespace,
     /// a `/proc` that does not agree with the reader's own PID,
     /// no boot ID to compare,
@@ -118,7 +119,7 @@ fn read_procfs_agreement() -> bool {
 impl ReaderView<'static> {
     /// What this process can say now.
     pub fn current() -> ReaderView<'static> {
-        return ReaderView { boot: current_boot_id(), scope: current_pid_scope(), machine: None, procfs_agrees: current_procfs_agrees() };
+        return ReaderView { boot: current_boot_id(), scope: current_pid_scope(), machine: Some(current_machine_id()).filter(|id| { return !id.is_empty(); }), procfs_agrees: current_procfs_agrees() };
     }
 }
 
@@ -170,7 +171,7 @@ pub fn own_identity() -> Result<String, ProcessIdentityError> {
     let stat: Vec<u8> = std::fs::read("/proc/self/stat").map_err(|error| { return ProcessIdentityError::Io { pid: i64::from(own), error }; })?;
     #[cfg(not(target_os = "linux"))]
     let stat: Vec<u8> = format!("{own} ").into_bytes();
-    return identity_in_view(stat.as_slice(), own, current_boot_id(), current_pid_scope());
+    return identity_in_view_on(stat.as_slice(), own, current_boot_id(), current_pid_scope(), Some(current_machine_id()).filter(|id| { return !id.is_empty(); }));
 }
 
 /// `own_identity` for the process `own`,
@@ -192,7 +193,6 @@ pub fn identity_in_view(stat: &[u8], own: u32, boot: &str, scope: Option<&str>) 
 ///
 /// As `identity_in_view`.
 pub fn identity_in_view_on(stat: &[u8], own: u32, boot: &str, scope: Option<&str>, machine: Option<&str>) -> Result<String, ProcessIdentityError> {
-    let _ = machine;
     check_procfs_view(stat, own)?;
     let birth: String = current_birth_identity()?;
     #[cfg(target_os = "linux")]
@@ -205,7 +205,10 @@ pub fn identity_in_view_on(stat: &[u8], own: u32, boot: &str, scope: Option<&str
         }
     }
     let mut identity: String = birth;
-    for part in [Some(boot).filter(|text| { return !text.is_empty(); }), scope] {
+    // The machine comes last and only after the namespace, so a reader of a release before machine IDs sees a namespace it does
+    //  not know and answers unknown, which keeps the lock.
+    let machine_part: Option<&str> = scope.and(machine).filter(|id| { return is_machine_id(id); });
+    for part in [Some(boot).filter(|text| { return !text.is_empty(); }), scope, machine_part] {
         if let Some(text) = part {
             identity.push(BOOT_SEPARATOR);
             identity.push_str(text);
@@ -232,10 +235,10 @@ pub fn check_procfs_view(stat: &[u8], own: u32) -> Result<(), ProcessIdentityErr
 /// the boot ID and the PID namespace a marker names;
 /// a marker an earlier release wrote names no boot,
 /// and one of the release before the namespace was recorded names no namespace.
-fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>) {
-    let mut parts = birth.splitn(3, BOOT_SEPARATOR);
+fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>, Option<&str>) {
+    let mut parts = birth.splitn(4, BOOT_SEPARATOR);
     let identity: &str = parts.next().unwrap_or(birth);
-    return (identity, parts.next(), parts.next());
+    return (identity, parts.next(), parts.next(), parts.next());
 }
 
 /// What:
@@ -261,7 +264,14 @@ pub fn holder_state_in(
     ask: &dyn Fn(i64) -> Result<Option<String>, ProcessIdentityError>,
 ) -> HolderState {
     let Some((pid, birth)) = holder else { return HolderState::Gone };
-    let (identity, boot, scope) = split_birth(birth.as_str());
+    let (identity, boot, scope, machine) = split_birth(birth.as_str());
+    // A service on another machine, or one whose machine ID is not valid, is never gone: a different boot ID there says
+    //  nothing about it. A marker without a machine ID (an earlier release's) keeps the reading below.
+    if let Some(recorded) = machine
+        && (!is_machine_id(recorded) || view.machine != Some(recorded))
+    {
+        return HolderState::Unknown;
+    }
     if let Some(recorded) = boot
         && !view.boot.is_empty()
         && recorded != view.boot
@@ -282,6 +292,19 @@ pub fn holder_state_in(
         Ok(Some(_)) => HolderState::Gone,
         Err(_) => HolderState::Unknown,
     };
+}
+
+/// Whether the marker's holder is on another machine than this one, or on one that cannot be compared with this one: the holder
+///  names a machine ID and this reader has none or another. A holder that names none (an earlier release's) is not.
+pub fn holder_is_elsewhere_in(holder: Option<&(i64, String)>, view: &ReaderView) -> bool {
+    let Some((_, birth)) = holder else { return false };
+    let (_, _, _, machine) = split_birth(birth.as_str());
+    return machine.is_some_and(|recorded| { return !is_machine_id(recorded) || view.machine != Some(recorded); });
+}
+
+/// `holder_is_elsewhere_in` for this process's view.
+pub fn holder_is_elsewhere(holder: Option<&(i64, String)>) -> bool {
+    return holder_is_elsewhere_in(holder, &ReaderView::current());
 }
 
 /// What this process makes of `holder` now.
