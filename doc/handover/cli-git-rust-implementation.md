@@ -3579,6 +3579,38 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   short extra wait "7 s (Recommended)" (twice the longest measured branch write,
   3,438 ms of 2,093);
   both sent to the agent.
+  Follow-up done (tip `bafebbd512`,
+  main `64031356d8` merged in;
+  gate r5 4801/4801;
+  clippy clean):
+  `SHORT_EXTRA_WAIT` 7 s with a backward-readable `InsideWrite` notice (one extra field on the `waiting` line);
+  the cut experiment (Git 2.56.0,
+  kill at every mutating system call,
+  rerun,
+  compare) decided which steps keep a ceiling,
+  and the first build's list was wider than the criterion;
+  a person's command stops waiting at the step's class bound (120 s quick,
+  10 min bulk) plus 7 s with a not-known error and leaves the step running;
+  only the landing thread waits without a bound;
+  cold `pnpm install` 20.9 s and `cargo fetch` 7.6 s were shorter than the warm maxima,
+  so the ceilings stand.
+  Cross-vendor reviews running:
+  `branch-write-sol-1.txt` (step bounds,
+  135 KB) and `branch-write-sol-2.txt` (tool ceilings and docs,
+  127 KB).
+  Open for the owner:
+  whether a person's command gets a bound other than the step's class ceiling.
+- Index lock claims always plus machine id:
+  built on `fix/git-policy-cli-index-lock-claims-always` (tip `69650ced17`,
+  gate 4780/4780,
+  clippy clean,
+  red first);
+  `Reclaimed::Foreign` leaves another machine's lock or claim and names it.
+  Two cross-vendor attempts by the agent timed out empty (exit 124);
+  a third runs on the current diff (`claims-always-3.diff`,
+  125 KB;
+  output `claims-always-sol-3.txt`).
+  Then merge with the branch-write branch and release 0.5.31.
   Then the cross-vendor review of the whole branch,
   merge,
   and release 0.5.31.
@@ -3799,7 +3831,21 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     and the shared `journal_dirs` helper reads an unreadable directory as empty);
     no production defect;
     all three groups' fixes sent;
-    the agent rebuilds the bundles at its new tip and the three certification reviews run again;
+    done (tip `d5ab71ea62`,
+    609 run,
+    609 passed,
+    13 skipped;
+    clippy clean;
+    16 of 31 items with a planted-regression red run;
+    gaps:
+    no real uninterruptible-member shutdown,
+    no plant for five tests);
+    bundles rebuilt in four groups (`cargo-shadow-cert-1-a1-v2amendedc-weakerpath.txt` 239 KB,
+    `-2-a1v3-r1-r2-v3v4-v5` 235 KB,
+    `-3-a1a2-v6` 230 KB,
+    `-4-a2r4-a3a4-r3r5-k1-k2-v1` 235 KB);
+    prompts `cargo-shadow-cert2-prompt-1..4.txt` written (group 1 without the manifest to stay under 250 KB);
+    queued behind the index-lock and branch-write reviews;
     after they pass,
     the owner's approval for the first crates.io publish.
     Queued after a change review with no defect:
@@ -3981,11 +4027,27 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
   veto open.
   Sent to the models agent now:
   the plain bug and the map and comparison corrections only.
-  Owner question on the bound asked 2026-11-04 (keep built with a stated limit,
-  inline force,
-  manager-started owner,
-  or more rounds);
-  the remaining findings wait on that answer.
+  Owner answer (question tool,
+  2026-11-04):
+  "Keep built,
+  state limit (Recommended)"
+  (keep release,
+  recheck and exit;
+  the helper count is bounded only by the commits that arrive during those milliseconds,
+  overriding the reviewer's limit;
+  the plain launch bugs still get fixed).
+  Plain bug fixed (tip `2ba400d898`,
+  472 model tests passed:
+  a helper that cannot take the lock is a failed launch with every receipt recorded,
+  and it records them itself too;
+  `record_errors` writes each line in one write after interleaved lines were seen);
+  map and comparison claims narrowed,
+  the round 18 ranking withdrawn.
+  Round 19 sent:
+  record the owner's override in the map and the target notes,
+  and fix the two save-losing schedules of review 13 (handover timeout then launcher death;
+  the intermediate child's inherited lock copy with failed cleanup);
+  parts to `commit-models-14-part-<n>-<topic>.diff`.
   - Trusting the boot id:
     "Check and state premise (Recommended)":
     procfs magic and no mount on top of `boot_id`,
