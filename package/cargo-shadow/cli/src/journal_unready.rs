@@ -336,7 +336,7 @@ fn assess(directory: &Path) -> Option<Finding> {
     // A "starting" line of the weaker path that no process group line follows: a child may run that no record names.
     let mut announced_without_group: bool = false;
     let mut weaker_path: bool = false;
-    // The scopes of runs that are not settled: an absent one may be a scope its launcher has not made yet.
+    // The scopes of runs that are not settled: the launcher of such a run may not have finished entering its scope.
     let mut unsettled: Vec<PathBuf> = Vec::new();
     for line in text.lines() {
         match parse_record(line) {
@@ -388,15 +388,15 @@ fn assess(directory: &Path) -> Option<Finding> {
         hook();
     }
     for open in unsettled {
-        // A scope that exists and is empty has run its program to the end. One that is absent is either collected after its run or not
-        // made yet by a launcher that is still starting; nothing here can tell which (round 9, 8a F1).
-        if !open.exists() {
-            note_uncertain(format!(
-                "{}: the run that was to make the scope {} did not record its end, and the scope is absent, so its launcher may not have made it yet and a program may still start in it; {hint}",
-                directory.display(),
-                open.display()
-            ));
-        }
+        // The run did not record its end, so nothing shows that its launcher finished entering the scope: an absent scope may not be
+        // made yet, and one that exists and is empty may be waiting for the launcher to be attached. A look at the scope, however
+        // late, does not turn this into a completed lifecycle (round 10, 9a D1); a positively populated scope has already blocked.
+        note_uncertain(format!(
+            "{}: the run that was to make the scope {} did not record its end, so its launcher may not have finished entering the scope \
+             (whether the scope is absent or empty now) and a program may still start in it; {hint}",
+            directory.display(),
+            open.display()
+        ));
     }
     if announced_without_group {
         note_uncertain(format!(

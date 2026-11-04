@@ -107,7 +107,7 @@ fn a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended() 
     let _ = launcher.wait();
 
     let pending: String = while_pending.expect("a pending launcher blocks");
-    assert!(pending.contains("did not record its end") && pending.contains("may not have made it yet"), "{pending}");
+    assert!(pending.contains("did not record its end") && pending.contains("may not have finished entering"), "{pending}");
     assert_eq!(lock_while_pending, "unchecked output of the killed run", "a recovery restored files while a program could still start: {messages:?}");
     assert!(after.is_some_and(|text| { return text.contains("still running"); }), "the member of the scope that appeared was not seen");
     assert!(stopped);
