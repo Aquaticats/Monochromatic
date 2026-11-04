@@ -11,6 +11,7 @@
 //! const cloned = await cloneTree({ source, destination, workers });
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::worktree_copy_stage::copy_file_exclusive;
 use std::fs::{FileTimes, Metadata};
 use std::os::unix::fs::symlink;
@@ -164,7 +165,7 @@ pub fn clone_tree(source: &Path, destination: &Path, workers: usize) -> Result<C
         let handles: Vec<_> = leaves
             .chunks(slice_length)
             .map(|slice: &[&Entry]| {
-                return scope.spawn(move || {
+                return start_or_run(scope, move || {
                     let mut skipped: Vec<PathBuf> = Vec::new();
                     for entry in slice {
                         skipped.extend(place(source, destination, entry)?);

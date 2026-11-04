@@ -22,6 +22,26 @@ thread_local! {
     pub(crate) static STARTS_FAIL_ON_THIS_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// While it lives, every scoped start from the thread that made it is refused, as when the system has no thread to give.
+#[cfg(test)]
+pub(crate) struct RefusedStarts;
+
+#[cfg(test)]
+impl RefusedStarts {
+    /// Refuse the starts of the current thread until the value is dropped.
+    pub(crate) fn here() -> Self {
+        STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(true); });
+        return Self;
+    }
+}
+
+#[cfg(test)]
+impl Drop for RefusedStarts {
+    fn drop(&mut self) {
+        STARTS_FAIL_ON_THIS_THREAD.with(|flag| { flag.set(false); });
+    }
+}
+
 /// A closure that runs on a thread of its own, or that already ran on the thread that started it.
 pub enum Started<'scope, T> {
     /// The thread that runs it.
@@ -77,6 +97,25 @@ where
             }
         }
     };
+}
+
+/// What:
+///  Start a thread that outlives the caller, and report a refusal as an error.
+/// Why:
+///   `std::thread::spawn` panics where `Builder::spawn` returns the refusal; the callers of this have no way to do the work in turn
+///  and say so in a message instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worker = spawnNamed('name', () => work()); // throws when no thread can start
+/// ```
+pub fn spawn_named<F, T>(name: &str, work: F) -> std::io::Result<std::thread::JoinHandle<T>>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    starts()?;
+    return std::thread::Builder::new().name(String::from(name)).spawn(work);
 }
 
 /// Whether a thread may start now: always, except where a control made the start fail.

@@ -11,6 +11,7 @@
 //! const snapshot = await stageIgnoredSnapshot({ sourceRoot, destinationRoot, registeredRoots, gitPath });
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::private_storage::create_private_directory;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::random_id::random_uuid;
@@ -342,7 +343,7 @@ fn copy_manifest_entries(
             .zip(stamps.chunks_mut(slice_length))
             .map(|(slice, slots)| {
                 let failed_ref: &AtomicBool = &failed;
-                return scope.spawn(move || {
+                return start_or_run(scope, move || {
                     let outcome = copy_leaves(source_root, stage_root, slice, slots, failed_ref);
                     if outcome.is_err() {
                         failed_ref.store(true, Ordering::Relaxed);

@@ -13,6 +13,7 @@
 //! const source = await chooseSnapshotSource({ context, identity, plan }); // throws the reason it cannot be one
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot};
 use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use crate::fs_mount_options::read_mount_facts;
@@ -398,8 +399,8 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
     //  are set aside read different things and write nothing, so they run side by side; the verdicts are read in the order the
     //  checks have always had.
     let (read_config, checked, trash_ignored): (Option<ConfigSnapshot>, Result<CleanSource, CleanRefusal>, bool) = std::thread::scope(|scope| {
-        let config = scope.spawn(|| { return crate::add_timing::work("readConfig", || { return read_config_snapshot(context, root.as_path()); }); });
-        let trash = scope.spawn(|| { return crate::add_timing::work("trashIgnored", || { return git_dir == common_dir && crate::worktree_trash::trash_location_is_ignored(context, root.as_path()); }); });
+        let config = start_or_run(scope, || { return crate::add_timing::work("readConfig", || { return read_config_snapshot(context, root.as_path()); }); });
+        let trash = start_or_run(scope, || { return crate::add_timing::work("trashIgnored", || { return git_dir == common_dir && crate::worktree_trash::trash_location_is_ignored(context, root.as_path()); }); });
         let checked = check_clean(context, root.as_path(), git_dir.as_path(), common_dir.as_path());
         return (config.join().unwrap_or(None), checked, trash.join().unwrap_or(false));
     });

@@ -14,6 +14,7 @@
 //! const pending = await readPendingWorktreeCopyJournals(commonDir);
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::json_record::quote;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
@@ -1059,7 +1060,7 @@ fn remove_tree_split(path: &Path) -> std::io::Result<()> {
     let outcomes: Vec<std::io::Result<()>> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)
             .map(|_worker| {
-                return scope.spawn(|| -> std::io::Result<()> {
+                return start_or_run(scope, || -> std::io::Result<()> {
                     loop {
                         let index: usize = cursor.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         let Some(subtree) = subtrees.get(index) else {

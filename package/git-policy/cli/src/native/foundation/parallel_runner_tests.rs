@@ -189,3 +189,15 @@ fn lanes_must_cover_every_item_exactly_once() {
 fn an_empty_run_reports_nothing() {
     assert!(events_of(0, 4, &|_index: usize, _item: &usize, _say: &mut dyn FnMut(&str)| { return String::new(); }).is_empty());
 }
+
+/// Where the system starts no thread the workers' lanes run on the calling thread and the report is whole and in order (shipped
+/// `Scope::spawn` panicked there). The body runs in a child that is refused every thread.
+#[test]
+fn an_ordered_run_where_no_thread_can_start_reports_every_item_in_order() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "an_ordered_run_where_no_thread_can_start_reports_every_item_in_order") {
+        return;
+    }
+    let seen: Vec<String> = events_of(5, 3, &|index: usize, _item: &usize, _line: &mut dyn FnMut(&str)| { return format!("r{index}"); });
+    let ends: Vec<&String> = seen.iter().filter(|text| { return text.starts_with("end "); }).collect();
+    assert_eq!(ends, vec!["end 0 r0", "end 1 r1", "end 2 r2", "end 3 r3", "end 4 r4"], "{seen:?}");
+}

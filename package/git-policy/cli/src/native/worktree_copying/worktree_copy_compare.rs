@@ -11,6 +11,7 @@
 //! await assertFinalSourceEquivalence({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries });
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
@@ -248,7 +249,7 @@ pub fn assert_final_source_equivalence_pruned(
 ) -> Result<(), WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
     let (source_walked, stage_walked) = std::thread::scope(|scope| {
-        let source_walk = scope.spawn(|| {
+        let source_walk = start_or_run(scope, || {
             let mut unreadable: Vec<String> = Vec::new();
             return collect_pruned_manifest(
                 source_root,

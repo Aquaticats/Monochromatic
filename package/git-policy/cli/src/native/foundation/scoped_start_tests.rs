@@ -34,3 +34,11 @@ fn a_thread_that_cannot_start_runs_the_closure_on_the_calling_thread_once() {
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1, "the closure ran once");
     assert!(panicked, "a panic of the work is a join error, as on a thread");
 }
+
+/// A thread of the plain kind that the system refuses is an error to the caller, not a panic.
+#[test]
+fn a_named_thread_that_cannot_start_is_an_error() {
+    let _refused = RefusedStarts::here();
+    let refused = spawn_named("never", || {}).expect_err("the start is refused");
+    assert_eq!(refused.raw_os_error(), Some(libc::EAGAIN));
+}

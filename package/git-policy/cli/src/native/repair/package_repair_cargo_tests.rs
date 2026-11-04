@@ -154,3 +154,13 @@ fn every_item_has_its_result_in_item_order() {
         assert_eq!(results, items.iter().map(|item: &usize| { return Ok(*item + 1); }).collect::<Vec<Result<usize, String>>>());
     }
 }
+
+/// Where the system starts no thread the workers' items are done on the calling thread, each with its result in item order. The body
+/// runs in a child that is refused every thread.
+#[test]
+fn concurrent_items_where_no_thread_can_start_are_done_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "concurrent_items_where_no_thread_can_start_are_done_in_turn") {
+        return;
+    }
+    every_item_has_its_result_in_item_order();
+}

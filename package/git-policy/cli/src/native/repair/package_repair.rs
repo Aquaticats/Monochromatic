@@ -15,6 +15,7 @@
 //! ```
 
 /// The two bounds one tool runs under.
+use crate::scoped_start::start_or_run;
 use crate::package_repair_command::ToolLimits;
 use crate::add_timing::work;
 use crate::diagnostic_log::debug;
@@ -203,8 +204,8 @@ pub fn repair_worktree(request: &RepairRequest<'_>, notices: &mut dyn Write) -> 
     }
     let started: std::time::Instant = std::time::Instant::now();
     let (pnpm, cargo, toolchain): (Option<Finding>, Vec<Finding>, Option<Finding>) = std::thread::scope(|scope| {
-        let pnpm = scope.spawn(|| { return work("repairPnpm", || { return repair_pnpm(request.destination, request.environment); }); });
-        let toolchain = scope.spawn(|| { return work("repairToolchain", || { return repair_toolchain(request.destination, request.environment); }); });
+        let pnpm = start_or_run(scope, || { return work("repairPnpm", || { return repair_pnpm(request.destination, request.environment); }); });
+        let toolchain = start_or_run(scope, || { return work("repairToolchain", || { return repair_toolchain(request.destination, request.environment); }); });
         let cargo: Vec<Finding> = work("repairCargo", || { return repair_cargo(request); });
         // A tool that panicked has no finding; the add goes on and the worktree stays as the copy left it.
         let settled = |joined: std::thread::Result<Option<Finding>>, tool: &str| -> Option<Finding> {

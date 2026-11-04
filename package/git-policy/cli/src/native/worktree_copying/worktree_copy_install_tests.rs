@@ -330,3 +330,14 @@ fn retained_paths_are_named_in_the_failure() {
 fn the_install_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_INSTALL_MIN_LEAVES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
 }
+
+/// Where the system starts no thread the install workers' slices are installed in turn, with the same rollback. The body runs in a
+/// child that is refused every thread.
+#[cfg(unix)]
+#[test]
+fn a_parallel_install_where_no_thread_can_start_is_made_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_install_where_no_thread_can_start_is_made_in_turn") {
+        return;
+    }
+    a_failed_parallel_batch_rolls_back_every_file_its_workers_created();
+}

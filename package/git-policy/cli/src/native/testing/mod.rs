@@ -30,6 +30,11 @@ pub(crate) mod recording_git;
 #[cfg(target_os = "linux")]
 pub(crate) mod umask_child_test_support;
 
+/// A test body run in a child process that is refused every thread it starts; never part of the release executable.
+#[cfg(test)]
+#[cfg(target_os = "linux")]
+pub(crate) mod no_threads_child_test_support;
+
 /// A point where threads must all arrive, for controls that prove work overlapped.
 #[cfg(test)]
 pub(crate) mod parallel_test_support;

@@ -1666,3 +1666,19 @@ fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_th
     assert_eq!(std::fs::read_dir(s.local.join(".git/cli-git-merges")).map_or(0, Iterator::count), 0, "no record is left");
     remove(&s.root);
 }
+
+/// A second-pass command whose input thread cannot start is stopped and reported, not left waiting for input and not a panic
+/// (`std::thread::spawn` panicked there). The starts are refused to this thread by the seam of `scoped_start`.
+#[test]
+fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported() {
+    let root: PathBuf = crate::test_support::fixture("reconcile-no-input-thread");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let git: PushGit = push_git(repo.as_path());
+    let runner: PushRunner<'_> = PushRunner { git: &git };
+    let positive = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect("positive control: the command runs with a thread");
+    assert_eq!(positive.code, Some(0));
+    let _refused = crate::scoped_start::RefusedStarts::here();
+    let reported: String = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect_err("no thread to give it its input");
+    assert!(reported.contains("no thread could be started") && reported.contains("hash-object"), "{reported}");
+    crate::test_support::remove(root.as_path());
+}

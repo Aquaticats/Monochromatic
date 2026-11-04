@@ -15,6 +15,7 @@
 //! const findings = await repairCargo(request); // one per workspace that failed, one for the rest that worked
 //! ```
 
+use crate::scoped_start::start_or_run;
 use crate::add_timing::work;
 use crate::diagnostic_log::debug;
 use crate::package_repair::RepairRequest;
@@ -398,7 +399,7 @@ fn map_concurrent<T: Sync, R: Send>(items: &[T], workers: usize, label: &(dyn Fn
     let mut results: Vec<(usize, Result<R, String>)> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers.max(1).min(items.len().max(1)))
             .map(|_worker: usize| {
-                return scope.spawn(|| {
+                return start_or_run(scope, || {
                     let mut done: Vec<(usize, Result<R, String>)> = Vec::new();
                     loop {
                         let index: usize = next.fetch_add(1, Ordering::Relaxed);

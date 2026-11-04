@@ -595,3 +595,22 @@ fn the_longest_names_fit_a_file_name() {
     let temporary: String = format!("{journal}.{}.{identifier}{TEMPORARY_SUFFIX}", owner.token());
     assert!(temporary.len() <= 255, "{} bytes", temporary.len());
 }
+
+/// Where the system starts no thread the removal workers' subtrees are removed in turn. The body runs in a child that is refused
+/// every thread.
+#[test]
+fn a_split_removal_where_no_thread_can_start_removes_the_whole_tree() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_split_removal_where_no_thread_can_start_removes_the_whole_tree") {
+        return;
+    }
+    let root: std::path::PathBuf = crate::test_support::fixture("journal-removal-no-threads");
+    let tree: std::path::PathBuf = root.join("stage");
+    for branch in 0..4 {
+        let deep: std::path::PathBuf = tree.join(format!("a{branch}/b/c/d"));
+        std::fs::create_dir_all(deep.as_path()).expect("directories");
+        std::fs::write(deep.join("file"), b"x").expect("file");
+    }
+    remove_tree_split(tree.as_path()).expect("every subtree is removed here");
+    assert!(!tree.exists());
+    crate::test_support::remove(root.as_path());
+}

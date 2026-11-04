@@ -169,3 +169,13 @@ fn a_readable_tree_leaves_nothing_out() {
 fn the_clone_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
 }
+
+/// Where the system starts no thread the clone is made by the calling thread and equals the serial one. The body runs in a child that
+/// is refused every thread.
+#[test]
+fn a_parallel_clone_where_no_thread_can_start_is_made_in_turn() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_clone_where_no_thread_can_start_is_made_in_turn") {
+        return;
+    }
+    parallel_and_serial_clones_agree();
+}
