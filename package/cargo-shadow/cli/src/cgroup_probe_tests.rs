@@ -291,3 +291,25 @@ fn the_record_lines_round_trip_and_damaged_lines_are_rejected() {
         assert!(reason.contains(&format!("{damaged:?}")), "{reason}");
     }
 }
+
+/// Probe 1 (found while preparing the report):
+/// an inactive slice reports no control group, so the discovery starts it first;
+/// a host whose manager has run no application yet still gets the strong path.
+#[test]
+fn probe_1_an_inactive_slice_is_started_before_its_control_group_is_asked_for() {
+    if delegated_route().is_none() {
+        return;
+    }
+    let name: String = format!("csr8probe{}.slice", std::process::id());
+    let asked = |slice: &str| -> String {
+        let output = Command::new("systemctl").args(["--user", "show", slice, "--property=ControlGroup", "--value"]).output().expect("systemctl runs");
+        return String::from_utf8_lossy(&output.stdout).trim().to_string();
+    };
+    assert_eq!(asked(&name), "", "the slice should be inactive before the discovery");
+
+    let found = detect_route(&RouteSettings { slice: name.clone(), ..RouteSettings::default() });
+    let _ = Command::new("systemctl").args(["--user", "stop", &name]).status();
+
+    let route = found.expect("an inactive slice is started and found");
+    assert!(route.slice_dir.ends_with(&name), "{}", route.slice_dir.display());
+}

@@ -77,6 +77,10 @@ pub(crate) const CGROUP_ROOT: &str = "/sys/fs/cgroup";
 /// The file system type number of a cgroup v2 mount (`CGROUP2_SUPER_MAGIC`, ASCII "cgrp"), from `statfs(2)`.
 const CGROUP2_MAGIC: u64 = 0x6367_7270;
 
+/// `STATX_MNT_ID_UNIQUE` of `linux/stat.h` (Linux 6.8): the mount id that is never reused while the system runs.
+/// `rustix` 1.1.6 has the field and not the flag, so the bit is spelled here.
+const STATX_MNT_ID_UNIQUE: u32 = 0x4000;
+
 /// How long the stop waits for a change of `cgroup.events` before it looks for members to signal again.
 /// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
 /// (handover "Picks made under the owner's delegation"), veto open;
@@ -162,6 +166,12 @@ impl fmt::Display for View {
 /// export function viewOf(path: string): View
 /// ```
 pub(crate) fn view_of(path: &Path) -> io::Result<View> {
+    // The unique id is asked for alone first (a kernel before 6.8 ignores the bit); the reusable one is the fallback.
+    let unique_bit: StatxFlags = StatxFlags::from_bits_retain(STATX_MNT_ID_UNIQUE);
+    let unique = statx(CWD, path, AtFlags::empty(), unique_bit | StatxFlags::INO).map_err(io::Error::from)?;
+    if StatxFlags::from_bits_retain(unique.stx_mask).contains(unique_bit) && StatxFlags::from_bits_retain(unique.stx_mask).contains(StatxFlags::INO) {
+        return Ok(View { mount: unique.stx_mnt_id, inode: unique.stx_ino });
+    }
     let found = statx(CWD, path, AtFlags::empty(), StatxFlags::MNT_ID | StatxFlags::INO).map_err(io::Error::from)?;
     let reported: StatxFlags = StatxFlags::from_bits_retain(found.stx_mask);
     if !reported.contains(StatxFlags::MNT_ID) || !reported.contains(StatxFlags::INO) {
@@ -359,6 +369,12 @@ pub(crate) fn detect_route(settings: &RouteSettings) -> Result<Route, GroupUnava
     }
     if !on_path(&settings.systemd_run) {
         return Err(unavailable(format!("{} is not installed", settings.systemd_run)));
+    }
+    // An inactive slice has no control group yet (a fresh login, a runner whose manager has run no application): starting it is
+    // idempotent, and it is still the discovery of a capability, so a manager that cannot start it is a missing capability.
+    if settings.question.is_none() {
+        run_plain(&settings.systemctl, &["--user", "start", &settings.slice], &settings.environment, settings.discovery_bound)
+            .map_err(|reason| { return unavailable(format!("the user manager cannot start {} ({reason})", settings.slice)); })?;
     }
     let ordinary: Vec<String> = vec!["--user".to_string(), "show".to_string(), settings.slice.clone(), "--property=ControlGroup".to_string(), "--value".to_string()];
     let question: Vec<&str> = settings.question.as_ref().unwrap_or(&ordinary).iter().map(String::as_str).collect();

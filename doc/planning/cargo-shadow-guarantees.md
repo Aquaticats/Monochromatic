@@ -22,8 +22,7 @@ Where this file and an earlier section of `doc/planning/cargo-shadow-update.md` 
 ## Guarantees
 
 Each guarantee is a property, followed by the test that shows it.
-"Exists" names a test in the package now;
-"to be written" is a test round 8 writes before the code that satisfies it.
+Every test named here exists in the package; the coverage map at the end says which part of a row has no test yet.
 Every guarantee is stated for the normal path, where a delegated control group is in force.
 The weaker path (third part) keeps only the guarantees marked as holding there.
 
@@ -49,9 +48,9 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   Whenever a run could not show A1 (a member that cannot be killed, a failure to stop, any failure on the containment path after the
   child started), the run reports `NotQuiescent`, the scope reports that writers may remain, and install and update stop with the
   lockfiles neither rolled back nor accepted, the journal kept, and the user's command not run.
-  Test: `a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal` exists (call-site half);
-  `a_failure_on_the_containment_path_after_the_start_is_not_quiescent` to be written (7a F3: today a failure to leave the group
-  returns an ordinary I/O error).
+  Test: `a_run_whose_descendants_could_not_be_stopped_stops_the_command_and_keeps_the_journal` (call-site half) and
+  `a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent` (7a F3: a failed stop, a failed inspection and a
+  member that cannot be emptied are each `NotQuiescent`).
   Holds on the weaker path: yes for what the process group shows.
 - **A3.**
   A lockfile is accepted only if the policy accepted its final text, or the refusal stops the command.
@@ -63,9 +62,10 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   `an_operational_error_with_a_failed_durability_barrier_stops_the_command_and_keeps_both_diagnostics`,
   `a_completion_marker_that_cannot_be_published_stops_the_command`,
   `the_cleanup_failure_happens_after_the_completion_marker_was_published`,
-  `an_update_error_with_a_failed_mandatory_phase_reports_both` exist;
-  a test that fails the real rename and the real parent sync of the completion marker (not a failpoint before them) is to be written
-  (7b P3).
+  `an_update_error_with_a_failed_mandatory_phase_reports_both`;
+  the real rename and the real parent sync of the completion marker are failed by
+  `a_failing_completion_rename_is_mandatory_and_leaves_the_journal_active` and
+  `a_failing_completion_directory_sync_is_mandatory_and_a_later_recovery_only_removes_the_journal`.
 - **A4.**
   The outputs a run leaves (lockfiles, journaled manifests) are on disk before the completion marker, the marker is durable before
   the journal is removed ("Force at leaving").
@@ -84,8 +84,9 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
 - **R2.**
   No inode that was live at a path loses its last name: the displaced file and the replacement each get a surviving name before
   anything is unlinked, and a displaced file that could not be linked is reported with where it is.
-  Test: `a_displaced_file_that_could_not_be_linked_is_reported_with_the_snapshot_live` exists;
-  the hard-link fault matrix (`EMLINK`, `ENOSPC`, `EXDEV`) is queued for round 8.
+  Test: `a_displaced_file_that_could_not_be_linked_is_reported_with_the_snapshot_live`,
+  `a_link_refused_in_the_kept_directory_falls_back_beside_the_target_and_keeps_a_name` (`EMLINK`, `ENOSPC`, `EXDEV`, `EACCES`),
+  `when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_name_and_the_message_says_where`.
 - **R3.**
   A rollback that cannot complete stops the command (`Unsettled`) whether cargo failed or its output was refused,
   so the `--locked` fallback never builds an unrestored lockfile.
@@ -105,8 +106,9 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   Their existence, count or size never causes a refusal;
   past a count every run prints the count, the total size and the folder.
   The inability to preserve a newly displaced file safely still stops the operation (R2, R3).
-  Test: `a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_refuses` exists;
-  the inventory of kept names beside their target and of stranded temporaries is queued for round 8 (7b P2).
+  Test: `a_kept_directory_past_the_count_warns_with_count_size_and_folder_and_never_refuses`,
+  `the_kept_files_warning_point_is_exact_and_repeated_runs_agree`,
+  `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning`.
 - **K2.**
   A kept copy's directory entries are durable when preservation reports success (assumption b below).
   Test: `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction`,
@@ -119,17 +121,17 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
 - **V1.**
   A recovery or a new transaction proceeds only when the whole set of journals of the workspace was listed:
   an entry that cannot be listed or examined stops it, and an entry that vanished mid-listing is unknown, not absent.
-  Test: `a_journal_listing_that_fails_stops_the_recovery`, `a_journal_listing_that_fails_stops_a_new_transaction` exist;
-  `an_entry_that_vanishes_while_the_journals_are_listed_stops_a_new_transaction` to be written (7b P1-2: `begin` today turns an
-  entry-level `NotFound` into "no earlier journals"), with the failpoint placed inside the iteration, not before it (7b P3).
+  Test: `a_journal_listing_that_fails_in_any_way_stops_the_recovery`, `a_journal_listing_that_fails_in_any_way_stops_a_new_transaction`
+  (7b P1-2: open, iteration, inspection and an entry-level `NotFound`, injected inside the iteration on the second entry, with a
+  journal already in the partial listing), and `an_absent_journal_directory_is_no_journals` for the separate positive case.
 - **V2.**
   A recovery or a new transaction does not proceed while any journal of the workspace names a recorded group with a member,
   a record it cannot read or understand, a lost record beside other files, or a record made where the recorded group cannot be
   examined (assumption c).
   Test: `a_killed_wrapper_with_an_escaped_writer_stops_the_recovery`,
   `a_survivor_of_one_journal_stops_the_recovery_of_another`, `a_new_transaction_does_not_start_beside_a_survivor`,
-  `a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor` exist;
-  the crash test is to be strengthened to assert the refusal reason and journal retention (7a test notes).
+  `a_journal_that_lost_its_group_and_ready_records_is_a_possible_survivor`;
+  the crash test asserts the refusal reason ("still running"), the retained journal and that the run used a delegated scope.
 - **V3.**
   A record is durable before the child it describes starts, and a child whose record cannot be written is not started.
   Test: `a_child_whose_group_cannot_be_recorded_is_not_started` exists.
@@ -182,7 +184,7 @@ a same-user process can write `Cargo.lock` directly after the run, and no wrappe
 to resist it would claim a guarantee the wrapper cannot give.
 The assumption is about behavior, not intent:
 a tool that hands the write to an outside service breaks it as surely as one that means to.
-Probe 3 of round 7 (`probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_the_stated_limit`) shows the move is possible
+Probe 3 of round 7 (`probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_assumption_a`) shows the move is possible
 and stays as the evidence of the limit.
 This retires 7a F5 and 7c F2 as findings, and the cgroup namespace closer as work.
 
@@ -222,9 +224,20 @@ Reason:
 a recovery in another mount namespace, or on a path that now leads somewhere else, cannot read an absent recorded scope as "gone"
 (7a F6); the 7a F6 schedule is a different view of `/sys/fs/cgroup`, not of the journal, which is why both checks exist
 (the coordinator adopted the second check on 2026-11-04).
-Tests: `a_recovery_in_another_mount_view_of_the_journal_refuses` and
-`a_recovery_in_another_mount_view_of_the_cgroup_parent_refuses_instead_of_reading_a_missing_scope_as_gone`
-(bind-mounted other views, same cgroup namespace), both asserting the reason and that the journal is retained.
+Tests: `a_journal_seen_through_another_view_is_refused_and_kept`,
+`a_recorded_scope_whose_parent_is_seen_differently_is_refused_instead_of_read_as_gone` and, end to end in a new user and mount
+namespace with the cgroup namespace unchanged, `a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal`;
+each asserts the reason and that the journal is retained.
+
+Two consequences, stated so they are not found by surprise:
+
+- The mount id is assigned for the life of one boot (the unique id of Linux 6.8 and later when the kernel gives it, the reusable id
+  otherwise), so after a reboot, which is the usual power-loss recovery, the recorded view differs and every journal of a run killed
+  before the reboot is refused until a person acknowledges it.
+  That is safe, and it turns a common recovery into a manual step.
+  It is the cost of not accepting a view that cannot be told from another.
+- With the reusable id, a mount id that was reused for another mount together with a coinciding inode would be accepted;
+  the unique id removes that case on kernels that have it.
 
 ### d. Ordinary operating-system calls make progress
 
@@ -289,9 +302,9 @@ The acknowledgement:
 
 This reverses the part of the earlier pick that let weaker-path recovery go ahead when the recorded group had no member.
 It closes 7c F1 and 7a F4.
-The test `an_announced_child_whose_group_is_recorded_and_gone_is_no_survivor` encodes the reversed pick and is replaced by
-`a_weaker_path_journal_whose_group_is_gone_is_refused_until_it_is_acknowledged` and
-`an_acknowledged_weaker_path_journal_is_settled_like_any_other` (both to be written).
+The round 7 test that encoded the reversed pick (a recorded and gone group is no survivor) is replaced by
+`a_weaker_path_journal_is_refused_by_recovery_and_admission_until_it_is_acknowledged` and
+`acknowledging_one_of_two_journals_settles_it_and_leaves_the_other_blocking`.
 The acknowledging command also needs the "advertised repair" of 6b2 7 to work:
 the message names a command that the reader accepts.
 
@@ -327,7 +340,7 @@ the message names a command that the reader accepts.
    without a thread of cargo-shadow writing `cgroup.procs`; the only such way is `clone3` with `CLONE_INTO_CGROUP`, which
    neither `std` nor `rustix` 1.1.6 offers.
    Where the scope route is unavailable, the run takes the weaker path.
-   (Coordinator's amendment to be confirmed: route 2 dropped, not queued.)
+   (Open for the coordinator to confirm: route 2 is dropped, not queued.)
 3. No route moves the wrapper, or any thread of it, between groups.
    This removes the spawn lock and the shared-process migration of 7a F1 and F2 by construction.
 
@@ -391,7 +404,7 @@ the behavior on a host with a user manager but a read-only `/sys/fs/cgroup`.
 
 - Retired by an assumption: 7a F5, 7c F2 (a), 7b P1-1 (b); answered by assumption c with its two checks: 7a F6.
 - Closed by the weaker-path rule: 7c F1, 7a F4.
-- Closed by the spawn route, once built: 7a F1, 7a F2.
+- Closed by the spawn route: 7a F1, 7a F2 (`two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary`).
 - Bugs regardless of the contract: 7a F3 (A2) and 7b P1-2 (V1).
 - Test-evidence notes of the three reviews (handshakes instead of sleeps, entry-level injection, real rename and sync failures,
   crash-test assertions): to be applied with the tests named above.
@@ -483,7 +496,7 @@ A row is "shown" when its schedules each have a test that fails when the guarant
 "partly" when a named part has no test yet, with what that part needs.
 No row is without any test.
 Counts: 16 rows, 9 shown, 7 partly, 0 not yet.
-The suite at this tip: 539 tests passed, 3 skipped (the three ignored helper processes of the crash tests:
+The suite at this tip: 540 tests passed, 3 skipped (the three ignored helper processes of the crash tests:
 `wrapper_with_an_escaped_writer_fixture`, `recovery_in_another_mount_namespace_fixture`, `wrapper_held_inside_its_start_fixture`).
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds the counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code;
@@ -610,5 +623,14 @@ their tests were written with the code.
 - The cost of a trivial run in the test build, which asks the manager every time (the production build asks once per process):
   23.6 ms median (18.4 minimum, 33.5 maximum, 30 runs) against 6.3 ms in the weaker path; the production figure is lower by the cost
   of the question, which was not measured separately.
+- An inactive slice has no control group (probed 2026-11-04: `ActiveState=inactive`, empty `ControlGroup`), as on a fresh login or a
+  runner whose manager has run no application, so the discovery starts the slice first (`systemctl --user start app.slice`,
+  idempotent); `probe_1_an_inactive_slice_is_started_before_its_control_group_is_asked_for` shows it on a disposable slice.
+  Without this the default route would have fallen to the weaker path on such hosts.
+- The journal view uses the unique mount id of Linux 6.8 and later when the kernel gives it (`rustix` 1.1.6 has the field and not the
+  flag, so the bit is spelled in `control_group.rs`); the consequence for a reboot is in assumption c.
+- Host requirements of the tests: a reachable user manager with `systemd-run`, a cgroup v2 mount, `unshare` with permission to make a user
+  and mount namespace (one test), and a C compiler named `cc` (the tests with the thread-leader fixture); `CARGO_SHADOW_ALLOW_NO_CGROUP=1`
+  turns the missing-manager case into a printed skip, the others fail loudly.
 - Route 2 of the earlier pick (a child of the own group where it carries `user.delegate`) is dropped:
   it needs `clone3` with `CLONE_INTO_CGROUP`, which neither `std` nor `rustix` 1.1.6 offers.

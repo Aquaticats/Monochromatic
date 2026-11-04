@@ -90,10 +90,10 @@ fn missing_capability_classes(plain: &Path) -> Vec<(&'static str, RouteSettings,
                 ],
                 ..RouteSettings::default()
             },
-            "user manager cannot be asked",
+            "user manager cannot",
         ),
         ("no cgroup v2 mount", RouteSettings { cgroup_root: plain.to_path_buf(), ..RouteSettings::default() }, "cgroup v2"),
-        ("a slice the manager does not know", RouteSettings { slice: "cargo-shadow-no-such.slice".to_string(), ..RouteSettings::default() }, "reports no control group"),
+        ("a unit the manager does not have", RouteSettings { slice: "cargo-shadow-no-such.service".to_string(), ..RouteSettings::default() }, "user manager cannot"),
     ];
 }
 

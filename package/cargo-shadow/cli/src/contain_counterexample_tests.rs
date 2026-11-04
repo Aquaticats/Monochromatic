@@ -289,4 +289,9 @@ fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
 
     assert!(writer_alive, "the escaped writer died by itself; the test proves nothing");
     assert_eq!(fs::read_to_string(&lock).expect("lock"), "unchecked output of the killed run", "a recovery restored a file a live writer may change: {messages:?}");
+    // The refusal is for the intended reason, the journal is retained, and the run used a delegated scope.
+    assert!(messages.iter().any(|message| { return message.contains("still running"); }), "the recovery did not refuse because a member of the recorded scope lives: {messages:?}");
+    let journals: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
+    assert_eq!(journals.len(), 1, "the journal was not retained: {journals:?}");
+    crate::cgroup_test_support::assert_scope_record(&journals[0].join("groups").display().to_string());
 }
