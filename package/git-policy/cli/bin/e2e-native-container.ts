@@ -4,15 +4,16 @@
 
  Three subcommands, selected by the first argument:
 
- - `base` builds `localhost/cli-git-concurrent-e2e:<base tag>` from `e2e/concurrent-commits.Containerfile`:
-   Node 24.11.0, Git 2.55.0 under `/opt/git`, and `ssh-keygen`.
-   It needs a network (package manager and Git source downloads); the suite itself does not.
-   The base tag is `latest` unless `GIT_POLICY_E2E_BASE_TAG` names another, so a trial build never replaces the
-   image other runs use.
+ - `base` builds `localhost/cli-git-concurrent-e2e:<CachyOS image>-<Containerfile>` from
+   `e2e/concurrent-commits.Containerfile`: CachyOS, Node 24.11.0, Git 2.55.0 under `/opt/git`, and `ssh-keygen`.
+   It pulls the CachyOS `latest` tag first (one small request when nothing changed) and builds only when that pull
+   or the Containerfile is new to the host, so the tag changes with either input and no run reuses a stale base.
+   The build needs a network (package manager and downloads); the suite itself does not.
  - `image` builds `localhost/cli-git-concurrent-e2e-native:<tag>` in two stages.
-   The first compiles the release `cli-git-native` from a mount-free snapshot of this checkout in `rust:1.97-bookworm`,
-   the Debian release of the end-to-end image, so the executable runs there without a glibc mismatch.
-   The second starts from the base image (built first when it does not exist) and links the executable as
+   The first compiles the release `cli-git-native` from a mount-free snapshot of this checkout in the gate's base
+   image (`native-test-base.Containerfile`: the same CachyOS image the end-to-end base starts from, plus Rust),
+   so the executable runs there without a glibc mismatch.
+   The second starts from the end-to-end base image (built first when it does not exist) and links the executable as
    `/opt/native/bin/git`.
    That image has no `/usr/bin/git`, so the native wrapper can only find the scenario's Git through `PATH` order.
  - `run` starts the suite in that image with `E2E_WRAPPER=native` (the container limits, no network, `e2e/` mounted
@@ -35,13 +36,17 @@ import {
 
 import {
   buildLimitArguments,
-  memoryArguments,
   parallelJobs,
   parseContainerLimitOptions,
   runLimitArguments,
 } from './container-limits.ts';
 import { copyEndToEndSnapshot, } from './native-e2e-snapshot.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
+import {
+  ensureEndToEndBase,
+  ensureTestBase,
+  pullCachyosLatest,
+} from './native-test-base.ts';
 import {
   NativeVerificationError,
   runCommand,
@@ -74,16 +79,6 @@ const imageTag = process.env
  Image this script builds and runs.
  */
 const nativeImage = `localhost/cli-git-concurrent-e2e-native:${imageTag}`;
-/**
- Tag of the base image; a trial build sets `GIT_POLICY_E2E_BASE_TAG` so it never replaces the shared `latest`.
- */
-const baseTag = process.env
-  .GIT_POLICY_E2E_BASE_TAG
-  ?? 'latest';
-/**
- Image holding the Git builds, Node and `ssh-keygen`.
- */
-const baseImage = `localhost/cli-git-concurrent-e2e:${baseTag}`;
 /**
  Command-line option for a flag mise passed as an environment variable.
 
@@ -142,53 +137,45 @@ const {
  Converts the base image build time from milliseconds to the seconds the log line reports.
  */
 const MILLISECONDS_PER_SECOND = 1_000;
-/**
- Compiler image on the same Debian release (bookworm) as the base image's Node image.
- */
-const compilerImage = 'docker.io/library/rust:1.97-bookworm';
 
 /**
- Build the base image (Git builds, Node, `ssh-keygen`) from the end-to-end Containerfile; nothing is copied in.
+ Make sure the base image (Git builds, Node, `ssh-keygen`) of the current CachyOS image exists; nothing is copied in.
  */
 async function buildBase(): Promise<void> {
   /**
-   Start time of the build, for the duration the log line reports.
+   Start time, for the duration the log line reports.
    */
   const startedAt = performance.now();
-  await runCommand({
-    command: 'podman',
-    args: [
-      'build',
-      ...memoryArguments(containerLimits),
-      '--tag',
-      baseImage,
-      '--file',
-      resolve('e2e/concurrent-commits.Containerfile'),
-      resolve('e2e'),
-    ],
-  });
-  console.log(`built ${baseImage} in ${String(Math.round((performance.now() - startedAt) / MILLISECONDS_PER_SECOND))} s`);
+  /**
+   The base image and whether this run built it.
+   */
+  const endToEndBase = await ensureEndToEndBase({ limits: containerLimits, });
+  console.log(`${endToEndBase.built ? 'built' : 'found'} ${endToEndBase.tag} in ${String(Math.round((performance.now() - startedAt) / MILLISECONDS_PER_SECOND))} s`);
 }
 
 /**
  Build the two-stage image: compile the release executable, then link it as `git` into the end-to-end image.
  */
 async function buildImage(): Promise<void> {
+  // One pull serves both bases, so the executable is compiled and run on the same C library.
   /**
-   Result of asking whether the base image exists; a missing image is built first.
+   The CachyOS image the pull left on the host.
    */
-  const base = await runCommand({
-    command: 'podman',
-    args: [
-      'image',
-      'exists',
-      baseImage,
-    ],
-    allowFailure: true,
-    capture: true,
+  const pulled = await pullCachyosLatest();
+  /**
+   The base that compiles the executable: CachyOS with Rust.
+   */
+  const compileBase = await ensureTestBase({
+    limits: containerLimits,
+    source: pulled,
   });
-  if (base.status !== 0)
-    await buildBase();
+  /**
+   The base the executable is linked into: CachyOS with Node and the Git versions under test.
+   */
+  const endToEndBase = await ensureEndToEndBase({
+    limits: containerLimits,
+    source: pulled,
+  });
   /**
    Disposable build context that holds the snapshot, the vendored sources and the Containerfile.
    */
@@ -204,7 +191,7 @@ async function buildImage(): Promise<void> {
       'Containerfile',
     ),
     [
-      `FROM ${compilerImage} AS compile`,
+      `FROM ${compileBase.id} AS compile`,
       'COPY package /work/package',
       'COPY vendor /work/vendor',
       'COPY cargo-config /work/.cargo',
@@ -212,12 +199,14 @@ async function buildImage(): Promise<void> {
       'WORKDIR /work/package/git-policy/cli',
       'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "cli-git-native", "--bin", "cli-git-service"]',
       '',
-      `FROM ${baseImage}`,
+      `FROM ${endToEndBase.id}`,
       'RUN ["mkdir", "--parents", "/opt/native/bin"]',
       // The artifact is named `cli-git-native` so it never shadows Git by accident; inside this disposable image it
       // becomes the `git` the scenarios find first on PATH.
       'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-native /opt/native/cli-git-native',
       'RUN ["ln", "--symbolic", "/opt/native/cli-git-native", "/opt/native/bin/git"]',
+      // The executable was linked in another stage; a C library older than the one it was linked against fails the build here.
+      'RUN ["ldd", "/opt/native/cli-git-native"]',
       // The commit service sits beside the wrapper, where the wrapper looks for it; the suite starts it before the scenarios.
       'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-service /opt/native/cli-git-service',
       '',

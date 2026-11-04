@@ -24,7 +24,7 @@ import {
 } from './native-verification-process.ts';
 
 /**
- The platform of the gate image: Debian on x86-64, which links the GNU C library, so the lock's glibc archive applies.
+ The platform of the gate image: CachyOS on x86-64, which links the GNU C library, so the lock's glibc archive applies.
  */
 const platform = 'linux-x64';
 
