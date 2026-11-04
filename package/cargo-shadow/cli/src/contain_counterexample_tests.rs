@@ -286,6 +286,13 @@ fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
     let messages: Vec<String> = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
     let writer_alive: bool = is_running(writer);
     stop_quietly(writer);
+    // The scope is stopped as a whole, so the writer's own children do not outlive the test.
+    if let Some(journal) = crate::journal_support::journal_dirs(root.path()).first()
+        && let Ok(text) = fs::read_to_string(journal.join("groups"))
+        && let Some(Ok(crate::control_group::Record::Scope { path, .. })) = text.lines().next().map(crate::control_group::parse_record)
+    {
+        let _ = fs::write(path.join("cgroup.kill"), "1");
+    }
 
     assert!(writer_alive, "the escaped writer died by itself; the test proves nothing");
     assert_eq!(fs::read_to_string(&lock).expect("lock"), "unchecked output of the killed run", "a recovery restored a file a live writer may change: {messages:?}");
