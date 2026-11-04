@@ -290,3 +290,38 @@ fn a_writer_that_holds_the_stand_in_open_keeps_what_it_writes_afterwards() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(found, "the late write has no name left");
 }
+
+/// Review finding (4c F3): a real lockfile that cleanup puts back is also given a name in the kept directory, so a writer that holds
+/// its inode and writes after another writer replaced the live path still has a named file.
+#[test]
+fn a_real_lockfile_that_cleanup_puts_back_is_also_kept_by_name() {
+    use crate::shadow_update::run_with_placeholder_lock_hooked;
+    use std::io::Write;
+    let root = scratch();
+    let lock = root.path().join("Cargo.lock");
+    let held: std::cell::RefCell<Option<fs::File>> = std::cell::RefCell::new(None);
+    let publish_and_hold = |path: &std::path::Path| {
+        let mut file = fs::OpenOptions::new().write(true).open(path).expect("open the stand-in");
+        file.set_len(0).expect("truncate");
+        file.write_all(REAL_LOCK.as_bytes()).expect("a real lockfile written through the held descriptor");
+        *held.borrow_mut() = Some(file);
+    };
+
+    let code: i32 = run_with_placeholder_lock_hooked(&lock, &root.path().join("kept"), false, &mut || { return 1; }, &publish_and_hold);
+    fs::remove_file(&lock).expect("another writer replaces the live path");
+    {
+        let mut slot = held.borrow_mut();
+        let file = slot.as_mut().expect("held");
+        file.write_all(b"\nlate").expect("the late write");
+    }
+
+    assert_eq!(code, 1);
+    let late: String = format!("{REAL_LOCK}\nlate");
+    let mut found: bool = false;
+    for entry in fs::read_dir(root.path().join("kept")).into_iter().flatten().flatten() {
+        if fs::read_to_string(entry.path()).map(|text| { return text == late; }).unwrap_or(false) {
+            found = true;
+        }
+    }
+    assert!(found, "the late write has no name left in the kept directory");
+}

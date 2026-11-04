@@ -329,6 +329,10 @@ pub fn restore_if_unchanged(root: &Path, snapshots: &[LockSnapshot], produced: &
 /// export function restoreIfUnchangedWith({ root, snapshots, produced, between }): string[]
 /// ```
 pub fn restore_if_unchanged_with(root: &Path, snapshots: &[LockSnapshot], produced: &[LockSnapshot], between: &dyn Fn(&Path)) -> io::Result<Vec<String>> {
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::Restore) {
+        return Err(io::Error::other("injected restore failure"));
+    }
     let mut warnings: Vec<String> = Vec::new();
     for snapshot in snapshots {
         let path: PathBuf = root.join(&snapshot.crate_dir).join(LOCKFILE_NAME);

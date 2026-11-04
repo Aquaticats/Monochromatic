@@ -442,6 +442,10 @@ impl Transaction {
     /// finishWith(makeDurable: (path: string) => void): void
     /// ```
     pub fn finish_with(self, durable: &dyn Fn(&Path) -> io::Result<()>) -> io::Result<()> {
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::Finish) {
+            return Err(io::Error::other("injected finish failure"));
+        }
         for crate_dir in &self.crate_dirs {
             durable(&self.root.join(crate_dir).join(LOCKFILE_NAME))?;
         }

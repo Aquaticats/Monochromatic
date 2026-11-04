@@ -778,3 +778,45 @@ fn a_policy_refusal_whose_rollback_cannot_complete_stops_the_command() {
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
 }
+
+/// A cargo that writes a lockfile with a refused release and succeeds, then answers every other call without changing anything.
+fn cargo_that_writes_a_refused_release() -> impl Fn(&Path, &[String]) -> Result<CargoOutcome, String> {
+    let young: String = format!("# refused\nversion = 4\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.1\"\nsource = \"{REGISTRY}\"\n");
+    return move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        if arguments[0] == "update" && arguments.iter().any(|argument| { return argument == "--locked"; }) {
+            return Ok(CargoOutcome { ok: false, output: "needs update".to_string(), stdout: String::new() });
+        }
+        if arguments[0] == "update" && !arguments.iter().any(|argument| { return argument == "--precise"; }) {
+            fs::write(cwd.join("Cargo.lock"), &young).map_err(|error| { return error.to_string(); })?;
+        }
+        return Ok(CargoOutcome { ok: true, output: String::new(), stdout: String::new() });
+    };
+}
+
+/// Review finding (4c F1): the policy refused the output, the rollback worked, and finishing the journal failed; the refusal still
+/// stops the command (an operational error would let the locked fallback build the consistent, refused lockfile).
+#[test]
+fn a_refusal_survives_a_journal_that_cannot_be_finished() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = cargo_that_writes_a_refused_release();
+    crate::failpoints::arm(crate::failpoints::Point::Finish);
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+
+    assert!(matches!(outcome, StepOutcome::Refused(_)), "the refusal was replaced: {outcome:?}");
+}
+
+/// Review finding (4c, regression coverage): the rollback failure of the policy-refusal case, provoked without permissions so that
+/// it also runs for a root user.
+#[test]
+fn a_refusal_whose_rollback_fails_stops_the_command_without_depending_on_permissions() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = cargo_that_writes_a_refused_release();
+    crate::failpoints::arm(crate::failpoints::Point::Restore);
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+
+    assert!(matches!(outcome, StepOutcome::Refused(_)), "the command would build the refused lockfile: {outcome:?}");
+}
