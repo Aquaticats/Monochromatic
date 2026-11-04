@@ -41,6 +41,8 @@ Three lines for the answered items above, with the owner's words:
   each five times the longest measured run rounded up to whole minutes (cold-store runs were shorter than the warm maxima).
 - Pick 7 follow-up (`AUD`, 2976 to 2991): done.
   `FOREIGN_OWNER_PATIENCE` is `2 * LOCK_CEILING`, 20 minutes, derived in code.
+  Its expiry no longer authorizes a takeover: the owner chose "Refuse and name it (Recommended)" on 2026-11-04 (round 3 of the branch
+  write), and the commands that find an old record from another PID namespace stop, name it and change nothing.
 
 ## Picks the owner kept on 2026-11-04
 
