@@ -369,3 +369,8 @@ mod commit_lane_lifecycle_tests;
 #[cfg(feature = "test-seams")]
 #[path = "../commit/commit_drain_tests.rs"]
 mod commit_drain_tests;
+
+/// Plan step 2: the disposal of saved content on the component.
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_disposal_tests.rs"]
+mod commit_disposal_tests;
