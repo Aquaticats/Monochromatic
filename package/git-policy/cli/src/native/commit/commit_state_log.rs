@@ -271,6 +271,13 @@ fn check_lane_obligations(lane: &Path, closure: &[ClosureEntry]) -> io::Result<(
 /// ```
 pub fn capture_lane_closure(lane: &Path) -> io::Result<Vec<ClosureEntry>> {
     let mut closure: Vec<ClosureEntry> = Vec::new();
+    // Saved content whose `disposed` line is in the ledger is never captured again: a root that retained it once more would be invalidated by
+    // the unlink that finishes the disposal (review of step 2).
+    let disposed: BTreeSet<String> = match fs::read(lane.join(LANE_LEDGER)) {
+        Ok(bytes) => super::commit_ledger::complete_entries(&bytes).map_or_else(BTreeSet::new, |entries| { return entries.into_iter().filter(|entry| { return entry.outcome == "disposed"; }).map(|entry| { return entry.id; }).collect(); }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeSet::new(),
+        Err(error) => return Err(error),
+    };
     for directory in [INBOX, SAVED, DECISION] {
         let entries = match fs::read_dir(lane.join(directory)) {
             Ok(entries) => entries,
@@ -288,7 +295,7 @@ pub fn capture_lane_closure(lane: &Path) -> io::Result<Vec<ClosureEntry>> {
             let path: PathBuf = lane.join(directory).join(&text);
             match directory {
                 INBOX if super::commit_integrity::is_identity(&text) => closure.push(ClosureEntry::capture(lane, &path, EntryKind::InboxEnvelope)?),
-                SAVED if text.len() == 64 && super::commit_integrity::unhex(&text).is_some() => closure.push(ClosureEntry::capture_sealed_saved(lane, &path)?),
+                SAVED if text.len() == 64 && super::commit_integrity::unhex(&text).is_some() && !disposed.contains(&text.chars().take(32).collect::<String>()) => closure.push(ClosureEntry::capture_sealed_saved(lane, &path)?),
                 DECISION if mark_identity(&text).is_some() => closure.push(ClosureEntry::capture(lane, &path, EntryKind::Mark)?),
                 _ => {}
             }
@@ -1355,7 +1362,15 @@ fn begin_checkpoint(dir: &Path, generation: u64, document: &[u8], closure: &[Clo
         for number in &existing {
             if segment_is_contained(dir, *number, &lane, closure, new)? {
                 reclaims.push(*number);
-                lineage.extend(records(&fs::read(log_path(dir, *number))?).into_iter().map(|record| { return record.hash; }));
+                let reclaimed: Vec<Rec> = records(&fs::read(log_path(dir, *number))?);
+                // A checkpoint carries the lineage of the authorities it replaces, so an acknowledgment taken before an earlier seal is still
+                // covered after a later one.
+                for record in &reclaimed {
+                    if let Payload::Authority(earlier) = parse_payload(&record.payload) {
+                        lineage.extend(earlier.lineage);
+                    }
+                }
+                lineage.extend(reclaimed.into_iter().map(|record| { return record.hash; }));
             }
         }
     }

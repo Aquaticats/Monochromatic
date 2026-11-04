@@ -49,6 +49,45 @@ fn lane_digest(lane: &Path, nonce: u64) -> String {
     return format!("{:016x}", state);
 }
 
+/// A nonce for one launch: eight bytes from the operating system's random source, so two launches in one process, or in two processes on
+/// the same clock tick, do not share a unit name. If the source cannot be read the clock and the process identity are mixed in (a collision
+/// then makes the manager refuse the unit, and the caller falls back to the fork).
+pub fn fresh_nonce() -> u64 {
+    use std::io::Read;
+    let mut bytes: [u8; 8] = [0; 8];
+    if std::fs::File::open("/dev/urandom").and_then(|mut source| { return source.read_exact(&mut bytes); }).is_ok() {
+        return u64::from_le_bytes(bytes);
+    }
+    let clock: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_nanos() as u64; });
+    return clock ^ (u64::from(std::process::id()) << 32);
+}
+
+/// What:
+///  Checks that `lane` is a lane directory before the internal flush mode touches it: an absolute path that is a directory and not a symbolic
+///  link, holding a `receipt` directory that is not a link either. Nothing is created.
+/// Why:
+///  `cli-git-service --flush-lane <dir>` is reachable by anyone who can run the program. A wrong caller can name a directory it can write and
+///  have `flusher.lock` and `receipt-errors` created there and the regular files under its `receipt/` forced (a read-only operation on file
+///  data); it cannot make the mode delete, rewrite or follow a link, and a FIFO or other special file named as a receipt is refused.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function validateLane(lane: string): void; // throws
+/// ```
+pub fn validate_lane(lane: &Path) -> Result<(), String> {
+    if !lane.is_absolute() {
+        return Err("the lane is not an absolute path".to_string());
+    }
+    let is_real_directory = |path: &Path| -> bool { return std::fs::symlink_metadata(path).is_ok_and(|metadata| { return metadata.file_type().is_dir(); }); };
+    if !is_real_directory(lane) {
+        return Err("the lane is not a directory (a symbolic link does not count)".to_string());
+    }
+    if !is_real_directory(&lane.join(super::commit_flusher::RECEIPT_DIR)) {
+        return Err("the directory has no receipt directory, so it is not a lane".to_string());
+    }
+    return Ok(());
+}
+
 /// The unit name for one launch: the lane's digest and `nonce`, which differs per launch.
 pub fn unit_name(lane: &Path, nonce: u64) -> String {
     return format!("{}{}", UNIT_PREFIX, lane_digest(lane, nonce));
@@ -57,7 +96,10 @@ pub fn unit_name(lane: &Path, nonce: u64) -> String {
 /// The arguments of `systemd-run` that start the flusher unit: a user unit named `unit`, unloaded after it ran (`--collect`), the start
 /// waited for, then the service program in flusher mode on `lane`.
 pub fn transient_unit_arguments(unit: &str, service_program: &Path, lane: &Path) -> Vec<OsString> {
-    let mut arguments: Vec<OsString> = vec!["--user".into(), "--collect".into(), "--quiet".into(), format!("--unit={}", unit).into(), "--".into()];
+    // `Type=exec`: the start job completes when the service program has been executed, so a missing or unexecutable program is a refusal
+    // and the caller falls back to the fork. What happens after the execution (a death before the sweep) is not confirmed by the manager:
+    // the receipt stays in the directory for the next sweep, and the flusher records its own failures.
+    let mut arguments: Vec<OsString> = vec!["--user".into(), "--collect".into(), "--quiet".into(), "--property=Type=exec".into(), format!("--unit={}", unit).into(), "--".into()];
     arguments.push(service_program.as_os_str().to_os_string());
     arguments.push(FLUSH_LANE_FLAG.into());
     arguments.push(lane.as_os_str().to_os_string());
@@ -85,8 +127,13 @@ pub fn run_within(mut command: Command, wait: Duration) -> Result<ExitStatus, Ma
             Err(error) => return Err(ManagerRefused(format!("the manager's command could not be waited for: {}", error))),
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
+            // The kill is attempted and never waited for without a bound: a child that does not die is left to the operating system.
+            if child.kill().is_ok() {
+                let reap_until: Instant = Instant::now() + Duration::from_millis(100);
+                while Instant::now() < reap_until && matches!(child.try_wait(), Ok(None)) {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            }
             return Err(ManagerRefused(format!("the manager did not confirm the start within {:?}", wait)));
         }
         std::thread::sleep(Duration::from_millis(1));
@@ -114,9 +161,7 @@ impl TransientUnitRoute {
 impl ManagerRoute for TransientUnitRoute {
     fn start(&mut self, lane: &Path) -> Result<String, ManagerRefused> {
         self.launches += 1;
-        let clock: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_nanos() as u64; });
-        let nonce: u64 = clock ^ (u64::from(std::process::id()) << 32) ^ self.launches;
-        let unit: String = unit_name(lane, nonce);
+        let unit: String = unit_name(lane, fresh_nonce());
         let mut command: Command = Command::new(&self.systemd_run);
         command.args(transient_unit_arguments(&unit, &self.service_program, lane));
         run_within(command, self.wait)?;

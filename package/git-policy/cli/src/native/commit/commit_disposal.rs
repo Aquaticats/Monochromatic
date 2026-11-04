@@ -32,9 +32,12 @@ impl DisposalAuthorization {
     }
 }
 
-/// An item whose replacement root is durable and whose file is still to be unlinked.
+/// An item whose replacement root is durable and whose file is still to be unlinked. It is bound to its lane and state directory and consumed
+/// by the unlink, which checks it against the current root first.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Retired {
+    lane: PathBuf,
+    state: PathBuf,
     name: String,
 }
 
@@ -100,13 +103,18 @@ pub fn retire_saved_content(lane: &Path, state: &Path, authorization: &DisposalA
     fault_point("disposal:after-line");
     replace_root_without(lane, state, &authorization.name)?;
     fault_point("disposal:after-root");
-    return Ok(Retired { name: authorization.name.clone() });
+    return Ok(Retired { lane: std::path::absolute(lane)?, state: std::path::absolute(state)?, name: authorization.name.clone() });
 }
 
 /// Step three: unlinks the retired item's file, and forces the directory so the removal is not undone by a power loss after the person
-/// was told the content is gone.
-pub fn unlink_retired(lane: &Path, retired: &Retired) -> io::Result<()> {
-    let directory: PathBuf = lane.join("saved");
+/// was told the content is gone. The token is consumed, and the current root is read first: a root that names the item again (a stale token)
+/// refuses the unlink.
+pub fn unlink_retired(retired: Retired) -> io::Result<()> {
+    let (_selected, document) = newest_checked_root(&retired.state)?;
+    if document.saved().contains(&retired.name) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the current root names this saved content again, so the retirement is stale and nothing is deleted"));
+    }
+    let directory: PathBuf = retired.lane.join("saved");
     match std::fs::remove_file(directory.join(&retired.name)) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -119,7 +127,7 @@ pub fn unlink_retired(lane: &Path, retired: &Retired) -> io::Result<()> {
 /// The whole disposal: the line, the replacement root, the unlink.
 pub fn dispose_saved_content(lane: &Path, state: &Path, authorization: &DisposalAuthorization) -> io::Result<()> {
     let retired: Retired = retire_saved_content(lane, state, authorization)?;
-    return unlink_retired(lane, &retired);
+    return unlink_retired(retired);
 }
 
 /// What:
@@ -152,7 +160,7 @@ pub fn resume_disposals(lane: &Path, state: &Path) -> io::Result<usize> {
         if document.saved().contains(&name) {
             replace_root_without(lane, state, &name)?;
         }
-        unlink_retired(lane, &Retired { name })?;
+        unlink_retired(Retired { lane: std::path::absolute(lane)?, state: std::path::absolute(state)?, name })?;
         finished += 1;
     }
     return Ok(finished);

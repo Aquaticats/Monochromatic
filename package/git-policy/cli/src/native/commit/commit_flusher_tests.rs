@@ -165,12 +165,33 @@ fn a_healthy_lane_is_flushed_and_nothing_is_recorded() {
 /// How many clients launch a flusher in the many-receipts controls.
 const CLIENTS: usize = 4;
 
-/// A receipt that is a FIFO: forcing it blocks in `open` until a writer exists, which holds a flusher (and its lock) alive on demand.
-fn fifo_receipt(lane: &Path, name: &str) {
-    use std::os::unix::ffi::OsStrExt;
-    let path = std::ffi::CString::new(lane.join(RECEIPT_DIR).join(name).as_os_str().as_bytes()).expect("a path without NUL");
-    // SAFETY: `mkfifo` takes a NUL-terminated path and a mode.
-    assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0, "mkfifo");
+thread_local! {
+    /// The lane whose `release` file the helpers of this process wait for (set in the single-threaded copy that launches them; a fork inherits it).
+    static HOLD_LANE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The fault point before each forcing: waits (bounded) until `<lane>/release` exists. It holds a flusher, and its lock, alive on demand
+/// without a special file (a FIFO receipt is refused by the flusher now, as it must be).
+fn hold_until_released(point: &str) {
+    if point != "flusher:before-force" {
+        return;
+    }
+    let Some(lane) = HOLD_LANE.with(|cell| { return cell.borrow().clone(); }) else { return };
+    let until: Instant = Instant::now() + FLUSHER_WAIT;
+    while !lane.join("release").exists() && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}
+
+/// Makes the flushers launched from this process hold at their first forcing until `<lane>/release` exists.
+pub fn hold_helpers_in(lane: &Path) {
+    HOLD_LANE.with(|cell| { *cell.borrow_mut() = Some(lane.to_path_buf()); });
+    git_policy_cli::commit_identity::set_fault_point(Some(hold_until_released));
+}
+
+/// Releases the held flushers.
+fn release(lane: &Path) {
+    fs::write(lane.join("release"), b"").expect("the release");
 }
 
 /// Waits until the lane's flusher lock is free (the helper ended).
@@ -207,9 +228,10 @@ fn clients_that_find_the_flusher_lock_held_fork_helpers_that_end_without_working
 #[test]
 fn many_clients_fork_a_helper_each_and_exactly_one_holds_the_lock() {
     let lane: PathBuf = lane_with("flusher-many-launch", &[]);
-    fifo_receipt(&lane, "r1");
+    fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt");
     let launch_lane: PathBuf = lane.clone();
     let forked: Option<i32> = in_single_threaded_process(move || {
+        hold_helpers_in(&launch_lane);
         for _ in 0..CLIENTS {
             if launch_flusher(&launch_lane).is_err() {
                 return 99;
@@ -218,10 +240,9 @@ fn many_clients_fork_a_helper_each_and_exactly_one_holds_the_lock() {
         return helpers_forked() as i32;
     });
     let holds: bool = FlusherLock::try_acquire(&lane).expect("lock").is_none();
-    // A writer lets the helper's `open` of the FIFO return; forcing a FIFO then fails and the helper ends.
-    let opened = fs::OpenOptions::new().read(true).write(true).open(lane.join(RECEIPT_DIR).join("r1"));
+    // The release lets the held helper force its receipt and end.
+    release(&lane);
     wait_for_lock_free(&lane);
-    drop(opened);
     assert_eq!(forked, Some(CLIENTS as i32), "a helper per client");
     assert!(holds, "exactly one of them holds the lock while it works; the others found it taken and ended");
 }
@@ -232,17 +253,17 @@ fn many_clients_fork_a_helper_each_and_exactly_one_holds_the_lock() {
 #[test]
 fn a_launch_with_descriptor_zero_closed_leaves_the_helper_holding_the_lock() {
     let lane: PathBuf = lane_with("flusher-closed-zero", &[]);
-    fifo_receipt(&lane, "r1");
+    fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt");
     let launch_lane: PathBuf = lane.clone();
     let launched: Option<i32> = in_single_threaded_process(move || {
+        hold_helpers_in(&launch_lane);
         // SAFETY: closing descriptor 0 of this one-thread copy of the test process; nothing else reads it.
         unsafe { libc::close(0) };
         return flusher_launch_code(launch_flusher(&launch_lane));
     });
     let holds: bool = FlusherLock::try_acquire(&lane).expect("lock").is_none();
-    let opened = fs::OpenOptions::new().read(true).write(true).open(lane.join(RECEIPT_DIR).join("r1"));
+    release(&lane);
     wait_for_lock_free(&lane);
-    drop(opened);
     assert_eq!(launched, Some(0));
     assert!(holds, "the helper's lock description was overwritten by its standard-stream setup");
 }

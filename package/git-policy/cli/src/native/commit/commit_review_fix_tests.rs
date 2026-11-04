@@ -19,7 +19,7 @@ use git_policy_cli::commit_flusher::{FLUSHER_FAILED_EXIT, RECEIPT_DIR, RECEIPT_E
 use git_policy_cli::commit_flusher_unit::{TransientUnitRoute, fresh_nonce, transient_unit_arguments, validate_lane};
 use git_policy_cli::commit_identity::{inject_sync_error, start_events, take_events};
 use git_policy_cli::commit_lane_lifecycle::{capture_lane_closure, client_after_accept, departure_acknowledge, seal_for_shutdown, startup_sweep};
-use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind, LaneDocument, StateWriter, create_saved_content, select, state_covers, sync_prefix};
+use git_policy_cli::commit_state_log::{ClosureEntry, LaneDocument, StateWriter, create_saved_content, select, state_covers, sync_prefix};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};

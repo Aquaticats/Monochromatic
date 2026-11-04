@@ -150,9 +150,16 @@ impl FlusherLock {
 
 }
 
-/// Forces one path (a file, or the receipt directory) to disk.
+/// Forces one path (a regular file, or a directory) to disk. The path is opened without following a symbolic link and without blocking, and
+/// anything but a regular file or a directory is refused: a FIFO named like a receipt would otherwise block the flusher for ever.
 pub fn sync_path(path: &Path) -> io::Result<()> {
-    return File::open(path)?.sync_all();
+    use std::os::unix::fs::OpenOptionsExt;
+    let file: File = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(path)?;
+    let kind = file.metadata()?.file_type();
+    if !kind.is_file() && !kind.is_dir() {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "a receipt is a regular file; this path is something else and is not forced"));
+    }
+    return file.sync_all();
 }
 
 /// The receipts of `lane` whose names are not in `forced`, in name order; a lane without a receipt directory has none.
@@ -177,10 +184,14 @@ fn unforced(lane: &Path, forced: &BTreeSet<OsString>) -> io::Result<Vec<PathBuf>
 /// Appends one line per receipt in `names` that `recorded` does not hold yet to `lane/receipt-errors` (not forced: the record is V, and the
 /// next owner's startup sweep retries every receipt in the directory whether or not it is named here), and adds them to `recorded`.
 fn record_errors(lane: &Path, names: &[PathBuf], error: &io::Error, recorded: &mut BTreeSet<OsString>) -> io::Result<()> {
-    let mut record: File = OpenOptions::new().create(true).append(true).open(lane.join(RECEIPT_ERRORS))?;
+    let mut record: File = OpenOptions::new().create(true).append(true).read(true).open(lane.join(RECEIPT_ERRORS))?;
+    // Shared lock for the writes: the syncer empties the record in place under the exclusive lock, so no line is written while it does.
+    record.lock_shared()?;
+    let mut present: String = String::new();
+    std::io::Read::read_to_string(&mut record, &mut present)?;
     for name in names {
         let Some(leaf) = name.file_name() else { continue };
-        if !recorded.insert(leaf.to_os_string()) {
+        if !recorded.insert(leaf.to_os_string()) || present.lines().any(|line| { return line.split('\t').next() == leaf.to_str(); }) {
             continue;
         }
         // One write per line: with `O_APPEND` a single write is not interleaved with another recorder's (a launcher and its helper can both
@@ -197,10 +208,13 @@ fn record_errors(lane: &Path, names: &[PathBuf], error: &io::Error, recorded: &m
 fn sweep(lane: &Path, forced: &mut BTreeSet<OsString>, force: &mut dyn FnMut(&Path) -> io::Result<()>) -> io::Result<usize> {
     let pending: Vec<PathBuf> = unforced(lane, forced)?;
     for path in &pending {
+        fault_point("flusher:before-force");
         force(path)?;
     }
     if !pending.is_empty() {
         force(&lane.join(RECEIPT_DIR))?;
+        // The lane directory holds the entry of the receipt directory itself, which a new lane has just created.
+        force(lane)?;
     }
     for path in &pending {
         if let Some(leaf) = path.file_name() {
@@ -319,7 +333,13 @@ fn exit_code(result: Result<Flushed, FlushError>) -> i32 {
 /// function flusherEntry(lane: string): number;
 /// ```
 pub fn flusher_entry(lane: &Path) -> i32 {
-    return exit_code(flush_lane(lane));
+    let result: Result<Flushed, FlushError> = flush_lane(lane);
+    // A flusher that could not even take the lock records every receipt as not forced, as the fallback helper does, so the next sweep is told.
+    if let Err(FlushError::Io(failure)) = &result {
+        let mut recorded: BTreeSet<OsString> = BTreeSet::new();
+        let _ = unforced(lane, &BTreeSet::new()).and_then(|names| { return record_errors(lane, &names, failure, &mut recorded); });
+    }
+    return exit_code(result);
 }
 
 /// The entry of a helper that took the lane's lock itself.

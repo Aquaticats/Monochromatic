@@ -149,7 +149,7 @@ fn client_joins_in_the_failed_launch(name: &str) {
 }
 
 /// Review 10a section 4 and 9a section 4: the real handover, deterministic. The second executor is pinned across the handover decision
-/// (its forcing of a FIFO receipt blocks until the test opens a writer), so the first flusher finds the lock held, returns `Handed`, and the
+/// (it is held before its first forcing until the test releases it), so the first flusher finds the lock held, returns `Handed`, and the
 /// second then does its own work and records what it cannot force.
 #[test]
 fn a_second_executor_pinned_across_the_recheck_decision_carries_the_receipt() {
@@ -161,27 +161,24 @@ fn a_second_executor_pinned_across_the_recheck_decision_carries_the_receipt() {
         &lane,
         &mut |_: &Path| { return Ok(()); },
         &mut || {
-            {
-                use std::os::unix::ffi::OsStrExt;
-                let path = std::ffi::CString::new(fifo.as_os_str().as_bytes()).expect("a path without NUL");
-                // SAFETY: `mkfifo` takes a NUL-terminated path and a mode.
-                assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0, "mkfifo");
-            }
+            std::os::unix::fs::symlink(launch_lane.join("nowhere"), &fifo).expect("a receipt that cannot be forced");
             let lane_for_child: PathBuf = launch_lane.clone();
-            launched = in_single_threaded_process(move || { return flusher_launch_code(launch_flusher(&lane_for_child)); });
+            launched = in_single_threaded_process(move || {
+                crate::commit_flusher_tests::hold_helpers_in(&lane_for_child);
+                return flusher_launch_code(launch_flusher(&lane_for_child));
+            });
         },
     )
     .expect("flush");
     assert_eq!(launched, Some(0), "the launch");
     assert_eq!(outcome, Flushed::Handed { forced: 1 });
-    // The pinned executor's `open` of the FIFO returns once a writer exists; forcing a FIFO then fails and the failure is recorded.
-    let writer = fs::OpenOptions::new().read(true).write(true).open(&fifo).expect("a writer releases the pinned executor");
+    // The pinned executor forces its receipts once released; the one that cannot be forced is recorded.
+    fs::write(lane.join("release"), b"").expect("the release");
     let deadline: Instant = Instant::now() + Duration::from_secs(10);
     while !recorded(&lane).iter().any(|name| { return name == "r2"; }) {
         assert!(Instant::now() < deadline, "the second executor recorded nothing: {:?}", recorded(&lane));
         std::thread::sleep(Duration::from_millis(5));
     }
-    drop(writer);
 }
 
 /// The fault point after the launcher read the helper's report: waits (bounded) for any helper that already works to have finished with the

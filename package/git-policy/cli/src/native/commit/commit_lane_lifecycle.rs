@@ -19,13 +19,9 @@ use super::commit_flusher::{FlushError, Flushed, FlusherLaunchError, RECEIPT_ERR
 pub use super::commit_flusher_unit::{ManagerRoute, Routed, launch_routed};
 pub use super::commit_state_log::capture_lane_closure;
 use super::commit_state_log::{ClosureEntry, LaneDocument, LaneState, Selected, StateError, StateWriter, select};
-use std::collections::BTreeSet;
 use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
-
-/// The syncer's in-flight copy of the record of receipt errors: the lines it took and is retrying.
-pub const RETRYING: &str = "receipt-errors.retrying";
 
 /// Creates `lane/receipt/<id>`, the registration of the obligation to force; the receipt is visible when this returns.
 pub fn create_receipt(lane: &Path, id: &str) -> io::Result<PathBuf> {
@@ -69,6 +65,9 @@ pub enum ClientError {
 /// function clientAfterAccept(lane, id, ring, route): ClientStep; // throws ClientError
 /// ```
 pub fn client_after_accept(lane: &Path, id: &str, ring: &mut dyn FnMut(&Path) -> io::Result<bool>, route: &mut dyn ManagerRoute) -> Result<ClientStep, ClientError> {
+    // The unit runs in the manager's working directory, not this client's: the obligation is created and launched under one absolute path.
+    let absolute: PathBuf = std::path::absolute(lane).map_err(ClientError::Receipt)?;
+    let lane: &Path = absolute.as_path();
     create_receipt(lane, id).map_err(ClientError::Receipt)?;
     if ring(lane).unwrap_or(false) {
         return Ok(ClientStep::Rung);
@@ -87,61 +86,49 @@ pub struct SyncPass {
     pub held: bool,
 }
 
-/// The names (first field) of the lines of a record.
-fn names_of(text: &str) -> BTreeSet<&str> {
-    return text.lines().filter_map(|line| { return line.split('\t').next(); }).collect();
-}
-
-/// Puts the lines of the in-flight copy back into the record, once per name, and removes the copy.
-fn merge_back(lane: &Path) -> io::Result<()> {
-    let taken: String = fs::read_to_string(lane.join(RETRYING))?;
-    let current: String = fs::read_to_string(lane.join(RECEIPT_ERRORS)).unwrap_or_default();
-    let known: BTreeSet<&str> = names_of(&current);
-    let mut record = OpenOptions::new().create(true).append(true).open(lane.join(RECEIPT_ERRORS))?;
-    for line in taken.lines() {
-        if line.split('\t').next().is_some_and(|name| { return !known.contains(name); }) {
-            record.write_all(format!("{}\n", line).as_bytes())?;
-        }
-    }
-    fs::remove_file(lane.join(RETRYING))?;
-    return Ok(());
-}
-
-/// One syncer pass with a hook between taking the record and forcing (a test puts a late line there).
-pub fn syncer_pass_with(lane: &Path, after_take: &mut dyn FnMut()) -> Result<SyncPass, FlushError> {
-    // A copy a dead syncer left is retried as it is; otherwise the record is renamed, so a line recorded during the pass lands in a new file.
-    if !lane.join(RETRYING).exists() {
-        match fs::rename(lane.join(RECEIPT_ERRORS), lane.join(RETRYING)) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(FlushError::Io(error)),
-        }
-    }
-    after_take();
-    let retried: usize = fs::read_to_string(lane.join(RETRYING)).map_or(0, |text| { return text.lines().count(); });
-    let outcome = flush_lane(lane);
-    match outcome {
-        Ok(Flushed::Finished { forced }) | Ok(Flushed::Handed { forced }) => {
-            match fs::remove_file(lane.join(RETRYING)) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(FlushError::Io(error)),
+/// One syncer pass with a hook between reading the record and forcing (a test writes a late line there).
+///
+/// The record is never renamed or replaced: a recorder that holds it open would write into a file nobody reads. The pass reads it, forces
+/// every receipt of the lane (the record names a subset), and only if that succeeded takes the record's exclusive lock without waiting and
+/// empties it in place when it is still exactly what the pass read. Recorders append under the shared lock, so none writes while it is
+/// emptied; a line recorded meanwhile makes the length differ and nothing is removed (the next pass retries the old lines again, which is
+/// idempotent).
+pub fn syncer_pass_with(lane: &Path, after_read: &mut dyn FnMut()) -> Result<SyncPass, FlushError> {
+    let record: PathBuf = lane.join(RECEIPT_ERRORS);
+    let read: Vec<u8> = match fs::read(&record) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(FlushError::Io(error)),
+    };
+    let retried: usize = read.iter().filter(|byte| { return **byte == b'\n'; }).count();
+    after_read();
+    match flush_lane(lane)? {
+        Flushed::Held => return Ok(SyncPass { forced: 0, retried: 0, held: true }),
+        Flushed::Finished { forced } | Flushed::Handed { forced } => {
+            if retried > 0 {
+                clear_if_unchanged(&record, read.len())?;
             }
             return Ok(SyncPass { forced, retried, held: false });
         }
-        Ok(Flushed::Held) => {
-            if lane.join(RETRYING).exists() {
-                merge_back(lane)?;
-            }
-            return Ok(SyncPass { forced: 0, retried: 0, held: true });
-        }
-        Err(error) => {
-            if lane.join(RETRYING).exists() {
-                merge_back(lane)?;
-            }
-            return Err(error);
-        }
     }
+}
+
+/// Empties the record in place when it is `length` bytes long and its exclusive lock is free; otherwise leaves it.
+fn clear_if_unchanged(record: &Path, length: usize) -> Result<(), FlushError> {
+    let file = match OpenOptions::new().read(true).write(true).open(record) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(FlushError::Io(error)),
+    };
+    match file.try_lock() {
+        Ok(()) => {}
+        Err(std::fs::TryLockError::WouldBlock) => return Ok(()),
+        Err(std::fs::TryLockError::Error(error)) => return Err(FlushError::Io(error)),
+    }
+    if file.metadata()?.len() == length as u64 {
+        file.set_len(0)?;
+    }
+    return Ok(());
 }
 
 /// The syncer's pass: retries the recorded errors and forces every receipt in the lane.
@@ -181,8 +168,10 @@ impl From<io::Error> for LifecycleError {
 /// What a replacement owner found at its start.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Recovery {
-    /// The generation of the state log's newest eligible record; `None` for a lane with no log.
+    /// The generation of the state log's newest eligible record; `None` for a lane with no log or a log that could not be read.
     pub generation: Option<u64>,
+    /// Why the state log could not be read (a damaged or conflicting log), reported beside the receipts that were served anyway.
+    pub state_error: Option<String>,
     /// Receipts the sweep forced.
     pub forced: usize,
     /// Recorded error lines it took up.
@@ -202,12 +191,16 @@ pub struct Recovery {
 /// function startupSweep(lane: string, state: string): Recovery;
 /// ```
 pub fn startup_sweep(lane: &Path, state: &Path) -> Result<Recovery, LifecycleError> {
-    let generation: Option<u64> = select(state)?.map(|chosen| { return chosen.generation; });
+    // The receipts are served first and whatever the state log is: a damaged log is reported, never a reason to leave a receipt unforced.
     let pass: SyncPass = syncer_pass(lane)?;
+    let (generation, state_error): (Option<u64>, Option<String>) = match select(state) {
+        Ok(chosen) => (chosen.map(|found| { return found.generation; }), None),
+        Err(error) => (None, Some(format!("{:?}", error))),
+    };
     // A disposal the person authorized and a crash interrupted is finished from its durable `disposed` line; a root that is not in the
     // checked representation cannot be replaced, so the sweep leaves such a lane to the person.
     let disposals: usize = if generation.is_some() { super::commit_disposal::resume_disposals(lane, state)? } else { 0 };
-    return Ok(Recovery { generation, forced: pass.forced, retried: pass.retried, disposals });
+    return Ok(Recovery { generation, state_error, forced: pass.forced, retried: pass.retried, disposals });
 }
 
 /// What the seal wrote.
@@ -260,6 +253,13 @@ pub fn seal_for_shutdown(lane: &Path, state: &Path) -> Result<Sealed, LifecycleE
     return Ok(Sealed { generation });
 }
 
+/// Forces what the acknowledged record retains (the request files, the saved content, the marks, the ledger and the order file), then
+/// confirms again that the record is still covered: a retained file that a power loss dropped would make the durable record ineligible.
+fn force_closure(state: &Path, prefix: &super::commit_state_log::Prefix) -> io::Result<()> {
+    let lane: PathBuf = state.parent().map_or_else(|| { return PathBuf::from("."); }, PathBuf::from);
+    return super::commit_state_log::force_items(&lane, &prefix.items);
+}
+
 /// What:
 ///  The departure's acknowledgment of the state log, with the retry the races need: forces the segment recovery selects
 ///  (`commit_state_log::sync_prefix`) and returns the prefix only when `state_covers` says the root recovery selects now is that record or
@@ -278,11 +278,15 @@ pub fn departure_acknowledge(state: &Path, attempts: u32) -> io::Result<super::c
     let mut last: io::Error = io::Error::other("the departure was given no attempt");
     for _attempt in 0..attempts {
         match super::commit_state_log::sync_prefix(state) {
-            Ok(prefix) => match super::commit_state_log::state_covers(state, &prefix) {
-                Ok(true) => return Ok(prefix),
-                Ok(false) => last = io::Error::other("the state log's root changed to one that does not cover the captured record"),
-                Err(error) => return Err(io::Error::other(format!("the state log could not be read: {:?}", error))),
-            },
+            Ok(prefix) => {
+                // The closure is forced before the coverage is confirmed, so the confirmation is of a record whose dependencies are durable.
+                force_closure(state, &prefix)?;
+                match super::commit_state_log::state_covers(state, &prefix) {
+                    Ok(true) => return Ok(prefix),
+                    Ok(false) => last = io::Error::other("the state log's root changed to one that does not cover the captured record"),
+                    Err(error) => return Err(io::Error::other(format!("the state log could not be read: {:?}", error))),
+                }
+            }
             Err(error) if error.kind() == io::ErrorKind::NotFound => last = error,
             Err(error) => return Err(error),
         }

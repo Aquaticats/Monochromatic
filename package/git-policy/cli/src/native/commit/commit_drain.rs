@@ -27,7 +27,8 @@ pub enum DrainAnswer {
 }
 
 /// What:
-///  Polls `drained` every `pause` until it is true or `bound` has passed.
+///  Polls `drained` every `pause` until it is true or `bound` has passed. `drained` must return promptly (it is a nonblocking probe of the
+///  drain, not a wait of its own); the bound holds only as far as that contract does.
 /// Why:
 ///  The poll is the only thing the caller does to the drain, so returning at the bound cancels nothing.
 ///
@@ -44,6 +45,7 @@ pub fn wait_for_drain(bound: Duration, pause: Duration, drained: &mut dyn FnMut(
         if Instant::now() >= deadline {
             return DrainAnswer::InProgress;
         }
-        std::thread::sleep(pause);
+        // The pause never runs past the bound: a long pause cannot hold the caller after its deadline.
+        std::thread::sleep(pause.min(deadline.saturating_duration_since(Instant::now())));
     }
 }

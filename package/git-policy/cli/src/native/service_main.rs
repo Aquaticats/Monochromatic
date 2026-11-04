@@ -34,6 +34,10 @@ fn main() {
     // The internal flusher mode (plan step 2, owner decision 22): a transient unit the user manager starts runs the receipt flusher on one
     //  lane and exits with its code. It listens to nothing and serves nothing; without the flag this program is the service as before.
     if let Some(lane) = option(&arguments, git_policy_cli::commit_flusher_unit::FLUSH_LANE_FLAG) {
+        if let Err(reason) = git_policy_cli::commit_flusher_unit::validate_lane(std::path::Path::new(&lane)) {
+            git_policy_cli::service_error!("--flush-lane {lane}: {reason}");
+            std::process::exit(2);
+        }
         std::process::exit(git_policy_cli::commit_flusher::flusher_entry(std::path::Path::new(&lane)));
     }
     let Some(journal) = option(&arguments, "--journal").map(PathBuf::from) else {
