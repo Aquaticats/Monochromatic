@@ -114,10 +114,30 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   audit every `cargo-binstall` row with a dry run;
   release only after wrapper 0.5.35 is locked,
   because a fresh install of 0.5.34 would then fail.
-  The brief draft is the one sent for task #160 in this session,
-  amended by the owner's line above.
-  Rule CM7 in `AGENTS.md` ("never `cargo install` or compile a locked tool") needs the owner's carve-out;
-  edit proposed to the owner.
+  Owner's clarification:
+  "It should still BE ABLE TO compile tools this repo doesn't control when needed."
+  CM7 rewritten as the owner chose ("Rewrite CM7 (Recommended)",
+  `5f03ec99b3`).
+  Agent `a97a9a4124bdb9776` started 2026-11-04T15:52-05:00 on branch
+  `fix/mpm-shadow-cli-never-compiles-a-repository-crate`
+  (worktree `~/temp/agent/mpm-shadow-no-compile`).
+- Models agent (`a9c775c9196f1d836`) finished the step-2b fixes and plan step 3 behind `--lane`
+  (models tip `45bee5ba00`,
+  design tip `1fc759ba80`;
+  `native:test:model` 605 passed,
+  4 leaky;
+  map 66 covered,
+  20 narrower,
+  9 historical,
+  13 not yet).
+  Cross-vendor reviews running:
+  `~/temp/agent/reviews/commit-models-step3-sol-a1.txt` (code against whole files),
+  `-a2.txt` (component tests),
+  `-b.txt` (models,
+  map,
+  handover).
+  Its `--lane` options in `service_main.rs` will conflict with the one-executable change;
+  that agent was told to keep the service options a pass-through.
 
 Git wrapper 0.5.33 is installed:
 branch-write round 2 (`6fc72e8abe`,
