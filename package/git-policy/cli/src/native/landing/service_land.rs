@@ -32,7 +32,7 @@ use crate::service_timing::{LandTiming, wait_line};
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use crate::service_land_follow::{classify, storage_failure};
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -73,7 +73,7 @@ struct Settings<'a> {
 /// ```
 fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
     let name: String = format!("refs/cli-git/kept/{seq}");
-    let made = run(git, repository, &["update-ref", name.as_str(), tip], None);
+    let made = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
     if !made.is_ok_and(|output| { return output.succeeded(); }) {
         return String::from("cli-git: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
     }
@@ -268,7 +268,7 @@ pub fn land_batch_timed(
         let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
         if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
             announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
-            let _deleted = run(&git, first.repository.as_path(), &["update-ref", "-d", scratch.as_str()], None);
+            let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
         }
     }
     let published: bool = result.as_ref().is_ok_and(|outcomes| { return outcomes.iter().any(|outcome| { return matches!(outcome, Outcome::Landed { .. }); }); });
@@ -503,7 +503,7 @@ fn land_batch_body(
                 if failure.code == FailureCode::IndexInUse {
                     announce(Announce::Waiting(keep_unlanded(&git, repository, seq, new.as_str())));
                 }
-                let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+                let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
                 return Err(failure.code);
             }
         };
@@ -513,7 +513,7 @@ fn land_batch_body(
         let still: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
         if !matches!(still, Ok(true)) {
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
-            let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+            let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
             return match still {
                 Ok(_) => Ok(vec![Outcome::BranchMoved; requests.len()]),
                 Err(code) => Err(code),
@@ -557,7 +557,7 @@ fn land_batch_body(
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             remove_start(context.journal.as_path(), seq);
-            let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
+            let _deleted = run(&git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
             // For an amend, the next round finds the tip away from its base and answers that the branch moved.
             attempts_left -= 1;
             timing.hold += hold_began.elapsed();

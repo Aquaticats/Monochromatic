@@ -338,10 +338,10 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
 }
 
 /// Commands whose second run after a refusal is harmless: they read, or they write content-addressed objects,
-///  or they set the same value again.
-const RERUNNABLE: [&str; 17] = [
+///  or they set the same value again. `symbolic-ref` and `init` are not here: only the forms the wrapper runs may be run again
+///  (`may_be_rerun`).
+const RERUNNABLE: [&str; 15] = [
     "rev-parse",
-    "symbolic-ref",
     "for-each-ref",
     "ls-files",
     "diff",
@@ -353,7 +353,6 @@ const RERUNNABLE: [&str; 17] = [
     "write-tree",
     "ls-remote",
     "merge-tree",
-    "init",
     "pack-objects",
     "index-pack",
     "version",
@@ -387,6 +386,26 @@ pub(crate) fn subcommand_of(arguments: &[OsString]) -> Option<(usize, String)> {
 }
 
 /// What:
+///  Whether a `symbolic-ref` is a form the wrapper runs that may be run again: a read (`--quiet`, `--short`, `--no-recurse`, one name),
+///  or, in a shadow repository the wrapper made for one transaction, the write of one name to one target without any option.
+/// Why:
+///   The write forms the wrapper runs are in `shadow_refs.rs` and only on a shadow (`without_prefix`); a write in the person's
+///  repository, a delete and a message (it appends a reflog entry) are branch writes or have effects the experiment did not run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reads(words) || (shadow && words.options.length === 0 && words.names.length === 2)
+/// ```
+fn symbolic_ref_may_be_rerun(words: &Words<'_>, shadow: bool) -> bool {
+    if words.after.is_some() {
+        return false;
+    }
+    let read: bool = words.only_options(&["--quiet", "-q", "--short", "--no-recurse"]) && words.before.len() == 1;
+    let write_in_shadow: bool = shadow && words.options.is_empty() && words.before.len() == 2;
+    return read || write_in_shadow;
+}
+
+/// What:
 ///  Whether running the request a second time after the system refused it is harmless.
 /// Why:
 ///   Git reports a refused process or thread as a failure after it started,
@@ -413,6 +432,8 @@ fn may_be_rerun(request: &GitRequest) -> bool {
         }),
         "remote" => return rest.first().is_some_and(|word| { return word == "get-url"; }),
         "add" | "reset" | "read-tree" | "update-index" => return request.index.is_some(),
+        "symbolic-ref" => return symbolic_ref_may_be_rerun(&Words::of(rest.as_slice()), request.without_prefix),
+        "init" => return request.without_prefix && rest.iter().any(|option| { return option == "--bare"; }),
         other => return RERUNNABLE.contains(&other),
     }
 }
@@ -549,8 +570,10 @@ fn step_subject(request: &GitRequest) -> String {
 /// Steps that change nothing, or that write only objects nothing refers to, and that `RERUNNABLE` does not name. A second run of an
 ///  object writer writes the same bytes and a partial result is a loose object or a temporary pack that no reference names, so
 ///  ending one costs nothing. Only the name is judged: none of these steps writes a reference, the index, the worktree or the
-///  configuration whatever its options.
-const READS_AND_OBJECT_WRITERS: [&str; 16] = [
+///  configuration whatever its options. `fast-import` is not among them (sol-1 round 2): its input can update branches and
+///  checkpoint them, and the cut experiment ran the wrapper's own stream and found a marks lock file a cut left behind that the
+///  second run could not pass, so it is never ended.
+const READS_AND_OBJECT_WRITERS: [&str; 15] = [
     "rev-list",
     "merge-base",
     "log",
@@ -565,7 +588,6 @@ const READS_AND_OBJECT_WRITERS: [&str; 16] = [
     "show-ref",
     "name-rev",
     "commit-tree",
-    "fast-import",
     "mktree",
 ];
 
@@ -607,10 +629,40 @@ impl<'a> Words<'a> {
     }
 }
 
+/// The setting that keeps a reference write from appending to a reflog, which the wrapper puts on the command line of every write of
+///  a side ref it wants ended at a ceiling. The repository's own `core.logAllRefUpdates=always` would append a second entry in a
+///  second run, so the setting is on the command line (it wins over the configuration files) and the classifier requires it.
+pub(crate) const NO_REFLOG_SETTING: &str = "core.logAllRefUpdates=false";
+
+/// Whether the global options before the subcommand carry `-c <setting>`.
+fn has_global_setting(arguments: &[OsString], setting: &str) -> bool {
+    let mut index: usize = 0;
+    while index < arguments.len() {
+        let text: String = arguments[index].to_string_lossy().into_owned();
+        if text == "-c" {
+            if arguments.get(index + 1).is_some_and(|pair| { return pair.to_string_lossy() == setting; }) {
+                return true;
+            }
+            index += 2;
+            continue;
+        }
+        if text == "-C" {
+            index += 2;
+            continue;
+        }
+        if text.starts_with('-') {
+            index += 1;
+            continue;
+        }
+        return false;
+    }
+    return false;
+}
+
 /// Whether `word` names a side ref the wrapper makes for itself: `refs/cli-git/kept/<number>` or
-///  `refs/worktree/cli-git-service/<number>`. Assumptions, written down because the classification rests on them: the wrapper makes
-///  these refs as plain refs and never as symbolic refs, nothing configures a reflog for them (`core.logAllRefUpdates=always` would),
-///  and the number is all digits, so no `..` and no further path can stand in it.
+///  `refs/worktree/cli-git-service/<number>`. The number is all digits, so no `..` and no further path can stand in it. That the ref
+///  is a plain ref and has no reflog is not assumed: the classifier requires `--no-deref` and `NO_REFLOG_SETTING` on the exact
+///  argv (`is_proven_to_run_twice`).
 fn is_side_ref(word: &str) -> bool {
     return ["refs/cli-git/kept/", "refs/worktree/cli-git-service/"]
         .iter()
@@ -643,12 +695,14 @@ fn is_object_id(word: &str) -> bool {
 /// ```ts
 /// PROVEN_FORMS.some((form) => form.matches(parse(subcommand, words)))
 /// ```
-fn is_proven_to_run_twice(name: &str, rest: &[String]) -> bool {
+fn is_proven_to_run_twice(arguments: &[OsString], name: &str, rest: &[String]) -> bool {
     let words: Words<'_> = Words::of(rest);
     let no_paths = words.after.is_none();
     return match name {
         "update-ref" => {
-            let plain: bool = words.after.is_none() && words.only_options(&["-d"]);
+            // `--no-deref` and the reflog setting are enforced on the argv; the experiment ran the form with both, with the
+            //  configuration saying `always`, and with the ref a symbolic ref to a branch.
+            let plain: bool = words.after.is_none() && words.only_options(&["-d", "--no-deref"]) && words.has("--no-deref") && has_global_setting(arguments, NO_REFLOG_SETTING);
             let delete: bool = words.has("-d") && words.before.len() == 1 && is_side_ref(words.before[0]);
             let set: bool = !words.has("-d") && words.before.len() == 2 && is_side_ref(words.before[0]) && is_object_id(words.before[1]);
             plain && (delete || set)
@@ -699,7 +753,7 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
         return true;
     }
     let rest: Vec<String> = request.arguments[position + 1..].iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
-    return is_proven_to_run_twice(name.as_str(), rest.as_slice());
+    return is_proven_to_run_twice(request.arguments.as_slice(), name.as_str(), rest.as_slice());
 }
 
 /// What:
