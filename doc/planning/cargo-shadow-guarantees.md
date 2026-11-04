@@ -531,7 +531,9 @@ Written 2026-11-04T07:00:00-05:00 against the tip that carries it (round 9).
 A row is "shown" when each of its schedules has a test that fails when the guarantee is removed or that asserts the observable
 result; "partly" when a named part has no test yet.
 Counts: 16 rows, 16 shown, 0 partly, 0 not yet.
-The suite counts at this tip were not recorded before the session ended (partial: the last full debug run, before the contract edits, was 561 passed, 3 skipped); the next gate fills them.
+Suite counts at tip `7699f5df6f` (2026-11-04T07:37-05:00): the debug run (`mise run //package/cargo-shadow/cli:test:debug`) and the release gate (`mise run //package/cargo-shadow/cli:test`) each ran 561 tests: 561 passed, 0 failed, 3 skipped; `lint:clippy` with warnings denied is clean.
+The 3 skipped are the `#[ignore]` helper entries that three other tests start as child processes (their names are in the `ignore` attributes of `src/contain_counterexample_tests.rs` and `src/containment_record_tests.rs`); they are not run on their own.
+Logs: `/var/home/user/temp/agent/cargo-shadow-r7/logs/r9-debug1.log`, `r9-gate1.log`, `r9-clippy2.log`.
 Red first was done where the old code could show red:
 the round 7 red commit `939dcb31d1` holds counterexamples of rows A1, A3, A4, V1 and V2 against the round 6 code.
 In rounds 8 and 9 the new guards were removed from the committed tests and the tests failed, then the guard was put back:

@@ -643,7 +643,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   so a program that cargo starts (a compiler cache daemon,
   say) cannot keep it held forever.
   What the wrapper promises, what it assumes, and which test shows each: `doc/planning/cargo-shadow-guarantees.md`
-  (guarantees, assumptions a to d, the weaker path, the acceptance list and the coverage map).
+  (guarantees, assumptions a to e, the weaker path, the acceptance list and the coverage map).
   A killed wrapper's cargo is found another way, by the delegated scope it ran in (round 8; round 7 used a group the wrapper entered
   around each spawn, and rounds 5 and 6 a process group and a subreaper, which failed to show that every process had stopped):
   the program is started as `systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect -- <program>`,
@@ -657,8 +657,21 @@ and an HTTP 429 is retried after its `Retry-After`.
   record it cannot read or understand, or a journal that lost its record while other files remain, or a journal or a scope seen
   with another mount id or inode or in another cgroup namespace than the record was made in (assumption c);
   it names the journal.
-  A recorded scope that is absent counts as gone only when the directory that held it is seen as it was recorded, because the manager
-  removes a scope only when it is empty (probed).
+  A recorded scope that is absent counts as gone only when the run also recorded its end and the directory that held it is seen as
+  it was recorded, because the manager removes a scope only when it is empty (probed).
+  The end is a `settled <scope path>` line that the run appends to the journal after it reaped the launcher and showed the scope
+  empty; until then an absent scope may be one the launcher has not made yet, so a recovery that finds it absent and unsettled
+  refuses, naming the journal, and waits for `cargo-shadow acknowledge`.
+  A record that cannot be written leaves the journal unsettled, which is the safe side.
+  The journal's view record also holds the machine id (`/etc/machine-id`) and the boot id
+  (`/proc/sys/kernel/random/boot_id`) of the system that made it, written before any record of a scope or a process group.
+  A recovery on the same machine id with a different boot id treats the run's process liveness as discharged, because a reboot
+  ended every process of the run (assumption e: one machine at a time, no checkpoint and restore); it then does not compare the
+  mount and cgroup views, which belong to the boot that ended, and it asks for no acknowledgement for the containment.
+  Journal enumeration, snapshot validation, preservation and the mandatory finish still run, and a recorded scope that has a member
+  after the reboot still blocks.
+  A different machine id, an unreadable identity on either side, a journal without one, or the same boot id (suspend and resume keep
+  it) keep the refusal.
   A journal directory that holds nothing at all is what a cut-off `begin` leaves and is removed.
   The scope is stopped by killing the direct child, reaping it, and writing `cgroup.kill`, and then each listed process gets
   `SIGKILL` through a pidfd, because `cgroup.kill` alone left a thread group alive whose leader had already exited (measured on
@@ -677,6 +690,16 @@ and an HTTP 429 is retried after its `Retry-After`.
   The acknowledgement is written under the workspace lock to that one journal; it overrides only the uncertainty of the containment
   (a weaker-path record, a record that is damaged or missing, a view that differs), never a recorded group that is observed to have a
   member, and the recovery's other checks still run.
+  It is the file `acknowledged` in the journal, published whole by an atomic rename (a header line, the process id and the time of
+  the acknowledging command, each ended by a line feed) with its directory synced; a reader counts it only as that whole record and
+  only after making the file and its directory entry durable itself, so a partial file, or one the reader cannot make durable,
+  does not count.
+  The command tries the workspace lock and never waits for it, and an unfinished publication leaves the journal unacknowledged.
+  The discovery of the manager's slice is bounded (the answer of `systemctl` is read under a deadline, a descendant that holds
+  its pipes does not extend it, and the killed program is reaped under a second deadline), the route cache and the registry of
+  unsynchronized directories are consulted without blocking, and the answer when either is busy is the conservative one.
+  When a crate root or the central folder of kept files cannot be listed, the run prints that the number of kept files is unknown
+  and where to look; it never refuses and never takes an unreadable place as small.
   A trivial run took 23.6 ms median in the test build, which asks the manager every time (18.4 minimum, 33.5 maximum, 30 runs), and
   6.3 ms in the weaker path; the production build asks once per process, so its figure is lower by the cost of the question, which was
   not measured separately.

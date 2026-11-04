@@ -780,6 +780,35 @@ Where the sections of rounds 5 to 7 above say otherwise, the contract and this s
 - The queue of round 7 stays queued except what a row of the list needed: the K1 inventory above and the real completion rename and
   sync tests.
 
+## Round 9 (2026-11-04): the answers to the round 8 reviews
+
+Reviews answered: `cargo-shadow-sol-8a.txt` and `cargo-shadow-sol-8b.txt` (in `/var/home/user/temp/agent/reviews/`).
+The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows; a counterexample reopened rows but added none.
+Where the sections above say otherwise, the contract and this section are current:
+
+- A run that recorded its end appends `settled <scope path>` to the journal; an absent recorded scope is read as gone only for a
+  settled run, and an unsettled one waits for `cargo-shadow acknowledge` (8a F1).
+- The journal's view record holds the machine id and the boot id; the same machine with another boot discharges process liveness
+  only, and everything else (enumeration, snapshots, preservation, the mandatory finish, a scope with a member) still applies.
+  New assumption e: one machine at a time, no checkpoint and restore (8b).
+  A coordinator pick, veto open.
+- The discovery of the manager's slice, the route cache and the registry of unsynchronized directories never wait: the first reads and
+  reaps under deadlines, the other two use `try_lock` and answer conservatively (8a F2, F3).
+- An acknowledgement counts only as the whole versioned record, made durable by the reader itself, and its writer reports success
+  only after the barrier and the publication succeeded (8a F4).
+- A crate root or central folder that cannot be listed gives an "unknown" kept-files warning, never a refusal and never "small" (8a K1).
+- Tests: `src/round_nine_tests.rs` and the changes to the tests named in the coverage map; the 8b test fixes (each orphan with its
+  own process id, the thread oracle by thread id with a control, ESRCH as gone, the completion-sync count, a namespace test that
+  isolates the cgroup view, an R2 message that names a surviving path, a rollback test that asserts both faults) and the seven rows that
+  were "partly" are now shown.
+- Result at tip `7699f5df6f` (2026-11-04T07:37-05:00): 561 tests, 561 passed, 3 skipped (the `#[ignore]` helper entries), debug and
+  release gate alike; clippy with warnings denied is clean.
+  Logs are named in the coverage map's Counts paragraph.
+- Still the owner's to veto (kept): delegated transient scope as the default containment; the weaker path's recovery waits for
+  `cargo-shadow acknowledge`; assumptions a to e; a verified-absent scope as proof of no members; the same machine id with a
+  different boot id clears liveness only.
+- First publication of the crate to crates.io needs the owner's explicit approval; nothing was published.
+
 ## Resume point (round 9, written 2026-11-04 when the session was asked to stop)
 
 Done in round 9 (commits on `feat/cargo-shadow-cli`, tip after this commit):
