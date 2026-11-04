@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 
 use crate::acknowledge::acknowledge;
 use crate::bounded_run::{Bound, RouteCache, output_within};
-use crate::cgroup_test_support::{assert_scope_record, delegated_route, wait_until};
+use crate::cgroup_test_support::{assert_scope_record, delegated_route, scope_directory_of, wait_until};
 use crate::control_group::{ControlGroup, Identity, Route, RouteSettings, View, current_identity, detect_route, use_identity_for_test};
 use crate::crates::LockSnapshot;
 use crate::failpoints::{Point, arm};
@@ -130,6 +130,10 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended() {
     let record: String = fs::read_to_string(journal.join("groups")).expect("the record");
     assert_scope_record(&journal.join("groups").display().to_string());
     assert!(record.lines().nth(1).is_some_and(|line| { return line.starts_with("settled "); }), "the run did not record its end: {record:?}");
+    // The scope must be collected, not merely empty (9b 3.4): the recovery below then takes the settled-and-absent branch.
+    let scope: PathBuf = scope_directory_of(&journal.join("groups").display().to_string());
+    wait_until("the manager to collect the scope", &|| { return !scope.exists(); });
+    assert!(!scope.exists());
     assert_eq!(survivor_note(&journal), None);
     drop(transaction);
 }
@@ -236,26 +240,54 @@ fn an_acknowledgement_with_three_lines_that_are_not_a_process_id_and_a_time_does
     assert_eq!(survivor_note(&journal), None, "a whole record did not count");
 }
 
-/// Acceptance row "Weaker path" (8a, the acknowledgement-durability boundary):
-/// a recovery relies on an acknowledgement only after it made the file and its directory entry durable itself;
-/// one it cannot make durable does not count, and it counts once it can.
+/// Acceptance row "Weaker path" (8a, the acknowledgement-durability boundary; 9b 3.6):
+/// a recovery relies on an acknowledgement only after it made the file and then its directory entry durable itself;
+/// a failure of either step means the acknowledgement does not count, each step is failed on its own with its fault reached,
+/// and it counts once both can be made.
 #[test]
 fn an_acknowledgement_the_reader_cannot_make_durable_does_not_count_until_it_can() {
     let root = repository();
     let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
     acknowledge(&journal).expect("acknowledges");
 
-    arm(Point::AcknowledgementDurability);
-    let failing: Option<String> = survivor_note(&journal);
-    let working: Option<String> = survivor_note(&journal);
+    for (label, step) in [("the file sync", Point::AcknowledgementFileSync), ("the directory sync", Point::AcknowledgementDirectorySync)] {
+        arm(step);
+        let failing: Option<String> = survivor_note(&journal);
+        assert!(!crate::failpoints::fires(step), "{label}: the fault was never reached");
+        assert!(failing.is_some(), "{label}: an acknowledgement that could not be made durable was relied on");
+    }
+    assert_eq!(survivor_note(&journal), None, "a whole, durable acknowledgement did not count");
+}
 
-    assert!(failing.is_some(), "an acknowledgement that could not be made durable was relied on");
-    assert_eq!(working, None);
+/// Acceptance row "Weaker path" (9b 3.6, the interrupted publication):
+/// a publication that stopped after the complete text was written under its temporary name and before the rename leaves the journal
+/// unacknowledged, a recovery does not settle it, and acknowledging again publishes it whole.
+/// The state is built by hand from a real acknowledgement (the rename is not injectable); the sibling name is the temporary kind that
+/// the journal's own listing already tolerates.
+#[test]
+fn an_interrupted_publication_leaves_the_journal_unacknowledged_until_it_is_made_again() {
+    let root = repository();
+    let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
+    acknowledge(&journal).expect("acknowledges");
+    let whole: String = fs::read_to_string(journal.join("acknowledged")).expect("the acknowledgement");
+    fs::remove_file(journal.join("acknowledged")).expect("take the published name away");
+    fs::write(journal.join("acknowledged.interrupted.tmp"), &whole).expect("the temporary the publication stopped at");
+
+    let note: Option<String> = survivor_note(&journal);
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    let kept: String = live_lock(root.path());
+
+    assert!(note.is_some(), "a temporary file was read as an acknowledgement");
+    assert_eq!(kept, "unchecked output of the killed run", "the journal was settled without a published acknowledgement: {messages:?}");
+    acknowledge(&journal).expect("acknowledges again");
+    let again: Vec<String> = recover(root.path(), &refusing);
+    assert_eq!(live_lock(root.path()), "original", "the second acknowledgement did not settle the journal: {again:?}");
 }
 
 /// Acceptance row "Weaker path":
 /// the command that cannot make its acknowledgement durable says so and does not claim it,
 /// and one whose publication fails leaves no file and the journal unacknowledged.
+/// Each fault must have been reached (9b 3.6).
 #[test]
 fn an_acknowledgement_whose_barrier_or_publication_fails_is_not_reported_as_made() {
     let root = repository();
@@ -264,8 +296,10 @@ fn an_acknowledgement_whose_barrier_or_publication_fails_is_not_reported_as_made
     arm(Point::AcknowledgementPublish);
     let unpublished = acknowledge(&journal);
     let exists_after_publish_failure: bool = journal.join("acknowledged").exists();
+    assert!(!crate::failpoints::fires(Point::AcknowledgementPublish), "the publication fault was never reached");
     arm(Point::AcknowledgementDurability);
     let undurable = acknowledge(&journal);
+    assert!(!crate::failpoints::fires(Point::AcknowledgementDurability), "the directory-sync fault was never reached");
 
     assert!(unpublished.is_err() && !exists_after_publish_failure, "a failed publication left a file or claimed success: {unpublished:?}");
     assert!(undurable.is_err_and(|text| { return text.contains("durable"); }), "a failed barrier was reported as an acknowledgement");
@@ -464,7 +498,12 @@ fn a_record_that_cannot_be_written_or_made_durable_starts_no_program() {
             let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
             crate::bounded_run::use_route_settings_for_test(None);
 
-            assert!(result.is_err(), "weaker={weaker} {fault:?}: the program ran although its record was not durable");
+            // The fault must have been reached (9b 3.6): a refusal before the record was made would leave it armed.
+            // `RecordWrite` is the write of the appended record line; `RecordSync` is the sync of the record file after that write.
+            assert!(!crate::failpoints::fires(fault), "weaker={weaker} {fault:?}: the fault was never reached, so the refusal came from somewhere else");
+            let refusal: String = result.expect_err("the program ran although its record was not durable").to_string();
+            let expected: &str = if matches!(fault, Point::RecordWrite) { "injected failure to write the containment record" } else { "injected failure to make the containment record durable" };
+            assert!(refusal.contains(expected), "weaker={weaker} {fault:?}: the refusal is not the injected fault: {refusal}");
             assert!(!marker.exists(), "weaker={weaker} {fault:?}: the program started");
             drop(transaction);
         }
@@ -525,6 +564,8 @@ fn two_roots_with_manifests_are_restored_or_kept_together_per_root() {
     assert_eq!(read(first, "Cargo.lock.refused"), "an earlier refused copy", "an existing refused copy was overwritten");
     let saved: Vec<String> = fs::read_dir(root.path().join(first)).expect("lists").flatten().map(|entry| { return entry.file_name().to_string_lossy().to_string(); }).filter(|name| { return name.starts_with("Cargo.lock.refused."); }).collect();
     assert_eq!(saved.len(), 1, "the refused lockfile was not saved under its own name: {saved:?}");
+    // The new copy must hold the refused output itself, not an empty or other file (9b 3.3).
+    assert_eq!(read(first, &saved[0]), format!("output of {first}"), "the new refused copy does not hold the refused output");
     assert_eq!(read(second, "Cargo.lock"), format!("output of {second}"), "the accepted root's lockfile was restored");
     assert_eq!(read(second, "Cargo.toml"), format!("edited manifest of {second}"), "the accepted root's manifest was restored");
     assert!(journal_dirs(root.path()).is_empty());

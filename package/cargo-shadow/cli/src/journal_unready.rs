@@ -41,7 +41,7 @@ use crate::control_group::{Identity, Membership, Record, current_identity, parse
 use crate::crates::{LockSnapshot, read_locks};
 
 /// Imports the journal file names and the durability barrier for this file.
-use crate::journal::{ACKNOWLEDGED_FILE, ACKNOWLEDGED_HEADER, GROUPS_FILE, INDEX_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, VIEW_FILE, make_durable};
+use crate::journal::{ACKNOWLEDGED_FILE, ACKNOWLEDGED_HEADER, GROUPS_FILE, INDEX_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, VIEW_FILE, make_durable, sync_directory};
 
 /// Imports `crate::journal_manifests::read_manifest_index` for this file.
 use crate::journal_manifests::read_manifest_index;
@@ -221,11 +221,19 @@ pub(crate) fn is_acknowledged(directory: &Path) -> bool {
     }
     // A name that is visible is not yet an acknowledgement that survives a crash: the reader makes the file and its directory entry
     // durable before it relies on them, and an acknowledgement it cannot make durable does not count (round 9, 8a).
+    // The file first, then the directory entry that names it; a failure of either one means the acknowledgement does not count.
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
+    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementFileSync) {
         return false;
     }
-    return make_durable(&file).is_ok();
+    if !fs::File::open(&file).and_then(|opened| { return opened.sync_all(); }).is_ok() {
+        return false;
+    }
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDirectorySync) {
+        return false;
+    }
+    return sync_directory(directory).is_ok();
 }
 
 /// What:
