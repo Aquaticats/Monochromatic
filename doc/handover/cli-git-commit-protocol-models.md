@@ -1718,3 +1718,77 @@ roots fail closed".
 
 Gates: `native:test:model` 543 passed, 0 failed (4 leaky, the same stalled children as before); `native:clippy` and
 `native:clippy:seams` clean; `source_guard` 39 of 39 (logs in `/var/home/user/temp/agent/r23/`).
+
+## Round 25: the leftovers of step 2 and the second review of step 2 (2026-11-04)
+
+The reviews of the step 2 bundle (`/var/home/user/temp/agent/reviews/commit-models-step2-sol-a.txt` and `-sol-b.txt`) said "correct after
+named fixes". Dispositions:
+
+Decision 22 note: the route is `systemd-run --user`, within the decision (recorded beside decision 22 in the design). The earlier
+"deviation" wording of round 24 is withdrawn.
+
+Part A, P1:
+- The departure forces what the acknowledged record retains and confirms coverage afterwards (`departure_acknowledge`, `force_closure`);
+  a lineage is carried across checkpoints (`an_acknowledgment_survives_two_successive_seals`). Fixed.
+- Disposal versus a seal: `capture_lane_closure` never captures saved content whose `disposed` line is in the ledger, so no seal can name a
+  retired item again; `Retired` is bound to its lane and state directory, consumed by the unlink, and checked against the current root first.
+  The model has the schedule (`SealRescansRetired` red, `RecheckOnly` red because a recheck alone is a check-then-act race). Fixed.
+- Receipt directory ancestry: the flusher forces the lane directory with the receipt directory. Fixed.
+- Manager start is not executor confirmation: `Type=exec` makes a missing executable a refusal and the fork fallback follows; a unit that
+  dies after its execution leaves its receipts for the next sweep, the flusher records its own lock failure (`flusher_entry` records every
+  receipt, as the fork helper does), and the limit is recorded by a test (`a_unit_that_executes_and_dies_is_reported_started_and_leaves_the_receipt_for_the_next_sweep`).
+  The failure owner is the next startup or syncer pass; nothing in the shipped service schedules one yet (plan step 3).
+Part A, P2:
+- Relative lanes are made absolute before the receipt is created and the unit launched. Fixed.
+- Retry-file rotation: the rotation is gone. The syncer reads the record, forces every receipt, and empties the record in place under its
+  exclusive lock only when it is still what the pass read; recorders append under the shared lock and skip names already recorded. A
+  pre-opened recorder and competing passes are tested. Fixed.
+- `startup_sweep` serves the receipts first and reports a state error beside them. Fixed.
+- Waits: `wait_for_drain` clamps its pause to the remaining time (the probe must return promptly: a contract, documented); `run_within` bounds
+  its cleanup; the drain tests bound by a factor of the bound. Fixed, with the contract for probes not enforced.
+- Unit names use eight random bytes (the fallback is the clock mixed with the process identity, a collision makes the manager refuse and the
+  caller falls back). Fixed; the mutation that removes the random source survives because the clock alone is distinct in the test.
+- `--flush-lane` validates its lane (absolute, a directory that is not a link, with a receipt directory); `sync_path` opens without
+  following a link or blocking and refuses anything but a regular file or a directory, so a FIFO receipt is a recorded error and not a
+  hang. A wrong caller can have `flusher.lock` and `receipt-errors` created in a directory that has a receipt directory, and regular files
+  under its receipt directory forced; the module documentation says so. The flusher tests that used a FIFO as a blocking device now hold a
+  helper with a fault point. Fixed.
+Part B:
+- The capture-reclaim model keeps the selected root apart from the surviving one, has retained support, the ENOENT and orphan-descriptor
+  branches and a finite attempt budget; its conclusions are qualified in the map (recapture is progress before a return, the non-drop rule
+  and the durable publication keep the support after it; one replacement only, the file and directory force interleavings are excluded).
+- `RemovesOnRootWithoutLineProof` is labelled a combined weakening; the two disposal equivalent mutants are equivalent only individually.
+- The map corrections were made as listed (only DRAIN-REQUEST had moved from Not yet to Narrower in round 24).
+
+The leftovers the coordinator named:
+1. `WAIT_DRAIN`: not measured, not shipped. The shipped service has no drain request, so there is no real drain to run. The nearest
+   measurable thing, the time from SIGTERM to exit of an idle `cli-git-service`, was 0.28 ms median (min 0.22, max 1.0, 20 alternations,
+   host load average 4.94 at the start) against 0.28 ms median for a `sleep` process killed the same way: no difference, and no information
+   about a drain behind a person's hook. The bound of a caller waiting for a hook is a policy value for the owner, not a measurement
+   (`/var/home/user/temp/agent/r24/stop-latency.ts`).
+2. Forcing errors (EIO, ENOSPC, EROFS), through a new single-shot sync-error seam: a failed file sync or directory sync is returned with the
+   disk's number, never retried (after an `fsync` error a second one can succeed without the data being durable), and a seal that cannot
+   force its closure leaves the older root and can be repeated. Tests in `commit_io_error_tests.rs`; the guard removal that retries every
+   error turns three of the four red.
+3. Crash injection at the line, the root and the unlink, with real recovery: `resume_disposals` finishes an authorized disposal from its
+   durable `disposed` line (the startup sweep calls it); the line is written once. The crash is a real death of a forked process; it does not
+   lose dirty pages.
+4. The establishment record: plan step 1 owned it (the row was in its closes list); it is built because recovery is the first caller. A
+   completed checkpoint writes `state.established` durably before its predecessors are removed, and recovery never falls back past an
+   established root (`r24_an_established_root_that_is_damaged_does_not_fall_back_to_an_older_segment`, a torn record fails closed, a candidate
+   that never completed still falls back). Every checkpoint now costs one more file sync and one more directory sync, in the background
+   (the sync-count test names them). The row is Covered.
+5. Spool and attempt data: what a recomputation needs is the inbox envelope alone (one checksummed file with the request record and both
+   sides of every change); the spool of revision 11 and the attempt directories are not inputs. Found and fixed: any ledger line used to
+   discharge a request envelope, contrary to the design's retention rule; an outcome that promises saved inputs (`withdrawn`, `conflicted`,
+   `unresolved`, `rewritten-away`) now keeps the envelope until a `disposed` line, and only `published`, `refused`, `already` and
+   `superseded` discharge it. A mark is still discharged by any terminal outcome.
+
+Rows: 66 covered, 19 narrower, 9 historical, 14 not yet. Moved: "damaged established roots fail closed" to Covered; "retained bytes suffice
+for recomputation" to Narrower (the recomputing component does not exist).
+
+Not done: the shipped service scheduling the syncer; a real ring; a repeated seal race after verification in the model (one replacement
+only); the person's disposal command; crash injection inside the replacement root's own steps; held-version completion (step 4).
+
+Gates: `native:test:model` 577 passed, 0 failed (4 leaky, the same stalled children); both clippy tasks clean; `source_guard` 39 of 39
+(`/var/home/user/temp/agent/r24/`).
