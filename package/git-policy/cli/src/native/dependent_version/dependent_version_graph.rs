@@ -19,7 +19,7 @@
 /// ```ts
 /// import { patchBumpVersion } from './dependent_version_release.ts';
 /// ```
-use super::dependent_version_release::{ReleaseBump, UnsupportedVersion, patch_bump_version};
+use crate::dependent_version_release::{ReleaseBump, UnsupportedVersion, patch_bump_version};
 /// Hash-based maps and sets for edges and visits.
 use std::collections::{HashMap, HashSet};
 

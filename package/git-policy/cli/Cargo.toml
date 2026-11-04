@@ -9,7 +9,7 @@ repository = "https://github.com/Aquaticats/Monochromatic.git"
 # `include` patterns are gitignore-style, so an unanchored `README.md` would also package `e2e/README.md`.
 include = [
   "src/native/**/*.rs",
-  "src/native/dependent_version_fixtures/*.json",
+  "src/native/dependent_version/dependent_version_fixtures/*.json",
   "src/native/service_units/*",
   "src/native/index_lock_restart_manager.ps1",
   "/Cargo.toml",

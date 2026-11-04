@@ -17,13 +17,13 @@
 /// ```ts
 /// import { readManifestFacts, strictText } from './dependent_version_manifest.ts';
 /// ```
-use super::dependent_version_content::{
+use crate::dependent_version_content::{
     PlanError, PolicyIncomplete, TrackedMode, TrackedPath, WorkspaceContent,
 };
 /// Strict decoding and fact extraction of one manifest.
-use super::dependent_version_manifest::{ManifestFacts, read_manifest_facts, strict_text};
+use crate::dependent_version_manifest::{ManifestFacts, read_manifest_facts, strict_text};
 /// Which tracked paths are manifests, and their package directories.
-use super::dependent_version_paths::{is_workspace_manifest_path, package_directory};
+use crate::dependent_version_paths::{is_workspace_manifest_path, package_directory};
 
 /// What: One workspace manifest with what the plan needs from it.
 /// Why:  The patch is built from the exact current bytes; the text after an optional

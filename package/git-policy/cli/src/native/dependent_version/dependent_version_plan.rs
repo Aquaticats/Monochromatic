@@ -17,25 +17,25 @@
 /// ```ts
 /// import { readManifestStates, bumpedNames } from './dependent_version_states.ts';
 /// ```
-use super::dependent_version_bundled::bundled_development_edges;
+use crate::dependent_version_bundled::bundled_development_edges;
 /// The content seam and its failures.
-use super::dependent_version_content::{PlanError, TrackedMode, TrackedPath, WorkspaceContent};
+use crate::dependent_version_content::{PlanError, TrackedMode, TrackedPath, WorkspaceContent};
 /// The dependency walk and the bump plan.
-use super::dependent_version_graph::{PlannedBump, WorkspaceNode, plan_dependent_bumps};
+use crate::dependent_version_graph::{PlannedBump, WorkspaceNode, plan_dependent_bumps};
 /// Strict decoding of the registry configuration.
-use super::dependent_version_manifest::strict_text;
+use crate::dependent_version_manifest::strict_text;
 /// The registry configuration's path.
-use super::dependent_version_paths::PNPR_CONFIG_PATH;
+use crate::dependent_version_paths::PNPR_CONFIG_PATH;
 /// The publish set from the registry configuration.
-use super::dependent_version_publishable::read_publishable_names;
+use crate::dependent_version_publishable::read_publishable_names;
 /// A dependent whose version cannot be bumped automatically.
-use super::dependent_version_release::UnsupportedVersion;
+use crate::dependent_version_release::UnsupportedVersion;
 /// Manifest states, raised names and duplicate names.
-use super::dependent_version_states::{
+use crate::dependent_version_states::{
     ManifestState, bumped_names, duplicate_name, read_manifest_states,
 };
 /// The byte-preserving version rewrite.
-use super::dependent_version_text::replace_manifest_version;
+use crate::dependent_version_text::replace_manifest_version;
 
 /// What: One dependent bump with the manifest change that performs it. `Vec<u8>` holds
 ///       exact file bytes.

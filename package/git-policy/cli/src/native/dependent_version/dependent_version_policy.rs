@@ -19,15 +19,15 @@
 /// ```ts
 /// import { planWorkspaceBumps } from './dependent_version_plan.ts';
 /// ```
-use super::dependent_version_content::{PlanError, TrackedMode, WorkspaceContent};
+use crate::dependent_version_content::{PlanError, TrackedMode, WorkspaceContent};
 /// Which candidate paths are workspace manifests.
-use super::dependent_version_paths::is_workspace_manifest_path;
+use crate::dependent_version_paths::is_workspace_manifest_path;
 /// The plan the findings come from.
-use super::dependent_version_plan::{ManifestBump, PlanOutcome, plan_workspace_bumps};
+use crate::dependent_version_plan::{ManifestBump, PlanOutcome, plan_workspace_bumps};
 /// The incumbent's message for a version that cannot be bumped.
-use super::dependent_version_release::unsupported_message;
+use crate::dependent_version_release::unsupported_message;
 /// The lifecycle point the policy runs at.
-use super::policy_trigger::Trigger;
+use crate::policy_trigger::Trigger;
 
 /// What: The finding code of a dependent whose version must move with a raised dependency.
 /// Why:  Callers and transcripts identify the finding by this stable code.

@@ -19,11 +19,11 @@
 /// ```ts
 /// import { shape } from './dependent_version_manifest.ts';
 /// ```
-use super::dependent_version_content::PolicyIncomplete;
+use crate::dependent_version_content::PolicyIncomplete;
 /// The incumbent's shape-problem message for a manifest.
-use super::dependent_version_manifest::shape;
+use crate::dependent_version_manifest::shape;
 /// `JSON.stringify` quoting of the expected and new versions.
-use super::dependent_version_release::json_quote_units;
+use crate::dependent_version_release::json_quote_units;
 
 /// What: The raw spelling of the key this module looks for, with its quotes.
 /// Why:  An escaped spelling such as `"version"` is a different key to the scanner,

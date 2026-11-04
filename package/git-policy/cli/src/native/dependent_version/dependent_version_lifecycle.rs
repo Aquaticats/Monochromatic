@@ -13,21 +13,21 @@
 //! ```
 
 /// The layer's failure type, whose message is reported as the reason.
-use super::candidate_error::CandidateError;
+use crate::candidate_error::CandidateError;
 /// The modes and object names of index and tree entries.
-use super::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{CandidateMode, ObjectId};
 /// The records a derived version is built from, and their change kinds.
-use super::candidate_record::{CandidateChange, CandidateRecord};
+use crate::candidate_record::{CandidateChange, CandidateRecord};
 /// The store the candidates were prepared in.
-use super::candidate_store::CandidateStore;
+use crate::candidate_store::CandidateStore;
 /// The versions whose entries the store reads bytes for.
-use super::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{Candidate, CandidateVersion};
 /// The planner's content seam and its failure.
-use super::dependent_version_content::{
+use crate::dependent_version_content::{
     ContentUnavailable, TrackedMode, TrackedPath, WorkspaceContent,
 };
 /// The corrected files of this invocation.
-use super::direct_fix_install::InstallChange;
+use crate::direct_fix_install::InstallChange;
 /// What: `BTreeMap<K, V>` is a map kept sorted by key.
 /// Why:  The corrected files are kept that way by the content state.
 ///

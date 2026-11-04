@@ -18,7 +18,7 @@
 /// ```ts
 /// import { PolicyIncomplete, displayPath } from './dependent_version_content.ts';
 /// ```
-use super::dependent_version_content::{PolicyIncomplete, display_path};
+use crate::dependent_version_content::{PolicyIncomplete, display_path};
 /// The crate's JSONC parser and its value model.
 use monochromatic_jsonc_edit::{JsoncEntry, JsoncValue, parse_jsonc};
 

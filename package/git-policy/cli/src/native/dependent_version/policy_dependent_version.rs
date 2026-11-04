@@ -24,46 +24,46 @@
 
 /// The candidate's mode,
 ///  which a correction keeps.
-use super::candidate_object::CandidateMode;
+use crate::candidate_object::CandidateMode;
 /// The candidate's change kinds.
-use super::candidate_record::CandidateChange as RecordChange;
+use crate::candidate_record::CandidateChange as RecordChange;
 /// The candidate and version types.
-use super::candidate_version::{Candidate as LayerCandidate, CandidateVersion};
+use crate::candidate_version::{Candidate as LayerCandidate, CandidateVersion};
 /// The planner's failures,
 ///  modes and messages.
-use super::dependent_version_content::{
+use crate::dependent_version_content::{
     ContentUnavailable, PlanError, TrackedMode, display_path, plan_error_message,
 };
 /// The planner's view of the candidate state.
-use super::dependent_version_lifecycle::{LifecycleWorkspace, lifecycle_workspace};
+use crate::dependent_version_lifecycle::{LifecycleWorkspace, lifecycle_workspace};
 /// The planner's bump of one manifest.
-use super::dependent_version_plan::ManifestBump;
+use crate::dependent_version_plan::ManifestBump;
 /// The planner's request,
 ///  decision and findings.
-use super::dependent_version_policy::{
+use crate::dependent_version_policy::{
     Candidate, CandidateChange, DependentFinding, DependentRequest, find_dependent_bumps,
     should_plan,
 };
 /// The engine's failure codes.
 /// The event pathname type the outcome and finding carry.
-use super::event_path::EventPath;
-use super::diagnostics::EngineFailureCode;
+use crate::event_path::EventPath;
+use crate::diagnostics::EngineFailureCode;
 /// The pathname conversion every worktree read uses.
-use super::git_metadata::path_from_git_bytes;
+use crate::git_metadata::path_from_git_bytes;
 /// The precondition for a file the fix did not select.
-use super::policy_added_path::{
+use crate::policy_added_path::{
     ADDED_PATH_STAGED_REASON, added_path_message, head_mode, worktree_refusal,
 };
 /// The lifecycle's candidates and the correction a fix applies.
-use super::policy_content::{ContentState, Correction, LifecycleContent};
+use crate::policy_content::{ContentState, Correction, LifecycleContent};
 /// The finding and outcome types of a check.
-use super::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 /// The lifecycle points.
-use super::policy_trigger::Trigger;
+use crate::policy_trigger::Trigger;
 /// The facts interface that prepares candidates and locates the worktree.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// The worktree's top level.
-use super::worktree_identity::worktree_root;
+use crate::worktree_identity::worktree_root;
 /// Borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// `Rc<T>` is a shared,

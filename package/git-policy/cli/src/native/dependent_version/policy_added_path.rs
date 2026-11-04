@@ -12,7 +12,7 @@
 //! ```
 
 /// The modes and object names the precondition compares.
-use super::candidate_object::{CandidateMode, ObjectId};
+use crate::candidate_object::{CandidateMode, ObjectId};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 

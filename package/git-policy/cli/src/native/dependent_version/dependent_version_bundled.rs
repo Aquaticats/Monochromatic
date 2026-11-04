@@ -19,15 +19,15 @@
 /// ```ts
 /// import { transitiveDependentNames } from './dependent_version_graph.ts';
 /// ```
-use super::dependent_version_content::{ContentUnavailable, TrackedPath, WorkspaceContent};
+use crate::dependent_version_content::{ContentUnavailable, TrackedPath, WorkspaceContent};
 /// The superset walk over every edge.
-use super::dependent_version_graph::{WorkspaceNode, transitive_dependent_names};
+use crate::dependent_version_graph::{WorkspaceNode, transitive_dependent_names};
 /// The specifier scan.
-use super::dependent_version_imports::imports_package;
+use crate::dependent_version_imports::imports_package;
 /// Which tracked paths are a package's non-test source.
-use super::dependent_version_paths::is_non_test_source_path;
+use crate::dependent_version_paths::is_non_test_source_path;
 /// One manifest's facts and directory.
-use super::dependent_version_states::ManifestState;
+use crate::dependent_version_states::ManifestState;
 /// A hash-based set of relevant names.
 use std::collections::HashSet;
 
