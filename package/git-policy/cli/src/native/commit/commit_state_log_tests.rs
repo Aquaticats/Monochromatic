@@ -744,7 +744,7 @@ fn document_needing(text: &str, paths: &[&std::path::Path]) -> Vec<u8> {
 }
 
 /// Writes one raw record the way the log encodes it, bypassing the writer: what a crash, an older version or a damaged disk could leave.
-fn raw_record(generation: u64, previous: &str, payload: &[u8]) -> (Vec<u8>, String) {
+pub(crate) fn raw_record(generation: u64, previous: &str, payload: &[u8]) -> (Vec<u8>, String) {
     let header: String = format!("rec {} {} {}\n", generation, previous, payload.len());
     let mut material: Vec<u8> = previous.as_bytes().to_vec();
     material.extend_from_slice(header.as_bytes());

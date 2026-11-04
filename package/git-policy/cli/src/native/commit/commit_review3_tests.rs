@@ -29,6 +29,9 @@ use std::time::{Duration, Instant};
 /// The exit status of a child that died at its crash point.
 const CRASHED: i32 = 77;
 
+/// What a bound is allowed to overshoot by on a loaded host: the fork of the child, its polling interval and the scheduler.
+const SCHEDULING_ALLOWANCE: Duration = Duration::from_secs(3);
+
 thread_local! {
     /// The fault point at which the process of this thread dies.
     static CRASH_AT: Cell<Option<&'static str>> = const { Cell::new(None) };
@@ -227,7 +230,9 @@ fn a_recorder_does_not_wait_without_a_bound_for_the_error_record_lock() {
     let started: Instant = Instant::now();
     let outcome: Option<i32> = in_single_threaded_process(move || { return if flush_lane(&child_lane).is_err() { 0 } else { 1 }; });
     assert_eq!(outcome, Some(0), "the recorder waited for ever (None) or reported success (1)");
-    assert!(started.elapsed() < Duration::from_secs(60), "{:?}", started.elapsed());
+    // The recorder waits for the lock at most RECORD_LOCK_WAIT, plus the scheduling allowance of a loaded host (a process fork, a few polls).
+    assert!(started.elapsed() >= git_policy_cli::commit_flusher::RECORD_LOCK_WAIT, "the recorder gave up before its wait: {:?}", started.elapsed());
+    assert!(started.elapsed() < git_policy_cli::commit_flusher::RECORD_LOCK_WAIT + SCHEDULING_ALLOWANCE, "{:?}", started.elapsed());
     drop(record);
 }
 
@@ -262,6 +267,8 @@ fn a_departure_retries_when_the_seal_removes_the_segment_it_is_about_to_read() {
     set_fault_point(Some(act_once_at));
     let result = departure_acknowledge(&state, 3);
     set_fault_point(None);
+    assert!(ONCE.with(|cell| { return cell.borrow().is_none(); }), "the hook never fired: the window was not reached");
+    assert!(!state.join("state.log.1").exists(), "the seal in the window did not reclaim the segment the departure was about to read");
     assert!(result.is_ok(), "{:?}", result.map(|prefix| { return prefix.generation; }));
 }
 
@@ -274,6 +281,8 @@ fn a_departure_retries_when_a_disposal_removes_support_before_the_closure_is_for
     set_fault_point(Some(act_once_at));
     let result = departure_acknowledge(&state, 3);
     set_fault_point(None);
+    assert!(ONCE.with(|cell| { return cell.borrow().is_none(); }), "the hook never fired: the window was not reached");
+    assert!(!lane.join("saved").join(&name).exists(), "the disposal in the window did not remove the support the departure was about to force");
     assert!(result.is_ok(), "{:?}", result.map(|prefix| { return prefix.generation; }));
 }
 

@@ -68,6 +68,32 @@ fn injected(fault: u8) -> bool {
     return { let _ = fault; false };
 }
 
+/// How long a child that a test seam stalls lives before its own alarm ends it: longer than the launcher's bounds on it (the report wait and
+/// `KILL_REAP_LIMIT`), so every observation a test makes falls inside its life, and short enough that it does not outlive the test run.
+#[cfg(feature = "test-seams")]
+const STALL_ALARM_SECONDS: u32 = 7;
+
+/// Points descriptors 0 to 2 of a child that a test seam stalls at `/dev/null`, so that the stalled child holds no pipe of the process that
+/// runs the tests (a held pipe keeps the runner from seeing that the test has ended).
+///
+/// # Safety
+/// Calls `open` and `dup2` only; the caller is a freshly forked child.
+#[cfg(feature = "test-seams")]
+unsafe fn silence_streams() {
+    // SAFETY: `open` takes a NUL-terminated path; `dup2` takes two descriptors; nothing else is touched.
+    unsafe {
+        let null: libc::c_int = libc::open(c"/dev/null".as_ptr(), libc::O_RDWR);
+        if null >= 0 {
+            for stream in 0..=2 {
+                libc::dup2(null, stream);
+            }
+            if null > 2 {
+                libc::close(null);
+            }
+        }
+    }
+}
+
 /// The exit code of a helper whose entry point panicked.
 pub const PANICKED_EXIT: i32 = 101;
 
@@ -431,7 +457,11 @@ pub fn launch_detached_preparing<T, P: FnOnce() -> io::Result<T>, F: FnOnce(io::
         unsafe {
             if injected(6) {
                 // The intermediate child is delayed before it does anything.
-                libc::alarm(20);
+                #[cfg(feature = "test-seams")]
+                {
+                    silence_streams();
+                    libc::alarm(STALL_ALARM_SECONDS);
+                }
                 loop {
                     libc::pause();
                 }
@@ -446,7 +476,11 @@ pub fn launch_detached_preparing<T, P: FnOnce() -> io::Result<T>, F: FnOnce(io::
             }
             if second > 0 {
                 if injected(4) {
-                    libc::alarm(20);
+                    #[cfg(feature = "test-seams")]
+                    {
+                        silence_streams();
+                        libc::alarm(STALL_ALARM_SECONDS);
+                    }
                     loop {
                         libc::pause();
                     }
@@ -457,6 +491,9 @@ pub fn launch_detached_preparing<T, P: FnOnce() -> io::Result<T>, F: FnOnce(io::
         if !helper_setup(report_write.as_raw_fd(), &[]) {
             if injected(2) {
                 // A helper that failed its setup lingers before it exits (the schedule of review 12 section 3B).
+                #[cfg(feature = "test-seams")]
+                // SAFETY: a freshly forked child; see `silence_streams`.
+                unsafe { silence_streams() };
                 std::thread::sleep(Duration::from_millis(400));
             }
             // SAFETY: `_exit` takes an integer and never returns.
@@ -468,8 +505,11 @@ pub fn launch_detached_preparing<T, P: FnOnce() -> io::Result<T>, F: FnOnce(io::
             // SAFETY: `report` is one live byte; the report end is this process's own and is closed after the write.
             unsafe {
                 libc::write(report_write.as_raw_fd(), (&raw const report).cast::<libc::c_void>(), 1);
-                libc::close(report_write.as_raw_fd());
             }
+            // The report end is closed by dropping the one owner. It used to be closed by number and dropped again at the end of this closure:
+            // a double close, which aborts a debug build (a core dump per helper that returned) and in any build closes whatever descriptor
+            // reused the number.
+            drop(report_write);
             return entry(prepared);
         }))
         .unwrap_or(PANICKED_EXIT);

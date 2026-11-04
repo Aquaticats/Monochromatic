@@ -1009,6 +1009,11 @@ pub struct Selected {
     pub items: Vec<ClosureEntry>,
     /// Records follow the eligible prefix in the same file and were dropped because a dependency of theirs is missing.
     pub dropped_suffix: bool,
+    /// The generation of the first record of the selected file, read in the same pass as the rest (the establishment check uses it, so it
+    /// never reads a file a concurrent checkpoint may have removed).
+    pub first_generation: u64,
+    /// The chain hash after the first record of the selected file.
+    pub first_hash: String,
 }
 
 /// The eligible part of a file: the chain of its records up to the first whose retained set does not follow from its predecessor's by
@@ -1085,16 +1090,15 @@ fn established_record(dir: &Path) -> Result<Option<Established>, StateError> {
 
 /// Whether the log, as `chosen` was selected from it, honors the established checkpoint: nothing older than its segment is the root, and
 /// when its segment is the root, its first record is the one the record names.
-fn honors_establishment(dir: &Path, established: &Established, selected: Option<&Selected>) -> Result<bool, StateError> {
-    let Some(chosen) = selected else { return Ok(false) };
+fn honors_establishment(established: &Established, selected: Option<&Selected>) -> bool {
+    let Some(chosen) = selected else { return false };
     if chosen.number < established.number || chosen.generation < established.generation {
-        return Ok(false);
+        return false;
     }
     if chosen.number > established.number {
-        return Ok(true);
+        return true;
     }
-    let bytes: Vec<u8> = read_regular(log_path(dir, established.number))?;
-    return Ok(records(&bytes).first().is_some_and(|first| { return first.generation == established.generation && first.hash == established.hash; }));
+    return chosen.first_generation == established.generation && chosen.first_hash == established.hash;
 }
 
 /// Records, durably, that the checkpoint `candidate` is established: written to a temporary name, forced, renamed over the record and the
@@ -1135,6 +1139,8 @@ pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
             highest: Some(number) == highest,
             items,
             dropped_suffix: count < all.len(),
+            first_generation: all[0].generation,
+            first_hash: all[0].hash.clone(),
         };
         match &best {
             // The newest generation wins, and a tie goes to the higher file when the documents agree; a lower file holding a newer
@@ -1150,7 +1156,7 @@ pub fn select(dir: &Path) -> Result<Option<Selected>, StateError> {
     // An established root that no longer validates is damaged, not a candidate that never completed: nothing older is selected in its place.
     fault_point("state:select-after-scan");
     if let Some(record) = &established
-        && !honors_establishment(dir, record, best.as_ref())?
+        && !honors_establishment(record, best.as_ref())
     {
         return Err(StateError::Damaged);
     }
