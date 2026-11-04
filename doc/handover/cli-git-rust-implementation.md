@@ -62,16 +62,43 @@ the branch and agent lists below them are older and carry their own times.
 
 ### Release in flight
 
-cargo-shadow 0.1.0's Trusted Publishing proof:
-dispatched dry run 41893310452 and real run 41893318423 (`cargo-publish.yml`,
-crate `monochromatic-cargo-shadow`);
-the real run should authenticate through Trusted Publishing,
-skip the upload that exists,
-and create release `monochromatic-cargo-shadow-v0.1.0`.
-Then:
-a `cargo binstall` consumer check in a disposable root,
-the runbook section for cargo-shadow,
-and telling the owner the token can be revoked.
+Git wrapper 0.5.33:
+branch-write round 2 merged to main (`6fc72e8abe`,
+gate r7 4839/4839 with main);
+`native:clippy` on main,
+then dispatch and install.
+
+cargo-shadow 0.1.0 is done:
+both proving runs passed (dry run 41893310452;
+run 41893318423 authenticated through Trusted Publishing,
+skipped the upload and created the immutable release `monochromatic-cargo-shadow-v0.1.0`),
+and the consumer checks passed
+(runbook section "monochromatic-cargo-shadow 0.1.0").
+Owner action open:
+revoke the `cargo login` token,
+then `cargo logout`.
+
+cargo-shadow as `cargo` for every session is not live.
+It was locked (`efe10d9745`) and installed,
+then reverted (`65f5733aec`) and its link `.cache/cargo-shadow-bin/cargo` removed the same minute:
+the install links `cargo` to the toolchain launcher (`.cache/toolchain-launchers/cargo-shadow`),
+and through it the shadow runs itself once before the real cargo
+(strace:
+launcher,
+shadow,
+launcher again,
+shadow again,
+rustup proxy,
+real cargo;
+`cargo metadata` ran the shadow 4 times for 3 real cargo runs),
+against "We should never invoke ourselves recursively.".
+Started from its binary it ran once per command.
+Sent to the cargo-shadow agent (`ae0fbdf78c31bd757`) as the first 0.1.1 fix,
+the way pnpm-shadow 0.1.1 learned to skip its launcher;
+then 0.1.1,
+relock,
+and the launcher check (`/var/home/user/temp/agent/cgs-recursion-check.ts <launcher> <throwaway worktree> <toolchain-bin>`)
+before linking again.
 
 Older:
 0.5.28 was published to crates.io at 2026-11-04T03:09:07Z (publish run 41764751088,
