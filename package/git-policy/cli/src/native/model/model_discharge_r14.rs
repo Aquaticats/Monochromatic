@@ -40,6 +40,8 @@ pub const CKPT: u32 = 64;
 pub const REQ1_GONE: u32 = 128;
 /// The old segment was removed.
 pub const SEG_GONE: u32 = 256;
+/// The checkpoint whose document names both R1 and R2 as live (the replay of a predecessor prefix in which R1 has no terminal outcome).
+pub const CKPT_BOTH: u32 = 512;
 
 /// The rule under test.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -49,6 +51,8 @@ pub enum Rules {
     Thirteen,
     /// Control: a self-contained checkpoint whose live dependencies are not validated and whose completion needs only the checkpoint.
     UnsafeCheckpoint,
+    /// Control: revision 15 before the non-drop obligation: the checkpoint always names only R2, even when R1 is still live.
+    FifteenDropsLive,
     /// Revision 15: an outcome discharges a retired request's adopt; the checkpoint is self-contained and is a root only if its live
     /// dependencies survive; completion needs the checkpoint and those dependencies durable. Revision 16 may change this rule.
     Fifteen,
@@ -65,6 +69,7 @@ pub fn name_of(fact: u32) -> &'static str {
         SEG => "the old segment",
         CKPT => "the checkpoint",
         REQ1_GONE => "R1's removal",
+        CKPT_BOTH => "the checkpoint naming both requests",
         _ => "the old segment's removal",
     };
 }
@@ -89,6 +94,8 @@ pub struct Recovered {
     pub r1_live: bool,
     /// R2 is live in the recovered state.
     pub r2_live: bool,
+    /// The root is a checkpoint (and not the old segment's chain).
+    pub from_checkpoint: bool,
 }
 
 /// The start state: the old segment exists and is durable (it is the recovery root of a lane that has run before).
@@ -106,28 +113,39 @@ pub fn recover(rules: Rules, surviving: u32) -> Recovered {
     let seg_present: bool = has(surviving, SEG) && !has(surviving, SEG_GONE);
     let req1_present: bool = has(surviving, REQ1) && !has(surviving, REQ1_GONE);
     let req2_present: bool = has(surviving, REQ2);
+    let outcome1: bool = has(surviving, OUT1);
+    // A checkpoint is a root only when its whole closure validates: the requests it names are present, and the discharge of R1 that an
+    // R2-only checkpoint relies on (R1's terminal outcome) is there.
+    let both_root: bool = match rules {
+        Rules::Fifteen => has(surviving, CKPT_BOTH) && (req1_present || outcome1) && req2_present,
+        Rules::Thirteen | Rules::UnsafeCheckpoint | Rules::FifteenDropsLive => false,
+    };
+    if both_root {
+        // R1 stays live while its file survives and it has no terminal outcome; a later outcome discharges what the checkpoint named.
+        return Recovered { root: true, r1_live: req1_present && !outcome1, r2_live: true, from_checkpoint: true };
+    }
     let checkpoint_root: bool = match rules {
         Rules::Thirteen => has(surviving, CKPT) && seg_present,
         Rules::UnsafeCheckpoint => has(surviving, CKPT),
-        Rules::Fifteen => has(surviving, CKPT) && req2_present,
+        Rules::FifteenDropsLive => has(surviving, CKPT) && req2_present,
+        Rules::Fifteen => has(surviving, CKPT) && req2_present && outcome1,
     };
     if checkpoint_root {
-        return Recovered { root: true, r1_live: false, r2_live: true };
+        return Recovered { root: true, r1_live: false, r2_live: true, from_checkpoint: true };
     }
     if !seg_present {
-        return Recovered { root: false, r1_live: false, r2_live: false };
+        return Recovered { root: false, r1_live: false, r2_live: false, from_checkpoint: false };
     }
     // The segment's chain: R1's adopt is valid against its request file, or (revision 15) against its terminal outcome; R2's adopt needs
     // R1's adopt valid or discharged (the hash chain) and its own request file.
-    let outcome1: bool = has(surviving, OUT1);
     let adopt1_valid: bool = match rules {
-        Rules::Fifteen => has(surviving, ADOPT1) && (req1_present || outcome1),
+        Rules::Fifteen | Rules::FifteenDropsLive => has(surviving, ADOPT1) && (req1_present || outcome1),
         Rules::Thirteen | Rules::UnsafeCheckpoint => has(surviving, ADOPT1) && req1_present,
     };
-    let chain_ok: bool = adopt1_valid || !has(surviving, ADOPT1) || (rules == Rules::Fifteen && outcome1);
+    let chain_ok: bool = adopt1_valid || !has(surviving, ADOPT1) || (matches!(rules, Rules::Fifteen | Rules::FifteenDropsLive) && outcome1);
     let adopt2_valid: bool = has(surviving, ADOPT2) && req2_present && chain_ok && (has(surviving, ADOPT1) || rules != Rules::Thirteen);
     let r1_live: bool = adopt1_valid && !outcome1;
-    return Recovered { root: true, r1_live, r2_live: adopt2_valid };
+    return Recovered { root: true, r1_live, r2_live: adopt2_valid, from_checkpoint: false };
 }
 
 /// Every step enabled.
@@ -163,18 +181,27 @@ pub fn steps(state: &Lane) -> Vec<(String, Lane)> {
         write(REQ1_GONE, "lane: removes R1's request file", &mut found);
     }
     if has(visible, ADOPT2) {
-        write(CKPT, "lane: writes the checkpoint whose document names R2 as live", &mut found);
+        // The non-drop obligation: the document is the replay of the predecessor's valid prefix, so it names R1 when R1 has no terminal
+        // outcome there. The earlier variant always names R2 only.
+        let r1_live_in_prefix: bool = has(visible, ADOPT1) && !has(visible, OUT1);
+        if state.rules == Rules::Fifteen && r1_live_in_prefix {
+            write(CKPT_BOTH, "lane: writes the checkpoint whose document names both requests as live", &mut found);
+        } else if state.rules != Rules::Fifteen || has(visible, OUT1) {
+            write(CKPT, "lane: writes the checkpoint whose document names R2 as live", &mut found);
+        }
     }
     // Completion removes the old segment: it needs the checkpoint durable and, revision 15, the live dependency durable first.
     let completes: bool = match state.rules {
-        Rules::Fifteen => has(durable, CKPT) && has(durable, REQ2),
-        Rules::Thirteen | Rules::UnsafeCheckpoint => has(durable, CKPT),
+        Rules::Fifteen => {
+            (has(durable, CKPT) && has(durable, REQ2) && has(durable, OUT1)) || (has(durable, CKPT_BOTH) && has(durable, REQ1) && has(durable, REQ2))
+        }
+        Rules::Thirteen | Rules::UnsafeCheckpoint | Rules::FifteenDropsLive => has(durable, CKPT),
     };
     if completes && !has(visible, SEG_GONE) {
         write(SEG_GONE, "lane: completes the checkpoint and removes the old segment", &mut found);
     }
     let mut bit: u32 = 1;
-    while bit <= SEG_GONE {
+    while bit <= CKPT_BOTH {
         if has(visible, bit) && !has(durable, bit) {
             let mut forced: Lane = state.clone();
             forced.world = sync(state.world, bit);
@@ -197,7 +224,7 @@ pub fn invariant(state: &Lane) -> Option<String> {
     }
     let surviving: u32 = state.world.visible;
     let found: Recovered = recover(state.rules, surviving);
-    let something_to_recover_from: bool = has(surviving, CKPT) || (has(surviving, SEG) && !has(surviving, SEG_GONE));
+    let something_to_recover_from: bool = has(surviving, CKPT) || has(surviving, CKPT_BOTH) || (has(surviving, SEG) && !has(surviving, SEG_GONE));
     if something_to_recover_from && !found.root {
         return Some("a checkpoint or a segment survived and recovery found no root".to_string());
     }
@@ -207,8 +234,14 @@ pub fn invariant(state: &Lane) -> Option<String> {
     if found.r1_live && (!has(surviving, REQ1) || has(surviving, REQ1_GONE)) {
         return Some("recovery calls R1 live and its request file is gone".to_string());
     }
+    // Non-drop: a request that is live in the surviving facts (its file and its adopt line survive, it has no terminal outcome) is not dropped
+    // when recovery chooses a checkpoint as the root.
+    let r1_live_in_survivors: bool = has(surviving, ADOPT1) && has(surviving, REQ1) && !has(surviving, REQ1_GONE) && !has(surviving, OUT1);
+    if r1_live_in_survivors && found.from_checkpoint && !found.r1_live {
+        return Some("a request that is live in the surviving facts was dropped by the checkpoint that recovery chose".to_string());
+    }
     // A request that a surviving record names and whose file survives is not dropped: the adopt of R2 (or the checkpoint) is durable.
-    let promised_r2: bool = (has(surviving, ADOPT2) && has(surviving, SEG) && !has(surviving, SEG_GONE)) || has(surviving, CKPT);
+    let promised_r2: bool = (has(surviving, ADOPT2) && has(surviving, SEG) && !has(surviving, SEG_GONE)) || found.from_checkpoint;
     // A record after a record whose own dependency is gone is dropped with it (the chain); that is the design, so the property is stated for
     // a chain whose earlier dependencies are satisfied: R1's request file survives, or R1's outcome does.
     let chain_satisfied: bool = !has(surviving, ADOPT1) || (has(surviving, REQ1) && !has(surviving, REQ1_GONE)) || has(surviving, OUT1);

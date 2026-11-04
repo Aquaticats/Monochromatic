@@ -123,3 +123,28 @@ fn every_acceptance_control_has_its_test() {
     let numbered: std::collections::BTreeSet<u8> = ACCEPTANCE.iter().map(|row| { return row.0; }).filter(|number| { return *number != 0; }).collect();
     assert_eq!(numbered.len(), 22, "the thirteenth review lists twenty-two controls");
 }
+
+/// The sixteenth review's controls (revision 17's list) that these models and components carry, with the test for each. Controls not listed
+/// here are not covered yet and are queued in the branch notes.
+const ACCEPTANCE_R17: [(u8, &str, &str); 8] = [
+    (13, "commit_state_log_tests.rs", "p1_a_background_synced_candidate_with_a_lost_dependency_loses_to_its_predecessor"),
+    (13, "commit_state_log_tests.rs", "p1_a_torn_envelope_named_as_a_dependency_is_not_a_satisfied_dependency"),
+    (13, "commit_state_log_tests.rs", "p1_a_dependency_under_an_unsynced_name_chain_is_forced_through_the_anchor"),
+    (14, "commit_inbox_tests.rs", "p1_a_departure_for_a_withdrawal_forces_the_mark_and_cannot_omit_it"),
+    (15, "commit_inbox_tests.rs", "p1_a_quarantine_never_moves_a_file_it_did_not_inspect"),
+    (17, "model_register_r13_tests.rs", "p1_an_ordinary_wait_completion_cannot_stand_in_for_the_final_save"),
+    (17, "model_w1_r13_tests.rs", "a_planned_exit_is_a_drain_that_never_ends_a_protected_hook"),
+    (18, "model_discharge_r14_tests.rs", "p1_a_checkpoint_never_erases_a_still_live_request"),
+];
+
+/// Every covered control of the sixteenth review has its test.
+#[cfg(feature = "test-seams")]
+#[test]
+fn every_covered_sixteenth_review_control_has_its_test() {
+    let directory: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("native");
+    for (number, file, name) in ACCEPTANCE_R17 {
+        let place: PathBuf = if file.starts_with("commit_") { directory.join("commit").join(file) } else { directory.join("model").join(file) };
+        let text: String = fs::read_to_string(place).expect("the test file");
+        assert!(text.contains(&format!("fn {}(", name)), "control {} has no test `{}` in {}", number, name, file);
+    }
+}

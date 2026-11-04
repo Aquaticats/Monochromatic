@@ -28,7 +28,7 @@ fn a_reclaimed_request_does_not_drop_the_later_adoption() {
 /// root once the predecessor is gone (no root at all); revision 15's checkpoint is self-contained.
 #[test]
 fn a_checkpoint_survives_the_deletion_of_its_predecessor() {
-    let surviving: u32 = CKPT | REQ2 | SEG_GONE;
+    let surviving: u32 = CKPT | REQ2 | OUT1 | SEG_GONE;
     assert!(!recover(Rules::Thirteen, surviving).root);
     assert!(recover(Rules::Fifteen, surviving).root);
 }
@@ -79,9 +79,15 @@ fn the_completion_guard_is_the_safety_of_the_checkpoint_rule() {
     assert!(enabled(&unsafe_state, removal), "the unsafe rule removes the segment with R2's file only visible");
     let after = replay(unsafe_state, steps, &[removal, "environment: power is lost"]);
     assert_eq!(invariant(&after), Some("recovery calls R2 live and its request file is gone".to_string()));
-    let guarded = replay(initial(Rules::Fifteen), steps, &written);
-    assert!(!enabled(&guarded, removal), "revision 15 waits for the live dependency");
-    let ready = replay(guarded, steps, &["lane: forces R2's request file"]);
+    // Revision 17 writes the checkpoint that names both requests (R1 has no terminal outcome here) and waits for both request files.
+    let mut both: Vec<&str> = written.to_vec();
+    both[4] = "lane: writes the checkpoint whose document names both requests as live";
+    both[5] = "lane: forces the checkpoint naming both requests";
+    let guarded = replay(initial(Rules::Fifteen), steps, &both);
+    assert!(!enabled(&guarded, removal), "revision 15 waits for the live dependencies");
+    let half = replay(guarded, steps, &["lane: forces R2's request file"]);
+    assert!(!enabled(&half, removal), "both request files are needed");
+    let ready = replay(half, steps, &["lane: forces R1's request file"]);
     assert!(enabled(&ready, removal));
 }
 
@@ -106,7 +112,18 @@ fn p1_a_checkpoint_never_erases_a_still_live_request() {
         "lane: forces the old segment's removal",
         "environment: power is lost",
     ];
-    let reached = replay(initial(Rules::Fifteen), steps, &schedule);
+    // The earlier variant names only R2 and the schedule reaches the drop (the red the review reported).
+    let reached = replay(initial(Rules::FifteenDropsLive), steps, &schedule);
     let message = invariant(&reached).expect("R1 is live in the surviving facts and the checkpoint dropped it");
     assert!(message.contains("live"), "{}", message);
+    // Revision 17's rule writes the checkpoint that names both requests; the same schedule (with that label) keeps R1, and the search is green.
+    let mut kept: Vec<&str> = schedule.to_vec();
+    kept[8] = "lane: writes the checkpoint whose document names both requests as live";
+    kept[9] = "lane: forces the checkpoint naming both requests";
+    let preserved = replay(initial(Rules::Fifteen), steps, &kept);
+    assert_eq!(invariant(&preserved), None);
+    assert!(recover(Rules::Fifteen, preserved.world.visible).r1_live && recover(Rules::Fifteen, preserved.world.visible).r2_live);
+    assert!(check(Rules::FifteenDropsLive).violation.is_some());
+    let search: Report = check(Rules::Fifteen);
+    assert!(search.violation.is_none() && search.exhausted, "{:?}", search.violation.map(|found| { return (found.message, found.trace); }));
 }

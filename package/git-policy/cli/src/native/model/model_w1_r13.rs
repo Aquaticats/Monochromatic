@@ -49,14 +49,22 @@ pub enum Rules {
     /// Revision 14: Revision 13 plus the client's receipt before `published`, a recovery that reads the receipt or `commit: ok` in the
     /// attempt's `out`, and the outcome `withdrawn` for a late positive failure under the unresolved mark.
     Fourteen,
+    /// Revision 17 as models review 6a reads it: a planned exit of the service is a drain (it never ends a protected execution), and a mark
+    /// that cannot be created ends the command by the outside-fault exit and not by a normal return.
+    Fifteen,
     /// Control: revision 14 whose `out` file is a channel the person's hook descendants can write to (the backend obligation that Git
     /// redirects a hook's standard output to its standard error does not hold), so E1's evidence is not authentic.
     FourteenSharedChannel,
 }
 
+/// Whether a planned exit of the service is a drain under `rules` (revision 17, and the shared-channel control built on it).
+pub fn drains(rules: Rules) -> bool {
+    return matches!(rules, Rules::Fifteen | Rules::FourteenSharedChannel);
+}
+
 /// Whether `rules` read the client's receipt and the attempt's `out` at recovery (revision 14).
 pub fn receipts(rules: Rules) -> bool {
-    return matches!(rules, Rules::Fourteen | Rules::FourteenSharedChannel);
+    return matches!(rules, Rules::Fourteen | Rules::Fifteen | Rules::FourteenSharedChannel);
 }
 
 /// The withdrawal mark `lane/decision/<id>`.
@@ -92,6 +100,8 @@ pub enum Client {
     Withdrawn,
     /// Exited non-zero: the instruction was submitted and its result is not known; names the attempt.
     UnresolvedExit(u8),
+    /// Exited by the outside-fault exit (revision 17): the mark could not be created, so the request may still land; not a normal exit.
+    Faulted,
     /// Killed from outside; its client lock is released and no normal exit ran.
     Killed,
 }
@@ -248,6 +258,10 @@ pub struct State {
     pub outcome_withdrawn: bool,
     /// The owner left by a planned shutdown (it recorded `clean-shutdown`), not by a crash.
     pub clean_shutdown: bool,
+    /// The service is draining: it admits nothing new and exits when its protected executions have ended (revision 17).
+    pub draining: bool,
+    /// Ghost: a protected execution was ended by the parent-death consequence of a planned exit.
+    pub ended_by_planned_exit: bool,
     /// Ghost: the owner decided (wrote `commit`) for this request.
     pub decided_by_owner: bool,
 }
@@ -277,6 +291,8 @@ pub fn initial(rules: Rules) -> State {
         receipt: false,
         outcome_withdrawn: false,
         clean_shutdown: false,
+        draining: false,
+        ended_by_planned_exit: false,
         decided_by_owner: false,
     };
 }
@@ -355,7 +371,7 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
     // What the owner can observe: its own recorded class, and (revision 14) the client's receipt. The client's actual exit is not
     // observable: a released client lock looks the same after a success and after a kill.
     let finished: bool = matches!(state.recorded, Some((_, Class::Published | Class::RewrittenAway))) || (receipts(state.rules) && state.receipt);
-    if !mark_blocks_start && previous_closed && state.attempt < MAX_ATTEMPT && !finished {
+    if !mark_blocks_start && previous_closed && state.attempt < MAX_ATTEMPT && !finished && !state.draining {
         let mut after: State = state.clone();
         after.attempt = state.attempt + 1;
         after.child = Child::Preparing;
@@ -409,7 +425,21 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
     }
     // Planned shutdown (revision 14, the exit audit): the service stops admitting, writes `abort` only for a request with no client (it
     // never decides for a client that holds the lock), records `clean-shutdown` and exits; the child goes on by its own rules.
-    if receipts(state.rules) {
+    if drains(state.rules) {
+        // Revision 17: a planned exit is a drain. The service stops admitting and exits only when its protected executions have ended;
+        // nothing it does ends a hook, and it never decides for a client that holds the lock.
+        if !state.draining {
+            let mut after: State = state.clone();
+            after.draining = true;
+            push_step(found, "owner: planned exit begins a drain", after);
+        }
+        if state.draining && matches!(state.child, Child::NotStarted | Child::Ended) {
+            let mut after: State = state.clone();
+            after.owner = Owner::Dead;
+            after.clean_shutdown = true;
+            push_step(found, "owner: the drain completes and the service exits", after);
+        }
+    } else if receipts(state.rules) {
         let mut after: State = state.clone();
         let clientless_now: bool = matches!(state.client, Client::Killed | Client::Published);
         if clientless_now && state.child == Child::Prepared && state.pipe == Pipe::Empty {
@@ -541,9 +571,23 @@ fn git_steps(state: &State, found: &mut Vec<(String, State)>) {
         Child::Wedged | Child::NotStarted | Child::Ended => {}
     }
     if child_alive(state.child) {
-        let mut after: State = state.clone();
-        after.child = Child::Ended;
-        push_step(found, "environment: the transaction process is ended (parent-death signal or a kill)", after);
+        if drains(state.rules) {
+            // The two causes are different events: an outside kill is always possible; the parent-death signal follows a crash of the owner
+            // and never a planned exit.
+            let mut killed: State = state.clone();
+            killed.child = Child::Ended;
+            push_step(found, "environment: the transaction process is killed from outside", killed);
+            if state.owner == Owner::Dead && !state.clean_shutdown {
+                let mut signalled: State = state.clone();
+                signalled.child = Child::Ended;
+                push_step(found, "environment: the parent-death signal ends the transaction process after a crash of the owner", signalled);
+            }
+        } else {
+            let mut after: State = state.clone();
+            after.child = Child::Ended;
+            after.ended_by_planned_exit = state.clean_shutdown;
+            push_step(found, "environment: the transaction process is ended (parent-death signal or a kill)", after);
+        }
     }
 }
 
@@ -589,6 +633,13 @@ fn client_steps(state: &State, found: &mut Vec<(String, State)>) {
                 after.mark = if state.mark == Mark::Absent { Mark::Withdraw } else { state.mark };
                 after.client = Client::Leaving(Kind::Plain);
                 push_step(found, "W1: the bound is reached; the client creates the mark withdraw", after);
+                if receipts(state.rules) {
+                    // The mark cannot be created (disk full, read-only, a lost lane). Revision 17: the outside-fault exit, not a normal
+                    // withdrawal; the earlier revision's command exits as a normal withdrawal with no mark.
+                    let mut failed: State = exit_state(state);
+                    failed.client = if matches!(state.rules, Rules::Fifteen | Rules::FourteenSharedChannel) { Client::Faulted } else { Client::Withdrawn };
+                    push_step(found, "W1: the mark cannot be created and the command exits", failed);
+                }
             }
             if open_submitted(state) && state.written {
                 let mut after: State = state.clone();
@@ -616,7 +667,7 @@ fn client_steps(state: &State, found: &mut Vec<(String, State)>) {
             after.client = Client::UnresolvedExit(attempt);
             push_step(found, "COMMITTING: exits non-zero saying the result is not known", after);
         }
-        Client::Published | Client::Withdrawn | Client::UnresolvedExit(_) | Client::Killed => {}
+        Client::Published | Client::Withdrawn | Client::UnresolvedExit(_) | Client::Faulted | Client::Killed => {}
     }
     if matches!(state.client, Client::Waiting | Client::Leaving(_)) {
         let mut after: State = state.clone();
@@ -700,6 +751,9 @@ pub fn violations(state: &State) -> Vec<String> {
         && !state.outcome_withdrawn;
     if late_failure_unrecorded {
         broken.push("an unresolved attempt ended in a positive failure and the request stayed pending".to_string());
+    }
+    if state.ended_by_planned_exit {
+        broken.push("the planned exit ended a protected execution".to_string());
     }
     if state.decided_by_owner && matches!(state.client, Client::Waiting | Client::Leaving(_)) {
         broken.push("the owner decided a request whose client holds the lock".to_string());

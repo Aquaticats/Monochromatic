@@ -237,38 +237,47 @@ fn fifteen_gives_the_final_save_no_escape_where_fourteen_does() {
     assert!(own(&at_barrier(Rules::Fourteen)) > 0);
 }
 
-/// Models review 6a, 1 (P1): ordinary wait completion, final-save completion and normal return are different events. Under revision 15 the
-/// "other party progresses" step must not carry a departing command to a normal return without its final save.
+/// Models review 6a, 1 (P1, was red): ordinary wait completion, final-save completion and normal return are different events. The control
+/// that keeps the ordinary "wait ends" step carries a departing command to a normal return with no final save (red); revision 15 has no such
+/// step for a departure, and the search over its entries is green.
 #[test]
 fn p1_an_ordinary_wait_completion_cannot_stand_in_for_the_final_save() {
+    let shortcut = "environment: the other party progresses and the wait ends";
     for index in [DEPART, STOP] {
-        let done: State = replay(initial(Rules::Fifteen, single(index)), steps, &["environment: the other party progresses and the wait ends"]);
+        let done: State = replay(initial(Rules::FifteenOrdinaryWait, single(index)), steps, &[shortcut]);
         assert_eq!(done.phase, Phase::Done);
-        assert!(invariant(&done).is_some(), "{} returned normally with no final save", ENTRIES[index].name);
+        assert!(invariant(&done).is_some_and(|message| { return message.contains("final save"); }), "{} returned normally with no final save", ENTRIES[index].name);
+        assert!(check(Rules::FifteenOrdinaryWait, single(index)).violation.is_some());
+        let fifteen: State = initial(Rules::Fifteen, single(index));
+        assert!(steps(&fifteen).iter().all(|step| { return step.0 != shortcut; }), "{} has no ordinary completion under revision 15", ENTRIES[index].name);
+        let report: Report = check(Rules::Fifteen, single(index));
+        assert!(report.violation.is_none() && report.exhausted);
     }
 }
 
-/// Models review 6a, 3 (P1): forcing the final save cannot create a mark that was never created. When the mark stage fails the command may
-/// not return normally (revision 17: an outside-fault exit), whatever it says; the barrier that follows does not repair it.
+/// Models review 6a, 3 (P1, was red): forcing the final save cannot create a mark that was never created. When the mark stage fails the
+/// command returns by the outside-fault exit of revision 17 and not normally, whatever the barrier that follows did; the control that
+/// returns normally with a warning is red.
 #[test]
 fn p1_a_failed_mark_creation_never_returns_normally() {
-    let reached: State = replay(
-        initial(Rules::Fifteen, single(FOREGROUND)),
-        steps,
-        &[
-            "timer: the monotonic clock advances one tick",
-            "timer: the monotonic clock advances one tick",
-            "client: the deadline is reached and the action starts",
-            "client: the stage succeeds",
-            "client: the stage fails",
-            "client: the stage succeeds",
-            "environment: the other party completes the stage",
-            "environment: the other party completes the stage",
-            "client: the stage succeeds",
-            "client: the command exits",
-        ],
-    );
-    assert_eq!(reached.phase, Phase::Done);
-    assert!(reached.authority_lost);
-    assert!(invariant(&reached).is_some_and(|message| { return message.contains("normal return"); }), "{:?}", invariant(&reached));
+    let schedule = [
+        "timer: the monotonic clock advances one tick",
+        "timer: the monotonic clock advances one tick",
+        "client: the deadline is reached and the action starts",
+        "client: the stage succeeds",
+        "client: the stage fails",
+        "client: the stage succeeds",
+        "environment: the other party completes the stage",
+        "environment: the other party completes the stage",
+        "client: the stage succeeds",
+        "client: the command exits",
+    ];
+    let warned: State = replay(initial(Rules::FifteenNormalAfterLoss, single(FOREGROUND)), steps, &schedule);
+    assert!(warned.authority_lost && warned.saved);
+    assert!(invariant(&warned).is_some_and(|message| { return message.contains("normal return"); }), "{:?}", invariant(&warned));
+    let faulted: State = replay(initial(Rules::Fifteen, single(FOREGROUND)), steps, &schedule);
+    assert!(faulted.outside_fault && invariant(&faulted).is_none());
+    assert!(check(Rules::FifteenNormalAfterLoss, single(FOREGROUND)).violation.is_some());
+    let report: Report = check(Rules::Fifteen, single(FOREGROUND));
+    assert!(report.violation.is_none() && report.exhausted);
 }

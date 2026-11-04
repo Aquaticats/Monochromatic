@@ -101,7 +101,7 @@ fn twelve_and_thirteen_are_red_and_fourteen_is_green_over_every_schedule() {
     assert!(check(Rules::Twelve).violation.is_some(), "revision 12 must be red");
     let thirteen: Report = check(Rules::Thirteen);
     assert!(thirteen.violation.is_some(), "revision 13 must be red once the owner cannot see the client's exit");
-    let fourteen: Report = check(Rules::Fourteen);
+    let fourteen: Report = check(Rules::Fifteen);
     assert!(fourteen.violation.is_none() && fourteen.exhausted, "{:?}", fourteen.violation.map(|found| { return (found.message, found.trace); }));
     println!("W1 against publication, revision 14: {} states, deepest {}, client bound {}", fourteen.states, fourteen.deepest, FOREGROUND_BOUND);
 }
@@ -225,7 +225,7 @@ fn only_a_positive_failure_allows_the_next_attempt() {
 /// child that never reads again keeps the branch lock, and revision 13 claims only the enqueue.
 #[test]
 fn prepared_hold_enqueues_abort_and_a_child_that_never_reads_keeps_the_lock() {
-    let report: Report = check_hold(Rules::Fourteen);
+    let report: Report = check_hold(Rules::Fifteen);
     assert!(report.violation.is_none() && report.exhausted, "bound {}: {:?}", HOLD_BOUND, report.violation.map(|found| { return found.message; }));
     let wedged: State = replay(initial(Rules::Thirteen), steps, &[START, HOOK_OK, "environment: update-ref never reads again", HOLD]);
     assert_eq!(wedged.pipe, Pipe::Abort);
@@ -236,7 +236,7 @@ fn prepared_hold_enqueues_abort_and_a_child_that_never_reads_keeps_the_lock() {
 /// Revision 12's text claimed that `abort` releases the lock whatever else holds the pipe (red): the search finds the wedged child.
 #[test]
 fn the_revision_twelve_text_that_abort_releases_the_lock_is_false() {
-    let report: Report = check_with(Rules::Fourteen, invariant_twelve_text_lock_released);
+    let report: Report = check_with(Rules::Fifteen, invariant_twelve_text_lock_released);
     let violation = report.violation.expect("a child that never reads keeps the lock");
     assert_eq!(violation.message, "abort was enqueued and the branch lock is still held by a process that never reads");
 }
@@ -355,7 +355,7 @@ fn a_hook_that_can_write_the_output_file_forges_positive_failure() {
     let shared: Report = check(Rules::FourteenSharedChannel);
     let violation = shared.violation.expect("a forged line is accepted as evidence");
     assert!(violation.trace.iter().any(|label| { return label.contains("looks like abort: ok"); }), "{:?}", violation.trace);
-    assert!(check(Rules::Fourteen).violation.is_none());
+    assert!(check(Rules::Fifteen).violation.is_none());
 }
 
 const SHUTDOWN: &str = "owner: planned shutdown records clean-shutdown and exits";
@@ -435,4 +435,34 @@ fn p1_a_planned_exit_never_ends_a_protected_hook() {
         "{:?}",
         violations(&reached)
     );
+}
+
+/// Models review 6a, 4 (P1, green side): under revision 17 a planned exit is a drain. With the hook running the service begins to drain and
+/// cannot complete while the transaction process lives; no step ends that process except an outside kill, and the parent-death signal
+/// exists only after a crash of the owner. The buffered-commit schedule is exhaustive: the commit runs or the process dies with no evidence
+/// (class U), and the contract holds in every state.
+#[test]
+fn a_planned_exit_is_a_drain_that_never_ends_a_protected_hook() {
+    let draining: State = replay(initial(Rules::Fifteen), steps, &[START, "owner: planned exit begins a drain"]);
+    assert_eq!(draining.child, Child::Preparing);
+    let labels: Vec<String> = steps(&draining).into_iter().map(|step| { return step.0; }).collect();
+    assert!(!labels.contains(&"owner: the drain completes and the service exits".to_string()), "the drain waits for the hook");
+    assert!(!labels.iter().any(|label| { return label.contains("parent-death"); }), "{:?}", labels);
+    assert!(!labels.contains(&START.to_string()), "a draining service admits nothing new");
+    let crashed: State = replay(initial(Rules::Fifteen), steps, &[START, OWNER_DIES]);
+    assert!(enabled(&crashed, "environment: the parent-death signal ends the transaction process after a crash of the owner"));
+    let report: Report = check(Rules::Fifteen);
+    assert!(report.violation.is_none() && report.exhausted, "{:?}", report.violation.map(|found| { return (found.message, found.trace); }));
+}
+
+/// Models review 6a, 3 (P1) on the client's side: a mark that cannot be created. The earlier revision's command exits as a normal
+/// withdrawal with no mark (red: a normal exit left no mark); revision 17's exit is the outside-fault exit.
+#[test]
+fn p1_a_mark_that_cannot_be_created_ends_the_command_by_the_outside_fault_exit() {
+    let failed = "W1: the mark cannot be created and the command exits";
+    let earlier: State = replay(initial(Rules::Fourteen), steps, &[failed]);
+    assert!(violations(&earlier).contains(&"a normal exit left no withdrawal mark".to_string()));
+    let fifteen: State = replay(initial(Rules::Fifteen), steps, &[failed]);
+    assert_eq!(fifteen.client, Client::Faulted);
+    assert!(violations(&fifteen).is_empty());
 }
