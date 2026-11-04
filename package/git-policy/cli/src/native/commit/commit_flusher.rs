@@ -6,7 +6,7 @@
 //!  and the flusher ends.
 //! Why:
 //!  The receipt directory is itself the registration of the obligation to force (rule V, "Receipt responsibility"): responsibility never
-//!  depends on a message having been delivered. At most one flusher runs per lane, and the recheck sweep means a client that found the
+//!  depends on a message having been delivered. At most one flusher holds the lane lock and forces at a time (a helper that has released it and is in its recheck or exit step holds nothing, and a launch in that step starts another; the number of such helpers is bounded only by the clients that launch in that step, review 10a section 3B), and the recheck sweep means a client that found the
 //!  lock held (and so started no flusher) is still covered by the holder. The entry point is a function, started by
 //!  `commit_helper_launch::launch_detached` or as a manager's transient unit; it is never the wrapper's ordinary command line.
 //!
@@ -71,7 +71,7 @@ pub enum Flushed {
 /// What:
 ///  The lane's flusher lock, held for the value's life: an exclusive non-blocking `flock` on `<lane>/flusher.lock`.
 /// Why:
-///  At most one flusher per lane, and at most one helper forked per holder: the launcher takes the lock before it forks and hands the open
+///  At most one flusher holds the lock, and at most one helper is forked per holder: the launcher takes the lock before it forks and hands the open
 ///  file description to the helper. A foreign special file at the path is refused without being opened.
 ///
 /// In TS you'd write (pseudocode):
@@ -80,7 +80,7 @@ pub enum Flushed {
 /// ```
 #[derive(Debug)]
 pub struct FlusherLock {
-    // Lock kept: at most one flusher forces a lane's receipts at a time, and a client forks a helper only when it took this lock, so many
+    // Lock kept: at most one flusher holds it and forces a lane's receipts at a time (the helpers in their release, recheck and exit step hold nothing), and a client forks a helper only when it took this lock, so many
     // outstanding receipts start one process and not one per client. It covers one lane, is never waited for (`try_lock`), and is released
     // after the last empty sweep, before the recheck sweep.
     file: File,
