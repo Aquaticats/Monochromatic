@@ -323,11 +323,26 @@ each in its own worktree:
   until the compare-and-swap succeeds");
   the agent builds only an option that keeps that guarantee,
   else it writes an owner question.
-- Index reclamation pick A,
-  `fix/git-policy-cli-one-reclaimer-per-physical-index`,
-  plus a check of the older index review's P2 and P3 findings (`private_index_path` aliasing,
+- Index reclamation,
+  `fix/git-policy-cli-one-reclaimer-per-physical-index` (tip `dd37f0c462` at its first report):
+  the race shown red (`landing::service_index_lock::reclaim_tests::a_live_lock_taken_aside_by_a_late_reclaimer_is_never_open_to_a_third_program`,
+  "a third program placed its lock while the live holder's lock was off its name");
+  pick A reversed on its evidence:
+  three call sites reclaim (`remove_stale` and `try_acquire` in `settle`,
+  `wait_and_place` in the live landing),
+  A covers only the restart,
+  and extending it to the live landing makes a dead service's lock on an alternate index fail the commit at `LOCK_CEILING`.
+  Coordinator's pick under the delegation (veto open):
+  B,
+  a non-blocking exclusive `flock` held only for the reclaim sequence
+  (on the stale lock's own inode,
+  or a sidecar,
+  whichever the agent shows has fewer moving parts);
+  options in `doc/planning/cli-git-one-reclaimer-per-index.md`.
+  The older index review's P2 and P3 findings (`private_index_path` aliasing,
   `head_names` revalidation,
-  `Interrupted` writes).
+  `Interrupted` writes) are already fixed on main,
+  each with named tests.
 - Test containers to CachyOS,
   `build/git-policy-cli-cachyos-test-containers`:
   `e2e/concurrent-commits.Containerfile` (Debian `node:24.11.0-slim`)
