@@ -423,20 +423,16 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     let kept_notice: Option<String> = kept_folder_notice(root);
     // A child of an earlier killed run may still be writing the files this transaction would snapshot:
     // starting now would let two runs mutate one workspace, so the transaction is refused.
-    let earlier: Option<fs::ReadDir> = match fs::read_dir(root.join(JOURNAL_DIR)) {
-        Ok(listing) => Some(listing),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error),
+    let earlier: Vec<PathBuf> = match crate::journal_recover::list_journals(&root.join(JOURNAL_DIR)) {
+        Ok(listing) => listing.open,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => {
+            return Err(io::Error::other(format!("the journals of {} could not be listed ({error}), so a surviving child of an earlier run cannot be ruled out; no transaction was started", root.display())));
+        }
     };
-    if let Some(listing) = earlier {
-        for entry in listing.flatten() {
-            let path: PathBuf = entry.path();
-            if path.is_dir()
-                && !path.to_string_lossy().ends_with(DONE_SUFFIX)
-                && let Some(note) = crate::journal_recover::survivor_note(&path)
-            {
-                return Err(io::Error::other(note));
-            }
+    for path in earlier {
+        if let Some(note) = crate::journal_recover::survivor_note(&path) {
+            return Err(io::Error::other(note));
         }
     }
     let journals: PathBuf = root.join(JOURNAL_DIR);
@@ -459,10 +455,10 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&directory.join`: lends the value without copying or giving it away.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    write_synced(&directory.join(OWNER_FILE), &format!("v3\n{}\n", std::process::id()))?;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&directory.join`: lends the value without copying or giving it away.
+    // The record of children comes first: a journal directory without it holds nothing that could have started a child
+    // (an empty directory), and one that has other files but lost it is uncertain (round 7, 6b2 2).
     write_synced(&directory.join(GROUPS_FILE), "")?;
+    write_synced(&directory.join(OWNER_FILE), &format!("v3\n{}\n", std::process::id()))?;
     let mut index: String = String::from("v2\n");
     let mut listed: Vec<String> = Vec::new();
     for (position, snapshot) in snapshots.iter().enumerate() {
@@ -637,39 +633,48 @@ impl Transaction {
     /// finishWith(durable: (path: string) => void): void
     /// ```
     pub fn finish_with(self, durable: &dyn Fn(&Path) -> io::Result<()>) -> Result<(), FinishError> {
+        // Phase one: the outputs the run leaves are on disk before anything that could undo them goes.
         #[cfg(test)]
         if crate::failpoints::fires(crate::failpoints::Point::FinishDurability) {
-            return Err(FinishError::before_durable(io::Error::other("injected durability failure")));
+            return Err(FinishError::outputs(io::Error::other("injected durability failure")));
         }
         for crate_dir in &self.crate_dirs {
-            durable(&self.root.join(crate_dir).join(LOCKFILE_NAME)).map_err(FinishError::before_durable)?;
+            durable(&self.root.join(crate_dir).join(LOCKFILE_NAME)).map_err(FinishError::outputs)?;
         }
         for manifest in self.manifests.borrow().iter() {
-            durable(manifest).map_err(FinishError::before_durable)?;
+            durable(manifest).map_err(FinishError::outputs)?;
         }
+        // Phase two: the completion marker is durable, or the command stops (round 7, 6b2 5).
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::FinishCompletion) {
+            return Err(FinishError::completion(io::Error::other("injected completion failure")));
+        }
+        let done: PathBuf = publish_done(&self.directory).map_err(FinishError::completion)?;
+        // Phase three: only the removal of a journal that is already marked done is a warning.
         #[cfg(test)]
         if crate::failpoints::fires(crate::failpoints::Point::FinishCleanup) {
-            return Err(FinishError::after_durable(io::Error::other("injected cleanup failure")));
+            return Err(FinishError::cleanup(io::Error::other("injected cleanup failure")));
         }
-        return mark_done_and_remove(&self.directory).map_err(FinishError::after_durable);
+        return remove_done(&done).map_err(FinishError::cleanup);
     }
 }
 
 /// What:
-/// `pub fn mark_done_and_remove(directory: &Path) -> io::Result<()>` renames a journal to its `.done` name,
-/// syncs the parent,
-/// removes the directory and syncs the parent again.
+/// `pub fn publish_done(directory: &Path) -> io::Result<PathBuf>` renames a journal to its `.done` name and syncs the directory that
+/// lists it,
+/// and returns the `.done` path.
 /// Why:
-/// The rename is the completion marker,
-/// and the parent is synced before any destructive cleanup even when the name already ends
-/// in `.done` (review finding 4b2 5):
+/// The rename is the completion marker, and it counts only once the parent's sync has returned
+/// (round 7, 6b2 5:
+/// a failure here is not a cleanup problem).
+/// The parent is synced even when the name already ends in `.done` (review finding 4b2 5):
 /// another run's rename may not be durable yet.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function markDoneAndRemove(directory: string): void
+/// export function publishDone(directory: string): string
 /// ```
-pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
+pub fn publish_done(directory: &Path) -> io::Result<PathBuf> {
     let parent: PathBuf = match directory.parent() {
         Some(found) => found.to_path_buf(),
         None => PathBuf::from("."),
@@ -679,11 +684,42 @@ pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
     if done != directory {
         fs::rename(directory, &done)?;
     }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&parent`: lends the value without copying or giving it away.
     sync_directory(&parent)?;
-    fs::remove_dir_all(&done)?;
-    return sync_directory(&parent);
+    return Ok(done);
+}
+
+/// What:
+/// `pub fn remove_done(done: &Path) -> io::Result<()>` removes the empty control groups the journal recorded,
+/// then the journal directory, and syncs its parent.
+/// Why:
+/// Nothing in a `.done` journal is needed any more.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function removeDone(done: string): void
+/// ```
+pub fn remove_done(done: &Path) -> io::Result<()> {
+    crate::journal_unready::reclaim_recorded_groups(done);
+    fs::remove_dir_all(done)?;
+    return match done.parent() {
+        Some(parent) => sync_directory(parent),
+        None => Ok(()),
+    };
+}
+
+/// What:
+/// `pub fn mark_done_and_remove(directory: &Path) -> io::Result<()>` publishes the completion marker of a journal and removes it.
+/// Why:
+/// A recovery settles a journal in one step;
+/// finishing a transaction uses the two phases separately.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function markDoneAndRemove(directory: string): void
+/// ```
+pub fn mark_done_and_remove(directory: &Path) -> io::Result<()> {
+    let done: PathBuf = publish_done(directory)?;
+    return remove_done(&done);
 }
 
 /// What:

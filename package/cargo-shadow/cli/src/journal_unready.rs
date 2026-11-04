@@ -34,11 +34,14 @@ use rustix::process::{Pid, test_kill_process_group};
 /// Imports `crate::constants::LOCKFILE_NAME` for this file.
 use crate::constants::LOCKFILE_NAME;
 
+/// Imports the control group records and queries for this file.
+use crate::control_group::{Membership, Record, parse_record, query, reclaim};
+
 /// Imports `crate::crates::{LockSnapshot, read_locks}` for this file.
 use crate::crates::{LockSnapshot, read_locks};
 
 /// Imports the journal file names and the durability barrier for this file.
-use crate::journal::{GROUPS_FILE, INDEX_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, READY_FILE, make_durable};
+use crate::journal::{GROUPS_FILE, INDEX_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, make_durable};
 
 /// Imports `crate::journal_manifests::read_manifest_index` for this file.
 use crate::journal_manifests::read_manifest_index;
@@ -155,14 +158,16 @@ pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<
 
 /// What:
 /// `pub(crate) fn survivor_note(directory: &Path) -> Option<String>` says why a journal's recorded children may still be running:
-/// a recorded process group that still has a member,
-/// or a group record that cannot be read or understood.
+/// a recorded control group with a member (the kernel's own answer),
+/// a recorded process group of the weaker path that still has a member,
+/// or a record that is missing, cannot be read or cannot be understood.
 /// Why:
 /// The end of the wrapper's lock does not say whether its cargo ended.
-/// A missing,
-/// unreadable or malformed record is uncertainty,
-/// never "no children" (round 6,
-/// 5b2 2).
+/// A record is written before every child starts,
+/// so an empty record, or a directory with no files at all (a begin cut off right after its creation),
+/// shows that no child started;
+/// a directory that holds other files but lost its record is uncertainty, never "no children"
+/// (round 7, 6b2 2: neither the ready record nor the absence of one stands in for it).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -170,37 +175,92 @@ pub(crate) fn recover_unready(root: &Path, directory: &Path, messages: &mut Vec<
 /// ```
 pub(crate) fn survivor_note(directory: &Path) -> Option<String> {
     let path: PathBuf = directory.join(GROUPS_FILE);
+    let remedy: String = format!(
+        "the journal was kept. When you are sure no cargo of that run is running, put the lockfiles in {} back by hand and remove that directory",
+        directory.display()
+    );
     let text: String = match fs::read_to_string(&path) {
         Ok(found) => found,
-        // Without a ready record the transaction never got as far as starting a child.
-        Err(error) if error.kind() == io::ErrorKind::NotFound && !directory.join(READY_FILE).exists() => return None,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return match fs::read_dir(directory) {
+                Ok(mut entries) => match entries.next() {
+                    None => None,
+                    Some(Ok(_)) => Some(format!(
+                        "{}: the record of the control groups of the killed run is missing, so a child of that run may still be writing; {remedy}",
+                        directory.display()
+                    )),
+                    Some(Err(listing_error)) => Some(format!("{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {remedy}", directory.display())),
+                },
+                Err(listing_error) => Some(format!("{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {remedy}", directory.display())),
+            };
+        }
         Err(error) => {
             return Some(format!(
-                "{}: the record of the process groups of the killed run could not be read ({error}), so a child of that run may still be writing; the journal was kept. If you are sure it is not running, remove {}",
-                directory.display(),
-                path.display()
+                "{}: the record of the control groups of the killed run could not be read ({error}), so a child of that run may still be writing; {remedy}",
+                directory.display()
             ));
         }
     };
     for line in text.lines() {
-        let Some(group) = line.trim().parse::<i32>().ok().and_then(Pid::from_raw) else {
-            return Some(format!(
-                "{}: the record of the process groups of the killed run holds a line that is not a process group ({line:?}), so a child of that run may still be writing; the journal was kept. If you are sure it is not running, remove {}",
-                directory.display(),
-                path.display()
-            ));
-        };
-        let alive: bool = match test_kill_process_group(group) {
-            Ok(()) => true,
-            Err(code) => code != Errno::SRCH,
-        };
-        if alive {
-            return Some(format!(
-                "{}: a process group of the killed run (pid {}) is still running; the journal was kept for a later run",
-                directory.display(),
-                group.as_raw_nonzero()
-            ));
+        match parse_record(line) {
+            Err(reason) => {
+                return Some(format!(
+                    "{}: the record of the control groups of the killed run holds a line that is not understood ({reason}), so a child of that run may still be writing; {remedy}",
+                    directory.display()
+                ));
+            }
+            Ok(Record::Group { id, namespace, path: group_path }) => match query(id, namespace, &group_path) {
+                Membership::Gone => {}
+                Membership::Alive => {
+                    return Some(format!(
+                        "{}: a process in the control group {} of the killed run is still running; the journal was kept for a later run",
+                        directory.display(),
+                        group_path.display()
+                    ));
+                }
+                Membership::Unknown(reason) => {
+                    return Some(format!(
+                        "{}: whether the control group of the killed run still has a member cannot be told ({reason}), so a child of that run may still be writing; {remedy}",
+                        directory.display()
+                    ));
+                }
+            },
+            Ok(Record::ProcessGroup(leader)) => {
+                // The weaker path: only the recorded process group can be asked; a descendant that left it cannot be found.
+                let alive: bool = match Pid::from_raw(leader).map(test_kill_process_group) {
+                    Some(Ok(())) => true,
+                    Some(Err(code)) => code != Errno::SRCH,
+                    None => true,
+                };
+                if alive {
+                    return Some(format!(
+                        "{}: a process group of the killed run (pid {leader}) is still running; the journal was kept for a later run",
+                        directory.display()
+                    ));
+                }
+            }
         }
     }
     return None;
+}
+
+/// What:
+/// `pub(crate) fn reclaim_recorded_groups(directory: &Path)` removes the control groups a journal recorded that are empty.
+/// Why:
+/// A run that was killed leaves its empty group directory behind;
+/// the recovery that settles the journal tidies it, and an occupied group refuses the removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function reclaimRecordedGroups(directory: string): void
+/// ```
+pub(crate) fn reclaim_recorded_groups(directory: &Path) {
+    let Ok(text) = fs::read_to_string(directory.join(GROUPS_FILE)) else {
+        return;
+    };
+    for line in text.lines() {
+        if let Ok(Record::Group { id, path, .. }) = parse_record(line) {
+            reclaim(id, &path);
+        }
+    }
 }

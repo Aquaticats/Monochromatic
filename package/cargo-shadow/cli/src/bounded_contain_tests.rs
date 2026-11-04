@@ -143,19 +143,19 @@ fn a_timeout_returns_promptly_even_when_the_child_ignores_its_input() {
     assert!(started.elapsed() < Duration::from_secs(8), "{:?}", started.elapsed());
 }
 
-/// Round 6 (advisor,
-/// owner rule "nothing should ever wait forever or indefinitely"):
-/// a second run in the same process is refused
-/// at once instead of waiting for the first.
+/// Round 7 (retires the round 6 refusal of a second run):
+/// two runs of one process are each contained,
+/// and the second neither waits for the first nor is refused,
+/// because only the spawn of each is serialized.
 #[test]
-fn a_second_run_in_one_process_is_refused_instead_of_waiting() {
+fn two_runs_in_one_process_are_contained_each_and_neither_waits_for_the_other() {
     let first = std::thread::spawn(|| { return output_within(Command::new("sleep").arg("2"), None, &bound(Duration::from_secs(20))); });
     std::thread::sleep(Duration::from_millis(400));
     let started = Instant::now();
 
-    let second = output_within(&mut Command::new("true"), None, &bound(Duration::from_millis(300)));
+    let second = output_within(&mut Command::new("true"), None, &bound(Duration::from_secs(20)));
 
-    assert!(second.is_err(), "a second run was allowed beside the first");
+    assert!(second.is_ok(), "the second run was refused: {second:?}");
     assert!(started.elapsed() < Duration::from_millis(1500), "the second run waited for the first: {:?}", started.elapsed());
     assert!(first.join().expect("first run thread").is_ok());
 }

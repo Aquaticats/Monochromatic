@@ -218,6 +218,48 @@ pub(crate) fn read_ready(directory: &Path) -> io::Result<Option<Ready>> {
     return Ok(Some(Ready { manifests }));
 }
 
+/// The journals of a workspace.
+pub(crate) struct JournalListing {
+    /// The journals that have not been marked done,
+    /// in name order.
+    pub(crate) open: Vec<PathBuf>,
+    /// The journals marked done,
+    /// whose removal is cleanup.
+    pub(crate) done: Vec<PathBuf>,
+}
+
+/// What:
+/// `pub(crate) fn list_journals(journals: &Path) -> io::Result<JournalListing>` lists the journal directories,
+/// and fails when any entry cannot be listed or examined.
+/// Why:
+/// A survivor check and a recovery both decide from the whole set;
+/// a set that could not be read completely cannot show that no earlier run left a writer
+/// (round 7, 6b2 1: `flatten()` and `is_dir()` dropped such entries).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function listJournals(journals: string): { open: string[]; done: string[] }  // throws when any entry fails
+/// ```
+pub(crate) fn list_journals(journals: &Path) -> io::Result<JournalListing> {
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::JournalListing) {
+        return Err(io::Error::other("injected journal listing failure"));
+    }
+    let mut listing: JournalListing = JournalListing { open: Vec::new(), done: Vec::new() };
+    for found in fs::read_dir(journals)? {
+        let entry: fs::DirEntry = found?;
+        let path: PathBuf = entry.path();
+        if path.to_string_lossy().ends_with(DONE_SUFFIX) {
+            listing.done.push(path);
+        } else if entry.file_type()?.is_dir() {
+            listing.open.push(path);
+        }
+    }
+    listing.open.sort();
+    listing.done.sort();
+    return Ok(listing);
+}
+
 /// What:
 /// `pub fn recover(root, judge) -> Vec<String>` finishes the journals of runs that no longer exist.
 /// Why:
@@ -247,8 +289,18 @@ pub fn recover(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> 
 pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]) -> Vec<String>, between: &dyn Fn(&Path)) -> Vec<String> {
     let mut messages: Vec<String> = Vec::new();
     let journals: PathBuf = root.join(JOURNAL_DIR);
-    if !journals.is_dir() {
-        return messages;
+    // A metadata failure is not "no journals" (round 7, 6b2 1).
+    match fs::metadata(&journals) {
+        Ok(found) if found.is_dir() => {}
+        Ok(_) => {
+            messages.push(format!("{} is not a directory; the journals of earlier runs were left for a later run", journals.display()));
+            return messages;
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return messages,
+        Err(error) => {
+            messages.push(format!("{} could not be examined ({error}); the journals of earlier runs were left for a later run", journals.display()));
+            return messages;
+        }
     }
     let _workspace = match take_workspace(root) {
         Ok(Ok(held)) => held,
@@ -261,24 +313,21 @@ pub fn recover_with(root: &Path, judge: &dyn Fn(&[LockSnapshot], &[LockSnapshot]
             return messages;
         }
     };
-    let mut entries: Vec<PathBuf> = match fs::read_dir(&journals) {
-        Ok(listing) => listing.flatten().map(|entry| { return entry.path(); }).collect(),
+    // An entry that cannot be listed or examined stops the recovery: the set of journals, and so of surviving children, is unknown
+    // (round 7, 6b2 1).
+    let listing: JournalListing = match list_journals(&journals) {
+        Ok(found) => found,
         Err(error) => {
             messages.push(format!("{} could not be listed ({error}); the journals of earlier runs were left for a later run", journals.display()));
             return messages;
         }
     };
-    entries.sort();
-    let mut open: Vec<PathBuf> = Vec::new();
-    for directory in entries {
-        if directory.to_string_lossy().ends_with(DONE_SUFFIX) {
-            if let Err(error) = mark_done_and_remove(&directory) {
-                messages.push(format!("{}: a finished journal could not be removed ({error}); it will be tried again", directory.display()));
-            }
-        } else if directory.is_dir() {
-            open.push(directory);
+    for directory in listing.done {
+        if let Err(error) = mark_done_and_remove(&directory) {
+            messages.push(format!("{}: a finished journal could not be removed ({error}); it will be tried again", directory.display()));
         }
     }
+    let open: Vec<PathBuf> = listing.open;
     let survivors: Vec<String> = open.iter().filter_map(|directory| { return survivor_note(directory); }).collect();
     if !survivors.is_empty() {
         messages.extend(survivors);

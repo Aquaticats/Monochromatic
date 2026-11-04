@@ -361,6 +361,7 @@ impl ControlGroup {
     /// ```ts
     /// populated(): boolean
     /// ```
+    #[cfg(test)]
     pub(crate) fn populated(&self) -> io::Result<bool> {
         return populated_at(&self.directory);
     }

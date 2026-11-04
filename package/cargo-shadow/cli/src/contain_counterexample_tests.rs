@@ -194,10 +194,10 @@ fn a_subprocess_another_thread_starts_during_the_run_survives() {
 #[test]
 #[ignore = "the helper process of a_killed_wrapper_with_an_escaped_writer_stops_the_recovery"]
 fn wrapper_with_an_escaped_writer_fixture() {
-    let Ok(root) = std::env::var(FIXTURE_ROOT) else {
+    let Ok(root_text) = std::env::var(FIXTURE_ROOT) else {
         return;
     };
-    let root: PathBuf = PathBuf::from(root);
+    let root: PathBuf = PathBuf::from(root_text);
     let snapshot: LockSnapshot = LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() };
     let _transaction = crate::journal::begin(&root, std::slice::from_ref(&snapshot), false).expect("begin");
     let directory: PathBuf = root.join("fixture");

@@ -90,8 +90,7 @@ pub mod bounded_run;
 pub mod git_sha1;
 
 /// Containment of everything a bounded run starts,
-/// by the process tree.
-pub mod bounded_contain;
+/// by a delegated control group (cgroup v2).
 pub mod control_group;
 
 /// Pipe reading and writing that a caller can cancel.

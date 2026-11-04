@@ -759,19 +759,13 @@ fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops) -> Result
                     // ```ts
                     // list.map(f).filter(g)
                     // ```
-                    // Every directory entry between the kept file and the nearest directory that also holds the replaced file is made durable:
-                    // that directory is the anchor, because the file being replaced could not be there if it were not durable itself
-                    // (round 6, 5b 1). An ancestor count would stop short of the anchor for a deeper kept directory.
-                    let mut reached_anchor: bool = false;
-                    for synced in directory.ancestors().filter(|found| { return !found.as_os_str().is_empty(); }) {
-                        if reached_anchor {
-                            break;
-                        }
-                        reached_anchor = target.starts_with(synced);
-                        // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                        // Closure `|error|`: an anonymous function, like a TS arrow function.
-                        // `.clone()`: an independent owned copy.
-                        // `.map_err(...)`: converts the callee's error into this function's error type.
+                    // Every directory entry on the way from the kept file to the root of the file system is made durable, by the
+                    // resolved path. The directory that holds the replaced file is not a durable anchor just because the file
+                    // is there: its own entry in its parent may not be durable (round 7, 6b 1). A resolved path is absolute, so
+                    // the walk ends at the root by construction, and it fails instead of finishing short when the path cannot be
+                    // resolved.
+                    let resolved: PathBuf = fs::canonicalize(&directory).map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
+                    for synced in resolved.ancestors() {
                         (ops.sync_dir)(synced).map_err(|error| { return PreserveFailure::Durability { kept: candidate.clone(), error }; })?;
                     }
                     return Ok(candidate);

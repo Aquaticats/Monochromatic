@@ -628,7 +628,7 @@ fn a_journal_whose_recorded_process_group_is_still_alive_is_left_alone() {
     let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
     // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
     // Macro `format!`: builds or prints text (or a list) from a template.
-    fs::write(journal.join("groups"), format!("{}\n", orphan.id())).expect("record the group");
+    fs::write(journal.join("groups"), format!("pgroup {}\n", orphan.id())).expect("record the group");
 
     // Closure `|_before, _live|`: an anonymous function, like a TS arrow function.
     // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
@@ -678,7 +678,7 @@ fn a_group_record_that_cannot_be_read_defers_the_recovery() {
 fn a_malformed_group_record_defers_the_recovery() {
     let root = repository("unchecked output of the killed run");
     let journal = plant(root.path(), &[snapshot("original")], &[]);
-    fs::write(journal.join("groups"), "4242\nnot a number\n").expect("write a damaged record");
+    fs::write(journal.join("groups"), "pgroup 4242\nnot a number\n").expect("write a damaged record");
 
     let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
 
@@ -695,7 +695,7 @@ fn a_survivor_of_one_journal_stops_the_recovery_of_another() {
     let survivor_journal = plant(root.path(), &[snapshot("first")], &[]);
     let _other = plant(root.path(), &[snapshot("second")], &[]);
     let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
-    fs::write(survivor_journal.join("groups"), format!("{}\n", orphan.id())).expect("record the group");
+    fs::write(survivor_journal.join("groups"), format!("pgroup {}\n", orphan.id())).expect("record the group");
 
     let messages = recover(root.path(), &|_before, _live| { return vec!["dep@1.0.1 refused".to_string()]; });
     let _ = orphan.kill();
@@ -712,7 +712,7 @@ fn a_new_transaction_does_not_start_beside_a_survivor() {
     let root = repository("unchecked output of the killed run");
     let journal = plant(root.path(), &[snapshot("first")], &[]);
     let mut orphan = std::process::Command::new("sleep").arg("30").process_group(0).spawn().expect("a surviving child");
-    fs::write(journal.join("groups"), format!("{}\n", orphan.id())).expect("record the group");
+    fs::write(journal.join("groups"), format!("pgroup {}\n", orphan.id())).expect("record the group");
 
     let started = begin(root.path(), &[snapshot("second")], false);
     let _ = orphan.kill();
@@ -914,6 +914,27 @@ fn every_ancestor_of_the_kept_directory_is_synced_up_to_the_filesystem_root() {
         assert!(calls.contains(&ancestor.to_path_buf()), "{} was not synced: {calls:?}", ancestor.display());
     }
     assert!(calls.contains(&PathBuf::from("/")), "the root of the file system was never reached: {calls:?}");
+}
+
+/// Round 7 (6b 1):
+/// a kept directory reached through a symbolic link is made durable through the directories it really lives in,
+/// because a lexical ancestor does not say which directory holds the entry.
+#[test]
+fn a_kept_directory_behind_a_symbolic_link_is_synced_by_its_resolved_path() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let real = root.path().join("real");
+    fs::create_dir_all(real.join("kept")).expect("the real kept directory");
+    std::os::unix::fs::symlink(&real, root.path().join("link")).expect("a link to it");
+    let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+    let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
+
+    replace_with(&path, &KeepAs::in_directory(&root.path().join("link").join("kept"), ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
+
+    let resolved: PathBuf = fs::canonicalize(real.join("kept")).expect("resolves");
+    let calls = synced.borrow();
+    assert!(calls.contains(&resolved), "the directory the entry lives in was not synced: {calls:?}");
+    assert!(calls.contains(&resolved.parent().expect("a parent").to_path_buf()), "the directory that lists it was not synced: {calls:?}");
 }
 
 #[test]

@@ -856,7 +856,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         (Ok(mut report), Err(error)) if !report.problems.is_empty() => {
             report.warnings.extend(recovered);
             report.warnings.extend(restore_warnings);
-            if error.outputs_durable() {
+            if error.cleanup_only() {
                 report.warnings.push(error.to_string());
             } else {
                 report.problems.push(error.to_string());
@@ -864,7 +864,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             Ok(report)
         }
         // A failed barrier is a stopped run, never a clean pass: the command must not run on a lockfile that may not survive.
-        (Ok(_), Err(error)) if !error.outputs_durable() => Err(InstallError::Unsettled {
+        (Ok(_), Err(error)) if !error.cleanup_only() => Err(InstallError::Unsettled {
             message: format!("cargo-shadow: {error}; the command was not run, so run it again"),
         }),
         (Ok(mut report), Err(error)) => {
@@ -873,6 +873,11 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
             report.warnings.push(error.to_string());
             Ok(report)
         }
+        // An operational error alone lets the shim run the command again with `--locked`; a failed mandatory phase of finishing
+        // forbids that, so both diagnostics travel in the stopping error (round 7, 6c R1).
+        (Err(original), Err(error)) if !error.cleanup_only() => Err(InstallError::Unsettled {
+            message: format!("cargo-shadow: {error}; the command was not run, so run it again\nThe install step had also failed: {original}"),
+        }),
         (Err(error), _) => Err(error),
     };
 }

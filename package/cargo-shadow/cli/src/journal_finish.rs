@@ -1,16 +1,16 @@
 //! What:
 //! The error of finishing a transaction,
-//! told by whether the outputs were already on disk.
+//! told by the phase that failed.
 //! Why:
-//! Round 6 (fifth review,
-//! 5c N1):
-//! a failed durability barrier must stop the command,
-//! while a journal that could not be removed
-//! after its completion marker was made durable is only a warning.
+//! Round 7 (sixth review 6b2 5, 6c R1):
+//! finishing has three phases that fail differently.
+//! Forcing the outputs to disk and publishing the durable completion marker stop the command
+//! (the next recovery would otherwise find an active journal and judge the run again);
+//! only the removal of a journal whose completion marker is durable is a warning.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! class FinishError extends Error { outputsDurable: boolean }
+//! class FinishError extends Error { phase: 'outputs' | 'completion' | 'cleanup' }
 //! ```
 
 /// Imports `std::fmt` for this file.
@@ -19,11 +19,22 @@ use std::fmt;
 /// Imports `std::io` for this file.
 use std::io;
 
+/// The phase of finishing in which the failure happened.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Phase {
+    /// Forcing the lockfiles and manifests the run leaves to disk.
+    Outputs,
+    /// Publishing the durable completion marker (the rename to the `.done` name and the sync of the directory that lists it).
+    Completion,
+    /// Removing a journal whose completion marker is durable.
+    Cleanup,
+}
+
 /// Why a transaction could not be finished.
 #[derive(Debug)]
 pub struct FinishError {
-    /// Whether the lockfiles and manifests the run leaves were forced to disk before this failure.
-    outputs_durable: bool,
+    /// The phase that failed.
+    phase: Phase,
     /// The failure.
     source: io::Error,
 }
@@ -31,44 +42,58 @@ pub struct FinishError {
 /// The methods of the type above.
 impl FinishError {
     /// What:
-    /// `pub fn before_durable(source: io::Error) -> FinishError` is a failure while forcing the outputs to disk.
+    /// `pub fn outputs(source: io::Error) -> FinishError` is a failure while forcing the outputs to disk.
     /// Why:
     /// The run's outputs may not survive a crash,
     /// so the command must not rely on them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// static beforeDurable(source: Error): FinishError
+    /// static outputs(source: Error): FinishError
     /// ```
-    pub fn before_durable(source: io::Error) -> FinishError {
-        return FinishError { outputs_durable: false, source };
+    pub fn outputs(source: io::Error) -> FinishError {
+        return FinishError { phase: Phase::Outputs, source };
     }
 
     /// What:
-    /// `pub fn after_durable(source: io::Error) -> FinishError` is a failure after the outputs were forced to disk.
+    /// `pub fn completion(source: io::Error) -> FinishError` is a failure to publish the durable completion marker.
     /// Why:
-    /// The journal stays and the next run settles it;
+    /// The outputs are on disk, but nothing durable says this run is finished:
+    /// a later recovery would see an active journal and could judge the run again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static completion(source: Error): FinishError
+    /// ```
+    pub fn completion(source: io::Error) -> FinishError {
+        return FinishError { phase: Phase::Completion, source };
+    }
+
+    /// What:
+    /// `pub fn cleanup(source: io::Error) -> FinishError` is a failure to remove a journal whose completion marker is durable.
+    /// Why:
+    /// The journal is disposable and the next run removes it;
     /// nothing the run produced is at risk.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// static afterDurable(source: Error): FinishError
+    /// static cleanup(source: Error): FinishError
     /// ```
-    pub fn after_durable(source: io::Error) -> FinishError {
-        return FinishError { outputs_durable: true, source };
+    pub fn cleanup(source: io::Error) -> FinishError {
+        return FinishError { phase: Phase::Cleanup, source };
     }
 
     /// What:
-    /// `pub fn outputs_durable(&self) -> bool` says whether the outputs were forced to disk before the failure.
+    /// `pub fn cleanup_only(&self) -> bool` says whether only the removal of a disposable journal failed.
     /// Why:
     /// It decides between stopping the command and warning.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// outputsDurable(): boolean
+    /// cleanupOnly(): boolean
     /// ```
-    pub fn outputs_durable(&self) -> bool {
-        return self.outputs_durable;
+    pub fn cleanup_only(&self) -> bool {
+        return self.phase == Phase::Cleanup;
     }
 }
 
@@ -84,14 +109,19 @@ impl fmt::Display for FinishError {
     /// toString(): string
     /// ```
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.outputs_durable {
-            return write!(formatter, "the transaction journal could not be completed ({}); the next run settles it", self.source);
-        }
-        return write!(
-            formatter,
-            "the lockfiles and manifests this run left could not be forced to disk ({}); the journal was kept and the next run settles it",
-            self.source
-        );
+        return match self.phase {
+            Phase::Cleanup => write!(formatter, "the transaction journal could not be removed ({}); the next run removes it", self.source),
+            Phase::Completion => write!(
+                formatter,
+                "the completion of the transaction could not be made durable ({}); the journal was kept and the next run settles it",
+                self.source
+            ),
+            Phase::Outputs => write!(
+                formatter,
+                "the lockfiles and manifests this run left could not be forced to disk ({}); the journal was kept and the next run settles it",
+                self.source
+            ),
+        };
     }
 }
 
@@ -132,16 +162,23 @@ pub(crate) fn settle_finish(
     recovered: Vec<String>,
     restore_warnings: Vec<String>,
 ) -> Result<crate::update::UpdateReport, crate::update::UpdateError> {
-    return outcome.and_then(|mut report| {
+    // A failure of a mandatory phase never lets an earlier error stand alone: both are reported (round 7, 6c R1).
+    let standing = match (outcome, &finished) {
+        (Err(original), Err(error)) if !error.cleanup_only() => {
+            return Err(crate::update::other_text(format!("{original}\n{error}; run the command again")));
+        }
+        (kept, _) => kept,
+    };
+    return standing.and_then(|mut report| {
         report.warnings.extend(recovered);
         report.warnings.extend(restore_warnings);
         return match finished {
             Ok(()) => Ok(report),
-            Err(error) if !report.problems.is_empty() && !error.outputs_durable() => {
+            Err(error) if !report.problems.is_empty() && !error.cleanup_only() => {
                 report.problems.push(error.to_string());
                 Ok(report)
             }
-            Err(error) if !error.outputs_durable() => Err(crate::update::other_text(format!("{error}; run the command again"))),
+            Err(error) if !error.cleanup_only() => Err(crate::update::other_text(format!("{error}; run the command again"))),
             Err(error) => {
                 report.warnings.push(error.to_string());
                 Ok(report)
