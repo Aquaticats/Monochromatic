@@ -21,6 +21,10 @@ const STUCK_AFTER: Duration = Duration::from_secs(1);
 /// The ceiling the second client gives the service's answer: short, so the control ends in moments.
 const SECOND_CEILING: Duration = Duration::from_secs(2);
 
+/// The ceiling the client inside the write gives the service's answer: past the moment the service tells it, which is the stuck
+/// threshold of the control plus up to one beat after the write began.
+const INSIDE_CEILING: Duration = Duration::from_secs(5);
+
 /// The ceiling the second client gives the service's answer to its withdrawal: far past the control's own length, so an answer
 /// that arrives in seconds is the early answer, not the ceiling.
 const SECOND_WITHDRAWAL: Duration = Duration::from_secs(45);
@@ -165,7 +169,7 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
     let serving: Serving = serve_on_a_thread(context, "inside");
     // The withdrawal ceiling is far past the control: a client that was told its request is inside the write does not wait for it.
     let extra_wait: Duration = Duration::from_secs(2);
-    let only = submit_on_a_thread(client_with_extra_wait(&serving, SECOND_CEILING, SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
+    let only = submit_on_a_thread(client_with_extra_wait(&serving, INSIDE_CEILING, SECOND_WITHDRAWAL, extra_wait), request(&world, "only", "only.txt", "only\n"));
     wait_for(entered.as_path());
     let began: Instant = Instant::now();
     let (answer, notices) = only.join().expect("client");
