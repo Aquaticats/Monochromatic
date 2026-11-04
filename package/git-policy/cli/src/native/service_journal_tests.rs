@@ -204,3 +204,40 @@ fn a_temporary_file_of_a_writer_stalled_for_minutes_is_left_alone() {
     assert!(stalled.exists(), "a writer that stalled for {stalled_for:?} is not removed from under its rename");
     remove(root.as_path());
 }
+
+/// A batch number is taken from the first one that has no claim, no open intent and no finished batch, and a claim that goes out
+///  of scope frees its number again.
+#[test]
+fn a_batch_number_skips_every_number_the_journal_holds() {
+    let root: PathBuf = fixture("service-journal-claims");
+    let first: u64 = 20;
+    write_intent(root.as_path(), &intent(first)).expect("an open batch");
+    write_intent(root.as_path(), &intent(first + 1)).expect("a batch");
+    mark_done(root.as_path(), first + 1).expect("finished");
+    let held: BatchClaim = claim_batch(root.as_path(), first + 2).expect("a claim");
+    assert_eq!(held.seq(), first + 2);
+    let next: BatchClaim = claim_batch(root.as_path(), first).expect("a claim past the held ones");
+    assert_eq!(next.seq(), first + 3, "an intent, a finished batch and a claim each hold their number");
+    drop(held);
+    assert!(!batch_path(root.as_path(), first + 2, CLAIM_EXTENSION).exists(), "a claim goes with its landing");
+    let again: BatchClaim = claim_batch(root.as_path(), first).expect("a claim after the release");
+    assert_eq!(again.seq(), first + 2, "a number with no record and no claim is free again");
+    remove(root.as_path());
+}
+
+/// A claim left by a service that was killed is removed once it is old enough that no landing can still hold it, and a younger
+///  one is left to its landing.
+#[test]
+fn a_claim_of_a_killed_landing_is_removed_when_old_and_left_when_young() {
+    let root: PathBuf = fixture("service-journal-stale-claims");
+    let old: PathBuf = batch_path(root.as_path(), 30, CLAIM_EXTENSION);
+    let young: PathBuf = batch_path(root.as_path(), 31, CLAIM_EXTENSION);
+    std::fs::write(&old, "").expect("an old claim");
+    std::fs::write(&young, "").expect("a young claim");
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - TEMPORARY_GRACE - std::time::Duration::from_secs(60);
+    std::fs::File::options().append(true).open(&old).and_then(|file| { return file.set_modified(long_ago); }).expect("aged");
+    let _listed = list_intents(root.as_path(), OPEN_EXTENSION);
+    assert!(!old.exists(), "the claim of a landing that was killed is removed");
+    assert!(young.exists(), "a claim that may be a live landing's stays");
+    remove(root.as_path());
+}

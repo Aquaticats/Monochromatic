@@ -283,6 +283,15 @@ a plain message. No polling anywhere: clients block on the socket.
 ## Durability and crash recovery
 
 The journal directory holds one file per batch. States: absent (nothing happened), intent (synced), done (renamed).
+A batch's files are named by its number, and the number is taken from the journal (2026-11-03): the service starts counting at
+a clock reading in microseconds, then creates `<number>.claim` exclusively (`O_EXCL`) and skips a number that has a claim, an
+intent or a finished batch. Production gives each instance its own journal (`cli-git@.service`, `--journal %S/cli-git/service/%i`),
+so one service counts there alone; a development run and the binary controls give several services one journal, where two
+clock readings can be equal and a count that starts a few microseconds behind another's reaches the other's numbers after a few
+batches. Before the claim, two landings with one number wrote one intent over the other and one finished record over the other
+(`two_services_of_one_journal_never_number_their_batches_alike`), so a request that had landed was forgotten, and the shared
+`marks-<number>` file could hand one landing the other's commits. The claim file is removed when the landing ends, and one a
+killed service left is removed with the abandoned temporary files, once older than their grace.
 Recovery runs when the service starts, before it accepts connections:
 - Intent whose branch still equals the old value: the batch never landed; drop the intent. Clients re-send by id.
 - Intent whose branch equals the new value, or descends from it: the batch landed; redo the idempotent index update for

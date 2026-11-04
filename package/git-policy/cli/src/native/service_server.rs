@@ -12,7 +12,8 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
-use super::service_journal::{DONE_RETAINED, Recovery, landed_commits, prune_done};
+use super::service_journal::{BatchClaim, DONE_RETAINED, Recovery, claim_batch, landed_commits, prune_done};
+use super::service_land_follow::storage_failure;
 use super::service_index_lock::{Announce, unsettled_locks};
 use super::service_index_prestage::{PrestageGuard, start as start_prestage};
 use super::service_captures::CaptureMemory;
@@ -453,7 +454,21 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     let settling: Instant = Instant::now();
     let _settled = settle_open_batches(context, instance);
     let settle: Duration = settling.elapsed();
-    *seq += 1;
+    // The number is taken from the journal, not from this service's count alone: another service of the same journal may count
+    //  from the same clock reading, and two landings with one number would overwrite each other's records.
+    let claim: BatchClaim = match claim_batch(context.journal.as_path(), *seq + 1) {
+        Ok(claim) => claim,
+        Err(error) => {
+            let code: FailureCode = storage_failure(&error);
+            crate::service_error!("no batch number could be taken in {}: {error}", context.journal.display());
+            for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
+                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
+                log_answer(&unlanded, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
+            }
+            return;
+        }
+    };
+    *seq = claim.seq();
     for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
         stream.send(&ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
@@ -469,6 +484,8 @@ fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, grou
     let mut landing: LandTiming = LandTiming::default();
     let landing_began: Instant = Instant::now();
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
+    // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
+    drop(claim);
     let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
     match result {
         Ok(outcomes) => {
@@ -637,7 +654,8 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
     });
-    // Microseconds, so that instances started at nearly the same time do not number their batches alike in a shared journal.
+    // Microseconds, so that instances started at different times count from different numbers; the number each batch takes is
+    //  still claimed in the journal (`claim_batch`), because equal readings and counts that overtake another's are possible.
     let clock_seed: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
     let mut seq: u64 = super::service_fault::pinned_first_batch().unwrap_or(clock_seed);
     // The marker made ahead is removed whichever way this loop ends.
