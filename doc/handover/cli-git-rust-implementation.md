@@ -610,12 +610,33 @@ and each resume point is committed on its branch):
   two tests kill the `index_is_hardened` survivors,
   but the function has no production caller,
   so deleting it may beat testing it;
-  next:
-  `native:mutation:planted` with `GIT_POLICY_NATIVE_IMAGE_TAG` set to that gate's tag,
-  as its own capped unit (about 24 minutes),
-  and confirm both edited controls are noticed,
-  then rerun pass 2 of `service_durable.rs` and continue the 0.5.28 scope;
   resume point in `package/git-policy/cli/doc/planted-control-and-durable-survivors-resume.md` on that branch.
+- Mutation campaigns paused (2026-11-04 at about 07:40-05:00),
+  after the owner asked "We're not close to doing mutation runs though, right? Don't we still have a lot of things to fix before doing them?":
+  the commit design is still at step 1 (models only;
+  "Nothing past the red controls and the conflicted-file changes is built",
+  `doc/planning/cli-git-commits-never-fail.md`,
+  "Verification plan and build order"),
+  and its live protocol replaces the commit path,
+  whose directories hold most of the 0.5.28 scope (measured with `~/temp/agent/mutation-scope-overlap.ts` and a per-directory sum of `~/temp/agent/mutation-scope-0528.txt`:
+  of 14,758 changed lines in 160 files,
+  `index` 2,515,
+  `landing` 2,261,
+  `service` 1,098,
+  `lock` 828;
+  `merge` 2,571 also changes with the word-level pass;
+  the latency branch rewrites 7 more scope files holding 621 lines);
+  which of those files the live protocol rewrites is the coordinator's reading,
+  not measured.
+  The planted-control run started for the resume point (unit `mutctl-planted-0528b`) was stopped after its first control and its container removed.
+  Resume the campaign after the commit protocol is built and the lint-debt pass (task 88) lands:
+  first `native:mutation:planted` on that tree to show the two edited controls noticed,
+  then a fresh scope.
+  The planted-control branch still merges on its own (it fixes a crash on main:
+  `node bin/native-planted-controls.unit.test.ts` stops with ENOENT on the deleted `worktree_copy_lock.rs`).
+  Open:
+  `index_is_hardened` has no production caller,
+  so delete it rather than keep the two new tests (to decide when the branch merges).
 - No agent process or unit is left in any of the four worktrees (checked 2026-11-04 at about 07:35-05:00).
 - Decision record corrected (`05dc3800a8`,
   owner's "Correct it now."):
