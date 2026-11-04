@@ -326,19 +326,29 @@ fn a_live_service_holders_lock_is_never_taken_over() {
     let waiter = std::thread::spawn(move || {
         let lock = acquire(&waiter_index, 10, &|_| {}).expect("taken once the holder is gone");
         let _sent = finished.send(());
-        return lock;
+        drop(lock);
     });
     assert!(ended.recv_timeout(Duration::from_millis(600)).is_err(), "a live holder's lock was taken over");
     assert!(try_acquire(&index, 10).is_none());
     remove_stale(&index, 9);
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("stands"), marker_of_holder(9, pid, birth.as_str()));
     drop(holder);
+    // The removal of the stale lock wakes the waiting acquisition, which may take the lock before this one does: this one asks
+    //  again until the waiter has let go, and either way the waiter took the lock once the holder was gone.
     let unwaitable: Platform = Platform { watch: &|_| { return None; }, ..SYSTEM };
-    let lock = acquire_on(&unwaitable, &index, 11, &|_| {}).expect("taken once the holder is gone, without a wait");
+    let asking_until: Instant = Instant::now() + Duration::from_secs(30);
+    let lock = loop {
+        match acquire_on(&unwaitable, &index, 11, &|_| {}) {
+            Ok(taken) => break taken,
+            Err(failure) => {
+                assert!(Instant::now() < asking_until, "the lock was not taken once the holder was gone: {failure:?}");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    };
     drop(lock);
-    // The wait that was going on follows the release.
-    ended.recv_timeout(Duration::from_secs(30)).expect("the waiting acquisition took the lock once it was released");
-    drop(waiter.join().expect("waiter"));
+    ended.recv_timeout(Duration::from_secs(30)).expect("the waiting acquisition took the lock once the holder was gone");
+    waiter.join().expect("waiter");
     remove(root.as_path());
 }
 

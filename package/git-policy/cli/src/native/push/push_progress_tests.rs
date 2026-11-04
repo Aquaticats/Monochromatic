@@ -448,3 +448,24 @@ fn each_sign_of_work_counts_alone_and_nothing_counts_for_nothing() {
     assert!(meter.observe((200, 1), 0, 3, false), "a new process that has already used time");
     assert!(!meter.observe(key, 5, 1, false), "a counter that fell (a number reused) is not work");
 }
+
+/// A child that ends before the first sample interval has passed is never looked for among the machine's processes: the
+/// listing reads the status file of every process the host runs (841 files, 7 ms on this host at a load of 40, and more where
+/// more run), and the wrapper watches every Git it starts, a dozen to two dozen for one commit, most of them ended within
+/// ten milliseconds. The first look at a child that has just started needs only the child itself.
+#[test]
+fn a_child_that_has_just_started_is_looked_at_without_listing_the_machine() {
+    let root: std::path::PathBuf = fixture("progress-first-look");
+    let child: Child = shell("sleep 60", root.as_path());
+    let pid: u32 = child.id();
+    let mut clock: Clock = Clock::start(pid, Patience::Progress { stall: PATIENCE });
+    assert!(clock.measures(), "this system counts what a child moves, so the clock samples");
+    assert!(clock.check().is_none(), "a child that has just started is not stalled");
+    assert_eq!(clock.meter.as_ref().map(Meter::scans), Some(0), "the first look listed the machine's processes");
+    // Positive control: the clock does list the machine's processes once the sample interval has passed.
+    std::thread::sleep(SAMPLE_INTERVAL + LOOK);
+    assert!(clock.check().is_none(), "a child at work is not stalled");
+    assert_eq!(clock.meter.as_ref().map(Meter::scans), Some(1), "the next look, one interval later, lists them");
+    end(child);
+    remove(root.as_path());
+}

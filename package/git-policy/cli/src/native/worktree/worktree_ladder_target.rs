@@ -216,7 +216,7 @@ fn untracked_attribute_texts(source: &SnapshotSource, entries: &[ConfigEntry]) -
 /// ```ts
 /// await runStep(runGit, args, env);
 /// ```
-pub(super) fn run_step(run_git: &mut GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
+pub(crate) fn run_step(run_git: &mut GitRunner, arguments: &[OsString], environment: &[(OsString, OsString)]) -> Result<GitStatus, String> {
     return run_git(&GitStep::Other { arguments, environment }).map_err(|error| { return error.0; });
 }
 
@@ -229,7 +229,7 @@ pub(super) fn run_step(run_git: &mut GitRunner, arguments: &[OsString], environm
 /// ```ts
 /// const env = { GIT_DIR: gitDir, GIT_WORK_TREE: workTree };
 /// ```
-pub(super) fn checkout_environment(git_dir: &Path, work_tree: &Path) -> Vec<(OsString, OsString)> {
+pub(crate) fn checkout_environment(git_dir: &Path, work_tree: &Path) -> Vec<(OsString, OsString)> {
     return vec![(OsString::from("GIT_DIR"), git_dir.as_os_str().to_os_string()), (OsString::from("GIT_WORK_TREE"), work_tree.as_os_str().to_os_string())];
 }
 

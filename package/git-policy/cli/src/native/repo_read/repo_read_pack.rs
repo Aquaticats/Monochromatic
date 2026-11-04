@@ -29,6 +29,10 @@ const CACHE_BYTE_LIMIT: usize = 32 * 1024 * 1024;
 /// The bytes of the index header and fanout table: magic, version, 256 counts.
 const FANOUT_END: u64 = 8 + 256 * 4;
 
+/// How many pack entries every pack of this process decoded, for a control that compares the work of two ways to answer.
+#[cfg(test)]
+pub(crate) static DECODED_TOTAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// One open pack and its version 2 index.
 #[derive(Debug)]
 pub struct Pack {
@@ -50,6 +54,13 @@ pub struct Pack {
     cache: std::cell::RefCell<std::collections::HashMap<u64, RawObject>>,
     /// The bytes held in `cache`; once it passes `CACHE_BYTE_LIMIT` no entry is added.
     cached_bytes: std::cell::Cell<usize>,
+    /// How many reads of the index file the lookups made; a stand-in for the system calls a lookup costs.
+    index_reads: std::cell::Cell<u64>,
+    /// The names of each first byte already read from the index, by that byte, so a second lookup in the same bucket reads
+    ///  nothing: the lookups of one commit are many and spread over every first byte.
+    buckets: std::cell::RefCell<std::collections::HashMap<u8, std::rc::Rc<Vec<u8>>>>,
+    /// The bytes held in `buckets`; once it passes `CACHE_BYTE_LIMIT` no bucket is added.
+    bucket_bytes: std::cell::Cell<usize>,
 }
 
 /// Read exactly `length` bytes at `position`, or `None`.
@@ -57,12 +68,6 @@ fn read_at(file: &File, position: u64, length: usize) -> Option<Vec<u8>> {
     let mut buffer: Vec<u8> = vec![0; length];
     file.read_exact_at(buffer.as_mut_slice(), position).ok()?;
     return Some(buffer);
-}
-
-/// A big-endian `u32` at `position`.
-fn be32(file: &File, position: u64) -> Option<u32> {
-    let bytes: Vec<u8> = read_at(file, position, 4)?;
-    return Some(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
 }
 
 /// One delta size varint at `cursor`: seven bits per byte, low first.
@@ -148,14 +153,13 @@ impl Pack {
     pub fn open(index_path: &Path, hash_length: usize) -> Option<Pack> {
         let index: File = File::open(index_path).ok()?;
         let data: File = File::open(index_path.with_extension("pack")).ok()?;
-        let header: Vec<u8> = read_at(&index, 0, 8)?;
-        if header != b"\xfftOc\0\0\0\x02" {
+        // The header and the table of counts that follows it are one stretch of the file, read at once.
+        let table: Vec<u8> = read_at(&index, 0, FANOUT_END as usize)?;
+        let reads: u64 = 1;
+        if table[..8] != *b"\xfftOc\0\0\0\x02" {
             return None;
         }
-        let mut fanout: Vec<u32> = Vec::with_capacity(256);
-        for slot in 0..256_u64 {
-            fanout.push(be32(&index, 8 + slot * 4)?);
-        }
+        let fanout: Vec<u32> = table[8..].as_chunks::<4>().0.iter().map(|word| { return u32::from_be_bytes(*word); }).collect();
         if fanout.windows(2).any(|pair| { return pair[0] > pair[1]; }) {
             return None;
         }
@@ -172,12 +176,23 @@ impl Pack {
         if &pack_header[..4] != b"PACK" || !matches!(pack_header[7], 2 | 3) || pack_header[4..7] != [0, 0, 0] || u64::from(pack_count) != count {
             return None;
         }
-        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0) });
+        return Some(Pack { index, data, hash_length, count, data_length, fanout, decoded: std::cell::Cell::new(0), cache: std::cell::RefCell::default(), cached_bytes: std::cell::Cell::new(0), index_reads: std::cell::Cell::new(reads), buckets: std::cell::RefCell::default(), bucket_bytes: std::cell::Cell::new(0) });
     }
 
     /// How many entries of this pack were decoded (inflated, with their delta applied) since it was opened.
     pub fn decoded_entries(&self) -> u64 {
         return self.decoded.get();
+    }
+
+    /// How many times the lookups of this pack read the index file since it was opened.
+    pub fn index_reads(&self) -> u64 {
+        return self.index_reads.get();
+    }
+
+    /// `length` bytes of the index at `position`, counted as one read.
+    fn read_index(&self, position: u64, length: usize) -> Option<Vec<u8>> {
+        self.index_reads.set(self.index_reads.get() + 1);
+        return read_at(&self.index, position, length);
     }
 
     /// The pack offset of the object named `name`, or `None` when this pack does not hold it.
@@ -186,16 +201,35 @@ impl Pack {
             return None;
         }
         let first: usize = usize::from(name[0]);
-        let mut low: u64 = if first == 0 { 0 } else { u64::from(self.fanout[first - 1]) };
-        let mut high: u64 = u64::from(self.fanout[first]);
-        let names_at: u64 = FANOUT_END;
-        while low < high {
-            let middle: u64 = low + (high - low) / 2;
-            let candidate: Vec<u8> = read_at(&self.index, names_at + middle * self.hash_length as u64, self.hash_length)?;
-            match candidate.as_slice().cmp(name) {
-                std::cmp::Ordering::Equal => return self.offset_of(middle),
-                std::cmp::Ordering::Less => low = middle + 1,
-                std::cmp::Ordering::Greater => high = middle,
+        let low: u64 = if first == 0 { 0 } else { u64::from(self.fanout[first - 1]) };
+        let high: u64 = u64::from(self.fanout[first]);
+        if low >= high {
+            return None;
+        }
+        // The names that share the first byte lie side by side, so one read brings all of them and the search below
+        //  runs in memory; probing name by name cost a system call for each step of the search. The bucket is kept, because
+        //  the next lookup of the commit lands in one of 256 buckets and the same one again soon.
+        let kept: Option<std::rc::Rc<Vec<u8>>> = self.buckets.borrow().get(&name[0]).map(std::rc::Rc::clone);
+        let bucket: std::rc::Rc<Vec<u8>> = match kept {
+            Some(found) => found,
+            None => {
+                let read: std::rc::Rc<Vec<u8>> = std::rc::Rc::new(self.read_index(FANOUT_END + low * self.hash_length as u64, ((high - low) as usize) * self.hash_length)?);
+                if self.bucket_bytes.get() + read.len() <= CACHE_BYTE_LIMIT {
+                    self.bucket_bytes.set(self.bucket_bytes.get() + read.len());
+                    self.buckets.borrow_mut().insert(name[0], std::rc::Rc::clone(&read));
+                }
+                read
+            }
+        };
+        let mut left: usize = 0;
+        let mut right: usize = bucket.len() / self.hash_length;
+        while left < right {
+            let middle: usize = left + (right - left) / 2;
+            let candidate: &[u8] = &bucket[middle * self.hash_length..(middle + 1) * self.hash_length];
+            match candidate.cmp(name) {
+                std::cmp::Ordering::Equal => return self.offset_of(low + middle as u64),
+                std::cmp::Ordering::Less => left = middle + 1,
+                std::cmp::Ordering::Greater => right = middle,
             }
         }
         return None;
@@ -204,12 +238,13 @@ impl Pack {
     /// The pack offset stored for the `position`th name, following the large-offset table.
     fn offset_of(&self, position: u64) -> Option<u64> {
         let offsets_at: u64 = FANOUT_END + self.count * (self.hash_length as u64 + 4);
-        let word: u32 = be32(&self.index, offsets_at + position * 4)?;
+        let bytes_word: Vec<u8> = self.read_index(offsets_at + position * 4, 4)?;
+        let word: u32 = u32::from_be_bytes([bytes_word[0], bytes_word[1], bytes_word[2], bytes_word[3]]);
         if word & 0x8000_0000 == 0 {
             return Some(u64::from(word));
         }
         let large_at: u64 = offsets_at + self.count * 4 + u64::from(word & 0x7fff_ffff) * 8;
-        let bytes: Vec<u8> = read_at(&self.index, large_at, 8)?;
+        let bytes: Vec<u8> = self.read_index(large_at, 8)?;
         let mut array: [u8; 8] = [0; 8];
         array.copy_from_slice(bytes.as_slice());
         return Some(u64::from_be_bytes(array));
@@ -242,6 +277,8 @@ impl Pack {
             return None;
         }
         self.decoded.set(self.decoded.get() + 1);
+        #[cfg(test)]
+        DECODED_TOTAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         // Room for the size and distance varints and, for a `REF_DELTA`, the base name that follows them.
         let head: Vec<u8> = read_at(&self.data, offset, (32 + self.hash_length).min((self.data_length - offset) as usize))?;
         let mut cursor: usize = 0;

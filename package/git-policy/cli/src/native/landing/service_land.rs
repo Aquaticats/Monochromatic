@@ -14,15 +14,22 @@
 
 use crate::journald_native::Priority;
 use crate::service_fault::reach;
-use crate::service_head::still_checked_out;
-use crate::service_instance::instance_of;
+use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
-use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, Recovery, OPEN_EXTENSION, Started, indexed_state, list_intents, mark_done, mark_indexed, read_start, recovery_for, remove_start, write_intent, write_start};
-use crate::service_land_start::split_by_start;
-use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within, remove_stale, try_acquire};
+use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
+pub use crate::service_land_finish::{RecoveryReport, recover, recover_instance};
+#[cfg(test)]
+use crate::service_land_finish::follow_up;
+#[cfg(test)]
+use crate::service_journal::{Recovery, list_intents};
+#[cfg(test)]
+use crate::service_index_lock::try_acquire;
+use crate::service_land_finish::finish_after_move;
+use crate::service_land_start::witness_of;
+use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
 use crate::service_timing::{LandTiming, wait_line};
-use crate::autostash_carry::carry_stages;
-use crate::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
+use crate::config_snapshot::read_config_snapshot;
+use crate::service_land_follow::{classify, storage_failure};
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use std::collections::{BTreeSet, HashMap};
@@ -178,37 +185,6 @@ fn commits_from_marks(text: &str, count: usize) -> Option<Vec<String>> {
     return commits.into_iter().collect();
 }
 
-/// The index entries a batch's intent names.
-fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
-    return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Listed(intent.paths.as_slice()) };
-}
-
-/// Removes the conclusion state a landed batch leaves, when it has one. Whether it is gone.
-fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent) -> bool {
-    return intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
-}
-
-/// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
-///  idempotent, and they are recorded apart: the installed index is recorded in the journal while the lock is still held
-///  (`<batch>.indexed`), so a restart never replays the index update over what another program staged after the lock was given
-///  up, whether or not the conclusion state could be removed. Whether both are done.
-fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock, journal: &Path) -> bool {
-    let cleaned: bool = cleanup_done(git, repository, intent);
-    // The new index is built beside the real one and installed by the release of the lock the landing holds.
-    let Ok(built) = build_index(git, repository, intent.new.as_str(), intent_paths(intent), &lock, intent.seq) else {
-        return false;
-    };
-    // The files a conflicted autostash apply left unmerged are unmerged in the index the landing installs.
-    if let Some(cleanup) = intent.cleanup.as_ref()
-        && !carry_stages(git, repository, cleanup, built.path())
-    {
-        // The private copy goes with `built`, which is dropped here.
-        return false;
-    }
-    let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
-    return lock.release_with_record(built.path(), &recorded).is_ok() && cleaned;
-}
-
 /// What:
 ///  Lands a batch of requests that share a repository, a common git directory and a branch.
 /// Why:
@@ -257,6 +233,15 @@ pub fn land_batch_timed(
     announce: &dyn Fn(Announce),
     timing: &mut LandTiming,
 ) -> Result<Vec<Outcome>, FailureCode> {
+    // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
+    //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
+    //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
+    let hardens_index: bool = requests
+        .first()
+        .and_then(|first| { return read_config_snapshot(&context.git, first.repository.as_path()); })
+        .and_then(|snapshot| { return snapshot.hardens_index(); })
+        .unwrap_or(true);
+    let deferral = crate::service_durable::begin(hardens_index);
     let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
@@ -272,6 +257,8 @@ pub fn land_batch_timed(
             let _deleted = run(&git, first.repository.as_path(), &["update-ref", "-d", scratch.as_str()], None);
         }
     }
+    let published: bool = result.as_ref().is_ok_and(|outcomes| { return outcomes.iter().any(|outcome| { return matches!(outcome, Outcome::Landed { .. }); }); });
+    deferral.settle(published);
     return result;
 }
 
@@ -308,7 +295,10 @@ fn land_batch_body(
     let unborn: bool = is_zero_object(first.base.as_str());
     loop {
         timing.attempts += 1;
-        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", first.reference.as_str()], None) {
+        // The commit the branch names, asked in the one spelling the in-process readers answer (`<ref>^{commit}`), so the question
+        //  starts no Git; for a branch, which only ever names a commit, the answer is the same as for the bare name.
+        let branch_commit: String = format!("{}^{{commit}}", first.reference);
+        let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None) {
             Ok(found) => found,
             Err(_) if unborn => first.base.clone(),
             Err(code) => return Err(code),
@@ -484,27 +474,27 @@ fn land_batch_body(
                 Err(code) => Err(code),
             };
         }
-        // The entries of the paths now, under the lock, are what a replay of this batch compares before it resets a path. A commit
-        //  Git built lists its paths only when it is finished, so it records none, and neither does an index this cannot read: a
-        //  replay of such a batch resets every path, as it did before the record existed.
-        if !derived {
-            let names: Vec<Vec<u8>> = intent.paths.iter().map(|path| { return path.as_bytes().to_vec(); }).collect();
-            match crate::index_reset_file::read_entries(first.index.as_path(), new.len(), names.as_slice()) {
-                Some(entries) => {
-                    if let Err(error) = write_start(context.journal.as_path(), seq, entries.as_slice()) {
-                        crate::service_error!("batch {seq}: the entries the index update starts from could not be recorded ({error}); a replay would reset every path");
-                    }
+        // The index file now, under the lock, is what a replay of this batch must still find before it resets a path: a replay is
+        //  made only over the file the landing saw. It is recorded for a commit Git built as for any other, since the witness
+        //  needs no list of paths. A record that cannot be written leaves a batch no replay is made for, and this landing
+        //  still updates the index itself while it holds the lock.
+        match witness_of(first.index.as_path()) {
+            Ok(witness) => {
+                if let Err(error) = write_start(context.journal.as_path(), seq, &witness) {
+                    crate::service_error!("batch {seq}: the index file the landing saw could not be recorded ({error}); a restart will not replay the index update");
                 }
-                None => crate::service_log!("batch {seq}: the index is a form the entries are not read from; a replay would reset every path"),
             }
+            Err(error) => crate::service_error!("batch {seq}: the index file cannot be looked at ({error}); a restart will not replay the index update"),
         }
         reach("before-ref");
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
-        // A detached head is the `HEAD` file itself: it is updated without following a symbolic reference, so a head that
-        //  became a branch since the commit was prepared fails the compare instead of moving that branch.
-        let direct: &str = if first.reference == "HEAD" { "option no-deref\n" } else { "" };
-        let transaction: String = format!("start\n{direct}update {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
+        // A detached head is the `HEAD` file itself and is updated as such. The update follows a symbolic `HEAD` as native Git's
+        //  own commit does, because a compare that does not follow it replaces a head attached to a branch since the last look
+        //  (measured: `option no-deref` with `update HEAD <new> <old>` replaced `ref: refs/heads/B` at the old name with the
+        //  detached new one). A head that became a branch at another value fails the compare; at the same value the branch it
+        //  names takes the commit, and the head is read again below.
+        let transaction: String = format!("start\nupdate {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
         let ref_began: Instant = Instant::now();
         let ran = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()));
         timing.ref_update += ref_began.elapsed();
@@ -549,27 +539,17 @@ fn land_batch_body(
         reach("after-ref");
         // Git refuses a `symref-verify HEAD` beside an update of the branch `HEAD` names, so a switch after the last check cannot
         //  be caught inside the transaction. The head is read again with the lock held: a worktree that left the branch keeps
-        //  its own index, and the commits stay on the branch they were made for.
-        let on_branch: Result<bool, FailureCode> = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str());
-        if on_branch != Ok(true) {
-            drop(held);
-            if on_branch == Ok(false) {
-                let _marked = mark_done(context.journal.as_path(), seq);
-            }
-            timing.hold += hold_began.elapsed();
-            for (slot, (index, _request)) in landing.iter().enumerate() {
-                outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
-            }
-            return Ok(outcomes);
-        }
+        //  its own index, and the commits stay on the branch they were made for. A switch after this look is the state native
+        //  Git leaves too (`git commit` then `git symbolic-ref HEAD <other>`): the index describes the commit made.
+        let followed: Result<bool, FailureCode> = follows_move(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str(), new.as_str());
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let sync_began: Instant = Instant::now();
-        let synced: bool = follow_up(&git, repository, &intent, held, context.journal.as_path());
+        let settled: bool = finish_after_move(&git, &intent, held, context.journal.as_path(), followed);
         timing.sync += sync_began.elapsed();
         timing.hold += hold_began.elapsed();
-        if synced {
+        if settled {
             reach("after-index");
-            let _marked = mark_done(context.journal.as_path(), seq);
+            let _marked = crate::service_journal::mark_done(context.journal.as_path(), seq);
         }
         for (slot, (index, _request)) in landing.iter().enumerate() {
             outcomes[*index] = Outcome::Landed { commit: commits[slot].clone() };
@@ -578,151 +558,17 @@ fn land_batch_body(
     }
 }
 
-/// One thing a restart did, for the service's log.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RecoveryReport {
-    /// The batch.
-    pub seq: u64,
-    /// What was decided.
-    pub decision: Recovery,
-}
-
-/// What:
-///  Finishes or drops every batch the journal holds open.
-/// Why:
-///   Runs before the service accepts a connection, and again before each batch (`service_server.rs`), so an index update
-///  that gave up while another program held Git's index lock is finished by the next commit and not only by a restart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await recover(context)
-/// ```
-pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
-    return recover_selected(context, &|_| { return true; }, true);
-}
-
-/// What:
-///  Finishes or drops the open batches of the worktree one instance serves, found in a journal that other worktrees' batches
-///  may share.
-/// Why:
-///   The single service of the releases before one service per worktree kept one journal for every worktree, in the directory
-///  above each instance's own, and an instance takes over the batches of its worktree there (found by the Git directory the
-///  intent records, which an index outside it, as `GIT_INDEX_FILE` names one, cannot change; an intent that records none is
-///  resolved from its repository). A development run may also give several instances one journal. Whatever belongs to
-///  another worktree is left to its instance, and a record that cannot be read is not any instance's to remove.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await recoverInstance(context, instance)
-/// ```
-pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
-    let ours = |intent: &Intent| -> bool { return instance_of(intent.git_dir.as_path()) == instance; };
-    return recover_selected(context, &ours, false);
-}
-
-/// What:
-///  The intent a replay runs: only the paths whose index entries are still what the landing started from.
-/// Why:
-///   An index update that never installed is replayed after the lock was given up, so another session may have staged into the
-///  same paths. Such a path is left as that session left it and a one-line notice says so; the rest are finished. A batch with
-///  no start record (an older one, a commit Git built, or an index form the entries are not read from) replays every path, as
-///  before the record existed. A record or an index that cannot be read stops the replay, and the batch stays open.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const replay = replayable(journal, intent) // undefined: leave the batch open
-/// ```
-fn replayable(journal: &Path, intent: &Intent) -> Option<Intent> {
-    if intent.derived {
-        return Some(intent.clone());
-    }
-    let recorded = match read_start(journal, intent.seq) {
-        Started::Absent => return Some(intent.clone()),
-        Started::Unreadable => {
-            crate::service_error!("batch {} stays open: the entries its index update started from cannot be read", intent.seq);
-            return None;
-        }
-        Started::Recorded(entries) => entries,
-    };
-    let names: Vec<Vec<u8>> = intent.paths.iter().map(|path| { return path.as_bytes().to_vec(); }).collect();
-    let Some(current) = crate::index_reset_file::read_entries(intent.index.as_path(), intent.new.len(), names.as_slice()) else {
-        crate::service_error!("batch {} stays open: the index cannot be read to compare its entries with those the update started from", intent.seq);
-        return None;
-    };
-    let (unchanged, changed) = split_by_start(recorded.as_slice(), current.as_slice(), names.as_slice());
-    for name in &changed {
-        crate::service_log!("batch {}: {} was staged after the landing started and is left as it is", intent.seq, String::from_utf8_lossy(name));
-    }
-    let mut replay: Intent = intent.clone();
-    replay.paths = unchanged.iter().map(|name| { return String::from_utf8_lossy(name).into_owned(); }).collect();
-    return Some(replay);
-}
-
-fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, remove_unreadable: bool) -> Vec<RecoveryReport> {
-    let mut reports: Vec<RecoveryReport> = Vec::new();
-    for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
-        let Some(intent) = parsed else {
-            if remove_unreadable {
-                let _removed = std::fs::remove_file(&path);
-            }
-            continue;
-        };
-        if !selected(&intent) {
-            continue;
-        }
-        let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
-        let current: String = checked(&git, intent.repository.as_path(), &["rev-parse", "--verify", intent.reference.as_str()], None).unwrap_or_default();
-        let ancestor: bool = run(&git, intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current.as_str()], None)
-            .is_ok_and(|output| { return output.succeeded(); });
-        let decision: Recovery = recovery_for(&intent, current.as_str(), ancestor);
-        match decision {
-            Recovery::Drop => {
-                remove_stale(intent.index.as_path(), intent.seq);
-                let _removed = std::fs::remove_file(&path);
-                let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
-                remove_start(context.journal.as_path(), intent.seq);
-            }
-            Recovery::Finish => {
-                remove_stale(intent.index.as_path(), intent.seq);
-                // A worktree that has since switched away from the batch's branch has a default index that describes another
-                //  branch: the branch has its commit, so that index is not updated. An index kept in another file belongs to no
-                //  branch and is still finished, and the conclusion state is removed either way; the batch is done when both are.
-                let own_index: bool = intent.index == intent.git_dir.join("index");
-                if own_index && still_checked_out(&git, intent.repository.as_path(), intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) == Ok(false) {
-                    if cleanup_done(&git, intent.repository.as_path(), &intent) {
-                        let _marked = mark_done(context.journal.as_path(), intent.seq);
-                    }
-                } else {
-                    match indexed_state(context.journal.as_path(), intent.seq, intent.new.as_str()) {
-                        // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
-                        Indexed::Installed => {
-                            if cleanup_done(&git, intent.repository.as_path(), &intent) {
-                                let _marked = mark_done(context.journal.as_path(), intent.seq);
-                            }
-                        }
-                        // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
-                        Indexed::Unreadable => {
-                            crate::service_error!("batch {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq);
-                            continue;
-                        }
-                        Indexed::Absent => {
-                            if let Some(held) = try_acquire(intent.index.as_path(), intent.seq)
-                                && let Some(replay) = replayable(context.journal.as_path(), &intent)
-                                && follow_up(&git, intent.repository.as_path(), &replay, held, context.journal.as_path())
-                            {
-                                let _marked = mark_done(context.journal.as_path(), intent.seq);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        reports.push(RecoveryReport { seq: intent.seq, decision });
-    }
-    return reports;
-}
-
 /// Landing controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_tests.rs"]
 mod tests;
+
+/// Controls for a replay over the index the landing saw stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_witness_tests.rs"]
+mod witness_tests;
+
+/// Controls for the worktree's head around a landing stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_head_tests.rs"]
+mod head_tests;

@@ -42,8 +42,9 @@ pub use crate::service_index_watch::{events_end_watch, events_name};
 pub use crate::service_index_placement::{Platform, SYSTEM, placement_failure_text};
 pub use crate::service_index_staging::{STAGED_INFIX, staged_path_for};
 pub use crate::service_index_watch::Watch;
-use crate::service_index_marker::{holder_is_gone, is_reclaimable, marker_of};
+use crate::service_index_marker::is_reclaimable;
 use crate::service_index_placement::{log_placement_failure, place_marked, reclaim};
+pub use crate::service_index_reclaim::remove_stale;
 use crate::service_index_staging::{refresh_age, remove_dead_staging, stage_marker_synced};
 
 /// How often the holder's notice is repeated while the wait lasts.
@@ -294,22 +295,10 @@ fn acquire_placing(
     return Ok(IndexLock::placed(lock, index, marker, held, (platform.inspect, platform.release)));
 }
 
-/// What:
-///  Removes an index lock left by a service that was killed, when it still carries the service's marker for `seq` and its
-///  holder is gone.
-/// Why:
-///   Only the marker proves the lock is ours; a foreign lock, one a Git holds, or one whose holder still runs is never touched.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// removeStaleLock(index, seq)
-/// ```
-pub fn remove_stale(index: &Path, seq: u64) {
-    let lock: PathBuf = lock_path_of(index);
-    if marker_of(lock.as_path()).is_some_and(|marked| { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); }) {
-        let _removed = std::fs::remove_file(&lock);
-    }
-}
+/// Controls for the removal of a stale lock stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_reclaim_tests.rs"]
+mod reclaim_tests;
 
 /// Index lock controls stay out of the release executable.
 #[cfg(test)]

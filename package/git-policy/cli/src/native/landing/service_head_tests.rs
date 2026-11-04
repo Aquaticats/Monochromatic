@@ -12,7 +12,7 @@ fn a_symbolic_head_names_its_branch() {
 /// An object name is a detached head.
 #[test]
 fn an_object_name_is_a_detached_head() {
-    assert_eq!(interpret("0123456789abcdef0123456789abcdef01234567\n"), HeadFile::Detached);
+    assert_eq!(interpret("0123456789abcdef0123456789abcdef01234567\n"), HeadFile::Detached(String::from("0123456789abcdef0123456789abcdef01234567")));
 }
 
 /// The reftable placeholder and an empty file say nothing, so Git is asked.

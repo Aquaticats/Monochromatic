@@ -13,7 +13,7 @@
 //! ```
 
 use crate::repo_read_layout::dot_git_target;
-use crate::service_land_start::{StartEntry, decode, encode};
+use crate::service_land_start::{IndexWitness, decode, encode};
 use crate::service_protocol::Cleanup;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -28,6 +28,10 @@ pub const DONE_EXTENSION: &str = "done";
 
 /// Extension of a file being written; never read as an intent.
 const TEMPORARY_EXTENSION: &str = "tmp";
+
+/// Extension of the empty file that holds a batch number for the service landing it, from the moment the number is taken until
+///  the landing ends; never read as an intent.
+pub const CLAIM_EXTENSION: &str = "claim";
 
 /// How old a temporary file must be before a listing treats it as the remains of a killed write and removes it. A write takes
 ///  milliseconds; the grace covers a writer stalled on a slow disk or a loaded host. Measured: the longest journal write step of
@@ -189,6 +193,72 @@ pub fn batch_path(dir: &Path, seq: u64, extension: &str) -> PathBuf {
     return dir.join(format!("{seq}.{extension}"));
 }
 
+/// A batch number held for one landing; the number is free to take again when this goes out of scope.
+#[derive(Debug)]
+pub struct BatchClaim {
+    seq: u64,
+    path: PathBuf,
+}
+
+impl BatchClaim {
+    /// The number this claim holds.
+    pub fn seq(&self) -> u64 {
+        return self.seq;
+    }
+}
+
+/// The claim file goes with the landing, whichever way it ended; the intent (or the finished batch) keeps the number taken.
+impl Drop for BatchClaim {
+    fn drop(&mut self) {
+        let _removed = fs::remove_file(&self.path);
+    }
+}
+
+/// Whether the journal already holds a record under the number: an open intent or a finished batch.
+fn number_has_record(dir: &Path, seq: u64) -> bool {
+    return batch_path(dir, seq, OPEN_EXTENSION).exists() || batch_path(dir, seq, DONE_EXTENSION).exists();
+}
+
+/// What:
+///  Takes the first batch number from `first` up that no landing in the journal holds or has held, and holds it.
+/// Why:
+///   Services that share a journal count from clock readings, which can be equal, and a count that starts a few microseconds
+///  behind another's reaches the other's numbers after a few batches. A batch's files are named by its number, so two landings
+///  with one number would write one intent over the other and one finished record over the other, and a request that landed
+///  would be forgotten. The file is created with `O_EXCL`, so exactly one service owns a number; a number with an intent or a
+///  finished batch is skipped too, as the claim of a landing that has ended is gone while its record stays. The loop ends
+///  because the journal holds finitely many files and each pass moves to a number past one it holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let seq = first
+/// while (!(await createExclusive(claimPath(dir, seq))) || hasRecord(dir, seq)) seq += 1 // removes its own claim when it skips
+/// return claim(seq)
+/// ```
+///
+/// # Errors
+///
+/// The error of a claim file that cannot be created for a reason other than the number being held.
+pub fn claim_batch(dir: &Path, first: u64) -> std::io::Result<BatchClaim> {
+    let mut seq: u64 = first;
+    loop {
+        let path: PathBuf = batch_path(dir, seq, CLAIM_EXTENSION);
+        match File::options().write(true).create_new(true).open(&path) {
+            Ok(_created) => {
+                let claim: BatchClaim = BatchClaim { seq, path };
+                if !number_has_record(dir, seq) {
+                    return Ok(claim);
+                }
+                // A landing that ended left its record under this number and took its claim away: the number is not free.
+                drop(claim);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+        seq = seq.checked_add(1).ok_or_else(|| { return std::io::Error::other("the journal holds every batch number"); })?;
+    }
+}
+
 /// What:
 ///  Writes an intent durably: the file is synced, renamed into place, and the directory is synced.
 /// Why:
@@ -202,9 +272,9 @@ pub fn write_intent(dir: &Path, intent: &Intent) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, intent.seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
     file.write_all(intent_text(intent).as_bytes())?;
-    file.sync_all()?;
+    crate::service_durable::flush_file(&file, "intent-file")?;
     fs::rename(&temporary, batch_path(dir, intent.seq, OPEN_EXTENSION))?;
-    return File::open(dir)?.sync_all();
+    return crate::service_durable::flush_directory(dir, "intent-dir");
 }
 
 /// The extension of the record that a batch's index update is installed.
@@ -225,50 +295,52 @@ pub fn mark_indexed(dir: &Path, seq: u64, new: &str) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
     file.write_all(format!("{new}\n").as_bytes())?;
-    file.sync_all()?;
+    crate::service_durable::flush_file(&file, "indexed-file")?;
     fs::rename(&temporary, batch_path(dir, seq, INDEXED_EXTENSION))?;
     crate::service_fault::note("indexed-recorded");
-    return File::open(dir)?.sync_all();
+    return crate::service_durable::flush_directory(dir, "indexed-dir");
 }
 
-/// The extension of the record of the index entries a batch started from.
+/// The extension of the record of the live index file a batch started from.
 pub const START_EXTENSION: &str = "start";
 
 /// What:
-///  Records durably the entries of the batch's index paths as the landing found them under the index lock.
+///  Records the witness of the live index file as the landing found it under the index lock.
 /// Why:
-///   A replay of the batch resets only the paths still at these entries, so what another session staged since is not
-///  overwritten. It is written after the lock is held and before the branch moves.
+///   A replay of the batch is made only over an index that is still this file (`service_land_start.rs`), so what another session
+///  staged since is never overwritten. It is written after the lock is held and before the branch moves. It is not synced: a
+///  power loss that loses it leaves a batch with no record, which no replay is made for, and a record that is lost is the safe
+///  side, so the landing does not wait for the disk for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeStart(dir, seq, entries)
+/// await writeStart(dir, seq, witness)
 /// ```
-pub fn write_start(dir: &Path, seq: u64, entries: &[StartEntry]) -> std::io::Result<()> {
+pub fn write_start(dir: &Path, seq: u64, witness: &IndexWitness) -> std::io::Result<()> {
     let temporary: PathBuf = batch_path(dir, seq, TEMPORARY_EXTENSION);
     let mut file: File = File::create(&temporary)?;
-    file.write_all(format!("{}\n", encode(entries)).as_bytes())?;
-    file.sync_all()?;
-    fs::rename(&temporary, batch_path(dir, seq, START_EXTENSION))?;
-    return File::open(dir)?.sync_all();
+    file.write_all(format!("{}\n", encode(witness)).as_bytes())?;
+    return fs::rename(&temporary, batch_path(dir, seq, START_EXTENSION));
 }
 
 /// What a batch's start record says.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Started {
-    /// No record: an older batch, or one whose entries could not be read.
+    /// No usable record: an older batch, a landing that could not write one, or a record that is damaged. No replay is made.
     Absent,
-    /// The entries the landing started from.
-    Recorded(Vec<StartEntry>),
-    /// A record exists and cannot be read.
+    /// The index file the landing started from.
+    Recorded(IndexWitness),
+    /// A record exists and cannot be read now, so nothing is decided.
     Unreadable,
 }
 
-/// The start record of the batch `seq`; only a missing file is no record.
+/// The start record of the batch `seq`; a missing file or damaged text is no record, and a file that cannot be read now is
+///  unreadable.
 pub fn read_start(dir: &Path, seq: u64) -> Started {
     return match fs::read_to_string(batch_path(dir, seq, START_EXTENSION)) {
-        Ok(text) => decode(text.trim_end_matches('\n')).map_or(Started::Unreadable, Started::Recorded),
+        Ok(text) => decode(text.trim_end_matches('\n')).map_or(Started::Absent, Started::Recorded),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Started::Absent,
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Started::Absent,
         Err(_) => Started::Unreadable,
     };
 }
@@ -320,8 +392,7 @@ pub fn indexed_state(dir: &Path, seq: u64, new: &str) -> Indexed {
 /// ```
 pub fn mark_done(dir: &Path, seq: u64) -> std::io::Result<()> {
     fs::rename(batch_path(dir, seq, OPEN_EXTENSION), batch_path(dir, seq, DONE_EXTENSION))?;
-    File::open(dir)?.sync_all()?;
-    crate::service_fault::note("sync-journal-dir");
+    crate::service_durable::flush_directory(dir, "journal-dir")?;
     crate::service_fault::note("remove-indexed");
     let _record_removed = fs::remove_file(batch_path(dir, seq, INDEXED_EXTENSION));
     remove_start(dir, seq);
@@ -346,9 +417,9 @@ pub fn list_intents(dir: &Path, extension: &str) -> Vec<(PathBuf, Option<Intent>
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         match path.extension().and_then(|text| { return text.to_str(); }) {
-            Some(TEMPORARY_EXTENSION) => {
-                // Only the remains of a write that was killed: a younger file may be another instance's write in progress,
-                //  and removing it would fail that instance's rename.
+            Some(TEMPORARY_EXTENSION | CLAIM_EXTENSION) => {
+                // Only the remains of a write or a landing that was killed: a younger file may be another instance's write in
+                //  progress, and removing it would fail that instance's rename or hand its number to a second landing.
                 let abandoned: bool = entry
                     .metadata()
                     .and_then(|meta| { return meta.modified(); })

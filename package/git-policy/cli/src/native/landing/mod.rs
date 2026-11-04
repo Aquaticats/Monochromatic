@@ -132,3 +132,14 @@ pub mod service_head;
 
 /// How a commit headed for the service notices that its prepared content was removed before it landed.
 pub mod service_pruned;
+
+/// Where the landing's own syncs wait: queued for a background thread when the landing publishes, made before return otherwise.
+pub mod service_durable;
+
+pub mod service_land_finish;
+
+/// The removal of a stale index lock, by a rename and a second look.
+pub mod service_index_reclaim;
+
+/// Whether a new index file holds the live index's bytes.
+pub mod service_index_same;

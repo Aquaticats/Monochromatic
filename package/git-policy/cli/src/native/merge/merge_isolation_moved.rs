@@ -42,7 +42,7 @@ use std::path::Path;
 /// ```ts
 /// async function settleMovedBranch({ place, record, intent, movedTo }): Promise<'branch-moved'>;
 /// ```
-pub(super) fn settle_moved_branch(
+pub(crate) fn settle_moved_branch(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,

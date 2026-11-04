@@ -178,6 +178,9 @@ pub struct Meter {
     socket_moved: u64,
     /// Whether the last sample found a process of the tree holding a connected socket.
     connected: bool,
+    /// How many times a sample listed the processes of the whole machine to find the tree; a stand-in for the cost of a
+    ///  sample, which grows with the number of processes the machine runs.
+    scans: u64,
 }
 
 /// What a push that waits for its remote with the connection open has shown, once it has been silent for the stall window.
@@ -198,6 +201,11 @@ impl Meter {
     /// Every byte the tree has moved so far, on its pipes and files and on its connected sockets.
     pub fn moved(&self) -> u64 {
         return self.moved.saturating_add(self.socket_moved);
+    }
+
+    /// How many samples listed the machine's processes to find the tree.
+    pub fn scans(&self) -> u64 {
+        return self.scans;
     }
 
     /// Every byte the tree's connected sockets have sent (acknowledged) or received since the first sample.
@@ -254,8 +262,24 @@ impl Meter {
     /// Read the counters and the states of the root and everything below it; true when any of them shows work since the last
     ///  sample. A root that cannot be read (it ended) shows nothing.
     pub fn sample(&mut self, root: i32) -> bool {
+        return self.look(root, true);
+    }
+
+    /// The first look at a child that has just been started: the root alone.
+    ///  Nothing is below a process that has just been started, and a process it starts later is found by the next sample and
+    ///  counted at the first sight, so the listing of every process the machine runs (a status file for each, 7 ms for 841
+    ///  processes) would find nothing and be paid by every Git the wrapper starts, however briefly it lives.
+    pub fn sample_root(&mut self, root: i32) -> bool {
+        return self.look(root, false);
+    }
+
+    /// One look at the root, and at everything below it when `whole_tree` asks for it.
+    fn look(&mut self, root: i32, whole_tree: bool) -> bool {
         let mut members: Vec<TreeMember> = member_of(root).into_iter().collect();
-        members.extend(descendants_of(root));
+        if whole_tree {
+            self.scans += 1;
+            members.extend(descendants_of(root));
+        }
         let mut progressed: bool = false;
         for member in &members {
             let bytes: Option<u64> = bytes_moved_by(member.pid);
@@ -308,6 +332,8 @@ pub struct Clock {
     /// The longest stretch between two samples that showed a sign of work, as far as the samples saw (the resolution is
     ///  `SAMPLE_INTERVAL`); a connected wait is not a quiet stretch.
     longest_quiet: Duration,
+    /// Whether the first look, which is of the root alone, has been taken.
+    looked: bool,
     /// Whether a system that counts nothing falls back to the stall window as a fixed deadline; a run that must never end by
     ///  wall time clears it and then goes unjudged where nothing is counted.
     wall_fallback: bool,
@@ -326,6 +352,7 @@ impl Clock {
             started: now,
             last_progress: now,
             next_sample: now,
+            looked: false,
             meter: if measured { Some(Meter::new()) } else { None },
             waiting_since: None,
             waited: None,
@@ -399,7 +426,9 @@ impl Clock {
             return (self.wall_fallback && elapsed >= stall).then_some(StopCause::Deadline);
         };
         if now >= self.next_sample {
-            if meter.sample(self.root) {
+            let progressed: bool = if self.looked { meter.sample(self.root) } else { meter.sample_root(self.root) };
+            self.looked = true;
+            if progressed {
                 self.longest_quiet = self.longest_quiet.max(now.saturating_duration_since(self.last_progress));
                 self.last_progress = now;
                 self.waiting_since = None;

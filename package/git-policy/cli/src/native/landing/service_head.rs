@@ -21,8 +21,8 @@ use std::path::Path;
 enum HeadFile {
     /// The head names this reference.
     Branch(String),
-    /// The head holds an object name: no branch is checked out.
-    Detached,
+    /// The head holds this object name: no branch is checked out.
+    Detached(String),
     /// The file cannot answer: a repository that keeps references in tables stores a placeholder here.
     Unreadable,
 }
@@ -37,7 +37,7 @@ fn interpret(text: &str) -> HeadFile {
         Some(reference) if reference == REFTABLE_PLACEHOLDER => HeadFile::Unreadable,
         Some(reference) => HeadFile::Branch(reference.to_string()),
         None if line.is_empty() => HeadFile::Unreadable,
-        None => HeadFile::Detached,
+        None => HeadFile::Detached(line.to_string()),
     };
 }
 
@@ -65,6 +65,61 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
 }
 
 /// What:
+///  The reference `HEAD` names when Git is asked in `repository`, and nothing when `HEAD` is detached.
+/// Why:
+///   `git symbolic-ref --quiet HEAD` ends with status 1 for a detached head and with other statuses (128 for a repository it
+///  cannot read, a failed read of the files) for a question it could not answer. Only status 1 is a detached head: any other
+///  failure is no answer, and a landing that treated it as one would move a branch for a worktree whose head it never saw.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named: string | undefined = await symbolicHead(git, repository) // throws when Git cannot say
+/// ```
+///
+/// # Errors
+///
+/// `Unavailable` when Git cannot be started or ends with a status other than 0 and 1.
+fn symbolic_head(git: &GitContext, repository: &Path) -> Result<Option<String>, FailureCode> {
+    let output = run_git(git, &GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"])).map_err(|_| { return FailureCode::Unavailable; })?;
+    return match output.code {
+        Some(0) => Ok(Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string())),
+        Some(1) => Ok(None),
+        _ => Err(FailureCode::Unavailable),
+    };
+}
+
+/// What:
+///  Whether the worktree's head, after a commit moved `reference` to `new`, still shows that commit: the branch for a named
+///  branch, and for a commit on `HEAD` either a detached head at `new` or the branch the head names now, when it is at `new`.
+/// Why:
+///   The update of a detached head follows a head that was attached to a branch since the last look, as native Git's commit does,
+///  so the commit may have gone to the branch the head names. The index is updated for a head that shows the commit, whichever
+///  way it shows it, and left alone for a head that shows another commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shows = await followsMove(git, { repository, gitDir, commonDir }, reference, newCommit)
+/// ```
+///
+/// # Errors
+///
+/// The failure code when Git must be asked and cannot answer.
+pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str, new: &str) -> Result<bool, FailureCode> {
+    if reference != "HEAD" {
+        return head_names(git, repository, git_dir, common_dir, reference);
+    }
+    if let HeadFile::Detached(value) = head_file(git_dir, common_dir) {
+        return Ok(value == new);
+    }
+    let output = run_git(git, &GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"])).map_err(|_| { return FailureCode::Unavailable; })?;
+    return match output.code {
+        Some(0) => Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim() == new),
+        Some(1) => Ok(false),
+        _ => Err(FailureCode::Unavailable),
+    };
+}
+
+/// What:
 ///  Whether the head of the worktree whose Git directory is `git_dir` names `reference`.
 /// Why:
 ///   The file is read when it is that worktree's own, and Git is asked (in the worktree) when it cannot answer (a repository
@@ -77,11 +132,13 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
 pub fn head_names(git: &GitContext, repository: &Path, git_dir: &Path, common_dir: &Path, reference: &str) -> Result<bool, FailureCode> {
     match head_file(git_dir, common_dir) {
         HeadFile::Branch(named) => return Ok(named == reference),
-        HeadFile::Detached => return Ok(false),
+        HeadFile::Detached(_) => return Ok(false),
         HeadFile::Unreadable => {}
     }
-    let output = run_git(git, &GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"])).map_err(|_| { return FailureCode::Unavailable; })?;
-    return Ok(output.succeeded() && String::from_utf8_lossy(output.stdout.as_slice()).trim() == reference);
+    return match symbolic_head(git, repository)? {
+        Some(named) => Ok(named == reference),
+        None => Ok(false),
+    };
 }
 
 /// What:
@@ -106,11 +163,10 @@ pub fn still_checked_out(git: &GitContext, repository: &Path, git_dir: &Path, co
     }
     match head_file(git_dir, common_dir) {
         HeadFile::Branch(_) => return Ok(false),
-        HeadFile::Detached => return Ok(true),
+        HeadFile::Detached(_) => return Ok(true),
         HeadFile::Unreadable => {}
     }
-    let output = run_git(git, &GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"])).map_err(|_| { return FailureCode::Unavailable; })?;
-    return Ok(!output.succeeded());
+    return Ok(symbolic_head(git, repository)?.is_none());
 }
 
 /// Head controls stay out of the release executable.

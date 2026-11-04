@@ -218,7 +218,7 @@ fn resolve_commit(place: &RecoveryPlace, root: &Path, reference: &str) -> Result
 /// ```ts
 /// async function mergeChanges({ old, next }): Promise<Change[]>;
 /// ```
-pub(super) fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
+pub(crate) fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Result<Vec<Change>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
         &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", intent.old_oid.as_str(), intent.new_oid.as_str()],
@@ -238,7 +238,7 @@ pub(super) fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIn
 /// ```ts
 /// async function indexHoldsTheMerge({ place, root, oldOid, changes }): Promise<boolean>;
 /// ```
-pub(super) fn index_holds_the_merge(
+pub(crate) fn index_holds_the_merge(
     place: &RecoveryPlace,
     root: &Path,
     old_oid: &str,
@@ -269,7 +269,7 @@ pub(super) fn index_holds_the_merge(
 /// type Standing = 'old' | 'new' | 'foreign';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum Standing {
+pub(crate) enum Standing {
     /// The old content, or no file where the old side has none.
     Old,
     /// The new content, or no file where the new side has none.
@@ -287,7 +287,7 @@ pub(super) enum Standing {
 /// ```ts
 /// function standing(change: Change, state: WorktreeState): Standing;
 /// ```
-pub(super) fn standing(change: &Change, state: &WorktreeState) -> Standing {
+pub(crate) fn standing(change: &Change, state: &WorktreeState) -> Standing {
     let old_matches: bool = match state {
         WorktreeState::Missing => !change.existed(),
         WorktreeState::Content(oid) => change.existed() && *oid == change.old_oid,
@@ -404,7 +404,7 @@ pub fn settle_failed_merge(
 /// ```ts
 /// await rm(record, { force: true });
 /// ```
-pub(super) fn remove_record(record: &Path) -> Result<(), RecoveryError> {
+pub(crate) fn remove_record(record: &Path) -> Result<(), RecoveryError> {
     return remove_merge_intent(record).map_err(|error| { return io_failure("removing", record, &error); });
 }
 
@@ -452,7 +452,7 @@ fn complete(
 /// ```ts
 /// async function installEntries({ place, root, changes, standings }): Promise<void>;
 /// ```
-pub(super) fn install_entries(
+pub(crate) fn install_entries(
     place: &RecoveryPlace,
     root: &Path,
     changes: &[Change],
@@ -500,7 +500,7 @@ pub(super) fn install_entries(
 /// ```ts
 /// await rm(file, { force: true }); for (const directory of parents(file)) { try { await rmdir(directory); } catch { break; } }
 /// ```
-pub(super) fn remove_file_and_empty_parents(root: &Path, file: &Path) -> Result<(), RecoveryError> {
+pub(crate) fn remove_file_and_empty_parents(root: &Path, file: &Path) -> Result<(), RecoveryError> {
     match std::fs::remove_file(file) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

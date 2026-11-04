@@ -1774,6 +1774,18 @@ mise run //package/git-policy/cli:native:test:container
   names each scenario's `kind`).
   The judging lives in `bin/native-perf-judge.ts`, and `bin/native-perf-judge.unit.test.ts` runs it on the recorded
   baseline, edited to break each bound.
+  Options for measuring a commit at the size the person commits at
+  (`doc/planning/cli-git-commit-latency-under-disk-pressure.md`):
+  `--shape <repository>` makes every fixture a reflink copy of a prepared repository without remotes (a clone of the main
+  checkout, for example), refreshes its index and gives it the tracked file `README.md` to edit;
+  `--hooks-from <git directory>` copies that repository's policy hooks, `--tool <path>` puts an executable such as `git-lfs`
+  on the fixtures' PATH, and `--only <scenario,...>` measures the named scenarios.
+  `--cold` drops the pack, index and packed-refs pages of the fixtures from the page cache before every sample on both sides,
+  and `--trace-directory <dir>` leaves an `strace` record of each sample and of each commit service for counting syncs,
+  bytes and process starts.
+  `--pause <ms>` waits after each sample, so the work a commit leaves running after its answer is over before the next one.
+  With `--output`, the report also holds the wrapped commits' timing records and the service's `answered` lines
+  (`evidence`), which split a slow sample into its phases.
 - `native:lock:members` records a changed dependency list or version in `Cargo.lock` without moving any other locked
   version.
 

@@ -274,19 +274,23 @@ fn diff_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     if commit.parents.len() > 1 {
         return None;
     }
-    let new: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, commit.tree.as_slice(), context.layout.object_format)?;
-    let old: Rc<Vec<FlatEntry>> = match commit.parents.first() {
+    let changes = match commit.parents.first() {
         Some(parent) => {
             let parent_object = database.read(parent.as_slice())?;
             if parent_object.kind != ObjectKind::Commit {
                 return None;
             }
             let parent_tree = parse_commit(parent_object.bytes.as_slice(), context.layout.object_format)?.tree;
-            flatten_tree_shared(&database, parent_tree.as_slice(), context.layout.object_format)?
+            // Only the entries that differ are listed, so a subtree both trees share is not read: a commit that changes one
+            //  file of a large checkout reads the few trees along the path, not every directory of both sides.
+            let (before, after): (Vec<FlatEntry>, Vec<FlatEntry>) = flatten_pair(&database, parent_tree.as_slice(), commit.tree.as_slice(), context.layout.object_format)?;
+            diff_sorted(before.as_slice(), after.as_slice())?
         }
-        None => Rc::new(Vec::new()),
+        None => {
+            let new: Rc<Vec<FlatEntry>> = flatten_tree_shared(&database, commit.tree.as_slice(), context.layout.object_format)?;
+            diff_sorted(&[], new.as_slice())?
+        }
     };
-    let changes = diff_sorted(old.as_slice(), new.as_slice())?;
     return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), stderr: Vec::new(), code: 0 });
 }
 

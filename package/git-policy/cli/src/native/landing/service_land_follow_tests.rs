@@ -417,29 +417,46 @@ fn leftovers_under_the_old_names_do_not_exhaust_the_private_copies() {
     remove(root.as_path());
 }
 
-/// A private copy left by a service that died is removed by the next landing, identified by the directory name and the marker
-/// the service wrote and by the death of its process; a directory with the same name pattern but no marker, one whose process
-/// is alive, and a plain file with the name are not touched.
+/// A private copy left by a service that died is removed by the next landing, identified by the directory name, its owner and
+/// the death of whoever held it: a directory with the name pattern that is not ours, one a live owner holds, and a plain file with
+/// the name are not touched. A marker names a process number, which a living process may have taken over since, and a service
+/// that died before it wrote a marker left none; neither decides anything.
 #[test]
 fn only_a_dead_services_leftover_is_removed() {
+    use std::os::unix::fs::PermissionsExt as _;
     let (root, repo, _index, held) = locked_index("service-follow-sweep");
     let dot_git: PathBuf = repo.join(".git");
     let named = |tail: &str| -> PathBuf { return dot_git.join(format!("cli-git-private-{tail}")); };
     let dead: PathBuf = named("00000000-0000-4000-8000-000000000001");
     let unmarked: PathBuf = named("00000000-0000-4000-8000-000000000002");
-    let alive: PathBuf = named("00000000-0000-4000-8000-000000000003");
+    let reused: PathBuf = named("00000000-0000-4000-8000-000000000003");
     let plain: PathBuf = named("00000000-0000-4000-8000-000000000004");
-    for directory in [&dead, &unmarked, &alive] {
+    let not_ours: PathBuf = named("00000000-0000-4000-8000-000000000005");
+    for directory in [&dead, &unmarked, &reused, &not_ours] {
         std::fs::create_dir(directory).expect("leftover");
+        std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700)).expect("owner only");
         std::fs::write(directory.join("index"), b"copy").expect("copy");
     }
+    // Opened to others: not a directory this service makes.
+    std::fs::set_permissions(&not_ours, std::fs::Permissions::from_mode(0o755)).expect("open to others");
+    // A marker of a process that is gone, and one that names a process that lives now: the number was taken over.
     std::fs::write(dead.join("owner"), format!("cli-git-private-copy v1\npid={}\n", i32::MAX)).expect("marker");
-    std::fs::write(alive.join("owner"), format!("cli-git-private-copy v1\npid={}\n", std::process::id())).expect("marker");
+    std::fs::write(reused.join("owner"), format!("cli-git-private-copy v1\npid={}\n", std::process::id())).expect("marker");
     std::fs::write(&plain, b"not a directory").expect("plain");
+    // A copy a live owner holds, whatever its marker says.
+    std::fs::copy(dot_git.join("index"), dot_git.join("other-index")).expect("another index");
+    let owner = crate::service_index_lock::try_acquire(dot_git.join("other-index").as_path(), 2).expect("a lock on another index in the same directory");
+    let alive = PrivateCopy::make(&owner, 2).expect("a live owner's copy");
+    std::fs::write(alive.directory().join("owner"), "cli-git-private-copy v1\npid=1\n").ok();
     let copy = PrivateCopy::make(&held, 1).expect("a private copy");
     assert!(!dead.exists(), "the dead service's copy is removed");
-    assert!(unmarked.join("index").exists() && alive.join("index").exists() && plain.exists(), "nothing else is touched");
+    assert!(!unmarked.exists(), "the copy of a service that died before it wrote a marker is removed");
+    assert!(!reused.exists(), "a marker whose process number a living process took over decides nothing");
+    assert!(not_ours.join("index").exists() && plain.exists(), "nothing else is touched");
+    assert!(alive.path().exists(), "a copy a live owner holds stays, which only the owner's hold can tell");
     drop(copy);
+    drop(alive);
+    drop(owner);
     drop(held);
     remove(root.as_path());
 }

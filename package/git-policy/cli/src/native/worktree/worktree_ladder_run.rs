@@ -41,7 +41,7 @@ const TAG: &str = "worktreeLadder";
 /// ```ts
 /// type Rung = { kind: 'git'; subvolume?: CreatedSubvolume } | { kind: 'clone'; source: SnapshotSource; subvolume?: CreatedSubvolume; claim: StageClaim } | { kind: 'snapshot'; source: SnapshotSource; claim: StageClaim };
 /// ```
-pub(super) enum Rung {
+pub(crate) enum Rung {
     /// Git's own checkout, into an empty subvolume the wrapper made when it could.
     Git(Option<CreatedSubvolume>),
     /// Clones of the source's tracked files, Git running without a checkout first; the claim records the add durably, so
@@ -62,11 +62,11 @@ pub(super) enum Rung {
 /// ```
 pub struct Ladder {
     /// The destination plan, absent when the invocation is not a form the ladder serves.
-    pub(super) plan: Option<AddPlan>,
+    pub(crate) plan: Option<AddPlan>,
     /// The chosen rung.
-    pub(super) rung: Rung,
+    pub(crate) rung: Rung,
     /// Why the add will not be a snapshot, when it will not and a sentence would help; told to the person after Git ran.
-    pub(super) slow: Option<SlowRoute>,
+    pub(crate) slow: Option<SlowRoute>,
 }
 
 /// What:
@@ -180,7 +180,7 @@ pub fn begin_ladder(plan: Option<&AddPlan>, context: &GitContext, identity: &Wor
 /// ```ts
 /// await discardStage(stage, made);
 /// ```
-pub(super) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::ObjectId>) {
+pub(crate) fn discard_stage(stage: &Path, made: Option<crate::fs_beneath::ObjectId>) {
     let Some(expected) = made else {
         warn(TAG, format!("the stage {} was not identified and is left in place", stage.display()).as_str());
         return;

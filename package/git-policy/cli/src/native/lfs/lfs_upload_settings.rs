@@ -36,7 +36,7 @@ pub const SETTINGS_REGEXP: &str =
     "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|remote\\..*\\.(push|pushurl|mirror|url)|push\\.default|url\\..*\\.pushinsteadof)$";
 
 /// Whether the plan reads this configuration key (Git's normalised spelling).
-pub(super) fn wanted_key(key: &str) -> bool {
+pub(crate) fn wanted_key(key: &str) -> bool {
     let remote_variable = |suffixes: &[&str]| -> bool {
         return key.strip_prefix("remote.").is_some_and(|rest| {
             return rest.rsplit_once('.').is_some_and(|(_name, variable)| {
@@ -107,7 +107,7 @@ pub fn read_settings(query: Query<'_>) -> Result<Settings, PlanError> {
 }
 
 /// The last value of a setting, the last one written winning as in Git.
-pub(super) fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a str> {
+pub(crate) fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a str> {
     return all
         .iter()
         .rev()
@@ -120,7 +120,7 @@ pub(super) fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a 
 }
 
 /// Every value of a setting, in the order written.
-pub(super) fn values<'a>(all: &'a [(String, String)], key: &str) -> Vec<&'a str> {
+pub(crate) fn values<'a>(all: &'a [(String, String)], key: &str) -> Vec<&'a str> {
     return all
         .iter()
         .filter(|(name, _)| {
@@ -133,7 +133,7 @@ pub(super) fn values<'a>(all: &'a [(String, String)], key: &str) -> Vec<&'a str>
 }
 
 /// The branch `HEAD` names, from the full ref so that a tag with the same name cannot change the answer.
-pub(super) fn current_branch(query: Query<'_>) -> Result<Option<String>, PlanError> {
+pub(crate) fn current_branch(query: Query<'_>) -> Result<Option<String>, PlanError> {
     let full: String = query(&["symbolic-ref", "--quiet", "HEAD"]).map_err(|why| {
         return PlanError(format!("git symbolic-ref HEAD: {why}"));
     })?;
@@ -142,7 +142,7 @@ pub(super) fn current_branch(query: Query<'_>) -> Result<Option<String>, PlanErr
 
 /// The remote Git pushes to when the caller names none: the branch's push remote, the default push remote, the
 ///  branch's remote, then `origin`.
-pub(super) fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> String {
+pub(crate) fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> String {
     let named = |variable: &str| -> Option<String> {
         return branch.and_then(|name| {
             return setting(all, &format!("branch.{name}.{variable}")).map(str::to_owned);
@@ -179,7 +179,7 @@ pub fn resolve_push_remote(named: Option<OsString>, query: Query<'_>) -> Result<
 }
 
 /// Whether Git reads this configuration text as true.
-pub(super) fn reads_as_true(value: &str) -> bool {
+pub(crate) fn reads_as_true(value: &str) -> bool {
     return ["true", "yes", "on", "1", ""].iter().any(|spelling| {
         return value.eq_ignore_ascii_case(spelling);
     });

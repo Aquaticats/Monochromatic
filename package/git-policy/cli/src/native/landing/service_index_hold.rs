@@ -19,6 +19,7 @@
 //! ```
 
 use crate::service_index_ownership::{Ownership, note_unsettled};
+use crate::service_index_same::same_index;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -165,7 +166,25 @@ impl IndexLock {
     /// # Errors
     ///
     /// As `release_with`, and the error of `record`, with the lock left in place.
-    pub fn release_with_record(mut self, built: &Path, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+    pub fn release_with_record(self, built: &Path, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
+        return self.release_flushed_with_record(built, false, record);
+    }
+
+    /// What:
+    ///  `release_with_record` for a `built` the caller knows is already on the disk as it is.
+    /// Why:
+    ///   The in-process update flushes its file before it renames it into place, and nothing writes to it after. Flushing it
+    ///  again would cost a flush on the landing's path for no guarantee.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// lock.releaseFlushedWithRecord(built, alreadyFlushed, record)
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As `release_with_record`.
+    pub fn release_flushed_with_record(mut self, built: &Path, flushed: bool, record: &dyn Fn() -> Result<(), std::io::Error>) -> Result<(), std::io::Error> {
         match self.ownership() {
             Ownership::Owned => {}
             Ownership::Replaced => {
@@ -186,15 +205,30 @@ impl IndexLock {
                 return Err(std::io::Error::other(message));
             }
         }
-        // No index existed and nothing was staged when `built` is absent: there is nothing to install.
-        if built.exists() {
+        // No index existed and nothing was staged when `built` is absent: there is nothing to install. A copy that holds the live
+        //  index's own bytes is not installed either: the live file stays the same file, with the access list it has, and no
+        //  flush or rename is spent on it. Any other copy is flushed after its last writer (the in-process update, Git's own
+        //  `reset`, or the carried conflict stages, each of which may leave unflushed bytes) and before the rename, so a
+        //  completion that is recorded durably never certifies an index whose contents are not on the disk. A flush that fails
+        //  installs nothing, as a rename that fails does.
+        if built.exists() && !same_index(built, &self.index) {
+            if !flushed {
+                let synced: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
+                    Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
+                } else {
+                    std::fs::File::open(built).and_then(|file| { return crate::service_durable::flush_index(&file, "built-index"); })
+                };
+                if let Err(error) = synced {
+                    crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
+                    return Err(error);
+                }
+            }
             std::fs::rename(built, &self.index)?;
         }
         // From the installation on, the lock is given up only by this function's own removal: a failure or an unwinding panic
         //  in what follows leaves it for the restart, because an installed index must never be left unlocked and replayable.
         self.armed = false;
-        let durable: std::io::Result<()> = self.index.parent().map_or(Ok(()), |directory| { return std::fs::File::open(directory)?.sync_all(); });
-        crate::service_fault::note("sync-index-dir");
+        let durable: std::io::Result<()> = self.index.parent().map_or(Ok(()), |directory| { return crate::service_durable::flush_directory(directory, "index-dir"); });
         let recorded: std::io::Result<()> = durable.and_then(|()| { return record(); });
         if let Err(error) = recorded {
             crate::service_error!(
@@ -230,3 +264,8 @@ impl Drop for IndexLock {
         }
     }
 }
+
+/// Controls for what the release installs stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_hold_tests.rs"]
+mod tests;

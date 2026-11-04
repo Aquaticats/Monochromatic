@@ -424,3 +424,28 @@ fn a_configuration_git_refuses_gives_no_snapshot() {
     assert!(read_config_snapshot(&git_context(), repo.as_path()).is_none());
     remove(root.as_path());
 }
+
+/// `core.fsync` names the index only through `index`, `added` or `all`, read as Git 2.56.0 reads it: the last entry decides alone,
+/// from the default (`committed,-loose-object`) which names no index; a word names every component it is a prefix of; the result
+/// is the set without the removed words plus the added ones; `none` clears the set when it is the whole rest of the value.
+#[test]
+fn core_fsync_names_the_index_as_git_reads_it() {
+    let names = |values: &[&str]| -> Option<bool> {
+        let records: Vec<(&str, String)> = values.iter().map(|value| { return ("local", format!("core.fsync\n{value}")); }).collect();
+        let borrowed: Vec<(&str, &str)> = records.iter().map(|(scope, record)| { return (*scope, record.as_str()); }).collect();
+        return snapshot_of(borrowed.as_slice()).hardens_index();
+    };
+    assert_eq!(snapshot_of(&[]).hardens_index(), Some(false), "the default names no index");
+    assert_eq!(names(&["committed"]), Some(false));
+    assert_eq!(names(&["objects,reference"]), Some(false));
+    assert_eq!(names(&["added"]), Some(true));
+    assert_eq!(names(&["all"]), Some(true));
+    assert_eq!(names(&["index"]), Some(true));
+    assert_eq!(names(&["ind"]), Some(true), "a word names every component it is a prefix of");
+    assert_eq!(names(&["all,-index"]), Some(true), "the added components win over the removed, as in Git's last line");
+    assert_eq!(names(&["-index"]), Some(false));
+    assert_eq!(names(&["pack,none"]), Some(false), "none clears the set when it ends the value");
+    assert_eq!(names(&["added", "committed"]), Some(false), "the last entry decides alone");
+    assert_eq!(names(&["added", ""]), Some(false), "an empty value is the default again");
+    assert_eq!(names(&["bogus"]), Some(false), "a word that names no component is ignored, as Git ignores it");
+}

@@ -75,7 +75,7 @@ fn set_mode(file: &std::fs::File, mode: u32) -> std::io::Result<()> {
 
 /// The file flushed to the disk, data and metadata (`CSUM_FSYNC`).
 fn sync_all(file: &std::fs::File) -> std::io::Result<()> {
-    return file.sync_all();
+    return crate::service_durable::flush_index(file, "index-publish");
 }
 
 /// The rename of the finished file over the target.

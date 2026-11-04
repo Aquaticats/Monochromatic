@@ -10,13 +10,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
-struct World {
-    root: PathBuf,
-    repo: PathBuf,
-    context: LandContext,
+pub(super) struct World {
+    pub(super) root: PathBuf,
+    pub(super) repo: PathBuf,
+    pub(super) context: LandContext,
 }
 
-fn world(name: &str) -> World {
+pub(super) fn world(name: &str) -> World {
     let root: PathBuf = fixture(name);
     let repo: PathBuf = repository(root.as_path(), "repo");
     let journal: PathBuf = root.join("journal");
@@ -25,8 +25,19 @@ fn world(name: &str) -> World {
     return World { root, repo, context };
 }
 
+/// Lands `requests` as batch `seq` with the index build made to fail after the branch moved: the commits are on the branch, the
+///  lock is given up, and the batch stays open for a restart, as after a build that ran out of space.
+pub(super) fn land_with_failed_index(world: &World, seq: u64, requests: &[CommitRequest]) {
+    crate::service_fault::hooks::fail_at("build-index");
+    let outcomes = land_batch(&world.context, seq, requests).expect("the commits land whatever the index does");
+    crate::service_fault::hooks::clear_failures();
+    assert!(outcomes.iter().all(|outcome| { return matches!(outcome, Outcome::Landed { .. }); }), "{outcomes:?}");
+    assert!(batch_path(world.context.journal.as_path(), seq, crate::service_journal::OPEN_EXTENSION).exists(), "the batch stays open");
+    assert!(!world.repo.join(".git/index.lock").exists(), "the lock was given up");
+}
+
 /// A request that sets `path` to `content`, prepared against the branch as it is now.
-fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest {
+pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest {
     let file: PathBuf = world.repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
     std::fs::write(&file, content).expect("write");
@@ -296,7 +307,7 @@ fn an_amend_in_a_batch_with_others_is_refused() {
 
 /// A request carrying a commit Git built: `commit-tree` makes it on `parents` with the tip's tree plus `path`, and the
 ///  request names it whole.
-fn built_request(world: &World, id: &str, path: &str, parents: &[&str]) -> CommitRequest {
+pub(super) fn built_request(world: &World, id: &str, path: &str, parents: &[&str]) -> CommitRequest {
     let mut built: CommitRequest = request(world, id, path, format!("{id}\n").as_str());
     git(world.repo.as_path(), &["add", "--", path]);
     let tree: String = git_text(world.repo.as_path(), &["write-tree"]);
@@ -600,6 +611,9 @@ fn a_read_step_ended_at_its_ceiling_ends_the_landing_with_the_step_named() {
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let mut context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: crate::wait_ceilings::LOCK_CEILING };
     context.git.real_git = git_that_hangs_on(&world, "rev-parse");
+    // The landing reads the branch in process when it can, which starts no Git to hang; the readers are off here so that the step
+    //  under test is the one that starts Git.
+    context.git.overlay.extend(crate::repo_read_hook::switch_off());
     crate::transaction_git::STEP_CEILING_FOR_THIS_THREAD.with(|cell| { cell.set(Some(SHORT_STEP_CEILING)); });
     let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
     let answered = land_batch_announcing(&context, 1, &[request], &|note: Announce| { said.lock().expect("lock").push(note); });
@@ -644,13 +658,11 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     let world: World = world("service-land-recover");
     let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
-    land_batch(&world.context, 1, &[landed]).expect("landed");
+    // The index update was lost after the branch moved: the index shows the file as reverted.
+    land_with_failed_index(&world, 1, &[landed]);
     let new: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    // The kill came after the branch moved and before the index update: the index shows the file as reverted.
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
+    assert_ne!(new, base);
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]).lines().count(), 2, "staged deletion and untracked file");
-    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("reopen");
     let mut never: Intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
     never.seq = 2;
     never.old = new.clone();
@@ -1038,12 +1050,8 @@ fn a_restart_finishes_the_index_without_a_git_reset() {
     use crate::recording_git::{recorded_starts, recording_context};
     use crate::repo_read_hook::SWITCH_VARIABLE;
     let mut world: World = world("service-land-recover-no-reset");
-    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
-    land_batch(&world.context, 1, &[landed]).expect("landed");
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
-    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("reopen");
+    land_with_failed_index(&world, 1, &[landed]);
     let (mut recording, log) = recording_context(world.root.as_path());
     recording.overlay.retain(|(name, _)| { return name != SWITCH_VARIABLE; });
     world.context.git = recording;
@@ -1083,13 +1091,9 @@ fn a_landing_keeps_an_earlier_stage_of_another_path() {
 #[test]
 fn a_restart_leaves_the_batch_open_while_a_foreign_lock_is_held() {
     let world: World = world("service-land-recover-foreign-lock");
-    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
-    land_batch(&world.context, 1, &[landed]).expect("landed");
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
-    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    land_with_failed_index(&world, 1, &[landed]);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
-    std::fs::rename(&done, &open).expect("reopen");
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
     let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
@@ -1241,19 +1245,101 @@ fn a_switch_after_the_last_check_leaves_the_index_of_the_new_branch_alone() {
     remove(world.root.as_path());
 }
 
-/// An installed index is made durable before its completion is recorded, and the finished batch before its record is removed:
-/// a power loss between a rename and the sync of its directory otherwise loses the rename while the record survives.
+/// The writes of a landing are made in the order a restart after a killed process relies on: the index is installed before its
+/// completion is recorded, and the done mark is renamed before the record is removed. Their flushes are queued, not waited for
+/// (owner, 2026-11-03: "Force at leaving, else background"), so a power loss may lose the end of the sequence, exactly as native
+/// Git loses its last writes; a killed process loses nothing, because the page cache holds every write.
 #[test]
-fn the_installed_index_and_the_finished_batch_are_made_durable_before_what_depends_on_them() {
+fn the_installed_index_and_the_finished_batch_are_recorded_in_the_order_a_restart_relies_on() {
     let world: World = world("service-land-durable");
     crate::service_fault::hooks::take_events();
     let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     land_batch(&world.context, 1, &[landed]).expect("landed");
     let events: Vec<String> = crate::service_fault::hooks::take_events();
     let at = |name: &str| -> usize { return events.iter().position(|event| { return event == name; }).unwrap_or(usize::MAX); };
-    assert!(at("sync-index-dir") < at("indexed-recorded"), "the installed index is durable before it is recorded: {events:?}");
-    assert!(at("indexed-recorded") < at("sync-journal-dir"), "{events:?}");
-    assert!(at("sync-journal-dir") < at("remove-indexed"), "the done mark is durable before the record is removed: {events:?}");
+    // What a killed process leaves is what the page cache holds, in the order the writes were made; the flushes are queued in that
+    //  order and the background thread makes them together, so a power cut may lose any suffix of them, as it may for native Git.
+    assert!(at("sync-queued:index-dir") < at("indexed-recorded"), "the index is installed before it is recorded: {events:?}");
+    assert!(at("indexed-recorded") < at("sync-queued:journal-dir"), "{events:?}");
+    assert!(at("sync-queued:journal-dir") < at("remove-indexed"), "the done mark is renamed before the record is removed: {events:?}");
+    remove(world.root.as_path());
+}
+
+/// The syncs of the landing that are made while the person waits, and the ones it only queues, from its events in order.
+fn syncs_of(events: &[String]) -> (Vec<String>, Vec<String>) {
+    let waited: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-waited:").map(str::to_string); }).collect();
+    let queued: Vec<String> = events.iter().filter_map(|event| { return event.strip_prefix("sync-queued:").map(str::to_string); }).collect();
+    return (waited, queued);
+}
+
+/// The owner's rule for the commit protocol, "Force at leaving, else background": a landing that publishes a commit waits for no
+/// sync of the wrapper's own records. Native Git forces nothing by default (a traced native commit makes no sync call), so each
+/// sync on the person's wait is a flush that a loaded disk can stall for seconds (production: `journal_ms` up to 40 s, `sync_ms`
+/// up to 119 s). The syncs are queued, and the background thread makes them; the list is the records a power cut may lose.
+#[test]
+fn a_landing_that_publishes_waits_for_no_wrapper_sync() {
+    let world: World = world("service-land-syncs");
+    crate::service_fault::hooks::take_events();
+    let before: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    let outcome = land_batch(&world.context, 1, &[landed]).expect("landed");
+    assert!(matches!(outcome.as_slice(), [Outcome::Landed { .. }]), "{outcome:?}");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let (waited, queued) = syncs_of(events.as_slice());
+    // Positive control: the records are synced, only elsewhere, so a landing that stopped reporting its syncs fails here.
+    assert!(!queued.is_empty(), "the landing queues its syncs: {events:?}");
+    assert_eq!(waited, Vec::<String>::new(), "the person waited for a sync: {events:?}");
+    let expected: Vec<&str> = vec!["intent-file", "intent-dir", "lock-marker", "index-dir", "indexed-file", "indexed-dir", "journal-dir"];
+    assert_eq!(queued, expected, "the records one landing queues: {events:?}");
+    crate::service_durable::drain();
+    let made: u64 = crate::service_durable::BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) - before;
+    assert!(made >= queued.len() as u64, "the background thread made the {} queued syncs, made {made}", queued.len());
+    remove(world.root.as_path());
+}
+
+/// Git's own index write follows `core.fsync`, and the in-process writer follows it too: a repository that names the index
+/// there (`added`) gets the flush of the new index before it is installed, on the person's wait as native Git makes it, and the
+/// wrapper's own records stay queued.
+#[test]
+fn a_repository_that_names_the_index_in_core_fsync_gets_it_flushed_as_git_does() {
+    let world: World = world("service-land-core-fsync");
+    git(world.repo.as_path(), &["config", "core.fsync", "added"]);
+    crate::service_fault::hooks::take_events();
+    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let (waited, queued) = syncs_of(events.as_slice());
+    assert_eq!(waited, vec![String::from("index-publish")], "only the index flush that core.fsync asks for is waited for: {events:?}");
+    assert!(queued.contains(&String::from("intent-file")), "{events:?}");
+    crate::service_durable::drain();
+    remove(world.root.as_path());
+}
+
+/// A landing that publishes nothing forces its records before it returns: a foreign index lock that outlasts the ceiling
+/// withdraws the commit and keeps it on a side ref, and the intent and the other records the landing wrote are synced, on the
+/// wait, because the command reports what it kept and that promise must survive a power cut.
+#[test]
+fn a_withdrawal_forces_the_records_it_wrote() {
+    let world: World = world("service-land-withdrawal-syncs");
+    let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    std::fs::write(world.repo.join(".git/index.lock"), "foreign").expect("foreign lock");
+    let journal: PathBuf = world.context.journal.clone();
+    let (finished, ended) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        crate::service_fault::hooks::take_events();
+        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
+        let answered = land_batch(&context, 1, &[request]);
+        let _sent = finished.send((answered, crate::service_fault::hooks::take_events()));
+    });
+    let (answered, events) = ended.recv_timeout(CEILING_PATIENCE).expect("the landing ended at its ceiling");
+    assert_eq!(answered, Err(FailureCode::IndexInUse));
+    let (waited, queued) = syncs_of(events.as_slice());
+    assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
+    let mut forced: Vec<String> = waited.clone();
+    let mut asked: Vec<String> = queued.clone();
+    forced.sort();
+    asked.sort();
+    assert_eq!(forced, asked, "every sync the landing queued was made before it returned: {events:?}");
     remove(world.root.as_path());
 }
 
@@ -1279,38 +1365,6 @@ fn a_restart_that_cannot_read_the_completion_record_leaves_the_index_alone() {
     remove(world.root.as_path());
 }
 
-/// An index update that never installed (the build or the install failed after the branch moved, and the lock was given up)
-/// is replayed by a restart only for the paths whose index entry is still what the landing started from: a path another session
-/// staged since keeps its staging, and the others are finished.
-#[test]
-fn a_replay_leaves_a_path_staged_since_the_landing_started() {
-    let world: World = world("service-land-replay-guard");
-    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let mut batch: Vec<CommitRequest> = vec![request(&world, "kept", "kept.txt", "kept\n"), request(&world, "other", "other.txt", "other\n")];
-    batch[1].base = base.clone();
-    // The landing records the entries it starts from before the branch moves; the batch that finishes drops the record, so the
-    //  test keeps the text to put back what a batch that never finished would have left.
-    let kept: std::rc::Rc<std::cell::RefCell<String>> = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
-    let (journal, sink) = (world.context.journal.clone(), std::rc::Rc::clone(&kept));
-    crate::service_fault::hooks::set("after-ref", std::rc::Rc::new(move || { *sink.borrow_mut() = std::fs::read_to_string(journal.join("1.start")).expect("the start record exists once the branch has moved"); }));
-    land_batch(&world.context, 1, &batch).expect("landed");
-    std::fs::write(world.context.journal.join("1.start"), kept.borrow().as_str()).expect("the record of a batch that did not finish");
-    // The index update did not install: the paths are back at the entries the landing started from, which had none.
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "kept.txt", "other.txt"]);
-    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
-    std::fs::rename(&done, &open).expect("reopen");
-    let _record_removed = std::fs::remove_file(world.context.journal.join(format!("1.{}", crate::service_journal::INDEXED_EXTENSION)));
-    // Another session stages a new version of one path.
-    std::fs::write(world.repo.join("kept.txt"), "staged after the landing\n").expect("edit");
-    git(world.repo.as_path(), &["add", "kept.txt"]);
-    recover(&world.context);
-    assert_eq!(git_text(world.repo.as_path(), &["show", ":kept.txt"]), "staged after the landing", "the later staging is kept");
-    assert_eq!(git_text(world.repo.as_path(), &["show", ":other.txt"]), "other", "the untouched path is finished");
-    assert!(done.exists() && !open.exists(), "the batch is finished");
-    remove(world.root.as_path());
-}
-
 /// An unwinding panic in what runs after the index is installed leaves the lock in place, as an error does: the installed
 /// index must never be left unlocked while the batch can still be replayed.
 #[test]
@@ -1326,31 +1380,6 @@ fn a_panic_after_the_installation_leaves_the_lock() {
     remove(world.root.as_path());
 }
 
-/// A start record that cannot be read leaves the batch open and the index alone; a batch with no record (an older one) replays
-/// every path as before.
-#[test]
-fn a_replay_reads_the_start_record_or_stops_and_an_older_batch_has_none() {
-    let world: World = world("service-land-start-record");
-    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
-    land_batch(&world.context, 1, &[landed]).expect("landed");
-    git(world.repo.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
-    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
-    let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
-    std::fs::rename(&done, &open).expect("reopen");
-    let _record_removed = std::fs::remove_file(world.context.journal.join(format!("1.{}", crate::service_journal::INDEXED_EXTENSION)));
-    std::fs::write(world.context.journal.join("1.start"), "not a record\n").expect("a damaged record");
-    let before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
-    recover(&world.context);
-    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), before, "the index was left alone");
-    assert!(open.exists(), "the batch stays open");
-    std::fs::remove_file(world.context.journal.join("1.start")).expect("an older batch has no record");
-    recover(&world.context);
-    assert_eq!(git_text(world.repo.as_path(), &["show", ":landed.txt"]), "landed", "every path is replayed without a record");
-    assert!(done.exists() && !open.exists());
-    remove(world.root.as_path());
-}
-
 /// The index of a worktree that switched away is the branch checked out's own and is left alone, but an index kept in another
 /// file (`GIT_INDEX_FILE`) belongs to no branch: a restart still finishes its update.
 #[test]
@@ -1361,16 +1390,13 @@ fn a_restart_after_a_switch_still_finishes_an_alternate_index() {
     std::fs::copy(world.repo.join(".git/index"), &alternate).expect("an alternate index");
     let mut landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
     landed.index = alternate.clone();
-    land_batch(&world.context, 1, &[landed]).expect("landed");
+    land_with_failed_index(&world, 1, &[landed]);
     let staged = |index: &Path| -> String { return git_with_index(world.repo.as_path(), index, &["ls-files", "--stage", "--", "landed.txt"]); };
-    assert!(!staged(alternate.as_path()).is_empty(), "the landing updated the alternate index");
-    git_with_index(world.repo.as_path(), alternate.as_path(), &["reset", "-q", base.as_str(), "--", "landed.txt"]);
-    assert!(staged(alternate.as_path()).is_empty());
+    assert!(staged(alternate.as_path()).is_empty(), "the landing's update of the alternate index did not install");
     git(world.repo.as_path(), &["branch", "other", base.as_str()]);
     git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
     let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
     let open: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
-    std::fs::rename(&done, &open).expect("reopen");
     recover(&world.context);
     assert!(!staged(alternate.as_path()).is_empty(), "the alternate index shows the landing again");
     assert!(done.exists() && !open.exists(), "the batch is finished");
@@ -1401,8 +1427,32 @@ fn a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending() 
 }
 
 /// Git in `repository` with `GIT_INDEX_FILE` set to `index`; its output, trimmed.
-fn git_with_index(repository: &Path, index: &Path, arguments: &[&str]) -> String {
+pub(super) fn git_with_index(repository: &Path, index: &Path, arguments: &[&str]) -> String {
     let output = std::process::Command::new(crate::test_support::REAL_GIT).current_dir(repository).env("GIT_INDEX_FILE", index).args(arguments).output().expect("git");
     assert!(output.status.success(), "git {arguments:?}: {}", String::from_utf8_lossy(&output.stderr));
     return String::from_utf8_lossy(&output.stdout).trim().to_string();
+}
+
+/// The index Git's own `reset` wrote is flushed by the release; the one the in-process update wrote is not flushed twice, because
+/// that update flushes its file before it renames it into place and nothing writes to it after.
+#[test]
+fn the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed() {
+    let mut world: World = world("service-land-flush-once");
+    // The repository names the index in `core.fsync`, so the index is flushed on the wait as native Git flushes it.
+    git(world.repo.as_path(), &["config", "core.fsync", "added"]);
+    world.context.git.overlay.extend(crate::repo_read_hook::switch_off());
+    crate::service_fault::hooks::take_events();
+    let by_git: CommitRequest = request(&world, "by-git", "by-git.txt", "x\n");
+    land_batch(&world.context, 1, &[by_git]).expect("landed");
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
+    let (waited, _queued) = syncs_of(events.as_slice());
+    assert_eq!(waited, vec![String::from("built-index")], "Git's file is flushed once, by the release: {events:?}");
+    world.context.git.overlay.retain(|(name, _)| { return name != crate::repo_read_hook::SWITCH_VARIABLE; });
+    let in_process: CommitRequest = request(&world, "in-process", "in-process.txt", "x\n");
+    land_batch(&world.context, 2, &[in_process]).expect("landed");
+    let in_process_events: Vec<String> = crate::service_fault::hooks::take_events();
+    let (in_process_waited, in_process_queued) = syncs_of(in_process_events.as_slice());
+    assert!(in_process_queued.contains(&String::from("index-dir")), "the landing installed an index: {in_process_events:?}");
+    assert_eq!(in_process_waited, vec![String::from("index-publish")], "the update's own flush is not repeated: {in_process_events:?}");
+    remove(world.root.as_path());
 }
