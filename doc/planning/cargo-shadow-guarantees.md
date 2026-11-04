@@ -2,7 +2,7 @@
 
 Status:
 amended for round 15 (the review of round 14, `cargo-shadow-sol-14.txt`): the time namespace number that round 14 put in the launcher
-record is gone again, because a namespace number is recycled once its namespace has no process; a start time that differs from the
+record is gone again, because a namespace number is eligible for recycling after its namespace's last reference is released; a start time that differs from the
 record is now unknown, never gone (guarantee A1);
 amended for round 14 (the review of round 13, `cargo-shadow-sol-13.txt`) with a time namespace number in the launcher record,
 superseded by round 15;
@@ -64,7 +64,8 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   namespace reads the same live process's start time differently (measured on this host: an offset of two hours moved it by 720000
   ticks).
   Round 14 recorded the writer's time namespace number and compared it; round 15 found that this proves nothing, because a
-  namespace number is recycled once the namespace has no process, and the writer's current time namespace can differ from the one its
+  namespace number is eligible for recycling after the namespace's last reference is released (a process in it is one reference, an
+  open descriptor is another), and the writer's current time namespace can differ from the one its
   launcher lives in (`time_for_children`), so the number can name a later, different namespace (the review's schedule is a test:
   `a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` built the recycled number on this host and the round 14
   rule read the live launcher as gone).
@@ -74,15 +75,18 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   A process that has the id with the recorded start time is alive.
   A process that has the id with another start time is unknown, not gone: the contract has no way to show that the reader's time
   basis is the writer's, so it cannot tell a reused id from a live launcher read on another basis.
-  The cost is that a reused id (the pid counter wrapped since the launcher ended) waits for an acknowledgement; an id that no process
-  has needs none, and that is the ordinary case.
+  The cost is that a reused id whose start time differs from the record (the pid counter wrapped since the launcher ended) waits for
+  an acknowledgement; an id that no process has needs none, and that is the ordinary case.
+  A reused id whose start time happens to equal the record, which can occur across time bases, is classified alive and blocks.
   A kernel's pidfs inode number could identify the process independently of every namespace, but it is unique for the boot only from
   Linux 6.14 on a 64-bit kernel (`fs/pidfs.c`: from 6.9 to 6.13 the inode number comes from an `ida` and is reused), and the
   conservative rule needs no kernel version, so it was not built.
   A process that is gone has no thread that could still be attached to a scope, so what the scope shows afterwards (absent, empty,
   or populated by a descendant) is final: absent or empty is read as ended, populated blocks.
-  A launcher that exists blocks, whatever the scope looks like, and no acknowledgement overrides it; an unreaped zombie counts as
-  existing, because only its reaping shows that it ended.
+  A launcher classified alive (the id with the recorded start time) blocks, whatever the scope looks like, and no acknowledgement
+  overrides it; an unreaped zombie counts as alive, because only its reaping shows that it ended.
+  A launcher that cannot be classified (unknown) waits for an acknowledgement, which a person may give; a test shows the
+  classification, not the death, of such a launcher.
   The question is answered only when the mounted procfs numbers processes as the caller's own namespace does (round 12, 11a;
   round 13: through one procfs descriptor, opened once, whose root and whose number for the caller are checked, with every later
   lookup made by `openat2` beneath it without crossing a mount or following a link; deliberate remounts while a recovery runs are

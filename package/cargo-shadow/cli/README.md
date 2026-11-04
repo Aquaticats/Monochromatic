@@ -675,10 +675,10 @@ and an HTTP 429 is retried after its `Retry-After`.
   promises (assumption a of the contract), like a same-user process that writes `Cargo.lock` directly.
   A recovery asks about that process before it reads the scope: a launcher that no longer exists (no process has its id, in the
   recorded process id namespace) can never join the scope, so an absent or empty scope is final and the journal recovers by itself;
-  a launcher that still exists (the id with the recorded start time) blocks, and no acknowledgement overrides that.
+  a launcher classified alive (the id with the recorded start time) blocks, and no acknowledgement overrides that.
   The id with another start time is unknown, not gone: the start time in the stat file is relative to the reader's time namespace,
-  and nothing recorded can show that the reader is in the writer's (namespace numbers are recycled), so a reused id waits for the
-  acknowledgement like the cases below.
+  and nothing recorded can show that the reader is in the writer's (namespace numbers are eligible for recycling after the namespace's last reference is released), so a reused id whose start
+  time differs from the record waits for the acknowledgement like the cases below.
   What the line cannot prove waits for `cargo-shadow acknowledge <journal directory>` (a person's assertion that every process of
   that run has stopped): another process id namespace, a journal with no launcher line (an older version, a failed append, a wrapper
   killed between the spawn and the append), a line for a scope the journal does not list, a torn line, a launcher that cannot be

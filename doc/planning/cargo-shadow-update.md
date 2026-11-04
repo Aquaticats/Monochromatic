@@ -1215,7 +1215,7 @@ Closed per the review: the original distinct-time-namespace schedule, and the sh
 
 ### Section 2: the recycled time namespace number
 
-Defect: namespace inode numbers are recycled once the namespace has no process, and a writer's current time namespace can differ from
+Defect: namespace inode numbers are eligible for recycling after the namespace's last reference is released, and a writer's current time namespace can differ from
 the one its launcher lives in, so the number recorded in round 14 can name a later, different namespace; a recovery there read a
 different start time and answered gone for a live launcher.
 Reproduced on this host, deterministically (`logs/r15-red.log`): `a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone`.
@@ -1228,7 +1228,8 @@ Options considered:
 - 1, a start time that differs from the record is unknown (built).
   Pros: no kernel version, nothing recorded that can be recycled, nothing to retain after the wrapper dies; an id that no process has
   stays gone, which is the ordinary case of a launcher that ended.
-  Cons: a reused id (the pid counter wrapped since the launcher ended) waits for the acknowledgement.
+  Cons: a reused id whose start time differs from the record (the pid counter wrapped since the launcher ended) waits for the
+  acknowledgement; one whose start time happens to equal it is classified alive and blocks.
 - 2, the pidfs inode number of the launcher's pidfd as an identity independent of every namespace, with option 1 below it.
   Verified in `fs/pidfs.c` (read on the default branch and at v6.9, v6.12, v6.14 on 2026-11-04): from 6.9 to 6.13 the inode number
   comes from an `ida` and is reused; from 6.14 it comes from a 64-bit counter that is not reused, and on a 32-bit kernel only its
