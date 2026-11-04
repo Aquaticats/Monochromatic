@@ -1531,3 +1531,19 @@ tests, the stalled children that their alarms end); `native:clippy` and `native:
 (`/var/home/user/temp/agent/r22/clippy.log` and `clippy-seams.log`); the `source_guard` tests pass (39 of 39); the
 map has 65 covered,
 16 narrower, 9 historical and 18 not yet.
+
+## Round 23: owner answers to the plan questions (2026-11-04T13:50:08-05:00 and later)
+
+Recorded in `doc/planning/cli-git-commits-never-fail.md` on `fix/git-policy-cli-commits-never-fail` (commit
+`e2df97729c`, whose time is 2026-11-04T13:50:08-05:00, and the correction `1b7c3d82a7`, whose time is
+2026-11-04T13:53:51-05:00): decision 21 (the real state document, "Checked format (Recommended)"), decision 22 (the
+launch route, "Systemd unit + fallback (Recommended)") and decision 23 (the cutover fence, "New lock name
+(Recommended)"), each with the owner's words and the meaning as asked.
+
+The supported-scope paragraph quoted in the earlier section of this handover (the one that ends "and the manager-started
+transient unit launch route until it is built") is superseded: the manager-started route is now in the supported scope
+as the primary launch route, an obligation to build and show (plan, step 2), and the double fork is the fallback where
+no manager is present. The statements in this handover that the manager-started route "is not built" stay true as
+statements about the build.
+
+Question 4 (the notice texts) waits for the owner; the six drafts, in options A and B, are in the plan under Step 6.
