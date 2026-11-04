@@ -4649,8 +4649,18 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   There is always more work."
   and
   "Avoid wasting compute on stuff that would be shortly superseded."
-- Cross-vendor reviews run through `pi` (see `CLAUDE.md`);
-  keep at most three running.
+- Cross-vendor reviews run through `pi` (see `CLAUDE.md`),
+  each in its own scope (1 CPU,
+  2 GiB),
+  as many at once as there is work:
+  the owner asked "make sure we're running everything that can be run in parallel in parallel".
+  An earlier "keep at most three running" was the coordinator's own unmeasured guess at the cause of the timeouts
+  (added 2026-11-02,
+  `f0780fff47`),
+  never an owner rule;
+  removed 2026-11-04 after the owner asked who set it.
+  Whether concurrency affects the timeouts is unmeasured;
+  record each run's concurrency and outcome before limiting again.
   Several have timed out at 3600 s with no output and an empty session folder
   (`~/.pi/agent/sessions/--var-mnt-encrypted-temp-agent-review-*--/`):
   the run stalled inside `pi` before sending.
