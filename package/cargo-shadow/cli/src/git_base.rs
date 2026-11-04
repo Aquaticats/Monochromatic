@@ -648,6 +648,30 @@ pub fn git_lock_reader_at(root: &Path, commit: &str) -> Box<dyn Fn(&str) -> Stri
 }
 
 /// What:
+/// `pub fn is_git_ignored(root: &Path, relative: &str) -> bool` says whether git ignores a path of the repository at `root`
+/// (`git check-ignore`, exit status 0).
+/// Why:
+/// A crate in a directory that git ignores (a gate's disposable build context under `node_modules`, a scratch copy) is not a lockfile
+/// of the repository: there is no committed lockfile to compare with, so every locked version would count as newly locked and be held
+/// to the trust policy of versions that nobody added. Only a clear "ignored" answer counts; any other answer (not ignored, no
+/// repository, a failure, a timeout) leaves the crate under the catalog's policy, so a crate that is merely new is still checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function isGitIgnored(root: string, relative: string): boolean
+/// ```
+pub fn is_git_ignored(root: &Path, relative: &str) -> bool {
+    let mut command: Command = Command::new("git");
+    command.args(["check-ignore", "--quiet", "--", relative]).current_dir(root);
+    let bound: Bound = Bound {
+        limit: Duration::from_secs(crate::git_refs::GIT_CALL_SECONDS),
+        what: format!("`git check-ignore {relative}` (cargo-shadow asks whether the crate is part of the repository)"),
+        rerun: crate::bounded_run::rerun_text(),
+    };
+    return output_within(&mut command, None, &bound).is_ok_and(|answered| { return answered.status.code() == Some(0); });
+}
+
+/// What:
 /// `pub fn explicit_base_from_environment() -> Option<String>` is the base named by `CARGO_SHADOW_TRUST_BASE`,
 /// when it is set
 /// and not blank.
