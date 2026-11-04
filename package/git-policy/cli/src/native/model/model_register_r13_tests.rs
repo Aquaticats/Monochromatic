@@ -339,3 +339,19 @@ fn p7_a_terminal_outcome_that_skips_its_final_save_is_red_and_the_barrier_route_
         assert!(report.violation.is_none() && report.exhausted);
     }
 }
+
+/// Plan step 2 (revision 17, R15-7, R16a-3): the drain request is a row of the register. The caller of an upgrade or restart waits for the
+/// service to drain, then returns non-zero at its bound, and the drain goes on. Under revision 12 the foreign wait has no bound of its own
+/// and the caller is stuck (red); from revision 13 on it exits within its derived bound.
+#[test]
+fn the_drain_request_is_a_bounded_row_and_an_unbounded_one_leaves_the_caller_stuck() {
+    let index: usize = ENTRIES.iter().position(|entry| { return entry.name == "DRAIN-REQUEST"; }).expect("a DRAIN-REQUEST row");
+    assert!(ENTRIES[index].waits && ENTRIES[index].stages.iter().any(|stage| { return stage.0.contains("WAIT_DRAIN") && stage.1 == Stage::Foreign; }));
+    assert!(ENTRIES[index].stages.iter().any(|stage| { return stage.0.contains("draining, upgrade not applied"); }));
+    let stuck = check(Rules::Twelve, single(index)).violation.expect("the drain wait is unbounded under revision 12");
+    assert_eq!(stuck.message, STUCK);
+    for rules in [Rules::Thirteen, Rules::Fourteen, Rules::Fifteen] {
+        let report: Report = check(rules, single(index));
+        assert!(report.violation.is_none() && report.exhausted, "{:?}: {:?}", rules, report.violation.map(|found| { return found.message; }));
+    }
+}

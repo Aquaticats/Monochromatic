@@ -1,0 +1,333 @@
+//! What:
+//!  Controls of plan step 2's lane lifecycle (owner decisions 22 and 23): the client's call site (receipt first, ring a running service,
+//!  otherwise launch through the manager route with the double fork as fallback), the syncer's pass with the retry of recorded
+//!  receipt errors, the replacement owner's startup sweep, the planned-shutdown seal with its final sweep and reclaiming checkpoint, and the
+//!  transient unit's command line.
+//! Why:
+//!  Each function is the call site of a component that had none: the receipt is the registration of the obligation to force, so it exists
+//!  before anything is rung or launched; a refused manager route must not leave a receipt unserved; a recorded error is retried by the
+//!  running owner and not left to the next start; the seal is the real reclaimer against which a departure's acknowledgment must still be
+//!  covered.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // test('the receipt exists before the ring', ...); test('a refused manager falls back to the fork', ...);
+//! ```
+#![cfg(feature = "test-seams")]
+
+use crate::commit_helper_launch_tests::flusher_launch_code;
+use crate::commit_state_log_tests::lane_with_envelope;
+use crate::model_fixture::{in_single_threaded_process, scratch};
+use git_policy_cli::commit_flusher::{FlushError, FlusherLaunchError, RECEIPT_DIR, RECEIPT_ERRORS};
+use git_policy_cli::commit_flusher_unit::{ManagerRefused, ManagerRoute, transient_unit_arguments, unit_name};
+use git_policy_cli::commit_lane_lifecycle::{ClientError, ClientStep, Routed, capture_lane_closure, client_after_accept, create_receipt, seal_for_shutdown, startup_sweep, syncer_pass, RETRYING};
+use git_policy_cli::commit_state_log::{ClosureEntry, EntryKind, LaneDocument, LaneState, Marker, StateWriter, read, state_covers, sync_prefix};
+use std::cell::Cell;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
+/// The longest a test waits for a launched flusher; the work is a few file operations.
+const FLUSHER_WAIT: Duration = Duration::from_secs(10);
+
+/// A request identity for a receipt.
+const RECEIPT_ID: &str = "0123456789abcdef0123456789abcdef";
+
+/// A manager route a test controls.
+struct FakeRoute {
+    /// What `start` answers.
+    answer: Result<String, String>,
+    /// How many times `start` was called, and whether the receipt existed at each call.
+    calls: Vec<bool>,
+}
+
+impl ManagerRoute for FakeRoute {
+    fn start(&mut self, lane: &Path) -> Result<String, ManagerRefused> {
+        self.calls.push(lane.join(RECEIPT_DIR).join(RECEIPT_ID).exists());
+        return self.answer.clone().map_err(ManagerRefused);
+    }
+}
+
+/// A lane for a client.
+fn lane_for(label: &str) -> PathBuf {
+    return scratch(label);
+}
+
+/// The receipt is the registration of the obligation to force: it exists before the doorbell rings, and a running service that takes the
+/// ring launches nothing.
+#[test]
+fn the_receipt_exists_before_the_ring_and_a_rung_service_launches_nothing() {
+    let lane: PathBuf = lane_for("life-ring");
+    let mut route: FakeRoute = FakeRoute { answer: Ok("unit".to_string()), calls: Vec::new() };
+    let existed_at_ring: Cell<Option<bool>> = Cell::new(None);
+    let step: ClientStep = client_after_accept(
+        &lane,
+        RECEIPT_ID,
+        &mut |lane: &Path| { existed_at_ring.set(Some(lane.join(RECEIPT_DIR).join(RECEIPT_ID).exists())); return Ok(true); },
+        &mut route,
+    )
+    .expect("the client step");
+    assert_eq!(step, ClientStep::Rung);
+    assert_eq!(existed_at_ring.get(), Some(true), "the receipt was created before the ring");
+    assert!(route.calls.is_empty(), "a rung service needs no launch");
+}
+
+/// A ring that is not answered (no service, or an error reaching it) launches the flusher through the manager route, with the receipt
+/// already in place.
+#[test]
+fn an_unanswered_ring_launches_through_the_manager_with_the_receipt_in_place() {
+    for ring in [Ok(false), Err(io::Error::from(io::ErrorKind::ConnectionRefused))] {
+        let lane: PathBuf = lane_for("life-launch");
+        let mut route: FakeRoute = FakeRoute { answer: Ok("cli-git-flusher-x".to_string()), calls: Vec::new() };
+        let mut answer: Option<io::Result<bool>> = Some(ring);
+        let step: ClientStep = client_after_accept(&lane, RECEIPT_ID, &mut |_lane: &Path| { return answer.take().expect("one ring"); }, &mut route).expect("the client step");
+        assert_eq!(step, ClientStep::Launched(Routed::Manager { unit: "cli-git-flusher-x".to_string() }));
+        assert_eq!(route.calls, [true], "one manager start, the receipt existing at that call");
+    }
+}
+
+/// A manager that refuses leaves the receipt to the double fork, which forces it: a dangling receipt in the lane is recorded by the helper
+/// the fallback launched.
+#[test]
+fn a_refused_manager_falls_back_to_the_fork_and_the_receipts_are_served() {
+    let lane: PathBuf = lane_for("life-fallback");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("dangling")).expect("a receipt that cannot be forced");
+    let client_lane: PathBuf = lane.clone();
+    let code: Option<i32> = in_single_threaded_process(move || {
+        let mut route: FakeRoute = FakeRoute { answer: Err("no manager".to_string()), calls: Vec::new() };
+        return match client_after_accept(&client_lane, RECEIPT_ID, &mut |_lane: &Path| { return Ok(false); }, &mut route) {
+            Ok(ClientStep::Launched(Routed::Fork)) => 0,
+            Ok(_) => 90,
+            Err(ClientError::Launch(error)) => 100 + flusher_launch_code(Err(error)),
+            Err(ClientError::Receipt(_)) => 91,
+        };
+    });
+    assert_eq!(code, Some(0), "the fallback launched a helper");
+    let deadline: Instant = Instant::now() + FLUSHER_WAIT;
+    loop {
+        if fs::read_to_string(lane.join(RECEIPT_ERRORS)).is_ok_and(|text| { return text.contains("dangling"); }) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the fallback helper never swept the lane");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// The single-thread requirement binds the fork and not the manager: a process with another thread starts the flusher through the manager,
+/// and is refused (with every receipt recorded) when it must fall back to the fork.
+#[test]
+fn a_process_with_a_second_thread_uses_the_manager_and_is_refused_the_fork() {
+    let lane: PathBuf = lane_for("life-threads");
+    let client_lane: PathBuf = lane.clone();
+    let code: Option<i32> = in_single_threaded_process(move || {
+        let extra = std::thread::spawn(|| { std::thread::sleep(Duration::from_secs(5)); });
+        let mut manager: FakeRoute = FakeRoute { answer: Ok("unit".to_string()), calls: Vec::new() };
+        let via_manager = client_after_accept(&client_lane, RECEIPT_ID, &mut |_lane: &Path| { return Ok(false); }, &mut manager);
+        if !matches!(via_manager, Ok(ClientStep::Launched(Routed::Manager { .. }))) {
+            return 80;
+        }
+        let mut refusing: FakeRoute = FakeRoute { answer: Err("no manager".to_string()), calls: Vec::new() };
+        let via_fork = client_after_accept(&client_lane, "fedcba9876543210fedcba9876543210", &mut |_lane: &Path| { return Ok(false); }, &mut refusing);
+        drop(extra);
+        return match via_fork {
+            Err(ClientError::Launch(FlusherLaunchError::Launch(git_policy_cli::commit_helper_launch::LaunchError::Threaded(_)))) => 0,
+            _ => 81,
+        };
+    });
+    assert_eq!(code, Some(0));
+    let record: String = fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the refused launch recorded the receipts");
+    assert!(record.contains(RECEIPT_ID) && record.contains("fedcba9876543210fedcba9876543210"), "{}", record);
+}
+
+/// The syncer's pass retries what the record names: the record is cleared once the receipts are forced, and kept (with its lines) when the
+/// forcing still fails.
+#[test]
+fn the_syncer_retries_recorded_errors_and_clears_the_record_only_when_forced() {
+    let lane: PathBuf = lane_for("life-syncer");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    let dangling: PathBuf = lane.join(RECEIPT_DIR).join("r1");
+    std::os::unix::fs::symlink(lane.join("nowhere"), &dangling).expect("a receipt that cannot be forced");
+    fs::write(lane.join(RECEIPT_ERRORS), "r1\tinjected\n").expect("a recorded error");
+    let failed = syncer_pass(&lane);
+    assert!(matches!(failed, Err(FlushError::Forcing(_))), "{:?}", failed.map(|pass| { return pass.forced; }));
+    let kept: String = fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the record");
+    assert!(kept.contains("r1"), "the record still names the receipt: {}", kept);
+    assert!(!lane.join(RETRYING).exists(), "the in-flight copy is merged back, not left behind");
+    fs::remove_file(&dangling).expect("the cause is gone");
+    fs::write(&dangling, b"receipt").expect("a receipt that can be forced");
+    let pass = syncer_pass(&lane).expect("the pass");
+    assert_eq!(pass.retried, 1);
+    assert!(!lane.join(RECEIPT_ERRORS).exists() && !lane.join(RETRYING).exists(), "the record is cleared once its receipts are forced");
+}
+
+/// A record that arrives while a pass is retrying is not lost: only the lines the pass took are removed.
+#[test]
+fn an_error_recorded_during_a_retry_survives_the_pass() {
+    let lane: PathBuf = lane_for("life-syncer-race");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    fs::write(lane.join(RECEIPT_DIR).join("r1"), b"receipt").expect("a receipt");
+    fs::write(lane.join(RECEIPT_ERRORS), "r1\told\n").expect("a recorded error");
+    let pass = git_policy_cli::commit_lane_lifecycle::syncer_pass_with(&lane, &mut || {
+        let mut late = fs::OpenOptions::new().create(true).append(true).open(lane.join(RECEIPT_ERRORS)).expect("the record");
+        io::Write::write_all(&mut late, b"r2\tlate\n").expect("a late line");
+    })
+    .expect("the pass");
+    assert_eq!(pass.retried, 1);
+    assert_eq!(fs::read_to_string(lane.join(RECEIPT_ERRORS)).expect("the record"), "r2\tlate\n");
+}
+
+/// The replacement owner's startup sweep forces every receipt in the directory whether or not the record names it, takes up the in-flight
+/// copy a dead syncer left, and reads the state log once.
+#[test]
+fn the_startup_sweep_forces_every_receipt_and_takes_up_a_dead_syncers_copy() {
+    let (lane, state, envelope) = lane_with_envelope("life-startup");
+    let request: ClosureEntry = ClosureEntry::capture(&lane, &envelope, EntryKind::InboxEnvelope).expect("capture");
+    let document: Vec<u8> = LaneDocument::from_closure(std::slice::from_ref(&request)).expect("document").encode();
+    StateWriter::acquire(&state).expect("writer").append_with(7, &document, std::slice::from_ref(&request)).expect("a record");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    fs::write(lane.join(RECEIPT_DIR).join("unnamed"), b"receipt").expect("a receipt the record does not name");
+    fs::write(lane.join(RETRYING), "unnamed\tdied mid-retry\n").expect("a dead syncer's copy");
+    let recovery = startup_sweep(&lane, &state).expect("the sweep");
+    assert_eq!(recovery.generation, Some(7));
+    assert!(recovery.forced >= 1);
+    assert!(!lane.join(RETRYING).exists() && !lane.join(RECEIPT_ERRORS).exists());
+}
+
+/// The shipped state of a lane stays readable: the seal's closure holds everything the lane holds, marks and the order file included.
+fn lane_with_everything(label: &str) -> (PathBuf, PathBuf, String) {
+    let (lane, state, envelope) = lane_with_envelope(label);
+    let id: String = envelope.file_name().expect("name").to_string_lossy().to_string();
+    fs::create_dir_all(lane.join("decision")).expect("decision directory");
+    fs::write(lane.join("decision").join(format!("{}.withdraw", id)), b"").expect("a mark");
+    fs::write(lane.join("order"), b"adopt a\n").expect("an order file");
+    git_policy_cli::commit_state_log::create_saved_content(&lane, b"objects of b").expect("saved content");
+    return (lane, state, id);
+}
+
+/// The seal captures what the lane holds and writes a reclaiming checkpoint: the predecessor segment is gone, the document names every
+/// reference, and the previous state (marker, tail) is kept.
+#[test]
+fn the_seal_writes_a_reclaiming_checkpoint_of_everything_the_lane_holds() {
+    let (lane, state, id) = lane_with_everything("life-seal");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    assert!(closure.len() >= 4, "request, mark, order file and saved content: {}", closure.len());
+    let previous: LaneState = LaneState { marker: Marker::Recovering, tail: vec![id.clone()], ..LaneState::default() };
+    let first: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible").with_state(previous.clone());
+    StateWriter::acquire(&state).expect("writer").append_with(1, &first.encode(), &closure).expect("the state before the seal");
+    let sealed = seal_for_shutdown(&lane, &state).expect("the seal");
+    assert_eq!(sealed.generation, 2);
+    assert!(!state.join("state.log.1").exists(), "the contained predecessor was reclaimed");
+    let (generation, bytes) = read(&state).expect("readable").expect("state");
+    assert_eq!(generation, 2);
+    let document: LaneDocument = LaneDocument::parse(&bytes).expect("a checked document");
+    assert_eq!(document.state(), &previous, "the seal keeps the state it found");
+}
+
+/// The step-1 row's component test: a departure acknowledged a record, the seal (the real reclaimer) replaced its segment, and the
+/// acknowledgment is still covered; a seal over an opaque predecessor reclaims nothing and the acknowledgment is covered by the segment
+/// that stays.
+#[test]
+fn a_departures_acknowledgment_survives_the_seal_that_replaces_its_segment() {
+    let (lane, state, _id) = lane_with_everything("life-seal-departure");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible");
+    StateWriter::acquire(&state).expect("writer").append_with(1, &document.encode(), &closure).expect("the promised record");
+    let promised = sync_prefix(&state).expect("the departure's acknowledgment");
+    seal_for_shutdown(&lane, &state).expect("the seal");
+    assert!(!state.join("state.log.1").exists(), "the seal reclaimed the segment that holds the acknowledged record");
+    assert!(state_covers(&state, &promised).expect("readable"), "the acknowledgment is covered by the sealed checkpoint");
+
+    let (lane, state, _id) = lane_with_everything("life-seal-opaque");
+    StateWriter::acquire(&state).expect("writer").append(1, b"an opaque document").expect("an opaque record");
+    let promised = sync_prefix(&state).expect("acknowledged");
+    let result = seal_for_shutdown(&lane, &state);
+    assert!(result.is_ok(), "{:?}", result.map(|sealed| { return sealed.generation; }));
+    assert!(state.join("state.log.1").exists(), "an opaque predecessor is never reclaimed");
+    assert!(state_covers(&state, &promised).expect("readable"));
+}
+
+/// A seal refuses what it cannot capture: a lane file that the representation cannot hold makes the seal fail rather than write a document
+/// that omits it.
+#[test]
+fn the_seal_refuses_when_the_lane_changed_under_its_capture() {
+    let (lane, state, id) = lane_with_everything("life-seal-changed");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible").with_state(LaneState { tail: vec![id.clone()], ..LaneState::default() });
+    StateWriter::acquire(&state).expect("writer").append_with(1, &document.encode(), &closure).expect("the state before the seal");
+    fs::remove_file(lane.join("inbox").join(&id)).expect("the request vanished while the state still tails it");
+    assert!(seal_for_shutdown(&lane, &state).is_err(), "a state that names a request the lane no longer holds was sealed");
+    assert!(state.join("state.log.1").exists());
+}
+
+/// The transient unit's command line: a user unit with a fresh name that is unloaded after it ran, started and waited for (so a refusal is
+/// seen), running the service program in its internal flusher mode on the lane. No `--no-block`: a start that was not confirmed would leave
+/// the receipt unserved.
+#[test]
+fn the_transient_unit_runs_the_internal_flusher_entry_and_waits_for_the_start() {
+    let lane: PathBuf = PathBuf::from("/lane with space/x");
+    let program: PathBuf = PathBuf::from("/opt/cli-git/cli-git-service");
+    let name: String = unit_name(&lane, 0x1234);
+    let arguments: Vec<String> = transient_unit_arguments(&name, &program, &lane).iter().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
+    assert_eq!(arguments[0], "--user");
+    for wanted in ["--collect", "--quiet"] {
+        assert!(arguments.iter().any(|argument| { return argument == wanted; }), "{}", wanted);
+    }
+    assert!(!arguments.iter().any(|argument| { return argument == "--no-block"; }));
+    assert!(arguments.contains(&format!("--unit={}", name)));
+    let at: usize = arguments.iter().position(|argument| { return argument == "--"; }).expect("the command follows --");
+    assert_eq!(arguments[at + 1..], ["/opt/cli-git/cli-git-service", "--flush-lane", "/lane with space/x"]);
+    assert_ne!(unit_name(&lane, 1), unit_name(&lane, 2), "every launch has its own unit name, so a refusal never means a flusher already runs");
+    assert!(name.starts_with("cli-git-flusher-") && name.chars().all(|c| { return c.is_ascii_alphanumeric() || c == '-'; }), "{}", name);
+}
+
+/// The real manager, on a disposable lane, with the real service program: the unit runs `--flush-lane` and the flusher records a receipt it
+/// cannot force. Skipped (loudly) when there is no user manager. The unit name is unique and `--collect` unloads it; it touches nothing but
+/// the scratch lane.
+#[test]
+fn the_real_user_manager_runs_the_flusher_entry_of_the_service_program() {
+    use git_policy_cli::commit_flusher_unit::TransientUnitRoute;
+    let probe = std::process::Command::new("systemd-run").args(["--user", "--collect", "--quiet", "--wait", "--", "/bin/true"]).output();
+    if !probe.as_ref().is_ok_and(|output| { return output.status.success(); }) {
+        eprintln!("SKIPPED: no user manager answers systemd-run --user here ({:?})", probe.map(|output| { return output.status; }));
+        return;
+    }
+    let lane: PathBuf = scratch("life-real-manager");
+    fs::create_dir_all(lane.join(RECEIPT_DIR)).expect("receipt directory");
+    std::os::unix::fs::symlink(lane.join("nowhere"), lane.join(RECEIPT_DIR).join("dangling")).expect("a receipt that cannot be forced");
+    let mut route: TransientUnitRoute = TransientUnitRoute::new(PathBuf::from("systemd-run"), PathBuf::from(env!("CARGO_BIN_EXE_cli-git-service")));
+    let unit: String = route.start(&lane).expect("the manager started the unit");
+    assert!(unit.starts_with("cli-git-flusher-"));
+    let deadline: Instant = Instant::now() + FLUSHER_WAIT;
+    loop {
+        if fs::read_to_string(lane.join(RECEIPT_ERRORS)).is_ok_and(|text| { return text.contains("dangling"); }) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the unit {} never swept the lane", unit);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// A manager that cannot be reached is a refusal and not a hang: a program that does not exist is a refusal, and a start that does not
+/// finish within its wait is ended and is a refusal too; the caller turns both into the fallback.
+#[test]
+fn a_missing_manager_program_and_an_unfinished_start_are_refusals() {
+    use git_policy_cli::commit_flusher_unit::{TransientUnitRoute, run_within};
+    let lane: PathBuf = scratch("life-refusals");
+    let mut missing: TransientUnitRoute = TransientUnitRoute::new(PathBuf::from("/nonexistent/systemd-run"), PathBuf::from("/nonexistent/cli-git-service"));
+    assert!(missing.start(&lane).is_err());
+    let wait: Duration = Duration::from_millis(50);
+    let started: Instant = Instant::now();
+    let mut slow = std::process::Command::new("sleep");
+    slow.arg("30");
+    let refusal = run_within(slow, wait);
+    assert!(refusal.is_err(), "an unfinished start is a refusal");
+    assert!(started.elapsed() >= wait && started.elapsed() < FLUSHER_WAIT, "the wait ends at the route's own limit: {:?}", started.elapsed());
+    let mut quick = std::process::Command::new("true");
+    quick.arg("--ignored");
+    assert!(run_within(quick, FLUSHER_WAIT).is_ok(), "a start that finishes in time is not a refusal");
+    let mut failing = std::process::Command::new("false");
+    failing.arg("--ignored");
+    assert!(run_within(failing, FLUSHER_WAIT).is_err(), "a start that exits non-zero is a refusal");
+}

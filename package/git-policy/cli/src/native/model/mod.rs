@@ -359,3 +359,13 @@ mod model_disposal_r23;
 /// The controls of the disposal of saved content.
 #[path = "model_disposal_r23_tests.rs"]
 mod model_disposal_r23_tests;
+
+/// Plan step 2: the lane lifecycle (client call site, manager route, syncer pass, startup sweep, seal).
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_lane_lifecycle_tests.rs"]
+mod commit_lane_lifecycle_tests;
+
+/// Plan step 2: the drain request's bound.
+#[cfg(feature = "test-seams")]
+#[path = "../commit/commit_drain_tests.rs"]
+mod commit_drain_tests;
