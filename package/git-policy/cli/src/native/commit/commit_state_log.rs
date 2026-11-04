@@ -187,11 +187,48 @@ impl ClosureEntry {
         if kind != declared {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "the declared kind is not the kind the path has: envelopes live in inbox/, immutable content in saved/<sha256>, anything else is an append-only prefix"));
         }
+        if kind == EntryKind::Opaque {
+            seal_saved_content(path)?;
+        }
         let bytes: Vec<u8> = fs::read(path)?;
         let entry: ClosureEntry = ClosureEntry { path: relative, kind, length: bytes.len() as u64, sha256: sha256_hex(&bytes) };
         validate_entry(lane, &entry)?;
         return Ok(entry);
     }
+}
+
+/// What:
+///  Seals the saved content at `path`: removes its write permission, then refuses it while any process holds a writable descriptor to it,
+///  asking the kernel for a read lease (granted only when no open file description anywhere has the file open for writing). Fails closed
+///  when the lease cannot be asked for.
+/// Why:
+///  A checksum name detects a change to saved content; it does not stop a writer that kept a descriptor from creation. The permission bits
+///  come off first, so after the check nobody who is not privileged can open the file for writing: the lease is held only for the check, and
+///  a lease break (a privileged writer) is outside what this component can prevent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sealSavedContent(path: string): void; // chmod a-w; fail if any writer has it open
+/// ```
+fn seal_saved_content(path: &Path) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    use std::os::unix::fs::PermissionsExt;
+    let mode: u32 = fs::metadata(path)?.permissions().mode();
+    fs::set_permissions(path, fs::Permissions::from_mode(mode & !0o222))?;
+    let file: File = File::open(path)?;
+    // SAFETY: `fcntl` with `F_SETLEASE` takes a descriptor and an integer argument and touches no memory.
+    let granted: libc::c_int = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_RDLCK) };
+    if granted != 0 {
+        let error: io::Error = io::Error::last_os_error();
+        return Err(if error.raw_os_error() == Some(libc::EAGAIN) {
+            io::Error::new(io::ErrorKind::InvalidInput, "saved content is still open for writing by some process; it is not immutable yet")
+        } else {
+            io::Error::new(error.kind(), format!("whether saved content is open for writing could not be shown (read lease refused): {}", error))
+        });
+    }
+    // SAFETY: as above; releasing the lease taken for the check.
+    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLEASE, libc::F_UNLCK) };
+    return Ok(());
 }
 
 /// The kind a relative path has, refusing paths that are not plain relative names.
@@ -780,9 +817,7 @@ pub fn force_item(lane: &Path, entry: &ClosureEntry) -> io::Result<()> {
     sync_file(&file, &path)?;
     sync_chain(path.parent().filter(|parent| { return !parent.as_os_str().is_empty(); }).unwrap_or(Path::new(".")), lane)?;
     if entry.kind == EntryKind::Opaque {
-        use std::os::unix::fs::PermissionsExt;
-        let mode: u32 = fs::metadata(&path)?.permissions().mode();
-        fs::set_permissions(&path, fs::Permissions::from_mode(mode & !0o222))?;
+        seal_saved_content(&path)?;
     }
     return Ok(());
 }
