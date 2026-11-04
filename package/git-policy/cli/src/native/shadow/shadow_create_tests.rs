@@ -389,3 +389,19 @@ fn a_shadow_whose_init_is_cut_every_time_fails_after_the_attempts_and_leaves_not
     assert!(!shadow.exists(), "the partial directory is discarded");
     remove(root.as_path());
 }
+
+/// Which outcomes of a start of `init` are retried in a fresh directory (sol-1 round 4): a start ended at its ceiling, a start the system
+/// refused as a finished command with Git's words, and a start the system refused before the command ran (`EAGAIN`, which reaches here
+/// as an I/O error of kind `WouldBlock`). Another I/O error is not retried, and neither is a finished command.
+#[test]
+fn only_a_cut_or_refused_start_of_init_is_retried() {
+    let refused_text = b"fatal: unable to create thread: Resource temporarily unavailable\n".to_vec();
+    let finished = |code: i32, stderr: Vec<u8>| -> std::io::Result<GitOutput> { return Ok(GitOutput { code: Some(code), stdout: Vec::new(), stderr }); };
+    assert!(start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::TimedOut))), "ended at the ceiling");
+    assert!(start_was_cut_or_refused(&Err(std::io::Error::from_raw_os_error(libc::EAGAIN))), "the system refused the process before it ran");
+    assert!(start_was_cut_or_refused(&finished(128, refused_text)), "Git reported the refusal");
+    assert!(!start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::NotFound))), "no such program");
+    assert!(!start_was_cut_or_refused(&Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))), "not an executable");
+    assert!(!start_was_cut_or_refused(&finished(128, b"fatal: not a repository\n".to_vec())), "a failure of another kind");
+    assert!(!start_was_cut_or_refused(&finished(0, Vec::new())), "a start that worked");
+}
