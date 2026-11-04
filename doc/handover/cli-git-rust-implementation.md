@@ -3716,6 +3716,24 @@ answered before 08:22:29-05:00 (`b0d9708b17`, the next commit):
     to be verified from the kernel source),
     else Unknown on any start mismatch whose basis is unproven;
     both test assertions tightened.
+    Round 15 done (tip `946615ef52`,
+    2026-11-04T10:23:39-05:00;
+    592 run,
+    592 passed,
+    12 skipped;
+    clippy clean):
+    the review's recycled-number schedule was built unprivileged and went red first;
+    fix:
+    Gone only when no process has the id in the recorded pid namespace,
+    any other start time is Unknown (a reused pid now needs `cargo-shadow acknowledge`),
+    and the time-namespace number left the record;
+    pidfs inode rejected after reading `fs/pidfs.c` (an `ida`,
+    reused,
+    from 6.9 to 6.13);
+    both assertions tightened.
+    Change review running:
+    `cargo-shadow-sol-15.txt` (prompt `cargo-shadow-prompt-15.txt`,
+    contract snapshot `cargo-shadow-guarantees-946615ef52.md`).
     Queued after a change review with no defect:
     a certification pass that attaches the test bodies the map names,
     split by row group under 250 KB per review,
