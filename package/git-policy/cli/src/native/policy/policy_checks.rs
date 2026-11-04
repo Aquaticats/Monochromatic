@@ -33,64 +33,64 @@
 /// ```ts
 /// import { decideRequireRoot, resolveRequireRoot } from './rule_require_root.ts';
 /// ```
-use super::diagnostics::EngineFailureCode;
-use super::conflict_side_guard::{SideVerdict, judge_conflict_sides};
-use super::discarded_prune::Limits;
-use super::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
+use crate::diagnostics::EngineFailureCode;
+use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
+use crate::discarded_prune::Limits;
+use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
 /// Which worktree a command targets,
 ///  for the linked-worktree rule.
-use super::effective_target::{EffectiveTarget, classify_effective_target};
+use crate::effective_target::{EffectiveTarget, classify_effective_target};
 /// The Markdown autofix check,
 ///  its state and the linter the executable gives it.
-use super::markdown_linter::embedded_linter;
+use crate::markdown_linter::embedded_linter;
 /// What the lifecycle offers content policies,
 ///  and its prepared candidates.
-use super::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{ContentState, LifecycleContent};
 /// The dependent-version check over the candidate state.
-use super::policy_dependent_version::check_dependent_version;
+use crate::policy_dependent_version::check_dependent_version;
 /// The engine's check interface,
 ///  findings and outcomes.
-use super::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
 /// The built-in final-newline check over candidates.
-use super::policy_final_newline::check_final_newline;
+use crate::policy_final_newline::check_final_newline;
 /// The forbidden-strings check,
 ///  its settings and its scanner.
-use super::policy_forbidden_strings::{
+use crate::policy_forbidden_strings::{
     ScannerSettings, ScannerState, check_forbidden_strings, default_scanner_settings,
     unloaded_scanner,
 };
-use super::policy_markdown::{MarkdownState, check_markdown, markdown_state};
+use crate::policy_markdown::{MarkdownState, check_markdown, markdown_state};
 /// The typed policy identities.
-use super::policy_registry::PolicyId;
+use crate::policy_registry::PolicyId;
 /// The optional root-context check over candidates.
-use super::policy_root_context::check_root_context;
+use crate::policy_root_context::check_root_context;
 /// The optional catalog-specifier check over candidates.
-use super::policy_catalog_specifiers::check_catalog_specifiers;
+use crate::policy_catalog_specifiers::check_catalog_specifiers;
 /// The lifecycle points.
-use super::policy_trigger::Trigger;
+use crate::policy_trigger::Trigger;
 /// The facts interface every check asks.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// Where a command runs,
 ///  and the directory Git works in.
-use super::repository_location::{RepositoryLocation, effective_directory};
+use crate::repository_location::{RepositoryLocation, effective_directory};
 /// The add-explicit rule core.
-use super::rule_add_explicit::{BULK_ADD_CODE, decide_add_explicit};
+use crate::rule_add_explicit::{BULK_ADD_CODE, decide_add_explicit};
 /// The branch-worktree rule core.
-use super::rule_branch_worktree::{
+use crate::rule_branch_worktree::{
     BRANCH_CREATION_CODE, BranchWorktreeDecision, branch_creation_message, decide_branch_worktree,
 };
 /// The linked-worktree rule core.
-use super::rule_linked_worktree::{
+use crate::rule_linked_worktree::{
     GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, decide_linked_worktree,
     dirty_scope, dirty_worktree_message, resolve_linked_worktree,
 };
 /// The require-root rule core.
-use super::rule_require_root::{
+use crate::rule_require_root::{
     NOT_AT_ROOT_CODE, RequireRootDecision, RequireRootFacts, RequireRootVerdict,
     decide_require_root, resolve_require_root,
 };
 /// The worktree's top level.
-use super::worktree_identity::worktree_root;
+use crate::worktree_identity::worktree_root;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might

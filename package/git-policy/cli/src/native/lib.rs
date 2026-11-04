@@ -32,8 +32,15 @@ pub use config::*;
 /// Whether the checkout of a new worktree may be given Git's parallel checkout, and the option that does it.
 pub mod checkout_workers;
 
-/// JSONL event rendering for wrapper-made diagnostics.
-pub mod diagnostics;
+/// The policy engine:
+///  the registry,
+///  triggers,
+///  events,
+///  the passes over candidates and direct fixes.
+pub mod policy;
+
+/// Re-exports every module of `policy` at the crate root, as above.
+pub use policy::*;
 
 /// Worktree target classification for worktree-enforcing policies.
 pub mod effective_target;
@@ -65,9 +72,6 @@ pub mod management_arguments;
 
 /// The refusal of a direct command whose `--policy` selects a policy that is off.
 pub mod management_selection;
-
-/// The fixed registry of shipped policies.
-pub mod policy_registry;
 
 /// PATH resolution of the real Git executable.
 pub mod real_git;
@@ -192,23 +196,6 @@ pub mod wrapper_controls;
 ///  by position.
 pub mod wrapper_invocation;
 
-/// Lifecycle triggers and the trigger set of every shipped policy.
-pub mod policy_trigger;
-
-/// Policy events and their JSON Lines rendering.
-pub mod policy_events;
-
-/// A pathname as events report it:
-///  text,
-///  plus base64 `pathBytes` when it is not UTF-8.
-pub mod event_path;
-
-/// Exact repository path bytes as the operating system takes them, and as text for messages.
-pub mod path_bytes;
-
-/// Ordered policy execution for one lifecycle point.
-pub mod policy_engine;
-
 /// Slice 6: writes one corrected file into the private commit index as a blob and an index entry.
 pub mod private_index_stage;
 
@@ -237,9 +224,6 @@ pub mod commit_facts;
 /// The worktree completion records of selected corrections and of hook changes.
 pub mod commit_worktree_records;
 
-/// The bounded loop that repeats a pass after corrections changed candidate content.
-pub mod policy_convergence;
-
 /// The one query for repository identity,
 ///  top level and the path below it.
 pub mod repository_location;
@@ -265,9 +249,6 @@ pub mod thread_quiet;
 /// appended beside the commit timing record.
 pub mod add_timing;
 
-/// The intent-guessing hint that follows a finding, an engine failure or a notice.
-pub mod event_hints;
-
 /// The dependent-version policy:
 ///  manifest and import facts,
 ///  the release plan and the policy over them.
@@ -275,31 +256,6 @@ pub mod dependent_version;
 
 /// Re-exports every module of `dependent_version` at the crate root, as above.
 pub use dependent_version::*;
-
-/// The shipped policies as checks over rule cores and repository facts.
-pub mod policy_checks;
-
-/// What a lifecycle offers content policies,
-///  and its candidates once prepared.
-pub mod policy_content;
-
-/// The built-in final-newline policy:
-///  canonical final LF,
-///  preserved paths,
-///  findings.
-pub mod policy_final_newline;
-
-/// The optional root-context policy:
-///  no top-level `CONTEXT.md` enters the index.
-pub mod policy_root_context;
-
-/// The optional catalog-specifier policy over the shared rule crate:
-///  every dependency in a tracked `package.json` is a catalog or workspace reference.
-pub mod policy_catalog_specifiers;
-
-/// The optional forbidden-strings policy over the linked scanner,
-///  with redacted findings.
-pub mod policy_forbidden_strings;
 
 /// What one in-process linter run produced:
 ///  the fixed source and the findings left,
@@ -331,40 +287,12 @@ pub mod markdown_linter_guard;
 ///  never its message.
 pub mod panic_notice;
 
-/// Installing a direct fix's corrections into the worktree,
-///  all or none.
-pub mod direct_fix_install;
-
-/// The direct fix:
-///  converge corrections in memory,
-///  then install them.
-pub mod direct_fix;
-
-/// The fixed argument transforms of a forwarded command,
-///  in order.
-pub mod policy_transforms;
-
-/// One complete pass:
-///  built-in policies,
-///  fixed transforms,
-///  optional policies.
-pub mod policy_pass;
-
 /// The names of the commands built into Git 2.56.0.
 pub mod git_builtins;
-
-/// The work of the installed cli-git that is not ported,
-///  and the refusal notice.
-pub mod unported;
 
 /// The lifecycle of one wrapped Git command,
 ///  from refusals to forwarding.
 pub mod wrapped_command;
-
-/// A scripted repository-facts provider for unit tests;
-///  never in the release build.
-#[cfg(test)]
-mod policy_test_support;
 
 /// The one failure type of the candidate layer and its closed list of causes.
 pub mod candidate_error;

@@ -14,22 +14,22 @@
 //! ```
 
 /// The facts interface and the fact types the script answers with.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Real preparation,
 ///  for scripted facts given a repository.
-use super::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
-use super::config_schema::PolicyConfig;
-use super::policy_registry::{PolicyId, Severity};
-use super::repository_facts::RepositoryFacts;
-use super::repository_location::RepositoryLocation;
-use super::rule_commit_index::IndexVsHead;
-use super::rule_commit_sequencer::SequencerState;
-use super::rule_worktree_dirty::DirtyScope;
+use crate::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_candidates};
+use crate::config_schema::PolicyConfig;
+use crate::policy_registry::{PolicyId, Severity};
+use crate::repository_facts::RepositoryFacts;
+use crate::repository_location::RepositoryLocation;
+use crate::rule_commit_index::IndexVsHead;
+use crate::rule_commit_sequencer::SequencerState;
+use crate::rule_worktree_dirty::DirtyScope;
 /// The image's real Git,
 ///  which prepares candidates for scripted facts.
-use super::test_support::REAL_GIT;
-use super::transaction_git::GitContext;
-use super::worktree_identity::WorktreeIdentity;
+use crate::test_support::REAL_GIT;
+use crate::transaction_git::GitContext;
+use crate::worktree_identity::WorktreeIdentity;
 /// Branch names and global options are operating-system text.
 use std::ffi::{OsStr, OsString};
 /// Locations and repositories are paths.

@@ -33,14 +33,14 @@
 /// ```ts
 /// import { PolicyEvent } from './policy_events.ts';
 /// ```
-use super::action::ENGINE_FAILURE_EXIT_CODE;
-use super::config_schema::PolicyConfig;
-use super::diagnostics::EngineFailureCode;
-use super::event_path::EventPath;
-use super::policy_events::{FindingEvent, FindingLocation, PolicyEvent, event_blocks};
-use super::policy_registry::{PolicyId, Severity, policy_descriptor};
-use super::policy_trigger::{Trigger, policy_runs_on, trigger_is_ported};
-use super::wrapper_controls::{Controls, is_escaped};
+use crate::action::ENGINE_FAILURE_EXIT_CODE;
+use crate::config_schema::PolicyConfig;
+use crate::diagnostics::EngineFailureCode;
+use crate::event_path::EventPath;
+use crate::policy_events::{FindingEvent, FindingLocation, PolicyEvent, event_blocks};
+use crate::policy_registry::{PolicyId, Severity, policy_descriptor};
+use crate::policy_trigger::{Trigger, policy_runs_on, trigger_is_ported};
+use crate::wrapper_controls::{Controls, is_escaped};
 
 /// What:
 ///  Exit code when a pass ends with an error finding or a fixed-transform rejection.

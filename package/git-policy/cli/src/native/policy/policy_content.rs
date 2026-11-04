@@ -22,32 +22,32 @@
 //! ```
 
 /// Import the layer's failure type and its causes.
-use super::candidate_error::{CandidateError, CandidateFailure};
+use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Import the lookup of content that a parent commit's tree already holds.
-use super::candidate_known_content::{ContentBasis, KnownContent, find_known_content};
+use crate::candidate_known_content::{ContentBasis, KnownContent, find_known_content};
 /// Import the candidate's mode,
 ///  which a correction keeps.
-use super::candidate_object::CandidateMode;
+use crate::candidate_object::CandidateMode;
 /// Import what a lifecycle asks for and what preparing it yields.
-use super::candidate_prediction::{CandidateRequest, PreparedCandidates};
+use crate::candidate_prediction::{CandidateRequest, PreparedCandidates};
 /// Import the store the overlay reads through.
-use super::candidate_store::CandidateStore;
+use crate::candidate_store::CandidateStore;
 /// Import the candidate and the immutable version type.
-use super::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the change a converged fix installs,
 ///  which also records a corrected file.
-use super::direct_fix_install::InstallChange;
+use crate::direct_fix_install::InstallChange;
 /// Import the outcome a check returns.
-use super::policy_engine::PolicyOutcome;
+use crate::policy_engine::PolicyOutcome;
 /// Import the facts interface that prepares candidates.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// Import the scanner adapter.
-use super::scanner_adapter::CandidateScanner;
+use crate::scanner_adapter::CandidateScanner;
 /// Import the code of each candidate failure.
-use super::scanner_failure_code::candidate_failure_code;
+use crate::scanner_failure_code::candidate_failure_code;
 /// Import the scan pass,
 ///  its byte reader and its failure.
-use super::scanner_run::{CandidateBytes, ScanRunError, scan_version_skipping};
+use crate::scanner_run::{CandidateBytes, ScanRunError, scan_version_skipping};
 /// The scanner library's per-candidate result.
 use forbidden_strings::CandidateScan;
 /// What:

@@ -27,32 +27,32 @@
 //! ```
 
 /// Import the engine-failure codes.
-use super::diagnostics::EngineFailureCode;
+use crate::diagnostics::EngineFailureCode;
 /// Import the change list a converged fix installs,
 ///  and the installer.
-use super::direct_fix_install::{InstallChange, install_corrections};
+use crate::direct_fix_install::{InstallChange, install_corrections};
 /// Import the event form of a pathname.
-use super::event_path::EventPath;
+use crate::event_path::EventPath;
 /// Import the shipped checks,
 ///  whose content state carries the corrections.
-use super::policy_checks::ShippedChecks;
+use crate::policy_checks::ShippedChecks;
 /// Import one proposed correction.
-use super::policy_content::Correction;
+use crate::policy_content::Correction;
 /// Import the bounded loop and its interface.
-use super::policy_convergence::{
+use crate::policy_convergence::{
     Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass, converge,
 };
 /// Import the stage request,
 ///  how a stage ended and the exit code of a pass.
-use super::policy_engine::{StageEnd, StageRequest, pass_exit_code};
+use crate::policy_engine::{StageEnd, StageRequest, pass_exit_code};
 /// Import the events a fix reports.
-use super::policy_events::PolicyEvent;
+use crate::policy_events::PolicyEvent;
 /// Import one policy pass and its result.
-use super::policy_pass::{PassResult, run_policy_pass};
+use crate::policy_pass::{PassResult, run_policy_pass};
 /// Import the lifecycle point of a fix.
-use super::policy_trigger::Trigger;
+use crate::policy_trigger::Trigger;
 /// Import the facts interface.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.

@@ -24,11 +24,11 @@
 
 /// Import the candidate's mode,
 ///  which decides the replacement's permissions.
-use super::candidate_object::CandidateMode;
+use crate::candidate_object::CandidateMode;
 /// Import the unique name part shared with the private index directories.
-use super::candidate_private_index::unique_suffix;
+use crate::candidate_private_index::unique_suffix;
 /// Import the conversion of Git pathname bytes to a native path.
-use super::git_metadata::path_from_git_bytes;
+use crate::git_metadata::path_from_git_bytes;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// `Rc<T>` is a shared,

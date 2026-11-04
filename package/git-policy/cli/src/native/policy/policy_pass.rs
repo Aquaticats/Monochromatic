@@ -29,13 +29,13 @@
 /// ```ts
 /// import { runPolicyStage } from './policy_engine.ts';
 /// ```
-use super::policy_checks::ShippedChecks;
-use super::policy_engine::{StageEnd, StageRequest, StageResult, run_policy_stage};
-use super::policy_events::PolicyEvent;
-use super::policy_registry::{POLICY_REGISTRY, PolicyId};
-use super::policy_transforms::{TransformResult, apply_fixed_transforms};
-use super::policy_trigger::Trigger;
-use super::repository_facts::RepositoryFacts;
+use crate::policy_checks::ShippedChecks;
+use crate::policy_engine::{StageEnd, StageRequest, StageResult, run_policy_stage};
+use crate::policy_events::PolicyEvent;
+use crate::policy_registry::{POLICY_REGISTRY, PolicyId};
+use crate::policy_transforms::{TransformResult, apply_fixed_transforms};
+use crate::policy_trigger::Trigger;
+use crate::repository_facts::RepositoryFacts;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might

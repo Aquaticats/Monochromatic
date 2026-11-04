@@ -22,22 +22,22 @@
 //! ```
 
 /// Import the candidate's mode.
-use super::candidate_object::CandidateMode;
+use crate::candidate_object::CandidateMode;
 /// Import the candidate's change kinds.
-use super::candidate_record::CandidateChange;
+use crate::candidate_record::CandidateChange;
 /// Import the candidate and version types.
-use super::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the event form of a pathname.
-use super::event_path::EventPath;
+use crate::event_path::EventPath;
 /// Import the lifecycle's candidates and the correction a fix applies.
-use super::policy_content::{ContentState, Correction, LifecycleContent};
+use crate::policy_content::{ContentState, Correction, LifecycleContent};
 /// Import the finding and outcome types of a check.
-use super::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 /// Import the lifecycle points;
 ///  only a direct fix corrects.
-use super::policy_trigger::Trigger;
+use crate::policy_trigger::Trigger;
 /// Import the facts interface that prepares candidates.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// `HashSet<T>` is a collection of distinct values with constant-time membership tests.
 use std::collections::HashSet;
 /// `Rc<T>` is a shared,

@@ -12,8 +12,8 @@
 //! const hint = hints.get(`${policy}/${code}`); if (hint) event.hint = hint;
 //! ```
 
-use super::json_record::quote;
-use super::manual_push_cause::ManualPushCause;
+use crate::json_record::quote;
+use crate::manual_push_cause::ManualPushCause;
 
 /// The policy codes whose messages already carry their own intent guess and next step.
 pub const SELF_HINTED: &[(&str, &str)] = &[

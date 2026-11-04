@@ -32,18 +32,18 @@
 /// ```ts
 /// import { jsonString, SCHEMA_VERSION } from './diagnostics.ts';
 /// ```
-use super::diagnostics::{
+use crate::diagnostics::{
     EngineFailureCode, SCHEMA_VERSION, engine_failure_code_name, json_string,
 };
 /// A pathname as events report it,
 ///  and the encoding of its exact bytes.
-use super::event_hints::{
+use crate::event_hints::{
     POST_COMMIT_BLOCKED_HINT, WARN_UNSAFE_HINT, engine_failure_hint, finding_hint,
     push_hint_field,
 };
-use super::event_path::{EventPath, base64_standard};
-use super::policy_registry::{PolicyId, Severity, policy_descriptor, severity_name};
-use super::policy_trigger::{Trigger, trigger_name};
+use crate::event_path::{EventPath, base64_standard};
+use crate::policy_registry::{PolicyId, Severity, policy_descriptor, severity_name};
+use crate::policy_trigger::{Trigger, trigger_name};
 
 /// The code of the warning for a `warn` severity on a policy whose protection `warn` removes.
 pub const WARN_UNSAFE_CODE: &str = "warn-unsafe";

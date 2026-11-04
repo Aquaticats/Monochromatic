@@ -11,7 +11,7 @@
 //! ```
 
 /// The hint that follows an engine failure line.
-use super::event_hints::{engine_failure_hint, push_hint_field};
+use crate::event_hints::{engine_failure_hint, push_hint_field};
 
 /// What:
 ///  The event schema version every line carries.

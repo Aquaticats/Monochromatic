@@ -29,9 +29,9 @@
 /// ```ts
 /// import { triggerName } from './policy_trigger.ts';
 /// ```
-use super::policy_engine::Unavailable;
-use super::policy_registry::{PolicyId, policy_descriptor};
-use super::policy_trigger::{Trigger, trigger_name};
+use crate::policy_engine::Unavailable;
+use crate::policy_registry::{PolicyId, policy_descriptor};
+use crate::policy_trigger::{Trigger, trigger_name};
 /// What:
 ///  `PathBuf` is an owned filesystem path of raw bytes.
 ///  Sibling the reader might

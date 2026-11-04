@@ -35,17 +35,17 @@
 /// ```ts
 /// import { atomicPush } from '../rule/atomic-push.ts';
 /// ```
-use super::command_options::OptionError;
-use super::diagnostics::EngineFailureCode;
-use super::policy_events::PolicyEvent;
-use super::repository_facts::RepositoryFacts;
-use super::rule_argument_rewrite::ArgumentRewrite;
-use super::rule_atomic_push::atomic_push;
-use super::rule_commit_only::{
+use crate::command_options::OptionError;
+use crate::diagnostics::EngineFailureCode;
+use crate::policy_events::PolicyEvent;
+use crate::repository_facts::RepositoryFacts;
+use crate::rule_argument_rewrite::ArgumentRewrite;
+use crate::rule_atomic_push::atomic_push;
+use crate::rule_commit_only::{
     CommitOnlyDecision, decide_commit_only, resolve_index_state, resolve_sequencer_state,
     violation_code_text,
 };
-use super::rule_status_hints::status_hints_off;
+use crate::rule_status_hints::status_hints_off;
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
 ///  Sibling the reader might

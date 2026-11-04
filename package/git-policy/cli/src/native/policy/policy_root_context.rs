@@ -18,17 +18,17 @@
 //! ```
 
 /// Import the candidate change kinds.
-use super::candidate_record::CandidateChange;
+use crate::candidate_record::CandidateChange;
 /// Import the version type.
-use super::candidate_version::CandidateVersion;
+use crate::candidate_version::CandidateVersion;
 /// Import the event form of a pathname.
-use super::event_path::EventPath;
+use crate::event_path::EventPath;
 /// Import the lifecycle's candidates.
-use super::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{ContentState, LifecycleContent};
 /// Import the finding and outcome types of a check.
-use super::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 /// Import the facts interface that prepares candidates.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;

@@ -25,35 +25,35 @@
 //! ```
 
 /// Import the candidates whose content a parent commit's tree already holds.
-use super::candidate_known_content::KnownContent;
+use crate::candidate_known_content::KnownContent;
 /// Import the immutable version type.
-use super::candidate_version::CandidateVersion;
+use crate::candidate_version::CandidateVersion;
 /// Import the validated options of this policy.
-use super::config_schema::{ForbiddenStringsOptions, PolicyConfig};
+use crate::config_schema::{ForbiddenStringsOptions, PolicyConfig};
 /// Import the debug and warning diagnostics on standard error.
-use super::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::{debug, warn};
 /// Import the engine-failure codes.
-use super::diagnostics::EngineFailureCode;
+use crate::diagnostics::EngineFailureCode;
 /// Import the event form of a pathname.
-use super::event_path::EventPath;
+use crate::event_path::EventPath;
 /// Import the lifecycle's candidates.
-use super::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{ContentState, LifecycleContent};
 /// Import the finding and outcome types of a check.
-use super::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 /// Import the facts interface for the repository's top level.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// Import the repository location answer.
-use super::repository_location::RepositoryLocation;
+use crate::repository_location::RepositoryLocation;
 /// Import the scanner adapter and its failure.
-use super::scanner_adapter::{CandidateScanner, RulesSource, ScannerError, ScannerFailure};
+use crate::scanner_adapter::{CandidateScanner, RulesSource, ScannerError, ScannerFailure};
 /// Import the code of each scanner and scan failure.
-use super::scanner_failure_code::{
+use crate::scanner_failure_code::{
     finding_failure_code, scan_run_failure_code, scanner_failure_code,
 };
 /// Import the rules-file precedence and which candidates are scanned.
-use super::scanner_selection::{RULES_VARIABLE, is_scannable, rules_candidate_paths, rules_source};
+use crate::scanner_selection::{RULES_VARIABLE, is_scannable, rules_candidate_paths, rules_source};
 /// Import the worktree's top level from Git's answer.
-use super::worktree_identity::worktree_root;
+use crate::worktree_identity::worktree_root;
 /// The scanner library's per-candidate result and per-match finding.
 use forbidden_strings::{CandidateScan, RulesListError, ScanFinding};
 /// What:

@@ -24,21 +24,21 @@
 //! ```
 
 /// Import the candidate's mode.
-use super::candidate_object::CandidateMode;
+use crate::candidate_object::CandidateMode;
 /// Import the candidate change kinds.
-use super::candidate_record::CandidateChange;
+use crate::candidate_record::CandidateChange;
 /// Import the candidate and version types.
-use super::candidate_version::{Candidate, CandidateVersion};
+use crate::candidate_version::{Candidate, CandidateVersion};
 /// Import the event form of a pathname.
-use super::event_path::EventPath;
+use crate::event_path::EventPath;
 /// Import the lossy text of a pathname for the library's messages.
-use super::path_bytes::path_message_text;
+use crate::path_bytes::path_message_text;
 /// Import the lifecycle's candidates.
-use super::policy_content::{ContentState, LifecycleContent};
+use crate::policy_content::{ContentState, LifecycleContent};
 /// Import the finding and outcome types of a check.
-use super::policy_engine::{PolicyFinding, PolicyOutcome};
+use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 /// Import the facts interface that prepares candidates.
-use super::repository_facts::RepositoryFacts;
+use crate::repository_facts::RepositoryFacts;
 /// The shared rule:
 ///  its entry for a manifest's bytes,
 ///  its entry for a file name alone,

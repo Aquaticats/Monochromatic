@@ -27,7 +27,7 @@
 /// ```ts
 /// import { PolicyId } from './policy_registry.ts';
 /// ```
-use super::policy_registry::PolicyId;
+use crate::policy_registry::PolicyId;
 
 /// What:
 ///  One lifecycle point.
