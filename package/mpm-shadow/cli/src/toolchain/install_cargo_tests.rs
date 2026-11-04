@@ -18,8 +18,10 @@ const PUBLISHED: &str = "cargo:monochromatic-mpm-shadow";
 /// The sample lock's third-party crate.
 const THIRD_PARTY: &str = "cargo:fd-find";
 
-/// The two arguments that switch cargo-binstall's build-from-source fallback off.
-const DISABLE_COMPILE: [&str; 2] = ["--disable-strategies", "compile"];
+/// The two arguments that switch cargo-binstall's build-from-source fallback and its third-party prebuilt-binary host
+/// (quick-install) off, leaving only the crate's own published binstall metadata
+/// (owner decision 2026-11-04, "A: one flag, our crates").
+const DISABLE_COMPILE: [&str; 2] = ["--disable-strategies", "compile,quick-install"];
 
 /// The tool of `id` renamed to install the crate `crate_name`.
 fn tool_installing(rig: &Rig, id: &str, crate_name: &str) -> super::model::LockedTool {
@@ -56,11 +58,29 @@ fn a_repository_crate_install_disables_the_compile_strategy() {
     assert_eq!(
         binstall_lines(&rig),
         vec![format!(
-            "cargo binstall --no-confirm --root {} --version {} --disable-strategies compile monochromatic-mpm-shadow",
+            "cargo binstall --no-confirm --root {} --version {} --disable-strategies compile,quick-install monochromatic-mpm-shadow",
             root.display(),
             rig.tool(PUBLISHED).version
         )]
     );
+}
+
+#[test]
+fn a_repository_crate_install_passes_no_url_and_leaves_resolution_to_binstall() {
+    let rig = Rig::new();
+    install_tool(&rig.context(), &rig.tool(PUBLISHED)).expect("installed");
+    let calls = binstall_calls(&rig);
+    for flag in ["--pkg-url", "--pkg-fmt", "--bin-dir", "--strategies"] {
+        assert!(!calls[0].args.iter().any(|argument| return argument == flag), "{flag} would point at a release by hand");
+    }
+}
+
+#[test]
+fn a_third_party_crate_install_keeps_binstalls_default_strategies() {
+    let rig = Rig::new();
+    install_tool(&rig.context(), &rig.tool(THIRD_PARTY)).expect("installed");
+    let calls = binstall_calls(&rig);
+    assert!(!calls[0].args.iter().any(|argument| return argument.contains("quick-install") || argument == "--disable-strategies"));
 }
 
 #[test]

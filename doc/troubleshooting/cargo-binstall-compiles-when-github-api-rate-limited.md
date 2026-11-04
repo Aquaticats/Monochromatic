@@ -184,7 +184,8 @@ Catalog that fails:
    or any transient failure,
    then fails to install instead of compiling,
    and the other `cargo:` tools rely on the fallback.
-   Applied in `mpm-shadow` (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs`) for crates this repository publishes
+   Applied in `mpm-shadow` (`package/mpm-shadow/cli/src/toolchain/install_cargo.rs`) for crates this repository publishes,
+   as `--disable-strategies compile,quick-install` (owner decision 2026-11-04, "A: one flag, our crates"),
    (names starting with `monochromatic-`, ignoring letter case and `_` versus `-`),
    whose failure then names the reasons binstall printed and the ways forward;
    third-party crates keep the fallback, because `mpm-shadow` must still be able to compile a tool this repository
