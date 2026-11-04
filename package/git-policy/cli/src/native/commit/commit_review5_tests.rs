@@ -236,7 +236,7 @@ fn a_doorbell_with_a_second_name_is_not_an_answer_and_the_client_launches() {
     fs::hard_link(other.join("service.ring"), lane.join("service.ring")).expect("a second name of the other doorbell");
     assert!(!matches!(ring_running_service(&lane), Ok(true)), "a hard link to another lane's doorbell was taken for this lane's service");
     let mut route: Counting = Counting { calls: 0 };
-    let step = client_after_accept(&lane, RECEIPT_ID, &mut |lane| { return ring_running_service(lane); }, &mut route).expect("the client");
+    let step = client_after_accept(&lane, RECEIPT_ID, &mut |named| { return ring_running_service(named); }, &mut route).expect("the client");
     assert!(matches!(step, ClientStep::Launched(_)), "the client believed a hard link and launched nothing");
     assert!(matches!(bind_ring(&lane), Err(error) if error.kind() == io::ErrorKind::InvalidInput), "a service bound beside a doorbell with a second name");
 }

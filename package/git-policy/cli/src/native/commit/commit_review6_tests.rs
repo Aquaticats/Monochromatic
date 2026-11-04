@@ -76,13 +76,13 @@ fn a_fifo_named_like_the_ledger_blocks_no_ledger_operation() {
     fs::write(&ledger, b"").expect("a regular ledger");
     let swapped_lane: PathBuf = lane.clone();
     let swapped: Option<i32> = in_single_threaded_process(move || {
-        let ledger: PathBuf = swapped_lane.join("ledger");
-        let Ok(mut owner) = LedgerOwner::acquire(&ledger) else { return 2 };
-        fs::remove_file(&ledger).expect("remove the ledger");
-        let name: CString = CString::new(ledger.as_os_str().as_encoded_bytes()).expect("a path");
+        let own_ledger: PathBuf = swapped_lane.join("ledger");
+        let Ok(mut owner) = LedgerOwner::acquire(&own_ledger) else { return 2 };
+        fs::remove_file(&own_ledger).expect("remove the ledger");
+        let name: CString = CString::new(own_ledger.as_os_str().as_encoded_bytes()).expect("a path");
         // SAFETY: as in `make_fifo`.
         assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0, "mkfifo");
-        return if owner.append(&swapped_lane, &ledger, &entry(&"b".repeat(32))).is_err() { 0 } else { 1 };
+        return if owner.append(&swapped_lane, &own_ledger, &entry(&"b".repeat(32))).is_err() { 0 } else { 1 };
     });
     assert_eq!(swapped, Some(0), "an append waited on a FIFO that took the ledger's name (None), was accepted (1) or the owner was not acquired (2)");
 }

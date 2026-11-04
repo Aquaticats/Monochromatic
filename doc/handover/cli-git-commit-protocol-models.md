@@ -1990,3 +1990,64 @@ were not changed in this round and the reviews did not name them. The service pa
 than the service lock are opened by path under the pinned lane. Live-cutover obligations are unchanged.
 
 Gates: `native:test:model` 644 passed, 0 failed, none leaky; both clippy tasks clean; `source_guard` 39 of 39.
+
+## Round 30: the merge of main, the lane file reads, and the two reviews of the step3c bundle (2026-11-04), stopped at the owner's pause
+
+Stopped here by the owner's instruction (relayed by the coordinator): "aside from layout + linting fixes, pause everything else - but let work
+already in flight run to their natural conclusions." Nothing is discarded; no new fix round was started and no review bundle was built after this
+section's work.
+
+Done and committed (tests green at the tip, gates below):
+- The merge of main (the one-executable change, `ab40458516`) into this branch: `service_main.rs` is `src/native/service/service_main.rs` with
+  `pub fn run(arguments: &[String]) -> i32`; the `--flush-lane`, `--lane` and `--lane-interval-millis` switches are carried into `run`; the
+  transient unit now runs `<executable> cli-git service run --flush-lane <lane>` (`transient_unit_arguments`), and the real-binary tests start the
+  one executable with the service words.
+- Owner item 4 of the previous report (the ledger, spool and inbox reads): every read and open of a lane file there now goes through
+  `open_regular` / `read_regular` / `open_regular_with` of the state component (no link followed, no FIFO waited for, the type judged from the
+  descriptor, reads to the length at the open, appends and the torn-tail truncation never written through a link). Red first in
+  `commit_review6_tests.rs` (four tests: ledger FIFO and link, spool FIFO and link, inbox FIFO, link, order file and request force).
+- Review A of step3c (`commit-models-step3c-sol-a.txt`): the hard-linked doorbell (a doorbell with a second name is refused, red first); the
+  stale-doorbell race test now pauses after the refused probe and keeps the second service alive until the first has finished; the
+  post-validation FIFO control for `force_item` (a swap between the selection and the open, new fault point `state:before-item-force`); the
+  pending-enqueue assertion restored; a disposal begins for an item held by the closure only; the nonce-collision control (`inject_nonce`).
+- Review B of step3c (`commit-models-step3c-sol-b.txt`), the data-safety and receipt findings, red first in `commit_review7_tests.rs`:
+  - the old disposal authorization: a `disposal-done` line (new outcome, `commit_ledger.rs`) ends an authorization; pending means the last
+    disposal line of the key is `disposed`; the unlink and a stale-token refusal end it; recovery lapses it when the newest root retains the item
+    and its ledger prefix already holds every `disposed` line of the key (a root written after the authorization), so content saved again, or
+    retained again after the line, is not removed; `capture_lane_closure` skips only pending disposals. Residual window, stated: a crash between
+    the unlink and the `disposal-done` line, then saving the same bytes again before the next recovery.
+  - confinement below the pinned lane: saving content refuses a linked `saved`; the state append opens its segment without following a link or
+    blocking and refuses a second name; item validation and the force check the item's directory is a real directory of the lane; `open_lane`
+    refuses a child directory others can write.
+  - the flusher lock: created 0600; owner, mode and single name checked on the descriptor.
+  - an unsafe error record no longer stops the receipts from being forced: it is reported after the sweep and never cleared.
+- Changed behavior to know: the ledger gained the `disposal-done` outcome word; the batch-recovery control counts authorization lines and end
+  lines separately.
+
+Gates at the tip: `native:test:model` 662 of 662 (none leaky), both clippy tasks clean,
+`source_guard` 41 of 41.
+
+Guard removals of this round (`/var/home/user/temp/agent/r26/mutations-round6-a.log` and `-b.log`, two shards on two scratch worktrees):
+- Red at once: ledger lookup, validation, tail check; spool manifest, file, resend; the item force after validation; the validation by lane
+  name; the append open; the child directory ownership; the flusher lock mode and second name; the unsafe-record stop; the taken establishment
+  name; the doorbell second name; the pending insertion; the service lock; the closure-aware retirement.
+- Survived, with the reason (a layer behind another guard, or no control reaches it): ledger append plain open (the tail check ahead of it
+  already refuses), ledger repair plain read and ledger truncation plain open (reached only with a torn tail and a swapped name; no control),
+  spool closure reads (the verification ahead of it reads the same files with the guard), saving content through the name instead of the
+  descriptor (the directory open ahead of it refuses a link), the stale-token end of the authorization and the recovery lapse (each hides the other;
+  two controls were added afterwards for each alone and were not re-shown red with the guard removed, because of the pause), the unlink's own
+  pending check (defensive, no control), and the second-name check of the append (a control was added after the run, not re-shown red).
+
+Open, not started (the owner paused everything but layout and lint work):
+1. Review A of step3c, the rest: `next_due` is shown by its calculation, not by the loop propagating `more` (no loop-level control); the
+   old/new flusher overlap has no held-through handshake, so no temporal overlap is claimed; closure-aware membership is now used by the
+   retirement and the recovery, and any other step that reads the document alone is not audited.
+2. Review B of step3c, the rest: the state component still resolves items by name under the lane (the check of an item's directory is by name
+   immediately before the open, not atomic); the atomic form needs the lane descriptor carried through the state component. `OneRound` does not bound a
+   live directory enumeration (`unforced`): a bound needs a limit, which LQM says needs a workload measurement or an owner decision. The
+   threadless reaper reaps only when a later launch polls (a zombie can remain until then); a timer or SIGCHLD integration is not built. The ring
+   entry can still be replaced between its check and the send by a process that may rename entries of the lane.
+3. Item 4 of the coordinator's list (the cross-vendor re-review of the step3c bundle) is the coordinator's; findings arrive as reviews A and B
+   above, and no bundle was built for the changes after step3c (the base for the next bundle is `0cc8d40e7a`).
+4. Owner items, unchanged: the directories above the lane are not checked (this machine's `/var/mnt/encrypted` is mode 0777 without the sticky
+   bit); a seal over an opaque root is an error; no size cap on state and lane file reads (no shipped limit until a workload measurement exists).

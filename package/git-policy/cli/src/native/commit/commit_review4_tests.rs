@@ -294,9 +294,9 @@ fn a_crash_during_the_batch_recovery_of_two_pending_disposals_is_recovered_and_t
     let document: LaneDocument = LaneDocument::parse(&root.payload).expect("checked");
     assert_eq!(document.saved(), std::slice::from_ref(&names[2]), "the root names the sentinel and nothing else");
     // Two authorizations and the two lines that ended them: no authorization line was written twice.
-    let ledger: String = fs::read_to_string(lane.join("ledger")).expect("the ledger");
-    assert_eq!(ledger.lines().filter(|line| { return line.contains("disposed"); }).count(), 2, "no authorization line was written twice");
-    assert_eq!(ledger.lines().filter(|line| { return line.contains("disposal-done"); }).count(), 2, "each authorization ended once");
+    let ledger_text: String = fs::read_to_string(lane.join("ledger")).expect("the ledger");
+    assert_eq!(ledger_text.lines().filter(|line| { return line.contains("disposed"); }).count(), 2, "no authorization line was written twice");
+    assert_eq!(ledger_text.lines().filter(|line| { return line.contains("disposal-done"); }).count(), 2, "each authorization ended once");
 }
 
 /// Review of step 3 (tests, 6): a record on disk whose retained set names one path twice is refused by the parsers (the file is ineligible),

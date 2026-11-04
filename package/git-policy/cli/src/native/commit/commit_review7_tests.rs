@@ -87,10 +87,36 @@ fn a_renewed_retention_between_the_retirement_and_the_unlink_ends_the_authorizat
     let token = retire_saved_content(&lane, &state, &DisposalAuthorization::explicit(&name)).expect("the retirement");
     publish_retaining(&lane, &state, &name);
     assert!(unlink_retired(token).is_err(), "the stale token unlinked content a newer root retains");
+    assert!(fs::read_to_string(lane.join("ledger")).expect("the ledger").contains("disposal-done"), "the stale token left the authorization pending");
     assert_eq!(resume_disposals(&lane, &state).expect("recovery"), 0, "recovery dropped the renewed retention");
     assert!(lane.join("saved").join(&name).exists());
     let root = select(&state).expect("readable").expect("a root");
     assert!(LaneDocument::parse(&root.payload).expect("checked").saved().contains(&name), "the renewed retention was replaced");
+}
+
+/// A crash after the authorization, then a root written after it that retains the content: recovery alone (no unlink was attempted, so
+/// nothing else ended the authorization) lapses it and leaves the content.
+#[test]
+fn recovery_lapses_an_authorization_that_a_later_root_retains_the_content_against() {
+    let (lane, state, name) = lane_with_saved("rev7-lapse", b"retained after the line");
+    let (child_lane, child_state, child_name) = (lane.clone(), state.clone(), name.clone());
+    let status: Option<i32> = in_single_threaded_process(move || {
+        set_fault_point(Some(die_after_the_line));
+        let _ = dispose_saved_content(&child_lane, &child_state, &DisposalAuthorization::explicit(&child_name));
+        return 0;
+    });
+    assert_eq!(status, Some(77), "the disposal did not reach its crash point");
+    publish_retaining(&lane, &state, &name);
+    assert_eq!(resume_disposals(&lane, &state).expect("recovery"), 0, "recovery finished a disposal that a later root retains the content against");
+    assert!(lane.join("saved").join(&name).exists());
+}
+
+/// Dies at once after the disposal's line.
+fn die_after_the_line(point: &str) {
+    if point == "disposal:after-line" {
+        // SAFETY: `_exit` takes an integer and never returns.
+        unsafe { libc::_exit(77) };
+    }
 }
 
 //endregion
@@ -170,6 +196,17 @@ fn an_append_never_truncates_a_file_that_a_link_at_the_segment_leads_to() {
     assert_eq!(fs::read(&valuable).expect("the file"), b"keep these bytes, they are longer than nothing", "the file the link leads to was changed");
 }
 
+/// A segment with a second name is not appended to (truncating it would cut the other name's file too).
+#[test]
+fn an_append_refuses_a_segment_that_has_a_second_name() {
+    let (lane, state, _name) = lane_with_saved("rev7-append-hard", b"item");
+    let closure: Vec<ClosureEntry> = capture_lane_closure(&lane).expect("capture");
+    let document: LaneDocument = LaneDocument::from_closure(&closure).expect("expressible");
+    let other: PathBuf = scratch("rev7-append-hard-other").join("second-name");
+    fs::hard_link(state.join("state.log.1"), &other).expect("a second name");
+    assert!(StateWriter::acquire(&state).expect("writer").append_with(2, &document.encode(), &closure).is_err(), "an append went on with a segment that has a second name");
+}
+
 /// Review of step 3 (whole files, 2): a child directory that another account could write is not accepted as a lane.
 #[test]
 fn a_lane_whose_child_directory_others_can_write_is_refused() {
@@ -245,8 +282,8 @@ fn an_unreadable_error_record_does_not_stop_the_receipts_from_being_forced() {
     let outcome: Option<i32> = in_single_threaded_process(move || {
         FORCED.with(|cell| { cell.set(0); });
         set_fault_point(Some(count_forcing));
-        let pass = syncer_pass(&fifo_lane);
-        return if pass.is_err() && FORCED.with(std::cell::Cell::get) == 1 { 0 } else { 1 };
+        let fifo_pass = syncer_pass(&fifo_lane);
+        return if fifo_pass.is_err() && FORCED.with(std::cell::Cell::get) == 1 { 0 } else { 1 };
     });
     assert_eq!(outcome, Some(0), "a FIFO at the record's name blocked the pass (None) or stopped the forcing (1)");
 }
