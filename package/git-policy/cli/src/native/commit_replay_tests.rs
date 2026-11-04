@@ -466,3 +466,22 @@ fn a_replay_from_a_closure_reconstructed_after_the_objects_were_pruned_is_clean_
     let conflict: Replayed = replay_delta(std::slice::from_ref(&old), std::slice::from_ref(&new), &competing);
     assert_eq!(conflict.conflicts[0].kind, ConflictKind::BothChanged);
 }
+
+/// Review 5 item 3.7: a replay in which every path has competing edits settles every path at its current cell and reports one conflict
+/// per path; the membership test for "already reported" must not scan the conflict list per leaf. A sorted workload of this size is
+/// quick in a linear replay and takes tens of seconds when each of the leaves scans every conflict so far; the bound below is the
+/// measured margin (the linear replay takes a small fraction of it in the same build).
+#[test]
+fn a_conflict_heavy_replay_is_not_quadratic() {
+    let paths: usize = 60_000;
+    let cell = |index: usize, id: &str| -> FlatEntry { return FlatEntry { path: format!("dir/file-{:06}", index).into_bytes(), mode: 0o100_644, id: id.as_bytes().to_vec() }; };
+    let base: Vec<FlatEntry> = (0..paths).map(|index| { return cell(index, "o"); }).collect();
+    let current: Vec<FlatEntry> = (0..paths).map(|index| { return cell(index, "a"); }).collect();
+    let result: Vec<FlatEntry> = (0..paths).map(|index| { return cell(index, "b"); }).collect();
+    let started = std::time::Instant::now();
+    let replayed: Replayed = replay_delta(&base, &result, &current);
+    let elapsed = started.elapsed();
+    assert_eq!(replayed.conflicts.len(), paths);
+    assert_eq!(replayed.entries.len(), paths);
+    assert!(elapsed < std::time::Duration::from_secs(3), "{} conflicting paths took {:?}", paths, elapsed);
+}

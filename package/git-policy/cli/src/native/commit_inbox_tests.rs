@@ -14,7 +14,7 @@
 #![cfg(feature = "test-seams")]
 
 use crate::model_fixture::scratch;
-use git_policy_cli::commit_identity::{bind, start_events, take_events};
+use git_policy_cli::commit_identity::{bind, set_fault_point, start_events, take_events};
 use git_policy_cli::commit_inbox::{Accepted, accept, decode_inbox_file, depart, depart_closure, encode_inbox_file, init_lane_directories, with_identity};
 use git_policy_cli::commit_integrity::sha256_hex;
 use git_policy_cli::commit_request::{Change, Operation, Request, publish};
@@ -230,4 +230,36 @@ fn the_state_log_requires_increasing_generations() {
     assert!(commit_state_log::append(&dir, 5, b"again").is_err());
     assert!(commit_state_log::append(&dir, 4, b"older").is_err());
     commit_state_log::append(&dir, 6, b"six").expect("append");
+}
+
+/// The inbox directory whose temporary name the fault point below turns into a directory.
+static CLEANUP_TARGET: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+/// At `accept:after-link`, replaces the temporary file by a directory, so removing it as a file fails for every user.
+fn break_the_cleanup(point: &str) {
+    if point != "accept:after-link" {
+        return;
+    }
+    let Some(tmp) = CLEANUP_TARGET.lock().expect("lock").clone() else { return };
+    for entry in std::fs::read_dir(&tmp).expect("tmp").flatten() {
+        std::fs::remove_file(entry.path()).expect("remove the temporary");
+        std::fs::create_dir(entry.path()).expect("put a directory in its place");
+    }
+}
+
+/// Review 5 item 3.6: the link succeeded and the temporary name could not be removed. The request is published, so `accept` must say so
+/// (a distinct value), not return an error that a caller would read as "not accepted" and answer with a native Git commit beside a
+/// queued request.
+#[test]
+fn a_failed_cleanup_after_a_successful_link_is_not_an_error() {
+    let root: PathBuf = scratch("v-cleanup");
+    let lane: PathBuf = init_lane_directories(&root, &root.join("lane")).expect("init");
+    let (request, new_files, old_files) = one_path_request();
+    *CLEANUP_TARGET.lock().expect("lock") = Some(lane.join("inbox").join("tmp"));
+    set_fault_point(Some(break_the_cleanup));
+    let outcome = accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files);
+    set_fault_point(None);
+    assert!(matches!(outcome, Ok(Accepted::CreatedTemporaryLeft(_))), "{:?}", outcome);
+    assert!(lane.join("inbox").join(&request.id).exists(), "the request is in place");
+    assert_eq!(accept(&lane.join("inbox"), INSTANCE, &request, &new_files, &old_files).expect("resend"), Accepted::AlreadyPresent);
 }

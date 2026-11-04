@@ -86,6 +86,16 @@ impl From<io::Error> for LedgerError {
     }
 }
 
+/// The longest `time` field a line may carry (an ISO 8601 text with an offset is 25 bytes; the bound leaves room and keeps every line
+/// inside `TAIL_WINDOW`).
+pub const TIME_MAX: usize = 64;
+
+/// The bytes a clean append reads from the end of the ledger.
+pub const TAIL_WINDOW: u64 = 512;
+
+/// The longest valid line: checksum, identity, outcome (32), commit (64), time (`TIME_MAX`), five separators and the newline.
+pub const MAX_LINE_BYTES: usize = 8 + 1 + 32 + 1 + 32 + 1 + 64 + 1 + TIME_MAX + 1;
+
 /// Whether `text` is a field of the line: non-empty, no space, no control character.
 fn plain_field(text: &str) -> bool {
     return !text.is_empty() && text.chars().all(|c| { return c.is_ascii_graphic(); });
@@ -114,7 +124,7 @@ pub fn encode_line(entry: &LedgerEntry) -> Result<Vec<u8>, LedgerError> {
     if entry.commit != "-" && !is_object_name(&entry.commit) {
         return Err(LedgerError::InvalidField("commit"));
     }
-    if !plain_field(&entry.time) {
+    if !plain_field(&entry.time) || entry.time.len() > TIME_MAX {
         return Err(LedgerError::InvalidField("time"));
     }
     let body: String = format!("{} {} {} {}", entry.id, entry.outcome, entry.commit, entry.time);
@@ -278,7 +288,7 @@ fn clean_tail(ledger: &Path) -> Result<Option<Repair>, LedgerError> {
     if length == 0 {
         return Ok(Some(Repair { kept: 0, cut: 0 }));
     }
-    let window: u64 = length.min(512);
+    let window: u64 = length.min(TAIL_WINDOW);
     file.seek(SeekFrom::Start(length - window))?;
     let mut tail: Vec<u8> = vec![0; window as usize];
     file.read_exact(&mut tail)?;
@@ -388,6 +398,20 @@ pub fn lookup(ledger: &Path, id: &str) -> Result<Option<LedgerEntry>, LedgerErro
     return Ok(None);
 }
 
+/// Reads the whole ledger once and refuses a damaged middle; a torn tail is allowed (an append repairs it) and a missing file is empty.
+fn validate_history(ledger: &Path) -> Result<(), LedgerError> {
+    let bytes: Vec<u8> = match fs::read(ledger) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(LedgerError::Io(error)),
+    };
+    let (_, damaged_middle) = scan(&bytes);
+    if let Some(number) = damaged_middle {
+        return Err(LedgerError::DamagedLine(number));
+    }
+    return Ok(());
+}
+
 /// What:
 ///  `struct LedgerOwner { ... }`: the exclusive owner of one lane's ledger, proved by a non-blocking exclusive lock on `<ledger>.owner`
 ///  that lives as long as the value. Only an owner may repair or append through it.
@@ -415,7 +439,12 @@ impl LedgerOwner {
         name.push(".owner");
         let lock: File = OpenOptions::new().create(true).write(true).truncate(false).open(PathBuf::from(name))?;
         match lock.try_lock() {
-            Ok(()) => return Ok(LedgerOwner { _lock: lock, ledger: std::path::absolute(ledger)? }),
+            Ok(()) => {
+                // The one full validation of this owner's lifetime: every append behind it reads only the tail, which is sound because
+                // this owner is the only appender and the history it appends to has no damaged middle.
+                validate_history(ledger)?;
+                return Ok(LedgerOwner { _lock: lock, ledger: std::path::absolute(ledger)? });
+            }
             Err(std::fs::TryLockError::WouldBlock) => return Err(LedgerError::OwnedElsewhere),
             Err(std::fs::TryLockError::Error(error)) => return Err(LedgerError::Io(error)),
         }

@@ -14,7 +14,7 @@
 use crate::model_fixture::{owned_append, owned_repair, scratch};
 use git_policy_cli::commit_identity::{Bound, IdentityError, bind, binding_path, create_dir_all_durable};
 use git_policy_cli::commit_integrity::{crc32, sha256_hex};
-use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, LedgerOwner, encode_line, lane_ledger_path, lookup, parse_line};
+use git_policy_cli::commit_ledger::{LedgerEntry, LedgerError, LedgerOwner, MAX_LINE_BYTES, TAIL_WINDOW, TIME_MAX, encode_line, lane_ledger_path, lookup, parse_line};
 use git_policy_cli::commit_request::{Change, Eligibility, Operation, Published, Request, RequestError, content_hash, decode, eligibility, encode, publish};
 use git_policy_cli::commit_spool::{SpoolError, read_closure, verify_against_request, verify_spool, write_spool};
 use std::path::{Path, PathBuf};
@@ -540,4 +540,32 @@ fn an_owner_of_one_ledger_cannot_touch_another() {
     assert!(owner.append(&directory, &other, &entry('1', "published")).is_err());
     assert!(owner.repair_tail(&directory, &other).is_err());
     assert!(!other.exists());
+}
+
+/// Review 5 item 3.7: the bounded-read append is justified only by a validated history. A ledger with a damaged middle line is refused
+/// when the owner is acquired (the one full validation per owner), so no append can succeed behind damage and leave `lookup` failing.
+#[test]
+fn an_owner_cannot_be_acquired_over_a_damaged_middle() {
+    let ledger: PathBuf = scratch("ledger-owner-middle").join("ledger");
+    for digit in ['1', '2', '3'] {
+        owned_append(ledger.parent().expect("parent"), &ledger, &entry(digit, "published")).expect("append");
+    }
+    let mut bytes: Vec<u8> = std::fs::read(&ledger).expect("read");
+    let line: usize = encode_line(&entry('1', "published")).expect("encode").len();
+    bytes[line + 12] ^= 1;
+    std::fs::write(&ledger, &bytes).expect("damage");
+    assert!(matches!(LedgerOwner::acquire(&ledger), Err(LedgerError::DamagedLine(1))));
+    assert!(matches!(owned_append(ledger.parent().expect("parent"), &ledger, &entry('4', "published")), Err(LedgerError::DamagedLine(1))));
+    assert_eq!(std::fs::read(&ledger).expect("read"), bytes, "nothing was appended behind the damage");
+}
+
+/// Review 5 item 3.7: no valid line is longer than the tail window, so a clean append reads at most the window. The time field is the
+/// only unbounded one; its bound and the window are derived together.
+#[test]
+fn no_valid_line_is_longer_than_the_tail_window() {
+    let longest: LedgerEntry = LedgerEntry { id: identity('1'), outcome: "a".repeat(32), commit: "a".repeat(64), time: "t".repeat(TIME_MAX) };
+    let line: Vec<u8> = encode_line(&longest).expect("the longest valid line");
+    assert!(line.len() <= MAX_LINE_BYTES && (line.len() as u64) < TAIL_WINDOW, "{} bytes against a window of {}", line.len(), TAIL_WINDOW);
+    let too_long: LedgerEntry = LedgerEntry { time: "t".repeat(TIME_MAX + 1), ..longest };
+    assert!(matches!(encode_line(&too_long), Err(LedgerError::InvalidField("time"))));
 }

@@ -22,7 +22,7 @@
 // ```ts
 // // a Map whose keys are sorted when iterated
 // ```
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::repo_read_tree::FlatEntry;
 
@@ -187,6 +187,8 @@ pub fn replay_delta(base: &[FlatEntry], result: &[FlatEntry], current: &[FlatEnt
     paths.dedup();
     let mut settled: BTreeMap<Vec<u8>, Cell> = BTreeMap::new();
     let mut conflicts: Vec<Conflict> = Vec::new();
+    // The paths already reported, ordered, so "already a conflict" is one lookup and not a scan of the list per leaf.
+    let mut reported: BTreeSet<Vec<u8>> = BTreeSet::new();
     for path in paths {
         match merge_cell(b.get(path), c.get(path), r.get(path)) {
             Ok(Some(cell)) => {
@@ -197,6 +199,7 @@ pub fn replay_delta(base: &[FlatEntry], result: &[FlatEntry], current: &[FlatEnt
                 let gitlinks: bool = [b.get(path), c.get(path), r.get(path)].iter().all(|cell| { return cell.is_some_and(|entry| { return entry.0 == 0o160_000; }); });
                 let kind: ConflictKind = if gitlinks { ConflictKind::GitlinkNeedsAncestry } else { ConflictKind::BothChanged };
                 conflicts.push(Conflict { path: path.clone(), kind });
+                reported.insert(path.clone());
                 if let Some(cell) = c.get(path) {
                     settled.insert(path.clone(), cell.clone());
                 }
@@ -210,8 +213,7 @@ pub fn replay_delta(base: &[FlatEntry], result: &[FlatEntry], current: &[FlatEnt
         prefix.push(b'/');
         // The smallest key at or after `leaf/` starts with it exactly when some path lies below `leaf` (one ordered lookup, not a scan).
         let has_children: bool = settled.range(prefix.clone()..).next().is_some_and(|(key, _)| { return key.starts_with(&prefix); });
-        let already: bool = conflicts.iter().any(|conflict| { return conflict.path == *leaf; });
-        if has_children && !already {
+        if has_children && !reported.contains(leaf) {
             conflicts.push(Conflict { path: leaf.clone(), kind: ConflictKind::DirectoryFile });
         }
     }

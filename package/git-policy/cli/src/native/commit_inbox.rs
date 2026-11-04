@@ -16,7 +16,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use super::commit_identity::{create_dir_all_durable, sync_directory, sync_file, temporary_name};
+use super::commit_identity::{create_dir_all_durable, fault_point, record_event, sync_directory, sync_file, temporary_name};
 use super::commit_integrity::sha256_hex;
 use super::commit_request::{Request, RequestError, decode, encode};
 use super::commit_state_log::sync_newest_log;
@@ -65,6 +65,9 @@ pub enum Accepted {
     Created,
     /// A file with the same bytes was already there (a resend).
     AlreadyPresent,
+    /// This call linked the file into place and then could not remove its temporary name (review 5 item 3.6): the request is accepted
+    /// and published; only a stale name remains in `inbox/tmp/`, which recovery ignores. The kind says why the removal failed.
+    CreatedTemporaryLeft(io::ErrorKind),
 }
 
 /// What:
@@ -228,10 +231,21 @@ pub fn accept(inbox: &Path, instance: &str, request: &Request, new_files: &[Vec<
     let mut file: File = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
     file.write_all(&bytes)?;
     let linked: io::Result<()> = fs::hard_link(&temporary, &target);
-    fs::remove_file(&temporary)?;
+    fault_point("accept:after-link");
+    // A failed cleanup after a successful link must not look like a request that was never accepted: the caller would run native Git
+    // beside a queued request. The outcome of the link decides the answer; the cleanup failure rides along or is recorded.
+    let cleanup: io::Result<()> = fs::remove_file(&temporary);
     match linked {
-        Ok(()) => return Ok(Accepted::Created),
+        Ok(()) => {
+            return Ok(match cleanup {
+                Ok(()) => Accepted::Created,
+                Err(error) => Accepted::CreatedTemporaryLeft(error.kind()),
+            });
+        }
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            if let Err(cleanup_error) = cleanup {
+                record_event(&format!("accept:cleanup-failed:{:?}", cleanup_error.kind()));
+            }
             if fs::read(&target)? == bytes {
                 return Ok(Accepted::AlreadyPresent);
             }
