@@ -1,20 +1,22 @@
 //! What:
 //!  The controls of reclamation during capture: the components' rule is green over every schedule of write-back, one power loss, the
-//!  departure's capture, force and return, and the reclaimer's candidate and removal; each clause has a single-defect control.
+//!  departure's capture, force, return and recapture, and the reclaimer's candidate and removal; each clause has a control.
 //! Why:
-//!  Without the controls a green search could be one that never reaches a removal or a return.
+//!  Without the controls a green search could be one that never reaches a removal, a recapture or a return.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // test('reclamation during capture', () => { expect(check(Checked).violation).toBeUndefined(); expect(check(ReclaimsAnyCandidate).violation).toBeDefined(); });
+//! // test('reclamation during capture', () => { expect(check(Checked).violation).toBeUndefined(); expect(check(NoSubstitution).violation).toBeDefined(); });
 //! ```
 
-use crate::model_capture_reclaim_r23::{Departure, Rules, State, check, durable_cover, initial, invariant, steps};
+use crate::model_capture_reclaim_r23::{Departure, Root, Rules, State, check, durable_root, initial, invariant, steps, terminal};
 use crate::model_explore::{Report, replay};
 
-const CAPTURES: &str = "departure: captures the acknowledgment of the promised record in the current segment";
-const FORCES_SEGMENT: &str = "departure: forces the segment it captured";
+const CAPTURES: &str = "departure: captures the acknowledgment of the record the log selects now";
+const FORCES: &str = "departure: forces the file it captured";
 const RETURNS: &str = "departure: verifies the log by name and returns success";
+const GONE: &str = "departure: opening the old segment finds it gone and the log is selected again";
+const RECAPTURES: &str = "departure: the selected root is not the one it captured, so it captures again";
 const DESCENDS: &str = "owner: writes a checkpoint candidate that descends from the promised record";
 const UNRELATED: &str = "owner: writes a checkpoint candidate that changed the document";
 const FORCES_CANDIDATE: &str = "owner: forces the candidate";
@@ -36,58 +38,76 @@ fn the_checked_rule_is_green_over_every_schedule() {
     assert!(report.violation.is_none() && report.exhausted, "{:?}", report.violation.map(|found| { return (found.message, found.trace); }));
 }
 
-/// Positive control: the green search reaches a returned departure and a removed segment, in one schedule, so the green is not one that
-/// never reaches either.
+/// Positive control for the removal: a departure that returned before the removal leaves a log whose root is the candidate that replaced
+/// the segment, and the root survives the power loss.
 #[test]
 fn the_green_search_reaches_a_return_and_a_removal_in_one_schedule() {
-    let done: State = replay(
-        initial(Rules::Checked),
-        steps,
-        &[CAPTURES, FORCES_SEGMENT, RETURNS, DESCENDS, FORCES_CANDIDATE, FORCES_NAME, REMOVES, PERSISTS_REMOVAL],
-    );
+    let done: State = replay(initial(Rules::Checked), steps, &[CAPTURES, FORCES, RETURNS, DESCENDS, FORCES_CANDIDATE, FORCES_NAME, REMOVES, PERSISTS_REMOVAL]);
     assert_eq!(done.departure, Departure::Returned);
-    assert!(durable_cover(&done) && invariant(&done).is_none(), "the replacement covers the promise after the removal is durable");
-    let lost: State = replay(done, steps, &[LOSS]);
-    assert!(durable_cover(&lost), "the covered promise survives the power loss");
+    assert_eq!(durable_root(&done), Root::Newer);
+    assert!(invariant(&done).is_none());
+    assert_eq!(durable_root(&replay(done, steps, &[LOSS])), Root::Newer);
 }
 
-/// A checkpoint that changed the document and recorded no lineage replaces the segment that holds the promise: the control that removes the
-/// segment for any durable candidate leaves a log that does not cover what the departure reported as kept.
+/// The review's schedule (finding 5): capture, force the old segment, write an unrelated higher-generation candidate, force it and its name.
+/// The selected root is now the candidate and does not cover the capture, so the departure may not return on the old file's survival; it
+/// captures the new root, forces it, and returns.
 #[test]
-fn a_reclaimer_that_removes_the_segment_for_an_unrelated_candidate_loses_the_promise() {
-    let (message, trace) = red(Rules::ReclaimsAnyCandidate);
-    assert!(message.contains("does not cover the record it acknowledged"));
-    assert!(trace.iter().any(|label| { return label == UNRELATED; }) && trace.iter().any(|label| { return label == REMOVES; }), "{:?}", trace);
-    let lost: State = replay(initial(Rules::ReclaimsAnyCandidate), steps, &[CAPTURES, FORCES_SEGMENT, RETURNS, UNRELATED, FORCES_CANDIDATE, FORCES_NAME, REMOVES, PERSISTS_REMOVAL]);
-    assert!(invariant(&lost).is_some());
+fn an_unrelated_higher_generation_candidate_becomes_the_root_and_the_departure_captures_again() {
+    let selected: State = replay(initial(Rules::Checked), steps, &[CAPTURES, FORCES, UNRELATED, FORCES_CANDIDATE, FORCES_NAME]);
+    assert_eq!(durable_root(&selected), Root::Newer);
+    assert!(steps(&selected).iter().all(|(label, _)| { return label != RETURNS; }), "a return on the survival of the old file alone");
+    let returned: State = replay(selected, steps, &[RECAPTURES, CAPTURES, FORCES, RETURNS]);
+    assert_eq!(returned.departure, Departure::Returned);
 }
 
-/// The reclaimer removes the segment only after the candidate is durable: the control that removes it at once leaves a log with neither the
-/// segment nor the candidate when the removal persists and the candidate does not.
+/// The ENOENT schedule: the departure selected the old segment, the reclaimer unlinked it, and the open of the path fails; the departure
+/// selects again and captures the candidate.
 #[test]
-fn a_reclaimer_that_removes_the_segment_before_the_candidate_is_durable_loses_the_promise_in_a_power_loss() {
+fn a_departure_that_finds_the_old_segment_gone_selects_again() {
+    let gone: State = replay(initial(Rules::Checked), steps, &[CAPTURES, DESCENDS, FORCES_CANDIDATE, FORCES_NAME, REMOVES]);
+    assert!(steps(&gone).iter().any(|(label, _)| { return label == GONE; }), "the open of the removed path has its own step");
+    assert!(steps(&gone).iter().all(|(label, _)| { return label != FORCES; }), "the old file is not forced after its name is gone");
+    let returned: State = replay(gone, steps, &[GONE, CAPTURES, FORCES, RETURNS]);
+    assert_eq!(returned.departure, Departure::Returned);
+}
+
+/// Without the departure's recapture an unrelated candidate leaves it with a capture that no root covers: red, with the candidate in the trace.
+#[test]
+fn a_departure_that_never_captures_again_is_stuck_when_the_root_changes() {
+    let (message, trace) = red(Rules::NoSubstitution);
+    assert_eq!(message, "a departure that captured a record can never return");
+    assert!(trace.iter().any(|label| { return label == UNRELATED; }), "{:?}", trace);
+    let stuck: State = replay(initial(Rules::NoSubstitution), steps, &[CAPTURES, FORCES, UNRELATED, FORCES_CANDIDATE, FORCES_NAME]);
+    assert!(steps(&stuck).iter().all(|(label, _)| { return label.starts_with("environment:") || label.starts_with("owner:"); }), "the departure has a step of its own left");
+    assert!(terminal(&stuck).is_some());
+}
+
+/// With the departure's recapture, removing the old segment for any durable candidate is green: the lineage restriction on removal is not
+/// what keeps a departure's promise. It keeps an acknowledgment taken before the removal covered (`state_covers`) without a recapture, which
+/// the component tests (`r17_a_checked_document_reclaims_and_covers...`) show.
+#[test]
+fn with_recapture_removal_for_an_unrelated_candidate_is_green_so_lineage_is_not_what_keeps_the_promise() {
+    let report: Report = check(Rules::ReclaimsAnyCandidate);
+    assert!(report.violation.is_none() && report.exhausted, "{:?}", report.violation.map(|found| { return (found.message, found.trace); }));
+}
+
+/// The reclaimer removes the segment only after the candidate is durable: the control that removes it at once leaves a log with neither
+/// the segment nor the candidate when the removal persists and the candidate does not.
+#[test]
+fn a_reclaimer_that_removes_the_segment_before_the_candidate_is_durable_leaves_no_root_in_a_power_loss() {
     let (message, trace) = red(Rules::RemovesBeforeCandidateDurable);
-    assert!(message.contains("does not cover the record it acknowledged"));
+    assert!(message.contains("no root"));
     assert!(trace.iter().any(|label| { return label == REMOVES; }), "{:?}", trace);
-    let lost: State = replay(initial(Rules::RemovesBeforeCandidateDurable), steps, &[CAPTURES, FORCES_SEGMENT, RETURNS, DESCENDS, REMOVES, PERSISTS_REMOVAL]);
+    let lost: State = replay(initial(Rules::RemovesBeforeCandidateDurable), steps, &[CAPTURES, FORCES, RETURNS, DESCENDS, REMOVES, PERSISTS_REMOVAL]);
     assert!(invariant(&lost).is_some(), "the removal is durable and the candidate is not");
 }
 
-/// The departure returns on a durable cover: the control that returns on what a reader sees returns with the record still unforced, and the
-/// power loss takes it.
+/// The visible-cover control is a combined weakening (it allows a return straight from the capture and replaces the durable root by the
+/// visible one), not a single-guard mutation: it returns with the record unforced, and the power loss takes it.
 #[test]
-fn a_departure_that_returns_on_a_visible_cover_loses_the_promise_in_a_power_loss() {
+fn a_departure_that_returns_on_a_visible_cover_returns_with_nothing_durable() {
     let (message, trace) = red(Rules::ReturnsOnVisibleCover);
-    assert!(message.contains("does not cover the record it acknowledged"));
+    assert!(message.contains("no root"));
     assert!(trace.iter().any(|label| { return label == RETURNS; }), "{:?}", trace);
-    let returned: State = replay(initial(Rules::ReturnsOnVisibleCover), steps, &[CAPTURES, RETURNS]);
-    assert!(invariant(&returned).is_some());
-}
-
-/// A departure that forces a segment the reclaimer has already removed has forced bytes no name leads to: with the candidate unrelated and
-/// the old name gone, the checked rule never lets the removal happen, so the departure's force is never on an orphan that the log relies on.
-#[test]
-fn under_the_checked_rule_no_schedule_removes_the_segment_for_an_unrelated_candidate() {
-    let blocked: State = replay(initial(Rules::Checked), steps, &[UNRELATED, FORCES_CANDIDATE, FORCES_NAME]);
-    assert!(steps(&blocked).iter().all(|(label, _)| { return label != REMOVES; }), "the checked rule removed the segment for a candidate that does not descend");
 }

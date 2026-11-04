@@ -1,17 +1,18 @@
 //! What:
-//!  Model of the disposal of saved content: the person authorizes the disposal of a saved item; the owner appends a `disposed` line to the
-//!  ledger, forces it, and only then removes the saved content; a reclaiming checkpoint may drop the item from the root document. The facts
-//!  are the ledger line, the removal of the content and the root document's claim on the item, each visible and durable apart
-//!  (`model_observe::World`); power loss, write-back and the owner's steps are steps.
+//!  Model of the disposal of saved content: the person authorizes it; the owner appends a `disposed` line to the ledger and forces it,
+//!  checkpoints a root that no longer names the item (its closure carries the forced ledger prefix) and makes that root durable, and only
+//!  then removes the content. The facts are the ledger line, the removal of the content and the root without the item, each visible and
+//!  durable apart (`model_observe::World`); power loss, write-back and the owner's steps are steps.
 //! Why:
-//!  The row "saved content survives until authorized disposal" (design: "a `disposed` ledger line is made D before the saved content it
-//!  discharges is deleted, so a power loss cannot leave a durable root that claims a saved item whose only copy was released"). Two clauses:
-//!  nothing deletes saved content that the person did not authorize (retirement never does), and the removal never becomes durable ahead of
-//!  the line that discharges it. Each has a single-defect control.
+//!  The row "saved content survives until authorized disposal". The first version accepted a durable `disposed` line as the discharge of a
+//!  missing item; the component's recovery does not: it validates every retained saved-content entry of a root, and a root that still
+//!  names an item whose file is gone is ineligible whatever the ledger says, so recovery would report the log damaged (review of step 1,
+//!  finding 6). The procedure that fits the validation architecture is the one modelled: a durable eligible replacement root, with its
+//!  discharge proof, before the unlink.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // remove(saved) only if authorized && durable(disposedLine); root may drop saved only if durable(disposedLine)
+//! // remove(saved) only if authorized && durable(disposedLine) && durable(rootWithoutItem)
 //! ```
 
 use crate::model_explore::{Limits, Report, explore, push_step};
@@ -21,7 +22,7 @@ use crate::model_observe::{World, make_visible, power_loss, sync};
 pub const LINE: u32 = 1;
 /// The saved content's name is removed.
 pub const GONE: u32 = 2;
-/// The root document no longer names the item.
+/// The root document that no longer names the item.
 pub const DROPPED: u32 = 4;
 
 /// How many power losses the search may inject.
@@ -30,14 +31,14 @@ pub const MAX_LOSSES: u8 = 1;
 /// The rule under test.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Rules {
-    /// The design's rule.
+    /// The procedure the validation architecture needs.
     Ordered,
-    /// Control: the content is removed as soon as the line is appended, before the line is durable.
-    RemovesBeforeLineDurable,
+    /// Control: the content is removed once the line is durable, before the root without the item is (the first version's rule).
+    RemovesBeforeRootDurable,
+    /// Control: the root without the item is checkpointed and made durable although the line is not, and the content is removed on that root alone.
+    RemovesOnRootWithoutLineProof,
     /// Control: retirement of the request removes its saved content, with no authorization from the person.
     RetirementRemoves,
-    /// Control: the root drops the item before the line is durable.
-    RootDropsBeforeLineDurable,
 }
 
 /// The model's state.
@@ -60,10 +61,12 @@ pub fn initial(rules: Rules) -> State {
     return State { rules, world: World { visible: 0, durable: 0 }, authorized: false, requested: false, losses: 0 };
 }
 
-/// Whether the root, as a recovery after a power loss would read it, names an item whose content is gone and that no durable line discharges.
-pub fn durable_orphan(state: &State) -> bool {
-    let root_names_item: bool = state.world.durable & DROPPED == 0;
-    return root_names_item && state.world.durable & GONE != 0 && state.world.durable & LINE == 0;
+/// Whether recovery after a power loss has an eligible root: the old root is eligible only while the item's file exists, and the root
+/// without the item only when it is durable together with the ledger prefix its closure holds.
+pub fn recovery_has_a_root(state: &State) -> bool {
+    let old_root_eligible: bool = state.world.durable & GONE == 0;
+    let new_root_eligible: bool = state.world.durable & DROPPED != 0 && state.world.durable & LINE != 0;
+    return old_root_eligible || new_root_eligible;
 }
 
 /// Every step enabled in `state`.
@@ -99,8 +102,23 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.world = sync(after.world, LINE);
         push_step(&mut found, "owner: forces the disposed line", after);
     }
-    let line_ready: bool = if state.rules == Rules::RemovesBeforeLineDurable { state.world.visible & LINE != 0 } else { state.world.durable & LINE != 0 };
-    if line_ready && state.world.visible & GONE == 0 {
+    let line_ready: bool = if state.rules == Rules::RemovesOnRootWithoutLineProof { state.world.visible & LINE != 0 } else { state.world.durable & LINE != 0 };
+    if line_ready && state.world.visible & DROPPED == 0 && state.world.visible & LINE != 0 {
+        let mut after: State = state.clone();
+        after.world = make_visible(after.world, DROPPED);
+        push_step(&mut found, "owner: checkpoints a root that no longer names the item", after);
+    }
+    if state.world.visible & DROPPED != 0 && state.world.durable & DROPPED == 0 {
+        let mut after: State = state.clone();
+        after.world = sync(after.world, DROPPED);
+        push_step(&mut found, "owner: forces the root without the item", after);
+    }
+    let removal_ready: bool = match state.rules {
+        Rules::Ordered | Rules::RetirementRemoves => state.world.durable & LINE != 0 && state.world.durable & DROPPED != 0,
+        Rules::RemovesBeforeRootDurable => state.world.durable & LINE != 0,
+        Rules::RemovesOnRootWithoutLineProof => state.world.durable & DROPPED != 0,
+    };
+    if removal_ready && state.world.visible & GONE == 0 {
         let mut after: State = state.clone();
         after.world = make_visible(after.world, GONE);
         push_step(&mut found, "owner: removes the saved content", after);
@@ -110,26 +128,16 @@ pub fn steps(state: &State) -> Vec<(String, State)> {
         after.world = make_visible(after.world, GONE);
         push_step(&mut found, "owner: retires the request and removes its saved content", after);
     }
-    let root_ready: bool = if state.rules == Rules::RootDropsBeforeLineDurable { state.world.visible & LINE != 0 } else { state.world.durable & LINE != 0 };
-    if root_ready && state.world.visible & DROPPED == 0 {
-        let mut after: State = state.clone();
-        after.world = make_visible(after.world, DROPPED);
-        push_step(&mut found, "owner: checkpoints a root that no longer names the item", after);
-    }
     return found;
 }
 
-/// The properties: no removal without the person's authorization, and no durable root that names an item whose content is gone with no
-/// durable line to discharge it.
+/// The properties: no removal without the person's authorization, and no power loss that leaves recovery with no eligible root.
 pub fn invariant(state: &State) -> Option<String> {
     if state.world.visible & GONE != 0 && !state.authorized {
         return Some("saved content was removed although the person did not authorize its disposal".to_string());
     }
-    if durable_orphan(state) {
-        return Some("a durable root names a saved item whose content is gone and no durable disposed line discharges it".to_string());
-    }
-    if state.world.durable & DROPPED != 0 && state.world.durable & LINE == 0 {
-        return Some("a durable root dropped a saved item with no durable disposed line to discharge it".to_string());
+    if state.world.durable & GONE != 0 && !recovery_has_a_root(state) {
+        return Some("the content is durably gone and neither the old root nor a durable replacement root with its ledger proof is eligible".to_string());
     }
     return None;
 }
