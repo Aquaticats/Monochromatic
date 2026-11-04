@@ -639,8 +639,7 @@ fn start_of(pid: i32) -> StartOf {
 }
 
 /// What:
-/// `#[cfg(test)]
-pub(crate) fn process_is_running(pid: i32) -> Result<bool, String>` says whether a process with this id is running (not ended,
+/// `pub(crate) fn process_is_running(pid: i32) -> Result<bool, String>` says whether a process with this id is running (not ended,
 /// not a zombie that is waiting to be reaped), and fails when it cannot tell.
 /// Why:
 /// An oracle of the tests that decides "this process is stopped" must not fail open: an inspection that cannot tell (a procfs of
@@ -651,6 +650,7 @@ pub(crate) fn process_is_running(pid: i32) -> Result<bool, String>` says whether
 /// ```ts
 /// export function processIsRunning(pid: number): boolean  // throws when it cannot tell
 /// ```
+#[cfg(test)]
 pub(crate) fn process_is_running(pid: i32) -> Result<bool, String> {
     use std::os::fd::AsRawFd;
     let found: Pid = Pid::from_raw(pid).ok_or_else(|| { return format!("{pid} is not a process id"); })?;
