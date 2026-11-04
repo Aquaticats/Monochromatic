@@ -2358,6 +2358,111 @@ exception; it is not permission for normal wrapper lifecycle transitions to lose
 does not require keeping a command blocked. Decision 19 (the answer to question 8) stays a separate recovery-policy
 choice and does not waive these execution obligations.
 
+## Ordered plan to the live protocol (round 22)
+
+State at writing: the models and the components of `feat/git-policy-cli-commit-protocol-models` are reviewed to the limits the
+review notes in `doc/handover/cli-git-commit-protocol-models.md` record, and the review of round 21 says "not approval of the
+live protocol". The coverage map in `model_target_tests.rs` there is the list of rows to close: 65 covered, 16 narrower,
+9 historical and 18 not yet at the time of writing. Nothing is wired into the wrapper's commit path yet. Each step below says what
+it builds, what evidence closes which rows, and what it depends on; a step that needs an owner decision names it as a question
+and nothing in the plan decides it.
+
+### Step 1: the real state document and its closure
+
+- Builds: the lane's real state document (adoption order, ledger extent, decision marks, the references of each live request) in
+  the checked representation of `commit_state_log.rs` (`LaneDocument`) or, where a state cannot be expressed in it, as an opaque
+  document whose checkpoints never reclaim; the writer, the syncer and recovery calling `StateWriter` at the real call sites.
+- Closes: the rows "non-drop for later appends" and "captured authority valid through completion or verified substitution" (the
+  complete-closure and covering claims are then about the real document and not a representation that no caller uses), "damaged
+  established roots fail closed" (an establishment record), "reclamation during capture" (a model of capture against a concurrent
+  reclaimer, then a component test), "saved content survives until authorized disposal" (a disposal model: the disposed ledger
+  line durable before the content is deleted), "held-version completion cannot affect its successor", and "retained bytes suffice
+  for recomputation".
+- Depends on: nothing. Later steps depend on it.
+- Question 1 (owner): the real state document and the checked representation. Option A, extend `LaneDocument` with the real
+  references so that every state reclaims (the log stays bounded; the representation grows with the protocol). Option B, keep the
+  real document opaque and non-reclaiming, with compaction only by an out-of-band tool (no representation to maintain; the log
+  grows without bound between compactions). Option C, a hybrid: the checked representation for the parts that reclaim and an
+  opaque tail. Ranking: A > C > B, because A keeps the log bounded with every dependency derivable; C splits the guarantee; B
+  breaks the bound the target asks for.
+
+### Step 2: lifecycle and continuing forcing at the real call sites
+
+- Builds: the client's use of `launch_flusher` at its real call site (create the receipt, ring a running service, otherwise
+  launch), the service syncer's sweep and its retry of recorded errors, the planned-shutdown seal and final sweep, the replacement
+  owner's startup sweep, and the requirement that the launching process is single-threaded at the launch (a call site that is not
+  must start its flusher before it starts a thread, or refuse and record the receipts).
+- Closes: "helpers retain no lock, gate, client-lock or pipe descriptor" and "launch is non-recursive and resource-bounded" (shown at
+  the real call sites, with the owner's helper-count decision of 2026-11-04), "helper parent exit" for the helpers that exist then,
+  "reap mid-sync" (the real reap by the service), "worker error", and "hook outlasting an upgrade caller, the caller returns within
+  its bound" (the `WAIT_DRAIN` register entry and its bound check).
+- Depends on: step 1 for the state the call sites write.
+- Question 2 (owner): the launch route. Option A, build the manager-started transient unit route as the primary route and keep
+  the double-forked fallback for hosts with no manager (a helper then survives a logout and a service upgrade by containment; one more
+  component to build and test). Option B, keep only the fallback and state its limits (a helper started from a session scope can end
+  with the session, and a receipt is then left to the next owner's startup sweep). Ranking: A > B, because the owner's rules ask
+  that nothing wait for an unbounded next start; B costs nothing to build but leaves that limit.
+
+### Step 3: cutover with a fence
+
+- Builds: a fence that keeps an old probe-capable client from holding the flusher lock while the new implementation runs. The
+  obligation (review 15): an old client that probes the lock and holds it without sweeping, overlapping the new implementation,
+  recreates the schedule where the new client's helper loses to the probe and the probe owner dies before it forks.
+- Closes: the not-yet row "live cutover excludes old probe-capable holders or provides recovery responsibility", with a test that
+  uses the legacy probe seam as the old-behaviour holder against the fenced lane.
+- Depends on: step 2 (the real lock names and call sites).
+- Question 3 (owner): the fence. Option A, a new lock file name for the new protocol (old clients probe a lock nobody else uses;
+  an old flusher and a new flusher may run at once, which is safe because both sweep the same receipt directory and the forcing is
+  idempotent). Option B, a version stamp on the lane that the new protocol writes and an old client does not read (it excludes
+  nothing). Option C, recovery responsibility only: every receipt that a new helper hands to a failed acquisition is also recorded,
+  so a dead probe owner leaves a record (no exclusion; more records). Ranking: A > C > B, because A removes the old holder from the
+  new lock and costs one name; C keeps the old lock and adds records; B does not exclude.
+
+### Step 4: recovery and preservation
+
+- Builds: crash injection at every step of repair and quarantine, with the three-file conflict-order example; fault injection at
+  each forcing call of the departure, with the outside-fault exit checked; the recomputation of the augmented delta from the request
+  bytes and the ledger's removals (the ledger never compacted).
+- Closes: "preservation-boundary crashes", "competing repairers", "every forcing error", "retained bytes suffice for
+  recomputation", "held-version completion cannot affect its successor".
+- Depends on: step 1.
+
+### Step 5: installation
+
+- Builds: the models of a writer holding the file open across the install, rename-over saves against the install, the inline-bound
+  checks on actual reads and whole-index work, and the watch with the lock before the expiry and the marker after it; then the
+  components, and the lock reclaim of decision 20 wired after the review of the claim-chain branch
+  `fix/git-policy-cli-index-lock-reclaim-without-flock` (a dependency, not an owner decision).
+- Closes: "open-descriptor writes", "atomic saves", "oversized and raced reads", "expiry between clock check and marker", and the
+  reclaim row's remainder (the slot protocol and its leftover handling).
+- Depends on: the review of that branch; step 2 for the call sites.
+
+### Step 6: whole-command latency and notices
+
+- Builds: whole-process timing of an ordinary commit against native Git on this host, repeated with a measured spread and under
+  the host's disk pressure, and the no-manager preparation wait with its register entry; the outcome-specific notices (conflict,
+  refusal, signing failure) with their texts, their commit identities and the crash points of every notice kind, and the decision 19
+  recovery wired to the real state.
+- Closes: "whole-command timing and sync instrumentation" (against "commits vs native git should not take 5s longer."), "no-manager
+  preparation timeout", "recovery conflict, refusal and signing failure notices", "notice crash and reclamation", "decision 19".
+- Depends on: steps 1, 2 and 4.
+- Question 4 (owner): the notice texts. Option A, one short line per outcome with the command to run (conflict, refusal,
+  signing failure each named, the commit identity when one exists). Option B, a short line plus the retained inputs listed
+  (more to read, nothing to look up). Ranking: A > B for an ordinary commit, with B printed only on the command that asks for the
+  detail; the owner has not seen the texts.
+
+### Step 7: scope and enablement
+
+- Already closed in round 22, on Git 2.56.0 and both backends on a local file system: packed refs, linked worktrees (shared and
+  per-worktree refs), the side-ref transaction (hook-free, reachable for a prune, and the foreign-lock difference between the
+  backends), creation, deletion and symbolic-reference updates, a torn instruction, the order of the ref and the answer, the client-lock
+  and submission handoffs and a kill at each persistence boundary. The disposable experiments are in
+  `model_git_experiments_tests.rs`.
+- Builds: a warning, and no refusal, when the Git that runs is older than the one the tests run on (the owner's decision); level 2
+  stays off.
+- Decided already: the commit path has no opt-out (`doc/decision/cli-git-concurrent-commits.md`), so enablement is the cutover of
+  step 3 and not a switch.
+
 ## Verification plan and build order
 
 Nothing past the red controls and the conflicted-file changes is built. The sixth review's verdict governs: step 1 is executable models and
