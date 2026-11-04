@@ -181,18 +181,56 @@ The mount has 730 GiB free of 3.7 TiB.
   the largest are 41.8, 38.7, 24.4, 23.8, 19.1 and 17.8 GiB.
 - Trees by last write: 2026-10-14 to 2026-10-31 hold 697 GiB;
   2026-11-01 and 2026-11-02 hold 362 GiB; 2026-11-03 holds 3517 GiB; 2026-11-04 holds 1771 GiB.
-  PEND-CLONE-EXPLANATION
-- Mapping each tree to the workspace that owns it by the dep-info file next to its final artifact:
-  PEND-CLASSES
+  These are not build days.
+  The wrapper's Cargo repair clones a source workspace's build tree for each new worktree and keeps file times
+  (`package/git-policy/cli/src/native/repair/package_repair_tree_clone.rs`), and three of the largest trees
+  (`75/3315c269a08379`, `76/f291bafb8314c3`, `77/6e49526b9630eb`) have identical file counts, sizes and contents by day;
+  `btrfs filesystem du` reports `Exclusive 0.00B` for each, so they are reflink clones and `du` counts the same extents
+  once per clone.
+- Mapping each tree to the workspace that owns it by reading one dep-info file (the Cargo Book documents dep-info
+  files as Makefile-style lists with absolute paths), for the 3545 sized trees:
+  - 1419 trees (1555 GiB) whose dep-info names paths inside another tree: the shape of the Cargo repair's clones.
+  - 887 trees (1420 GiB) whose sources are an unpacked crate under another tree's `package/<crate>-<version>`
+    directory: the shape of `cargo package` and `cargo publish --dry-run` verification builds, which unpack the crate
+    under the build directory and build it at that new path (and so under a new workspace hash).
+    17 crates, up to 90 trees for one crate, almost all created on 2026-11-03 and 2026-11-04.
+    The cause was not established here; `package/*/mise.toml` have `package` and `publish:dry-run` tasks.
+  - 436 trees (743 GiB) whose sources are in the main checkout: 262 (438 GiB) in a package directory that exists,
+    174 (305 GiB) in one that is gone.
+  - 60 trees (96 GiB) whose sources are in a `.claude/worktrees` checkout: 26 (48 GiB) existing, 34 (48 GiB) gone.
+  - 21 trees (15 GiB) whose sources are in `~/temp/agent` or `/tmp`: 18 gone.
+  - 715 trees (2334 GiB) whose dep-info names only toolchain or dependency sources that no longer exist, so no
+    workspace is identifiable; 7 trees (4 GiB) have no dep-info.
 - Layout inside a tree: the biggest trees contain both layouts and, in the 8 largest, 3 to 7 compiler generations per
   profile (`74/8a90f0615defdd` has 7 generations in `debug`: current 2.1 GiB against 14.0 GiB of units from older
   ones and 20.9 of 23.7 GiB of incremental state older than the current generation).
   For the 8 largest trees, a rule keeping the newest generation frees 83.7 of 181.4 GiB of units and incremental state.
-- Unit-level duplication across trees: PEND-UNITS
+- Unit-level duplication across trees, by directory name only (profile, package, hash) over the 3516 trees that have
+  per-unit directories: 1,741,401 unit directories but 34,957 distinct ones; 19,282 distinct units occur in more than
+  one tree and 4528 occur in 100 or more.
+  Most of that is the clones above plus registry crates compiled with identical settings in several workspaces.
+  Sharing them is not possible with one directory per workspace path, and the shared-directory alternative is rejected
+  below.
 
 ### Worktrees
 
-PEND-WORKTREES
+`git worktree list` registers 335 worktrees besides the main checkout: 241 under `.claude/worktrees`, 77 under
+`~/temp/agent` (a symlink into `/var/mnt/encrypted`), 16 under `~/worktrees`, and one elsewhere.
+Searching each (depth 5, `/usr/bin/find`) found 23,914 build directories: `target` 3065 GiB, `build` 80 GiB, `dist` 55
+GiB, `out` 12 GiB and `corpus` 6.5 GiB, 3218 GiB by `du` in all, in 325 worktrees.
+96 worktrees hold more than 1 GiB of build directories and 87 more than 5 GiB; every `package/ide/app/target` copy is
+21.6 to 21.8 GiB (the part of `target` that the copy rule keeps).
+
+- On the home filesystem (the 241 under `.claude/worktrees` and the 16 under `~/worktrees`) the copy is a snapshot or a
+  reflink.
+  The sampled `.claude/worktrees/fast-snapshot-add/package/ide/app/target` is 21.60 GiB total, 0.00 B exclusive and
+  20.43 GiB set-shared, so it costs almost no physical bytes while the main checkout's copy exists.
+- On the other filesystem (the 67 `~/temp/agent` worktrees that hold build directories hold 664 of them, 105 GiB by
+  `du`) the copy is a byte copy.
+  The sampled `/var/mnt/encrypted/temp/agent/branch-write-round5/package/ide/app/target` is 21.47 GiB total and
+  21.47 GiB exclusive, 0 shared.
+  This is the cost in the brief, and it scales with the size of the main checkout's `target/` directories at the moment
+  of the add.
 
 ### Gradle, Android, `dist/`, fuzz and `node_modules`
 
@@ -387,7 +425,11 @@ rename before deleting it, so a reader sees either the unit or nothing.
   (`cargo metadata` names `build_directory`, which `package_repair_cargo.rs` already reads), at most once a day removes
   trees whose workspace root is gone, and removes trees idle longer than a period the owner picks.
   A one-time backfill maps the existing trees by the dep-info file next to each tree's final artifact.
-- Frees here: PEND-B
+- Frees here: trees whose owning workspace is identified and gone: 226 (367 GiB by `du`: 174 in the main checkout, 34 in
+  `.claude/worktrees`, 18 in scratch), plus the 887 package-shape and 1419 clone-shape trees once the tree they point
+  into is gone; the 715 trees with no identifiable workspace (2334 GiB by `du`) need the idle rule.
+  Deleting a tree alone frees only its exclusive extents: in the first 770 trees sized per tree, exclusive bytes were
+  247 of 1251 GiB (19 to 29 percent depending on the class), because clones share the rest.
 - Costs: a ledger to maintain; idle removal costs a rebuild for a workspace that is used but rarely built (the cost
   the troubleshooting record names).
 - Automatic: runs from the same trigger as A, rate-limited like Cargo's own "1 day" auto-clean frequency.
@@ -468,11 +510,51 @@ Rejected without ranking:
 
 ## Ranking
 
-PEND-RANKING
+Ranking: A > B > C > D > E > F > G > H.
+A and B and C are complementary and can all be adopted in that order; D is an alternative to the host-tree half of A;
+E is complementary to A; F only schedules the others.
+
+- A over B: A removes stale bytes from the directories that the motivating copy reads (18.3 GiB of the 36.1 GiB copy
+  set now, and all of the incremental state if the installed wrapper copies it) and from every kind of Cargo output
+  directory, including the container-built ones, so it addresses the owner's request directly.
+  B removes whole trees from a base directory that no worktree copy reads by bytes (clones there are reflinks on one
+  filesystem), so it protects disk space but not the copy.
+- B over C: B removes trees that nothing can ever use again for no rebuild cost, where C evicts live units and costs
+  recompiles; B also removes the largest class by count (the clone and package-shape trees).
+- C over D: C works in every directory kind with no change of location; D matches A's effect only for host trees,
+  costs one cold rebuild of every host workspace, and misses Cargo runs that do not pass through the shadow.
+- D over E: D's cost is one cold build per workspace in one component; E edits four package runners and has no clean
+  volume lifecycle, because every worktree is `/work` inside the container and all of them would hash to one tree.
+- E over F: E permanently removes the largest class of bytes from the copy set, F changes nothing until A to C exist.
+- F over G: F frees something now; G frees nothing until Cargo ships a garbage collector.
+- G over H: G ends the standing cost without repository work and keeps the record current;
+  H relies on someone remembering and a full `cargo clean` can delete under a running build.
+
 
 ## Open questions for the owner
 
-PEND-QUESTIONS
+- Owner of the sweep: is `package/cargo-shadow/cli` the component, or a new package?
+  Is reading Cargo's fingerprint files acceptable given the line in `doc/decision/cargo-build-dir-host-cache.md` that
+  says not to write tooling that parses the build-directory layout?
+- Grace period before an older compiler generation counts as retired (zero keeps one generation; a few days keeps the
+  previous one while a second toolchain may still be in use).
+- The bounds in section "What always lean can mean", and a retention for `target/verification` run records (6.2 GiB,
+  oldest 2026-10-04; the 2026-11-02 decision skips them in the copy but did not set a retention).
+- One-time cleanup of what exists now: it needs the owner's explicit go, because other sessions build in these
+  directories, and the safe form is the tool's own run under its lock, not a bulk delete.
+- Scope: whether `~/.rustup/toolchains` (20 directories, about 2.7 GiB each) and the podman images and volumes
+  (391.6 GB and 87.6 GB as reported) count as build directories.
+- Container builds: keep intermediates in the tree and let A keep them lean, or split them away (E) at the price of a
+  volume lifecycle.
+- The package-shape trees: what runs `cargo package` or `cargo publish --dry-run` about 90 times per crate, and whether
+  that should stop at the source.
+- Which wrapper build is installed: the source skips `target/**/incremental`, `target/verification` and the caches, and
+  the 49.5 GB in the brief is within a percent of the listed total minus incremental state (49.1 GB), which suggests a
+  build that skips incremental state but not `target/verification`.
+  I did not verify this.
+- Whether the component that creates the clone trees may record and remove them with their worktree, despite the
+  decision to keep leanness out of the wrapper.
+
 
 ## Review
 
