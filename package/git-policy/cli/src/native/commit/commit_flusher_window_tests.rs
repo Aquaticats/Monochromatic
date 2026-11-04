@@ -314,3 +314,20 @@ fn a_client_that_arrives_after_a_failed_launch_finds_the_lock_free_and_has_an_ex
         std::thread::sleep(Duration::from_millis(5));
     }
 }
+
+/// Review 13 section 4: the helper acknowledged after `prepare()` whatever it returned, so a helper whose lock acquisition failed (the lock
+/// file could not be opened) read as a started launch and then exited through the failure code with no receipt accounting. The acquisition
+/// result is part of the acknowledgment: the launch fails and every receipt of the lane is recorded.
+#[test]
+fn a_helper_that_cannot_take_the_lock_is_a_failed_launch_with_every_receipt_recorded() {
+    let lane: PathBuf = lane_with("flusher-helper-acquisition", &["r1", "r2"]);
+    let launch_lane: PathBuf = lane.clone();
+    let launched: Option<i32> = in_single_threaded_process(move || {
+        // The launcher's own acquisition succeeds; the helper's, the next one, fails.
+        git_policy_cli::commit_flusher::inject_lock_failure_after(Some(1));
+        return flusher_launch_code(launch_flusher(&launch_lane));
+    });
+    assert_eq!(launched, Some(22), "a helper that could not take the lock was reported as a started launch");
+    let names: Vec<String> = recorded(&lane);
+    assert!(names.iter().any(|name| { return name == "r1"; }) && names.iter().any(|name| { return name == "r2"; }), "{:?}", names);
+}

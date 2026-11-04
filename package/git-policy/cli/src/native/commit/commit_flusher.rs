@@ -23,6 +23,32 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+/// The number of acquisitions that succeed before a test makes one fail; `u32::MAX` is off.
+#[cfg(feature = "test-seams")]
+static FAIL_AFTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(u32::MAX);
+
+/// Makes the acquisition after the next `n` ones fail with an I/O error (`None` clears it): the lock file cannot be opened for the helper.
+#[cfg(feature = "test-seams")]
+pub fn inject_lock_failure_after(n: Option<u32>) {
+    FAIL_AFTER.store(n.unwrap_or(u32::MAX), std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The injected failure of this acquisition, if a test asked for one.
+#[cfg(feature = "test-seams")]
+fn seam_failure() -> Option<io::Error> {
+    use std::sync::atomic::Ordering;
+    let left: u32 = FAIL_AFTER.load(Ordering::SeqCst);
+    if left == u32::MAX {
+        return None;
+    }
+    if left == 0 {
+        FAIL_AFTER.store(u32::MAX, Ordering::SeqCst);
+        return Some(io::Error::from_raw_os_error(libc::EIO));
+    }
+    FAIL_AFTER.store(left - 1, Ordering::SeqCst);
+    return None;
+}
+
 /// The lane's receipt directory.
 pub const RECEIPT_DIR: &str = "receipt";
 
@@ -89,6 +115,10 @@ pub struct FlusherLock {
 impl FlusherLock {
     /// Takes the lock without waiting; `None` when another flusher holds it.
     pub fn try_acquire(lane: &Path) -> Result<Option<FlusherLock>, FlushError> {
+        #[cfg(feature = "test-seams")]
+        if let Some(error) = seam_failure() {
+            return Err(FlushError::Io(error));
+        }
         use std::os::unix::fs::OpenOptionsExt;
         let path: PathBuf = lane.join(FLUSHER_LOCK);
         if let Ok(metadata) = fs::symlink_metadata(&path)

@@ -99,6 +99,8 @@ pub enum LaunchError {
     HandoverNotAcknowledged,
     /// The intermediate child could not be killed and reaped within the bound.
     IntermediateNotReaped,
+    /// The helper could not take what it prepares (the lock, say) and reported it instead of acknowledging.
+    HelperCouldNotPrepare,
 }
 
 impl fmt::Display for LaunchError {
@@ -112,6 +114,7 @@ impl fmt::Display for LaunchError {
             LaunchError::LostBeforeReady => write!(formatter, "the helper was lost before it reported ready"),
             LaunchError::Threaded(count) => write!(formatter, "a helper was not forked because this process has {} threads and a fork would copy locks they may hold", count),
             LaunchError::ThreadsUnknown(error) => write!(formatter, "a helper was not forked because the thread count could not be read: {}", error),
+            LaunchError::HelperCouldNotPrepare => write!(formatter, "the helper could not take what it needs to work and ran nothing"),
             LaunchError::HandoverNotAcknowledged => write!(formatter, "the helper did not acknowledge the handover and ran nothing"),
             LaunchError::IntermediateNotReaped => write!(formatter, "the intermediate child of the launch could not be killed and reaped in time"),
             LaunchError::LowDescriptor(number) => write!(formatter, "a helper was not forked because descriptor {} is among the standard streams the helper redirects", number),

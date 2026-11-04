@@ -76,6 +76,7 @@ pub fn launch_code<T>(result: Result<T, LaunchError>) -> i32 {
         Err(LaunchError::ThreadsUnknown(_)) => 17,
         Err(LaunchError::LowDescriptor(_)) => 18,
         Err(LaunchError::HandoverNotAcknowledged) => 19,
+        Err(LaunchError::HelperCouldNotPrepare) => 22,
         Err(LaunchError::IntermediateNotReaped) => 21,
     };
 }
