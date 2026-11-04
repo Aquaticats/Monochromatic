@@ -62,6 +62,21 @@ the branch and agent lists below them are older and carry their own times.
 
 ### Release in flight
 
+Owner, 2026-11-04T17:50-05:00 (approximate time of reading), verbatim:
+"Don't discard work, but aside from layout + linting fixes, pause everything else - but let work already in flight run to their natural conclusions. Layout + linting fixes are the biggest priority."
+So only the source layout (issue 6261, principles in AGENTS.md MKY, LYD, LYF) and lint fixes go forward.
+In-flight steps finish, commit and stop:
+branch-write round 5 (re-gate with main, `-v2` bundle; its review not started),
+the commit-protocol models round (main merge and the fix in progress; reviews A and B of step3c left for later),
+cargo-shadow round 21 (the fix in progress; the rest written to its resume point),
+the lean build directories proposal (finished as a proposal, nothing built),
+and the claim-watch fix review already running.
+Paused, not started: release 0.5.35 (one executable, claim-watch fixes and the startup wake are on main; round 5 not yet),
+the mpm-shadow release,
+the TypeScript port,
+new review rounds,
+and the `semantic-line-breaks` findings (owner: "Put the semantic line break findings on hold.").
+
 Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
 
 - `monochromatic-file-enforcer-cli` 0.1.2 is published (bump `fadde01fff`,
