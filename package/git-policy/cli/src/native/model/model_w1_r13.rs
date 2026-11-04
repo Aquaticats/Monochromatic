@@ -52,6 +52,9 @@ pub enum Rules {
     /// Revision 17 as models review 6a reads it: a planned exit of the service is a drain (it never ends a protected execution), and a mark
     /// that cannot be created ends the command by the outside-fault exit and not by a normal return.
     Fifteen,
+    /// Control: revision 17 whose drain completes while the protected hook still runs (the premature clean exit), with the physical
+    /// parent-death consequence of the owner's death kept.
+    FifteenPrematureDrain,
     /// Control: revision 14 whose `out` file is a channel the person's hook descendants can write to (the backend obligation that Git
     /// redirects a hook's standard output to its standard error does not hold), so E1's evidence is not authentic.
     FourteenSharedChannel,
@@ -59,12 +62,12 @@ pub enum Rules {
 
 /// Whether a planned exit of the service is a drain under `rules` (revision 17, and the shared-channel control built on it).
 pub fn drains(rules: Rules) -> bool {
-    return matches!(rules, Rules::Fifteen | Rules::FourteenSharedChannel);
+    return matches!(rules, Rules::Fifteen | Rules::FifteenPrematureDrain | Rules::FourteenSharedChannel);
 }
 
 /// Whether `rules` read the client's receipt and the attempt's `out` at recovery (revision 14).
 pub fn receipts(rules: Rules) -> bool {
-    return matches!(rules, Rules::Fourteen | Rules::Fifteen | Rules::FourteenSharedChannel);
+    return matches!(rules, Rules::Fourteen | Rules::Fifteen | Rules::FifteenPrematureDrain | Rules::FourteenSharedChannel);
 }
 
 /// The withdrawal mark `lane/decision/<id>`.
@@ -260,6 +263,9 @@ pub struct State {
     pub clean_shutdown: bool,
     /// The service is draining: it admits nothing new and exits when its protected executions have ended (revision 17).
     pub draining: bool,
+    /// Ghost: the owner that is now dead left by a planned exit (cleared when a new incarnation takes over, unlike `clean_shutdown`, which
+    /// records the history the recovery rules read).
+    pub departed_by_plan: bool,
     /// Ghost: a protected execution was ended by the parent-death consequence of a planned exit.
     pub ended_by_planned_exit: bool,
     /// Ghost: the owner decided (wrote `commit`) for this request.
@@ -293,6 +299,7 @@ pub fn initial(rules: Rules) -> State {
         clean_shutdown: false,
         draining: false,
         ended_by_planned_exit: false,
+        departed_by_plan: false,
         decided_by_owner: false,
     };
 }
@@ -361,6 +368,7 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
         if matches!(state.child, Child::NotStarted | Child::Ended) {
             let mut after: State = state.clone();
             after.owner = Owner::Alive;
+            after.departed_by_plan = false;
             after.recovered = true;
             push_step(found, "owner: a new incarnation reaps the previous scope (L2) and takes over", after);
         }
@@ -433,10 +441,11 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
             after.draining = true;
             push_step(found, "owner: planned exit begins a drain", after);
         }
-        if state.draining && matches!(state.child, Child::NotStarted | Child::Ended) {
+        if state.draining && (matches!(state.child, Child::NotStarted | Child::Ended) || state.rules == Rules::FifteenPrematureDrain) {
             let mut after: State = state.clone();
             after.owner = Owner::Dead;
             after.clean_shutdown = true;
+            after.departed_by_plan = true;
             push_step(found, "owner: the drain completes and the service exits", after);
         }
     } else if receipts(state.rules) {
@@ -447,6 +456,7 @@ fn owner_steps(state: &State, found: &mut Vec<(String, State)>) {
         }
         after.owner = Owner::Dead;
         after.clean_shutdown = true;
+        after.departed_by_plan = true;
         push_step(found, "owner: planned shutdown records clean-shutdown and exits", after);
     }
     classify_steps(state, found);
@@ -571,22 +581,17 @@ fn git_steps(state: &State, found: &mut Vec<(String, State)>) {
         Child::Wedged | Child::NotStarted | Child::Ended => {}
     }
     if child_alive(state.child) {
-        if drains(state.rules) {
-            // The two causes are different events: an outside kill is always possible; the parent-death signal follows a crash of the owner
-            // and never a planned exit.
-            let mut killed: State = state.clone();
-            killed.child = Child::Ended;
-            push_step(found, "environment: the transaction process is killed from outside", killed);
-            if state.owner == Owner::Dead && !state.clean_shutdown {
-                let mut signalled: State = state.clone();
-                signalled.child = Child::Ended;
-                push_step(found, "environment: the parent-death signal ends the transaction process after a crash of the owner", signalled);
-            }
-        } else {
-            let mut after: State = state.clone();
-            after.child = Child::Ended;
-            after.ended_by_planned_exit = state.clean_shutdown;
-            push_step(found, "environment: the transaction process is ended (parent-death signal or a kill)", after);
+        // The two causes are different events in every variant: an outside kill is always possible and is never the planned exit's
+        // doing; the parent-death signal follows the owner's death, whatever the reason for it, and is attributed to the planned exit when
+        // the owner had exited cleanly.
+        let mut killed: State = state.clone();
+        killed.child = Child::Ended;
+        push_step(found, "environment: the transaction process is killed from outside", killed);
+        if state.owner == Owner::Dead {
+            let mut signalled: State = state.clone();
+            signalled.child = Child::Ended;
+            signalled.ended_by_planned_exit = state.departed_by_plan;
+            push_step(found, "environment: the parent-death signal ends the transaction process after the owner exited", signalled);
         }
     }
 }
@@ -754,6 +759,9 @@ pub fn violations(state: &State) -> Vec<String> {
     }
     if state.ended_by_planned_exit {
         broken.push("the planned exit ended a protected execution".to_string());
+    }
+    if drains(state.rules) && state.owner == Owner::Dead && state.departed_by_plan && state.child == Child::Preparing {
+        broken.push("a cleanly exited owner left a protected execution running".to_string());
     }
     if state.decided_by_owner && matches!(state.client, Client::Waiting | Client::Leaving(_)) {
         broken.push("the owner decided a request whose client holds the lock".to_string());

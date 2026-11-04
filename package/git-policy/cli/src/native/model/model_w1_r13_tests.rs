@@ -24,7 +24,8 @@ const RECORD: &str = "client: records submitted for the attempt";
 const WRITE: &str = "client: writes commit to the pipe";
 const COMMITTING_MARK: &str = "COMMITTING: the bound passed with commit submitted; the exit creates its mark";
 const COMMITTING_EXIT: &str = "COMMITTING: exits non-zero saying the result is not known";
-const KILL_CHILD: &str = "environment: the transaction process is ended (parent-death signal or a kill)";
+const PARENT_DEATH: &str = "environment: the parent-death signal ends the transaction process after the owner exited";
+const KILL_CHILD: &str = "environment: the transaction process is killed from outside";
 const E1: &str = "owner: E1 reads the tip and classifies the attempt";
 const E1_UNREAD: &str = "owner: E1 cannot read the tip (store error) and classifies from what it has";
 const READS_COMMIT: &str = "environment: update-ref reads commit";
@@ -428,7 +429,7 @@ fn p1_a_planned_exit_never_ends_a_protected_hook() {
     let reached: State = replay(
         initial(Rules::Fourteen),
         steps,
-        &[START, SHUTDOWN, "environment: the transaction process is ended (parent-death signal or a kill)"],
+        &[START, SHUTDOWN, PARENT_DEATH],
     );
     assert!(
         violations(&reached).contains(&"the planned exit ended a protected execution".to_string()),
@@ -450,7 +451,7 @@ fn a_planned_exit_is_a_drain_that_never_ends_a_protected_hook() {
     assert!(!labels.iter().any(|label| { return label.contains("parent-death"); }), "{:?}", labels);
     assert!(!labels.contains(&START.to_string()), "a draining service admits nothing new");
     let crashed: State = replay(initial(Rules::Fifteen), steps, &[START, OWNER_DIES]);
-    assert!(enabled(&crashed, "environment: the parent-death signal ends the transaction process after a crash of the owner"));
+    assert!(enabled(&crashed, "environment: the parent-death signal ends the transaction process after the owner exited"));
     let report: Report = check(Rules::Fifteen);
     assert!(report.violation.is_none() && report.exhausted, "{:?}", report.violation.map(|found| { return (found.message, found.trace); }));
 }
@@ -465,4 +466,36 @@ fn p1_a_mark_that_cannot_be_created_ends_the_command_by_the_outside_fault_exit()
     let fifteen: State = replay(initial(Rules::Fifteen), steps, &[failed]);
     assert_eq!(fifteen.client, Client::Faulted);
     assert!(violations(&fifteen).is_empty());
+}
+
+/// Models review 7, 2 (P2, red against the previous monitor): the parent-death consequence follows the owner's death, whatever the reason
+/// for it; it must not be switched off by an assumption that the exit was clean. A cleanly exited owner with a protected hook still running
+/// (a state the drain rule makes unreachable, built here by hand) reaches the parent-death termination, and the monitor then names the
+/// planned exit as its cause; an outside kill in the same state does not.
+#[test]
+fn p7_parent_death_follows_owner_death_whatever_its_reason_and_the_monitor_names_a_planned_exit() {
+    let mut premature: State = replay(initial(Rules::Fifteen), steps, &[START]);
+    premature.owner = Owner::Dead;
+    premature.clean_shutdown = true;
+    premature.departed_by_plan = true;
+    premature.draining = true;
+    assert_eq!(premature.child, Child::Preparing);
+    let successors = steps(&premature);
+    let parent_death = successors.iter().find(|step| { return step.0.contains("parent-death"); }).expect("the parent-death consequence is physical and independent of the exit reason");
+    assert!(violations(&parent_death.1).contains(&"the planned exit ended a protected execution".to_string()), "{:?}", violations(&parent_death.1));
+    let kill = successors.iter().find(|step| { return step.0.contains("killed from outside"); }).expect("an outside kill stays possible");
+    assert!(!violations(&kill.1).contains(&"the planned exit ended a protected execution".to_string()), "a kill is not the planned exit");
+}
+
+/// Models review 7, 2 (mutation): the drain that completes while the hook runs, with the parent-death consequence of the owner's death kept,
+/// is red for the premature clean exit itself and then for the planned exit's causal consequence; revision 17's search is green.
+#[test]
+fn p7_a_premature_drain_completion_is_red_through_the_monitor_and_the_green_is_exhaustive() {
+    let premature: State = replay(initial(Rules::FifteenPrematureDrain), steps, &[START, "owner: planned exit begins a drain", "owner: the drain completes and the service exits"]);
+    assert!(violations(&premature).contains(&"a cleanly exited owner left a protected execution running".to_string()), "{:?}", violations(&premature));
+    let ended: State = replay(premature, steps, &[PARENT_DEATH]);
+    assert!(violations(&ended).contains(&"the planned exit ended a protected execution".to_string()), "{:?}", violations(&ended));
+    assert!(check(Rules::FifteenPrematureDrain).violation.is_some());
+    let report: Report = check(Rules::Fifteen);
+    assert!(report.violation.is_none() && report.exhausted);
 }
