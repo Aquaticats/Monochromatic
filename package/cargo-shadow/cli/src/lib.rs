@@ -80,6 +80,12 @@ pub mod journal_finish;
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
+/// Containment of everything a bounded run starts, by the process tree.
+pub mod bounded_contain;
+
+/// Pipe reading and writing that a caller can cancel.
+pub mod bounded_io;
+
 /// The transaction around the manifests that cargo's `update --breaking` rewrites.
 pub mod manifest_edit;
 

@@ -61,10 +61,10 @@ fn a_writer_in_another_session_is_stopped_before_a_normal_exit_returns() {
 #[test]
 fn a_writer_in_another_session_is_stopped_at_the_bound() {
     let directory = scratch();
-    let script = script_with_escaped_writer(directory.path(), 2, "sleep 30");
+    let script = script_with_escaped_writer(directory.path(), 3, "sleep 30");
 
-    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(2)));
-    wait_for_a_late_write(2);
+    let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound(Duration::from_secs(1)));
+    wait_for_a_late_write(3);
 
     assert!(matches!(result, Err(RunError::TimedOut { .. })), "{result:?}");
     assert!(!directory.path().join("target").exists(), "a descendant wrote after the run had returned");

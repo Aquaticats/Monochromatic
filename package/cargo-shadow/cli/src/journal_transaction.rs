@@ -65,7 +65,7 @@ use rustix::fs::{FlockOperation, flock};
 use crate::crates::LockSnapshot;
 // Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, J...`.
 /// Imports `crate::journal::{DONE_SUFFIX, INDEX_FILE, JOURNAL_DIR, LOCK_FILE, MANIFEST_INDEX_FILE, OWNER_FILE, READY_FILE, atomic_write, create_directories_synced, sync_directory, write_synced}` for this file.
-use crate::bounded_run::set_group_log;
+use crate::bounded_run::RunScope;
 // What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
 // Why:      The code below names these items directly instead of spelling their full paths each time.
 //
@@ -271,31 +271,12 @@ pub struct Transaction {
     manifests_added: std::cell::Cell<bool>,
     /// The notice that the kept folder is large, when it is.
     kept_notice: Option<String>,
+    /// Where the process groups of this transaction's children are recorded, and whether any of them left writers behind;
+    /// it also keeps the transaction on the thread that began it.
+    scope: RunScope,
 }
 
-/// The methods of the type above.
-impl Drop for Transaction {
-    /// What:
-    /// `fn drop(&mut self)` stops recording child process groups for this thread.
-    /// Why:
-    /// The record belongs to this transaction's journal.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// [Symbol.dispose](): void
-    /// ```
-    fn drop(&mut self) {
-        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-        // Why:      Absence is a value the caller must check; there is no `null`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Some(value) is  value
-        // // None        is  undefined
-        // ```
-        set_group_log(None);
-    }
-}
+
 
 /// What:
 /// `pub fn try_lock(file: &File) -> io::Result<bool>` tries for the exclusive lock without waiting;
@@ -494,7 +475,7 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
     sync_directory(&directory)?;
     sync_directory(&journals)?;
     // `Some`: the present or the absent value of an `Option`.
-    set_group_log(Some(directory.join(GROUPS_FILE)));
+    let scope: RunScope = RunScope::open(directory.join(GROUPS_FILE));
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(Transaction {
         root: root.to_path_buf(),
@@ -529,6 +510,7 @@ pub fn begin(root: &Path, snapshots: &[LockSnapshot], expects_manifests: bool) -
         // Constructor `Cell::new(`: an empty owned collection or a boxed value.
         manifests_added: std::cell::Cell::new(false),
         kept_notice,
+        scope,
     });
 }
 
@@ -545,6 +527,20 @@ impl Transaction {
     /// ```
     pub fn kept_notice(&self) -> Option<&str> {
         return self.kept_notice.as_deref();
+    }
+
+    /// What:
+    /// `pub fn writers_may_remain(&self) -> bool` says whether a run of this transaction could not show that everything it started
+    /// was stopped.
+    /// Why:
+    /// Then the lockfiles can be neither rolled back nor finished safely, and the command must stop with the journal kept.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// writersMayRemain(): boolean
+    /// ```
+    pub fn writers_may_remain(&self) -> bool {
+        return self.scope.writers_may_remain();
     }
 
     /// What:

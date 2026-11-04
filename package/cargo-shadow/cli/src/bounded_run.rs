@@ -1,14 +1,17 @@
 //! What:
-//! Runs a child process in its own process group and collects its output within a time bound.
+//! Runs a child process in its own process group and collects its output within a time bound,
+//! with everything the child started contained.
 //! Why:
 //! The owner's rule of 2026-11-03 is "nothing should ever wait forever or indefinitely".
-//! At the bound the whole process group is stopped,
-//! and the caller gets an error that names what was running;
-//! a call that returns has no member of the group left alive,
-//! so no descendant can write after the caller recorded,
-//! verified or rolled back what the child did (review finding 4c F2).
+//! At the bound, and after a normal exit, every process the child started is stopped, wherever it went:
+//! while the run is open this process is a child subreaper, so descendants that left the process group (`setsid`, `setpgid`) or
+//! closed their pipes are still found as descendants and killed.
+//! A call that returns `Ok` found no live descendant (round 6, fifth review 5a F1 and 5c N2).
+//! The recorded process group of the child is on disk before the child runs its first instruction.
 //! Output is returned only when it is complete:
 //! a prefix is an error (review finding 4c F4).
+//! The limits: a process that is held in an uninterruptible wait cannot be killed, and that is `NotQuiescent`;
+//! after this process itself died nothing adopts the orphans, so a recovery only knows the recorded process group.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,69 +19,81 @@
 //! export function outputWithin(command: Command, input: Buffer | undefined, bound: Bound): Output  // throws RunError
 //! ```
 
-// What:     `use path::Name;` imports names from another module or crate so they can be used unqualified in this file. `::` separates the path segments; `{A, B}` imports several names at once.
-// Why:      The code below names these items directly instead of spelling their full paths each time.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import { Name } from './module.ts';
-// ```
-/// Imports `std::cell::RefCell` for this file.
-use std::cell::RefCell;
-/// Imports `std::io::{self, Read, Write}` for this file.
-use std::io::{self, Read, Write};
-// Imports `std::os::unix::process::CommandExt`.
+/// Imports `std::cell::{Cell, RefCell}` for this file.
+use std::cell::{Cell, RefCell};
+
+/// Imports `std::ffi::{CStr, CString}` for this file.
+use std::ffi::{CStr, CString};
+
+/// Imports `std::io` for this file.
+use std::io;
+
+/// Imports `std::marker::PhantomData` for this file.
+use std::marker::PhantomData;
+
+/// Imports `std::os::fd::OwnedFd` for this file.
+use std::os::fd::OwnedFd;
+
+/// Imports `std::os::unix::ffi::OsStrExt` for this file.
+use std::os::unix::ffi::OsStrExt;
+
 /// Imports `std::os::unix::process::CommandExt` for this file.
 use std::os::unix::process::CommandExt;
-// Imports `std::path::PathBuf`.
-// What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
-// Why:      Joined or stored paths are owned; paths passed in are borrowed.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// // TS has one type for this: string
-// ```
+
 /// Imports `std::path::PathBuf` for this file.
 use std::path::PathBuf;
-// Imports `std::process::{Child, Command, ExitStatus, ...`.
+
 /// Imports `std::process::{Child, Command, ExitStatus, Output, Stdio}` for this file.
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
-// Imports `std::sync::mpsc::{self, Receiver, RecvTimeo...`.
-/// Imports `std::sync::mpsc::{self, Receiver, RecvTimeoutError}` for this file.
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+
+/// Imports `std::rc::Rc` for this file.
+use std::rc::Rc;
+
+/// Imports `std::sync::Arc` for this file.
+use std::sync::Arc;
+
+/// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Imports `std::sync::mpsc::{Receiver, RecvTimeoutError}` for this file.
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
+
 /// Imports `std::thread` for this file.
 use std::thread;
+
 /// Imports `std::time::{Duration, Instant}` for this file.
 use std::time::{Duration, Instant};
 
-// Imports `rustix::io::Errno`.
-/// Imports `rustix::io::Errno` for this file.
-use rustix::io::Errno;
-// Imports `rustix::process::{Pid, Signal, kill_process...`.
-/// Imports `rustix::process::{Pid, Signal, kill_process_group, test_kill_process_group}` for this file.
-use rustix::process::{Pid, Signal, kill_process_group, test_kill_process_group};
+/// Imports `rustix::fs::{Mode, OFlags, fsync, open}` for this file.
+use rustix::fs::{Mode, OFlags, fsync, open};
 
-/// How often the child and its group are asked whether they are gone.
+/// Imports `rustix::process::{Pid, Signal, getpid, kill_process_group}` for this file.
+use rustix::process::{Pid, Signal, getpid, kill_process_group};
+
+/// Imports `crate::bounded_contain::Containment` for this file.
+use crate::bounded_contain::Containment;
+
+/// Imports `crate::bounded_io::{collect, feed}` for this file.
+use crate::bounded_io::{collect, feed};
+
+/// How often the child is asked whether it has ended.
+/// Delegated pick of round 6, open to veto: 10 ms keeps the latency of a finished command far under any human-visible delay
+/// while costing one `wait` system call per interval.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
-/// How long the direct child is given to be reaped after the group was killed.
-/// Unmeasured:
-/// a killed process is reaped within milliseconds unless it is in an uninterruptible wait,
-/// which no bound can fix;
-/// what must be measured is the time from `kill` to `wait` on the machines the shim runs on.
+/// How long the direct child is given to be reaped after it was killed.
+/// Delegated pick of round 6, open to veto: a killed process is reaped within milliseconds unless it is in an uninterruptible
+/// wait, which no bound can fix; 5 s is long against that and short against a person's patience.
+/// The time from kill to reap was not measured on slow machines.
 const REAP_BOUND: Duration = Duration::from_secs(5);
 
-/// How long the members of the group are given to disappear after they were killed,
-/// or after the direct child exited normally.
-/// Unmeasured,
-/// for the same reason as `REAP_BOUND`.
+/// How long the descendants are given to disappear after they were killed.
+/// Delegated pick of round 6, open to veto, for the same reason as `REAP_BOUND`.
 const QUIESCE_BOUND: Duration = Duration::from_secs(5);
 
-/// How long the output readers are given to reach the end of the output once the group is gone.
-/// With every writer gone the pipes are at their end at once;
-/// a reader that does not finish means a process outside the group holds the pipe.
-/// Unmeasured:
-/// what must be measured is the drain time of the largest output (`cargo metadata` of this repository).
+/// How long the output workers are given to report once every writer is gone.
+/// Delegated pick of round 6, open to veto: with every writer gone the pipes are at their end at once, so this only needs to
+/// cover the scheduling of the worker threads; the largest output (`cargo metadata` of this repository) drains in well under it.
 const READER_GRACE: Duration = Duration::from_secs(2);
 
 thread_local! {
@@ -86,31 +101,80 @@ thread_local! {
     /// for the error of a bound that was exceeded.
     static RERUN: RefCell<Option<String>> = const { RefCell::new(None) };
 
-    /// The file that records the process group of every child started by this thread,
-    /// set while a transaction is open.
-    static GROUP_LOG: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    /// The scopes of the open transactions of this thread, innermost last.
+    static SCOPES: RefCell<Vec<(u64, Rc<ScopeState>)>> = const { RefCell::new(Vec::new()) };
+
+    /// The number the next scope gets.
+    static NEXT_SCOPE: Cell<u64> = const { Cell::new(0) };
 }
 
-/// What:
-/// `pub fn set_group_log(path: Option<PathBuf>)` names the file in which this thread records the process group of each child it
-/// starts (`None` stops recording).
-/// Why:
-/// A recovery that finds a killed run's journal needs to know whether a child of that run may still be running,
-/// which the end of the wrapper's lock does not say.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function setGroupLog(path?: string): void
-/// ```
-pub fn set_group_log(path: Option<PathBuf>) {
-    // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
-    // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // (a, b) => body
-    // ```
-    GROUP_LOG.with(|slot| { *slot.borrow_mut() = path; });
+/// What a scope remembers.
+struct ScopeState {
+    /// The file in which the process group of each child started under this scope is recorded.
+    log: PathBuf,
+    /// Whether a run under this scope could not show that everything it started was stopped.
+    lost: Cell<bool>,
+}
+
+/// The records and the verdict of one open transaction.
+/// It belongs to the thread that opened it: dropping it, in any order, removes only its own entry.
+pub struct RunScope {
+    /// The number of this scope in the stack.
+    id: u64,
+    /// What the scope remembers, shared with the runs under it.
+    state: Rc<ScopeState>,
+    /// Keeps the scope on its thread, because the stack it is in is thread-local.
+    _on_one_thread: PhantomData<*const ()>,
+}
+
+/// The methods of the type above.
+impl RunScope {
+    /// What:
+    /// `pub fn open(group_log: PathBuf) -> RunScope` makes the runs of this thread record their process groups in `group_log`.
+    /// Why:
+    /// A recovery that finds a killed run's journal needs to know whether a child of that run may still be running.
+    /// The record belongs to the transaction that owns this scope, not to the thread (round 6, 5b2 6).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static open(groupLog: string): RunScope
+    /// ```
+    pub fn open(group_log: PathBuf) -> RunScope {
+        let id: u64 = NEXT_SCOPE.with(|next| { return next.replace(next.get() + 1); });
+        let state: Rc<ScopeState> = Rc::new(ScopeState { log: group_log, lost: Cell::new(false) });
+        SCOPES.with(|stack| { stack.borrow_mut().push((id, Rc::clone(&state))); });
+        return RunScope { id, state, _on_one_thread: PhantomData };
+    }
+
+    /// What:
+    /// `pub fn writers_may_remain(&self) -> bool` says whether a run under this scope could not show that everything it
+    /// started was stopped.
+    /// Why:
+    /// Then the files of the transaction cannot be rolled back or finished safely, and the command must stop.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// writersMayRemain(): boolean
+    /// ```
+    pub fn writers_may_remain(&self) -> bool {
+        return self.state.lost.get();
+    }
+}
+
+/// How the scope ends.
+impl Drop for RunScope {
+    /// What:
+    /// `fn drop(&mut self)` removes this scope's entry and no other.
+    /// Why:
+    /// Transactions may nest and end in any order.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose](): void
+    /// ```
+    fn drop(&mut self) {
+        SCOPES.with(|stack| { stack.borrow_mut().retain(|(id, _)| { return *id != self.id; }); });
+    }
 }
 
 /// The bound of one run and the words an error uses.
@@ -129,40 +193,50 @@ pub struct Bound {
 /// Why a bounded run did not produce output.
 #[derive(Debug)]
 pub enum RunError {
-    /// The child could not be started or read.
+    /// The child could not be started or a system call failed.
     Io(
         /// The system error.
         io::Error,
     ),
-    /// The child outlived its bound;
-    /// its process group was killed.
+    /// The bound passed; the child and everything it started were stopped.
     TimedOut {
         /// What was running.
         what: String,
-        /// The bound it exceeded.
+        /// The bound.
         limit: Duration,
         /// The command to run again.
         rerun: String,
     },
-    /// Members of the process group could not be shown to be gone,
-    /// so something may still write.
+    /// Something the child started could not be stopped or shown to be gone.
     NotQuiescent {
         /// What was running.
         what: String,
+    },
+    /// The run could not be contained, so the child was not started.
+    ContainmentUnavailable {
+        /// What was to run.
+        what: String,
+        /// Why containment failed.
+        reason: String,
     },
     /// The output could not be read to its end.
     IncompleteOutput {
         /// What was running.
         what: String,
     },
+    /// The input could not be delivered to the end.
+    IncompleteInput {
+        /// What was running.
+        what: String,
+    },
 }
 
-/// The methods of the type above.
+/// How the error reads to a person.
 impl std::fmt::Display for RunError {
     /// What:
-    /// `fn fmt(&self, formatter) -> fmt::Result` words the error for the user.
+    /// `fn fmt(&self, formatter)` writes the error with what was running and what it means for the files.
     /// Why:
-    /// Each variant says what blocked and what state it leaves.
+    /// The texts say only what is established: the command may have changed files before it was stopped.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -173,90 +247,66 @@ impl std::fmt::Display for RunError {
             RunError::Io(error) => write!(formatter, "{error}"),
             RunError::TimedOut { what, limit, rerun } => write!(
                 formatter,
-                "{what} did not finish within {limit:?}; it and everything it started were stopped, and no file was restored over or removed by that. Run {rerun} again when it can finish"
+                "{what} did not finish within {limit:?}; it and every process it started were stopped. It may have changed files before it was stopped; this tool did not restore or remove anything because of that. Run {rerun} again when it can finish"
             ),
-            // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-            // Why:      Text building and printing are written as one call instead of string concatenation.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // `..${x}..`   // template literal
-            // console.error(text);   // eprintln!
-            // [a, b]            // vec![a, b]
-            // ```
-            RunError::NotQuiescent { what } => write!(formatter, "{what} left a process running that could not be stopped, so nothing it may still write can be trusted; no file was changed by this tool"),
-            // Macro `write!`: builds or prints text (or a list) from a template.
-            RunError::IncompleteOutput { what } => write!(formatter, "the output of {what} could not be read to its end because a process outside its process group holds the pipe; the partial output was discarded"),
+            RunError::NotQuiescent { what } => write!(
+                formatter,
+                "{what} started a process that could not be stopped or shown to be gone, so files it may still write cannot be trusted; this tool changed no file because of that and the journal of the run was kept"
+            ),
+            RunError::ContainmentUnavailable { what, reason } => write!(
+                formatter,
+                "{what} was not started because this tool could not make itself the parent of everything the command starts ({reason}); without that it cannot show that the command left nothing running"
+            ),
+            RunError::IncompleteOutput { what } => write!(formatter, "the output of {what} could not be read to its end; the partial output was discarded"),
+            RunError::IncompleteInput { what } => write!(formatter, "{what} did not take all of its input, so its answer is not trusted"),
         };
     }
 }
 
 /// What:
-/// `fn group_exists(group: Pid) -> bool` says whether any process is still in the group.
+/// `fn current_scope() -> Option<Rc<ScopeState>>` is the innermost open scope of this thread.
 /// Why:
-/// A process that exists but cannot be signalled (`EPERM`) still exists.
+/// The run records into, and reports to, the transaction that is open around it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const groupExists = (group: number): boolean => { try { process.kill(-group, 0); return true; } catch (e) { return e.code !== 'ESRCH'; } };
+/// function currentScope(): ScopeState | undefined
 /// ```
-fn group_exists(group: Pid) -> bool {
-    // What:     `match value { pattern => result, ... }` runs the arm whose pattern fits the value and binds the parts the pattern names. The compiler checks that every case is covered.
-    // Why:      It separates the success and failure (or present and absent) cases explicitly, with no fall-through.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // switch (kind) { case "a": ...; case "b": ...; }  // or a type-narrowing if/else
-    // ```
-    return match test_kill_process_group(group) {
-        // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-        // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Ok(value)  is  return value;
-        // // Err(error) is  throw error;   (the caller sees it as a returned value)
-        // ```
-        Ok(()) => true,
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(code) => code != Errno::SRCH,
-    };
+fn current_scope() -> Option<Rc<ScopeState>> {
+    return SCOPES.with(|stack| { return stack.borrow().last().map(|(_, state)| { return Rc::clone(state); }); });
 }
 
 /// What:
-/// `fn group_gone_within(group: Pid, limit: Duration) -> bool` polls until no process is in the group or the limit passes.
+/// `fn record_own_group(path: &CStr) -> io::Result<()>` appends the calling process's own id, which is its process group, to the
+/// record and forces it to disk.
 /// Why:
-/// Killed members are reaped by their parent or by init a moment later.
+/// It runs in the forked child before `exec`, so the record exists before the child can write anything.
+/// It uses only system calls and a stack buffer, because nothing else is safe there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function groupGoneWithin(group: number, limit: number): boolean
+/// function recordOwnGroup(path: string): void
 /// ```
-fn group_gone_within(group: Pid, limit: Duration) -> bool {
-    // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
-    // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const name: Type = value;
-    // ```
-    // What:     `Duration` is a length of time and `Instant` a point on the monotonic clock (siblings: the wall-clock `SystemTime`).
-    // Why:      Spacing between requests is a length of time, measured on a clock that never jumps back.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: T[] / Set / Map / number
-    // ```
-    let deadline: Instant = Instant::now() + limit;
+fn record_own_group(path: &CStr) -> io::Result<()> {
+    let file: OwnedFd = open(path, OFlags::WRONLY | OFlags::APPEND | OFlags::CLOEXEC, Mode::empty()).map_err(io::Error::from)?;
+    let mut digits: [u8; 24] = [0; 24];
+    let mut position: usize = digits.len() - 1;
+    digits[position] = b'\n';
+    let mut number: u32 = u32::try_from(getpid().as_raw_nonzero().get()).unwrap_or(0);
     loop {
-        if !group_exists(group) {
-            return true;
+        position -= 1;
+        digits[position] = b'0' + u8::try_from(number % 10).unwrap_or(0);
+        number /= 10;
+        if number == 0 {
+            break;
         }
-        if Instant::now() >= deadline {
-            return false;
-        }
-        thread::sleep(POLL_INTERVAL);
     }
+    let line: &[u8] = &digits[position..];
+    let written: usize = rustix::io::write(&file, line).map_err(io::Error::from)?;
+    if written != line.len() {
+        return Err(io::Error::new(io::ErrorKind::WriteZero, "the process group record was cut short"));
+    }
+    return fsync(&file).map_err(io::Error::from);
 }
 
 /// What:
@@ -271,30 +321,14 @@ fn group_gone_within(group: Pid, limit: Duration) -> bool {
 /// function reap(child: ChildProcess): ExitStatus | undefined
 /// ```
 fn reap(child: &mut Child) -> Option<ExitStatus> {
-    // Typed binding: `deadline: Instant`.
     let deadline: Instant = Instant::now() + REAP_BOUND;
     loop {
-        // `match`: picks the arm whose pattern fits the value.
         match child.try_wait() {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-            // Why:      Absence is a value the caller must check; there is no `null`.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // // Some(value) is  value
-            // // None        is  undefined
-            // ```
             Ok(Some(status)) => return Some(status),
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // `None`: the present or the absent value of an `Option`.
             Ok(None) => {}
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // `None`: the present or the absent value of an `Option`.
             Err(_) => return None,
         }
         if Instant::now() >= deadline {
-            // `None`: the present or the absent value of an `Option`.
             return None;
         }
         thread::sleep(POLL_INTERVAL);
@@ -302,335 +336,174 @@ fn reap(child: &mut Child) -> Option<ExitStatus> {
 }
 
 /// What:
-/// `fn stop_group(group: Pid, child: &mut Child) -> bool` kills the process group,
-/// reaps the direct child and waits for the group to
-/// be gone;
-/// `true` only if both happened.
+/// `fn stop_everything(containment, child, group) -> bool` kills the process group, then every descendant wherever it went,
+/// reaps the direct child, and returns `true` only if all of it is shown gone.
 /// Why:
 /// This is the one way a run is ended early,
 /// on timeout and on every error path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stopGroup(group: number, child: ChildProcess): boolean
+/// function stopEverything(containment: Containment, child: ChildProcess, group: number): boolean
 /// ```
-fn stop_group(group: Pid, child: &mut Child) -> bool {
-    // What:     `let _ = expr;` runs the expression and discards its result, including a failure.
-    // Why:      The outcome does not matter here (a best-effort write or cleanup), and the compiler would otherwise warn about an unused `Result`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // void expr;   // or try { expr } catch {}
-    // ```
+fn stop_everything(containment: &Containment, child: &mut Child, group: Pid) -> bool {
     let _ = kill_process_group(group, Signal::KILL);
-    // Typed binding: `reaped: bool`.
     let reaped: bool = reap(child).is_some();
-    return group_gone_within(group, QUIESCE_BOUND) && reaped;
+    let direct: Option<i32> = i32::try_from(child.id()).ok();
+    let gone: bool = containment.stop_all(direct, QUIESCE_BOUND).unwrap_or(false);
+    return gone && reaped;
 }
 
 /// What:
-/// `fn collect(mut stream: impl Read + Send + 'static) -> Receiver<io::Result<Vec<u8>>>` reads a pipe to its end on its own thread.
+/// `fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<u8>, RunError>` takes the result of an output worker.
 /// Why:
-/// A child that fills a pipe nobody reads blocks,
-/// and the result tells whether the end of the output was reached.
+/// A worker that does not report means the output is not complete, and a prefix must never be returned as the output.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function collect(stream: Readable): Promise<Buffer>
-/// ```
-fn collect(mut stream: impl Read + Send + 'static) -> Receiver<io::Result<Vec<u8>>> {
-    let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || {
-        // What:     `let mut x` declares a variable that can be reassigned or changed; plain `let x` is a constant binding (TS `const`).
-        // Why:      The value is built up or replaced step by step below.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // let x = ...;   // plain Rust `let` is TS `const`
-        // ```
-        // Typed binding: `bytes: Vec<u8>`.
-        // What:     `Vec::new()`, `String::new()` and `BTreeSet::new()` build an empty owned collection; `Box::new(x)` puts a value on the heap behind an owning pointer (siblings: `Rc`/`Arc`, shared ownership; here one owner is enough).
-        // Why:      An empty collection is filled below, or a value of a trait type is stored behind one pointer.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const list: string[] = [];   // or new Set() / new Map()
-        // ```
-        // What:     `Vec<T>` is an owned growable list; the siblings are `&[T]`, a borrowed view of a list, and `[T; N]`, a fixed-size array.
-        // Why:      The list is built or returned here, so `Vec<T>` and not a borrowed slice.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS has one type for this: T[] / Set / Map / number
-        // ```
-        // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-        // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS has one type for this: number
-        // ```
-        let mut bytes: Vec<u8> = Vec::new();
-        // Closure `|_|`: an anonymous function, like a TS arrow function.
-        // What:     `&x` lends `x` read-only to the callee, `&mut x` lends it for changes; nothing is copied and the caller keeps ownership. `*x` reads through such a reference.
-        // Why:      Large values (lists, texts, paths) are passed without copying and the callee cannot keep them.
-        // Gotcha:   A borrow cannot outlive the value it points to; the compiler rejects code that would keep one.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS passes objects by reference already; `&x` is just `x`, `&mut x` is `x` that the callee may mutate
-        // ```
-        // What:     Iterator and `Option` adapters such as `.map(f)`, `.filter(f)` and `.and_then(f)` transform or select items lazily with a closure.
-        // Why:      They express one step of a pipeline without an index loop.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // list.map(f).filter(g)
-        // ```
-        // Typed binding: `outcome: io::Result<Vec<u8>>`.
-        let outcome: io::Result<Vec<u8>> = stream.read_to_end(&mut bytes).map(|_| { return bytes; });
-        // `let _ =`: discards the result on purpose.
-        let _ = sender.send(outcome);
-    });
-    return receiver;
-}
-
-/// What:
-/// `fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<u8>, RunError>` takes a reader's result within
-/// `READER_GRACE`.
-/// Why:
-/// A reader that has not reached the end means the output is incomplete,
-/// which is an error and never a prefix.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function finished(reader: Promise<Buffer>, what: string): Buffer  // throws
+/// function finished(receiver: Promise<Buffer>, what: string): Buffer  // throws RunError
 /// ```
 fn finished(receiver: &Receiver<io::Result<Vec<u8>>>, what: &str) -> Result<Vec<u8>, RunError> {
-    // `match`: picks the arm whose pattern fits the value.
     return match receiver.recv_timeout(READER_GRACE) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(Ok(bytes)) => Ok(bytes),
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
         Ok(Err(error)) => Err(RunError::Io(error)),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // String(value)  // JS strings are always owned values
-        // ```
         Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => Err(RunError::IncompleteOutput { what: what.to_string() }),
     };
 }
 
+/// Sets the cancel flag when the run ends, however it ends, so no worker outlives the call.
+struct CancelOnDrop(Arc<AtomicBool>);
+
+/// How the guard acts.
+impl Drop for CancelOnDrop {
+    /// What:
+    /// `fn drop(&mut self)` tells the pipe workers to stop.
+    /// Why:
+    /// A worker must not keep a thread, a descriptor and a growing buffer after the call returned.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose](): void
+    /// ```
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+}
+
 /// What:
-/// `pub fn output_within(command, input, bound) -> Result<Output, RunError>` runs the command in its own process group,
-/// feeds it
-/// `input` and returns its complete output,
-/// or stops the whole group at the bound.
+/// `fn lose(scope: &Option<Rc<ScopeState>>)` marks the open transaction as one whose writers may remain.
 /// Why:
-/// Every wait for a child process in cargo-shadow goes through here,
-/// so each has a bound and a named blocker.
-/// The direct child is always reaped;
-/// on timeout and on every error the group is killed and shown to be gone;
-/// after a normal exit any member left in the group is killed too,
-/// because it could still write after the caller moved on.
+/// The caller of the transaction reads the mark and stops the command instead of rolling back or finishing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lose(scope: ScopeState | undefined): void
+/// ```
+fn lose(scope: &Option<Rc<ScopeState>>) {
+    if let Some(state) = scope {
+        state.lost.set(true);
+    }
+}
+
+/// What:
+/// `pub fn output_within(command, input, bound) -> Result<Output, RunError>` runs the command, feeds it `input`, and returns
+/// its complete output, or an error naming what was running.
+/// Why:
+/// Every external process of cargo-shadow runs through here, so nothing waits forever and nothing is left running.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function outputWithin(command: Command, input: Buffer | undefined, bound: Bound): Output  // throws RunError
 /// ```
 pub fn output_within(command: &mut Command, input: Option<&[u8]>, bound: &Bound) -> Result<Output, RunError> {
+    let containment: Containment = Containment::begin().map_err(|error| { return RunError::ContainmentUnavailable { what: bound.what.clone(), reason: error.to_string() }; })?;
+    let scope: Option<Rc<ScopeState>> = current_scope();
     command.process_group(0).stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() }).stdout(Stdio::piped()).stderr(Stdio::piped());
-    // What:     `expr?` is the propagation operator: if `expr` is `Err` (or `None`) the whole function returns that failure at once, otherwise the success value is unwrapped and used.
-    // Why:      A failure stops the step at its source and reaches the caller as a returned value, with no `try`/`catch` in between.
-    // Gotcha:   `?` only works in a function whose own return type is a `Result` (or `Option`) of a compatible kind.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const value = await expr;   // throws to the caller on failure
-    // ```
-    // What:     `.map_err(f)` converts the error type of a `Result` with the function `f` and leaves a success untouched.
-    // Why:      The function's own error type differs from the callee's, and `?` needs them to agree.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // try { ... } catch (error) { throw new MyError(String(error)); }
-    // ```
-    // `let mut`: a binding that may change.
-    // Typed binding: `child: Child`.
-    let mut child: Child = command.spawn().map_err(RunError::Io)?;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // What:     `.unwrap_or(x)`, `.unwrap_or_default()` and `.unwrap_or_else(f)` take the value out of an `Option`/`Result` or use a fallback (a given value, the type's empty value, or the result of a function). `.unwrap()`/`.expect()` instead stop the program on absence.
-    // Why:      A missing value or a failure becomes a deliberate default here instead of an error.
-    // Gotcha:   `unwrap_or*` on a `Result` silently drops its error value.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // value ?? fallback
-    // ```
-    // What:     `.ok()` turns a `Result` into an `Option` (dropping the error); `.ok_or(e)` turns an `Option` into a `Result` with the given error.
-    // Why:      The next step wants a value-or-nothing, or a value-or-error, not the other form.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // try { return compute(); } catch { return undefined; }
-    // ```
-    // Typed binding: `group: Pid`.
+    if let Some(state) = &scope {
+        let record: CString = CString::new(state.log.as_os_str().as_bytes()).map_err(|error| { return RunError::Io(io::Error::new(io::ErrorKind::InvalidInput, error)); })?;
+        // SAFETY: the closure runs in the forked child before `exec` and calls only `open`, `getpid`, `write` and `fsync` on
+        // data that was built before the fork (a `CString` and a stack buffer); it allocates nothing and takes no lock.
+        unsafe {
+            command.pre_exec(move || { return record_own_group(&record); });
+        }
+    }
+    let mut child: Child = command.spawn().map_err(|error| {
+        return RunError::Io(io::Error::new(error.kind(), format!("{error} (a child whose process group cannot be recorded is not started)")));
+    })?;
     let group: Pid = Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)).ok_or_else(|| { return RunError::Io(io::Error::other("the child has no process id")); })?;
-    // Closure `|slot|`: an anonymous function, like a TS arrow function.
-    GROUP_LOG.with(|slot| {
-        // `Some`: the present or the absent value of an `Option`.
-        // What:     `if let Pattern = value { ... }` runs the block only when the value fits the pattern and binds its parts; `let Pattern = value else { ... }` does the same but must leave the function or loop in its `else` block.
-        // Why:      It extracts the inside of an `Option` or `Result` in one step when only one case matters.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (value !== undefined) { const inner = value; ... }
-        // ```
-        if let Some(path) = slot.borrow().as_ref()
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            && let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path)
-        {
-            // Macro `writeln!`: builds or prints text (or a list) from a template.
-            // `let _ =`: discards the result on purpose.
-            let _ = writeln!(file, "{}", group.as_raw_nonzero());
-        }
-    });
-    // `match`: picks the arm whose pattern fits the value.
-    // Typed binding: `writer: Option<Receiver<io::Result<()>>>`.
+    let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let _cancel_on_exit: CancelOnDrop = CancelOnDrop(Arc::clone(&cancel));
     let writer: Option<Receiver<io::Result<()>>> = match (input, child.stdin.take()) {
-        // `Some`: the present or the absent value of an `Option`.
-        (Some(bytes), Some(mut stdin)) => {
-            // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
-            // Why:      The result can be stored or modified independently of the slice it came from.
-            //
-            // In TS you'd write (pseudocode):
-            // ```ts
-            // [...slice]
-            // ```
-            // Typed binding: `owned: Vec<u8>`.
-            let owned: Vec<u8> = bytes.to_vec();
-            let (sender, receiver) = mpsc::channel();
-            thread::spawn(move || {
-                // Borrow `&owned`: lends the value without copying or giving it away.
-                // `let _ =`: discards the result on purpose.
-                let _ = sender.send(stdin.write_all(&owned));
-            });
-            // `Some`: the present or the absent value of an `Option`.
-            Some(receiver)
-        }
-        // `None`: the present or the absent value of an `Option`.
+        (Some(bytes), Some(stdin)) => Some(feed(OwnedFd::from(stdin), bytes.to_vec(), Arc::clone(&cancel))),
         _ => None,
     };
-    let stdout = collect(child.stdout.take().ok_or_else(|| { return RunError::Io(io::Error::other("no standard output pipe")); })?);
-    let stderr = collect(child.stderr.take().ok_or_else(|| { return RunError::Io(io::Error::other("no standard error pipe")); })?);
+    let stdout_pipe: OwnedFd = OwnedFd::from(child.stdout.take().ok_or_else(|| { return RunError::Io(io::Error::other("no standard output pipe")); })?);
+    let stderr_pipe: OwnedFd = OwnedFd::from(child.stderr.take().ok_or_else(|| { return RunError::Io(io::Error::other("no standard error pipe")); })?);
+    let stdout = collect(stdout_pipe, Arc::clone(&cancel));
+    let stderr = collect(stderr_pipe, Arc::clone(&cancel));
     let deadline: Instant = Instant::now() + bound.limit;
-    // Typed binding: `status: ExitStatus`.
     let status: ExitStatus = loop {
-        // `match`: picks the arm whose pattern fits the value.
         match child.try_wait() {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // `Some`: the present or the absent value of an `Option`.
             Ok(Some(found)) => break found,
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            // `None`: the present or the absent value of an `Option`.
             Ok(None) => {}
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
             Err(error) => {
-                // Borrow `&mut child`: lends the value without copying or giving it away.
-                stop_group(group, &mut child);
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
+                if !stop_everything(&containment, &mut child, group) {
+                    lose(&scope);
+                    return Err(RunError::NotQuiescent { what: bound.what.clone() });
+                }
                 return Err(RunError::Io(error));
             }
         }
         if Instant::now() >= deadline {
-            // Borrow `&mut child`: lends the value without copying or giving it away.
-            if !stop_group(group, &mut child) {
-                // `Err(...)`: builds the success or the failure variant of a `Result`.
-                // What:     `.clone()` makes an independent copy of an owned value (a new `String`, `Vec`, ...), leaving the original usable.
-                // Why:      The copy can be stored or moved elsewhere while the original stays in place.
-                // Gotcha:   Cloning a large value copies all of it; it is not free like passing a reference.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // structuredClone(value)  // or [...list] / {...object}
-                // ```
+            if !stop_everything(&containment, &mut child, group) {
+                lose(&scope);
                 return Err(RunError::NotQuiescent { what: bound.what.clone() });
             }
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            // `.clone()`: an independent owned copy.
             return Err(RunError::TimedOut { what: bound.what.clone(), limit: bound.limit, rerun: bound.rerun.clone() });
         }
         thread::sleep(POLL_INTERVAL);
     };
-    // The parent is gone; whatever it left in its group could still write, so it is stopped before the caller moves on.
-    if group_exists(group) {
-        // `let _ =`: discards the result on purpose.
-        let _ = kill_process_group(group, Signal::KILL);
-    }
-    if !group_gone_within(group, QUIESCE_BOUND) {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        // `.clone()`: an independent owned copy.
+    let _ = kill_process_group(group, Signal::KILL);
+    if !containment.stop_all(None, QUIESCE_BOUND).unwrap_or(false) {
+        lose(&scope);
         return Err(RunError::NotQuiescent { what: bound.what.clone() });
     }
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&stdout`: lends the value without copying or giving it away.
-    // Typed binding: `out: Vec<u8>`.
     let out: Vec<u8> = finished(&stdout, &bound.what)?;
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    // Borrow `&stderr`: lends the value without copying or giving it away.
-    // Typed binding: `err: Vec<u8>`.
     let err: Vec<u8> = finished(&stderr, &bound.what)?;
-    // `Some`: the present or the absent value of an `Option`.
-    // `if let`/`let else`: continues only when the value fits the pattern, binding its parts.
-    if let Some(receiver) = writer
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        && let Ok(Err(error)) = receiver.recv_timeout(READER_GRACE)
-        && error.kind() != io::ErrorKind::BrokenPipe
-    {
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        return Err(RunError::Io(error));
+    if let Some(receiver) = writer {
+        match receiver.recv_timeout(READER_GRACE) {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) if error.kind() == io::ErrorKind::BrokenPipe => {}
+            Ok(Err(error)) => return Err(RunError::Io(error)),
+            Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => return Err(RunError::IncompleteInput { what: bound.what.clone() }),
+        }
     }
-    // `Ok(...)`: builds the success or the failure variant of a `Result`.
     return Ok(Output { status, stdout: out, stderr: err });
 }
 
 /// What:
-/// `pub fn set_rerun(command: Option<String>)` records the command the user ran,
-/// for the errors of this thread.
+/// `pub fn set_rerun(command: Option<String>)` names the command the user ran,
+/// for the errors of runs started by this thread.
 /// Why:
-/// Review finding (4c P3):
-/// an error that says "run the command again" must name it.
+/// An error that says "run it again" must say which command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function setRerun(command?: string): void
 /// ```
 pub fn set_rerun(command: Option<String>) {
-    // Closure `|slot|`: an anonymous function, like a TS arrow function.
     RERUN.with(|slot| { *slot.borrow_mut() = command; });
 }
 
 /// What:
-/// `pub fn rerun_text() -> String` is the command to name in an error:
-/// the recorded one,
-/// or a plain description when none was.
+/// `pub fn rerun_text() -> String` is the text for the command to run again.
 /// Why:
-/// Callers build their `Bound` with it.
+/// Bounds are built far from the shim that knows the arguments.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function rerunText(): string
 /// ```
 pub fn rerun_text() -> String {
-    // Closure `|slot|`: an anonymous function, like a TS arrow function.
-    // `.clone()`: an independent owned copy.
-    // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-    // `.unwrap_or*`: takes the value out, or the fallback when it is absent or failed.
-    // Adapter `.map(`: transforms or selects items with a closure.
-    // Macro `format!`: builds or prints text (or a list) from a template.
     return RERUN.with(|slot| { return slot.borrow().clone().map(|command| { return format!("`{command}`"); }).unwrap_or_else(|| { return "the command you ran".to_string(); }); });
 }
