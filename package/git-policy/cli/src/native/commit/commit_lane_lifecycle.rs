@@ -187,6 +187,8 @@ pub struct Recovery {
     pub forced: usize,
     /// Recorded error lines it took up.
     pub retried: usize,
+    /// Interrupted disposals it finished.
+    pub disposals: usize,
 }
 
 /// What:
@@ -202,7 +204,10 @@ pub struct Recovery {
 pub fn startup_sweep(lane: &Path, state: &Path) -> Result<Recovery, LifecycleError> {
     let generation: Option<u64> = select(state)?.map(|chosen| { return chosen.generation; });
     let pass: SyncPass = syncer_pass(lane)?;
-    return Ok(Recovery { generation, forced: pass.forced, retried: pass.retried });
+    // A disposal the person authorized and a crash interrupted is finished from its durable `disposed` line; a root that is not in the
+    // checked representation cannot be replaced, so the sweep leaves such a lane to the person.
+    let disposals: usize = if generation.is_some() { super::commit_disposal::resume_disposals(lane, state)? } else { 0 };
+    return Ok(Recovery { generation, forced: pass.forced, retried: pass.retried, disposals });
 }
 
 /// What the seal wrote.
