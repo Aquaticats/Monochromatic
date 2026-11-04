@@ -843,3 +843,15 @@ named fixes. Each finding, with its disposition and its test (red first unless s
 - Foreign-owner expiry (sol-1, sol-2 C): decided and built, above.
 - Not changed: guard-fixture cleanup in older tests, `wait_ceilings.rs` verification (sol-2 round 1 notes), and the unrun reviewer
   items about reason-string tests versus end-to-end propagation.
+
+### The output snapshot limit, measured 2026-11-04
+
+`STEP_OUTPUT_LIMIT` (8 MiB per stream) is the most of a step's output the wrapper keeps when it captures it in full: the steps that are
+never ended and the repair tools. Measured on this host (`measure-output.ts`, outputs in `measure-output.out`, `pnpm-out.txt` and
+`mpm-out.txt` beside it): `cargo metadata --locked --offline --no-deps --format-version 1` for every one of the 35 manifests of the
+repository, at most 21,012 bytes (`package/ide/app`); `pnpm install --offline --frozen-lockfile` in a worktree, 634 bytes;
+`mpm install --frozen-lockfile`, 639 bytes; the diffstat of the three merges with the most changed files in the Monochromatic history
+(4096, 1850 and 1393 files), 638,784, 114,892 and 201,802 bytes, and of the three largest in `/var/home/user/resharp`, at most 2,381
+bytes. Git's own writers print one line (`HEAD is now at ...`) or nothing when their output is not a terminal. So the largest was 638,784
+bytes, and 8 MiB is 13.1 times that. The value stays at 8 MiB with this citation; what a step writes beyond it is disclosed, and output
+that was cut is never parsed as a whole result.

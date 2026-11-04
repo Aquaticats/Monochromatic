@@ -20,9 +20,15 @@ use std::fs::File;
 use std::os::unix::fs::FileExt;
 use std::process::Stdio;
 
-/// The most bytes of one stream a snapshot of a step's output holds, the last ones. Exempt from a citation under `LQM` (class: display
-///  cap): it limits how much of the output of a step the command keeps in memory for its messages, and no result depends on it; the
-///  steps that use it write a few lines (a reference update, a merge) or print a reason at the end (the repair tools).
+/// The most bytes of one stream a snapshot of a step's output holds, the last ones.
+///  Measured on this host's real repositories (`/var/home/user/temp/agent/ceiling-measure/measure-output.ts`, `measure-output.out`,
+///  2026-11-04): the largest output of a step the wrapper captures in full was the diffstat `git merge` prints for the merge with the most
+///  changed files in the Monochromatic history (4096 files), 638,784 bytes; the others were far smaller (`cargo metadata --no-deps` of
+///  35 manifests, at most 21,012 bytes; `pnpm install --offline --frozen-lockfile`, 634 bytes; `mpm install --frozen-lockfile`, 639
+///  bytes; a merge of the other repository on the host, 2,381 bytes). 8 MiB is 13.1 times the largest, about the output of a merge of
+///  50,000 files. A step that writes more has the start of its output left out, said in words (`Captured::notes`), and a reader that
+///  parses an output (the `cargo metadata` of a repair) refuses one that was cut. The coordinator's request for a cited value
+///  (2026-11-04); the margin is open to the owner's veto.
 pub const STEP_OUTPUT_LIMIT: usize = 8 * 1024 * 1024;
 
 /// Two anonymous files that collect a child's standard output and standard error.
