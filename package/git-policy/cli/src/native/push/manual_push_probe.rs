@@ -348,7 +348,7 @@ pub fn probe_manual_push_updates_on(
         typed_location = Some(typed.to_string_lossy().into_owned());
     }
     // The remote resolver asks its questions through a callback that carries the Git context and the global options.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "resolve_push_remote's query parameter is a state-carrying dyn FnMut that tests also fill"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "resolve_push_remote's query parameter is a state-carrying dyn FnMut that tests also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let mut asking = |query: &[&str]| -> Result<String, String> {
         let mut owned: Vec<OsString> = global_prefix.to_vec();
         for part in query {
@@ -396,10 +396,10 @@ pub fn probe_manual_push_updates_on(
     let mut confirmed: Vec<PushUpdate> = Vec::new();
     let mut failure: Option<ManualPushProbeError> = None;
     // The pool calls this on a worker thread for each destination; it carries the Git context and the remote name.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let work = |_index: usize, destination: &(&PorcelainBlock, &String), _say: &mut dyn FnMut(&str)| { return confirm_block(git, global_prefix, remote_name.as_str(), destination.0, destination.1.as_str()); };
     // The pool calls this as each destination ends, in block order; it carries the confirmed updates and the first failure.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let mut on_event = |event: Event<'_, Result<Vec<PushUpdate>, ManualPushProbeError>>| {
         if let Event::End(_index, outcome) = event {
             match outcome {

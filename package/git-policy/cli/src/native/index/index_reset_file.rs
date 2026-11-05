@@ -193,7 +193,7 @@ pub fn reset_index_file(git: &GitContext, repository: &Path, new: &str, paths: I
     let built: PathBuf = copy.path().to_path_buf();
     // The closure owns the borrowed arguments for the one call that `guarded` makes inside `catch_unwind`;
     // `catch_unwind` takes only a closure with no parameters, so no named function can carry them in.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "catch_unwind accepts only a closure with no parameters, so the arguments must be captured"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "catch_unwind accepts only a closure with no parameters, so the arguments must be captured; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let guarded_work = || { return reset_file(git, repository, new, paths, built.as_path()); };
     let done: bool = guarded(guarded_work).is_some();
     // `publish` flushes the new bytes before it renames them onto the copy, and nothing writes to the copy after it returns.

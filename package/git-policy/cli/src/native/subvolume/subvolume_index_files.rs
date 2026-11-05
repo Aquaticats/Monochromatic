@@ -284,10 +284,10 @@ fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&P
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
     let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
     // The stat lookup keeps `tree` for the rewrite, which takes a callback that carries state (`&mut dyn FnMut`).
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let mut lookup = |path: &[u8]| { return stat_fields(tree, path); };
     // The check keeps `options` for the rewrite, in the same kind of callback parameter.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let mut agrees = |path: &[u8], stored: &StoredStat| { return agrees_with_a_reference(options.references, path, stored); };
     let outcome: IndexOutcome = rewrite_index_stat_with(bytes, &context, &mut lookup, &mut agrees);
     let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
@@ -520,12 +520,12 @@ pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn FnMut(&s
         lanes.push(vec![index]);
     }
     // The pool calls this on a worker thread for each index; it carries the lock, the rewrite and the hash length.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let work = |_index: usize, target: &IndexTarget, _worker_say: &mut dyn FnMut(&str)| {
         return rewrite(target.index.as_path(), target.tree.as_path(), &RefreshOptions { lock, references: target.references.as_slice(), hash_length });
     };
     // The pool calls this as each index ends, in index order; it carries `say` and the target list.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let mut on_event = |event: Event<'_, String>| {
         if let Event::End(index, line) = event {
             say(format!("index {}: {line}", targets[index].index.display()).as_str());

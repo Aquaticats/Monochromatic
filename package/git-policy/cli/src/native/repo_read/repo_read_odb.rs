@@ -194,7 +194,7 @@ impl ObjectDatabase {
         // Git searches the packs first and the loose files after, and so does this: nearly every object a commit reads is packed,
         //  and a look at a loose path that is not there is a system call for each of thousands of objects.
         // The pack follows a delta chain through this callback, which carries the database and the depth so far.
-        #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "Pack::read's base parameter is a state-carrying dyn Fn that tests also fill"))]
+        #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "Pack::read's base parameter is a state-carrying dyn Fn that tests also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
         let by_name = |base: &[u8]| -> Option<RawObject> { return self.read_at_depth(base, depth + 1); };
         for pack in &self.packs {
             if let Some(offset) = pack.find(name) {

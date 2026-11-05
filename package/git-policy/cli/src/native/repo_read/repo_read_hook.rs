@@ -95,7 +95,7 @@ fn attempt(
     effective.extend(variables.iter().cloned());
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
     // `guarded` runs the work inside `catch_unwind`, which takes only a closure with no parameters, so the arguments are captured.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "catch_unwind accepts only a closure with no parameters, so the arguments must be captured"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "catch_unwind accepts only a closure with no parameters, so the arguments must be captured; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let answering = || { return answer_with(&Query { arguments, directory, variables, input }, base, &scope); };
     return guarded(answering);
 }

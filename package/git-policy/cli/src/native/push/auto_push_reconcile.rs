@@ -76,7 +76,7 @@ pub fn reconcile_divergent_push(
         explicit: false,
     };
     // The loop takes its push as a callback so controls can stand in for it; this one carries the Git context.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "integrate_and_push's push parameter is a state-carrying dyn FnMut that tests also fill"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "integrate_and_push's push parameter is a state-carrying dyn FnMut that tests also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let mut push_merge = |target: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
         let arguments = argv(&[
             "push",

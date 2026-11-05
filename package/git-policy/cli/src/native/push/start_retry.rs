@@ -114,7 +114,7 @@ pub trait RetryStart {
 
 /// The three ways of starting a command, each retried when the start is refused.
 ///  Each hands `retry_refused_start` a callback that carries the command, which the retry parameter (a `dyn FnMut`) needs.
-#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "retry_refused_start's start parameter is a state-carrying dyn FnMut that tests also fill"))]
+#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "retry_refused_start's start parameter is a state-carrying dyn FnMut that tests also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
 impl RetryStart for Command {
     /// `Command::spawn`, retried.
     fn spawn_retrying(&mut self) -> Result<Child> {
@@ -147,7 +147,7 @@ impl RetryStart for Command {
 /// // process.execve(command) with the same retry
 /// ```
 #[cfg(unix)]
-#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "retry_refused_start's start parameter is a state-carrying dyn FnMut that tests also fill"))]
+#[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "retry_refused_start's start parameter is a state-carrying dyn FnMut that tests also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
 pub fn exec_retrying(command: &mut Command) -> Error {
     /// The Unix extension that adds `exec` to a command.
     use std::os::unix::process::CommandExt;

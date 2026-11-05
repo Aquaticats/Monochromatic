@@ -139,13 +139,13 @@ pub fn scopes_of_updates_on(
     let mut scopes: Vec<UpdateScope> = Vec::new();
     let mut failure: Option<ManualPushRangeError> = None;
     // The pool calls this on a worker thread for each update; it carries the Git context and the published tips.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let work = |_index: usize, update: &PushUpdate, _say: &mut dyn FnMut(&str)| {
         let published: Vec<String> = tips.get(&update.remote_name).cloned().unwrap_or_default();
         return update_scope(git, update, &published);
     };
     // The pool calls this as each update ends, in update order; it carries the scopes and the first failure.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback"))]
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
     let mut on_event = |event: Event<'_, Result<UpdateScope, ManualPushRangeError>>| {
         if let Event::End(_index, outcome) = event {
             match outcome {
