@@ -110,7 +110,7 @@ its measurements and the rebuild procedure are in
 The `markdown/lfs-image-url` rule of `monochromatic-lint` (`package/linter/monochromatic-lint`)
 rewrites a Markdown image whose target is an LFS-tracked file to
 `https://monochromatic-lfs.aquaticat.workers.dev/<oid>/<repo-relative path>`.
-The `markdown/autofix` cli-git policy (native wrapper `package/git-policy/cli`, configured in `cli-git.config.jsonc`)
+The `markdown/autofix` cli-git policy (native wrapper `package/git-policy/cli`, configured in `monochromatic-git-policy-cli.config.jsonc`)
 applies that rewrite inside every commit,
 so authors keep writing relative links and the landed commit carries absolute ones.
 `package/ssg/` is excluded because those MDX pages resolve images through the site build.
