@@ -16,6 +16,7 @@
 /// Import the classification under test and shared fixtures.
 use super::{CandidateKind, MAX_SCRIPT_INSPECTION_BYTES, classify_candidate, is_wrapper_launcher, record_names_this_wrapper};
 use crate::test_support::{REAL_GIT, executable, fixture, remove};
+use crate::wrapper_names_old_and_new::PROGRAM;
 use std::path::{Path, PathBuf};
 
 /// Classify a candidate created with the given content against a fixed own executable.
@@ -283,6 +284,22 @@ fn a_native_launcher_with_a_record_of_this_wrapper_is_a_wrapper() {
     std::fs::write(named.join("git.launch"), record("cargo:monochromatic-git-policy-cli", Path::new("/elsewhere"))).expect("record");
     assert_eq!(classify_candidate(named.join("git").as_path(), own.as_path()), CandidateKind::Wrapper, "a record beside the name");
     remove(root.as_path());
+}
+
+/// A launcher is a wrapper whichever spelling of the program's name it carries:
+///  the current name and the name an older install gave the file, each with the record beside it.
+#[test]
+fn a_native_launcher_named_like_either_spelling_of_the_program_is_a_wrapper() {
+    for program in [PROGRAM.current, PROGRAM.earlier] {
+        let root: PathBuf = fixture(format!("classify-launcher-named-{program}").as_str());
+        let own: PathBuf = root.join("own");
+        executable(own.as_path(), b"\x7fELF native wrapper bytes");
+        let launcher: PathBuf = root.join(program);
+        executable(launcher.as_path(), b"\x7fELF native launcher bytes, a different file");
+        std::fs::write(root.join(format!("{program}.launch")), record("cargo:monochromatic-git-policy-cli", Path::new("/elsewhere/release"))).expect("record");
+        assert_eq!(classify_candidate(launcher.as_path(), own.as_path()), CandidateKind::Wrapper, "{program}");
+        remove(root.as_path());
+    }
 }
 
 /// A record decides by the tool it names or by the file it leads to; any other record, or none, leaves real Git alone.

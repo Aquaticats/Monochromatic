@@ -101,6 +101,20 @@ fn written(machine: &Machine, name: &str) -> String {
     return std::fs::read_to_string(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit");
 }
 
+/// A unit file that an earlier release wrote and one this release writes are both the wrapper's own,
+///  and a file of someone else is not;
+///  the units this release writes name only the new program, folder and identifier.
+#[test]
+fn unit_files_of_both_spellings_are_the_wrappers_own_and_the_new_ones_name_the_new_program_only() {
+    use crate::service_provision_unit_file_ownership_and_writes::carries_own_marker;
+    assert!(carries_own_marker("# Written by the git wrapper for its commit service (cli-git-unit); the wrapper rewrites this file.\n"));
+    assert!(carries_own_marker("# Written by the git wrapper for its commit service (monochromatic-git-policy-cli-unit); the wrapper rewrites this file.\n"));
+    assert!(!carries_own_marker("# A unit someone else wrote for their own service.\n"));
+    for text in [SOCKET_UNIT, SERVICE_UNIT] {
+        assert!(!text.contains("cli-git"), "a unit this release writes names the new program only: {text}");
+    }
+}
+
 /// The first provisioning writes both units, filled in and marked, and only starts the socket: the manager finds a new file
 ///  by itself, and a reload would interrupt its other clients.
 #[test]
