@@ -93,13 +93,17 @@ struct Piece {
 /// ```
 fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
     let directory: &Path = target.parent().unwrap_or(Path::new("."));
-    let stem: String = target.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
+    let stem: String = match target.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => String::new(),
+    };
     let mut pieces: Vec<Piece> = Vec::new();
     for listed in std::fs::read_dir(directory)? {
         let entry: std::fs::DirEntry = listed?;
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Some(rest) = name.strip_prefix(stem.as_str()).and_then(|after| { return after.strip_prefix('.'); }) else { continue };
-        let number: Option<u64> = if !rest.is_empty() && rest.bytes().all(|byte| { return byte.is_ascii_digit(); }) { rest.parse::<u64>().ok() } else { None };
+        let Some(after_stem) = name.strip_prefix(stem.as_str()) else { continue };
+        let Some(rest) = after_stem.strip_prefix('.') else { continue };
+        let number: Option<u64> = if !rest.is_empty() && rest.as_bytes().iter().all(u8::is_ascii_digit) { rest.parse::<u64>().ok() } else { None };
         if number.is_none() && !rest.starts_with("moving-") {
             continue;
         }
@@ -129,7 +133,12 @@ fn list_pieces(target: &Path) -> std::io::Result<Vec<Piece>> {
 /// # Errors
 /// The system's error when the directory cannot be read or a link cannot be made for a reason other than a taken name.
 pub(super) fn install_generation(taken: &Path, target: &Path) -> std::io::Result<()> {
-    let highest: u64 = list_pieces(target)?.iter().filter_map(|piece| { return piece.number; }).max().unwrap_or(0);
+    let mut highest: u64 = 0;
+    for piece in list_pieces(target)? {
+        if let Some(number) = piece.number {
+            highest = highest.max(number);
+        }
+    }
     let mut number: u64 = highest.saturating_add(1);
     loop {
         match std::fs::hard_link(taken, numbered(target, number)) {
@@ -150,6 +159,21 @@ const SAVED_CONFLICT_MARK: &[u8] = b"\"outcome\":\"saved-conflict\"";
 /// The characters that stand for a byte the line's writer could not show as text: a place that has one cannot be looked up.
 const REPLACEMENT: char = '\u{FFFD}';
 
+/// The generation number of a piece. `sort_by_key` takes this function by path.
+fn piece_number(piece: &&Piece) -> Option<u64> {
+    return piece.number;
+}
+
+/// Whether a line holds the mark of a `saved-conflict` record anywhere in it.
+fn holds_saved_conflict_mark(line: &[u8]) -> bool {
+    for window in line.windows(SAVED_CONFLICT_MARK.len()) {
+        if window == SAVED_CONFLICT_MARK {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What:
 ///  Whether a `saved-conflict` line names a saved copy that exists, or might.
 /// Why:
@@ -166,10 +190,13 @@ fn line_names_a_copy(line: &[u8]) -> bool {
     let Ok(value) = serde_json::from_slice::<serde_json::Value>(line) else {
         return true;
     };
-    let Some(copies) = value.get("copies").and_then(|found| { return found.as_array(); }) else {
+    let Some(copies) = value.get("copies").and_then(serde_json::Value::as_array) else {
         return false;
     };
-    for copy in copies.iter().filter_map(|entry| { return entry.as_str(); }) {
+    for entry in copies {
+        let Some(copy) = entry.as_str() else {
+            continue;
+        };
         for (index, _) in copy.match_indices(" => ") {
             let place: &str = &copy[index + " => ".len()..];
             if place == "none" {
@@ -205,7 +232,7 @@ fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
         if reader.read_until(b'\n', &mut line)? == 0 {
             return Ok(false);
         }
-        if line.windows(SAVED_CONFLICT_MARK.len()).any(|window| { return window == SAVED_CONFLICT_MARK; }) && line_names_a_copy(line.as_slice()) {
+        if holds_saved_conflict_mark(line.as_slice()) && line_names_a_copy(line.as_slice()) {
             return Ok(true);
         }
     }
@@ -229,11 +256,26 @@ fn names_a_copy_on_disk(path: &Path) -> std::io::Result<bool> {
 /// The system's error when the directory cannot be read.
 pub(super) fn trim_generations(target: &Path, budget: u64) -> std::io::Result<()> {
     let pieces: Vec<Piece> = list_pieces(target)?;
-    let mut generations: Vec<&Piece> = pieces.iter().filter(|piece| { return piece.number.is_some(); }).collect();
-    generations.sort_by_key(|piece| { return piece.number; });
+    let mut generations: Vec<&Piece> = Vec::new();
+    for piece in &pieces {
+        if piece.number.is_some() {
+            generations.push(piece);
+        }
+    }
+    generations.sort_by_key(piece_number);
     let mut total: u64 = 0;
-    for piece in pieces.iter().filter(|piece| { return piece.number.is_none(); }) {
-        if generations.iter().any(|generation| { return generation.identity == piece.identity; }) {
+    for piece in &pieces {
+        if piece.number.is_some() {
+            continue;
+        }
+        let mut numbered_too: bool = false;
+        for generation in &generations {
+            if generation.identity == piece.identity {
+                numbered_too = true;
+                break;
+            }
+        }
+        if numbered_too {
             // The same file under its generation number: a rotation was killed between its link and its removal.
             if let Err(error) = std::fs::remove_file(&piece.path) {
                 debug(TAG, &format!("the second name {} of a generation could not be removed: {error}", piece.path.display()));

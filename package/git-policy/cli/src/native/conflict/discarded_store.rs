@@ -18,45 +18,12 @@
 //! await directory.empty();                           // unlinkat by descriptor, files before subdirectories
 //! ```
 
+pub use crate::discarded_store_records::{Identity, Interrupted, MAX_DEPTH, Tally};
 #[cfg(unix)]
 pub use unix::{Directory, OpenFailure, Store};
 
 #[cfg(not(unix))]
 pub use other::{Directory, OpenFailure, Store};
-
-/// Which directory a listing saw: the pair that tells a directory from one that took its name later.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Identity {
-    /// The device it lives on.
-    pub device: u64,
-    /// Its inode number.
-    pub inode: u64,
-    /// When it last changed, whole seconds.
-    pub changed_seconds: i64,
-    /// When it last changed, the nanoseconds past the second.
-    pub changed_nanos: i64,
-}
-
-/// The files met below a directory, as names relative to it, and the sum of their sizes (links by their own size).
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Tally {
-    /// The relative names, in the order they were met.
-    pub names: Vec<String>,
-    /// The sum of the sizes; wide, so no number of files can wrap it.
-    pub bytes: u128,
-}
-
-/// The deepest tree a pass enters; a deeper one is kept and reported, because every level holds a descriptor open.
-pub const MAX_DEPTH: usize = 128;
-
-/// A walk that failed after meeting `tally` of what it was asked to count or remove.
-#[derive(Debug)]
-pub struct Interrupted {
-    /// What was met (surveying) or removed (removing) before the failure.
-    pub tally: Tally,
-    /// What stopped the walk.
-    pub error: std::io::Error,
-}
 
 #[cfg(unix)]
 mod unix {
@@ -77,7 +44,10 @@ mod unix {
 
     /// The name as the C string the system calls take.
     fn c_name(name: &OsStr) -> std::io::Result<CString> {
-        return CString::new(name.as_bytes()).map_err(|_| { return std::io::Error::from_raw_os_error(libc::EINVAL); });
+        return match CString::new(name.as_bytes()) {
+            Ok(text) => Ok(text),
+            Err(_) => Err(std::io::Error::from_raw_os_error(libc::EINVAL)),
+        };
     }
 
     /// Takes ownership of a descriptor a system call returned, or the error it left.
@@ -164,7 +134,7 @@ mod unix {
             let entry: *mut libc::dirent = unsafe { libc::readdir(stream) };
             if entry.is_null() {
                 let error: std::io::Error = std::io::Error::last_os_error();
-                if error.raw_os_error().is_some_and(|number| { return number != 0; }) {
+                if matches!(error.raw_os_error(), Some(number) if number != 0) {
                     failure = Some(error);
                 }
                 break;
@@ -426,7 +396,10 @@ mod unix {
         /// # Errors
         /// The system's error when the removal fails, `ENOTEMPTY` included.
         pub fn remove_empty_directory(&self, name: &OsStr, expected: Identity) -> std::io::Result<bool> {
-            let same: bool = self.directory_identity(name)?.is_some_and(|found| { return found.device == expected.device && found.inode == expected.inode; });
+            let same: bool = match self.directory_identity(name)? {
+                Some(found) => found.device == expected.device && found.inode == expected.inode,
+                None => false,
+            };
             if !same {
                 return Ok(false);
             }
