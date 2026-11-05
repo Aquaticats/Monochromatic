@@ -182,7 +182,7 @@ fn raw_changes(
         &[],
     )
     .map_err(SharedPathError::Git)?;
-    let text: String = output.stdout.iter().map(|byte| { return char::from(*byte); }).collect();
+    let text: String = output.stdout.iter().copied().map(char::from).collect();
     return parse_raw_changes(text.as_str()).map_err(SharedPathError::Format);
 }
 
@@ -224,18 +224,26 @@ pub fn list_shared_paths(
 ) -> Result<Vec<SharedPath>, SharedPathError> {
     let landed: Vec<RawChange> = raw_changes(context, shadow, cwd, merge_base, current)?;
     let mine: Vec<RawChange> = raw_changes(context, shadow, cwd, merge_base, prepared)?;
-    let shared: Vec<SharedPath> = landed
-        .into_iter()
-        .filter_map(|change| {
-            let own: &RawChange = mine.iter().find(|candidate| { return candidate.path == change.path; })?;
-            return Some(SharedPath {
-                path: change.path,
-                base: change.from,
-                landed: change.to,
-                prepared: own.to.clone(),
-            });
-        })
-        .collect();
+    let mut shared: Vec<SharedPath> = Vec::new();
+    for change in landed {
+        // A landed change counts only when the prepared side changed the same path.
+        let mut own: Option<&RawChange> = None;
+        for candidate in &mine {
+            if candidate.path == change.path {
+                own = Some(candidate);
+                break;
+            }
+        }
+        let Some(own_change) = own else {
+            continue;
+        };
+        shared.push(SharedPath {
+            path: change.path,
+            base: change.from,
+            landed: change.to,
+            prepared: own_change.to.clone(),
+        });
+    }
     return Ok(shared);
 }
 
@@ -252,6 +260,14 @@ pub fn same_entry(left: &Option<TreeEntry>, right: &Option<TreeEntry>) -> bool {
     return left == right;
 }
 
+/// Whether one side of a shared path is present and a regular file. An absent side is not.
+fn is_regular_entry(side: &Option<TreeEntry>) -> bool {
+    return match side {
+        Some(entry) => is_regular_mode(entry.mode.as_str()),
+        None => false,
+    };
+}
+
 /// What:
 ///  Whether all three entries are regular files, so only their bytes can decide the path.
 /// Why:
@@ -262,9 +278,12 @@ pub fn same_entry(left: &Option<TreeEntry>, right: &Option<TreeEntry>) -> bool {
 /// isRegularTriple(shared);
 /// ```
 pub fn is_regular_triple(shared: &SharedPath) -> bool {
-    return [&shared.base, &shared.landed, &shared.prepared]
-        .iter()
-        .all(|side| { return side.as_ref().is_some_and(|entry| { return is_regular_mode(entry.mode.as_str()); }); });
+    for side in [&shared.base, &shared.landed, &shared.prepared] {
+        if !is_regular_entry(side) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
@@ -278,9 +297,7 @@ pub fn is_regular_triple(shared: &SharedPath) -> bool {
 /// isTextCandidate(shared);
 /// ```
 pub fn is_text_candidate(shared: &SharedPath) -> bool {
-    let changed_regular: bool = [&shared.landed, &shared.prepared]
-        .iter()
-        .all(|side| { return side.as_ref().is_some_and(|entry| { return is_regular_mode(entry.mode.as_str()); }); });
+    let changed_regular: bool = is_regular_entry(&shared.landed) && is_regular_entry(&shared.prepared);
     let base_regular: bool = match &shared.base {
         None => true,
         Some(entry) => is_regular_mode(entry.mode.as_str()),

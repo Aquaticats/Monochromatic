@@ -2,6 +2,7 @@
 //!  over the base lines `a b c d e`.
 
 use super::*;
+use crate::replay_patch::PatchLine;
 
 /// The base lines of every case, each with its newline.
 fn base() -> Vec<Vec<u8>> {
