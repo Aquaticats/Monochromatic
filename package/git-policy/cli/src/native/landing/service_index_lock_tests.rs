@@ -3,6 +3,13 @@
 //!  the removal of a stale lock only when it is the service's own and its holder is gone.
 
 use super::*;
+
+/// A function-like value with the right shape is an announcer in these controls: the shipped callers write a small struct that holds the state.
+impl<Say: Fn(Announce)> Announcer for Say {
+    fn announce(&self, note: Announce) {
+        self(note);
+    }
+}
 use crate::process_identity::{ProcessIdentityError, process_birth_identity};
 use crate::service_index_marker::own_identity;
 use crate::service_index_placement::{place_marked, rename_noreplace};

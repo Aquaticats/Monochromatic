@@ -136,8 +136,21 @@ pub enum GitStep<'a> {
     },
 }
 
-/// Runs one real Git step.
-pub type GitRunner<'a> = dyn FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> + 'a;
+/// What:
+///  Runs one real Git step.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The ladder calls it once per Git step; the state a step needs (the invocation, the real Git, the overlay, the parallel-checkout
+///  decision) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface GitRunner { run(step: GitStep): GitStatus } // throws WorktreeCopyError
+/// ```
+pub trait GitRunner {
+    /// Run `step` and report how Git ended.
+    fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>;
+}
 
 /// What:
 ///  The one summary line a successful copy writes.
@@ -196,8 +209,8 @@ pub fn exit_code(settlement: &Settlement) -> i32 {
 /// ```ts
 /// await forwardOnly({ args, gitPath, environment });
 /// ```
-fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError> {
-    let git: GitStatus = run_git(&GitStep::Person)?;
+fn forward_only(run_git: &mut dyn GitRunner) -> Result<Settlement, WorktreeCopyError> {
+    let git: GitStatus = run_git.run(&GitStep::Person)?;
     return Ok(Settlement {
         git,
         copy_failure: None,
@@ -365,7 +378,7 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 fn settle_creation(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<(Settlement, AfterLock), WorktreeCopyError> {
     let registered_before: bool = match invocation.destination.as_deref() {
@@ -376,7 +389,7 @@ fn settle_creation(
     let ladder = begin_ladder(invocation.add_plan.as_ref(), &invocation.context, &invocation.identity);
     end_step(choose_rung_entered);
     let git_add_entered: bool = begin_step("gitAdd");
-    let ran: Result<GitStatus, WorktreeCopyError> = run_git(&ladder.first_step());
+    let ran: Result<GitStatus, WorktreeCopyError> = run_git.run(&ladder.first_step());
     end_step(git_add_entered);
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => {
@@ -420,7 +433,7 @@ fn settle_creation(
 /// ```
 pub fn run_with_worktree_copy(
     invocation: &Invocation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     return settle_invocation(invocation, run_git, stderr).map_err(lifecycle_failure);
@@ -437,7 +450,7 @@ pub fn run_with_worktree_copy(
 /// ```
 fn settle_invocation(
     invocation: &Invocation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // `if` chain in the incumbent's order: each bypass forwards without touching the repository.
@@ -476,7 +489,7 @@ fn settle_invocation(
 fn settle_observed(
     invocation: &Invocation,
     observation: &WorktreeCopyObservation,
-    run_git: &mut GitRunner,
+    run_git: &mut dyn GitRunner,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // Recovery never waits: it takes over only journals and claims whose owner is dead, and one rename picks its single winner.

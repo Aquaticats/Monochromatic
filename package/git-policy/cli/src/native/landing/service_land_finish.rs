@@ -19,7 +19,7 @@ use crate::service_instance::instance_of;
 use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, mark_done, mark_indexed, read_start, recovery_for, remove_start};
 use crate::service_land_follow::{IndexPaths, build_index, remove_conclusion_state};
 use crate::service_land_start::witness_of;
-use crate::service_index_lock::{IndexLock, remove_stale, try_acquire};
+use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
 use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
@@ -52,6 +52,28 @@ pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent)
     };
 }
 
+/// What:
+///  The record that the installed index is complete, written to the batch's journal while the lock is still held.
+/// Why:
+///   A restart that finds this record never replays the index update over what another program staged after the lock was given up.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RecordIndexed implements Record { record() { markIndexed(journal, intent.seq, intent.new); } }
+/// ```
+struct RecordIndexed<'a> {
+    /// The directory of the batch's journal.
+    journal: &'a Path,
+    /// The batch whose index was installed.
+    intent: &'a Intent,
+}
+
+impl Record for RecordIndexed<'_> {
+    fn record(&self) -> std::io::Result<()> {
+        return mark_indexed(self.journal, self.intent.seq, self.intent.new.as_str());
+    }
+}
+
 /// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
 ///  idempotent, and they are recorded apart: the installed index is recorded in the journal while the lock is still held
 ///  (`<batch>.indexed`), so a restart never replays the index update over what another program staged after the lock was given
@@ -74,14 +96,7 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
             return false;
         }
     }
-    #[cfg_attr(
-        dylint_lib = "monochromatic_lint_closure",
-        expect(
-            avoidable_closure,
-            reason = "`release_flushed_with_record` takes `&dyn Fn() -> std::io::Result<()>` to run before the lock is given up, and the step must carry the journal and the intent"
-        )
-    )]
-    let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
+    let recorded: RecordIndexed<'_> = RecordIndexed { journal, intent };
     return lock.release_flushed_with_record(built.path(), built.is_flushed(), &recorded).is_ok() && cleaned;
 }
 

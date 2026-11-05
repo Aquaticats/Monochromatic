@@ -250,7 +250,7 @@ fn run_settled(
     use std::io::Write;
     use crate::checkout_workers::{insert_parallel_checkout, is_fallback_checkout, parallel_checkout_wanted};
     use crate::transaction_git::GitContext;
-    use crate::worktree_copy::{GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
+    use crate::worktree_copy::{GitRunner, GitStatus, GitStep, Invocation, exit_code, run_with_worktree_copy};
     use crate::worktree_copy_error::WorktreeCopyError;
 
     /// What:
@@ -290,47 +290,73 @@ fn run_settled(
         repair: crate::package_repair::RepairSwitch::from_arguments(arguments),
     };
     let mut stderr = std::io::stderr();
-    // Whether the checkout may get parallel workers, decided at the first checkout step from what the person set, and not again.
-    let mut parallel: Option<bool> = None;
+    /// What:
+    ///  The real Git started as a child for each step of the ladder, with the options the step needs.
+    /// Why:
+    ///   The ladder calls it once per Git step; it carries the invocation, the real Git, the overlay and the parallel-checkout
+    ///  decision that the first checkout step makes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// class ForwardedGit implements GitRunner { parallel?: boolean; run(step) { return runRealGit(realGit, argumentsFor(step), overlayFor(step)); } }
+    /// ```
+    struct ForwardedGit<'a> {
+        /// The variables added to the environment of every step.
+        overlay: &'a [(OsString, OsString)],
+        /// The arguments the person gave.
+        arguments: &'a [OsString],
+        /// What the plan found out about the command.
+        facts: &'a CopyFacts,
+        /// The invocation the ladder runs for.
+        invocation: &'a Invocation,
+        /// The real Git.
+        real_git: &'a Path,
+        /// Whether the checkout may get parallel workers, decided at the first checkout step from what the person set, and not again.
+        parallel: Option<bool>,
+    }
+
+    impl GitRunner for ForwardedGit<'_> {
+        fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> {
+            let mut child_overlay: Vec<(OsString, OsString)> = self.overlay.to_vec();
+            let mut child_arguments: Vec<OsString> = self.arguments.to_vec();
+            match step {
+                GitStep::Person => {
+                    // The person's `git worktree add` is the checkout of the new worktree: it gets parallel workers where nothing sets them.
+                    if self.facts.creates && decided_parallel(&mut self.parallel, self.invocation, self.arguments) {
+                        insert_parallel_checkout(&mut child_arguments);
+                    }
+                }
+                GitStep::WithoutCheckout(at) => {
+                    // The index was read from the same arguments, so the word before it is `add`.
+                    if *at == 0 || *at > child_arguments.len() || child_arguments[*at - 1] != "add" {
+                        return Err(WorktreeCopyError(String::from("cli-git: the worktree plan does not match the arguments.")));
+                    }
+                    child_arguments.insert(*at, OsString::from("--no-checkout"));
+                }
+                GitStep::Other { arguments: other, environment } => {
+                    child_arguments = other.to_vec();
+                    child_overlay.extend(environment.iter().cloned());
+                    // The ladder's own checkout after a failed snapshot is the same checkout, so it takes the same option.
+                    if is_fallback_checkout(child_arguments.as_slice()) && decided_parallel(&mut self.parallel, self.invocation, self.arguments) {
+                        insert_parallel_checkout(&mut child_arguments);
+                    }
+                }
+            }
+            match run_real_git(self.real_git, child_arguments.as_slice(), child_overlay.as_slice()) {
+                Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
+                Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
+                Err(error) => {
+                    return Err(WorktreeCopyError(format!(
+                        "cli-git: cannot start {}: {error}",
+                        self.real_git.display()
+                    )));
+                }
+            }
+
+        }
+    }
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "GitRunner is a dyn FnMut that the ladder calls once per Git step, and this runner carries the invocation, the real Git and the parallel-checkout decision (worktree_closure_lint_suppressions.md, group git runner)"))]
-    let mut run_git = |step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
-        let mut child_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
-        let mut child_arguments: Vec<OsString> = arguments.to_vec();
-        match step {
-            GitStep::Person => {
-                // The person's `git worktree add` is the checkout of the new worktree: it gets parallel workers where nothing sets them.
-                if facts.creates && decided_parallel(&mut parallel, &invocation, arguments) {
-                    insert_parallel_checkout(&mut child_arguments);
-                }
-            }
-            GitStep::WithoutCheckout(at) => {
-                // The index was read from the same arguments, so the word before it is `add`.
-                if *at == 0 || *at > child_arguments.len() || child_arguments[*at - 1] != "add" {
-                    return Err(WorktreeCopyError(String::from("cli-git: the worktree plan does not match the arguments.")));
-                }
-                child_arguments.insert(*at, OsString::from("--no-checkout"));
-            }
-            GitStep::Other { arguments: other, environment } => {
-                child_arguments = other.to_vec();
-                child_overlay.extend(environment.iter().cloned());
-                // The ladder's own checkout after a failed snapshot is the same checkout, so it takes the same option.
-                if is_fallback_checkout(child_arguments.as_slice()) && decided_parallel(&mut parallel, &invocation, arguments) {
-                    insert_parallel_checkout(&mut child_arguments);
-                }
-            }
-        }
-        match run_real_git(real_git, child_arguments.as_slice(), child_overlay.as_slice()) {
-            Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
-            Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
-            Err(error) => {
-                return Err(WorktreeCopyError(format!(
-                    "cli-git: cannot start {}: {error}",
-                    real_git.display()
-                )));
-            }
-        }
-    };
+    let mut run_git: ForwardedGit<'_> = ForwardedGit { overlay, arguments, facts, invocation: &invocation, real_git, parallel: None };
     match run_with_worktree_copy(&invocation, &mut run_git, &mut stderr) {
         Ok(settlement) => {
             if let Some(failure) = &settlement.copy_failure {

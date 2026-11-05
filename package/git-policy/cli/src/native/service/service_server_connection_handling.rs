@@ -15,7 +15,7 @@ use crate::service_timing::{Arrival, log, retire_line};
 use crate::service_instance::instance_of;
 use crate::service_work::Wake;
 use crate::service_busy::{EarlyAnswer, LandingBoard};
-use crate::service_reply::{Reply, write_until_answered_noting};
+use crate::service_reply::{NoteSource, Reply, write_until_answered_noting};
 use crate::service_protocol::{
     ClientMessage, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client,
 };
@@ -61,36 +61,42 @@ pub(crate) fn wait_for_close(stream: &UnixStream) {
 /// ```ts
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "the note source is returned as `impl FnMut() -> Option<ServiceMessage>` for `write_until_answered_noting`, and it must carry the board, the request identity and the last key said"
-    )
-)]
-pub(crate) fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>) -> impl FnMut() -> Option<ServiceMessage> + 'a {
-    let mut last: Option<String> = None;
-    return move || {
+pub(crate) fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>) -> StuckNotice<'a> {
+    return StuckNotice { board, request, last: None };
+}
+
+/// The note source of a connection's beat: what the landing thread is stuck in, said again only when the words change.
+pub(crate) struct StuckNotice<'a> {
+    /// What the landing thread reports about itself.
+    board: &'a LandingBoard,
+    /// The identity of the request the connection serves, when it serves one.
+    request: Option<&'a str>,
+    /// The key of the words said last.
+    last: Option<String>,
+}
+
+impl NoteSource for StuckNotice<'_> {
+    fn note(&mut self) -> Option<ServiceMessage> {
         // A client whose own request is in the group being landed is told so when the write starts, because its commit may be on
         // the branch already; the key changes when the longer words of a minute's stuck write replace the first ones.
-        let inside: Option<(String, String)> = match request {
-            Some(id) => board.inside_notice(id),
+        let inside: Option<(String, String)> = match self.request {
+            Some(id) => self.board.inside_notice(id),
             None => None,
         };
         if let Some((key, words)) = inside {
-            if last.as_deref() == Some(key.as_str()) {
+            if self.last.as_deref() == Some(key.as_str()) {
                 return None;
             }
-            last = Some(key);
+            self.last = Some(key);
             return Some(ServiceMessage::InsideWrite { text: words });
         }
-        let words: String = board.describe()?;
-        if last.as_deref() == Some(words.as_str()) {
+        let words: String = self.board.describe()?;
+        if self.last.as_deref() == Some(words.as_str()) {
             return None;
         }
-        last = Some(words.clone());
+        self.last = Some(words.clone());
         return Some(ServiceMessage::Waiting { text: words });
-    };
+    }
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.

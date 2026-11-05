@@ -72,7 +72,7 @@ impl From<PlaceError> for Ended {
 /// ```ts
 /// async function serveSnapshot(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut GitRunner, context: &GitContext) -> Result<String, Ended> {
+fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: &Bound, made: &mut Option<ObjectId>, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, Ended> {
     verify_association(bound)?;
     let prepare_target_entered: bool = begin_step("prepareTarget");
     let prepare_target_outcome = prepare_target(source, plan, context, bound);
@@ -157,7 +157,7 @@ fn changes_left_out(source: &SnapshotSource) -> Option<&ChangedPaths> {
 /// ```ts
 /// async function serveClones(args): Promise<string>; // the checkout line; throws a reason
 /// ```
-fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git: &mut GitRunner, context: &GitContext) -> Result<String, String> {
+fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner, context: &GitContext) -> Result<String, String> {
     verify_association(bound)?;
     let target: Target = prepare_target(source, plan, context, bound)?;
     let cloned: Cloned = clone_tracked_files(source, &bound.destination, &bound.admin)?;
@@ -185,7 +185,7 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
 /// ```ts
 /// async function checkoutLikeGit(args): Promise<GitStatus>; // failure when the binding does not hold
 /// ```
-fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut GitRunner) -> GitStatus {
+fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner) -> GitStatus {
     let destination: &Path = plan.destination.as_path();
     if let Err(reason) = verify_association(bound) {
         warn(TAG, format!("cli-git: the checkout of {} was not started: {reason}", destination.display()).as_str());
@@ -253,7 +253,7 @@ fn mark_complete(claim: &StageClaim, swapped: bool) {
 /// ```ts
 /// const status = await completeLikeGit({ plan, claim, bound, runGit });
 /// ```
-fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, run_git: &mut GitRunner) -> GitStatus {
+fn complete_like_git(plan: &AddPlan, claim: &StageClaim, bound: &Bound, run_git: &mut dyn GitRunner) -> GitStatus {
     let status: GitStatus = checkout_like_git(plan, bound, run_git);
     if status.succeeded() {
         mark_complete(claim, false);
@@ -297,7 +297,7 @@ fn bind(claim: &StageClaim, source: &SnapshotSource, plan: &AddPlan) -> Result<B
 /// ```ts
 /// async function finishClones(args): Promise<LadderResult>;
 /// ```
-fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: &StageClaim, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim: &StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     if !git.succeeded() {
         return LadderResult { git, carried: None };
     }
@@ -337,7 +337,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
 /// ```ts
 /// async function finishSnapshot(args): Promise<LadderResult>;
 /// ```
-fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: &StageClaim, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: &StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     let bound: Bound = match bind(claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
@@ -401,7 +401,7 @@ impl Ladder {
     /// ```ts
     /// const result = await ladder.finish({ git, runGit, context, out });
     /// ```
-    pub fn finish(self, git: GitStatus, run_git: &mut GitRunner, context: &GitContext, out: &mut dyn Write) -> LadderResult {
+    pub fn finish(self, git: GitStatus, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write) -> LadderResult {
         let mut slow: Option<SlowRoute> = self.slow;
         let result: LadderResult = match (self.rung, self.plan.as_ref()) {
             (Rung::Snapshot(source, claim), Some(plan)) => {

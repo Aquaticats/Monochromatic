@@ -32,7 +32,7 @@ use crate::service_journal::{Recovery, list_intents};
 use crate::service_index_lock::try_acquire;
 use crate::service_land_finish::finish_after_move;
 use crate::service_land_start::witness_of;
-use crate::service_index_lock::{Announce, IndexLock};
+use crate::service_index_lock::{Announce, Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use crate::service_land_follow::storage_failure;
@@ -74,11 +74,11 @@ pub enum Outcome {
 /// await landBatch(context, seq, requests) // one outcome per request, in order
 /// ```
 pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -> Result<Vec<Outcome>, FailureCode> {
-    return land_batch_announcing(context, seq, requests, &ignore_announcement);
+    return land_batch_announcing(context, seq, requests, &IgnoreAnnouncements);
 }
 
 /// `land_batch`, telling the clients of the batch what it waits for when another program holds the index.
-pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[CommitRequest], announce: &dyn Fn(Announce)) -> Result<Vec<Outcome>, FailureCode> {
+pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[CommitRequest], announce: &dyn Announcer) -> Result<Vec<Outcome>, FailureCode> {
     return land_batch_timed(context, seq, requests, announce, &mut LandTiming::default());
 }
 
@@ -108,7 +108,7 @@ pub fn land_batch_timed(
     context: &LandContext,
     seq: u64,
     requests: &[CommitRequest],
-    announce: &dyn Fn(Announce),
+    announce: &dyn Announcer,
     timing: &mut LandTiming,
 ) -> Result<Vec<Outcome>, FailureCode> {
     // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
@@ -138,11 +138,11 @@ pub fn land_batch_timed(
         && let Some(step) = take_ceiling_step()
         && let Some(first) = requests.first()
     {
-        announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
+        announce.announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
         let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
         let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
         if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
-            announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
+            announce.announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
             let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
         }
     }
@@ -161,9 +161,13 @@ pub fn land_batch_timed(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ignoreAnnouncement = (_note: Announce) => {};
+/// const ignoreAnnouncements = { announce: (_note: Announce) => {} };
 /// ```
-fn ignore_announcement(_note: Announce) {}
+struct IgnoreAnnouncements;
+
+impl Announcer for IgnoreAnnouncements {
+    fn announce(&self, _note: Announce) {}
+}
 
 /// What:
 ///  Whether any outcome of a batch is a landed commit.
@@ -192,7 +196,7 @@ fn land_batch_body(
     context: &LandContext,
     seq: u64,
     requests: &[CommitRequest],
-    announce: &dyn Fn(Announce),
+    announce: &dyn Announcer,
     timing: &mut LandTiming,
     settings: &Settings<'_>,
 ) -> Result<Vec<Outcome>, FailureCode> {

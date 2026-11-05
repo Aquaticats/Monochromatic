@@ -34,7 +34,7 @@ use std::time::Duration;
 
 use crate::service_index_prestage::{Prestaged, take};
 pub use crate::service_index_found::{WaitNotes, describe_lock};
-pub use crate::service_index_hold::IndexLock;
+pub use crate::service_index_hold::{IndexLock, Record};
 pub use crate::service_index_marker::{LOCK_MARKER, Marked, marker_text, parse_marker};
 pub use crate::service_index_ownership::{Ownership, inspect_ownership, unsettled_locks};
 #[cfg(target_os = "linux")]
@@ -84,6 +84,22 @@ pub enum Announce {
     Waiting(String),
     /// Who held the lock when the wait ran out, in words that fit "... is using this repository's index".
     Holder(String),
+}
+
+/// What:
+///  Where the wait for the index lock tells the clients of the batch what it waits for.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The wait and the landing take the announcer as a value, so a control can stand in for it; the state the announcement needs
+///  (the streams of the batch) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface Announcer { announce(note: Announce): void }
+/// ```
+pub trait Announcer {
+    /// Tell the clients `note`.
+    fn announce(&self, note: Announce);
 }
 
 /// Why the lock was not taken.
@@ -168,7 +184,7 @@ pub fn lock_path_of(index: &Path) -> PathBuf {
 ///
 /// `LockFailure` with `IndexInUse` when the lock's owner is dead, and with the storage
 ///  code when the lock cannot be created.
-pub fn acquire(index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+pub fn acquire(index: &Path, seq: u64, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
     return acquire_noting_holder(index, seq, announce, &mut None);
 }
 
@@ -188,7 +204,7 @@ pub fn acquire(index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<In
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Fn(Announce), holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Announcer, holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
     let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LOCK_CEILING, announce, &mut notes, None);
     holder.clone_from(&notes.holder);
@@ -213,7 +229,7 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Fn(Announce)
 /// # Errors
 ///
 /// As `acquire`.
-pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
     return acquire_noting_wait_within(index, seq, LOCK_CEILING, announce, notes);
 }
 
@@ -222,7 +238,7 @@ pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Fn(Announce), 
 /// # Errors
 ///
 /// As `acquire`, and `IndexInUse` when the lock was still held at the ceiling.
-pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Fn(Announce), notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
+pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
     // The whole of the preparation counts as staging time: taking the marker made ahead, waiting for a flush that fails or is
     //  for another batch, and the cold staging that follows; `acquire_placing` adds its own cold staging to this.
     let preparing: std::time::Instant = std::time::Instant::now();
@@ -238,7 +254,7 @@ pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, ann
 /// As `acquire`;
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
-pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
     return acquire_placing(platform, index, seq, LOCK_CEILING, announce, &mut WaitNotes::default(), None);
 }
 
@@ -247,7 +263,7 @@ pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Fn
 /// # Errors
 ///
 /// As `acquire_on`, and `IndexInUse` when the lock was still held at the ceiling.
-pub fn acquire_within(platform: &Platform, index: &Path, seq: u64, ceiling: Duration, announce: &dyn Fn(Announce)) -> Result<IndexLock, LockFailure> {
+pub fn acquire_within(platform: &Platform, index: &Path, seq: u64, ceiling: Duration, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
     return acquire_placing(platform, index, seq, ceiling, announce, &mut WaitNotes::default(), None);
 }
 
@@ -257,7 +273,7 @@ fn acquire_placing(
     index: &Path,
     seq: u64,
     ceiling: Duration,
-    announce: &dyn Fn(Announce),
+    announce: &dyn Announcer,
     notes: &mut WaitNotes,
     prestaged: Option<Prestaged>,
 ) -> Result<IndexLock, LockFailure> {

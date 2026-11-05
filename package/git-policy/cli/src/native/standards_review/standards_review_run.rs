@@ -66,6 +66,37 @@ pub struct ReviewOptions {
 }
 
 /// What:
+///  Where the review's options read the variables of the environment.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The service's environment carries no secret: the key comes in the wake message, so the lookup holds the key it was given and
+///  answers every other name from the environment. A struct that holds the key implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface EnvironmentVariables { variable(name: string): string | undefined }
+/// ```
+pub trait EnvironmentVariables {
+    /// The value the name has, or nothing.
+    fn variable(&self, name: &str) -> Option<String>;
+}
+
+/// What:
+///  Where the review reads the patch and the files of a landed commit.
+/// Why:
+///   The read needs the Git context, the directory, the commit and the subject, and tests fix the answer; a struct that holds
+///  them implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface LandedCommitReader { read(files: string[]): LandedCommit } // throws a reason
+/// ```
+pub trait LandedCommitReader {
+    /// Read the commit as far as `files` (its code files) are concerned.
+    fn read(&self, files: &[String]) -> Result<LandedCommit, String>;
+}
+
+/// What:
 ///  The options the script's environment variables give for a repository: the live log under `common_dir` unless
 ///  `SHADOW_REVIEW_LOG` names another, and the first credential variable that is set, even to an empty text.
 /// Why:
@@ -75,15 +106,15 @@ pub struct ReviewOptions {
 /// ```ts
 /// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/cli-git/standards-review-shadow.md`;
 /// ```
-pub fn options_from_environment(common_dir: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
-    let log_path: PathBuf = match variable(LOG_VARIABLE) {
+pub fn options_from_environment(common_dir: &Path, variable: &dyn EnvironmentVariables) -> ReviewOptions {
+    let log_path: PathBuf = match variable.variable(LOG_VARIABLE) {
         Some(configured) => PathBuf::from(configured),
         None => shared_log_path(common_dir),
     };
     // The second variable is read only when the first is unset, as `.or_else(...)` did.
-    let api_key: Option<String> = match variable(KEY_VARIABLES[0]) {
+    let api_key: Option<String> = match variable.variable(KEY_VARIABLES[0]) {
         Some(key) => Some(key),
-        None => variable(KEY_VARIABLES[1]),
+        None => variable.variable(KEY_VARIABLES[1]),
     };
     return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), quiet_window: SCRIPT_QUIET_WINDOW, call_ceiling: crate::wait_ceilings::REVIEW_CALL_CEILING, trusted_pem: None };
 }
@@ -180,7 +211,7 @@ pub fn review_landed(
     names: &[String],
     sha: &str,
     subject: &str,
-    read: &dyn Fn(&[String]) -> Result<LandedCommit, String>,
+    read: &dyn LandedCommitReader,
     options: &ReviewOptions,
     now_millis: &dyn Fn() -> u64,
 ) -> ReviewOutcome {
@@ -197,7 +228,7 @@ pub fn review_landed(
     if names_commit(options.log_path.as_path(), sha) {
         return ReviewOutcome::AlreadyLogged;
     }
-    let commit: LandedCommit = match read(code_files.as_slice()) {
+    let commit: LandedCommit = match read.read(code_files.as_slice()) {
         Ok(read_commit) => read_commit,
         Err(message) => return ReviewOutcome::Unread(message),
     };

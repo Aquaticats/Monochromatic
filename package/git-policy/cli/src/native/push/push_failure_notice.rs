@@ -422,6 +422,22 @@ fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
 }
 
 /// What:
+///  Where a failure notice asks for the name of a commit as the person should read it.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The name is Git's abbreviation in the repository as it is when the notice is shown, asked of Git once per shown notice; the
+///  state the question needs (the Git context, the directories) is a small struct that implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface CommitNamer { nameOf(commit: string): string }
+/// ```
+pub trait CommitNamer {
+    /// The name to show for `commit`.
+    fn name_of(&self, commit: &str) -> String;
+}
+
+/// What:
 ///  Reads and removes the records that are for the asking worktree (all of them when no worktree is given), oldest name
 ///  first, worded with the commit named by `abbreviate`.
 /// Why:
@@ -432,7 +448,7 @@ fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
 /// ```ts
 /// const texts = await takePushFailuresFor(gitDir, worktrees, abbreviate)
 /// ```
-pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
     return take_records_from(notice_directory(git_dir).as_path(), worktrees, abbreviate);
 }
 
@@ -446,12 +462,12 @@ pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abb
 /// ```ts
 /// const texts = await takeOrphanedFailures(commonDir, abbreviate)
 /// ```
-pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+pub fn take_orphaned_failures(common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
     return take_records_from(common_dir.join(ORPHAN_NOTICE_DIRECTORY).as_path(), None, abbreviate);
 }
 
 /// Reads and removes the records in one directory that are for the asking worktree, oldest name first.
-fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn CommitNamer) -> Vec<String> {
     let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
     let mut paths: Vec<PathBuf> = Vec::new();
     for entry in listing.flatten() {
@@ -472,9 +488,9 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
             continue;
         }
         texts.push(match parsed {
-            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate(commit).as_str(), reason),
-            Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate(commit).as_str()),
+            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
             // The finished text an earlier release wrote.
             None => text,
         });
@@ -492,12 +508,16 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
 /// const texts = await takePushFailures(gitDir)
 /// ```
 pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
-    return take_push_failures_for(git_dir, None, &full_commit_name);
+    return take_push_failures_for(git_dir, None, &FullCommitName);
 }
 
 /// A commit name as it is, for the callers that show commits in full.
-fn full_commit_name(commit: &str) -> String {
-    return commit.to_string();
+struct FullCommitName;
+
+impl CommitNamer for FullCommitName {
+    fn name_of(&self, commit: &str) -> String {
+        return commit.to_string();
+    }
 }
 
 /// The lines of `reason`, each with four spaces in front, joined by newlines.

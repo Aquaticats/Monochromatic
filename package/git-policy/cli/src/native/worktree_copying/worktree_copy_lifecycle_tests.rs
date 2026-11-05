@@ -6,6 +6,13 @@ use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pendin
 use crate::test_support::dead_copy_owner;
 use std::process::Output;
 
+/// A function-like value with the right shape is a Git runner in these controls: the shipped caller writes a small struct that holds the state.
+impl<Run: FnMut(&GitStep<'_>) -> Result<GitStatus, WorktreeCopyError>> GitRunner for Run {
+    fn run(&mut self, step: &GitStep<'_>) -> Result<GitStatus, WorktreeCopyError> {
+        return self(step);
+    }
+}
+
 /// A repository with an ignored `cache` directory, returned with its canonical common directory.
 fn source(root: &Path) -> (PathBuf, PathBuf) {
     let main: PathBuf = repository(root, "main");
@@ -146,7 +153,7 @@ fn added_worktree_receives_ignored_state_without_a_lock() {
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
         },
-        &mut |_step| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
         &mut stderr,
     )
     .expect("settled");
@@ -193,7 +200,7 @@ fn opted_out_invocation_skips_synchronization() {
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
         },
-        &mut |_step| {
+        &mut |_step: &GitStep<'_>| {
             runs += 1;
             return Ok(run_real(
                 main.as_path(),
@@ -236,7 +243,7 @@ fn main_worktree_command_that_creates_nothing_is_not_settled() {
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
         },
-        &mut |_step| {
+        &mut |_step: &GitStep<'_>| {
             runs += 1;
             return Ok(GitStatus { code: Some(7) });
         },
@@ -273,7 +280,7 @@ fn non_worktree_command_runs_without_settlement() {
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
         },
-        &mut |_step| {
+        &mut |_step: &GitStep<'_>| {
             runs += 1;
             return Ok(GitStatus { code: Some(0) });
         },
@@ -334,7 +341,7 @@ fn a_creation_copies_only_into_the_destination_it_named() {
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step| {
+        &mut |_step: &GitStep<'_>| {
             // The other command's registration lands inside this command's Git run, as a concurrent add's would.
             run_real(main.as_path(), add_arguments("other", other.as_path()).as_slice());
             return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice()));
@@ -364,7 +371,7 @@ fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
     let started: std::time::Instant = std::time::Instant::now();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
         &mut stderr,
     )
     .expect("settled");
@@ -390,7 +397,7 @@ fn a_creation_recovers_a_dead_journal_first() {
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
         &mut stderr,
     )
     .expect("settled");
@@ -413,7 +420,7 @@ fn a_creation_with_an_unread_destination_copies_nothing_and_says_so() {
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), None),
-        &mut |_step| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
         &mut stderr,
     )
     .expect("settled");
@@ -424,7 +431,7 @@ fn a_creation_with_an_unread_destination_copies_nothing_and_says_so() {
     let mut failed_stderr: Vec<u8> = Vec::new();
     let failed: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), None),
-        &mut |_step| return Ok(GitStatus { code: Some(128) }),
+        &mut |_step: &GitStep<'_>| return Ok(GitStatus { code: Some(128) }),
         &mut failed_stderr,
     )
     .expect("settled");
@@ -444,7 +451,7 @@ fn a_destination_registered_before_is_not_copied_into_again() {
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step| return Ok(run_real(main.as_path(), add_arguments("again", topic.as_path()).as_slice())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("again", topic.as_path()).as_slice())),
         &mut stderr,
     )
     .expect("settled");
@@ -464,7 +471,7 @@ fn a_creation_that_failed_after_registering_still_copies() {
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step| {
+        &mut |_step: &GitStep<'_>| {
             run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice());
             return Ok(GitStatus { code: Some(1) });
         },
@@ -563,7 +570,7 @@ fn add_from_main(root: &Path, main: &Path, common: &Path, flags: (bool, bool)) -
             add_plan: None,
             repair: crate::package_repair::RepairSwitch::default(),
         },
-        &mut |_step| return Ok(run_real(main, args.as_slice())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main, args.as_slice())),
         &mut stderr,
     )
     .expect("settled");
@@ -716,7 +723,7 @@ fn a_made_destination_whose_registration_cannot_be_confirmed_is_told() {
     let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
-        &mut |_step| {
+        &mut |_step: &GitStep<'_>| {
             let status: GitStatus = run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice());
             std::fs::write(common.join("worktrees/topic/gitdir"), b"/somewhere/else/.git\n").expect("registration edited");
             return Ok(status);
@@ -748,7 +755,7 @@ fn the_repair_is_handed_exactly_the_confirmed_destination() {
     let (_first, after) = settle_creation(
         &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
         &observation,
-        &mut |_step| {
+        &mut |_step: &GitStep<'_>| {
             run_real(main.as_path(), add_arguments("other", other.as_path()).as_slice());
             return Ok(run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice()));
         },
@@ -762,7 +769,7 @@ fn the_repair_is_handed_exactly_the_confirmed_destination() {
     let (_second, none) = settle_creation(
         &creation_from(main.as_path(), common.as_path(), None),
         &observation,
-        &mut |_step| return Ok(run_real(main.as_path(), add_arguments("unknown", unknown.as_path()).as_slice())),
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("unknown", unknown.as_path()).as_slice())),
         &mut Vec::new(),
     )
     .expect("settled");

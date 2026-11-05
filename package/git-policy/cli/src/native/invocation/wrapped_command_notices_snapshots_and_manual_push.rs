@@ -23,7 +23,8 @@ use crate::policy_checks::ShippedChecks;
 use crate::policy_content::LifecycleContent;
 use crate::policy_registry::PolicyId;
 use crate::landed_summary::short_name;
-use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
+use crate::transaction_git::GitContext;
+use crate::push_failure_notice::{CommitNamer, ORPHAN_NOTICE_DIRECTORY, is_machine_read, notice_directory, take_orphaned_failures, take_push_failures_for};
 use crate::worktree_removal_rescue::{settle_removals, snapshot_linked_worktrees};
 use crate::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
 use crate::repository_facts::RepositoryFacts;
@@ -115,19 +116,37 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     };
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
-    #[cfg_attr(
-        dylint_lib = "monochromatic_lint_closure",
-        expect(
-            avoidable_closure,
-            reason = "`take_push_failures_for` and `take_orphaned_failures` take `&dyn Fn(&str) -> String` (push/push_failure_notice.rs, outside this folder), and the callback must carry the context, the directory and the object directory it asks Git with"
-        )
-    )]
-    let abbreviate = |commit: &str| -> String { return short_name(&context, cwd.as_path(), objects.as_path(), None, commit); };
+    let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
     let mut texts: Vec<String> = take_push_failures_for(git_dir.as_path(), None, &abbreviate);
     texts.extend(take_orphaned_failures(common_dir.as_path(), &abbreviate));
     for text in texts {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{text}");
+    }
+}
+
+/// What:
+///  The name Git gives a commit in this repository as it is now, for the failure notices.
+/// Why:
+///   The notices abbreviate each commit the way Git does at the moment they are shown; the Git context, the directory and the
+///  object directory are the state each question needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class GitShortName implements CommitNamer { nameOf(commit) { return shortName(context, cwd, objects, undefined, commit); } }
+/// ```
+struct GitShortName<'a> {
+    /// The Git program and the directories the question uses.
+    context: &'a GitContext,
+    /// The directory the question is asked in.
+    cwd: &'a Path,
+    /// The repository's object directory.
+    objects: &'a Path,
+}
+
+impl CommitNamer for GitShortName<'_> {
+    fn name_of(&self, commit: &str) -> String {
+        return short_name(self.context, self.cwd, self.objects, None, commit);
     }
 }
 

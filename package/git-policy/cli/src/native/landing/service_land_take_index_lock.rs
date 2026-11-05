@@ -12,7 +12,7 @@ use std::time::Duration;
 use crate::service_land_git_steps_and_import_stream::{keep_unlanded, run};
 use crate::journald_native::Priority;
 use crate::service_journal::OPEN_EXTENSION;
-use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
+use crate::service_index_lock::{Announce, Announcer, IndexLock, WaitNotes, acquire_noting_wait_within};
 use crate::service_timing::{LandTiming, wait_line};
 use crate::service_protocol::{CommitRequest, FailureCode};
 use crate::transaction_git::{GitContext, NO_REFLOG_SETTING};
@@ -36,7 +36,7 @@ pub(crate) fn take_index_lock(
     lock_ceiling: Duration,
     first: &CommitRequest,
     seq: u64,
-    announce: &dyn Fn(Announce),
+    announce: &dyn Announcer,
     timing: &mut LandTiming,
     new: &str,
     scratch: &str,
@@ -65,7 +65,7 @@ pub(crate) fn take_index_lock(
             //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
             let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(journal, seq, OPEN_EXTENSION));
             if failure.code == FailureCode::IndexInUse {
-                announce(Announce::Waiting(keep_unlanded(git, repository, seq, new)));
+                announce.announce(Announce::Waiting(keep_unlanded(git, repository, seq, new)));
             }
             let _deleted = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch], None);
             return Err(failure.code);

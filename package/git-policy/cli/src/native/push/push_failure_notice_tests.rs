@@ -1,6 +1,13 @@
 //! Controls for the record of a failed backup push: its text, its masking, its names, and which commands show it.
 
 use super::*;
+
+/// A function-like value with the right shape is a namer in these controls: the shipped caller writes a small struct that holds the state.
+impl<Name: Fn(&str) -> String> CommitNamer for Name {
+    fn name_of(&self, commit: &str) -> String {
+        return self(commit);
+    }
+}
 use crate::test_support::{fixture, remove};
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -202,7 +209,7 @@ fn machine_read_commands_are_told_from_human_ones() {
 fn a_record_is_worded_with_the_askers_abbreviation() {
     let root: PathBuf = fixture("push-failure-abbreviated");
     record_push_failure(root.as_path(), BRANCH, COMMIT, "rejected").expect("record");
-    let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &|commit| { return commit[..12].to_string(); });
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), None, &|commit: &str| { return commit[..12].to_string(); });
     assert_eq!(shown, vec![push_failure_text(BRANCH, &COMMIT[..12], "rejected")]);
     assert!(!shown[0].contains("your commit"), "{}", shown[0]);
     assert!(!shown[0].contains(COMMIT), "{}", shown[0]);
@@ -242,7 +249,7 @@ fn a_record_of_an_earlier_release_is_shown_as_it_was_written() {
     std::fs::create_dir_all(&directory).expect("directory");
     std::fs::write(directory.join(record_name(BRANCH, COMMIT)), "The backup push of branch main failed for your commit 0123456.\n").expect("record");
     let nowhere: Worktrees = Worktrees { here: Some(String::from("refs/heads/unrelated")), all: vec![BRANCH.to_string()] };
-    let shown: Vec<String> = take_push_failures_for(root.as_path(), Some(&nowhere), &|commit| { return commit.to_string(); });
+    let shown: Vec<String> = take_push_failures_for(root.as_path(), Some(&nowhere), &|commit: &str| { return commit.to_string(); });
     assert_eq!(shown, vec![String::from("The backup push of branch main failed for your commit 0123456.\n")]);
     assert!(take_push_failures(root.as_path()).is_empty());
     remove(root.as_path());
