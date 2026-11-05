@@ -354,3 +354,62 @@ fn a_command_line_that_cannot_be_read_counts_as_may_be_running() {
         assert!(!taken, "{name}");
     }
 }
+
+/// The earlier helper may be alive and writing: a `.tmp` or `.claim` file it owns can be older than the grace of a listing while
+///  it waits on a slow disk, and removing it would fail its rename or hand its batch number to a second landing. Reading the
+///  earlier journals, for the adoption and for the memory of what they landed, removes nothing the adoption does not settle.
+#[test]
+fn reading_the_earlier_journals_removes_no_file_of_the_earlier_helper() {
+    let (world, state) = world_with_earlier_journal("adopt-read-only", "state");
+    let landed: CommitRequest = request(&world, "readonly", "readonly.txt", "readonly\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let long_ago: std::time::SystemTime = std::time::SystemTime::now() - crate::service_journal::TEMPORARY_GRACE - Duration::from_secs(60);
+    let shared: PathBuf = world.context.journal.parent().expect("shared journal").to_path_buf();
+    let mut stale: Vec<PathBuf> = Vec::new();
+    for folder in [world.context.journal.as_path(), shared.as_path()] {
+        for extension in ["tmp", "claim"] {
+            let file: PathBuf = batch_path(folder, 90, extension);
+            std::fs::write(&file, "a write in progress").expect("file of the earlier helper");
+            std::fs::File::options().append(true).open(&file).and_then(|opened| { return opened.set_modified(long_ago); }).expect("aged");
+            stale.push(file);
+        }
+    }
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    assert_eq!(adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()).len(), 1, "the batch is still finished");
+    let _remembered = earlier_commits_landed(context.journal.as_path(), instance.as_str());
+    for file in stale {
+        assert!(file.exists(), "{} was removed from the earlier journal", file.display());
+    }
+    remove(world.root.as_path());
+}
+
+/// The adoption says what it did with each batch, as the settling of the service's own journal does: a batch finished, a batch
+///  left open, a batch whose intent was left on disk, and the skip of the whole adoption with the folder it protects.
+#[test]
+fn the_adoption_says_what_it_did_with_each_batch() {
+    let (world, state) = world_with_earlier_journal("adopt-says", "state");
+    let landed: CommitRequest = request(&world, "says", "says.txt", "says\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut intent = parse_intent(std::fs::read_to_string(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("read").as_str()).expect("parse");
+    intent.seq = 2;
+    intent.old = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    intent.new = "f".repeat(40);
+    write_intent(world.context.journal.as_path(), &intent).expect("the intent of a landing in progress");
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    let held = try_acquire(intent.index.as_path(), 1).expect("a lock that keeps batch 1 open");
+    let entries = crate::service_timing::capture::entries_of(|| { let _reports = adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()); });
+    let said: Vec<String> = entries.iter().map(|entry| { return entry.message.clone(); }).collect();
+    assert!(said.iter().any(|line| { return line.contains("batch=1") && line.contains("left open"); }), "{said:?}");
+    assert!(said.iter().any(|line| { return line.contains("batch=2") && line.contains("left on disk"); }), "{said:?}");
+    assert!(entries.iter().all(|entry| { return entry.fields.iter().any(|(name, _)| { return name == "CLI_GIT_BATCH"; }) || !entry.message.contains("batch="); }), "{entries:?}");
+    drop(held);
+    let finished = crate::service_timing::capture::entries_of(|| { let _reports = adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()); });
+    assert!(finished.iter().any(|entry| { return entry.message.contains("batch=1") && entry.message.contains("finish") && entry.message.contains(world.context.journal.to_string_lossy().as_ref()); }), "{finished:?}");
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 61, &["/p/cli-git-native", "cli-git", "service", "run", "--instance", instance.as_str()]);
+    let skipped = crate::service_timing::capture::entries_of(|| { let _reports = adopt_open_batches(&context, instance.as_str(), proc_root.as_path()); });
+    assert!(skipped.iter().any(|entry| { return entry.message.contains(world.context.journal.to_string_lossy().as_ref()); }), "the skip names the per-instance journal: {skipped:?}");
+    remove(world.root.as_path());
+}

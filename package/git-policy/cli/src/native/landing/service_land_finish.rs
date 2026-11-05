@@ -16,7 +16,7 @@
 
 use crate::service_head::still_checked_out;
 use crate::service_instance::instance_of;
-use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, mark_done, mark_indexed, read_start, recovery_for, remove_start};
+use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, list_intents_read_only, mark_done, mark_indexed, read_start, recovery_for, remove_start};
 use crate::service_land_follow::{IndexPaths, build_index, remove_conclusion_state};
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
@@ -397,7 +397,11 @@ fn decision_for(git: &GitContext, intent: &Intent) -> Option<Recovery> {
 
 fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unreadable: bool, owner: JournalOwner) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
-    for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
+    let listed: Vec<(std::path::PathBuf, Option<Intent>)> = match owner {
+        JournalOwner::ThisService => list_intents(context.journal.as_path(), OPEN_EXTENSION),
+        JournalOwner::EarlierHelper => list_intents_read_only(context.journal.as_path(), OPEN_EXTENSION),
+    };
+    for (path, parsed) in listed {
         let Some(intent) = parsed else {
             if remove_unreadable {
                 let _removed = std::fs::remove_file(&path);

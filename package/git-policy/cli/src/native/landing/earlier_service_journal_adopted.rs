@@ -23,11 +23,15 @@ use crate::earlier_service_process_look::{ServiceLook, effective_user, service_o
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 /// The context a recovery runs in,
 ///  and the recovery itself.
-use crate::service_land::{LandContext, RecoveryReport, recover_instance_without_drops};
+use crate::service_land::{Handled, LandContext, RecoveryReport, recover_instance_without_drops};
+/// The log of the service.
+use crate::journald_native::Priority;
+use crate::service_journal::Recovery;
+use crate::service_timing::log_entry;
 /// The names of the folders.
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
 /// Paths.
-use crate::service_journal::landed_commits;
+use crate::service_journal::landed_commits_read_only;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -90,7 +94,7 @@ pub fn earlier_commits_landed(journal: &Path, instance: &str) -> HashMap<String,
         return landed;
     };
     for folder in [earlier.shared, earlier.per_instance] {
-        landed.extend(landed_commits(folder.as_path()));
+        landed.extend(landed_commits_read_only(folder.as_path()));
     }
     return landed;
 }
@@ -126,7 +130,7 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
         ceiling: PROCESS_LOOK_CEILING,
     };
     if service_of_instance_may_run(look, proc_root) {
-        crate::service_log!("the earlier service's journal {} is left for now: a service of this worktree may be running", earlier.per_instance.display());
+        crate::service_log!("the earlier service's journals {} and {} are left for now: a service of this worktree may be running, or the processes cannot be looked at", earlier.per_instance.display(), earlier.shared.display());
         return reports;
     }
     for journal in [earlier.per_instance, earlier.shared] {
@@ -134,7 +138,36 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
             continue;
         }
         let earlier_context: LandContext = LandContext { git: context.git.clone(), journal, on_objects_written: None, lock_ceiling: context.lock_ceiling };
-        reports.extend(recover_instance_without_drops(&earlier_context, instance));
+        let settled: Vec<RecoveryReport> = recover_instance_without_drops(&earlier_context, instance);
+        log_adopted_batches(settled.as_slice(), earlier_context.journal.as_path());
+        reports.extend(settled);
     }
     return reports;
+}
+
+/// What:
+///  Says in the service's log what the adoption did with each batch of one earlier journal, as the settling of the service's own
+///  journal does: a Warning with the batch number in the `CLI_GIT_BATCH` field.
+/// Why:
+///   The batches come from a service that no longer runs or runs elsewhere; a person looking for what became of a commit has
+///  only this log. A batch that stays (open, or with its intent on disk) says why and who settles it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const report of reports) log(Warning, `${verb(report.handled)} batch=${report.seq} journal=${journal}`, { CLI_GIT_BATCH: report.seq })
+/// ```
+fn log_adopted_batches(reports: &[RecoveryReport], journal: &Path) {
+    for report in reports {
+        let what: &str = match report.handled {
+            Handled::Finished => "finished the batch the earlier service left open",
+            Handled::StillOpen => "left open the batch the earlier service left open, which could not be finished now (the index lock is held or a record cannot be read); the next start tries again",
+            Handled::Left => "left on disk the intent of a batch the earlier service wrote: the branch shows it as not landed, and a landing in progress writes its intent first, so the earlier service's own start settles it",
+            Handled::Dropped => "dropped the intent of a batch the earlier service wrote",
+        };
+        log_entry(
+            Priority::Warning,
+            format!("{what} batch={} decision={} journal={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }, journal.display()).as_str(),
+            &[("CLI_GIT_BATCH", report.seq.to_string())],
+        );
+    }
 }
