@@ -1,0 +1,6 @@
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+description = "Exercise the source task CLI used by GitHub Actions in disposable task repositories"
+run = "node src/task-graph.unit.test.ts"
