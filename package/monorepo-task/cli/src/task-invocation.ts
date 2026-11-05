@@ -60,6 +60,7 @@ export class TaskDependencyCycleError extends Error {
 export class TaskInvocationClosedError extends Error {
   /**
    Identifies the completed owner without exposing its inputs.
+   
    @param name - Owner task whose completion closed its dependency callback.
    */
   constructor(name: string,) {

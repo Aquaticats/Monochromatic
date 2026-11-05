@@ -31,6 +31,10 @@ run = "node src/generate-config.ts"
 description = "Fail with a diagnostic naming every differing package when config.yaml differs from the generator"
 run = "node src/generate-config.ts --check"
 
+[tasks."check:docs"]
+description = "Render the registry README and any additional Markdown paths as HTML for inspection"
+run = "pandoc --from=gfm --to=html --fail-if-warnings README.md"
+
 [tasks.publish]
 description = "Publish every configured package version missing from pnpr (CI; needs id-token: write or PNPR_PUBLISH_TOKEN)"
 run = "node src/publish-missing-versions.ts"

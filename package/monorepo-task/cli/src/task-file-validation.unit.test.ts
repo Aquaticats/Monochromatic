@@ -59,10 +59,7 @@ await describe({
         await writeFile(path, `export default ${JSON.stringify(exported,)};\n`,);
         let caught: unknown;
         try {
-          if (kind === 'package')
-            await loadPackageTasks(path,);
-          else
-            await loadRootTasks(directory.path,);
+          await (kind === 'package' ? loadPackageTasks(path,) : loadRootTasks(directory.path,));
         }
         catch (error) {
           caught = error;
@@ -81,10 +78,7 @@ await describe({
         await writeFile(path, 'export const unrelated = {};\n',);
         let caught: unknown;
         try {
-          if (kind === 'package')
-            await loadPackageTasks(path,);
-          else
-            await loadRootTasks(directory.path,);
+          await (kind === 'package' ? loadPackageTasks(path,) : loadRootTasks(directory.path,));
         }
         catch (error) {
           caught = error;

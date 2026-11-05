@@ -23,7 +23,10 @@
  ```
  */
 
-import { createTaskInvocation, type TaskEvent, } from './task-invocation.ts';
+import {
+  createTaskInvocation,
+  type TaskEvent,
+} from './task-invocation.ts';
 import { findRepoRoot, } from './task-locations.ts';
 import { dispatchTask, } from './task-dispatch.ts';
 

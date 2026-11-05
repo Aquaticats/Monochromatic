@@ -41,6 +41,7 @@ const ROOT_FANOUT_TASKS: Readonly<Record<string, string>> = {
 export class TaskSelectionError extends Error {
   /**
    Names the missing task or unsupported invocation.
+   
    @param message - Task identity and the unsupported selection.
    */
   constructor(message: string,) {
