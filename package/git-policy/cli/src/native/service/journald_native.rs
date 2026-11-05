@@ -18,14 +18,12 @@
 //! if (sameFile(process.env.JOURNAL_STREAM, stderr)) socket.send(`PRIORITY=6\nMESSAGE=${line}\n`); else console.error(line);
 //! ```
 
+pub use crate::journald_native_socket_target::Target;
 use std::io::Write;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
-
-/// The socket journald reads native entries from.
-pub const JOURNAL_SOCKET: &str = "/run/systemd/journal/socket";
 
 /// Test-only: names another socket to send entries to, as a path or, after an `@`, as an abstract name (a fixture path
 /// can be longer than a socket path may be). Detection by `$JOURNAL_STREAM` still applies, so a test points the
@@ -138,8 +136,21 @@ pub const FIELD_NAME_LIMIT: usize = 64;
 pub fn valid_field_name(name: &str) -> bool {
     let bytes: &[u8] = name.as_bytes();
     return bytes.len() <= FIELD_NAME_LIMIT
-        && bytes.first().is_some_and(|first| { return first.is_ascii_uppercase(); })
-        && bytes.iter().all(|byte| { return byte.is_ascii_uppercase() || byte.is_ascii_digit() || *byte == b'_'; });
+        && bytes.first().is_some_and(u8::is_ascii_uppercase)
+        && bytes.iter().all(is_field_name_byte);
+}
+
+/// What:
+///  Whether a byte may appear in a field name after the first: an uppercase ASCII letter, a digit or an underscore.
+/// Why:
+///  `valid_field_name` checks every byte, as the journal's native protocol allows no other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isFieldNameByte = (byte: number) => /[A-Z0-9_]/.test(String.fromCharCode(byte));
+/// ```
+fn is_field_name_byte(byte: &u8) -> bool {
+    return byte.is_ascii_uppercase() || byte.is_ascii_digit() || *byte == b'_';
 }
 
 /// Appends one field: `NAME=value\n` when the value has no newline, otherwise the length-prefixed form, `NAME\n`, the byte
@@ -199,7 +210,10 @@ pub fn datagram_as(identifier: &str, priority: Priority, message: &str, fields: 
 /// Whether `$JOURNAL_STREAM` names the file with this device and inode, which is how `systemd.exec(5)` says to tell that
 /// standard error is still the journal: the variable alone is not enough, because a redirection leaves it set.
 pub fn stream_matches(variable: Option<&str>, device: u64, inode: u64) -> bool {
-    let Some((named_device, named_inode)) = variable.and_then(|text| { return text.split_once(':'); }) else {
+    let Some(text) = variable else {
+        return false;
+    };
+    let Some((named_device, named_inode)) = text.split_once(':') else {
         return false;
     };
     return named_device.parse::<u64>().ok() == Some(device) && named_inode.parse::<u64>().ok() == Some(inode);
@@ -257,35 +271,6 @@ pub enum Delivery {
     Dropped,
 }
 
-/// Where the journal listens.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Target {
-    /// A socket file.
-    Path(String),
-    /// An abstract name, which a test uses.
-    Abstract(String),
-}
-
-impl Target {
-    /// The journal's own socket.
-    pub fn journal() -> Self {
-        return Self::Path(String::from(JOURNAL_SOCKET));
-    }
-
-    /// Reads a test-only setting: `@name` is abstract, anything else a path.
-    pub fn parse(text: &str) -> Self {
-        return text.strip_prefix('@').map_or_else(|| { return Self::Path(text.to_string()); }, |name| { return Self::Abstract(name.to_string()); });
-    }
-
-    /// The socket address, or nothing when the name does not fit one.
-    pub fn address(&self) -> Option<SocketAddr> {
-        return match self {
-            Self::Path(path) => SocketAddr::from_pathname(path).ok(),
-            Self::Abstract(name) => SocketAddr::from_abstract_name(name.as_bytes()).ok(),
-        };
-    }
-}
-
 /// Where the service's entries go, decided once.
 #[derive(Debug)]
 pub struct Sink {
@@ -321,7 +306,10 @@ impl Sink {
     /// Sink.choose(process.env.JOURNAL_STREAM, stderrIdentity(), '/run/systemd/journal/socket')
     /// ```
     pub fn choose(variable: Option<&str>, stderr: Option<(u64, u64)>, socket: &Target) -> Self {
-        let stream: bool = stderr.is_some_and(|(device, inode)| { return stream_matches(variable, device, inode); });
+        let stream: bool = match stderr {
+            Some((device, inode)) => stream_matches(variable, device, inode),
+            None => false,
+        };
         let native: Option<UnixDatagram> = if stream { Self::open() } else { None };
         return Self { native, address: socket.address(), stream, pending: Mutex::new(Vec::new()), lost: AtomicU64::new(0) };
     }
@@ -337,7 +325,11 @@ impl Sink {
     /// test-only one.
     pub fn from_environment() -> Self {
         let variable: Option<String> = std::env::var(STREAM_VARIABLE).ok();
-        let socket: Target = std::env::var(TEST_SOCKET_VARIABLE).map_or_else(|_| { return Target::journal(); }, |text| { return Target::parse(text.as_str()); });
+        // A test-only setting that is not set (or not text) leaves the journal's own socket.
+        let socket: Target = match std::env::var(TEST_SOCKET_VARIABLE) {
+            Ok(text) => Target::parse(text.as_str()),
+            Err(_unset) => Target::journal(),
+        };
         return Self::choose(variable.as_deref(), stderr_identity(), &socket);
     }
 
@@ -355,7 +347,8 @@ impl Sink {
     pub fn signal_target(&self) -> Option<(std::os::fd::RawFd, &SocketAddr)> {
         use std::os::fd::AsRawFd;
         let socket: &UnixDatagram = self.native.as_ref()?;
-        return self.address.as_ref().map(|address| { return (socket.as_raw_fd(), address); });
+        let address: &SocketAddr = self.address.as_ref()?;
+        return Some((socket.as_raw_fd(), address));
     }
 
     /// What:
@@ -527,10 +520,13 @@ pub fn send_without_waiting(descriptor: std::os::fd::RawFd, bytes: &[u8]) -> Res
     let chunk: &[u8] = &bytes[..bytes.len().min(PIPE_CHUNK)];
     // SAFETY: `chunk` is valid for its length for the call, and `write` is safe in a signal handler.
     let written: isize = unsafe { libc::write(descriptor, chunk.as_ptr().cast(), chunk.len()) };
-    return usize::try_from(written).map_err(|_| {
-        // SAFETY: the location is the calling thread's own error number, valid for a read.
-        return unsafe { *libc::__errno_location() };
-    });
+    return match usize::try_from(written) {
+        Ok(count) => Ok(count),
+        Err(_negative) => {
+            // SAFETY: the location is the calling thread's own error number, valid for a read.
+            Err(unsafe { *libc::__errno_location() })
+        }
+    };
 }
 
 impl StreamWriter {

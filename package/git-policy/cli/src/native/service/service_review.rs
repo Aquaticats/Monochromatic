@@ -48,7 +48,11 @@ pub fn common_dir_of(git_dir: &Path) -> PathBuf {
     let Ok(text) = std::fs::read(git_dir.join("commondir")) else {
         return git_dir.to_path_buf();
     };
-    let end: usize = text.iter().rposition(|byte| { return *byte != b'\r' && *byte != b'\n'; }).map_or(0, |last| { return last + 1; });
+    // Everything up to the last byte that is not a line break; nothing when the file holds only line breaks.
+    let mut end: usize = text.len();
+    while end > 0 && (text[end - 1] == b'\r' || text[end - 1] == b'\n') {
+        end -= 1;
+    }
     if end == 0 {
         return git_dir.to_path_buf();
     }
@@ -79,6 +83,19 @@ pub fn options_for(item: &WorkItem, variable: &dyn Fn(&str) -> Option<String>) -
 }
 
 /// What:
+///  The text of a review key.
+/// Why:
+///  `review_variables` keeps the key as text so the lookup it returns can hand it out again and again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const exposeAsText = (key: ReviewKey) => key.expose();
+/// ```
+fn expose_as_text(held: &ReviewKey) -> String {
+    return held.expose().to_string();
+}
+
+/// What:
 ///  The variable lookup the review's options read: the credential variables answer from the key that came in the wake
 ///  message and from nowhere else, and every other variable answers from the service's environment.
 /// Why:
@@ -90,7 +107,7 @@ pub fn options_for(item: &WorkItem, variable: &dyn Fn(&str) -> Option<String>) -
 /// (name) => keyNames.includes(name) ? fromMessage(name) : process.env[name]
 /// ```
 pub fn review_variables(key: Option<&ReviewKey>) -> impl Fn(&str) -> Option<String> {
-    let exposed: Option<String> = key.map(|held| { return held.expose().to_string(); });
+    let exposed: Option<String> = key.map(expose_as_text);
     return move |name: &str| {
         if name == KEY_VARIABLES[0] {
             return exposed.clone();
@@ -119,7 +136,10 @@ fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, no
 
 /// The wall clock in milliseconds since 1970.
 fn wall_clock_millis() -> u64 {
-    return std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX); });
+    return match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX),
+        Err(_before_the_epoch) => 0,
+    };
 }
 
 /// What:

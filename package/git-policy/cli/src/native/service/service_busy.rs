@@ -30,6 +30,8 @@
 //! const answer = board.withdrawEarly(id);                                      // a connection thread
 //! ```
 
+pub use crate::service_busy_answers_and_name_checks::{EarlyAnswer, GroupAdmission};
+use crate::service_busy_answers_and_name_checks::{CANCELLED_EXTENSION, Decision, Naming, WITHDRAWN, is_confirmation, is_plain, modified_and_path, withdrawal_token};
 #[cfg(test)]
 use std::cell::RefCell;
 pub use crate::service_busy_step_record_on_this_thread::{DetailGuard, StepGuard, detail, enter_step, on_landing_thread, use_on_this_thread};
@@ -53,20 +55,6 @@ const DECISION_EXTENSION: &str = "decision";
 /// What the decision file says when the landing thread took the request.
 const LANDING: &str = "landing";
 
-/// What the decision file says when a withdrawal took the request: this word, a colon and the token of the withdrawer that made it.
-const WITHDRAWN: &str = "withdrawn";
-
-/// The extension of the file that confirms a withdrawal, named `<id>.<token>.cancelled` with the token the decision carries: the
-///  withdrawer that won the decision made it after it asked the journal a second time and found no batch naming the request. A
-///  decision without its confirmation is provisional: nobody but its creator may rely on it. The token ties the confirmation to
-///  that one decision, so a confirmation that outlives its decision (the retention removes the pair in two steps) confirms nothing
-///  of the decision that replaces it.
-const CANCELLED_EXTENSION: &str = "cancelled";
-
-/// The longest request identity the record keeps a decision for; a longer one, or one with a character outside letters, digits and
-///  hyphens, gets no early answer, because its name could not be made into a file name that is only a name.
-const LONGEST_ID: usize = 80;
-
 /// How many withdrawals the record remembers: the same as the finished batches the journal remembers, and as the service's own
 ///  memory of normal withdrawals (`service_server.rs`, `WITHDRAWN_RETAINED`), since a client that withdrew sends nothing more for
 ///  its request.
@@ -77,92 +65,6 @@ const WITHDRAWALS_RETAINED: usize = DONE_RETAINED;
 ///  the connection threads leave further withdrawals to the landing thread instead of growing the record without a bound. Two connection
 ///  threads that count together can pass it by the number of connection threads at that moment.
 const WITHDRAWALS_CEILING: usize = 2 * WITHDRAWALS_RETAINED;
-
-/// How a withdrawal asked of a connection thread is answered.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EarlyAnswer {
-    /// The landing thread is not stuck, or the request is the landing thread's, or nothing could be established: the withdrawal goes
-    ///  to the landing thread as before.
-    Queued,
-    /// The request had landed: the commit is the answer.
-    Landed(String),
-    /// The request has not begun to land and never will.
-    Withdrawn(String),
-}
-
-/// What the landing thread learns about the requests of a group before it lands them.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct GroupAdmission {
-    /// The requests a withdrawal took: dropped, and answered to nobody, because their clients were told already.
-    pub dropped: Vec<String>,
-    /// The requests whose admission could not be established: answered with a failure and not landed.
-    pub unavailable: Vec<String>,
-}
-
-/// What the journal says about a request.
-#[derive(Clone, Debug, Eq, PartialEq)]
-enum Naming {
-    /// A finished batch names the request, with the commit it became.
-    Landed(String),
-    /// A batch still open names it: its commit may be on the branch.
-    Open,
-    /// No batch names it.
-    No,
-    /// The journal could not be read whole, so nothing is known.
-    Unknown,
-}
-
-/// What a try at the decision came to.
-enum Decision {
-    /// This side made the decision.
-    Won,
-    /// The other side made it first, and wrote this.
-    Lost(String),
-}
-
-/// Whether `id` can be a file name that is only a name.
-fn is_plain(id: &str) -> bool {
-    return !id.is_empty() && id.len() <= LONGEST_ID && id.chars().all(is_plain_character);
-}
-
-/// What:
-///  Whether a character may appear in an identity that names a file: an ASCII letter or digit, or a hyphen.
-/// Why:
-///  `is_plain` checks every character of an identity with it, so no identity can name a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isPlainCharacter = (character: string) => /^[A-Za-z0-9-]$/.test(character);
-/// ```
-fn is_plain_character(character: char) -> bool {
-    return character.is_ascii_alphanumeric() || character == '-';
-}
-
-/// What:
-///  Whether a directory entry is the confirmation of a withdrawal: a file with the cancelled extension.
-/// Why:
-///  The count and the pruning of confirmed withdrawals both filter the directory listing with it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isConfirmation = (entry: Dirent) => path.extname(entry.name) === '.' + CANCELLED_EXTENSION;
-/// ```
-fn is_confirmation(entry: &std::fs::DirEntry) -> bool {
-    return entry.path().extension().and_then(std::ffi::OsStr::to_str) == Some(CANCELLED_EXTENSION);
-}
-
-/// What:
-///  The modification time and the path of a directory entry, nothing when either cannot be read.
-/// Why:
-///  `prune_withdrawals` sorts the confirmations by age, oldest first, and entries that cannot be measured are left alone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const modifiedAndPath = (entry: Dirent) => { try { return [statSync(p).mtime, p]; } catch { return undefined; } };
-/// ```
-fn modified_and_path(entry: std::fs::DirEntry) -> Option<(SystemTime, PathBuf)> {
-    return Some((entry.metadata().ok()?.modified().ok()?, entry.path()));
-}
 
 /// Milliseconds since 1970, or zero when the clock is before it.
 pub(crate) fn now_millis() -> u128 {
@@ -187,17 +89,6 @@ static TEMPORARY_NUMBER: AtomicU64 = AtomicU64::new(0);
 /// A token no other withdrawal in any service has, made of letters, digits and hyphens so it can stand in a file name.
 fn new_token() -> String {
     return format!("{}-{}-{}", std::process::id(), TEMPORARY_NUMBER.fetch_add(1, Ordering::Relaxed), now_millis());
-}
-
-/// The token a `withdrawn` decision carries, when `content` is one.
-fn withdrawal_token(content: &str) -> Option<&str> {
-    // The word, a colon, and a token that is not empty; anything else is no withdrawal.
-    let rest: &str = content.strip_prefix(WITHDRAWN)?;
-    let token: &str = rest.strip_prefix(':')?;
-    if token.is_empty() {
-        return None;
-    }
-    return Some(token);
 }
 
 /// What:
@@ -284,14 +175,14 @@ impl LandingBoard {
             let Some(intent) = parse_intent(record.as_str()) else {
                 return Naming::Unknown;
             };
-            let mut position: Option<usize> = None;
+            let mut found_at: Option<usize> = None;
             for (at, named) in intent.ids.iter().enumerate() {
                 if named == id {
-                    position = Some(at);
+                    found_at = Some(at);
                     break;
                 }
             }
-            let Some(position) = position else { continue };
+            let Some(position) = found_at else { continue };
             if extension == Some(DONE_EXTENSION) {
                 return match intent.commits.get(position) {
                     Some(commit) => Naming::Landed(commit.clone()),

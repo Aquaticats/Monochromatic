@@ -2,6 +2,7 @@
 //!  of replies built by hand, and whole exchanges against a peer that speaks the bus's side.
 
 use super::*;
+use crate::systemd_dbus_wire_format::*;
 use crate::test_support::remove;
 
 /// A directory whose path is short enough for a socket, in the agent scratch directory.
