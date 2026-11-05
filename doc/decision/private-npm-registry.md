@@ -277,8 +277,6 @@ Results on 2026-09-15 against `https://pnpr.c.aquati.cat`:
 
 GitHub issue #521 tracks checking installability of the remaining published packages.
 
-## Consequences
-
 ## Upstream alpha.17 upgrade at 2026-11-05T04:59:15Z
 
 The owner requested `0.1.0-alpha.17`
@@ -311,15 +309,14 @@ The Cargo registry remains the separate proposal in
 `doc/planning/self-hosted-cargo-registry.md`.
 This npm upgrade does not authorize Cargo deployment or change Cargo retention policy.
 
-## Consequences of the original deployment
+## Consequences
 
 - A hand bump rewrites,
    in the same commit,
    the manifest of every dependent reached through runtime or bundled edges.
-- pnpr is alpha software pinned by image digest,
-   so upstream changes arrive only when the fork branch is rebased,
-   its workflow publishes a new image,
-   and the `Containerfile` digest moves.
+- pnpr is alpha software pinned by image digest.
+  Each upgrade requires testing that artifact and its storage transition before the `Containerfile` digest moves.
+  The discovery-fix fork was required before the verified upstream alpha.17 release.
 - Each consumer adds the scope route itself;
    nothing here wires `labwc-config`.
 - A push that adds names to `config.yaml` starts the Coolify redeploy and `pnpr-publish` together,
