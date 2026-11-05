@@ -555,7 +555,13 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   reads only that name (the branch's `f781971973` renamed it, and four later commits on the branch ran with no
   policies);
   (B) an open batch an old helper left in the old service state folder must still land after the switch.
-  Then: container gate on A's tip in a separate worktree, merge to main; B must land before the release.
+  A done at `0c840d0e17` (root file restored in `d513d1cadd`; host lib 4306 and binary 690 passed, clippy clean,
+  planted checker 48/0; the installed wrapper's `check` over the paths changed since `f781971973` found nothing).
+  Container gate on `0c840d0e17` runs as unit `git-policy-cli-program-rename-gate`
+  (worktree `.claude/worktrees/git-policy-cli-program-rename-gate`, log
+  `~/temp/agent/issue-6261/program-rename-gate.log`); merge to main after it and the suppression branch's planted
+  run pass, since the rename branch contains the suppression branch. B (on top of `0c840d0e17`) must land before
+  the release.
   Release and lock (steps 2 and 3) wait for the owner's release-timing answer.
   Step 3 also renames the root settings file and the link folder (to `.cache/monochromatic-git-policy-cli-bin`).
 - crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
