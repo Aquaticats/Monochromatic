@@ -20,6 +20,9 @@ every file uses only files above it.
 Files marked `NEW` are created by the changes of the main document.
 A `uses/` line lists the folders of the same crate that the folder uses.
 
+This file does not yet list the tree of `disposable-test-fixtures` nor `main.rs` of the program crate;
+both follow from the main document (the fixtures crate holds the split-off half of `test_support`).
+
 ## The crates, bottom first
 
 ### git-environment-variables
@@ -227,6 +230,45 @@ package/git-policy/read-git-files-without-git/src/
       The configuration that decides what Git does to the extensions of an index it reads and writes, and whether the
 ```
 
+### linux-filesystem-primitives
+
+Package `package/git-policy/linux-filesystem-primitives`,
+crate `monochromatic-git-policy-linux-filesystem-primitives`.
+Calls the Linux disk functions the wrapper needs:
+mount tables,
+disk kind,
+btrfs folder copies,
+file cloning,
+swapping two paths,
+and file operations that never follow a link.
+
+Depends on crates:
+none.
+
+```text
+package/git-policy/linux-filesystem-primitives/src/
+  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
+  which_disk_a_folder_is_on/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    why_a_disk_call_failed.rs  <- src/native/subvolume/fs_primitive_error.rs
+      The typed failure of one Linux filesystem primitive (`statfs`, a btrfs ioctl, `FICLONE`, `renameat2`)
+    which_kind_of_disk_a_folder_is_on.rs  <- src/native/subvolume/fs_kind.rs
+      Which kind of filesystem holds a path (btrfs, overlayfs, other), whether a directory is the root of a btrfs
+    mounted_disks_and_their_options.rs  <- src/native/subvolume/fs_mount_options.rs
+      The mount of a path read from `/proc/self/mountinfo`: its mount point, filesystem type, source and both option
+  fast_copies_and_swaps_on_linux/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> which_disk_a_folder_is_on
+    btrfs_folder_copy_calls.rs  <- src/native/subvolume/fs_btrfs_ioctl.rs
+      The three btrfs ioctls the wrapper needs, called in process: create an empty subvolume, snapshot a subvolume
+    cloning_file_data_and_swapping_paths.rs  <- src/native/subvolume/fs_clone_exchange.rs
+      Two more Linux primitives: clone a whole file's data blocks into another file (`FICLONE`), and swap two paths
+  file_operations_that_never_follow_a_link/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    file_operations_that_never_follow_a_link.rs  <- src/native/subvolume/fs_beneath.rs
+      Directory-relative file operations that never follow a symbolic link or cross a mount: open a directory, a file or a
+```
+
 ### starting-and-watching-programs
 
 Package `package/git-policy/starting-and-watching-programs`,
@@ -302,6 +344,59 @@ package/git-policy/starting-and-watching-programs/src/
     uses/ -> which_programs_are_running_and_since_when
     owner_record_of_a_folder.rs  <- src/native/transaction/transaction_owner.rs
       The owner record of one commit-transaction directory (`owner.json`
+```
+
+### git-lock-files
+
+Package `package/git-policy/git-lock-files`,
+crate `monochromatic-git-policy-git-lock-files`.
+Finds who holds a lock file and clears the reference locks that a crashed Git left behind.
+
+Depends on crates:
+`git-environment-variables`,
+`linux-filesystem-primitives`,
+`read-git-files-without-git`,
+`safe-file-saving`,
+`starting-and-watching-programs`,
+`text-time-and-log-line-formats`.
+
+```text
+package/git-policy/git-lock-files/src/
+  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
+  clearing_leftover_reference_locks/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    record_of_a_judged_reference_lock.rs  <- src/native/lock/stale_ref_lock_found.rs
+      The record of one judged reference lock, and the outcome of one clearing pass.
+    identity_of_a_lock_file_when_judged.rs  <- src/native/lock/stale_ref_lock_identity.rs
+      A file's identity at the moment it was judged: the removal checks that it is still that file.
+    names_of_reference_lock_files.rs  <- NEW
+      The suffixes and name rules of reference lock files and their pid files.
+    process_numbers_inside_nested_containers.rs  <- src/native/lock/stale_ref_lock_nested_numbers.rs
+      Which processes of the table carry a given process number inside a PID namespace nested in the reader's.
+    judging_one_reference_lock.rs  <- src/native/lock/stale_ref_lock_judge.rs
+      How one reference lock is judged: too new, held, stale on a proof, or unproven.
+    finding_reference_lock_files.rs  <- src/native/lock/stale_ref_lock_walk.rs
+      Which files below a Git directory are reference locks, and which files go with one.
+    setting_aside_and_removing_a_stale_lock.rs  <- src/native/lock/stale_ref_lock_retire.rs
+      Judge one candidate and, when it is proven stale, set it aside, check that it is the file that was judged, and remove ...
+    clearing_all_stale_reference_locks.rs  <- src/native/lock/stale_ref_locks.rs
+      The reference locks a killed Git left behind: found, judged one by one, removed when their holder is proven gone, and
+    clearing_locks_before_fetch_and_push.rs  <- src/native/lock/forwarded_lock_notice.rs
+      The clearing of stale reference locks for the person's own `git fetch` and `git push`, and the notice that goes before
+    words_about_reference_locks.rs  <- src/native/lock/stale_ref_lock_message.rs
+      The words the wrapper prints about reference locks: what it removed, what it left and why, and the exact command that
+    locks_a_stopped_git_may_leave.rs  <- src/native/lock/stopped_git_locks.rs
+      The reference locks a stopped Git child may have left behind, judged and reported once the child and what it started
+  finding_who_holds_a_lock_file/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    reading_the_output_of_a_holder_scan.rs  <- src/native/lock/index_lock_holder_parsers.rs
+      Parsers of the holder-scan output that is not `/proc`
+    programs_holding_a_lock_file_open.rs  <- src/native/lock/index_lock_holders.rs
+      Processes holding a lock file open
+    evidence_about_a_foreign_index_lock.rs  <- src/native/lock/index_lock_evidence.rs
+      Evidence about a foreign `index.lock` and the verdict it supports
+    git_retry_schedule_for_lock_files.rs  <- src/native/lock/index_lock_wait.rs
+      Git's own lock-retry schedule: the backoff position, its next step, and the jittered wait it prescribes.
 ```
 
 ### typed-command-reader
@@ -405,6 +500,7 @@ and answers some of its questions without starting it.
 Depends on crates:
 `git-environment-variables`,
 `git-index-file`,
+`git-lock-files`,
 `read-git-files-without-git`,
 `safe-file-saving`,
 `starting-and-watching-programs`,
@@ -956,98 +1052,6 @@ package/git-policy/isolated-merge-recovery/src/
     The settling of an isolated merge whose branch moved while the merge was prepared or applied: what the merge had begun
   merge_isolation_recovery.rs  <- src/native/merge/merge_isolation_recovery.rs
     Recovery of an isolated merge whose process died: discard it when it never touched the worktree or the index
-```
-
-### linux-filesystem-primitives
-
-Package `package/git-policy/linux-filesystem-primitives`,
-crate `monochromatic-git-policy-linux-filesystem-primitives`.
-Calls the Linux disk functions the wrapper needs:
-mount tables,
-disk kind,
-btrfs folder copies,
-file cloning,
-swapping two paths,
-and file operations that never follow a link.
-
-Depends on crates:
-none.
-
-```text
-package/git-policy/linux-filesystem-primitives/src/
-  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
-  which_disk_a_folder_is_on/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    why_a_disk_call_failed.rs  <- src/native/subvolume/fs_primitive_error.rs
-      The typed failure of one Linux filesystem primitive (`statfs`, a btrfs ioctl, `FICLONE`, `renameat2`)
-    which_kind_of_disk_a_folder_is_on.rs  <- src/native/subvolume/fs_kind.rs
-      Which kind of filesystem holds a path (btrfs, overlayfs, other), whether a directory is the root of a btrfs
-    mounted_disks_and_their_options.rs  <- src/native/subvolume/fs_mount_options.rs
-      The mount of a path read from `/proc/self/mountinfo`: its mount point, filesystem type, source and both option
-  fast_copies_and_swaps_on_linux/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> which_disk_a_folder_is_on
-    btrfs_folder_copy_calls.rs  <- src/native/subvolume/fs_btrfs_ioctl.rs
-      The three btrfs ioctls the wrapper needs, called in process: create an empty subvolume, snapshot a subvolume
-    cloning_file_data_and_swapping_paths.rs  <- src/native/subvolume/fs_clone_exchange.rs
-      Two more Linux primitives: clone a whole file's data blocks into another file (`FICLONE`), and swap two paths
-  file_operations_that_never_follow_a_link/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    file_operations_that_never_follow_a_link.rs  <- src/native/subvolume/fs_beneath.rs
-      Directory-relative file operations that never follow a symbolic link or cross a mount: open a directory, a file or a
-```
-
-### git-lock-files
-
-Package `package/git-policy/git-lock-files`,
-crate `monochromatic-git-policy-git-lock-files`.
-Finds who holds a lock file and clears the reference locks that a crashed Git left behind.
-
-Depends on crates:
-`git-environment-variables`,
-`linux-filesystem-primitives`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
-
-```text
-package/git-policy/git-lock-files/src/
-  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
-  clearing_leftover_reference_locks/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    record_of_a_judged_reference_lock.rs  <- src/native/lock/stale_ref_lock_found.rs
-      The record of one judged reference lock, and the outcome of one clearing pass.
-    identity_of_a_lock_file_when_judged.rs  <- src/native/lock/stale_ref_lock_identity.rs
-      A file's identity at the moment it was judged: the removal checks that it is still that file.
-    names_of_reference_lock_files.rs  <- NEW
-      The suffixes and name rules of reference lock files and their pid files.
-    process_numbers_inside_nested_containers.rs  <- src/native/lock/stale_ref_lock_nested_numbers.rs
-      Which processes of the table carry a given process number inside a PID namespace nested in the reader's.
-    judging_one_reference_lock.rs  <- src/native/lock/stale_ref_lock_judge.rs
-      How one reference lock is judged: too new, held, stale on a proof, or unproven.
-    finding_reference_lock_files.rs  <- src/native/lock/stale_ref_lock_walk.rs
-      Which files below a Git directory are reference locks, and which files go with one.
-    setting_aside_and_removing_a_stale_lock.rs  <- src/native/lock/stale_ref_lock_retire.rs
-      Judge one candidate and, when it is proven stale, set it aside, check that it is the file that was judged, and remove ...
-    clearing_all_stale_reference_locks.rs  <- src/native/lock/stale_ref_locks.rs
-      The reference locks a killed Git left behind: found, judged one by one, removed when their holder is proven gone, and
-    clearing_locks_before_fetch_and_push.rs  <- src/native/lock/forwarded_lock_notice.rs
-      The clearing of stale reference locks for the person's own `git fetch` and `git push`, and the notice that goes before
-    words_about_reference_locks.rs  <- src/native/lock/stale_ref_lock_message.rs
-      The words the wrapper prints about reference locks: what it removed, what it left and why, and the exact command that
-    locks_a_stopped_git_may_leave.rs  <- src/native/lock/stopped_git_locks.rs
-      The reference locks a stopped Git child may have left behind, judged and reported once the child and what it started
-  finding_who_holds_a_lock_file/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    reading_the_output_of_a_holder_scan.rs  <- src/native/lock/index_lock_holder_parsers.rs
-      Parsers of the holder-scan output that is not `/proc`
-    programs_holding_a_lock_file_open.rs  <- src/native/lock/index_lock_holders.rs
-      Processes holding a lock file open
-    evidence_about_a_foreign_index_lock.rs  <- src/native/lock/index_lock_evidence.rs
-      Evidence about a foreign `index.lock` and the verdict it supports
-    git_retry_schedule_for_lock_files.rs  <- src/native/lock/index_lock_wait.rs
-      Git's own lock-retry schedule: the backoff position, its next step, and the jittered wait it prescribes.
 ```
 
 ### parallel-work-within-a-budget
@@ -2058,6 +2062,106 @@ package/git-policy/commit-command/src/
     The `git commit` command of the native wrapper: the preparation and landing through the resident service, the settled
 ```
 
+### service-after-commit-work
+
+Package `package/git-policy/service-after-commit-work`,
+crate `monochromatic-git-policy-service-after-commit-work`.
+Does the work left after a landing:
+push,
+tidy-up and review.
+
+Depends on crates:
+`background-push-after-commit`,
+`commit-service-index-lock`,
+`commit-service-log-lines`,
+`commit-service-messages`,
+`durable-work-items`,
+`git-environment-variables`,
+`land-prepared-commits`,
+`new-worktrees-quickly`,
+`parallel-work-within-a-budget`,
+`push-with-a-deadline`,
+`read-git-files-without-git`,
+`safe-file-saving`,
+`standards-review-log`,
+`start-the-real-git`,
+`starting-and-watching-programs`,
+`system-journal-entries`,
+`upload-large-files-before-a-push`,
+`wrapper-settings`.
+
+```text
+package/git-policy/service-after-commit-work/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  service_claim_renewal.rs  <- src/native/landing/service_claim_renewal.rs
+    Keeps the lease of the claims one service instance holds fresh while it works, so a claim is taken over only when its ...
+  service_claim_watch.rs  <- src/native/landing/service_claim_watch.rs
+    The Git directories whose after-commit work this service instance has been woken for, kept on disk in the instance's ...
+  service_hold_retry.rs  <- src/native/landing/service_hold_retry.rs
+    Runs a forwarded index writer again when real Git lost the race for the index to the commit service, instead of ...
+  service_retry.rs  <- src/native/landing/service_retry.rs
+    The repositories the service must look at again, and when: those with a claim that another instance holds and that ...
+  service_review.rs  <- src/native/service/service_review.rs
+    The service's handler for a `review` work item: read the landed commit, ask the decision gateway, and append the
+  service_work_handlers_replanning_and_acceptance.rs  <- src/native/landing/service_work_handlers_replanning_and_acceptance.rs
+    What the work of the commit service is made of: the kinds it runs, the handlers that run each kind, which records are
+  service_work_drain_pending_claims.rs  <- src/native/landing/service_work_drain_pending_claims.rs
+    Drains the pending items of one work directory: claims them under a lease, settles the unacceptable ones, groups the ...
+  service_work.rs  <- src/native/landing/service_work.rs
+    The service's consumer of after-commit work: pending `push` and `maintenance` work items of one repository are
+  service_round.rs  <- src/native/landing/service_round.rs
+    The drain of several repositories in one round of the service's after-commit work, side by side.
+  service_work_run_round.rs  <- src/native/landing/service_work_run_round.rs
+    Runs one round of the service's work over several directories: hands each directory its due retries, drains them side ...
+```
+
+### commit-service-program
+
+Package `package/git-policy/commit-service-program`,
+crate `monochromatic-git-policy-commit-service-program`.
+The background commit service itself:
+accepts requests,
+lands them in batches and answers.
+
+Depends on crates:
+`background-push-after-commit`,
+`commit-service-index-lock`,
+`commit-service-log-lines`,
+`commit-service-messages`,
+`crash-points-for-tests`,
+`durable-work-items`,
+`git-environment-variables`,
+`land-prepared-commits`,
+`push-with-a-deadline`,
+`safe-file-saving`,
+`service-after-commit-work`,
+`start-the-real-git`,
+`starting-and-watching-programs`,
+`system-journal-entries`.
+
+```text
+package/git-policy/commit-service-program/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  service_reply.rs  <- src/native/service/service_reply.rs
+    The service's side of one waiting client: the queue of messages the landing thread answers with, and the loop that ...
+  service_server_queue_types_and_send.rs  <- src/native/service/service_server_queue_types_and_send.rs
+    The shapes the commit service's connection threads and landing thread pass between them (a queued request, the key ...
+  service_server_connection_handling.rs  <- src/native/service/service_server_connection_handling.rs
+    Handles one client connection of the commit service: reads the request line within the read timeout, checks who
+  service_server_land_group.rs  <- src/native/service/service_server_land_group.rs
+    Lands one group of queued requests as a batch and answers each client: settles open batches first, answers repeats and
+  service_server_socket_binding.rs  <- src/native/service/service_server_socket_binding.rs
+    Gets the listening socket of the commit service: the one the service manager passed in, or a socket bound at a path.
+  service_server_work_loop.rs  <- src/native/service/service_server_work_loop.rs
+    The loop of the commit service's work thread: it waits for wakes and due retries, runs a round of repository work for ...
+  service_server.rs  <- src/native/service/service_server.rs
+    The resident service's loop: accept connections, queue requests in arrival order, land what is queued as a batch
+  last_words_when_a_signal_ends_the_service.rs  <- src/native/service/service_signal.rs
+    The service's last line when a signal ends it
+  the_service_as_a_mode_of_the_program.rs  <- src/native/service/service_main.rs
+    The resident commit service as a mode of the one executable: `cli-git-native cli-git service run <options>`.
+```
+
 ### doctor-report
 
 Package `package/git-policy/doctor-report`,
@@ -2132,59 +2236,6 @@ package/git-policy/merge-in-isolation/src/
     A `git pull` that merges, turned into the fetch it starts with and the `git merge FETCH_HEAD` it ends with, so the ...
 ```
 
-### service-after-commit-work
-
-Package `package/git-policy/service-after-commit-work`,
-crate `monochromatic-git-policy-service-after-commit-work`.
-Does the work left after a landing:
-push,
-tidy-up and review.
-
-Depends on crates:
-`background-push-after-commit`,
-`commit-service-index-lock`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`durable-work-items`,
-`git-environment-variables`,
-`land-prepared-commits`,
-`new-worktrees-quickly`,
-`parallel-work-within-a-budget`,
-`push-with-a-deadline`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`standards-review-log`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`upload-large-files-before-a-push`,
-`wrapper-settings`.
-
-```text
-package/git-policy/service-after-commit-work/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  service_claim_renewal.rs  <- src/native/landing/service_claim_renewal.rs
-    Keeps the lease of the claims one service instance holds fresh while it works, so a claim is taken over only when its ...
-  service_claim_watch.rs  <- src/native/landing/service_claim_watch.rs
-    The Git directories whose after-commit work this service instance has been woken for, kept on disk in the instance's ...
-  service_hold_retry.rs  <- src/native/landing/service_hold_retry.rs
-    Runs a forwarded index writer again when real Git lost the race for the index to the commit service, instead of ...
-  service_retry.rs  <- src/native/landing/service_retry.rs
-    The repositories the service must look at again, and when: those with a claim that another instance holds and that ...
-  service_review.rs  <- src/native/service/service_review.rs
-    The service's handler for a `review` work item: read the landed commit, ask the decision gateway, and append the
-  service_work_handlers_replanning_and_acceptance.rs  <- src/native/landing/service_work_handlers_replanning_and_acceptance.rs
-    What the work of the commit service is made of: the kinds it runs, the handlers that run each kind, which records are
-  service_work_drain_pending_claims.rs  <- src/native/landing/service_work_drain_pending_claims.rs
-    Drains the pending items of one work directory: claims them under a lease, settles the unacceptable ones, groups the ...
-  service_work.rs  <- src/native/landing/service_work.rs
-    The service's consumer of after-commit work: pending `push` and `maintenance` work items of one repository are
-  service_round.rs  <- src/native/landing/service_round.rs
-    The drain of several repositories in one round of the service's after-commit work, side by side.
-  service_work_run_round.rs  <- src/native/landing/service_work_run_round.rs
-    Runs one round of the service's work over several directories: hands each directory its due retries, drains them side ...
-```
-
 ### typed-push-planning
 
 Package `package/git-policy/typed-push-planning`,
@@ -2236,6 +2287,7 @@ Depends on crates:
 `commit-command`,
 `commit-service-client`,
 `commit-service-index-lock`,
+`commit-service-program`,
 `convert-a-checkout-to-a-btrfs-subvolume`,
 `doctor-report`,
 `fix-packages-after-copying-a-folder`,
@@ -2296,51 +2348,4 @@ package/git-policy/cli/src/
     Decide what one `git` invocation of the native wrapper does
   message_when_the_program_panics.rs  <- src/native/invocation/panic_notice.rs
     The panic hook of the executable
-```
-
-### commit-service-program
-
-Package `package/git-policy/commit-service-program`,
-crate `monochromatic-git-policy-commit-service-program`.
-The background commit service itself:
-accepts requests,
-lands them in batches and answers.
-
-Depends on crates:
-`background-push-after-commit`,
-`commit-service-index-lock`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`crash-points-for-tests`,
-`durable-work-items`,
-`git-environment-variables`,
-`land-prepared-commits`,
-`push-with-a-deadline`,
-`safe-file-saving`,
-`service-after-commit-work`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`.
-
-```text
-package/git-policy/commit-service-program/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  service_reply.rs  <- src/native/service/service_reply.rs
-    The service's side of one waiting client: the queue of messages the landing thread answers with, and the loop that ...
-  service_server_queue_types_and_send.rs  <- src/native/service/service_server_queue_types_and_send.rs
-    The shapes the commit service's connection threads and landing thread pass between them (a queued request, the key ...
-  service_server_connection_handling.rs  <- src/native/service/service_server_connection_handling.rs
-    Handles one client connection of the commit service: reads the request line within the read timeout, checks who
-  service_server_land_group.rs  <- src/native/service/service_server_land_group.rs
-    Lands one group of queued requests as a batch and answers each client: settles open batches first, answers repeats and
-  service_server_socket_binding.rs  <- src/native/service/service_server_socket_binding.rs
-    Gets the listening socket of the commit service: the one the service manager passed in, or a socket bound at a path.
-  service_server_work_loop.rs  <- src/native/service/service_server_work_loop.rs
-    The loop of the commit service's work thread: it waits for wakes and due retries, runs a round of repository work for ...
-  service_server.rs  <- src/native/service/service_server.rs
-    The resident service's loop: accept connections, queue requests in arrival order, land what is queued as a batch
-  last_words_when_a_signal_ends_the_service.rs  <- src/native/service/service_signal.rs
-    The service's last line when a signal ends it
-  the_service_as_a_mode_of_the_program.rs  <- src/native/service/service_main.rs
-    The resident commit service as a mode of the one executable: `cli-git-native cli-git service run <options>`.
 ```

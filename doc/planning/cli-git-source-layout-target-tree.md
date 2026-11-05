@@ -262,12 +262,26 @@ then a plausible outside consumer.
   any tool that wants commit,
   tree,
   ref and setting data without starting Git.
+- `linux-filesystem-primitives`:
+  Calls the Linux disk functions the wrapper needs:
+  mount tables,
+  disk kind,
+  btrfs folder copies,
+  file cloning,
+  swapping two paths,
+  and file operations that never follow a link.
+  Another program that could depend on it:
+  any Linux file tool.
 - `starting-and-watching-programs`:
   Starts another program,
   tells which programs are running,
   and ends one that stops making progress.
   Another program that could depend on it:
   any program that runs children under a progress deadline.
+- `git-lock-files`:
+  Finds who holds a lock file and clears the reference locks that a crashed Git left behind.
+  Another program that could depend on it:
+  any tool that must wait for or clear Git locks.
 - `typed-command-reader`:
   Reads the words typed after `git` the way Git reads them,
   plus the words meant for this wrapper.
@@ -339,20 +353,6 @@ then a plausible outside consumer.
   Records an isolated merge and finishes or discards it if the process died.
   Another program that could depend on it:
   a merge tool.
-- `linux-filesystem-primitives`:
-  Calls the Linux disk functions the wrapper needs:
-  mount tables,
-  disk kind,
-  btrfs folder copies,
-  file cloning,
-  swapping two paths,
-  and file operations that never follow a link.
-  Another program that could depend on it:
-  any Linux file tool.
-- `git-lock-files`:
-  Finds who holds a lock file and clears the reference locks that a crashed Git left behind.
-  Another program that could depend on it:
-  any tool that must wait for or clear Git locks.
 - `parallel-work-within-a-budget`:
   Runs independent jobs side by side on as many threads as the computer can spare.
   Another program that could depend on it:
@@ -447,6 +447,18 @@ then a plausible outside consumer.
   and reports.
   Another program that could depend on it:
   none above the program.
+- `service-after-commit-work`:
+  Does the work left after a landing:
+  push,
+  tidy-up and review.
+  Another program that could depend on it:
+  none above the program.
+- `commit-service-program`:
+  The background commit service itself:
+  accepts requests,
+  lands them in batches and answers.
+  Another program that could depend on it:
+  none above the program.
 - `doctor-report`:
   Prints the `git cli-git doctor` report on hooks,
   settings,
@@ -455,12 +467,6 @@ then a plausible outside consumer.
   none above the program.
 - `merge-in-isolation`:
   Completes `git merge` and `git pull` without touching staged work.
-  Another program that could depend on it:
-  none above the program.
-- `service-after-commit-work`:
-  Does the work left after a landing:
-  push,
-  tidy-up and review.
   Another program that could depend on it:
   none above the program.
 - `typed-push-planning`:
@@ -472,12 +478,6 @@ then a plausible outside consumer.
   decides what each command does and runs it.
   Another program that could depend on it:
   users.
-- `commit-service-program`:
-  The background commit service itself:
-  accepts requests,
-  lands them in batches and answers.
-  Another program that could depend on it:
-  none above the program.
 - `disposable-test-fixtures`:
   Makes disposable folders and real-Git repositories for tests,
   outside the shipped code.
@@ -491,7 +491,11 @@ Listed from the bottom:
 a crate appears after every crate it uses.
 It is acyclic (checked),
 and each crate's `Cargo.toml` lists exactly these `path` dependencies with an exact `=` pin.
-The program also reaches `commit-service-program` through `main.rs` (service mode).
+The program reaches `commit-service-program` through service mode (edge added after the review),
+and
+`start-the-real-git` reaches `git-lock-files` because the runner now builds and sweeps the lock ledger
+(second edge added after the review;
+both checked acyclic).
 
 ```text
 git-environment-variables
@@ -504,12 +508,16 @@ safe-file-saving
     uses crates: git-environment-variables, text-time-and-log-line-formats
 read-git-files-without-git
     uses crates: git-environment-variables, git-index-file, safe-file-saving
+linux-filesystem-primitives
+    uses crates: none
 starting-and-watching-programs
     uses crates: text-time-and-log-line-formats
+git-lock-files
+    uses crates: git-environment-variables, linux-filesystem-primitives, read-git-files-without-git, safe-file-saving, starting-and-watching-programs, text-time-and-log-line-formats
 typed-command-reader
     uses crates: git-environment-variables, starting-and-watching-programs
 start-the-real-git
-    uses crates: git-environment-variables, git-index-file, read-git-files-without-git, safe-file-saving, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader
+    uses crates: git-environment-variables, git-index-file, git-lock-files, read-git-files-without-git, safe-file-saving, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader
 wrapper-settings
     uses crates: safe-file-saving, start-the-real-git, text-time-and-log-line-formats, typed-command-reader
 commit-candidate-content
@@ -536,10 +544,6 @@ commit-service-client
     uses crates: commit-candidate-content, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, policy-engine, read-git-files-without-git, safe-file-saving, standards-review-log, start-the-real-git, starting-and-watching-programs, systemd-user-manager-client, text-time-and-log-line-formats, wrapper-settings
 isolated-merge-recovery
     uses crates: commit-service-log-lines, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
-linux-filesystem-primitives
-    uses crates: none
-git-lock-files
-    uses crates: git-environment-variables, linux-filesystem-primitives, read-git-files-without-git, safe-file-saving, starting-and-watching-programs, text-time-and-log-line-formats
 parallel-work-within-a-budget
     uses crates: none
 sha-1-and-sha-256-digests
@@ -576,18 +580,18 @@ shipped-policies
     uses crates: commit-candidate-content, dependent-version-bump-check, keep-copies-of-discarded-work, markdown-autofix-check, policy-engine, rules-about-git-command-lines, safe-file-saving, start-the-real-git, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
 commit-command
     uses crates: commit-candidate-content, commit-service-client, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, git-environment-variables, git-index-file, hidden-git-copy-for-preparing-commits, keep-copies-of-discarded-work, land-prepared-commits, markdown-autofix-check, merge-conflicts-word-by-word, new-worktrees-quickly, policy-engine, read-git-files-without-git, rules-about-git-command-lines, safe-file-saving, shipped-policies, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats, typed-command-reader, upload-large-files-before-a-push, wrapper-settings
+service-after-commit-work
+    uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, commit-service-messages, durable-work-items, git-environment-variables, land-prepared-commits, new-worktrees-quickly, parallel-work-within-a-budget, push-with-a-deadline, read-git-files-without-git, safe-file-saving, standards-review-log, start-the-real-git, starting-and-watching-programs, system-journal-entries, upload-large-files-before-a-push, wrapper-settings
+commit-service-program
+    uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, git-environment-variables, land-prepared-commits, push-with-a-deadline, safe-file-saving, service-after-commit-work, start-the-real-git, starting-and-watching-programs, system-journal-entries
 doctor-report
     uses crates: keep-copies-of-discarded-work, linux-filesystem-primitives, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, wrapper-settings
 merge-in-isolation
     uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, crash-points-for-tests, git-environment-variables, isolated-merge-recovery, merge-conflicts-word-by-word, policy-engine, safe-file-saving, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-service-after-commit-work
-    uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, commit-service-messages, durable-work-items, git-environment-variables, land-prepared-commits, new-worktrees-quickly, parallel-work-within-a-budget, push-with-a-deadline, read-git-files-without-git, safe-file-saving, standards-review-log, start-the-real-git, starting-and-watching-programs, system-journal-entries, upload-large-files-before-a-push, wrapper-settings
 typed-push-planning
     uses crates: background-push-after-commit, commit-candidate-content, git-environment-variables, parallel-work-within-a-budget, push-with-a-deadline, rules-about-git-command-lines, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, upload-large-files-before-a-push
 cli
-    uses crates: background-push-after-commit, commit-candidate-content, commit-command, commit-service-client, commit-service-index-lock, convert-a-checkout-to-a-btrfs-subvolume, doctor-report, fix-packages-after-copying-a-folder, git-environment-variables, git-lock-files, isolated-merge-recovery, keep-copies-of-discarded-work, merge-conflicts-word-by-word, merge-in-isolation, new-worktrees-quickly, policy-engine, push-with-a-deadline, read-git-files-without-git, rules-about-git-command-lines, safe-file-saving, service-after-commit-work, shipped-policies, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, typed-push-planning, upload-large-files-before-a-push, wrapper-settings
-commit-service-program
-    uses crates: background-push-after-commit, commit-service-index-lock, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, git-environment-variables, land-prepared-commits, push-with-a-deadline, safe-file-saving, service-after-commit-work, start-the-real-git, starting-and-watching-programs, system-journal-entries
+    uses crates: background-push-after-commit, commit-candidate-content, commit-command, commit-service-client, commit-service-index-lock, commit-service-program, convert-a-checkout-to-a-btrfs-subvolume, doctor-report, fix-packages-after-copying-a-folder, git-environment-variables, git-lock-files, isolated-merge-recovery, keep-copies-of-discarded-work, merge-conflicts-word-by-word, merge-in-isolation, new-worktrees-quickly, policy-engine, push-with-a-deadline, read-git-files-without-git, rules-about-git-command-lines, safe-file-saving, service-after-commit-work, shipped-policies, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, typed-push-planning, upload-large-files-before-a-push, wrapper-settings
 disposable-test-fixtures
     uses crates: none (every other crate lists it under dev-dependencies)
 ```
@@ -760,6 +764,21 @@ arrive without a new entry.
     The settings that decide what Git does to index extensions.
     `uses/` links:
     `reading_git_settings_from_files`.
+- `linux-filesystem-primitives`
+  - `which_disk_a_folder_is_on/`:
+    Mount tables,
+    the kind of disk,
+    and why a disk call failed.
+    `uses/` links:
+    none.
+  - `fast_copies_and_swaps_on_linux/`:
+    Cloning a file's data and exchanging two paths.
+    `uses/` links:
+    `which_disk_a_folder_is_on`.
+  - `file_operations_that_never_follow_a_link/`:
+    File operations relative to an open folder that never follow a link.
+    `uses/` links:
+    none.
 - `starting-and-watching-programs`
   - `how_long_the_wrapper_waits_for_each_thing/`:
     The longest waits and the push deadline setting.
@@ -793,6 +812,15 @@ arrive without a new entry.
     The record of which process owns a transaction folder.
     `uses/` links:
     `which_programs_are_running_and_since_when`.
+- `git-lock-files`
+  - `clearing_leftover_reference_locks/`:
+    Judges and removes the reference lock files a killed Git left behind.
+    `uses/` links:
+    none.
+  - `finding_who_holds_a_lock_file/`:
+    Finds the programs that hold a lock file open and gathers the evidence.
+    `uses/` links:
+    none.
 - `typed-command-reader`
   - `reading_options_the_way_git_does/`:
     Reads one command's options exactly as Git reads them.
@@ -896,30 +924,6 @@ arrive without a new entry.
     `rules_that_add_flags_to_a_command`.
   - `rules_about_where_a_command_may_run/`:
     Rules that say a command may run only in a certain kind of worktree.
-    `uses/` links:
-    none.
-- `linux-filesystem-primitives`
-  - `which_disk_a_folder_is_on/`:
-    Mount tables,
-    the kind of disk,
-    and why a disk call failed.
-    `uses/` links:
-    none.
-  - `fast_copies_and_swaps_on_linux/`:
-    Cloning a file's data and exchanging two paths.
-    `uses/` links:
-    `which_disk_a_folder_is_on`.
-  - `file_operations_that_never_follow_a_link/`:
-    File operations relative to an open folder that never follow a link.
-    `uses/` links:
-    none.
-- `git-lock-files`
-  - `clearing_leftover_reference_locks/`:
-    Judges and removes the reference lock files a killed Git left behind.
-    `uses/` links:
-    none.
-  - `finding_who_holds_a_lock_file/`:
-    Finds the programs that hold a lock file open and gathers the evidence.
     `uses/` links:
     none.
 - `commit-service-index-lock`
@@ -1984,10 +1988,22 @@ Every step is one commit or one branch,
 builds,
 and passes the crate's tests.
 
-1.  Step 0:
+0.  Step 0:
     release the wrapper's last crates.io version from the unsplit crate (the planning doc requires this before it
     depends on an unpublished crate).
     Nothing below runs earlier.
+1.  Every change listed above that is not a loop break also gets its own commit before the first grouping that needs it:
+    the `worktree_command_facts` move,
+    the `copy_file_exclusive` error type,
+    the hint-function moves,
+    `rename_noreplace`,
+    the removal of the named re-exports and of the test-folder root re-exports.
+    Imports are rewritten wherever they
+    appear (`use`,
+    qualified expressions,
+    type paths,
+    `super::`),
+    not only in `use crate::<file>` lines.
 2.  Loop breaks inside the one crate:
     each bullet of "Breaking each loop" is a commit (a type moves,
     imports change).
@@ -2013,11 +2029,13 @@ and passes the crate's tests.
     the new index files with their top docs,
     the sidecar renames,
     the `test_support` split and the planted-control path updates (next section).
-6.  Switch the two layout lint rules on for the package and add the `uses/` links,
-    folder by folder,
-    one commit per crate;
-    they now guard the crate graph,
-    because a crate folder using a higher crate folder is a folder loop.
+6.  Add every `uses/` link in one commit,
+    then switch the two layout lint rules on for the whole package
+    (enabling them crate by crate would leave the rest failing).
+    They then guard acyclicity and the links;
+    a use of a higher crate folder is caught only when it closes a loop,
+    so the layer order itself is kept by the
+    per-crate `Cargo.toml` after step 7.
     The linter's `LIST_MARKER` one-line form is used in every top doc.
 7.  Lift the crate folders into packages,
     one per commit,
@@ -2030,14 +2048,18 @@ and passes the crate's tests.
     the 15 `pub(crate)` items widened,
     the test references that name a higher crate fixed (see above).
     The wrapper's `Cargo.toml` loses the dependencies it no longer needs.
-8.  The program crate is what is left;
+8.  Before the first lift,
+    extract `disposable-test-fixtures` (every lifted crate uses it as a dev-dependency).
+    Every generated index file declares its folders and files `pub mod` where another crate names them;
+    the 15 widened items are not the only visibility work.
+9.  The program crate is what is left;
     its `Cargo.toml` keeps `[[bin]]`,
     the one `[[test]]` target for the built program,
     the binstall metadata and the release profile.
 
-Steps 4 and 5 can be done before the owner decides on the crate count,
+Steps 5 and 6 can be done before the owner decides on the crate count,
 because they only need the folder table;
-step 7 is where the owner's decision on granularity bites,
+the lift step is where the owner's decision on granularity bites,
 and it can stop after any crate.
 
 ### How the tests and scripts follow
@@ -2152,8 +2174,8 @@ they go into the owner's question file.
   Cost is in "What a crate costs".
   Recommendation:
   accept the list as the target,
-  do steps 4 to 6 now,
-  and lift crates in step 7 one at a time from the
+  do the in-package steps (grouping and lint) now,
+  and lift crates one at a time from the
   bottom,
   stopping to ask whether to continue after the lower half;
   the weak entries listed above are the first to merge back.
@@ -2218,7 +2240,105 @@ they go into the owner's question file.
 
 ## Review by the cross-vendor reviewer
 
-The cross-vendor review has been requested and had not returned when this version was committed.
+The reviewer was `openai/gpt-6.1-sol` (thinking xhigh),
+given the proposal,
+the companion and the planning doc,
+with no tools.
+It read documents only and did not rerun the scanners.
+Its findings,
+and what changed:
+
+- Missing crate edges (`start-the-real-git` to `git-lock-files` for the lock sweep;
+  `cli` to `commit-service-program`):
+  correct.
+  Both edges were added to the checked graph and stay acyclic.
+- The move order left changes unscheduled,
+  and extraction order omitted the fixtures crate:
+  correct.
+  The move order now schedules each non-loop change as its own commit,
+  rewrites every path form,
+  extracts
+  `disposable-test-fixtures` first and says that index files declare `pub mod` where another crate names a module.
+- Lint rollout one folder at a time cannot be clean,
+  and the layer guarantee was too strong:
+  correct.
+  The rollout is
+  now one commit for all links,
+  and the text says the rules catch loops,
+  not every layer breach.
+- Package names and many retained file names fail MKY alone (`cli`,
+  `policy-engine`,
+  `typed-command-reader`,
+  `inner_git_words`,
+  `service_busy`,
+  `service_route`,
+  `worktree_ladder` and others):
+  correct and not yet changed.
+  The names are one table (`target` in the group map) and the owner's veto round is the place to settle them;
+  the reviewer's replacements are kept in the open points below.
+- `new-worktrees-quickly` rejection unsupported by the folder graph:
+  partly.
+  The early three-crate cut that looped
+  was the copy,
+  ladder and clean-check cut,
+  before `worktree_path_failure_message` moved down;
+  with that file moved the
+  clean-check folder is a leaf.
+  The text keeps the crate whole but names it as the first candidate to cut.
+- Crates with no outside consumer (`commit-command`,
+  `doctor-report`,
+  `merge-in-isolation`,
+  `service-after-commit-work`,
+  `typed-push-planning`,
+  `commit-service-program`):
+  accepted as a finding.
+  They are orchestration;
+  folding the first four
+  and the push planner into `cli` is cycle-free and is recorded as an open point.
+- Other findings kept as open points:
+  module visibility,
+  the scanner's `cfg` scope and other surfaces it may not see
+  (`self::`,
+  macros,
+  trait impls),
+  upward test cases needing concrete plans,
+  `durable-work-items` and
+  `starting-and-watching-programs` claiming more independence than they have,
+  misleading homes for `shell_quote`,
+  `append_line`,
+  `RELEASE` and `ENGINE_FAILURE_EXIT_CODE`,
+  the manifest migration inventory,
+  tooling updated twice
+  (intermediate and final paths),
+  the missing fixtures tree and `main.rs` in the companion.
+- Claims withdrawn:
+  that single-file crates cannot merge without a cycle (`three-way-text-merge` into its only
+  consumer would be cycle-free;
+  it stays for reuse),
+  and "zero loops" without its scope (the scanner reads `crate::`,
+  `super::`,
+  grouped imports and named re-exports;
+  other surfaces are unchecked).
+
+Open points added by the review:
+
+- Fold `commit-command`,
+  `doctor-report`,
+  `merge-in-isolation` and `typed-push-planning` into `cli`,
+  and
+  `service-after-commit-work` into `commit-service-program`.
+  Recommendation:
+  fold them unless the owner names an outside user.
+- Rename packages and files that fail MKY alone,
+  using the reviewer's examples as a start.
+  Recommendation:
+  rename in
+  step 5,
+  where files move anyway.
+- Split `new-worktrees-quickly` along `is_the_worktree_clean`.
+  Recommendation:
+  yes,
+  as the first lift after the lower half.
 
 ## Next
 
