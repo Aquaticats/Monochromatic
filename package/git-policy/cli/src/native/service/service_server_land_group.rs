@@ -1,0 +1,228 @@
+//! What:
+//!  Lands one group of queued requests as a batch and answers each client: settles open batches first, answers repeats and
+//!  requests landed before, numbers the batch, lands it, and logs every answer with its timings.
+//! Why:
+//!  The landing thread of `service_server.rs` calls it once per group; it is the largest step of the service and has its own
+//!  file so the loop that feeds it stays short.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! await landGroup(context, instance, seq, group, landed, captures);
+//! ```
+
+use crate::service_server_queue_types_and_send::Queued;
+use crate::service_journal::{BatchClaim, Recovery, claim_batch};
+use crate::service_land_follow::storage_failure;
+use crate::service_index_lock::Announce;
+use crate::service_captures::CaptureMemory;
+use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
+use crate::journald_native::Priority;
+use crate::service_timing::{Answered, Arrival, LandTiming, answered_line, log_entry};
+use crate::service_protocol::{
+    CommitRequest, FailureCode, ServiceMessage,
+};
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
+/// Finishes the open batches this instance owns: those of its worktree when it serves one, all of them in a development run.
+pub(crate) fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<crate::service_land::RecoveryReport> {
+    let reports: Vec<crate::service_land::RecoveryReport> = match instance {
+        Some(mine) => recover_instance(context, mine),
+        None => recover(context),
+    };
+    // An open batch means an earlier service stopped between its intent and its end; each one settled is said.
+    for report in &reports {
+        log_entry(
+            Priority::Warning,
+            format!("settled the batch an earlier service left open batch={} decision={}", report.seq, if report.decision == Recovery::Finish { "finish" } else { "drop" }).as_str(),
+            &[("CLI_GIT_BATCH", report.seq.to_string())],
+        );
+    }
+    return reports;
+}
+
+/// The times of one batch that every request of it shares,
+/// and the moment the landing ended.
+pub(crate) struct BatchTimes {
+    /// The batch number,
+    /// zero when no batch ran (a request answered as already landed).
+    batch: u64,
+    /// How many requests of the branch the batch held.
+    size: usize,
+    /// When the group began to be handled,
+    /// which ends every request's wait in the queue.
+    group_began: Instant,
+    /// Time to settle the batches a killed service left open.
+    settle: Duration,
+    /// The phases of the landing.
+    landing: LandTiming,
+    /// Time the landing took,
+    /// from its start to its return.
+    land_total: Duration,
+    /// When the landing returned,
+    /// which starts the answers.
+    landed_at: Instant,
+}
+
+impl BatchTimes {
+    /// The times of a request that no batch landed.
+    fn not_landed(group_began: Instant) -> Self {
+        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now() };
+    }
+}
+
+/// Writes the log line for an answered request:
+/// the phases of its wait,
+/// from the acceptance of its connection to the answer.
+pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &Arrival, position: usize, outcome: &str) {
+    let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
+    // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
+    let quiet: Vec<(String, Duration)> = crate::quiet_ledger::drain();
+    let line: String = answered_line(&Answered {
+        request: request.id.as_str(),
+        reference: request.reference.as_str(),
+        outcome,
+        batch: times.batch,
+        size: times.size,
+        position,
+        arrival: *arrival,
+        queued,
+        settle: times.settle,
+        landing: &times.landing,
+        land_total: times.land_total,
+        answer: times.landed_at.elapsed(),
+        total: arrival.accepted.elapsed(),
+        quiet: quiet.as_slice(),
+    });
+    // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
+    let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
+    let fields: [(&str, String); 4] = [
+        ("CLI_GIT_REQUEST_ID", request.id.clone()),
+        ("CLI_GIT_BRANCH", request.reference.clone()),
+        ("CLI_GIT_OUTCOME", outcome.to_string()),
+        ("CLI_GIT_BATCH", times.batch.to_string()),
+    ];
+    log_entry(priority, line.as_str(), &fields);
+}
+
+/// Lands one group of jobs that share a branch, and answers each client.
+pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>, captures: &mut CaptureMemory) {
+    let group_began: Instant = Instant::now();
+    // Requests this service already landed are answered from memory; the rest are still to land.
+    let mut again: Vec<Queued> = Vec::new();
+    let mut pending: Vec<Queued> = Vec::new();
+    for queued in group {
+        if landed.contains_key(&queued.0.id) {
+            again.push(queued);
+        } else {
+            pending.push(queued);
+        }
+    }
+    let unlanded: BatchTimes = BatchTimes::not_landed(group_began);
+    for (request, stream, arrival) in again {
+        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
+        log_answer(&unlanded, &request, &arrival, 1, "already");
+    }
+    // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // The first request of an identity is fresh; each later one with the same identity is a repeat.
+    let mut fresh: Vec<Queued> = Vec::new();
+    let mut repeats: Vec<Queued> = Vec::new();
+    for queued in pending {
+        if seen.insert(queued.0.id.clone()) {
+            fresh.push(queued);
+        } else {
+            repeats.push(queued);
+        }
+    }
+    if fresh.is_empty() {
+        return;
+    }
+    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
+    //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    let settling: Instant = Instant::now();
+    let _settled = settle_open_batches(context, instance);
+    let settle: Duration = settling.elapsed();
+    // The number is taken from the journal, not from this service's count alone: another service of the same journal may count
+    //  from the same clock reading, and two landings with one number would overwrite each other's records.
+    let claim: BatchClaim = match claim_batch(context.journal.as_path(), *seq + 1) {
+        Ok(claim) => claim,
+        Err(error) => {
+            let code: FailureCode = storage_failure(&error);
+            crate::service_error!("no batch number could be taken in {}: {error}", context.journal.display());
+            for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
+                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
+                log_answer(&unlanded, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
+            }
+            return;
+        }
+    };
+    *seq = claim.seq();
+    for (index, (_, stream, _)) in fresh.iter().enumerate().skip(1) {
+        stream.send(&ServiceMessage::Position { number: index + 1, of: fresh.len() });
+    }
+    let mut requests: Vec<CommitRequest> = Vec::new();
+    for (request, _, _) in &fresh {
+        requests.push((**request).clone());
+    }
+    let announce = |note: Announce| {
+        for (_, stream, _) in &fresh {
+            match &note {
+                Announce::Waiting(text) => stream.send(&ServiceMessage::Waiting { text: text.clone() }),
+                Announce::Holder(who) => stream.send(&ServiceMessage::Holder { who: who.clone() }),
+            }
+        }
+    };
+    let mut landing: LandTiming = LandTiming::default();
+    let landing_began: Instant = Instant::now();
+    let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
+    // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
+    drop(claim);
+    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
+    match result {
+        Ok(outcomes) => {
+            // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.
+            for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
+                if let Outcome::Landed { commit } = outcome {
+                    captures.record_landed(request.common_dir.as_path(), request.repository.as_path(), commit.as_str(), request.captured);
+                }
+            }
+            crate::service_fault::reach("before-ack");
+            for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
+                if let Outcome::Landed { commit } = outcome {
+                    for (repeat, stream, arrival) in &repeats {
+                        if repeat.id != request.id {
+                            continue;
+                        }
+                        stream.send(&ServiceMessage::Landed { id: repeat.id.clone(), commit: commit.clone(), already: true });
+                        log_answer(&times, repeat, arrival, 1, "already");
+                    }
+                }
+            }
+            for (position, ((request, stream, arrival), outcome)) in fresh.iter().zip(outcomes).enumerate() {
+                let word: &str = match outcome {
+                    Outcome::Landed { commit } => {
+                        landed.insert(request.id.clone(), commit.clone());
+                        stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
+                        "landed"
+                    }
+                    Outcome::RetryPrepare { base } => {
+                        let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
+                        stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
+                        "retry-prepare"
+                    }
+                    Outcome::BranchMoved => {
+                        stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
+                        "branch-moved"
+                    }
+                };
+                log_answer(&times, request, arrival, position + 1, word);
+            }
+        }
+        Err(code) => {
+            for (position, (request, stream, arrival)) in fresh.iter().enumerate() {
+                stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
+                log_answer(&times, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
+            }
+        }
+    }
+}

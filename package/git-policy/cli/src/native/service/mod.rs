@@ -16,11 +16,23 @@
 /// Messages between the wrapper and the resident commit service.
 pub mod service_protocol;
 
+/// The protocol messages as typed values, and the checks on the names they carry.
+pub mod service_protocol_messages_and_name_checks;
+
+/// Writes protocol messages as one JSON object per line.
+pub mod service_protocol_encode_messages_to_lines;
+
+/// Reads protocol lines as messages, checking every field.
+pub mod service_protocol_decode_lines_to_messages;
+
 /// The longest the wrapper waits for each thing it waits for, with the measurement beside each number.
 pub mod wait_ceilings;
 
 /// What the one landing thread is doing, shared with the threads that talk to waiting clients.
 pub mod service_busy;
+
+/// The step record a thread keeps while it is inside a write that is never ended.
+pub mod service_busy_step_record_on_this_thread;
 
 /// The connection of one waiting client, answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
@@ -42,6 +54,21 @@ pub mod service_signal;
 
 /// The commit service's loop.
 pub mod service_server;
+
+/// The loop of the commit service's work thread.
+pub mod service_server_work_loop;
+
+/// The shapes the connection threads and the landing thread pass between them, and the one-message send.
+pub mod service_server_queue_types_and_send;
+
+/// Lands one group of queued requests as a batch and answers each client.
+pub mod service_server_land_group;
+
+/// Handles one client connection of the commit service.
+pub mod service_server_connection_handling;
+
+/// Gets the listening socket of the commit service.
+pub mod service_server_socket_binding;
 
 /// The service as a mode of the one executable: the words that select it and the start of the service.
 pub mod service_main;
