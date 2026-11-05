@@ -56,6 +56,30 @@ The invocation tests import the built library artifact.
 Local tasks are declared in `mise.toml`;
 the matching CI tasks are in `task.ts`.
 
+During the pnpr upgrade at merge `1f6a6f8dc8`,
+scoped lint reported no warnings or errors,
+type checking passed,
+and the named consumer suites passed.
+Removing the loader's validation calls and rebuilding made all 47 rejection cases fail;
+restoring the committed source and rebuilding made the suite pass.
+An initial malformed ablation edit failed to compile and was excluded from that evidence.
+
+The consumer suite exceeded an agent-command limit of 128 tasks:
+the cgroup peaked at 128 and recorded 16 denied process/thread creations.
+The unchanged suite passed with an agent-command limit of 512,
+peaked at 193,
+and recorded no denials.
+These are local verification limits,
+not shipped task-runner settings.
+
+The readonly-analysis bridge reported `project-not-found` for the package's `task.ts`;
+that file was outside its configured TypeScript project.
+Runtime validation separately loaded the root templates,
+root tasks,
+and every package task file.
+The CLI tests supply the repository root explicitly;
+they do not establish default loader-path behavior for a separately installed library artifact.
+
 ## Ordered task execution
 
 Scoped `eslint/no-await-in-loop` exceptions retain required ordering:

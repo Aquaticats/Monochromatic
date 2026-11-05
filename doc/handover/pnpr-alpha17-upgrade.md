@@ -1,76 +1,36 @@
-# pnpr alpha.17 upgrade and publishing repair
-
-## Authorized work
-
-The owner asked to bump pnpr to `0.1.0-alpha.17` during the Cargo-registry discussion.
-When asked how to handle its incompatible storage layout,
-the owner chose "Repair publishing,
-then rebuild packages".
-The archive-transfer approach is not the selected implementation.
-Repair publishing before deploying a fresh store,
-then republish current versions.
-Retain the existing volume for rollback.
-
-The Cargo deliverable remains a proposal,
-recorded in [self-hosted-cargo-registry.md](../planning/self-hosted-cargo-registry.md).
-Cargo registry implementation has not been requested.
+# pnpr alpha.17 rollout
 
 ## Current state
 
-- Upgrade branch:
-  `fix/config-pnpr-alpha17`.
-- Worktree:
-  `${HOME}/temp/agent/pnpr-alpha17-upgrade-2026-11-04`.
-- Commits `c6a84fbdc2` and `9a17d57e45` prepare the upstream image pin,
-  generated `maxUsers` configuration,
-  a fresh storage volume,
-  and an isolated image-verification mode in `pnpr-publish.yml`.
-- The live server still reports alpha.16.
-  The upgrade branch has not been merged into the deployment branch.
-- Image verification run [41941248129](https://github.com/Aquaticats/Monochromatic/actions/runs/41941248129)
-  passed signed GitHub workload publication,
-  anonymous-write refusal,
-  off-target workload refusal,
-  and exact archive download.
-  Local package tests and type checks passed after building the package.
-- Commit `ca5f88b3e8` restores the missing build entries in package `task.ts` files.
-  The publisher's real build planner now accepts every configured package:
-  154 have build tasks and 15 have no build.
-- Commit `8a897f3007` adds the `rebuild_check` workflow input.
-  Run `41944061291` was cancelled after repeated shared dependencies made the build graph expand excessively.
-  The static analysis is in [pnpr-rebuild-task-graph.md](../planning/pnpr-rebuild-task-graph.md).
-- Commit `147e1cf7da` shares task completion within a CLI invocation
-  and runs template children through that same invocation.
-  Commits through `acd21be950` cover source and built consumers,
-  concurrent cycles,
-  failure reuse,
-  argument boundaries,
-  and dependency callbacks retained after their owner completes.
-- Run [41962968333](https://github.com/Aquaticats/Monochromatic/actions/runs/41962968333)
-  passed the full build-and-pack check against an empty disposable registry at `acd21be950`.
-  Production publication was skipped.
-- The worktree currently ends at `327cef057f`.
-  Package type checking and the named source/built consumer tests pass.
-  Scoped Oxlint still has findings in the repaired runner and extracted legacy helpers;
-  those are being cleared before merging.
-- Source findings and incompatible-storage details are in
-  [pnpr-alpha17-upgrade.md](../planning/pnpr-alpha17-upgrade.md).
+The upgrade and publishing repair are merged on `main` as `1f6a6f8dc8a7f682644b840c2468d46d7f0c5503`.
+The generated registry configuration matches the current workspace:
+169 selected packages.
+Production readiness reported storage and authentication healthy at `2026-11-05T05:06:42.668Z`.
+The metrics endpoint changed from the observed alpha.16 version response to the expected disabled endpoint.
 
-## Publishing repair
+Push-triggered publication run
+[41971694888](https://github.com/Aquaticats/Monochromatic/actions/runs/41971694888)
+succeeded,
+but it took its missing-version inventory before deployment changed stores.
+The required post-cutover pass is
+[41972276692](https://github.com/Aquaticats/Monochromatic/actions/runs/41972276692).
+A bounded watcher is running for that pass.
 
-Run `41892186106` fails with `MissingCiBuildTaskError`.
-The missing build definitions are already recorded in
-[mise-free-ci.md](../decision/mise-free-ci.md).
-The current native CI runner requires package `task.ts` definitions;
-many publishable packages have only `mise.toml` definitions.
+## Remaining checks
 
-The separate task-system migration remains a proposal.
-The owner called the existing runner a stopgap,
-as recorded in [task-slice-plan-revision.md](task-slice-plan-revision.md).
-Repairing publishing does not authorize adopting the proposed replacement task system.
+- Finish the post-cutover publication pass.
+- Download every current selected archive anonymously and check its SHA-512 integrity.
+- Install and invoke a representative package in a disposable npm consumer without credentials.
+- Finish removing the isolated upgrade worktree and stop all owned watchers.
+- Record the live results in the registry decision and remove this completed handover.
 
-Next action:
-clear the runner's scoped lint findings,
-verify the final runner changes,
-then land the alpha.17 deployment and republish current versions.
-Do not cut over to the empty volume while the publisher remains unable to rebuild them.
+The accepted recovery choice,
+image evidence,
+and deployment constraints are in
+[private-npm-registry.md](../decision/private-npm-registry.md).
+The task-runner verification and local cgroup measurements are in
+[the task CLI README](../../package/monorepo-task/cli/README.md).
+
+The Cargo registry remains the proposal in
+[self-hosted-cargo-registry.md](../planning/self-hosted-cargo-registry.md).
+It is not part of this deployment.
