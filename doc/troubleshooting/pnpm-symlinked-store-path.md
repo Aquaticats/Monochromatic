@@ -350,6 +350,7 @@ Title:
 `pnpm 12.18.0 creates broken dependency links when the global store traverses a directory symlink`.
 
 The body follows the checked bug-report form's field order.
+Its optional pnpm-version field is left blank because the primary reproduction uses the latest major release.
 The repro commands are the literal commands used by the public workflow in a fresh checkout.
 Every field is backed by the recorded commands or CI logs;
 no human verification is claimed.
@@ -360,8 +361,6 @@ no human verification is claimed.
 - [x] I verified that the issue exists in the latest pnpm release
 
 ### pnpm version
-
-_No response; the primary reproduction uses the latest major release._
 
 ### Which area(s) of pnpm are affected? (leave empty if unsure)
 

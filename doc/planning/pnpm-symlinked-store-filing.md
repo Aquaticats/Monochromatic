@@ -78,8 +78,8 @@ The closest reports were read with their maintainer comments:
 
 The open-PR audit examined all 202 open PRs and their changed-file lists at 2026-11-05T16:04:35+00:00.
 Lists exceeding the initial 100 files were paginated;
-the largest contained 2,565 files,
-below the REST endpoint's file cap.
+the largest listed 2,565 files,
+matching that PR's reported changed-file count.
 The searched paths covered the Rust link writer,
 reuse helper,
 store-path and virtual-layout code,
