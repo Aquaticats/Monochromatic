@@ -2,7 +2,8 @@
 
 ## Source review at 2026-11-04T19:11:37-05:00
 
-The owner asked, "Bump pnpr to 0.1.0-alpha.17 too?"
+The owner asked,
+"Bump pnpr to 0.1.0-alpha.17 too?"
 This records the source findings needed to make that upgrade concrete.
 It does not claim deployment or runtime verification has finished.
 The Cargo registry proposal remains separate from this authorized pnpr upgrade.
@@ -160,7 +161,7 @@ The browser was closed after those checks.
 [oidc-discovery]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/auth/src/oidc/provider_metadata.rs#L77-L102
 [oidc-claims]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/config/src/oidc.rs#L62-L76
 [image-doc]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/docs/installation.md#L27-L49
-[image-workflow]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/.github/workflows/release.yml#L1713-L1805
+[image-workflow]: https://raw.githubusercontent.com/pnpm/pnpm/6b5b8ac53a6120a644c3693ecac8aaed8af88174/.github/workflows/release.yml#:~:text=docker-pnpr%3A,sbom%3A%20true
 [layout]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/storage/src/layout.rs#L24-L68
 [layout-marker]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/storage/src/layout_state.rs#L49-L56
 [commands]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/pnpr/src/cli_commands.rs#L1-L110
