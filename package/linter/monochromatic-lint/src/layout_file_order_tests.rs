@@ -511,5 +511,8 @@ fn the_missing_list_help_shows_the_wrapped_marker() {
     let found = check_file_order(&tree, uses.as_slice(), &fixture.path);
     let help: &str = found[0].help.as_deref().expect("help");
     let (head, tail) = LIST_MARKER.split_once(", ").expect("marker has a comma");
-    assert!(help.contains(format!("//! {head},\n//! {tail}").as_str()), "{help}");
+    assert!(
+        help.contains(format!("`//! {head},` and `//! {tail}`").as_str()),
+        "{help}"
+    );
 }

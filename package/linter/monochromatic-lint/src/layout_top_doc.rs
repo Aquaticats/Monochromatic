@@ -101,23 +101,27 @@ fn entry_name(text: &str) -> Option<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function markerLineCount(bodies: string[]): number | undefined;
+/// function markerLineCount(markerWords: string[], bodies: string[]): number | undefined;
 /// ```
-fn marker_line_count(bodies: &[(usize, &str)]) -> Option<usize> {
-    let marker_words: Vec<&str> = LIST_MARKER.split_whitespace().collect::<Vec<&str>>();
+fn marker_line_count(marker_words: &[&str], bodies: &[(usize, &str)]) -> Option<usize> {
     let mut matched: usize = 0;
     for (covered, (_, body)) in bodies.iter().enumerate() {
+        // The words of this line, with every run of spaces gone.
         let words: Vec<&str> = body.split_whitespace().collect::<Vec<&str>>();
+        // This line must be the next words of the marker, so a blank line or a different word ends the try.
         if words.is_empty()
             || marker_words.get(matched..matched + words.len()) != Some(words.as_slice())
         {
+            // The marker is not here.
             return None;
         }
         matched += words.len();
         if matched == marker_words.len() {
+            // The marker ended exactly at the end of this line.
             return Some(covered + 1);
         }
     }
+    // The doc ended inside the marker.
     return None;
 }
 
@@ -132,11 +136,15 @@ fn marker_line_count(bodies: &[(usize, &str)]) -> Option<usize> {
 /// function findMarker(bodies: string[]): { start: number; covered: number } | undefined;
 /// ```
 fn find_marker(bodies: &[(usize, &str)]) -> Option<(usize, usize)> {
+    // Split once here, not once per line tried.
+    let marker_words: Vec<&str> = LIST_MARKER.split_whitespace().collect::<Vec<&str>>();
     for start in 0..bodies.len() {
-        if let Some(covered) = marker_line_count(&bodies[start..]) {
+        if let Some(covered) = marker_line_count(marker_words.as_slice(), &bodies[start..]) {
+            // The marker starts at this line and covers `covered` lines.
             return Some((start, covered));
         }
     }
+    // No line starts the marker.
     return None;
 }
 
