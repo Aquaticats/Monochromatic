@@ -84,6 +84,61 @@ The runner was `~/temp/agent/advisor-store-path-probe.ts`.
 These scratch paths are evidence locations,
 not durable test dependencies.
 
+### Public reproduction and CI evidence at 2026-11-05T10:37:09-05:00
+
+The initial completion claim was premature:
+the required standalone reproduction repository and inspected CI evidence were missing.
+The user explicitly requested a public repository.
+The durable artifact is now
+[`Aquaticat/pnpm-symlinked-store-repro`][public-repro].
+
+It creates an ESM consumer and a local `proper-lockfile` shim from synthetic fixtures,
+packs the consumer locally,
+and installs offline into disposable stores.
+It needs no DSH installation or Monochromatic checkout.
+Node and pnpm downloads are pinned and SHA-256 verified.
+
+The corrected harness was run twice at commit `8c84d48f8c36ba3729a3e2f1fc982cf950f7e268`:
+
+- [Run 42055610522][repro-run].
+- [Run 42056201476][repro-repeat].
+
+Both runs' job steps and diagnostic logs were read.
+The affected jobs fail only at `Assert the symlinked store resolves its dependency`;
+provisioning,
+the real-store control,
+the aliased-store install,
+and the canonical-path workaround all pass.
+The failing log contains both `ERR_MODULE_NOT_FOUND` for `proper-lockfile`
+and the emitted diagnostic `targetExists: false`.
+
+Measured affected cases:
+
+- Linux with pnpm `12.16.1`,
+  `12.18.0`,
+  and `11.28.11`.
+- macOS and Windows with pnpm `12.18.0`.
+- Node `26.13.0` in every case.
+
+The `10.34.9` case imports successfully,
+but its logged consumer path is under `project/node_modules/.pnpm`.
+It does not exercise the shared virtual store with this configuration.
+That result is not a claim that v10 has a corrected shared-store implementation.
+
+The earlier latest-release claim was wrong:
+the release-list API showed `12.18.0` and `11.28.11`,
+although the latest-release endpoint had returned `12.16.1`.
+The CI matrix uses the release-list evidence.
+
+The initial Windows harness failed with GNU tar's
+`Cannot connect to D: resolve failed` before pnpm ran.
+Selecting Windows' native `System32/tar.exe` repaired the harness.
+The linked evidence runs pass extraction and reproduce the actual import failure.
+
+[public-repro]: https://github.com/Aquaticat/pnpm-symlinked-store-repro
+[repro-run]: https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42055610522
+[repro-repeat]: https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42056201476
+
 ## Verified local workaround
 
 `.config/mise/conf.d/20-env.toml` supplies `PNPM_CONFIG_STORE_DIR`
@@ -176,11 +231,22 @@ the completed test used the same Node runner directly to avoid that unrelated in
 
 Limits:
 the full pnpm CLI was not rebuilt,
-Windows and macOS were not exercised,
+the source patch's tests ran on Linux,
 and the added filesystem lookup cost was not benchmarked.
-Pnpm v11 behavior was not validated.
-These are limits on upstream adoption of the prototype,
-not on the verified local Advisor recovery.
+The stock CLI reproduction now covers Windows,
+macOS,
+and v11 as recorded in the public-reproduction section.
+The saved source patch targets the Rust implementation;
+it does not claim to fix every affected pnpm implementation.
+
+The [public source-patch workflow][prototype-run] also passed.
+Its inspected logs show the unchanged-source regression failing with `NotFound`,
+then all 19 symlink tests passing after the production patch is applied.
+It downloads a checksum-pinned Nextest,
+checks out the exact upstream commit,
+and runs the same upstream sanitizing test runner.
+
+[prototype-run]: https://github.com/Aquaticat/pnpm-symlinked-store-repro/actions/runs/42055609601
 
 The prototype is not installed as the host's pnpm.
 The workaround must stay until a tested pnpm release or explicitly adopted build includes the fix.
@@ -195,8 +261,10 @@ Hand-editing the store symlink would leave the next install able to recreate it 
 ## Upstream filing decision
 
 - Upstream fault:
-  yes for pnpm `12.16.1`,
-  supported by the disposable install reproduction and the failing source regression.
+  reproduced in pnpm `12.16.1`,
+  `12.18.0`,
+  and `11.28.11`,
+  supported by the public CI runs and the failing source regression.
 - Fixable upstream:
   yes;
   the saved prototype passes the targeted Linux symlink tests.
@@ -217,14 +285,15 @@ Hand-editing the store symlink would leave the next install able to recreate it 
   whose code and failure differ from this incident.
   Current `symlink_dir.rs` history and source contain no matching repair.
 - Prototype:
-  verified at the filesystem-library boundary on Linux;
-  full-CLI,
-  other-platform,
-  v11,
-  and performance validation remain outside the completed prototype checks.
+  verified at the filesystem-library boundary on Linux,
+  both locally and in public CI.
+  The prototype's scope is the Rust implementation;
+  the release matrix separately establishes affected CLI versions and platforms.
 
-No upstream message has been sent,
-and this record does not recommend filing yet.
+The public reproduction and bug-report evidence are complete.
+The earlier absence of a rebuild of the entire CLI was not a requirement for publishing a minimal reproduction;
+it must not be used to stop that work.
+No upstream issue or pull request has been sent.
 Any later submission remains the poster's decision:
 unreviewed agent output can consume maintainer time and harm the poster's reputation.
 
@@ -246,6 +315,14 @@ The attached source prototype resolves the link parent consistently for creation
 and preserves target aliases.
 Its new filesystem regression fails on the unchanged source and passes with the patch;
 the Linux symlink test group reports 19 passing tests.
-The prototype has not been verified as a rebuilt pnpm CLI or on other platforms.
+The public reproduction now confirms the stock CLI failure across Linux,
+macOS,
+and Windows,
+including pnpm `12.18.0`.
+The source prototype's narrower verification boundary is recorded separately.
+
+Reproduction repository:
+<https://github.com/Aquaticat/pnpm-symlinked-store-repro>.
+The inspected failing runs and passing prototype run are linked in its README.
 
 Written by an agent (Codex, GPT-6).
