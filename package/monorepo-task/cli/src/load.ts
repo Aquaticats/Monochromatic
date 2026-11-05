@@ -11,6 +11,7 @@ import {
 } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 import { runTaskProcess, } from './task-process.ts';
+import { packageTasksFromModule, rootTasksFromModule, } from './task-file-validation.ts';
 import type {
   PackageTaskFile,
   RootTaskFile,
@@ -82,13 +83,14 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
   /**
    Repository-owned task modules supply their declared default export.
    */
-  const module_ = await import(pathToFileURL(path)
-    .href) as { default: RootTaskFile; };
+  const namespace: unknown = await import(pathToFileURL(path).href);
+  /** Validate dynamically loaded declarations before exposing them to task dispatch. */
+  const rootTasks = rootTasksFromModule({ namespace, path });
   rootTaskFiles.set(
     root,
-    module_.default,
+    rootTasks,
   );
-  return module_.default;
+  return rootTasks;
 }
 
 /**
@@ -114,9 +116,8 @@ export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
   /**
    Repository-owned task modules supply their declared default export.
    */
-  const module_ = await import(pathToFileURL(path)
-    .href) as { default: PackageTaskFile; };
-  return module_.default;
+  const namespace: unknown = await import(pathToFileURL(path).href);
+  return packageTasksFromModule({ namespace, path });
 }
 
 /**
