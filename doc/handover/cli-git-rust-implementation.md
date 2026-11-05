@@ -462,6 +462,16 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   11 closure statements carry an `expect` documented in
   `src/native/worktree/worktree_closure_lint_suppressions.md`, host tests 582 passed, clippy clean,
   no container gate run; it waits for the other three branches, then one merge and one container gate.
+  The reader, push and lock branch is done too (`refactor/git-policy-cli-lint-reader-push-and-lock-folders` at
+  `0b422a9115`): zero `rust/avoidable-closure` and `rust/max-lines` in repo_read, subvolume, push, index and lock;
+  19 `expect`s in 11 files, documented in `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`;
+  host tests 1178 passed, clippy clean, no container gate.
+  Open from that branch: one run of `lock::` and `push::` failed three
+  `landing::service_index_lock::claim_tests::*` tests ("took the whole ceiling") that passed on rerun;
+  the agent called it host load without measuring, which the repository treats as a contention or ordering defect
+  until measured; the merged gate must check these three, and a failure there is a defect to find.
+  Its seam closures (`dyn Fn` parameters in subvolume, push and `start_retry`) stay suppressed;
+  turning them into traits changes signatures used by `worktree/worktree_clone.rs` and test sidecars.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
@@ -475,9 +485,8 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   (the owner's ranking: a `workspace:`-like protocol, then floating git, then GitHub's package registry,
   plus how each relates to the pnpr registry track in `doc/planning/self-hosted-cargo-registry.md`)
   and `doc/research/tests-inside-published-rust-crates.md` (who uses tests inside a published crate).
-  A build check of the wrapper's crate with test files left out runs as unit `crate-package-without-tests`
-  in the throwaway worktree `.claude/worktrees/crate-package-without-tests` (log
-  `~/temp/agent/issue-6261/package-without-tests.log`); remove the worktree after it reports.
+  The wrapper's crate with test files left out packs and verifies (1.6 MiB compressed against 3.1 MiB for the
+  published 0.5.34; details in the planning doc); the throwaway worktree is removed.
   The one release of each crate is held until the route research is answered by the owner and,
   for the wrapper and the crates it pins, until the four lint branches are merged and gated,
   so all of them ship in one batch; the automatic yank step (task #166) is on hold for the same answer.

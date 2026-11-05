@@ -91,8 +91,17 @@ packs 1,170 files, 13,214 KiB before compression;
 602 of them are test files (`*_tests.rs` and test support), 6,877 KiB, about half.
 The largest single file is the 176 KiB `README.md`.
 Leaving test files out of the packed crate would roughly halve every future version of it.
-Whether the packed crate still builds without them is being measured
-(`cargo package` with verification in a throwaway worktree; result to be added here).
+
+Measured on 2026-11-05 in a throwaway worktree of `1942f0de53`,
+with `"!src/native/**/*_tests.rs"` and `"!src/native/**/*_test_support.rs"` added to the `include` list
+and `cargo package --allow-dirty --locked` (verification on; log `~/temp/agent/issue-6261/package-without-tests.log`):
+`Packaged 556 files, 6.1MiB (1.6MiB compressed)`,
+and the verification build of the packed crate finished (`Finished dev profile ... in 34.77s`).
+The published 0.5.34 is 3,246,706 bytes (`crate_size` from the crates.io API),
+so the packed crate shrinks to about half.
+Cargo dropped the two test targets instead of failing:
+"warning: ignoring test `native_binary` as `src/native/binary/binary_tests.rs` is not included in the published package"
+(and the same for `native_candidates`).
 
 ### How many crates
 
@@ -189,6 +198,5 @@ and the repository runs them from its own checkout.
 
 ## Not verified yet
 
-- That the packed `monochromatic-git-policy-cli` builds with its test files left out (measurement running).
 - That every postinstall form the seven tools use (`link`, and `run` for `search-shadow`) works on the `archive` route;
   the README documents both for the lock, and `mpm-shadow` itself uses `link`.
