@@ -8,8 +8,9 @@ This package lives under `package/agent-harness-shared/` because multiple agent 
  It moved here from `package/pi-shared/model-selection` on 2026-10-20;
  that category required two pi consumers,
  while this one serves pi plus DSH.
- The `/pi-coding-agent` tier keeps its optional pi peers
- and is the deliberate exception to this category's zero-pi-import habit.
+ The package has no Pi runtime,
+ peer,
+ or development dependencies.
 Actual pi extensions stay under `package/pi-plugin/`.
 
 ## Pi dependency trust
@@ -19,29 +20,33 @@ PJC:
  including in Pi and DSH integrations.
 Pi's dependency hygiene and code quality have not been cleared for high trust.
 
-## Export tiers
+## Exports
 
-The package uses subpath exports so lightweight consumers can import string and type helpers
-without loading platform-coupled modules.
+The package root exports the built helpers;
+workspace consumers use `/ts` for their source.
+Both entries expose model identity,
+scope resolution,
+cost ranking,
+budget selection,
+and text token estimation without importing Pi.
 
-- `@monochromatic-dev/agent-harness-shared-model-selection` and `/core` export dependency-free helpers and types.
-- `/scope` exports scope pattern,
-   settings,
-   and effective-scope helpers.
-- `/cost` exports cost scoring and ranking helpers.
-- `/budget` exports fast judge-model strategy and override selection helpers with injected auth callbacks.
-- `/pi-coding-agent` exports wrappers that directly import `@earendil-works/pi-coding-agent`.
+The former `/pi-coding-agent` helper now lives in `src/token-estimate.ts`
+(moved on 2026-11-05).
+The earlier README's separate feature-subpath description was stale:
+the manifest exposes only the root and `/ts`.
 
-`@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent` are optional peer dependencies.
-Root and `/core` modules must not import either peer.
+## Text token estimate
 
-## Consumer boundaries
+`estimateAdvisorInputTokens` estimates the combined system prompt,
+two newline separators,
+and serialized context.
+It counts UTF-16 code units and rounds up once using `TOKEN_ESTIMATE_CHARS_PER_TOKEN`.
+The implementation reads string lengths without constructing a combined message.
+This preserves the former text-only Pi `1.5.0` wrapper's behavior;
+it is a budgeting heuristic rather than a model tokenizer.
 
-Advisor and goal can import heavier `/scope`,
- `/cost`,
- `/budget`,
- and `/pi-coding-agent` modules.
-Thinking-defaults imports only root or `/core` helpers.
+The built-entry regression rejects every Pi package during module resolution,
+then imports the public entry and calls the estimator.
 
 ## Synchronous live scope
 

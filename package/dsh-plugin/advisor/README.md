@@ -255,12 +255,15 @@ behavior.
   (`ctx.tools.restrict` is global to the plugin instance).
 - `advisorDetailsAsJsonValue` normalizes details through a JSON pass so the
   readonly shared shapes become mutable `JsonValue` for the tool schema.
-- The shared core imports `estimateTokens` from `@earendil-works/pi-coding-agent`
-  and `getSupportedThinkingLevels`/`normalizeContext` from
-  `@earendil-works/pi-ai` at runtime;
-  both are therefore peer and dev
-  dependencies here even though this package's own code is type-only against
-  pi.
+- Token estimation is owned by the shared model-selection package,
+  with no Pi dependency.
+  The DSH adapter does not depend on `@earendil-works/pi-coding-agent`.
+  The shared core retains `getSupportedThinkingLevels` from `@earendil-works/pi-ai/models`
+  and `normalizeContext` from `@earendil-works/pi-ai/utils/transcript`
+  for provider reasoning and request normalization;
+  Pi AI remains a peer and development dependency for those operations and the typed provider boundary.
+  The built-entry regression rejects the Pi coding SDK and `proper-lockfile`
+  while loading the plugin and estimating context.
 - DSH exposes no pi-style scoped-model cycle list:
   the run context maps the
   live scope to the catalog's `getAvailable()` routes,
