@@ -541,3 +541,65 @@ only.
 The consumer-side containment is therefore in scope and landed
 (`72773af2f5`),
 and the upstream items stay on record above.
+
+## Advisor project-discovery worker crash at 2026-11-05T13:32:48-05:00
+
+This is a separate observation from the declaration-transpilation and alias-symbol incidents.
+During Pi Advisor verification,
+`mise run //package/pi-plugin/advisor:lint:oxlint`
+reported zero lint findings but the TypeScript `7.1.0-beta` native worker crashed:
+
+```text
+panic: runtime error: invalid memory address or nil pointer dereference
+github.com/microsoft/TypeScript/tsc/internal/project/dirty.(*SyncMapEntry[...]).ChangeIf
+  tsc/internal/project/dirty/syncmap.go:128
+github.com/microsoft/TypeScript/tsc/internal/project.(*configFileRegistryBuilder).acquireConfigForFile
+  tsc/internal/project/configfileregistrybuilder.go:319
+```
+
+The bridge then reported
+`TypeScript 7.1.0-beta synchronous API stopped accepting requests: Error: Unexpected EOF while reading from child process`
+for `package/pi-plugin/advisor/task.ts`
+and retired semantic checking for later files.
+The command exited zero despite that lost evidence.
+`OXLINT_THREADS=1` reproduced the worker failure;
+it is not a verified workaround for this occurrence.
+
+The stack identifies native project discovery as the failing boundary.
+The exact triggering input and source defect were not minimized or established.
+Do not infer that the task file alone causes the crash,
+or equate it with another native-worker panic merely because the bridge emits EOF afterward.
+
+### Verified source-check boundary
+
+`package/pi-plugin/advisor/mise.toml` now provides `verify:source-lint`.
+It invokes the existing `oxlint-wrapper` with `src`,
+using the normal configuration and rules.
+The task passed all 17 source files with 489 rules,
+zero warnings,
+zero errors,
+and no native-worker or semantic-unavailable diagnostic:
+
+```sh
+# Repository root
+mise run //package/pi-plugin/advisor:verify:source-lint
+```
+
+This supplemental task excludes `task.ts` and `rolldown.node.config.ts`.
+It leaves the ordinary whole-package lint task and every lint rule unchanged.
+The package's TypeScript check,
+unit tests,
+extension verifier,
+and real disposable Pi host scenarios also passed.
+Those results support the source change;
+the whole-package zero-findings summary does not establish full semantic coverage.
+
+### Filing boundary
+
+The native stack is recorded without a claim that the upstream defect has been isolated.
+Upstream fault,
+fixability,
+and the precise supported input remain unresolved;
+contribution policy and maintainer intent were not reassessed for this distinct stack,
+and no fix prototype was made.
+No new upstream report is proposed from this unminimized verification incident.

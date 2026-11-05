@@ -453,3 +453,36 @@ The successful navigation establishes the supported use case;
 contribution policy and maintainer intent were not reassessed,
 and no patch was prototyped.
 There is no new upstream filing artifact beyond the recorded observation.
+
+## Advisor verification browser limits at 2026-11-05T13:32:48-05:00
+
+`agent-browser 0.41.0` returned
+`Operation timed out. The page may still be loading or the element may not exist.`
+for owned source-reading and disposable DSH verification sessions.
+Subsequent snapshot and evaluation requests also timed out.
+
+Unlike the earlier observation without a captured rejection counter,
+these sessions' cgroups retained explicit evidence:
+`pids.max` was `128`,
+and `pids.events` reported `max 6` and `max 11` respectively.
+Their memory-event counters recorded no limit or OOM event.
+These counters show rejected task creation during these launches;
+they do not identify every timed-out browser operation's cause.
+
+Normal `agent-browser close` succeeded for both sessions.
+Replacement sessions used `CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=512`,
+and `IOWeight=10`,
+with `TMPDIR` under the private agent scratch directory.
+Source navigation,
+source-text evaluation,
+the DSH Plugins page,
+and its Advisor enablement query then succeeded.
+The page-error check was empty.
+Both replacements were closed,
+and both original cgroups were confirmed inactive.
+
+The supported workload needed a larger task allowance than the initial agent-command configuration supplied.
+This recovery does not establish an upstream browser source defect.
+No new upstream filing is proposed.
