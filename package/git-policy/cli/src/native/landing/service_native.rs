@@ -36,9 +36,57 @@ pub struct GitBuilt {
     pub message: String,
 }
 
+/// What:
+///  Where the first blank line of a stored commit starts, nothing when there is none.
+/// Why:
+///  The header block of a stored commit ends at it and the message follows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// raw.indexOf('\n\n')
+/// ```
+fn blank_line_at(raw: &[u8]) -> Option<usize> {
+    for (at, window) in raw.windows(2).enumerate() {
+        if window == b"\n\n" {
+            return Some(at);
+        }
+    }
+    return None;
+}
+
+/// What:
+///  The parent a header line names, nothing for any other line.
+/// Why:
+///  `parents_of` lists the parents of a stored commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parentOfLine = (line: string) => line.startsWith('parent ') ? line.slice(7) : undefined;
+/// ```
+fn parent_of_line(line: &str) -> Option<String> {
+    return line.strip_prefix("parent ").map(str::to_string);
+}
+
+/// What:
+///  An argument as text, with bytes that are not valid text replaced.
+/// Why:
+///  The commit options are read as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lossyText = (token: Buffer) => token.toString('utf8');
+/// ```
+fn lossy_text(token: &OsString) -> String {
+    return token.to_string_lossy().into_owned();
+}
+
 /// The message after the header block of a stored commit.
 pub fn message_of(raw: &[u8]) -> String {
-    let start: usize = raw.windows(2).position(|window| { return window == b"\n\n"; }).map_or(raw.len(), |at| { return at + 2; });
+    // The message starts after the first blank line; a stored commit without one has none.
+    let start: usize = match blank_line_at(raw) {
+        Some(at) => at + 2,
+        None => raw.len(),
+    };
     return String::from_utf8_lossy(&raw[start..]).into_owned();
 }
 
@@ -69,10 +117,10 @@ pub struct BuildInput<'a> {
 
 /// The parents named by a stored commit's header block.
 pub fn parents_of(raw: &[u8]) -> Vec<String> {
-    let header_end: usize = raw.windows(2).position(|window| { return window == b"\n\n"; }).unwrap_or(raw.len());
+    let header_end: usize = blank_line_at(raw).unwrap_or(raw.len());
     return String::from_utf8_lossy(&raw[..header_end])
         .lines()
-        .filter_map(|line| { return line.strip_prefix("parent ").map(str::to_string); })
+        .filter_map(parent_of_line)
         .collect();
 }
 
@@ -93,7 +141,7 @@ pub fn private_invocation(
     staged_all: bool,
     selected_privately: bool,
 ) -> (Vec<String>, Vec<String>) {
-    let text: Vec<String> = arguments.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+    let text: Vec<String> = arguments.iter().map(lossy_text).collect();
     let private_args: Vec<String> = resolve_private_commit_args(text.as_slice(), pathspecs, mode, selected_privately);
     let owned: Vec<OsString> = private_args.iter().map(OsString::from).collect();
     let index: usize = global_layout(owned.as_slice()).prefix_len;
@@ -122,7 +170,14 @@ pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionSto
     //  and a commit never fails for another session's unfinished work, so the scratch repository holds none of that state and
     //  builds an ordinary commit of the paths; the worktree's state stays for its owner to conclude on the new head.
     let git_dir: &Path = input.capture.layout.git_dir.as_path();
-    let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && ["MERGE_HEAD", "CHERRY_PICK_HEAD"].iter().any(|name| { return git_dir.join(name).exists(); }));
+    let mut has_conclusion_state: bool = false;
+    for name in ["MERGE_HEAD", "CHERRY_PICK_HEAD"] {
+        if git_dir.join(name).exists() {
+            has_conclusion_state = true;
+            break;
+        }
+    }
+    let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
     create_shadow_repository_carrying(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch, carry_conclusion)?;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
@@ -135,7 +190,10 @@ pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionSto
         commit_args: commit_args.as_slice(),
         object_directory: Some(input.capture.layout.object_directory.as_path()),
     };
-    let status: i32 = run_native_commit(input.context, input.cwd, &request).map_err(|error| { return TransactionStop::Message(error.to_string()); })?;
+    let status: i32 = match run_native_commit(input.context, input.cwd, &request) {
+        Ok(code) => code,
+        Err(error) => return Err(TransactionStop::Message(error.to_string())),
+    };
     if status != 0 {
         return Err(TransactionStop::NativeExit(status));
     }

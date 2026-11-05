@@ -108,7 +108,10 @@ pub struct RoundDrain<'a, H: WorkHandlers + Sync> {
 /// const lane = commonDirectoryOf(gitDir) ?? gitDir;
 /// ```
 fn lane_key(directory: &Path) -> PathBuf {
-    return common_directory_of(directory).unwrap_or_else(|| { return directory.to_path_buf(); });
+    return match common_directory_of(directory) {
+        Some(common) => common,
+        None => directory.to_path_buf(),
+    };
 }
 
 /// What:

@@ -31,9 +31,25 @@ pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
     return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Listed(intent.paths.as_slice()) };
 }
 
+/// What:
+///  The settlement a finished step stands for: done when it finished, open when it did not.
+/// Why:
+///  `settle` turns the result of each step into the word the caller records.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settledOf = (finished: boolean) => finished ? 'done' : 'open';
+/// ```
+fn settled_of(finished: bool) -> Settled {
+    return if finished { Settled::Done } else { Settled::Open };
+}
+
 /// Removes the conclusion state a landed batch leaves, when it has one. Whether it is gone.
 pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &Intent) -> bool {
-    return intent.cleanup.as_ref().is_none_or(|cleanup| { return remove_conclusion_state(git, repository, cleanup); });
+    return match intent.cleanup.as_ref() {
+        Some(cleanup) => remove_conclusion_state(git, repository, cleanup),
+        None => true,
+    };
 }
 
 /// Finishes what follows the branch move: the conclusion state is removed, then the index entries are updated. Both are
@@ -141,13 +157,11 @@ pub(crate) enum Settled {
 pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settled {
     let repository: &Path = intent.repository.as_path();
     let own_index: bool = intent.index == intent.git_dir.join("index");
-    let head = || { return still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()); };
-    let done = |finished: bool| -> Settled { return if finished { Settled::Done } else { Settled::Open }; };
     // A worktree that has since left the batch's branch has a default index that describes another branch: it is not updated.
     //  Skipping the index is safe whatever the head does next, so this look needs no lock. A head that cannot be read stops here.
     if own_index {
-        match head() {
-            Ok(false) => return done(cleanup_done(git, repository, intent)),
+        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) {
+            Ok(false) => return settled_of(cleanup_done(git, repository, intent)),
             Ok(true) => {}
             Err(code) => {
                 crate::service_error!("batch {} stays open: the head of the worktree cannot be read ({code:?}), so the index is left as it is", intent.seq);
@@ -157,7 +171,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     }
     match indexed_state(journal, intent.seq, intent.new.as_str()) {
         // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
-        Indexed::Installed => return done(cleanup_done(git, repository, intent)),
+        Indexed::Installed => return settled_of(cleanup_done(git, repository, intent)),
         // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
         Indexed::Unreadable => {
             crate::service_error!("batch {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq);
@@ -172,11 +186,11 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     crate::service_fault::reach("restart-locked");
     // Everything the replay depends on is judged again under the lock this restart holds: the head, then the index file.
     if own_index {
-        match head() {
+        match still_checked_out(git, repository, intent.git_dir.as_path(), intent.common_dir.as_path(), intent.reference.as_str()) {
             Ok(true) => {}
             Ok(false) => {
                 drop(held);
-                return done(cleanup_done(git, repository, intent));
+                return settled_of(cleanup_done(git, repository, intent));
             }
             Err(code) => {
                 drop(held);
@@ -186,7 +200,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
         }
     }
     return match gate_of(journal, intent) {
-        Gate::Replay => done(follow_up(git, repository, intent, held, journal)),
+        Gate::Replay => settled_of(follow_up(git, repository, intent, held, journal)),
         Gate::Wait => {
             drop(held);
             crate::service_error!("batch {} stays open: the record of the index file its landing saw cannot be read now", intent.seq);
@@ -198,7 +212,7 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
                 "batch {}: the index entries of its paths were not updated and are left as they are, because {reason}; `git status` shows the commit's paths against the index until they are staged again",
                 intent.seq
             );
-            done(cleanup_done(git, repository, intent))
+            settled_of(cleanup_done(git, repository, intent))
         }
     };
 }
@@ -223,7 +237,7 @@ pub struct RecoveryReport {
 /// await recover(context)
 /// ```
 pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
-    return recover_selected(context, &|_| { return true; }, true);
+    return recover_selected(context, None, true);
 }
 
 /// What:
@@ -241,8 +255,7 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
 /// await recoverInstance(context, instance)
 /// ```
 pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
-    let ours = |intent: &Intent| -> bool { return instance_of(intent.git_dir.as_path()) == instance; };
-    return recover_selected(context, &ours, false);
+    return recover_selected(context, Some(instance), false);
 }
 
 /// The value of `reference` in the repository, empty when it cannot be read.
@@ -257,10 +270,10 @@ fn current_value(git: &GitContext, intent: &Intent) -> String {
 /// Whether the commit the batch landed is `current` or below it.
 fn landed_below(git: &GitContext, intent: &Intent, current: &str) -> bool {
     let request: GitRequest = GitRequest::new(intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current]);
-    return run_git(git, &request).is_ok_and(|output| { return output.succeeded(); });
+    return matches!(run_git(git, &request), Ok(output) if output.succeeded());
 }
 
-fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, remove_unreadable: bool) -> Vec<RecoveryReport> {
+fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unreadable: bool) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
         let Some(intent) = parsed else {
@@ -269,7 +282,12 @@ fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, r
             }
             continue;
         };
-        if !selected(&intent) {
+        // With an instance named, only the batches of that instance's worktree are recovered.
+        let selected: bool = match instance {
+            Some(named) => instance_of(intent.git_dir.as_path()) == named,
+            None => true,
+        };
+        if !selected {
             continue;
         }
         let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };

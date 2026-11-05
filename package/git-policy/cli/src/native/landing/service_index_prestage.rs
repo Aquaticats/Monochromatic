@@ -92,7 +92,10 @@ pub fn start(index: &Path, seq: u64) {
 /// which a control makes slow.
 pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
-    let same: bool = SLOT.with(|slot| { return slot.borrow().as_ref().is_some_and(|held| { return held.lock == lock && held.seq == seq; }); });
+    // Look at the slot without changing it: take it out, compare, and put it back.
+    let held: Option<Slot> = SLOT.take();
+    let same: bool = matches!(&held, Some(slot) if slot.lock == lock && slot.seq == seq);
+    SLOT.set(held);
     if same {
         return;
     }
@@ -105,7 +108,7 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     });
     // No thread to make it in is no marker made ahead: the commit stages its own.
     if let Ok(work) = spawned {
-        SLOT.with(|slot| { *slot.borrow_mut() = Some(Slot { lock, seq, work }); });
+        SLOT.set(Some(Slot { lock, seq, work }));
     }
 }
 
@@ -165,7 +168,7 @@ fn remove_unused(slot: Slot) {
 /// const ready = await prestage.take(index, seq) // Prestaged | undefined
 /// ```
 pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
-    let slot: Slot = SLOT.with(|slot| { return slot.borrow_mut().take(); })?;
+    let slot: Slot = SLOT.take()?;
     #[cfg(test)]
     COMMIT_WAITING.store(true, std::sync::atomic::Ordering::SeqCst);
     if slot.lock != lock_path_of(index) || slot.seq != seq {
@@ -189,7 +192,7 @@ pub fn is_made() -> bool {
 /// Removes the marker made ahead,
 /// waiting for it first if it is still being made.
 pub fn discard() {
-    if let Some(slot) = SLOT.with(|slot| { return slot.borrow_mut().take(); }) {
+    if let Some(slot) = SLOT.take() {
         remove_unused(slot);
     }
 }

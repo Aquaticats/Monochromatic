@@ -247,13 +247,26 @@ pub fn placement_failure_text(lock: &Path, error: &std::io::Error) -> Option<Str
     ));
 }
 
+/// What:
+///  Whether the holder a mark names is gone.
+/// Why:
+///  `reclaim` takes a stale lock whose mark names a holder that no longer runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holderIsGoneInMark = (marked: Marked) => holderIsGone(marked.holder);
+/// ```
+fn holder_is_gone_in_mark(marked: &crate::service_index_marker::Marked) -> bool {
+    return crate::service_index_marker::holder_is_gone(marked.holder.as_ref());
+}
+
 /// Removes the stale `lock`,
 /// whose holder is gone,
 /// while no other reclaimer holds it;
 /// what came of it is the answer (`Reclaimed`),
 /// and the log says why a stale lock stays.
 pub fn reclaim(platform: &Platform, lock: &Path) -> Reclaimed {
-    return reclaim_if(platform, lock, &|marked: &crate::service_index_marker::Marked| { return crate::service_index_marker::holder_is_gone(marked.holder.as_ref()); });
+    return reclaim_if(platform, lock, &holder_is_gone_in_mark);
 }
 
 pub use crate::service_index_reclaim::{Reclaimed, reclaim_if};

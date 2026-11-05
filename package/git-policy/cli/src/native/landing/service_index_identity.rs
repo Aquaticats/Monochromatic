@@ -23,7 +23,7 @@
 
 use crate::claim_time::{current_boot_id, current_machine_id, is_machine_id};
 use crate::process_identity::{ProcessIdentityError, current_birth_identity, process_birth_identity};
-use crate::service_index_marker::{Marked, marker_of};
+use crate::service_index_marker::marker_of;
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -87,10 +87,7 @@ pub fn scope_of_link(text: &str) -> Option<String> {
 pub fn current_pid_scope() -> Option<&'static str> {
     static SCOPE: OnceLock<Option<String>> = OnceLock::new();
     return SCOPE
-        .get_or_init(|| {
-            let target = std::fs::read_link("/proc/self/ns/pid").ok()?;
-            return scope_of_link(target.to_string_lossy().as_ref());
-        })
+        .get_or_init(read_pid_scope)
         .as_deref();
 }
 
@@ -119,8 +116,48 @@ fn read_procfs_agreement() -> bool {
 impl ReaderView<'static> {
     /// What this process can say now.
     pub fn current() -> ReaderView<'static> {
-        return ReaderView { boot: current_boot_id(), scope: current_pid_scope(), machine: Some(current_machine_id()).filter(|id| { return !id.is_empty(); }), procfs_agrees: current_procfs_agrees() };
+        return ReaderView { boot: current_boot_id(), scope: current_pid_scope(), machine: non_empty(current_machine_id()), procfs_agrees: current_procfs_agrees() };
     }
+}
+
+/// What:
+///  The PID namespace this process is in, as the scope text a marker carries; nothing when the link cannot be read.
+/// Why:
+///  `current_pid_scope` reads it once and keeps it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readPidScope = () => { try { return scopeOfLink(readlinkSync('/proc/self/ns/pid')); } catch { return undefined; } };
+/// ```
+fn read_pid_scope() -> Option<String> {
+    let target = std::fs::read_link("/proc/self/ns/pid").ok()?;
+    return scope_of_link(target.to_string_lossy().as_ref());
+}
+
+/// What:
+///  The text when it is not empty, nothing when it is.
+/// Why:
+///  An empty boot ID or machine ID is no evidence, so a marker and a view leave it out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nonEmpty = (text: string) => text === '' ? undefined : text;
+/// ```
+fn non_empty(text: &str) -> Option<&str> {
+    return if text.is_empty() { None } else { Some(text) };
+}
+
+/// What:
+///  Whether a byte is the space that separates the fields of `/proc/self/stat`.
+/// Why:
+///  `pid_of_self_stat` splits the record at spaces and takes the first field.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isSpace = (byte: number) => byte === 0x20;
+/// ```
+fn is_space(byte: &u8) -> bool {
+    return *byte == b' ';
 }
 
 /// What:
@@ -137,7 +174,7 @@ impl ReaderView<'static> {
 /// Number(stat.split(' ')[0])
 /// ```
 pub fn pid_of_self_stat(stat: &[u8]) -> Option<i64> {
-    let digits: &[u8] = stat.split(|byte| { return *byte == b' '; }).next()?;
+    let digits: &[u8] = stat.split(is_space).next()?;
     return std::str::from_utf8(digits).ok()?.parse::<i64>().ok();
 }
 
@@ -168,10 +205,13 @@ pub fn pid_of_self_stat(stat: &[u8]) -> Option<i64> {
 pub fn own_identity() -> Result<String, ProcessIdentityError> {
     let own: u32 = std::process::id();
     #[cfg(target_os = "linux")]
-    let stat: Vec<u8> = std::fs::read("/proc/self/stat").map_err(|error| { return ProcessIdentityError::Io { pid: i64::from(own), error }; })?;
+    let stat: Vec<u8> = match std::fs::read("/proc/self/stat") {
+        Ok(bytes) => bytes,
+        Err(error) => return Err(ProcessIdentityError::Io { pid: i64::from(own), error }),
+    };
     #[cfg(not(target_os = "linux"))]
     let stat: Vec<u8> = format!("{own} ").into_bytes();
-    return identity_in_view_on(stat.as_slice(), own, current_boot_id(), current_pid_scope(), Some(current_machine_id()).filter(|id| { return !id.is_empty(); }));
+    return identity_in_view_on(stat.as_slice(), own, current_boot_id(), current_pid_scope(), non_empty(current_machine_id()));
 }
 
 /// `own_identity` for the process `own`,
@@ -207,8 +247,11 @@ pub fn identity_in_view_on(stat: &[u8], own: u32, boot: &str, scope: Option<&str
     let mut identity: String = birth;
     // The machine comes last and only after the namespace, so a reader of a release before machine IDs sees a namespace it does
     //  not know and answers unknown, which keeps the lock.
-    let machine_part: Option<&str> = scope.and(machine).filter(|id| { return is_machine_id(id); });
-    for part in [Some(boot).filter(|text| { return !text.is_empty(); }), scope, machine_part] {
+    let machine_part: Option<&str> = match scope.and(machine) {
+        Some(id) if is_machine_id(id) => Some(id),
+        _ => None,
+    };
+    for part in [non_empty(boot), scope, machine_part] {
         if let Some(text) = part {
             identity.push(BOOT_SEPARATOR);
             identity.push_str(text);
@@ -279,7 +322,7 @@ pub fn holder_state_in(
     //  has nothing better and keeps the earlier reading.
     if machine.is_none()
         && view.machine.is_some()
-        && boot.is_some_and(|recorded| { return !view.boot.is_empty() && recorded != view.boot; })
+        && matches!(boot, Some(recorded) if !view.boot.is_empty() && recorded != view.boot)
     {
         return HolderState::Unknown;
     }
@@ -312,7 +355,7 @@ pub fn holder_is_elsewhere_in(holder: Option<&(i64, String)>, view: &ReaderView)
     let (_, boot, _, machine) = split_birth(birth.as_str());
     return match machine {
         Some(recorded) => !is_machine_id(recorded) || view.machine != Some(recorded),
-        None => view.machine.is_some() && boot.is_some_and(|recorded| { return !view.boot.is_empty() && recorded != view.boot; }),
+        None => view.machine.is_some() && matches!(boot, Some(recorded) if !view.boot.is_empty() && recorded != view.boot),
     };
 }
 
@@ -344,5 +387,5 @@ pub fn holder_is_running(holder: Option<&(i64, String)>) -> bool {
 /// A mark that names no holder (one an earlier release wrote) is not claimed here,
 /// because its age is the only evidence a reader has of it.
 pub fn mark_names_a_gone_holder(lock: &Path) -> bool {
-    return marker_of(lock).is_some_and(|marked: Marked| { return marked.holder.is_some() && holder_is_gone(marked.holder.as_ref()); });
+    return matches!(marker_of(lock), Some(marked) if marked.holder.is_some() && holder_is_gone(marked.holder.as_ref()));
 }
