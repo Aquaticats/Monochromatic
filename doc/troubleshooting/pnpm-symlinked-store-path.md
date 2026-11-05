@@ -45,7 +45,20 @@ so the number of parent traversals can be wrong.
 The source text was confirmed in `agent-browser` through its raw-source page.
 The same calculation remains in upstream commit `b4a2abfcb7cd17692ea90cea15ce7457fa7b4260`.
 
+The corresponding reuse check also joins stored relative contents to the supplied parent spelling:
+
+```rust
+// pnpm/crates/fs/src/symlink_dir/reuse.rs:43
+link.parent()
+    .unwrap_or_else(|| Path::new(""))
+    .join(existing_link_string)
+```
+
+That can mark a broken link as reusable.
+Its [source selection][reuse-source] was also confirmed in `agent-browser`.
+
 [link-source]: https://raw.githubusercontent.com/pnpm/pnpm/c7b46aedef7b81c07816cb551187449a3dd81792/pnpm/crates/fs/src/symlink_dir.rs#:~:text=crate%3A%3Arelative_path(parent%2C%20original)
+[reuse-source]: https://raw.githubusercontent.com/pnpm/pnpm/c7b46aedef7b81c07816cb551187449a3dd81792/pnpm/crates/fs/src/symlink_dir/reuse.rs#:~:text=existing_symlink_up_to_date
 
 ## Verification
 
@@ -118,7 +131,49 @@ contains a source prototype and a filesystem regression test.
 Before the source change,
 `unix_links_under_symlinked_parent_remain_resolvable` failed with `NotFound`
 when resolving the newly created link.
-Post-change verification is pending.
+The [saved source patch](pnpm-symlinked-store-path.patch) fixes creation and reuse together.
+It resolves existing parent directories through pnpm's `realpath_missing` helper,
+while preserving the target symlink itself so later retargeting remains visible.
+
+Post-change Nextest output:
+
+```text
+Starting 19 tests across 8 binaries (211 tests skipped)
+PASS pnpm-fs symlink_dir::tests::unix_links_under_symlinked_parent_remain_resolvable
+Summary: 19 tests run: 19 passed, 211 skipped
+```
+
+The new regression exercises direct creation,
+creation with missing parent directories,
+target-alias retargeting,
+reuse of a correct link,
+and replacement of a planted broken link.
+The existing symlink tests cover stale occupants,
+relative paths,
+scoped aliases,
+and retry boundaries.
+
+The test ran through the upstream sanitizing runner in a disposable container:
+
+```sh
+# Disposable upstream checkout at b4a2abfcb7cd17692ea90cea15ce7457fa7b4260
+node pnpm/scripts/run-rust-tests.mjs --package pnpm-fs --filter-expr 'test(symlink_dir::)'
+```
+
+The outer Mise task ran Podman with `--cpus 2 --memory 8g --pids-limit 512 --blkio-weight 10`.
+The container received only the disposable checkout,
+with no host credential directories or writable mount of this repository.
+`TMPDIR` pointed inside that checkout.
+The initial `pnpm run test:rust` attempt triggered its automatic dependency install;
+the completed test used the same Node runner directly to avoid that unrelated installation.
+
+Limits:
+the full pnpm CLI was not rebuilt,
+Windows and macOS were not exercised,
+and the added filesystem lookup cost was not benchmarked.
+PnPM v11 behavior was not validated.
+These are limits on upstream adoption of the prototype,
+not on the verified local Advisor recovery.
 
 The prototype is not installed as the host's pnpm.
 The workaround must stay until a tested pnpm release or explicitly adopted build includes the fix.
@@ -132,5 +187,58 @@ Hand-editing the store symlink would leave the next install able to recreate it 
 
 ## Upstream filing decision
 
-No upstream message has been sent.
-Source references and the filing assessment will be recorded with final verification.
+- Upstream fault:
+  yes for pnpm `12.16.1`,
+  supported by the disposable install reproduction and the failing source regression.
+- Fixable upstream:
+  yes;
+  the saved prototype passes the targeted Linux symlink tests.
+- Supported use case:
+  pnpm's `link:` dependency handling explicitly installs these links into shared virtual-store slots
+  in `pnpm/crates/deps-restorer/src/create_symlink_layout.rs`.
+  The real-directory control succeeds with the same manifest.
+- Contribution policy:
+  the checked-out `CONTRIBUTING.md` permits AI-assisted contributions,
+  requires disclosure and contributor understanding,
+  and warns against unreviewed agent output.
+  No external contribution was submitted.
+- Maintainer intent and duplicates:
+  searches on 2026-11-05 for issues matching `symlink store canonical` and `"symlinked" "store"`
+  returned no results.
+  The broader PR search `symlink canonical` found related path work,
+  including closed PR `13603` about mountpoint detection,
+  whose code and failure differ from this incident.
+  Current `symlink_dir.rs` history and source contain no matching repair.
+- Prototype:
+  verified at the filesystem-library boundary on Linux;
+  full-CLI,
+  other-platform,
+  v11,
+  and performance validation remain outside the completed prototype checks.
+
+No upstream message has been sent,
+and this record does not recommend filing yet.
+Any later submission remains the poster's decision:
+unreviewed agent output can consume maintainer time and harm the poster's reputation.
+
+### Local report draft
+
+Title:
+`pnpm 12.16.1 creates broken workspace links when the shared store traverses a directory symlink`.
+
+Pnpm reports a successful install,
+but a transitive `link:` override in the global virtual store points at a nonexistent directory.
+The link's relative contents were calculated from a symlinked parent spelling,
+while the filesystem interprets them from the physical parent.
+On this host,
+`/home` points to `/var/home`,
+and the dependency link incorrectly reaches `/var/var/home`.
+
+Using the canonical store spelling and forcing a reinstall restores the consumer import.
+The attached source prototype resolves the link parent consistently for creation and reuse,
+and preserves target aliases.
+Its new filesystem regression fails on the unchanged source and passes with the patch;
+the Linux symlink test group reports 19 passing tests.
+The prototype has not been verified as a rebuilt pnpm CLI or on other platforms.
+
+Written by an agent (Codex, GPT-6).
