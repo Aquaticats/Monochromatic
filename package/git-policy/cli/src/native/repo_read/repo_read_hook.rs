@@ -16,7 +16,7 @@ use crate::git_metadata::MetadataOutput;
 use crate::repo_read_config_scan::ScopeEnvironment;
 #[cfg(unix)]
 use crate::repo_read_query::{Answer, Query, answer_with};
-use crate::transaction_git::{GitContext, GitOutput, GitRequest};
+use crate::transaction_git_request_and_reply_types::{GitContext, GitOutput, GitRequest};
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::path::Path;
