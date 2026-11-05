@@ -3,6 +3,8 @@
 //!  a link, large, claimed by a merge driver) is left, with the reason.
 
 use super::*;
+use crate::transaction_git::GitContext;
+use std::ffi::OsString;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
 use std::path::PathBuf;
 

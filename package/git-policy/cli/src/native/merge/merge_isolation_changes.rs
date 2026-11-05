@@ -49,6 +49,11 @@ impl Change {
     }
 }
 
+/// Whether one byte is the NUL byte that ends each field of a `-z` listing. `&u8` borrows the byte, as `split` hands it over.
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
 /// What:
 ///  Read the NUL-separated raw output of `git diff-tree -r -z --raw --no-renames --no-abbrev`.
 /// Why:
@@ -61,7 +66,13 @@ impl Change {
 /// ```
 pub fn parse_raw_changes(output: &[u8]) -> Result<Vec<Change>, String> {
     let mut changes: Vec<Change> = Vec::new();
-    let mut fields = output.split(|byte| { return *byte == 0; }).filter(|field| { return !field.is_empty(); });
+    let mut kept_fields: Vec<&[u8]> = Vec::new();
+    for field in output.split(is_nul_byte) {
+        if !field.is_empty() {
+            kept_fields.push(field);
+        }
+    }
+    let mut fields = kept_fields.into_iter();
     while let Some(header) = fields.next() {
         let text: String = String::from_utf8_lossy(header).into_owned();
         let parts: Vec<&str> = text.trim_start_matches(':').split(' ').collect();
@@ -136,11 +147,16 @@ pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<
         Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
     };
     if metadata.file_type().is_symlink() {
-        let target: PathBuf = std::fs::read_link(location.as_path())
-            .map_err(|error| { return format!("{} could not be read: {error}", location.display()); })?;
+        let target: PathBuf = match std::fs::read_link(location.as_path()) {
+            Ok(read) => read,
+            Err(error) => return Err(format!("{} could not be read: {error}", location.display())),
+        };
         let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--stdin"]);
         request.input = Some(target.as_os_str().as_encoded_bytes().to_vec());
-        let output = run_git_checked(context, &request).map_err(|error| { return error.to_string(); })?;
+        let output = match run_git_checked(context, &request) {
+            Ok(done) => done,
+            Err(error) => return Err(error.to_string()),
+        };
         return Ok(WorktreeState::Content(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
     }
     if !metadata.is_file() {
@@ -154,7 +170,10 @@ pub fn worktree_state(context: &GitContext, root: &Path, path: &[u8]) -> Result<
     request.arguments.push(named);
     request.arguments.push(std::ffi::OsString::from("--"));
     request.arguments.push(relative);
-    let output = run_git_checked(context, &request).map_err(|error| { return error.to_string(); })?;
+    let output = match run_git_checked(context, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(error.to_string()),
+    };
     return Ok(WorktreeState::Content(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
 }
 
