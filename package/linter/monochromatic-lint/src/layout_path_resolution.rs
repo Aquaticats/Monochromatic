@@ -14,7 +14,7 @@
 //!  An item that a module re-exports by name (`pub use sibling::Name;`,
 //!  also under a new name with `as`) is followed to the module that defines it,
 //!  through any chain of such re-exports;
-//!  a use that reaches the item through the index then counts as a use of the defining file or folder.
+//!  a use that reaches the item through the index then also counts as a use of the defining file or folder.
 //!  Known limit:
 //!  an item (not a module) that a glob re-export supplies resolves to the module that re-exports it.
 //!
