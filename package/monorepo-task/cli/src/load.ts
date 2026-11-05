@@ -40,7 +40,6 @@ const rootTaskFiles = new Map<string, RootTaskFile>();
 
  @example
  ```ts
- /** Templates come from the same repository as the requested task. */
  const root = repoRoot();
  ```
  */

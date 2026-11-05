@@ -93,29 +93,29 @@ async function recordedExecutions(
 ): Promise<readonly unknown[]> {
   await using directory = await mkdtempDisposable(join(scratchRoot(), 'task-graph-',),);
   const root = await realpath(directory.path,);
-    const fixturePackage = join(root, 'package/fixture/subject',);
-    const cliSource = join(root, 'package/monorepo-task/cli/src',);
-    await mkdir(fixturePackage, { recursive: true, },);
-    await cp(import.meta.dirname, cliSource, { recursive: true, },);
-    await cp(join(repositoryRoot, 'task.ts',), join(root, 'task.ts',),);
-    await writeFile(join(root, 'pnpm-workspace.yaml',), 'packages: ["package/*/*"]\n',);
-    await writeFile(join(root, 'package.json',), '{"type":"module"}\n',);
-    await writeFile(join(fixturePackage, 'package.json',), '{"name":"fixture-subject","type":"module"}\n',);
-    const serialized = JSON.stringify(JSON.stringify(tasks,),);
-    await writeFile(join(fixturePackage, 'task.ts',), taskSource ?? `export default JSON.parse(${serialized});\n`,);
-    const entry = consumer === 'source'
-      ? join(cliSource, 'run.ts',)
-      : join(repositoryRoot, 'package/monorepo-task/cli/dist/final/node/run.mjs',);
-    if (consumer === 'built') {
-      await writeFile(join(cliSource, 'run.ts',), "throw new Error('The built command delegated to the fixture source entry');\n",);
-    }
-    await executeFile(process.execPath, [
-      entry,
-      rootTarget ? target : `//package/fixture/subject:${target}`,
-      '--',
-      ...argv,
-    ], { cwd: root, env: { ...process.env, TASK_TEST_FIXTURE_ROOT: root, }, },);
-    return (await readFile(join(root, 'calls',), 'utf8',)).trim().split('\n',).map((line,): unknown => JSON.parse(line,));
+  const fixturePackage = join(root, 'package/fixture/subject',);
+  const cliSource = join(root, 'package/monorepo-task/cli/src',);
+  await mkdir(fixturePackage, { recursive: true, },);
+  await cp(import.meta.dirname, cliSource, { recursive: true, },);
+  await cp(join(repositoryRoot, 'task.ts',), join(root, 'task.ts',),);
+  await writeFile(join(root, 'pnpm-workspace.yaml',), 'packages: ["package/*/*"]\n',);
+  await writeFile(join(root, 'package.json',), '{"type":"module"}\n',);
+  await writeFile(join(fixturePackage, 'package.json',), '{"name":"fixture-subject","type":"module"}\n',);
+  const serialized = JSON.stringify(JSON.stringify(tasks,),);
+  await writeFile(join(fixturePackage, 'task.ts',), taskSource ?? `export default JSON.parse(${serialized});\n`,);
+  const entry = consumer === 'source'
+    ? join(cliSource, 'run.ts',)
+    : join(repositoryRoot, 'package/monorepo-task/cli/dist/final/node/run.mjs',);
+  if (consumer === 'built') {
+    await writeFile(join(cliSource, 'run.ts',), "throw new Error('The built command delegated to the fixture source entry');\n",);
+  }
+  await executeFile(process.execPath, [
+    entry,
+    rootTarget ? target : `//package/fixture/subject:${target}`,
+    '--',
+    ...argv,
+  ], { cwd: root, env: { ...process.env, TASK_TEST_FIXTURE_ROOT: root, }, },);
+  return (await readFile(join(root, 'calls',), 'utf8',)).trim().split('\n',).map((line,): unknown => JSON.parse(line,));
 }
 
 //endregion The actual source entrypoint consumed by task-cli-setup
@@ -202,7 +202,7 @@ await describe({
         const usage = 'flag "--all" help="Include every item"\nflag "--output-path <path>"\narg "<file>"\narg "[args]" var=#true';
         const output = 'folder with spaces';
         const file = 'literal;$(false).txt';
-        const rest = ["single'quote", '"double"', '\\backslash', '', 'line\nbreak',];
+        const rest = ["single'quote", '"double"', String.raw`\backslash`, '', 'line\nbreak',];
         const tasks = {
           capture: {
             usage,
@@ -242,7 +242,7 @@ await appendFile(process.env.TASK_TEST_FIXTURE_ROOT + '/calls', JSON.stringify({
         catch (error) {
           caught = error;
         }
-        if (!Error.isError(caught,) || !('stderr' in caught))
+        if ((!Error.isError(caught,)) || (!('stderr' in caught)))
           throw new Error('Expected task argument rejection',);
         expect(String(caught.stderr,),).toContain(diagnostic,);
       },

@@ -13,7 +13,10 @@ import type {
   RunTask,
 } from './task-invocation.ts';
 import { BODY_PRELUDE, } from './task-script-prelude.ts';
-import { runTaskProcess, TaskCommandFailedError, } from './task-process.ts';
+import {
+  runTaskProcess,
+  TaskCommandFailedError,
+} from './task-process.ts';
 import type {
   TaskDefinition,
   TaskFunctionContext,
@@ -26,7 +29,9 @@ import type {
  Failed child tasks retain their individual errors for the caller's diagnostic.
  */
 export class TaskChildrenFailedError extends AggregateError {
-  /** Reports the parent task while retaining the original failures. */
+  /**
+   Reports the parent task while retaining the original failures.
+   */
   constructor({
     name,
     failures,
@@ -64,11 +69,15 @@ function taskPathEnvironment(
     readonly inherited: Readonly<NodeJS.ProcessEnv>
   },
 ): NodeJS.ProcessEnv {
-  /** Windows environment names can retain mixed-case PATH spelling. */
+  /**
+   Windows environment names can retain mixed-case PATH spelling.
+   */
   const pathKey = Object.keys(inherited,)
     .find(function pathKey(key) { return key.toLowerCase() === 'path'; })
     ?? 'PATH';
-  /** Local tool bins precede ancestor and system bins in lookup order. */
+  /**
+   Local tool bins precede ancestor and system bins in lookup order.
+   */
   const directories: string[] = [];
   for (let directory = cwd; ;) {
     directories.push(join(
@@ -78,7 +87,9 @@ function taskPathEnvironment(
     ),);
     if (directory === root)
       break;
-    /** Stop at the filesystem root even if the configured repository boundary is outside this path. */
+    /**
+     Stop at the filesystem root even if the configured repository boundary is outside this path.
+     */
     const parent = dirname(directory,);
     if (parent === directory)
       break;
@@ -92,6 +103,7 @@ function taskPathEnvironment(
  Distinguishes sequential step lists from individual function or command steps.
 
  @param value - Declared body inspected before sequencing.
+ *
  @returns Whether the body contains a sequence of steps.
  */
 function isStepList(value: TaskDefinition['run'],): value is readonly TaskStep[] {
@@ -118,7 +130,9 @@ async function runStep({
     await step(context,);
     return;
   }
-  /** String tasks use Bash; explicit shell steps preserve their selected interpreter. */
+  /**
+   String tasks use Bash; explicit shell steps preserve their selected interpreter.
+   */
   const [shell, rawBody,] = (typeof step) === 'string' ? [
     'bash',
     step,
@@ -126,7 +140,9 @@ async function runStep({
     step.shell,
     step.run,
   ];
-  /** Interpreter options remain separate from the body text. */
+  /**
+   Interpreter options remain separate from the body text.
+   */
   const [command, ...shellArgs] = shell.split(' ',);
   if ((command === undefined) || (command === ''))
     throw new TaskCommandFailedError({
@@ -134,16 +150,24 @@ async function runStep({
       cwd: context.cwd,
       status: 'empty shell command',
     },);
-  /** Only native TypeScript inline bodies receive the repository helper prelude. */
+  /**
+   Only native TypeScript inline bodies receive the repository helper prelude.
+   */
   const isNodeInline = (command === 'node') && shellArgs.includes('--input-type=module-typescript',);
   // Braces keep body imports separate from prelude bindings; the final newline ends trailing comments.
-  /** A separate block prevents body imports from colliding with prelude bindings. */
+  /**
+   A separate block prevents body imports from colliding with prelude bindings.
+   */
   const body = isNodeInline ? `${BODY_PRELUDE}\n{\n${rawBody}\n\n}\n` : rawBody;
-  /** Shell passthrough uses positional parameters instead of interpolating argument text. */
+  /**
+   Shell passthrough uses positional parameters instead of interpolating argument text.
+   */
   const script = (!isNodeInline) && (context.argv
     .length
     > 0) ? `${body} "$@"` : body;
-  /** The child receives body text and literal arguments through distinct argv entries. */
+  /**
+   The child receives body text and literal arguments through distinct argv entries.
+   */
   const commandArgs = isNodeInline
     ? [
       ...shellArgs,
@@ -156,7 +180,12 @@ async function runStep({
       'task-run',
       ...context.argv,
     ];
-  await runTaskProcess({ command, args: commandArgs, cwd: context.cwd, env: context.env, });
+  await runTaskProcess({
+    command,
+    args: commandArgs,
+    cwd: context.cwd,
+    env: context.env,
+  });
 }
 
 /**
@@ -189,35 +218,50 @@ async function runChildren(
     readonly runTask: RunTask;
   },
 ): Promise<void> {
-  /** Template fanout selects immediate children from the package's declared tasks. */
+  /**
+   Template fanout selects immediate children from the package's declared tasks.
+   */
   const tasks = await loadPackageTasks(join(
     root,
     packagePath,
     'task.ts',
   ),);
-  /** A colon boundary prevents unrelated task prefixes from matching. */
+  /**
+   A colon boundary prevents unrelated task prefixes from matching.
+   */
   const prefix = `${suffix}:`;
-  /** Immediate child names contain exactly one additional colon-separated segment. */
+  /**
+   Immediate child names contain exactly one additional colon-separated segment.
+   */
   const depth = prefix.split(':',)
     .length;
-  /** Stable child ordering gives deterministic dispatch without serializing completion. */
+  /**
+   Stable child ordering gives deterministic dispatch without serializing completion.
+   */
   const children = Object.keys(tasks,)
-    .filter(function immediateChild(name) { return name.startsWith(prefix) && name.split(':',).length === depth; })
-    .toSorted(function byName(left, right) { return left.localeCompare(right,); });
+    .filter(function immediateChild(name) { return name.startsWith(prefix) && (name.split(':',).length === depth); })
+    .toSorted(function byName(
+      left,
+      right
+    ) { return left.localeCompare(right,); });
   if (children.length === 0)
     throw new TaskCommandFailedError({
       command: `//${packagePath}:${suffix}`,
       cwd: root,
       status: 'no child tasks',
     },);
-  /** All concurrent children settle before their parent reports aggregate failure. */
+  /**
+   All concurrent children settle before their parent reports aggregate failure.
+   */
   const settled = await Promise.allSettled(children.map(async function startChild(name) {
     await runTask({
       name: `//${packagePath}:${name}`,
       environment,
     },);
   }),);
-  /** Rejections keep their original errors for the parent diagnostic. */
+  /**
+   Rejections keep their original errors for the parent diagnostic.
+   */
   const failures: unknown[] = [];
   for (const result of settled) {
     if (result.status === 'rejected')
@@ -275,14 +319,18 @@ export async function executeTask(
     readonly runTask: RunTask;
   },
 ): Promise<void> {
-  /** Relative package identity anchors local dependency names and task-body context. */
+  /**
+   Relative package identity anchors local dependency names and task-body context.
+   */
   const packagePath = resolve(
     root,
     cwd,
   )
     .slice(root.length + 1,);
   for (const dependency of definition.depends ?? []) {
-    /** Explicit repository task names remain absolute; local suffixes inherit their package. */
+    /**
+     Explicit repository task names remain absolute; local suffixes inherit their package.
+     */
     const name = dependency.startsWith('//')
       ? dependency
       : packagePath.startsWith('package/') ? `//${packagePath}:${dependency}` : dependency;
@@ -291,32 +339,48 @@ export async function executeTask(
       environment: request.environment,
     },);
   }
-  /** A separate block prevents body imports from colliding with prelude bindings. */
-  /** Dependency-only tasks finish after their prerequisites settle. */
+  /**
+   A separate block prevents body imports from colliding with prelude bindings.
+   */
+  /**
+   Dependency-only tasks finish after their prerequisites settle.
+   */
   const body = definition.run;
   if (body === undefined)
     return;
-  /** A body array is an ordered sequence, while a function or command is a single step. */
+  /**
+   A body array is an ordered sequence, while a function or command is a single step.
+   */
   const steps = isStepList(body,) ? body : [body,];
-  /** A declared directory changes only the task body, leaving process-global cwd untouched. */
+  /**
+   A declared directory changes only the task body, leaving process-global cwd untouched.
+   */
   const bodyCwd = definition.dir === undefined ? cwd : resolve(
     cwd,
     definition.dir,
   );
-  /** Usage declarations determine whether words become environment options or literal argv. */
+  /**
+   Usage declarations determine whether words become environment options or literal argv.
+   */
   const usageOptions = parseUsageSpec(definition.usage,);
-  /** Parsed option values are scoped to this task's process environment. */
+  /**
+   Parsed option values are scoped to this task's process environment.
+   */
   const usage = usageEnvironment({
     options: usageOptions,
     argv: optionArgs,
     rest,
   },);
-  /** Explicit invocation overrides precede task-specific definitions and usage variables. */
+  /**
+   Explicit invocation overrides precede task-specific definitions and usage variables.
+   */
   const inherited = {
     ...environment,
     ...request.environment,
   };
-  /** Every child gets a fresh environment including task identity and package tool bins. */
+  /**
+   Every child gets a fresh environment including task identity and package tool bins.
+   */
   const env: NodeJS.ProcessEnv = {
     ...inherited,
     ...taskPathEnvironment({
@@ -329,7 +393,9 @@ export async function executeTask(
     TASK_PACKAGE_PATH: packagePath,
     ...usage,
   };
-  /** Direct function bodies receive the same explicit inputs as command bodies. */
+  /**
+   Direct function bodies receive the same explicit inputs as command bodies.
+   */
   const context: TaskFunctionContext = {
     cwd: bodyCwd,
     env,

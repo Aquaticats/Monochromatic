@@ -58,7 +58,9 @@ export class TaskDependencyCycleError extends Error {
  A dependency callback outlived the task that owned it.
  */
 export class TaskInvocationClosedError extends Error {
-  /** Identifies the completed owner without exposing its inputs. */
+  /**
+   Identifies the completed owner without exposing its inputs.
+   */
   constructor(name: string,) {
     super(`Task ${name} requested dependent work after completing`,);
     this.name = 'TaskInvocationClosedError';
@@ -82,11 +84,19 @@ type TaskEntry = {
  @returns Collision-free JSON encoding of the input tuple.
  */
 function requestKey(request: ResolvedTaskRequest,): string {
-  /** Canonical key order makes object insertion order irrelevant to execution identity. */
+  /**
+   Canonical key order makes object insertion order irrelevant to execution identity.
+   */
   const environment = Object.entries(request.environment,)
     .toSorted(function compareKeys(
-      [left,]: readonly [string, string],
-      [right,]: readonly [string, string],
+      [left,]: readonly [
+        string,
+        string
+      ],
+      [right,]: readonly [
+        string,
+        string
+      ],
     ) {
       return left < right ? -1 : left > right ? 1 : 0;
     });
@@ -119,17 +129,25 @@ function assertNoPendingCycle(
     readonly pending: ReadonlySet<TaskEntry>;
   },
 ): void {
-  /** Explicit work stack avoids recursion through long dependency chains. */
+  /**
+   Explicit work stack avoids recursion through long dependency chains.
+   */
   const work = [child,];
-  /** Each pending execution is examined at most once per cycle check. */
+  /**
+   Each pending execution is examined at most once per cycle check.
+   */
   const visited = new Set([child,],);
-  /** Predecessors reconstruct only the cycle that is actually reported. */
+  /**
+   Predecessors reconstruct only the cycle that is actually reported.
+   */
   const previous = new Map<TaskEntry, TaskEntry>();
   for (let current = work.pop(); current !== undefined; current = work.pop()) {
     if (!pending.has(current,))
       continue;
     if (current === parent) {
-      /** Human-readable identities deliberately omit argument and environment values. */
+      /**
+       Human-readable identities deliberately omit argument and environment values.
+       */
       const path = [current.name,];
       for (let predecessor = previous.get(current,); predecessor !== undefined; predecessor = previous.get(predecessor,))
         path.push(predecessor.name,);
@@ -180,9 +198,13 @@ export function createTaskInvocation(
     readonly report?: (event: TaskEvent) => void
   },
 ): RunTask {
-  /** Settled executions remain reusable until this invocation is released. */
+  /**
+   Settled executions remain reusable until this invocation is released.
+   */
   const executions = new Map<string, TaskEntry>();
-  /** Only unfinished bodies can participate in a dependency deadlock. */
+  /**
+   Only unfinished bodies can participate in a dependency deadlock.
+   */
   const pending = new Set<TaskEntry>();
 
   /**
@@ -204,20 +226,31 @@ export function createTaskInvocation(
       },);
       throw new TaskInvocationClosedError(parent.name,);
     }
-    /** Snapshot caller-owned inputs before the executor gets a chance to run. */
+    /**
+     Snapshot caller-owned inputs before the executor gets a chance to run.
+     */
     const request: ResolvedTaskRequest = {
       name: input.name,
       argv: [...input.argv ?? [],],
       environment: { ...input.environment, },
     };
-    /** Full input identity distinguishes calls that must run separately. */
+    /**
+     Full input identity distinguishes calls that must run separately.
+     */
     const key = requestKey(request,);
-    /** The creator owns setup; every subsequent caller observes the same completion. */
+    /**
+     The creator owns setup; every subsequent caller observes the same completion.
+     */
     const entry = (function entryForRequest(): TaskEntry {
-      /** Previously started work includes both fulfilled and rejected completions. */
+      /**
+       Previously started work includes both fulfilled and rejected completions.
+       */
       const cached = executions.get(key,);
       if (cached !== undefined) {
-        report?.({ name: request.name, state: 'reused', });
+        report?.({
+          name: request.name,
+          state: 'reused',
+        });
         return cached;
       }
       /**
@@ -225,7 +258,9 @@ export function createTaskInvocation(
        */
       async function executeOnce(): Promise<void> {
         await Promise.resolve();
-        /** Closing the body prevents retained dependency callbacks from starting new work. */
+        /**
+         Closing the body prevents retained dependency callbacks from starting new work.
+         */
         using completion = {
           [Symbol.dispose](): void { pending.delete(created,); },
         };
@@ -256,7 +291,9 @@ export function createTaskInvocation(
           throw error;
         }
       }
-      /** The initial yield lets this record enter both indexes before execution proceeds. */
+      /**
+       The initial yield lets this record enter both indexes before execution proceeds.
+       */
       const created: TaskEntry = {
         name: request.name,
         waits: new Set(),
@@ -269,14 +306,21 @@ export function createTaskInvocation(
       pending.add(created,);
       return created;
     })();
-    /** The wait edge exists only until this caller observes completion or a cycle error. */
+    /**
+     The wait edge exists only until this caller observes completion or a cycle error.
+     */
     using waiting = {
-      [Symbol.dispose](): void { parent?.waits.delete(entry,); },
+      [Symbol.dispose](): void { parent?.waits
+        .delete(entry,); },
     };
     parent?.waits
       .add(entry,);
     if (parent !== undefined)
-      assertNoPendingCycle({ parent, child: entry, pending, },);
+      assertNoPendingCycle({
+        parent,
+        child: entry,
+        pending,
+      },);
     await entry.completion;
   }
 
