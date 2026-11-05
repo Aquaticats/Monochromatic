@@ -15,6 +15,7 @@ type UsageOption = {
  variable the old mise mapping produced.
 
  @param usage - Raw usage string from a task definition.
+ 
  @returns Parsed options in declaration order.
  */
 export function parseUsageSpec(usage: string | undefined): readonly UsageOption[] {
@@ -29,10 +30,28 @@ export function parseUsageSpec(usage: string | undefined): readonly UsageOption[
     const nameMatch = (kind === 'arg' ? /^(?<name>\S+)/u : /^(?<name>[^\s<]+)/u).exec(body);
     if (nameMatch === null) { continue; }
     // Flags drop their dashes; positional args drop the `[ ]` or `< >` that mark them optional or required.
-    const name = nameMatch.groups?.['name']?.replace(/^-+/u, '').replace(/^[[<]|[\]>]$/gu, '');
-    if (name === undefined || name === '') { continue; }
-    const valueName = /<(?<value>[^>]+)>/u.exec(body)?.groups?.['value'];
-    options.push(valueName === undefined ? { kind, name, } : { kind, name, valueName, });
+    const name = nameMatch.groups
+      ?.name
+      ?.replace(
+      /^-+/u,
+      ''
+      )
+      .replaceAll(
+      /^[[<]|[\]>]$/gu,
+      ''
+      );
+    if ((name === undefined) || (name === '')) { continue; }
+    const valueName = /<(?<value>[^>]+)>/u.exec(body)
+      ?.groups
+      ?.value;
+    options.push(valueName === undefined ? {
+      kind,
+      name,
+    } : {
+      kind,
+      name,
+      valueName,
+    });
   }
   return options;
 }
@@ -43,13 +62,26 @@ export function parseUsageSpec(usage: string | undefined): readonly UsageOption[
  next `--` starts raw passthrough.
 
  @param argv - Arguments after the task name.
+ 
  @returns Option arguments before the passthrough separator and raw arguments after it.
  */
-export function splitPassthrough(argv: readonly string[]): { options: readonly string[]; rest: readonly string[]; } {
+export function splitPassthrough(argv: readonly string[]): {
+  options: readonly string[];
+  rest: readonly string[]
+} {
   const afterSeparator = argv[0] === '--' ? argv.slice(1) : argv;
   const index = afterSeparator.indexOf('--');
-  if (index === -1) { return { options: afterSeparator, rest: [], }; }
-  return { options: afterSeparator.slice(0, index), rest: afterSeparator.slice(index + 1), };
+  if (index === (-1)) { return {
+    options: afterSeparator,
+    rest: [],
+  }; }
+  return {
+    options: afterSeparator.slice(
+      0,
+      index
+    ),
+    rest: afterSeparator.slice(index + 1),
+  };
 }
 
 /**
@@ -57,11 +89,15 @@ export function splitPassthrough(argv: readonly string[]): { options: readonly s
  reads back: bare when plain, single-quoted with an escaped quote otherwise.
 
  @param word - Raw argument.
+ 
  @returns Encoded word.
  */
 function shellQuote(word: string): string {
-  if (word.length > 0 && !/[\s'"\\]/u.test(word)) { return word; }
-  return `'${word.replaceAll("'", `'\\''`)}'`;
+  if ((word.length > 0) && (!/[\s'"\\]/u.test(word))) { return word; }
+  return `'${word.replaceAll(
+    "'",
+    `'\\''`
+  )}'`;
 }
 
 /**
@@ -69,10 +105,12 @@ function shellQuote(word: string): string {
  word for word, so paths keep their spaces the way the old mise var did.
 
  @param words - Raw arguments.
+ 
  @returns Shell-word encoded string.
  */
 function shellJoin(words: readonly string[]): string {
-  return words.map(shellQuote).join(' ');
+  return words.map(shellQuote)
+    .join(' ');
 }
 
 /**
@@ -84,16 +122,31 @@ function shellJoin(words: readonly string[]): string {
  passthrough words in `usage_args`.
 
  @param options - Parsed usage descriptors.
+ 
  @param argv - Task option arguments.
+ 
  @param rest - Passthrough arguments after `--`.
+ 
  @returns Environment entries to set for the task body.
+ 
  @throws On unknown options, missing flag values, or misplaced positional args.
  */
-export function usageEnvironment({ options, argv, rest, }: { readonly options: readonly UsageOption[]; readonly argv: readonly string[]; readonly rest: readonly string[]; },): Record<string, string> {
+export function usageEnvironment({
+  options,
+  argv,
+  rest,
+}: {
+  readonly options: readonly UsageOption[];
+  readonly argv: readonly string[];
+  readonly rest: readonly string[]
+},): Record<string, string> {
   const env: Record<string, string> = {};
   if (options.length === 0) {
-    const raw = [...argv, ...rest];
-    if (raw.length > 0) { env['usage_args'] = shellJoin(raw); }
+    const raw = [
+      ...argv,
+      ...rest
+    ];
+    if (raw.length > 0) { env.usage_args = shellJoin(raw); }
     return env;
   }
   const positional: string[] = [];
@@ -102,9 +155,12 @@ export function usageEnvironment({ options, argv, rest, }: { readonly options: r
     const token = argv[index]!;
     if (token.startsWith('--')) {
       const name = token.slice(2);
-      const option = options.find((candidate) => candidate.kind === 'flag' && candidate.name === name,);
+      const option = options.find((candidate) => (candidate.kind === 'flag') && (candidate.name === name),);
       if (option === undefined) { throw new Error(`task-cli: unknown option --${name}`); }
-      const variable = `usage_${name.replaceAll('-', '_')}`;
+      const variable = `usage_${name.replaceAll(
+        '-',
+        '_'
+      )}`;
       if (option.valueName === undefined) {
         env[variable] = 'true';
         index += 1;
@@ -120,17 +176,24 @@ export function usageEnvironment({ options, argv, rest, }: { readonly options: r
     index += 1;
   }
   const args = options.filter((option) => option.kind === 'arg',);
-  if (positional.length > 0 && args.length === 0)
+  if ((positional.length > 0) && (args.length === 0))
     throw new Error(`task-cli: unexpected positional arguments: ${positional.join(' ')}`);
-  if (args.length > 0 || rest.length > 0)
-    env['usage_args'] = shellJoin([...positional, ...rest]);
+  if ((args.length > 0) || (rest.length > 0))
+    env.usage_args = shellJoin([
+      ...positional,
+      ...rest
+    ]);
   // mise also set one `usage_<name>` variable per declared positional arg, in declaration order; bodies such as
   // the IDE bundle inspection read `usage_file`, `usage_runtime` and `usage_only`. The variadic `args` name keeps
   // meaning the whole word list in `usage_args` above.
   const named = args.filter((option) => option.name !== 'args',);
   for (const [index, option,] of named.entries()) {
     const word = positional[index];
-    if (word !== undefined) { env[`usage_${option.name.replaceAll('-', '_')}`] = word; }
+    if (word !== undefined) { env[`usage_${option.name
+      .replaceAll(
+        '-',
+        '_'
+      )}`] = word; }
   }
   return env;
 }

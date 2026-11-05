@@ -123,34 +123,34 @@ await describe({
   name: 'task CLI dependency graph',
   children: [
     ...(['source', 'built',] as const).flatMap(consumer => [
-    it({
-      name: `${consumer} executes a shared prerequisite once across sequential dependency branches`,
-      fn: async () => {
-        const tasks = {
-          all: { depends: ['left', 'right',], },
-          left: { depends: ['shared',], run: marker('left',), },
-          right: { depends: ['shared',], run: marker('right',), },
-          shared: { run: marker('shared',), },
-        } satisfies FixtureTasks;
-        const actual = await recordedExecutions({ tasks, target: 'all', consumer, },);
-        const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted();
-        expect(actual.toSorted(),).toEqual(expected,);
-      },
-    },),
-    it({
-      name: `${consumer} executes a shared prerequisite once across parallel template children`,
-      fn: async () => {
-        const tasks = {
-          build: { extends: 'build', },
-          'build:left': { depends: ['shared',], run: marker('build:left',), },
-          'build:right': { depends: ['shared',], run: marker('build:right',), },
-          shared: { run: marker('shared',), },
-        } satisfies FixtureTasks;
-        const actual = await recordedExecutions({ tasks, target: 'build', consumer, },);
-        const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted();
-        expect(actual.toSorted(),).toEqual(expected,);
-      },
-    },),
+      it({
+        name: `${consumer} executes a shared prerequisite once across sequential dependency branches`,
+        fn: async () => {
+          const tasks = {
+            all: { depends: ['left', 'right',], },
+            left: { depends: ['shared',], run: marker('left',), },
+            right: { depends: ['shared',], run: marker('right',), },
+            shared: { run: marker('shared',), },
+          } satisfies FixtureTasks;
+          const actual = await recordedExecutions({ tasks, target: 'all', consumer, },);
+          const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted();
+          expect(actual.toSorted(),).toEqual(expected,);
+        },
+      },),
+      it({
+        name: `${consumer} executes a shared prerequisite once across parallel template children`,
+        fn: async () => {
+          const tasks = {
+            build: { extends: 'build', },
+            'build:left': { depends: ['shared',], run: marker('build:left',), },
+            'build:right': { depends: ['shared',], run: marker('build:right',), },
+            shared: { run: marker('shared',), },
+          } satisfies FixtureTasks;
+          const actual = await recordedExecutions({ tasks, target: 'build', consumer, },);
+          const expected = Object.entries(tasks,).filter(([, task,]) => 'run' in task).map(([name,]) => name).toSorted();
+          expect(actual.toSorted(),).toEqual(expected,);
+        },
+      },),
     ],),
     it({
       name: 'built command preserves literal arguments through a shell body',
@@ -217,7 +217,7 @@ await describe({
         catch (error) {
           caught = error;
         }
-        if (!Error.isError(caught,) || !('stderr' in caught))
+        if ((!Error.isError(caught,)) || (!('stderr' in caught)))
           throw new Error('Expected the task command itself to reject the undeclared name',);
         expect(String(caught.stderr,),).toContain('TaskSelectionError',);
         expect(String(caught.stderr,),).toContain('constructor',);

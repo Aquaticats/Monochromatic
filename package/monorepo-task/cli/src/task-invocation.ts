@@ -77,24 +77,40 @@ type TaskEntry = {
  Encodes all explicit inputs with environment keys in a stable order.
 
  @param request - Inputs whose execution may be shared.
+ 
  @returns Collision-free JSON encoding of the input tuple.
  */
 function requestKey(request: ResolvedTaskRequest,): string {
-  const environment = Object.entries(request.environment,).toSorted(([left,], [right,]) =>
-    left < right ? -1 : left > right ? 1 : 0);
-  return JSON.stringify([request.name, request.argv, environment,],);
+  const environment = Object.entries(request.environment,)
+    .toSorted((
+      [left,],
+      [right,]
+    ) =>
+      left < right ? -1 : left > right ? 1 : 0);
+  return JSON.stringify([
+    request.name,
+    request.argv,
+    environment,
+  ],);
 }
 
 /**
  Checks the pending wait graph, including cycles between concurrently started branches.
 
  @param parent - Task adding a dependency.
+ 
  @param child - Requested dependency.
+ 
  @param pending - Executions whose bodies have not settled.
+ 
  @throws TaskDependencyCycleError when the new dependency closes a pending cycle.
  */
 function assertNoPendingCycle(
-  { parent, child, pending, }: {
+  {
+    parent,
+    child,
+    pending,
+  }: {
     readonly parent: TaskEntry;
     readonly child: TaskEntry;
     readonly pending: ReadonlySet<TaskEntry>;
@@ -110,13 +126,19 @@ function assertNoPendingCycle(
       const path = [current.name,];
       for (let predecessor = previous.get(current,); predecessor !== undefined; predecessor = previous.get(predecessor,))
         path.push(predecessor.name,);
-      throw new TaskDependencyCycleError([parent.name, ...path.toReversed(),],);
+      throw new TaskDependencyCycleError([
+        parent.name,
+        ...path.toReversed(),
+      ],);
     }
     for (const dependency of current.waits) {
       if (visited.has(dependency,))
         continue;
       visited.add(dependency,);
-      previous.set(dependency, current,);
+      previous.set(
+        dependency,
+        current,
+      );
       work.push(dependency,);
     }
   }
@@ -127,13 +149,23 @@ function assertNoPendingCycle(
  completion or failure; a new invocation always owns a fresh cache.
 
  @param execute - Task implementation that uses runTask for dependent work.
+ 
  @param report - CLI progress observer, receiving identities and states without argument or environment values.
+ 
  @returns Entry point for the invocation's task graph.
+ 
  @throws TaskDependencyCycleError when dependent tasks would await each other.
+ 
  @throws TaskInvocationClosedError when a completed task requests more dependent work.
  */
 export function createTaskInvocation(
-  { execute, report, }: { readonly execute: TaskExecutor; readonly report?: (event: TaskEvent) => void; },
+  {
+    execute,
+    report,
+  }: {
+    readonly execute: TaskExecutor;
+    readonly report?: (event: TaskEvent) => void
+  },
 ): RunTask {
   const executions = new Map<string, TaskEntry>();
   const pending = new Set<TaskEntry>();
@@ -142,10 +174,19 @@ export function createTaskInvocation(
    Shares completion while tracking only dependencies that callers are still awaiting.
    */
   async function visit(
-    { request: input, parent, }: { readonly request: TaskRequest; readonly parent?: TaskEntry; },
+    {
+      request: input,
+      parent,
+    }: {
+      readonly request: TaskRequest;
+      readonly parent?: TaskEntry
+    },
   ): Promise<void> {
-    if (parent !== undefined && !pending.has(parent,)) {
-      report?.({ name: input.name, state: 'rejected', },);
+    if ((parent !== undefined) && (!pending.has(parent,))) {
+      report?.({
+        name: input.name,
+        state: 'rejected',
+      },);
       throw new TaskInvocationClosedError(parent.name,);
     }
     const request: ResolvedTaskRequest = {
@@ -162,39 +203,67 @@ export function createTaskInvocation(
       async function executeOnce(): Promise<void> {
         await Promise.resolve();
         try {
-          report?.({ name: request.name, state: 'started', },);
+          report?.({
+            name: request.name,
+            state: 'started',
+          },);
           await execute({
             request,
             runTask: async function runDependency(child,) {
-              await visit({ request: child, parent: created, },);
+              await visit({
+                request: child,
+                parent: created,
+              },);
             },
           },);
-          report?.({ name: request.name, state: 'completed', },);
+          report?.({
+            name: request.name,
+            state: 'completed',
+          },);
         }
         catch (error) {
-          report?.({ name: request.name, state: 'failed', },);
+          report?.({
+            name: request.name,
+            state: 'failed',
+          },);
           throw error;
         }
         finally {
           pending.delete(created,);
         }
       }
-      const created: TaskEntry = { name: request.name, waits: new Set(), completion: executeOnce(), };
-      executions.set(key, created,);
+      const created: TaskEntry = {
+        name: request.name,
+        waits: new Set(),
+        completion: executeOnce(),
+      };
+      executions.set(
+        key,
+        created,
+      );
       pending.add(created,);
       entry = created;
     }
     else {
-      report?.({ name: request.name, state: 'reused', },);
+      report?.({
+        name: request.name,
+        state: 'reused',
+      },);
     }
-    parent?.waits.add(entry,);
+    parent?.waits
+      .add(entry,);
     try {
       if (parent !== undefined)
-        assertNoPendingCycle({ parent, child: entry, pending, },);
+        assertNoPendingCycle({
+          parent,
+          child: entry,
+          pending,
+        },);
       await entry.completion;
     }
     finally {
-      parent?.waits.delete(entry,);
+      parent?.waits
+        .delete(entry,);
     }
   }
 

@@ -13,5 +13,8 @@ export default {
   'lint:types': { extends: 'lint:types', },
   'lint:oxlint': { extends: 'lint:oxlint', },
   'format:oxlint': { extends: 'format:oxlint', },
-  'test:unit': { extends: 'test:unit', depends: ['build',], },
+  'test:unit': {
+    extends: 'test:unit',
+    depends: ['build',],
+  },
 } satisfies PackageTaskFile;

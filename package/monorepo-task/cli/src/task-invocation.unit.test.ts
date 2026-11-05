@@ -36,7 +36,7 @@ await describe({
           { name: 'compile|a', argv: ['b',], environment: {}, },
           { name: 'compile', argv: ['a|b',], environment: {}, },
           { name: 'compile', argv: ['a', 'b',], environment: {}, },
-          { name: 'compile', argv: ['../path; $(false)', '"quoted"\nline\\end',], environment: { VALUE: '\\u0027', }, },
+          { name: 'compile', argv: ['../path; $(false)', '"quoted"\nline\\end',], environment: { VALUE: String.raw`\u0027`, }, },
           { name: 'compile', argv: ['../path; $(false)', '"quoted"\nline\\end',], environment: { VALUE: "'", }, },
         ];
         const executed: ResolvedTaskRequest[] = [];

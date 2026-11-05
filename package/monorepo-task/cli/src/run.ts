@@ -27,18 +27,31 @@ import { createTaskInvocation, } from './task-invocation.ts';
 import { findRepoRoot, } from './task-locations.ts';
 import { dispatchTask, } from './task-dispatch.ts';
 
-/** Runs one CLI invocation with one shared task completion cache. */
+/**
+ Runs one CLI invocation with one shared task completion cache.
+ */
 async function main(): Promise<void> {
-  const [name, ...argv] = process.argv.slice(2);
+  const [name, ...argv] = process.argv
+    .slice(2);
   if (name === undefined)
     throw new Error('task-cli: usage: task-run <task> [-- options] [-- passthrough]');
   const root = findRepoRoot();
   const environment = { ...process.env };
   const runTask = createTaskInvocation({
-    execute: async context => { await dispatchTask({ root, environment, ...context }); },
-    report: ({ name, state, }) => { console.error(`task-run [${state}] ${JSON.stringify(name)}`); },
+    execute: async context => { await dispatchTask({
+      root,
+      environment,
+      ...context
+    }); },
+    report: ({
+      name,
+      state,
+    }) => { console.error(`task-run [${state}] ${JSON.stringify(name)}`); },
   });
-  await runTask({ name, argv });
+  await runTask({
+    name,
+    argv
+  });
 }
 
 await main();

@@ -8,7 +8,10 @@
 /**
  One executable step: a plain shell string, or a step plus its shell.
  */
-export type TaskStep = string | { readonly shell: string; readonly run: string; } | TaskFunction;
+export type TaskStep = string | {
+  readonly shell: string;
+  readonly run: string
+} | TaskFunction;
 
 /**
  Invocation-owned context for direct async task bodies.

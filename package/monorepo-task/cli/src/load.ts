@@ -20,7 +20,13 @@ import type {
 /**
  Monorepo root from this module's location inside `package/monorepo-task/cli`.
  */
-const REPO_ROOT = resolve(import.meta.dirname, '..', '..', '..', '..');
+const REPO_ROOT = resolve(
+  import.meta.dirname,
+  '..',
+  '..',
+  '..',
+  '..'
+);
 
 /**
  Cached root task file for the current process.
@@ -40,15 +46,23 @@ export function repoRoot(): string {
  Loads and returns the root `task.ts`.
 
  @returns Root templates and tasks.
+ 
  @throws When the root task file is missing or malformed.
  */
 export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTaskFile> {
   const cached = rootTaskFiles.get(root,);
   if (cached !== undefined) { return cached; }
-  const path = join(root, 'task.ts');
+  const path = join(
+    root,
+    'task.ts'
+  );
   if (!existsSync(path)) { throw new Error(`task-cli: missing root task.ts`); }
-  const module_ = await import(pathToFileURL(path).href) as { default: RootTaskFile; };
-  rootTaskFiles.set(root, module_.default,);
+  const module_ = await import(pathToFileURL(path)
+    .href) as { default: RootTaskFile; };
+  rootTaskFiles.set(
+    root,
+    module_.default,
+  );
   return module_.default;
 }
 
@@ -56,12 +70,15 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
  Loads one package `task.ts` file.
 
  @param path - Absolute path of the package task file.
+ 
  @returns Task definitions from the file.
+ 
  @throws When the file is missing or malformed.
  */
 export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
   if (!existsSync(path)) { throw new Error(`task-cli: missing task file: ${path}`); }
-  const module_ = await import(pathToFileURL(path).href) as { default: PackageTaskFile; };
+  const module_ = await import(pathToFileURL(path)
+    .href) as { default: PackageTaskFile; };
   return module_.default;
 }
 
@@ -69,11 +86,19 @@ export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
  Resolves a task definition through `extends` onto a root template.
 
  @param definition - Task definition possibly carrying `extends`.
+ 
  @returns The definition with template fields filled in.
+ 
  @throws When the named template does not exist.
  */
 export async function resolveDefinition(
-  { definition, root: repositoryRoot = REPO_ROOT, }: { readonly definition: TaskDefinition; readonly root?: string; },
+  {
+    definition,
+    root: repositoryRoot = REPO_ROOT,
+  }: {
+    readonly definition: TaskDefinition;
+    readonly root?: string
+  },
 ): Promise<TaskDefinition> {
   if (definition.extends === undefined) { return definition; }
   const root = await loadRootTasks(repositoryRoot,);
@@ -83,7 +108,10 @@ export async function resolveDefinition(
   return {
     ...template,
     ...definition,
-    depends: [...template.depends ?? [], ...definition.depends ?? [],],
+    depends: [
+      ...template.depends ?? [],
+      ...definition.depends ?? [],
+    ],
   };
 }
 
@@ -91,13 +119,35 @@ export async function resolveDefinition(
  Runs this repository's task CLI for task bodies that call other tasks.
 
  @param name - Task name like `//package/config/oxlint:build:js:node`.
+ 
  @param args - Option and passthrough arguments.
+ 
  @throws When the child task fails.
  */
-export function runTaskCli(name: string, args: readonly string[] = []): void {
+export function runTaskCli(
+  name: string,
+  args: readonly string[] = []
+): void {
   execFileSync(
     process.execPath,
-    [join(REPO_ROOT, 'package', 'monorepo-task', 'cli', 'src', 'run.ts'), name, ...args,],
-    { stdio: 'inherit', env: { ...process.env, TASK_CLI_CHILD: '1', }, },
+    [
+      join(
+        REPO_ROOT,
+        'package',
+        'monorepo-task',
+        'cli',
+        'src',
+        'run.ts'
+      ),
+      name,
+      ...args,
+    ],
+    {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        TASK_CLI_CHILD: '1',
+      },
+    },
   );
 }
