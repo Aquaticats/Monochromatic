@@ -97,4 +97,4 @@ The source selection was opened in `agent-browser`
 and matched against the rendered slice expression.
 
 [source]: https://github.com/oxc-project/tsgolint/blob/a61289117febcb1a60cf3bc75ef2b6bbccc4b665/internal/rules/no_unsafe_member_access/no_unsafe_member_access.go#L119-L130
-[issue]: https://github.com/oxc-project/tsgolint/issues/527
+[issue]: https://github.com/oxc-project/tsgolint/issues/527#:~:text=panic%3A%20runtime%20error%3A%20slice%20bounds%20out%20of%20range%20in%20no_unsafe_member_access
