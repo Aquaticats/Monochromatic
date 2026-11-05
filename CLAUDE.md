@@ -1391,11 +1391,12 @@ RCI:
  A stopgap for a misbehaving tool is not an owner.
 
 FOT:
- A repo tool that did its job imperfectly gets fixed:
- red test,
- fix,
- rerun the tool;
- never hand-correct or one-off its output.
+ Fix defects in their owning tool:
+ failing test,
+ source fix,
+ rerun.
+Never hand-correct output.
+Label workarounds and record their limits and removal condition.
 
 BXD:
  Containers use the newest CachyOS `latest` image the host CPU runs,
