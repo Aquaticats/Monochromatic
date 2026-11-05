@@ -1,5 +1,6 @@
 //! Controls for the service's after-commit work consumer, with handlers that record what they are asked.
 
+use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
 use crate::push_retry::PushRetries;
 use crate::service_work_run_round::run_round;
@@ -8,7 +9,7 @@ use crate::push_failure_notice::{push_failure_text, take_push_failures};
 use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{DrivenRenewal, RENEWALS_PER_LEASE, Renewal, renewal_interval};
 use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, requeue_expired, state_directory};
+use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::time::Duration;

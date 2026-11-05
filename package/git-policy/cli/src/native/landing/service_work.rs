@@ -31,7 +31,8 @@ use crate::service_review::{options_for, review_item, review_variables};
 use crate::service_review_key::ReviewKey;
 use crate::standards_review_run::ReviewOptions;
 use crate::transaction_git::GitContext;
-use crate::work_item::{WorkItem, next_claim_expiry, requeue_expired_reporting};
+use crate::work_item::WorkItem;
+use crate::work_item_recovery::{next_claim_expiry, requeue_expired_reporting};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 

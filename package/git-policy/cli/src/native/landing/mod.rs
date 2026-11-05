@@ -25,6 +25,9 @@ pub mod maintenance_run;
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The state folders of the work queue, the names of claim files, and the listing of a folder oldest first.
+pub mod work_item_state_directories_and_claim_names;
+
 pub mod work_item_recovery;
 
 /// The clocks a claim's lease is judged by.
@@ -87,6 +90,9 @@ pub mod service_prepare;
 
 /// Which commit command lines the commit service covers, and the message they stand for.
 pub mod service_commit_args;
+
+/// Whether a `commit` command line opens an editor.
+pub mod service_commit_args_editor_opening;
 
 /// The one summary line a landed commit prints, with the abbreviated name Git would print.
 pub mod landed_summary;
