@@ -560,8 +560,14 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Container gate on `0c840d0e17` runs as unit `git-policy-cli-program-rename-gate`
   (worktree `.claude/worktrees/git-policy-cli-program-rename-gate`, log
   `~/temp/agent/issue-6261/program-rename-gate.log`); merge to main after it and the suppression branch's planted
-  run pass, since the rename branch contains the suppression branch. B (on top of `0c840d0e17`) must land before
-  the release.
+  run pass, since the rename branch contains the suppression branch.
+  B done at `7fe6ac14ff`: `landing/earlier_service_journal_adopted.rs` finishes, at service start, batches left open
+  in the old journal (`<state>/cli-git/service/<instance>` and the shared `<state>/cli-git/service`) when no service
+  of that instance shows in `/proc`, and counts their finished identities as landed (host lib 4313, binary 691).
+  Not covered: a helper in another PID namespace; the old helper restarted by its unit during the adoption.
+  Cross-vendor review of B running (`~/temp/agent/issue-6261/sol-review-part-b/review.txt`).
+  oxlint on the branch: 10 warnings and 3 errors in `bin/` files A touched (main is at 0 since `995cab8d1c`);
+  sent back to the agent with a main merge; then the container gate reruns on the final tip.
   Release and lock (steps 2 and 3) wait for the owner's release-timing answer.
   Step 3 also renames the root settings file and the link folder (to `.cache/monochromatic-git-policy-cli-bin`).
 - crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
