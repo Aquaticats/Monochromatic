@@ -102,9 +102,9 @@ jobs:
         id: fixture
         shell: node {0}
         run: |
-          const { mkdir, mkdtemp, readFile, writeFile, appendFile } = require('node:fs/promises');
-          const { homedir } = require('node:os');
-          const { join } = require('node:path');
+          import { mkdir, mkdtemp, readFile, writeFile, appendFile } from 'node:fs/promises';
+          import { homedir } from 'node:os';
+          import { join } from 'node:path';
           async function prepare() {
             if (!/^ghcr\.io\/(?:pnpm|aquaticat)\/pnpr(?:\:[^@\s]+)?@sha256:[a-f0-9]{64}$/.test(process.env.PNPR_VERIFY_IMAGE)) {
               throw new Error('verify_image must name a pnpr image pinned by its SHA-256 digest');
@@ -117,7 +117,7 @@ jobs:
             await writeFile(join(directory, 'config.yaml'), config.replaceAll('refs/heads/main', process.env.GITHUB_REF));
             await appendFile(process.env.GITHUB_OUTPUT, `config=${join(directory, 'config.yaml')}\n`);
           }
-          prepare().catch(error => { console.error(error); process.exitCode = 1; });
+          await prepare();
 
       - name: Start disposable registry
         env:
@@ -136,12 +136,12 @@ jobs:
       - name: Verify signed workload publish and exact archive download
         shell: node {0}
         run: |
-          const assert = require('node:assert/strict');
-          const { setTimeout: wait } = require('node:timers/promises');
+          import assert from 'node:assert/strict';
+          import { setTimeout as wait } from 'node:timers/promises';
           async function verify() {
             const origin = 'http://127.0.0.1:17677';
             const source = 'https://pnpr.c.aquati.cat';
-            const name = '@monochromatic-dev/or-throw-core';
+            const name = '@monochromatic-dev/logger-core';
             const route = `/npm/~monochromatic-dev/${encodeURIComponent(name)}`;
             const deadline = Date.now() + 60_000;
             while (true) {
@@ -198,7 +198,7 @@ jobs:
             assert.equal((await fetch(`${origin}/npm/left-pad`)).status, 404);
             console.log(`Verified ${name}@${version}: anonymous write rejected, off-target workload rejected, signed publish accepted, ${archive.length} archive bytes preserved, metrics and upstream proxy absent`);
           }
-          verify().catch(error => { console.error(error); process.exitCode = 1; });
+          await verify();
 
       - name: Stop disposable registry
         if: always()
