@@ -37,9 +37,22 @@ Cargo registry implementation has not been requested.
   The publisher's real build planner now accepts every configured package:
   154 have build tasks and 15 have no build.
 - Commit `8a897f3007` adds the `rebuild_check` workflow input.
-  Run [41944061291](https://github.com/Aquaticats/Monochromatic/actions/runs/41944061291)
-  is building and packing the configured packages against an empty disposable registry.
-  It skips production publication.
+  Run `41944061291` was cancelled after repeated shared dependencies made the build graph expand excessively.
+  The static analysis is in [pnpr-rebuild-task-graph.md](../planning/pnpr-rebuild-task-graph.md).
+- Commit `147e1cf7da` shares task completion within a CLI invocation
+  and runs template children through that same invocation.
+  Commits through `acd21be950` cover source and built consumers,
+  concurrent cycles,
+  failure reuse,
+  argument boundaries,
+  and dependency callbacks retained after their owner completes.
+- Run [41962968333](https://github.com/Aquaticats/Monochromatic/actions/runs/41962968333)
+  passed the full build-and-pack check against an empty disposable registry at `acd21be950`.
+  Production publication was skipped.
+- The worktree currently ends at `327cef057f`.
+  Package type checking and the named source/built consumer tests pass.
+  Scoped Oxlint still has findings in the repaired runner and extracted legacy helpers;
+  those are being cleared before merging.
 - Source findings and incompatible-storage details are in
   [pnpr-alpha17-upgrade.md](../planning/pnpr-alpha17-upgrade.md).
 
@@ -57,6 +70,7 @@ as recorded in [task-slice-plan-revision.md](task-slice-plan-revision.md).
 Repairing publishing does not authorize adopting the proposed replacement task system.
 
 Next action:
-finish the actual rebuild check in CI and repair any package failures it identifies,
+clear the runner's scoped lint findings,
+verify the final runner changes,
 then land the alpha.17 deployment and republish current versions.
 Do not cut over to the empty volume while the publisher remains unable to rebuild them.
