@@ -444,3 +444,8 @@ mod fsync_tests;
 #[cfg(test)]
 #[path = "service_land_built_tests.rs"]
 mod built_tests;
+
+/// Controls for the restart decisions when a Git question about the branch fails stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_finish_git_failure_tests.rs"]
+mod finish_git_failure_tests;

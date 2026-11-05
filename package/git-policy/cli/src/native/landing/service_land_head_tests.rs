@@ -8,7 +8,7 @@ use crate::service_journal::{DONE_EXTENSION, OPEN_EXTENSION, batch_path, parse_i
 use crate::test_support::{fixture, git, git_context, git_text, remove};
 
 /// A context whose Git is pointed at a Git directory that does not exist, so every question it is asked ends with status 128.
-fn blind_context(root: &Path) -> GitContext {
+pub(super) fn blind_context(root: &Path) -> GitContext {
     let mut context: GitContext = git_context();
     context.overlay.push((std::ffi::OsString::from("GIT_DIR"), root.join("no-such-git-dir").into_os_string()));
     return context;
