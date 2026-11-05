@@ -1434,6 +1434,48 @@ fn directives_through_the_executable() {
     assert_listing_matches_registry(listed.as_slice());
 }
 
+/// The built executable runs the two layout rules only where configuration selects them,
+///  reads each file behind a `uses` link once,
+///  names both folders and a proving reference,
+///  and a package whose links match the code is clean.
+#[cfg(unix)]
+#[test]
+fn layout_rules_run_in_the_built_executable_and_do_not_follow_links() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write("Cargo.toml", "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n");
+    fixture.write("src/lib.rs", "mod top;\nmod middle;\n");
+    fixture.write("src/top/mod.rs", "use crate::middle::Thing;\n");
+    fixture.write("src/middle/mod.rs", "pub struct Thing;\n");
+    let configuration: &str = r#"[{ "files": ["**/*.rs"], "rules": {
+      "rust/folder-uses-links": { "severity": "error" },
+      "rust/file-order-in-folder": { "severity": "warn" },
+      "rust/tests-in-sidecars": { "severity": "error" }
+    } }]"#;
+    fixture.write(CONFIG, configuration);
+    // Off by default: the starter configuration names neither layout rule.
+    fixture.write("plain/Cargo.toml", "[package]\nname = \"plain\"\nversion = \"0.0.0\"\n");
+    fixture.write("plain/src/lib.rs", "mod a;\nmod b;\n");
+    fixture.write("plain/src/a.rs", "use crate::b::X;\n");
+    fixture.write("plain/src/b.rs", "use crate::a::X;\n");
+    fixture.write("plain/monochromatic-lint.config.jsonc", r#"[{ "files": ["**/*.rs"], "rules": { "rust/tests-in-sidecars": { "severity": "error" } } }]"#);
+    let off: Run = run(&fixture.path.join("plain"), &[], b"");
+    assert_eq!((off.status, off.stdout.as_str(), off.stderr.as_str()), (0, "", ""));
+    // On: the use of `middle` by `top` has no link, and `src` has no file list.
+    let missing: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(missing.status, 1, "{}", missing.stderr);
+    let found: Vec<String> = located(missing.stdout.as_str());
+    assert!(found.contains(&String::from("src/top/mod.rs rust/folder-uses-links 1 1")), "{found:?}");
+    assert!(missing.stdout.contains("src/top uses the folder src/middle (`crate::middle::Thing`)"), "{}", missing.stdout);
+    // With the link in place, and a file list for the root folder, the layout findings are gone,
+    // and a test function behind the link is reported once, not once per path to it.
+    std::fs::create_dir_all(fixture.path.join("src/top/uses")).expect("uses folder");
+    std::os::unix::fs::symlink("../../middle", fixture.path.join("src/top/uses/middle")).expect("link");
+    fixture.write("src/middle/mod.rs", "pub struct Thing;\n#[test]\nfn stray() {}\n");
+    fixture.write("src/lib.rs", "//! Files in this folder, each using only files listed before it:\nmod top;\nmod middle;\n");
+    let linked: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(located(linked.stdout.as_str()), ["src/middle/mod.rs rust/tests-in-sidecars 3 4"], "{}", linked.stderr);
+}
+
 /// The unit-test scratch root,
 /// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]
