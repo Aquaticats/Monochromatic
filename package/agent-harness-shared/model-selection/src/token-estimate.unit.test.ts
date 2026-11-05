@@ -42,17 +42,15 @@ const CAPTURED_ESTIMATES = [
 
 await describe({
   name: estimateAdvisorInputTokens.name,
-  children: [
-    ...CAPTURED_ESTIMATES.map(function capturedEstimate(entry) {
-      return it({
-        name: entry.name,
-        fn: async function testEstimateAdvisorInputTokens() {
-          expect(estimateAdvisorInputTokens({
-            systemPrompt: entry.systemPrompt,
-            contextText: entry.contextText,
-          },),).toBe(entry.expected,);
-        },
-      },);
-    },),
-  ],
+  children: CAPTURED_ESTIMATES.map(function capturedEstimate(entry) {
+    return it({
+      name: entry.name,
+      fn: async function testEstimateAdvisorInputTokens() {
+        expect(estimateAdvisorInputTokens({
+          systemPrompt: entry.systemPrompt,
+          contextText: entry.contextText,
+        },),).toBe(entry.expected,);
+      },
+    },);
+  },),
 },);

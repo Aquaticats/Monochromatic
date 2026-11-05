@@ -24,25 +24,28 @@ await describe({
          */
         const hooks = registerHooks({
           resolve: function resolve(specifier, context, nextResolve) {
-            if (specifier.startsWith('@earendil-works/pi-coding-agent',) || specifier === 'proper-lockfile')
+            if (specifier.startsWith('@earendil-works/pi-coding-agent',) || (specifier === 'proper-lockfile'))
               throw new Error(`DSH Advisor attempted to load an unrelated runtime dependency: ${specifier}`,);
             return nextResolve(specifier, context,);
           },
         },);
-        try {
-          /**
-           Built plugin entry imported after forbidden dependencies become unavailable.
-           */
-          const loaded = await import('../dist/final/node/index.mjs');
-          expect(loaded.apply,).toBeTypeOf('function',);
-          expect(loaded.dshAdvisorTranscriptSerialization.estimateInputTokens({
-            systemPrompt: 'review carefully',
-            contextText: 'hello world',
-          },),).toBeGreaterThan(0,);
-        }
-        finally {
-          hooks.deregister();
-        }
+        /**
+         Restore module loading even when the import or assertion throws.
+         */
+        using cleanup = {
+          [Symbol.dispose]: function disposeHooks() {
+            hooks.deregister();
+          },
+        };
+        /**
+         Built plugin entry imported after forbidden dependencies become unavailable.
+         */
+        const loaded = await import('../dist/final/node/index.mjs');
+        expect(loaded.apply,).toBeTypeOf('function',);
+        expect(loaded.dshAdvisorTranscriptSerialization.estimateInputTokens({
+          systemPrompt: 'review carefully',
+          contextText: 'hello world',
+        },),).toBeGreaterThan(0,);
       },
     },),
 

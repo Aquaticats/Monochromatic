@@ -29,19 +29,22 @@ await describe({
             return nextResolve(specifier, context,);
           },
         },);
-        try {
-          /**
-           Public built entry loaded only after the dependency guard is installed.
-           */
-          const loaded = await import('../dist/final/node/index.mjs');
-          expect(loaded.estimateAdvisorInputTokens({
-            systemPrompt: 'review carefully',
-            contextText: 'hello world',
-          },),).toBeGreaterThan(0,);
-        }
-        finally {
-          hooks.deregister();
-        }
+        /**
+         Restore module loading even when the import or assertion throws.
+         */
+        using cleanup = {
+          [Symbol.dispose]: function disposeHooks() {
+            hooks.deregister();
+          },
+        };
+        /**
+         Public built entry loaded only after the dependency guard is installed.
+         */
+        const loaded = await import('../dist/final/node/index.mjs');
+        expect(loaded.estimateAdvisorInputTokens({
+          systemPrompt: 'review carefully',
+          contextText: 'hello world',
+        },),).toBeGreaterThan(0,);
       },
     },),
 
