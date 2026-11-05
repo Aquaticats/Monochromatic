@@ -177,8 +177,3 @@ fn joined_below(references: &[PathBuf], relative: &Path) -> Vec<PathBuf> {
     }
     return joined;
 }
-
-/// The controls for indexes rewritten side by side stay out of the release executable.
-#[cfg(test)]
-#[path = "subvolume_index_parallel_tests.rs"]
-mod parallel_tests;

@@ -460,3 +460,8 @@ pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
 #[cfg(test)]
 #[path = "subvolume_index_files_tests.rs"]
 mod tests;
+
+/// The controls for indexes rewritten side by side stay out of the release executable.
+#[cfg(test)]
+#[path = "subvolume_index_parallel_tests.rs"]
+mod parallel_tests;
