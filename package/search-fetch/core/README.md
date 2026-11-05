@@ -7,6 +7,13 @@ gh URL routing,
 shared tool specs,
 and guarded valibot to TypeBox conversion.
 
+## Pi dependency trust
+
+PZI:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Why
 
 The same search and fetch behavior serves the pi extension

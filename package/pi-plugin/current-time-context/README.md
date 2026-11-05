@@ -8,6 +8,13 @@ The extension adds one hidden custom message before every agent turn:
 <time>HH:MM</time>
 ```
 
+## Pi dependency trust
+
+PJW:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Installation
 
 Install the extension into pi from the repository root:

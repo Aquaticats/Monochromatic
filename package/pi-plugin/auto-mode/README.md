@@ -1,5 +1,12 @@
 # @monochromatic-dev/pi-plugin-auto-mode
 
+## Pi dependency trust
+
+PJR:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Rebuild status
 
 Implementation is stopped while the [ground-up plan](doc/planning/ground-up-rebuild.md) is reviewed.

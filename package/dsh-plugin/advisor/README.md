@@ -16,6 +16,13 @@ DSH reads this field before peer dependencies,
 so local directory links can retain the workspace's `catalog:` dependency specifications.
 See the [startup diagnosis](../../../doc/troubleshooting/dsh-rc5-profile-startup.md).
 
+## Pi dependency trust
+
+PJK:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Host API surface
 
 `src/index.ts` exports the plugin contract the Harness Loader consumes:

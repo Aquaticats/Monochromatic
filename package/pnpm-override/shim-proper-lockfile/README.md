@@ -17,6 +17,13 @@ The pi CLI host constructs `SettingsManager.create(...)` at startup (`dist/main.
  during model resolution (`dist/core/model-registry.js:519`);
 both paths invoke the shim's sync and async surfaces.
 
+## Pi dependency trust
+
+PZG:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Simplifications versus upstream
 
 - **No realpath resolution.

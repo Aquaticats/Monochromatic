@@ -5,6 +5,13 @@ shows current tool,
 session state,
 and user prompt in the terminal window title.
 
+## Pi dependency trust
+
+PZD:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Installation
 
 ### Global (recommended)

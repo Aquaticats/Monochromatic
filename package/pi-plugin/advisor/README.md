@@ -12,6 +12,13 @@ Pi Advisor is a local Pi extension,
  works across providers,
  and calls the secondary model through Pi's model registry.
 
+## Pi dependency trust
+
+PJO:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Install
 
 Build the package,

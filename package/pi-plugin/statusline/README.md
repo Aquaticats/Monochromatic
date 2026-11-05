@@ -6,6 +6,13 @@ It uses the shared usage-projection formatter also used by
 `package/claude-code-plugin/statusline`:
 warnings render when remaining capacity is low or projected burn rate exceeds the window.
 
+## Pi dependency trust
+
+PZC:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## What it displays
 
 Comfortable usage with sustainable burn rate renders nothing.

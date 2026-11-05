@@ -10,6 +10,13 @@ The model picker then stops offering them and `ModelRegistry.find` stops resolvi
 Design, measurements, and every rejected alternative:
 [`doc/planning/pi-model-retirement.md`](../../../doc/planning/pi-model-retirement.md).
 
+## Pi dependency trust
+
+PJZ:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## What it does
 
 - Reads chat models through `ModelRegistry.getAll()` and image and classifier models

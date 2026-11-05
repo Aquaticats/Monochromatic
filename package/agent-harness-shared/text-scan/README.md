@@ -8,6 +8,13 @@ It is a holding package for the DRY extraction in
 `doc/planning/dry-pi-plugins-claude-code-plugin.md`.
 Long-term generic module splits are tracked in GitHub issue #276.
 
+## Pi dependency trust
+
+PJG:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Exports
 
 The package exports:

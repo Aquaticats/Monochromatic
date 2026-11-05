@@ -2,6 +2,13 @@
 
 Neutral tool-output truncation and size formatting with pi-identical semantics.
 
+## Pi dependency trust
+
+PJH:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Why
 
 Pi's coding agent bundles `truncateHead` and `formatSize` inside its own tool layer,

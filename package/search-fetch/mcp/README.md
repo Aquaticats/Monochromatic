@@ -3,6 +3,13 @@
 MCP server exposing the shared web_search and web_fetch tools over stdio,
 with truncated responses delivered as resources.
 
+## Pi dependency trust
+
+PZK:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Why
 
 The pi extension `@monochromatic-dev/search-fetch-pi-plugin` serves pi hosts.

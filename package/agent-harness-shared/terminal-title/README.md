@@ -2,6 +2,13 @@
 
 Shared terminal title engine for agent harness integrations.
 
+## Pi dependency trust
+
+PJF:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Purpose
 
 This package owns host-neutral terminal title invariants:

@@ -16,6 +16,13 @@ This package owns the host-neutral policy for usage warnings:
 Host packages keep their protocol readers and color systems.
 They convert host data into `RateLimitSnapshot` values and pass host style callbacks to the shared formatter.
 
+## Pi dependency trust
+
+PJI:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Usage
 
 ```ts

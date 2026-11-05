@@ -4,6 +4,13 @@ Pi Spawn provides `spawn-pi`,
  a visible child Pi session launcher with first-result forwarding
 back into the parent Pi session.
 
+## Pi dependency trust
+
+PZB:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Prerequisites
 
 - [terminal-exec](../../terminal-exec/cli/) installed on `PATH`.

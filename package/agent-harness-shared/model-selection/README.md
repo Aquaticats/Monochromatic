@@ -12,6 +12,13 @@ This package lives under `package/agent-harness-shared/` because multiple agent 
  and is the deliberate exception to this category's zero-pi-import habit.
 Actual pi extensions stay under `package/pi-plugin/`.
 
+## Pi dependency trust
+
+PJC:
+ Minimize Pi dependencies,
+ including in Pi and DSH integrations.
+Pi's dependency hygiene and code quality have not been cleared for high trust.
+
 ## Export tiers
 
 The package uses subpath exports so lightweight consumers can import string and type helpers
