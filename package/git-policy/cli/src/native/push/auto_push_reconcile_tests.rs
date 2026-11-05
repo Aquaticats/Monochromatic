@@ -1591,7 +1591,7 @@ fn the_union_attribute_of_the_local_tip_applies_without_a_worktree_file() {
 #[test]
 fn the_journal_identifier_follows_who_runs_the_reconcile() {
     assert_eq!(journal_identifier(false), "cli-git-service");
-    assert_eq!(journal_identifier(true), "cli-git");
+    assert_eq!(journal_identifier(true), "monochromatic-git-policy-cli");
 }
 //endregion
 

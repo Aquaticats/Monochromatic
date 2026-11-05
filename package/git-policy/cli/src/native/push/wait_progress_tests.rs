@@ -108,19 +108,19 @@ fn the_child_line_names_the_wait_the_process_and_both_durations() {
     let first: String = child_wait_line(&facts);
     assert_eq!(
         first,
-        "cli-git: still waiting for git cat-file --batch (process 4242) after 12 seconds; it is ended only after 1800 \
+        "monochromatic-git-policy-cli: still waiting for git cat-file --batch (process 4242) after 12 seconds; it is ended only after 1800 \
          seconds with no sign of work (CLI_GIT_CHILD_WAIT_SECONDS changes this). Hint: it is still running; if it looks stuck, check it \
          with `ps` and report it."
     );
     let repeated: String = child_wait_line(&ChildWaitFacts { repeat: true, limit_note: "", ..facts });
     assert_eq!(
         repeated,
-        "cli-git: still waiting for git cat-file --batch (process 4242) after 12 seconds; it is ended only after 1800 seconds with no sign of work."
+        "monochromatic-git-policy-cli: still waiting for git cat-file --batch (process 4242) after 12 seconds; it is ended only after 1800 seconds with no sign of work."
     );
     let writer: String = child_wait_line(&ChildWaitFacts { repeat: true, limit_note: "", ends_when_quiet: false, ..facts });
     assert_eq!(
         writer,
-        "cli-git: still waiting for git cat-file --batch (process 4242) after 12 seconds; it is a step that may not be run twice, so it is waited for as long as it lives."
+        "monochromatic-git-policy-cli: still waiting for git cat-file --batch (process 4242) after 12 seconds; it is a step that may not be run twice, so it is waited for as long as it lives."
     );
 }
 

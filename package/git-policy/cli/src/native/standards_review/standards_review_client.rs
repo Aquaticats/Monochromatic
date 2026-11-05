@@ -136,7 +136,7 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
 ///  otherwise `fetch failed` and the cause.
 /// Why:
 ///   Node prints only `fetch failed` and hides the cause; the cause is what a person needs. The ceiling's sentence names the call,
-///  the ceiling and the command that reviews the commit again, because the call ran as long as cli-git lets it and a person
+///  the ceiling and the command that reviews the commit again, because the call ran as long as monochromatic-git-policy-cli lets it and a person
 ///  reading the log entry needs to know that it was not the endpoint's silence.
 ///
 /// In TS you'd write (pseudocode):
@@ -146,7 +146,7 @@ fn post_decision_unmeasured(gateway: &Gateway, body: &str) -> Result<Reply, Stri
 fn describe(error: ureq::Error, ceiling: Duration) -> String {
     return match error {
         ureq::Error::Timeout(ureq::Timeout::Global) => format!(
-            "the standards-review gateway call ran for {} seconds, the longest cli-git lets it run, and was ended, so this commit has no \
+            "the standards-review gateway call ran for {} seconds, the longest monochromatic-git-policy-cli lets it run, and was ended, so this commit has no \
              verdict; review it again with `SHADOW_REVIEW_SHA=<commit> mise run shadow-review`",
             ceiling.as_secs()
         ),

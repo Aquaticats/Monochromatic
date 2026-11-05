@@ -1,4 +1,4 @@
-//! Controls for `git cli-git doctor`: which entries count as traditional hooks, which directories are scanned,
+//! Controls for `git monochromatic-git-policy-cli doctor`: which entries count as traditional hooks, which directories are scanned,
 //! and the exit status and output of the command.
 
 use super::*;
@@ -155,7 +155,7 @@ fn a_default_directory_hook_is_listed_with_status_one() {
     let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
     assert_eq!(code, 1);
     assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("never run through cli-git"), "{stderr}");
+    assert!(stderr.contains("never run through monochromatic-git-policy-cli"), "{stderr}");
     remove(root.as_path());
 }
 
@@ -188,7 +188,7 @@ fn outside_a_repository_the_command_fails_with_status_two() {
     let root: PathBuf = fixture("doctor-outside");
     let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), root.as_path()));
     assert_eq!((code, stdout.as_str()), (2, ""));
-    assert!(stderr.starts_with("git cli-git doctor: "), "{stderr}");
+    assert!(stderr.starts_with("git monochromatic-git-policy-cli doctor: "), "{stderr}");
     remove(root.as_path());
 }
 
@@ -229,12 +229,12 @@ fn only_git_lfs_shims_exit_zero_with_the_explanation() {
     for needle in [
         "the Git LFS shims, byte for byte, and nothing needs doing",
         pre_push.to_str().expect("UTF-8"),
-        "writes these files again whenever it cleans a file in a Git that cli-git did not start",
+        "writes these files again whenever it cleans a file in a Git that monochromatic-git-policy-cli did not start",
         "so they can come back after you delete them",
         "this is normal",
         "uploads the LFS objects itself before every push",
         "starts Git with traditional hooks off",
-        "never run through cli-git",
+        "never run through monochromatic-git-policy-cli",
         "delete them or leave them",
         "/usr/bin/git",
     ] {
@@ -256,7 +256,7 @@ fn a_foreign_hook_beside_shims_still_ends_with_status_one() {
     let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
     assert_eq!(code, 1);
     assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("never run through cli-git"), "{stderr}");
+    assert!(stderr.contains("never run through monochromatic-git-policy-cli"), "{stderr}");
     assert!(stderr.contains(shim.to_str().expect("UTF-8")), "{stderr}");
     assert!(stderr.contains("nothing needs doing"), "{stderr}");
     remove(root.as_path());

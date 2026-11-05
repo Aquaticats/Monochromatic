@@ -106,12 +106,12 @@ pub struct CandidateAttributes {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const attributeFailure = (failure, detail) => new CandidateError(failure, `cli-git could not read the text attribute of candidate files: ${detail}`);
+/// const attributeFailure = (failure, detail) => new CandidateError(failure, `monochromatic-git-policy-cli could not read the text attribute of candidate files: ${detail}`);
 /// ```
 fn attribute_failure(failure: CandidateFailure, detail: &str) -> CandidateError {
     return CandidateError::new(
         failure,
-        format!("cli-git could not read the text attribute of candidate files: {detail}").as_str(),
+        format!("monochromatic-git-policy-cli could not read the text attribute of candidate files: {detail}").as_str(),
     );
 }
 

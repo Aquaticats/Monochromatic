@@ -112,7 +112,7 @@ fn a_wait_past_the_bound_is_announced_then_the_child_is_stopped() {
     let lines: Vec<&str> = text.lines().collect();
     assert!(!lines.is_empty(), "{text}");
     for line in &lines {
-        assert!(line.starts_with("cli-git: still waiting for the sleeper (process "), "{text}");
+        assert!(line.starts_with("monochromatic-git-policy-cli: still waiting for the sleeper (process "), "{text}");
         assert!(line.contains("(CLI_GIT_CHILD_WAIT_SECONDS changes this)"), "{text}");
     }
     assert_eq!(text.matches("Hint:").count(), 1, "{text}");
@@ -236,7 +236,7 @@ fn a_command_that_runs_long_is_announced_and_its_output_is_kept() {
     assert!(output.status.success());
     let text: String = shared.text();
     assert!(text.lines().count() >= 2, "{text}");
-    assert!(text.starts_with("cli-git: still waiting for the slow command (process "), "{text}");
+    assert!(text.starts_with("monochromatic-git-policy-cli: still waiting for the slow command (process "), "{text}");
     crate::test_support::remove(root.as_path());
 }
 

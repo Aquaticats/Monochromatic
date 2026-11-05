@@ -102,7 +102,7 @@ pub struct Reconcile<'a> {
     pub local: String,
     /// The branch that follows the published merge when it can, or nothing for a detached HEAD.
     pub branch_ref: Option<&'a str>,
-    /// The word after `cli-git:` in every line the run adds.
+    /// The word after `monochromatic-git-policy-cli:` in every line the run adds.
     pub label: &'a str,
     /// Whether the rejected push was typed by a person and has already shown its own output.
     pub explicit: bool,
@@ -183,7 +183,7 @@ pub fn integrate_and_push(
     let destination = plan.destination.clone();
     let local = plan.local.clone();
     let label = plan.label;
-    let line_prefix = format!("cli-git: {label}: ");
+    let line_prefix = format!("monochromatic-git-policy-cli: {label}: ");
     let failed_prefix = format!("{line_prefix}not published: ");
     let short = destination
         .merge_ref
@@ -191,7 +191,7 @@ pub fn integrate_and_push(
         .unwrap_or(&destination.merge_ref)
         .to_owned();
     let message = format!(
-        "Merge {}/{short} into {short}\n\nCreated by cli-git {label} because {}/{short} advanced after the commit landed.",
+        "Merge {}/{short} into {short}\n\nCreated by monochromatic-git-policy-cli {label} because {}/{short} advanced after the commit landed.",
         destination.remote, destination.remote
     );
     let mut previous = rejected.output.clone();

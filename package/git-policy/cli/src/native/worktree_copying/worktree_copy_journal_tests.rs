@@ -10,7 +10,7 @@ use std::os::unix::fs::PermissionsExt;
 /// A valid staged journal whose paths live under one fixture root.
 fn sample(root: &Path) -> Journal {
     let destination: PathBuf = root.join("topic");
-    let stage: PathBuf = root.join(".cli-git-worktree-copy-abc");
+    let stage: PathBuf = root.join(".monochromatic-git-policy-cli-worktree-copy-abc");
     return Journal {
         created_entries: vec![InstalledPath {
             device: 7,
@@ -72,7 +72,7 @@ fn validation_refuses_each_malformed_shape() {
     let path: PathBuf = journal_root.join("id.json");
     let base: String = encode_journal(&sample(root.as_path()));
     let corrupt = format!(
-        "cli-git: worktree-copy journal is corrupt: {}.",
+        "monochromatic-git-policy-cli: worktree-copy journal is corrupt: {}.",
         quote(path.to_string_lossy().as_ref())
     );
     let cases: Vec<(String, String)> = vec![
@@ -105,7 +105,7 @@ fn validation_refuses_each_malformed_shape() {
                 "\"sourceRoot\":\"relative/source\"",
             ),
             String::from(
-                "cli-git: worktree-copy journal has unsafe sourceRoot: \"relative/source\".",
+                "monochromatic-git-policy-cli: worktree-copy journal has unsafe sourceRoot: \"relative/source\".",
             ),
         ),
         (
@@ -128,7 +128,7 @@ fn validation_refuses_each_malformed_shape() {
                 ),
             ),
             format!(
-                "cli-git: worktree-copy journal has unsafe private stage relation: {}.",
+                "monochromatic-git-policy-cli: worktree-copy journal has unsafe private stage relation: {}.",
                 quote(path.to_string_lossy().as_ref())
             ),
         ),
@@ -137,7 +137,7 @@ fn validation_refuses_each_malformed_shape() {
                 "\"intendedEntries\":[\"cache\"]",
                 "\"intendedEntries\":[\"../escape\"]",
             ),
-            String::from("cli-git: Git returned unsafe ignored path \"../escape\"."),
+            String::from("monochromatic-git-policy-cli: Git returned unsafe ignored path \"../escape\"."),
         ),
         (
             base.replace(
@@ -145,7 +145,7 @@ fn validation_refuses_each_malformed_shape() {
                 "\"selectedRoots\":[\"cache\",\"cache\"]",
             ),
             format!(
-                "cli-git: worktree-copy journal contains duplicate repository paths: {}.",
+                "monochromatic-git-policy-cli: worktree-copy journal contains duplicate repository paths: {}.",
                 quote(path.to_string_lossy().as_ref())
             ),
         ),
@@ -163,7 +163,7 @@ fn validation_refuses_each_malformed_shape() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: worktree-copy journal escaped private root: {}.",
+            "monochromatic-git-policy-cli: worktree-copy journal escaped private root: {}.",
             quote(escaped.to_string_lossy().as_ref())
         )
     );
@@ -172,7 +172,7 @@ fn validation_refuses_each_malformed_shape() {
     // The JSON parser's own text differs from the incumbent's; the wording before the cause is the contract.
     assert!(
         not_json.0.starts_with(&format!(
-            "cli-git: could not read worktree-copy journal {}. Cause: ",
+            "monochromatic-git-policy-cli: could not read worktree-copy journal {}. Cause: ",
             quote(path.to_string_lossy().as_ref())
         )),
         "{}",
@@ -225,11 +225,11 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
         assert_eq!(failure.0, expected);
     };
     let relation: String = format!(
-        "cli-git: worktree-copy journal has unsafe private stage relation: {}.",
+        "monochromatic-git-policy-cli: worktree-copy journal has unsafe private stage relation: {}.",
         quote(path.to_string_lossy().as_ref())
     );
     let duplicates: String = format!(
-        "cli-git: worktree-copy journal contains duplicate repository paths: {}.",
+        "monochromatic-git-policy-cli: worktree-copy journal contains duplicate repository paths: {}.",
         quote(path.to_string_lossy().as_ref())
     );
     let place = |journal: &mut Journal, container: PathBuf| {
@@ -327,7 +327,7 @@ fn unsafe_journal_mode_fails_closed_and_is_kept() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: worktree-copy journal file is unsafe: {}.",
+            "monochromatic-git-policy-cli: worktree-copy journal file is unsafe: {}.",
             quote(path.to_string_lossy().as_ref())
         )
     );
@@ -352,7 +352,7 @@ fn journal_with_extra_hard_link_is_unsafe() {
     assert!(
         failure
             .0
-            .starts_with("cli-git: worktree-copy journal file is unsafe: ")
+            .starts_with("monochromatic-git-policy-cli: worktree-copy journal file is unsafe: ")
     );
     remove(root.as_path());
 }
@@ -367,7 +367,7 @@ fn unwritable_journal_leaves_no_temporary() {
     assert_eq!(
         failure.0,
         format!(
-            "cli-git: could not persist worktree-copy journal {}. Cause: No such file or directory (os error 2)",
+            "monochromatic-git-policy-cli: could not persist worktree-copy journal {}. Cause: No such file or directory (os error 2)",
             quote(path.to_string_lossy().as_ref())
         )
     );

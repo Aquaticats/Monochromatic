@@ -45,11 +45,11 @@ fn main_identity(main: &Path, common: &Path) -> WorktreeIdentity {
 fn summary_line_uses_exact_nouns() {
     assert_eq!(
         summary_line(1, 1, Some(Path::new("/repo"))),
-        "cli-git: copied 1 ignored filesystem entry from \"/repo\" into 1 new worktree.\n"
+        "monochromatic-git-policy-cli: copied 1 ignored filesystem entry from \"/repo\" into 1 new worktree.\n"
     );
     assert_eq!(
         summary_line(3, 2, None),
-        "cli-git: copied 3 ignored filesystem entries from bare repository with an empty source set into 2 new worktrees.\n"
+        "monochromatic-git-policy-cli: copied 3 ignored filesystem entries from bare repository with an empty source set into 2 new worktrees.\n"
     );
 }
 
@@ -165,7 +165,7 @@ fn added_worktree_receives_ignored_state_without_a_lock() {
     assert_eq!(
         String::from_utf8(stderr).expect("utf8"),
         format!(
-            "cli-git: copied 2 ignored filesystem entries from {} into 1 new worktree.\n",
+            "monochromatic-git-policy-cli: copied 2 ignored filesystem entries from {} into 1 new worktree.\n",
             quote(source_canonical.to_string_lossy().as_ref())
         )
     );
@@ -403,7 +403,7 @@ fn a_creation_recovers_a_dead_journal_first() {
     .expect("settled");
     assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
     let text: String = String::from_utf8(stderr).expect("utf8");
-    assert!(text.starts_with("cli-git: recovered ignored-state copies for 1 worktree transaction.\n"), "{text}");
+    assert!(text.starts_with("monochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"), "{text}");
     assert!(!dead.path.exists());
     assert_eq!(std::fs::read(older.join("cache/data")).expect("recovered copy"), b"payload");
     assert_eq!(std::fs::read(topic.join("cache/data")).expect("own copy"), b"payload");
@@ -619,7 +619,7 @@ fn main_checkout_source_carries_dependencies_and_builds() {
     assert!(topic.join(".cache/test-scratch/keep.txt").is_file());
     assert!(topic.join("mise.local.toml").is_file(), "local files are carried");
     assert!(
-        stderr.starts_with("cli-git: copied ")
+        stderr.starts_with("monochromatic-git-policy-cli: copied ")
             && stderr.contains(quote(main.to_string_lossy().as_ref()).as_str())
             && stderr.ends_with(" into 1 new worktree.\n"),
         "{stderr}"
@@ -675,7 +675,7 @@ fn main_checkout_source_skips_unreadable_entries_with_a_notice() {
     assert!(settlement.copy_failure.is_none());
     assert!(!topic.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/secret.bin").exists());
     assert!(topic.join("node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.js").is_file());
-    assert!(stderr.contains("cli-git: left out 1 unreadable ignored entry from"), "{stderr}");
+    assert!(stderr.contains("monochromatic-git-policy-cli: left out 1 unreadable ignored entry from"), "{stderr}");
     assert!(stderr.contains("secret.bin"), "{stderr}");
     assert_eq!(stderr.matches("left out").count(), 1, "one notice line: {stderr}");
     assert_nothing_left(root.as_path(), common.as_path());

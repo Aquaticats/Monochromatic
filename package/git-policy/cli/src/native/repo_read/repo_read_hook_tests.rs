@@ -140,7 +140,7 @@ fn a_caller_that_names_only_its_git_still_gets_in_process_answers() {
     let expected = git_output(repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
     let found = try_request(&context, &request).expect("the readers answer without the forward-target variable");
     assert_eq!(found.stdout, expected.stdout);
-    let learned = std::fs::read_dir(cache.join("cli-git")).expect("the cache directory").count();
+    let learned = std::fs::read_dir(cache.join("monochromatic-git-policy-cli")).expect("the cache directory").count();
     assert_eq!(learned, 1, "the system file path was asked of the named Git once and recorded");
     let metadata = run_metadata_git(named_git.as_path(), listing(repo.as_path()).as_slice(), overlay.as_slice()).expect("answer");
     assert_eq!(metadata.stdout, expected.stdout);

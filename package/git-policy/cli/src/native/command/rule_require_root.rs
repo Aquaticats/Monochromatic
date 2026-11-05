@@ -251,7 +251,7 @@ pub fn resolve_require_root(facts: &RequireRootFacts) -> RequireRootVerdict {
     }
     // `.display()` shows a path as text, replacing bytes that are not UTF-8.
     let message: String = format!(
-        "cli-git: not at the root of the git repository. \
+        "monochromatic-git-policy-cli: not at the root of the git repository. \
          Repo root is {root} but effective cwd is {directory}. \
          This rule exists because agents and humans frequently forget which directory they are in. \
          Tip: cd to {root} or pass -C {root} before the subcommand.",

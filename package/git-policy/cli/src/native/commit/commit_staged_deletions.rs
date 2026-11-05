@@ -86,7 +86,7 @@ fn is_nul_byte(byte: &u8) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of ...`
+/// `monochromatic-git-policy-cli: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of ...`
 /// ```
 pub fn staged_deletion_message(paths: &[Vec<u8>]) -> String {
     let mut names: Vec<String> = Vec::new();
@@ -95,7 +95,7 @@ pub fn staged_deletion_message(paths: &[Vec<u8>]) -> String {
     }
     let listed: String = serde_json::to_string(&names).unwrap_or_default();
     return format!(
-        "cli-git: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of \
+        "monochromatic-git-policy-cli: git commit with explicit paths selects worktree content, so it cannot record the staged deletion of \
 {listed}: the path stays on disk. Choose explicitly: to commit the deletion and keep the file, pass --no-only without \
 paths (this commits every staged change, not only these paths); to commit the file's current content instead, stage it \
 again with git add first (an ignored path also needs git add --force, which tracks the file again)."

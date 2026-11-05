@@ -1,5 +1,5 @@
 //! What:
-//!  The `discardedCopies` section of `cli-git.config.jsonc`: how long and how much the folder of saved copies of conflicted
+//!  The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`: how long and how much the folder of saved copies of conflicted
 //!  files may keep (`maxAgeDays`, `maxSize`).
 //! Why:
 //!  The settings of the wrapper live in one file with one validation, so a limit is a key there and not a second source in

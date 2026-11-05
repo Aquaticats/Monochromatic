@@ -127,7 +127,7 @@ fn wait_until_settled(setup: &Setup, commit: &str) {
 
 /// The same for the work records under the Git directory of one worktree.
 fn wait_until_settled_in(git_dir: &Path, commit: &str) {
-    let work: PathBuf = git_dir.join("cli-git/work");
+    let work: PathBuf = git_dir.join("monochromatic-git-policy-cli/work");
     wait_until("the service settled the push", &|| {
         return ["done", "failed"].iter().any(|state| { return work.join(state).join(format!("push-{commit}")).exists(); });
     });
@@ -472,7 +472,7 @@ fn a_record_that_cannot_be_saved_before_a_removal_is_told_to_the_person() {
     let own: PathBuf = linked_git_dir(&setup, linked.as_path());
     leave_pending_push(&setup, linked.as_path(), own.as_path(), "feature");
     let common: PathBuf = setup.repo.join(".git");
-    std::fs::create_dir_all(common.join("cli-git")).expect("the wrapper's directory");
+    std::fs::create_dir_all(common.join("monochromatic-git-policy-cli")).expect("the wrapper's directory");
     std::fs::write(common.join(SNAPSHOT_DIRECTORY), "a file where the directory belongs").expect("blocker");
     let removed: Observed = run_wrapped(&setup.fixture, &setup.repo, &["worktree", "remove", linked.to_str().expect("UTF-8")]);
     assert_eq!(removed.code, Some(0), "the removal the person asked for still happens: {}", stderr_text(&removed));
@@ -514,6 +514,6 @@ fn a_refused_removal_reports_nothing_and_keeps_the_pending_push() {
     assert_ne!(refused.code, Some(0), "Git refuses to remove a worktree with untracked files");
     let shown: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
     assert_eq!(shown, "", "the worktree still exists, so nothing was lost");
-    assert!(own.join("cli-git/work/pending").read_dir().expect("the work directory").count() >= 1, "the pending push is still queued");
+    assert!(own.join("monochromatic-git-policy-cli/work/pending").read_dir().expect("the work directory").count() >= 1, "the pending push is still queued");
     remove_settled(&setup.fixture);
 }

@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git convert-worktree-to-subvolume` through the built executable, in the environment a person's shell gives it:
+//!  `git monochromatic-git-policy-cli convert-worktree-to-subvolume` through the built executable, in the environment a person's shell gives it:
 //!  no forward-target variable, which the wrapper puts only into the environment of the Git processes it starts.
 //! Why:
 //!  The conversion reads the Git configuration and the system attributes file in process, and where those files are is a
@@ -9,7 +9,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(run(wrappedGit, ['cli-git', 'convert-worktree-to-subvolume', '--dry-run', 'wt'])).not.toContain('without running Git');
+//! // expect(run(wrappedGit, ['monochromatic-git-policy-cli', 'convert-worktree-to-subvolume', '--dry-run', 'wt'])).not.toContain('without running Git');
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
@@ -58,7 +58,7 @@ fn repository_with_unvouched_worktrees(fixture: &Fixture) -> PathBuf {
 ///  variables removed from it.
 fn dry_run(fixture: &Fixture, repo: &Path, worktree: &str, unset: &[&str]) -> Observed {
     let mut command = wrapped(fixture);
-    command.current_dir(repo).args(["cli-git", "convert-worktree-to-subvolume", "--dry-run", worktree]);
+    command.current_dir(repo).args(["monochromatic-git-policy-cli", "convert-worktree-to-subvolume", "--dry-run", worktree]);
     for name in unset {
         command.env_remove(name);
     }

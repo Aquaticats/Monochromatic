@@ -173,7 +173,7 @@ pub fn summary_line(copied: usize, destinations: usize, source: Option<&Path>) -
     };
     let entry_noun: &str = if copied == 1 { "entry" } else { "entries" };
     return format!(
-        "cli-git: copied {copied} ignored filesystem {entry_noun} from {source_text} into {destinations} new {worktree_noun}.\n"
+        "monochromatic-git-policy-cli: copied {copied} ignored filesystem {entry_noun} from {source_text} into {destinations} new {worktree_noun}.\n"
     );
 }
 
@@ -218,21 +218,21 @@ fn forward_only(run_git: &mut dyn GitRunner) -> Result<Settlement, WorktreeCopyE
 }
 
 /// The line a successful `git worktree add` prints when its command line has a form whose destination is not read.
-const UNKNOWN_DESTINATION_NOTICE: &str = "cli-git: this `git worktree add` names its worktree in a form cli-git does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
+const UNKNOWN_DESTINATION_NOTICE: &str = "monochromatic-git-policy-cli: this `git worktree add` names its worktree in a form monochromatic-git-policy-cli does not read, so the worktree received no ignored-state copy. Name the path as a plain operand (`git worktree add [-b <branch>] <path> [<commit-ish>]`, with `-C <directory>` or `-c <name>=<value>` before `worktree`) to have it copied.\n";
 
 /// What:
 ///  The line for a destination Git made whose registration could not be confirmed.
 /// Why:
 ///   A worktree that gets no copy must say so; here the pointer in its `.git` file and the registration it names do not
-///  name each other, so cli-git cannot tell the worktree is the command's own and copies nothing.
+///  name each other, so monochromatic-git-policy-cli cannot tell the worktree is the command's own and copies nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: ${quote(destination)} was made by git worktree add, but ...`
+/// `monochromatic-git-policy-cli: ${quote(destination)} was made by git worktree add, but ...`
 /// ```
 fn unconfirmed_destination_notice(destination: &Path) -> String {
     return format!(
-        "cli-git: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
+        "monochromatic-git-policy-cli: {} was made, but its registration could not be confirmed as this command's, so it received no ignored-state copy. `git worktree list` shows whether Git registered it.\n",
         quote(destination.to_string_lossy().as_ref())
     );
 }

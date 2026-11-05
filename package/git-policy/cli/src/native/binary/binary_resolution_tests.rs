@@ -150,7 +150,7 @@ fn wrapper_never_selects_itself_or_a_copy_of_itself() {
         "copy-early/git",
         "copy-late/git",
         "nested/bin-link/git",
-        "wrapper/cli-git-native",
+        "wrapper/monochromatic-git-policy-cli",
     ] {
         let observed: Observed = observe(
             bounded(
@@ -199,7 +199,7 @@ fn only_wrappers_on_path_is_a_reported_failure() {
     // The head keeps the counts; every candidate follows with its verdict, and the fix names the PATH.
     assert!(
         text.starts_with(
-            "cli-git: Could not find a real Git executable after examining 5 PATH candidates and skipping 4 cli-git wrappers, \
+            "monochromatic-git-policy-cli: Could not find a real Git executable after examining 5 PATH candidates and skipping 4 monochromatic-git-policy-cli wrappers, \
              so no Git command was run. PATH is "
         ),
         "{text}"
@@ -269,7 +269,7 @@ fn different_wrapper_build_stops_instead_of_looping() {
     assert_eq!(observed.code, Some(2), "{text}");
     assert!(observed.stdout.is_empty());
     assert!(text.contains(other.to_string_lossy().as_ref()), "{text}");
-    assert!(text.contains("was started as Git by a cli-git wrapper"), "{text}");
+    assert!(text.contains("was started as Git by a monochromatic-git-policy-cli wrapper"), "{text}");
     assert!(text.contains("never runs itself as Git"), "{text}");
     // Known limitation: real Git later on PATH does not rescue the command, because the
     // other build is the first candidate that is not provably this wrapper.

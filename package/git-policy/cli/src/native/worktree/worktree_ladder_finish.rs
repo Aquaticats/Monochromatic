@@ -116,7 +116,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let settle_displaced_outcome = settle_displaced(stage, plan.destination.as_path(), bound.binding.destination_id, target.pointer.as_slice());
     end_step(settle_displaced_entered);
     for note in settle_displaced_outcome {
-        warn(TAG, format!("cli-git: {note}").as_str());
+        warn(TAG, format!("monochromatic-git-policy-cli: {note}").as_str());
     }
     // What a snapshot of the main checkout set aside is emptied by the service; nothing is set aside for a linked worktree. The
     //  worktree is in place and complete, so a trash that cannot be emptied is reported and never fails the add.
@@ -126,7 +126,7 @@ fn serve_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, bound: 
     let dispose_trash_outcome = dispose_pending_trash(context, plan.destination.as_path(), target.admin.as_path(), trash.as_ref(), &mut notices);
     end_step(dispose_trash_entered);
     if let Err(reason) = dispose_trash_outcome {
-        warn(TAG, format!("cli-git: {reason}").as_str());
+        warn(TAG, format!("monochromatic-git-policy-cli: {reason}").as_str());
     }
     return Ok(target.line);
 }
@@ -166,7 +166,7 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
         Err(reason) => Err(reason),
     };
     if let Err(reason) = applied {
-        warn(TAG, format!("cli-git: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
+        warn(TAG, format!("monochromatic-git-policy-cli: {}", leftover_report(cloned.created(), plan.destination.as_path())).as_str());
         return Err(reason);
     }
     return Ok(target.line);
@@ -188,7 +188,7 @@ fn serve_clones(source: &SnapshotSource, plan: &AddPlan, bound: &Bound, run_git:
 fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner) -> GitStatus {
     let destination: &Path = plan.destination.as_path();
     if let Err(reason) = verify_association(bound) {
-        warn(TAG, format!("cli-git: the checkout of {} was not started: {reason}", destination.display()).as_str());
+        warn(TAG, format!("monochromatic-git-policy-cli: the checkout of {} was not started: {reason}", destination.display()).as_str());
         return GitStatus { code: Some(1) };
     }
     let mut arguments: Vec<OsString> = ["-C"].iter().map(OsString::from).chain([destination.as_os_str().to_os_string()]).chain(["reset", "--hard", "--no-recurse-submodules"].iter().map(OsString::from)).collect();
@@ -204,7 +204,7 @@ fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner)
         }
     };
     if let (true, Err(reason)) = (status.succeeded(), verify_association(bound)) {
-        warn(TAG, format!("cli-git: the checkout of {} ran, but it cannot be taken for the add's: {reason}", destination.display()).as_str());
+        warn(TAG, format!("monochromatic-git-policy-cli: the checkout of {} ran, but it cannot be taken for the add's: {reason}", destination.display()).as_str());
         return GitStatus { code: Some(1) };
     }
     return status;
@@ -222,7 +222,7 @@ fn checkout_like_git(plan: &AddPlan, bound: &Bound, run_git: &mut dyn GitRunner)
 /// ```
 fn report_incomplete(plan: &AddPlan) {
     let shown: String = plan.destination.display().to_string();
-    warn(TAG, format!("cli-git: the `git worktree add` of {shown} could not be completed; the worktree and its registration were left as they are. `git -C {shown} reset --hard` retries its checkout, and `git worktree remove --force {shown}` removes it.").as_str());
+    warn(TAG, format!("monochromatic-git-policy-cli: the `git worktree add` of {shown} could not be completed; the worktree and its registration were left as they are. `git -C {shown} reset --hard` retries its checkout, and `git worktree remove --force {shown}` removes it.").as_str());
 }
 
 /// What:
@@ -304,7 +304,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
     let bound: Bound = match bind(claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
-            warn(TAG, format!("cli-git: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
+            warn(TAG, format!("monochromatic-git-policy-cli: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
             report_incomplete(plan);
             return LadderResult { git: GitStatus { code: Some(1) }, carried: None };
         }
@@ -341,7 +341,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
     let bound: Bound = match bind(claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
-            warn(TAG, format!("cli-git: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
+            warn(TAG, format!("monochromatic-git-policy-cli: {} was left as Git made it, without a checkout: {reason}", plan.destination.display()).as_str());
             report_incomplete(plan);
             return LadderResult { git: GitStatus { code: Some(1) }, carried: None };
         }
@@ -372,7 +372,7 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             LadderResult { git: complete_like_git(plan, claim, &bound, run_git), carried: None }
         }
         Err(ended) => {
-            warn(TAG, format!("cli-git: the add of {} ended in a state the wrapper cannot untangle: {}; {} is not touched", plan.destination.display(), ended.reason, stage.display()).as_str());
+            warn(TAG, format!("monochromatic-git-policy-cli: the add of {} ended in a state the wrapper cannot untangle: {}; {} is not touched", plan.destination.display(), ended.reason, stage.display()).as_str());
             report_incomplete(plan);
             LadderResult { git: GitStatus { code: Some(1) }, carried: None }
         }

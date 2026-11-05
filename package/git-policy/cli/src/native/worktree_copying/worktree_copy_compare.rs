@@ -291,7 +291,7 @@ pub fn assert_final_source_equivalence_pruned(
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
     if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {
         return Err(failure_with_cause(
-            "cli-git: ignored source paths changed while snapshot was staged.",
+            "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
             None,
         ));
     }
@@ -308,7 +308,7 @@ pub fn assert_final_source_equivalence_pruned(
         // The content check runs last so the cheap shape checks fail fast without reading large files.
         if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
             let message: String = format!(
-                "cli-git: ignored source entry changed while copying: {}.",
+                "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
                 quote(staged.relative_path.as_str())
             );
             return Err(failure_with_cause(message.as_str(), None));

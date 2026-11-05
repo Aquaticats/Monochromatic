@@ -273,7 +273,7 @@ fn complete(
     standings: &[Standing],
 ) -> Result<(), RecoveryError> {
     install_entries(place, root, changes, standings)?;
-    let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by cli-git recovery)");
+    let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by monochromatic-git-policy-cli recovery)");
     let mut arguments: Vec<&str> = vec!["update-ref", "-m", message.as_str()];
     if intent.target_ref.is_none() {
         arguments.push("--no-deref");

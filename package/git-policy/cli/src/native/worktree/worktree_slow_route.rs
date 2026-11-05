@@ -31,7 +31,7 @@ use std::path::Path;
 const TAG: &str = "worktreeSlowRoute";
 
 /// The start of the line on standard error and of the journal message; the cause and the remedy follow.
-pub const LEAD: &str = "cli-git: this worktree was not made as a snapshot, so it took longer, because ";
+pub const LEAD: &str = "monochromatic-git-policy-cli: this worktree was not made as a snapshot, so it took longer, because ";
 
 /// What:
 ///  What kept the add from being a snapshot, as a sentence for the person and a word for the journal.
@@ -258,7 +258,7 @@ pub fn explain_cheap_refusal(identity: &WorktreeIdentity, reason: &str) -> Optio
         return Some(SlowRoute {
             word: "not-subvolume",
             detail: reason.to_string(),
-            sentence: format!("{subject} is not a btrfs subvolume. Run `git cli-git {command}` in it, {THEN_QUICK}."),
+            sentence: format!("{subject} is not a btrfs subvolume. Run `git monochromatic-git-policy-cli {command}` in it, {THEN_QUICK}."),
         });
     }
     return Some(SlowRoute {

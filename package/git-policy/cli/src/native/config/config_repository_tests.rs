@@ -1,5 +1,5 @@
 //! What:
-//!  Controls on this repository's own `cli-git.config.jsonc`, read through the real loader.
+//!  Controls on this repository's own `monochromatic-git-policy-cli.config.jsonc`, read through the real loader.
 //! Why:
 //!  The native wrapper runs the four optional policies only when the file lists them, and reads the private rules
 //!      file only when `rulesFile` names it.

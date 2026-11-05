@@ -12,9 +12,9 @@ use crate::service_instance::SOCKET_DIRECTORY;
 fn the_activation_units_match_the_wrapper() {
     assert!(SOCKET_UNIT.lines().any(|line| { return line == format!("ListenStream=%t/{SOCKET_DIRECTORY}/%i.sock"); }), "{SOCKET_UNIT}");
     assert!(SOCKET_UNIT.contains("SocketMode=0600") && SOCKET_UNIT.contains("DirectoryMode=0700"));
-    assert!(SERVICE_UNIT.contains("Requires=cli-git@%i.socket") && SERVICE_UNIT.contains("After=cli-git@%i.socket"));
+    assert!(SERVICE_UNIT.contains("Requires=monochromatic-git-policy-cli@%i.socket") && SERVICE_UNIT.contains("After=monochromatic-git-policy-cli@%i.socket"));
     assert!(SERVICE_UNIT.contains("--instance %i"), "the service learns which worktree it is for");
-    assert!(SERVICE_UNIT.contains("--journal %S/cli-git/service/%i"), "each instance keeps its own journal");
+    assert!(SERVICE_UNIT.contains("--journal %S/monochromatic-git-policy-cli/service/%i"), "each instance keeps its own journal");
     assert!(SERVICE_UNIT.contains("@SERVICE_BINARY@") && SERVICE_UNIT.contains("@GIT@"), "the installer fills these in");
 }
 

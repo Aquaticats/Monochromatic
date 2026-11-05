@@ -6,11 +6,11 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! export const WRAPPER = "cli-git-native"; export const REAL_GIT = "/usr/bin/git"; export const TIME_BOUND_SECONDS = 5;
+//! export const WRAPPER = "monochromatic-git-policy-cli"; export const REAL_GIT = "/usr/bin/git"; export const TIME_BOUND_SECONDS = 5;
 //! ```
 
 /// The native executable Cargo built for this test run.
-pub const WRAPPER: &str = env!("CARGO_BIN_EXE_cli-git-native");
+pub const WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 
 /// The real Git 2.56.0 executable installed in the verification image.
 pub const REAL_GIT: &str = "/usr/bin/git";

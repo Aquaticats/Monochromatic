@@ -25,7 +25,7 @@ use std::time::{Duration, SystemTime};
 pub const VERSION: u64 = 1;
 
 /// Directory under the worktree's own Git directory (`WorkItem::git_dir`) that holds the state directories.
-pub const WORK_DIRECTORY: &str = "cli-git/work";
+pub const WORK_DIRECTORY: &str = "monochromatic-git-policy-cli/work";
 
 /// What:
 ///  The kind of work an item asks for.

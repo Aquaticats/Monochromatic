@@ -136,13 +136,13 @@ mod markdown;
 #[path = "binary_event_path_tests.rs"]
 mod event_path;
 
-/// The `git cli-git` management namespace.
+/// The `git monochromatic-git-policy-cli` management namespace.
 #[path = "binary_management_tests.rs"]
 mod management;
-/// `git cli-git migrate-to-subvolume` and the doctor's filesystem section through the executable.
+/// `git monochromatic-git-policy-cli migrate-to-subvolume` and the doctor's filesystem section through the executable.
 #[path = "binary_subvolume_tests.rs"]
 mod subvolume;
-/// `git cli-git convert-worktree-to-subvolume` started the way a person starts it, with no forward-target variable.
+/// `git monochromatic-git-policy-cli convert-worktree-to-subvolume` started the way a person starts it, with no forward-target variable.
 #[path = "binary_convert_tests.rs"]
 mod convert;
 
@@ -280,7 +280,7 @@ mod push_scope;
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
 
-/// Traditional hooks never run through the wrapper, and `git cli-git doctor` explains the Git LFS shims.
+/// Traditional hooks never run through the wrapper, and `git monochromatic-git-policy-cli doctor` explains the Git LFS shims.
 #[path = "binary_hooks_off_tests.rs"]
 mod hooks_off;
 

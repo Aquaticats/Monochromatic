@@ -265,7 +265,7 @@ impl LandingBoard {
             None => String::new(),
         };
         return Some(format!(
-            "cli-git: the commit service has been inside a write for {minutes} minutes and has not heard back: `{command}`{detail}. The service never ends a write in \
+            "monochromatic-git-policy-cli: the commit service has been inside a write for {minutes} minutes and has not heard back: `{command}`{detail}. The service never ends a write in \
              the middle, because that could lose data, so commits queue behind it. If it never returns, look at what that process \
              waits for with `ps` and at the disk, and when no program uses the repository, restart the service with `{RESTART_COMMAND}`.\n"
         ));
@@ -295,7 +295,7 @@ impl LandingBoard {
             None => String::new(),
         };
         return Some((format!("{began}:start"), format!(
-            "cli-git: this commit is inside a write of the commit service, `{command}`{detail}, begun {} seconds ago. The service never ends a write \
+            "monochromatic-git-policy-cli: this commit is inside a write of the commit service, `{command}`{detail}, begun {} seconds ago. The service never ends a write \
              in the middle, so if it does not return this command reports that the result is not known after its wait.\n",
             running / 1000
         )));

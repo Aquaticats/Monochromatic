@@ -91,11 +91,11 @@ pub struct OpenedLog {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// new Error(`cli-git: worktree-copy install log is corrupt: ${quote(path)}.`)
+/// new Error(`monochromatic-git-policy-cli: worktree-copy install log is corrupt: ${quote(path)}.`)
 /// ```
 fn corrupt_install_log(path: &Path) -> WorktreeCopyError {
     return failure_with_cause(
-        format!("cli-git: worktree-copy install log is corrupt: {}.", quote(path.to_string_lossy().as_ref())).as_str(),
+        format!("monochromatic-git-policy-cli: worktree-copy install log is corrupt: {}.", quote(path.to_string_lossy().as_ref())).as_str(),
         None,
     );
 }
@@ -225,7 +225,7 @@ pub fn open_install_log(stage_container: &Path) -> Result<OpenedLog, WorktreeCop
         Ok(file) => file,
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not open worktree-copy install log {}.",
+                "monochromatic-git-policy-cli: could not open worktree-copy install log {}.",
                 quote(path.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -255,7 +255,7 @@ impl InstallLog {
         };
         if let Err(error) = written {
             let message: String = format!(
-                "cli-git: could not persist worktree-copy install log {}.",
+                "monochromatic-git-policy-cli: could not persist worktree-copy install log {}.",
                 quote(self.path.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));

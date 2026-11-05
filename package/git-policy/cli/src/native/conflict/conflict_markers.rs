@@ -160,12 +160,12 @@ pub fn paths_with_markers(context: &GitContext, root: &Path, commit: &str, paths
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const openLine = (merge: boolean) => `cli-git: note: the ${merge ? 'merge' : 'cherry-pick'} is still in progress ...`;
+/// const openLine = (merge: boolean) => `monochromatic-git-policy-cli: note: the ${merge ? 'merge' : 'cherry-pick'} is still in progress ...`;
 /// ```
 pub fn open_operation_line(merge: bool) -> String {
     let (operation, continuing): (&str, &str) = if merge { ("merge", "git merge --continue") } else { ("cherry-pick", "git cherry-pick --continue") };
     return format!(
-        "cli-git: note: the {operation} is still in progress, because this commit took only the paths you named. To finish it, \
+        "monochromatic-git-policy-cli: note: the {operation} is still in progress, because this commit took only the paths you named. To finish it, \
          stage any file that is still unmerged (git add <path>), then run git commit with no paths, or {continuing}.\n"
     );
 }

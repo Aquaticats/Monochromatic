@@ -428,7 +428,7 @@ fn options_alone_list_a_policy_at_its_default_severity() {
     for (source, message) in [
         (
             r#"{ "policies": { "markdown/autofix": { "command": ["node"] } } }"#,
-            "Configuration key policies.markdown/autofix.command is retired: cli-git runs its own coordinated Markdown linter and configuration cannot select a command. Remove the key.",
+            "Configuration key policies.markdown/autofix.command is retired: monochromatic-git-policy-cli runs its own coordinated Markdown linter and configuration cannot select a command. Remove the key.",
         ),
         (
             r#"{ "policies": { "security/forbidden-strings": { "rules": [] } } }"#,

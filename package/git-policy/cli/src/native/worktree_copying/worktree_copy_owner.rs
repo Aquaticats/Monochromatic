@@ -96,7 +96,7 @@ fn unescape_field(text: &str) -> Option<String> {
 pub fn current_copy_owner() -> Result<CopyOwner, WorktreeCopyError> {
     let birth: String = match current_birth_identity() {
         Ok(found) => found,
-        Err(error) => return Err(failure_with_cause("cli-git: the identity of this process is unavailable, so a copy cannot name its owner.", Some(&error))),
+        Err(error) => return Err(failure_with_cause("monochromatic-git-policy-cli: the identity of this process is unavailable, so a copy cannot name its owner.", Some(&error))),
     };
     return Ok(CopyOwner {
         pid: i64::from(std::process::id()),

@@ -208,7 +208,7 @@ fn missing_rules(work: &Path) {
                 assert_eq!(code, EngineFailureCode::PolicyIncomplete, "{chosen:?}");
                 assert!(
                     message.starts_with(
-                        "cli-git could not load the forbidden-strings rules, so no file was scanned:"
+                        "monochromatic-git-policy-cli could not load the forbidden-strings rules, so no file was scanned:"
                     ),
                     "{message}"
                 );

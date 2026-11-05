@@ -1,9 +1,9 @@
 //! What:
 //!  Removal of the paths one failed installation created,
-//!  child first, and only where the filesystem still proves they are cli-git's own.
+//!  child first, and only where the filesystem still proves they are monochromatic-git-policy-cli's own.
 //! Why:
 //!  A failed installation must not leave a partial worktree, but it also must never delete a path
-//!  the user or another process put there after cli-git created it.
+//!  the user or another process put there after monochromatic-git-policy-cli created it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +20,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
 /// What:
-///  Where a recorded path stands relative to the identity cli-git recorded for it.
+///  Where a recorded path stands relative to the identity monochromatic-git-policy-cli recorded for it.
 /// Why:
 ///   Only an exact match may be removed; an absent path has nothing to remove and a changed one is someone else's.
 ///
@@ -34,7 +34,7 @@ enum IdentityState {
     Absent,
     /// Something exists with a different device or inode.
     Changed,
-    /// The object cli-git created is still there.
+    /// The object monochromatic-git-policy-cli created is still there.
     Match,
 }
 
@@ -80,7 +80,7 @@ fn remove_proven(path: &Path, is_directory: bool) -> std::io::Result<()> {
 }
 
 /// What:
-///  Removes every path the failed installation created that still carries cli-git's identity and content,
+///  Removes every path the failed installation created that still carries monochromatic-git-policy-cli's identity and content,
 ///  and returns a diagnostic for each path it had to keep.
 /// Why:
 ///   Returning the kept paths lets the user see exactly what remains, instead of a silent partial removal.

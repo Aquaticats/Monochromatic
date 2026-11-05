@@ -15,7 +15,7 @@
 //! with their standard error in a file the test reads,
 //! so nothing touches the user's service manager or
 //!  journal;
-//! the real `.git/cli-git` of this repository is never used.
+//! the real `.git/monochromatic-git-policy-cli` of this repository is never used.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
@@ -609,7 +609,7 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
 fn a_service_says_it_exits_idle_with_its_uptime() {
     let fixture: Fixture = fixture("timing-idle");
     let name: String = format!("timing-idle-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("cli-git/idle.sock"), log: fixture.root.join("idle.log") };
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/idle.sock"), log: fixture.root.join("idle.log") };
     let mut service: Held = spawn_service(fixture.root.as_path(), &places, IDLE_SECONDS.to_string().as_str(), &[]);
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
@@ -626,7 +626,7 @@ fn a_service_says_it_exits_idle_with_its_uptime() {
 fn a_service_says_it_retires_when_asked() {
     let fixture: Fixture = fixture("timing-retire");
     let name: String = format!("timing-retire-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("cli-git/retire.sock"), log: fixture.root.join("retire.log") };
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/retire.sock"), log: fixture.root.join("retire.log") };
     let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[]);
     ask_to_retire(places.socket.as_path());
     let status = exit_of(&mut service, PATIENCE);
@@ -647,7 +647,7 @@ fn a_service_says_it_retires_when_asked() {
 fn a_service_stopped_by_a_signal_says_so_and_still_dies_of_it() {
     let fixture: Fixture = fixture("timing-signal");
     let name: String = format!("timing-signal-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("cli-git/signal.sock"), log: fixture.root.join("signal.log") };
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/signal.sock"), log: fixture.root.join("signal.log") };
     let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[]);
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
     // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
@@ -738,7 +738,7 @@ fn a_service_on_the_journal_stream_sends_native_entries_that_join_the_clients_re
 fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
     let fixture: Fixture = fixture("timing-native-signal");
     let name: String = format!("timing-native-signal-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("cli-git/native-signal.sock"), log: fixture.root.join("native-signal.log") };
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/native-signal.sock"), log: fixture.root.join("native-signal.log") };
     let (receiver, environment) = native_journal(&places, "signal");
     let mut service: Held = spawn_service_with_environment(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[], environment.as_slice());
     let pid: libc::pid_t = libc::pid_t::try_from(service.0.id()).expect("a process number");
@@ -763,7 +763,7 @@ fn a_service_stopped_by_a_signal_sends_its_exit_on_the_native_socket() {
 fn a_journal_that_is_gone_leaves_the_lines_on_standard_error_with_their_priority() {
     let fixture: Fixture = fixture("timing-native-gone");
     let name: String = format!("timing-native-gone-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(name.as_str()).join("cli-git/gone.sock"), log: fixture.root.join("gone.log") };
+    let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/gone.sock"), log: fixture.root.join("gone.log") };
     let (receiver, mut environment) = native_journal(&places, "gone");
     drop(receiver);
     // The abstract name is free again once the receiver is gone, so the service finds nobody to send to.
@@ -824,7 +824,7 @@ fn stopped_with_a_full_pipe(name: &str, on_stream: bool) {
     use std::os::fd::AsRawFd;
     let fixture: Fixture = fixture(name);
     let unique: String = format!("{name}-{}", std::process::id());
-    let places: Places = Places { socket: runtime_for(unique.as_str()).join("cli-git/full-pipe.sock"), log: fixture.root.join("unused.log") };
+    let places: Places = Places { socket: runtime_for(unique.as_str()).join("monochromatic-git-policy-cli/full-pipe.sock"), log: fixture.root.join("unused.log") };
     let pipe: FullablePipe = fullable_pipe();
     let mut environment: Vec<(&'static str, String)> = Vec::new();
     if on_stream {

@@ -440,7 +440,7 @@ fn holder_name(pid: i64, command: Option<&str>) -> String {
 pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path) -> String {
     let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
     return format!(
-        "cli-git: waiting for {}, which holds {} (proven by {proof}); this waits for as long as that process holds the lock \
+        "monochromatic-git-policy-cli: waiting for {}, which holds {} (proven by {proof}); this waits for as long as that process holds the lock \
          and leaves the lock in place.\n",
         holder_name(pid, command),
         lock_path.display()
@@ -460,7 +460,7 @@ pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, 
 pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path, waited_seconds: u64) -> String {
     let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
     return format!(
-        "cli-git: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; this waits for as \
+        "monochromatic-git-policy-cli: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; this waits for as \
          long as that process holds the lock and leaves the lock in place.\n",
         holder_name(pid, command),
         lock_path.display()
@@ -503,7 +503,7 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>) -> Stri
         None => String::from(" (the evidence about its owner could not be read)"),
     };
     return format!(
-        "cli-git: waiting for {lock}, whose owner cannot be proven alive{known}; this waits for as long as the lock stays there. \
+        "monochromatic-git-policy-cli: waiting for {lock}, whose owner cannot be proven alive{known}; this waits for as long as the lock stays there. \
          If no program is using this repository, the lock was left by a program that was killed, and removing the file {lock} \
          lets the command run.\n",
         lock = lock_path.display()
@@ -522,7 +522,7 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>) -> Stri
 /// ```
 pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, consequence: &str) -> String {
     return format!(
-        "cli-git: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was changed and the lock was \
+        "monochromatic-git-policy-cli: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was changed and the lock was \
          left in place. Run the command again once that program is done.\n",
         lock = lock_path.display()
     );
@@ -560,7 +560,7 @@ pub fn blocker_words(evidence: &Evidence) -> String {
 /// ```
 pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str) -> String {
     return format!(
-        "cli-git: {lock} was left by PID {pid}, which no longer runs, so nothing will release it. {consequence}; nothing was \
+        "monochromatic-git-policy-cli: {lock} was left by PID {pid}, which no longer runs, so nothing will release it. {consequence}; nothing was \
          changed and the lock was left in place. If no other program is using this repository, removing the file {lock} lets \
          the command run.\n",
         lock = lock_path.display()

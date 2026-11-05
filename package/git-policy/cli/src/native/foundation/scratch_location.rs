@@ -1,6 +1,6 @@
 //! What:
 //!  Where the wrapper keeps short-lived private files:
-//!  the per-user scratch directory (`<state>/cli-git/scratch`) for work that has no repository
+//!  the per-user scratch directory (`<state>/monochromatic-git-policy-cli/scratch`) for work that has no repository
 //!       in hand,
 //!  and the repository scratch directory (`<common-dir>/cli-git-scratch`) for work inside one.
 //!  Both are checked as private (a real directory of this user, mode `0700`) and swept of entries
@@ -15,7 +15,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const scratch = join(env.XDG_STATE_HOME ?? join(env.HOME, '.local/state'), 'cli-git', 'scratch');
+//! const scratch = join(env.XDG_STATE_HOME ?? join(env.HOME, '.local/state'), 'monochromatic-git-policy-cli', 'scratch');
 //! await mkdir(scratch, { recursive: true, mode: 0o700 });
 //! await sweepOlderThan(scratch, 24 * 60 * 60 * 1000);
 //! ```
@@ -35,7 +35,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 /// The tag of this module's diagnostics.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The entry in a Git common directory that holds repository scratch.
 pub const REPOSITORY_SCRATCH_NAME: &str = "cli-git-scratch";
@@ -81,7 +81,7 @@ pub fn renew(path: &Path) {
 
 /// What:
 ///  The per-user state directory of the wrapper:
-///  `cli-git` under an absolute `XDG_STATE_HOME`,
+///  `monochromatic-git-policy-cli` under an absolute `XDG_STATE_HOME`,
 ///  or under `.local/state` in the home directory.
 /// Why:
 ///   The injected environment decides the location,
@@ -97,14 +97,14 @@ pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
     if let Some(state_home) = environment_value(environment, "XDG_STATE_HOME") {
         let state_path: PathBuf = PathBuf::from(state_home);
         if state_path.is_absolute() {
-            return Some(state_path.join("cli-git"));
+            return Some(state_path.join("monochromatic-git-policy-cli"));
         }
     }
     let home: OsString = environment_value(environment, "HOME")?;
     if home.is_empty() {
         return None;
     }
-    return Some(PathBuf::from(home).join(".local").join("state").join("cli-git"));
+    return Some(PathBuf::from(home).join(".local").join("state").join("monochromatic-git-policy-cli"));
 }
 
 /// What:
@@ -122,7 +122,7 @@ pub fn state_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
 pub fn user_scratch_path(environment: &[(OsString, OsString)]) -> Result<PathBuf, String> {
     let Some(state) = state_directory(environment) else {
         return Err(String::from(
-            "cli-git keeps its temporary files in a private directory under XDG_STATE_HOME (or HOME/.local/state) and \
+            "monochromatic-git-policy-cli keeps its temporary files in a private directory under XDG_STATE_HOME (or HOME/.local/state) and \
              never in the system temporary directory, and this command's environment has neither an absolute \
              XDG_STATE_HOME nor a non-empty HOME; set one of them",
         ));
@@ -153,13 +153,13 @@ pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<Path
     };
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!(
-            "cli-git could not create its private scratch directory {}: {error}",
+            "monochromatic-git-policy-cli could not create its private scratch directory {}: {error}",
             directory.display()
         ));
     }
     if let Err(error) = assert_private_directory(directory.as_path()) {
         return Err(format!(
-            "cli-git will not use {} for temporary files: {error}",
+            "monochromatic-git-policy-cli will not use {} for temporary files: {error}",
             directory.display()
         ));
     }

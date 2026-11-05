@@ -278,7 +278,7 @@ fn a_settled_fix_that_cannot_install_reports_one_failure() {
         fix_failure(
             &[],
             EngineFailureCode::TransactionFailed,
-            "cli-git fix could not install its corrections: a selected file changed while cli-git fix ran, so no file was changed. Run cli-git fix again."
+            "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran, so no file was changed. Run monochromatic-git-policy-cli fix again."
         )
     );
     assert_eq!(

@@ -21,7 +21,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 /// The only configuration file the native wrapper reads.
-const CONFIG_FILE_NAME: &str = "cli-git.config.jsonc";
+const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
 
 /// The one question a command asks Git about where it runs,
 ///  as the spawn log records it.
@@ -245,7 +245,7 @@ fn configuration_errors_stop_before_git() {
     assert!(
         legacy_stderr.starts_with(
             format!(
-                "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Legacy configuration {} is not executed or read by the native cli-git.",
+                "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Legacy configuration {} is not executed or read by the native monochromatic-git-policy-cli.",
                 repo.join("cli-git.config.mjs").display()
             )
             .as_str()
@@ -300,9 +300,9 @@ fn inspection_commands_never_read_configuration() {
     remove(&fixture);
 }
 
-/// A legacy file beside a valid JSONC file is reported by `git cli-git check` only:
+/// A legacy file beside a valid JSONC file is reported by `git monochromatic-git-policy-cli check` only:
 ///  an
-/// ordinary configuration-loading command and `git cli-git fix` print nothing about it.
+/// ordinary configuration-loading command and `git monochromatic-git-policy-cli fix` print nothing about it.
 #[test]
 fn legacy_file_beside_jsonc_is_reported_by_check_only() {
     let fixture: Fixture = fixture("legacy-notice");
@@ -334,7 +334,7 @@ fn legacy_file_beside_jsonc_is_reported_by_check_only() {
         "{ordinary_stderr}"
     );
     // Fix stays silent about the legacy files, and finds nothing to correct.
-    let fix: Observed = run_wrapped(&fixture, repo.as_path(), &["cli-git", "fix", "--all"]);
+    let fix: Observed = run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]);
     assert_eq!(fix.code, Some(0));
     assert_eq!(fix.stdout, Vec::<u8>::new());
     assert!(
@@ -342,13 +342,13 @@ fn legacy_file_beside_jsonc_is_reported_by_check_only() {
         "{:?}",
         String::from_utf8_lossy(&fix.stderr)
     );
-    let check: Observed = run_wrapped(&fixture, repo.as_path(), &["cli-git", "check", "--all"]);
+    let check: Observed = run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "check", "--all"]);
     assert_eq!(check.code, Some(0));
     assert_eq!(
         String::from_utf8_lossy(&check.stdout),
         format!(
-            "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration {mjs} is ignored: {jsonc} is authoritative for the native cli-git. Remove the legacy file once no TypeScript cli-git reads it.\",\"path\":\"{mjs}\"}}\n\
-             {{\"schemaVersion\":1,\"sequence\":1,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration {ts} is ignored: {jsonc} is authoritative for the native cli-git. Remove the legacy file once no TypeScript cli-git reads it.\",\"path\":\"{ts}\"}}\n",
+            "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration {mjs} is ignored: {jsonc} is authoritative for the native monochromatic-git-policy-cli. Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.\",\"path\":\"{mjs}\"}}\n\
+             {{\"schemaVersion\":1,\"sequence\":1,\"type\":\"configuration-warning\",\"code\":\"legacy-config-ignored\",\"message\":\"Legacy configuration {ts} is ignored: {jsonc} is authoritative for the native monochromatic-git-policy-cli. Remove the legacy file once no TypeScript monochromatic-git-policy-cli reads it.\",\"path\":\"{ts}\"}}\n",
             mjs = repo.join("cli-git.config.mjs").display(),
             ts = repo.join("cli-git.config.ts").display(),
             jsonc = repo.join(CONFIG_FILE_NAME).display()
@@ -363,8 +363,8 @@ fn legacy_file_beside_jsonc_is_reported_by_check_only() {
     std::fs::remove_file(repo.join(CONFIG_FILE_NAME)).expect("remove JSONC");
     for arguments in [
         vec!["add", "anything"],
-        vec!["cli-git", "fix", "--all"],
-        vec!["cli-git", "check", "--all"],
+        vec!["monochromatic-git-policy-cli", "fix", "--all"],
+        vec!["monochromatic-git-policy-cli", "check", "--all"],
     ] {
         let migration: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert_eq!(migration.code, Some(2), "{arguments:?}");
@@ -433,7 +433,7 @@ fn forbidden_strings_scan_candidates_from_each_rules_source() {
         run_wrapped(
             &fixture,
             repo.as_path(),
-            &["cli-git", "check", "--", "a.txt"]
+            &["monochromatic-git-policy-cli", "check", "--", "a.txt"]
         ),
         Observed {
             code: Some(1),
@@ -489,7 +489,7 @@ fn forbidden_strings_scan_candidates_from_each_rules_source() {
     // Only the clean file was ever staged.
     assert_eq!(
         String::from_utf8_lossy(&status(&fixture, repo.as_path())),
-        "A  clean.txt\n?? a.txt\n?? cli-git.config.jsonc\n?? rules/private.txt\n"
+        "A  clean.txt\n?? a.txt\n?? monochromatic-git-policy-cli.config.jsonc\n?? rules/private.txt\n"
     );
     remove(&fixture);
 }
@@ -529,7 +529,7 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
     );
     assert_eq!(
         String::from_utf8_lossy(&status(&fixture, repo.as_path())),
-        "A  a.txt\n?? cli-git.config.jsonc\n?? rules/private.txt\n"
+        "A  a.txt\n?? monochromatic-git-policy-cli.config.jsonc\n?? rules/private.txt\n"
     );
     // The flag does not carry over: a commit without it stops on the staged file.
     // Both commits of this test run under the commit bound: a commit is not a single Git command (it starts 40 Git
@@ -561,7 +561,7 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
     assert_eq!(committed.code, Some(0), "{}", String::from_utf8_lossy(&committed.stderr));
     assert_eq!(
         String::from_utf8_lossy(&status(&fixture, repo.as_path())),
-        "?? cli-git.config.jsonc\n?? rules/private.txt\n"
+        "?? monochromatic-git-policy-cli.config.jsonc\n?? rules/private.txt\n"
     );
     remove(&fixture);
 }
@@ -595,7 +595,7 @@ fn direct_fix_corrects_only_worktree_files() {
     let index_before: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("index");
     // The fix itself.
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["cli-git", "fix", "--all"]),
+        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]),
         Observed {
             code: Some(0),
             stdout: b"{\"schemaVersion\":1,\"sequence\":0,\"type\":\"fix-summary\",\"trigger\":\"direct-fix\",\"passes\":1,\"changedPaths\":[\"run.sh\",\"t.txt\",\"u.txt\"]}\n".to_vec(),
@@ -641,7 +641,7 @@ fn direct_fix_corrects_only_worktree_files() {
     );
     // A second fix finds nothing to do.
     assert_eq!(
-        run_wrapped(&fixture, repo.as_path(), &["cli-git", "fix", "--all"]),
+        run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "fix", "--all"]),
         Observed {
             code: Some(0),
             stdout: Vec::<u8>::new(),

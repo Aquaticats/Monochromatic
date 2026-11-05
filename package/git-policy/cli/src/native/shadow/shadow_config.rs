@@ -1,5 +1,5 @@
 //! What:
-//!  The shadow repository's `config` file, written by cli-git itself,
+//!  The shadow repository's `config` file, written by monochromatic-git-policy-cli itself,
 //!       and the repository format facts it copies from the real common config.
 //! Why:
 //!  Git does not apply `core.repositoryformatversion` and `extensions.*` from an included file,

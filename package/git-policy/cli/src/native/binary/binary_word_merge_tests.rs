@@ -182,7 +182,7 @@ fn the_journal_receives_each_merged_part() {
     let merged: Vec<_> = entries.iter().filter(|entry| { return entry.get("MESSAGE").is_some_and(|message| { return message.contains(MERGE_LINE_MARK); }); }).collect();
     assert_eq!(merged.len(), 1, "one entry for the one merged file: {entries:?} {}", stderr_of(&observed));
     let entry = merged[0];
-    assert_eq!(entry.get("SYSLOG_IDENTIFIER").map(String::as_str), Some("cli-git"), "{entry:?}");
+    assert_eq!(entry.get("SYSLOG_IDENTIFIER").map(String::as_str), Some("monochromatic-git-policy-cli"), "{entry:?}");
     assert!(entry.get("MESSAGE").is_some_and(|message| { return message.contains(tracked(ADJACENT).as_str()); }), "{entry:?}");
     assert_eq!(entry.get("CLI_GIT_WORD_MERGE_FILE").map(String::as_str), Some(tracked(ADJACENT).as_str()), "{entry:?}");
     remove(&fixture);

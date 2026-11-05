@@ -152,17 +152,17 @@ fn the_refusal_names_what_a_person_needs() {
         (OsString::from("CLI_GIT_NATIVE_FORWARD_TARGET"), OsString::from("/opt/launchers/git")),
         (OsString::from("PATH"), OsString::from("/opt/launchers")),
     ];
-    let said: String = refusal_text(&marker(321, StartMode::Child), Path::new("/opt/other-release/cli-git-native"), environment.as_slice());
+    let said: String = refusal_text(&marker(321, StartMode::Child), Path::new("/opt/other-release/monochromatic-git-policy-cli"), environment.as_slice());
     for needle in [
-        "/opt/other-release/cli-git-native",
-        "was started as Git by a cli-git wrapper",
+        "/opt/other-release/monochromatic-git-policy-cli",
+        "was started as Git by a monochromatic-git-policy-cli wrapper",
         "process 321",
         "waits for its answer",
         "/opt/launchers/git",
         "PATH here is /opt/launchers",
         "never runs itself as Git",
         "(for example /usr/bin)",
-        "remove the entry that leads back to cli-git",
+        "remove the entry that leads back to monochromatic-git-policy-cli",
     ] {
         assert!(said.contains(needle), "{needle}: {said}");
     }

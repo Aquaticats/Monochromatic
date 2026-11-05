@@ -108,8 +108,8 @@ fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, fir
         Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None),
     };
     return format!(
-        "cli-git: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
-        tail.strip_prefix("cli-git: ").unwrap_or(tail.as_str())
+        "monochromatic-git-policy-cli: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
+        tail.strip_prefix("monochromatic-git-policy-cli: ").unwrap_or(tail.as_str())
     );
 }
 

@@ -49,7 +49,7 @@ fn not_prepared() -> PolicyOutcome {
     return PolicyOutcome::Failed {
         code: EngineFailureCode::PolicyIncomplete,
         message: String::from(
-            "cli-git read candidate content before the candidates were prepared; this is a defect in cli-git.",
+            "monochromatic-git-policy-cli read candidate content before the candidates were prepared; this is a defect in monochromatic-git-policy-cli.",
         ),
         path: None,
     };

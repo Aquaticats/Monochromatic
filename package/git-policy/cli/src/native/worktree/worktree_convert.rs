@@ -80,7 +80,7 @@ fn new_token() -> String {
         Ok(elapsed) => elapsed.as_nanos(),
         Err(_before_epoch) => 0,
     };
-    return format!("cli-git convert-worktree-to-subvolume pid={} at={nanos}", std::process::id());
+    return format!("monochromatic-git-policy-cli convert-worktree-to-subvolume pid={} at={nanos}", std::process::id());
 }
 
 /// Undo an unfinished conversion that has not reached its swap: destroy the subvolume this command created (the one whose

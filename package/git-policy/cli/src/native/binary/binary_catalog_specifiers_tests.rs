@@ -4,7 +4,7 @@
 //!  a `warn` policy reports,
 //! the same commit landing untouched under an older configuration,
 //! and the direct
-//!  `git cli-git check --policy` runs for an off,
+//!  `git monochromatic-git-policy-cli check --policy` runs for an off,
 //! warning and blocking policy.
 //! Why:
 //!  The policy ships switched off,
@@ -53,7 +53,7 @@ fn configured(fixture: &Fixture, configuration: Option<&str>, manifest: &str) ->
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     if let Some(text) = configuration {
-        std::fs::write(repo.join("cli-git.config.jsonc"), text).expect("repository configuration");
+        std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), text).expect("repository configuration");
     }
     std::fs::write(repo.join("package.json"), manifest).expect("manifest");
     return repo;
@@ -139,23 +139,23 @@ fn a_configuration_that_does_not_name_the_policy_commits_as_before() {
     }
 }
 
-/// `git cli-git check --all --policy mono/catalog-specifiers` exits 2 and names the key while the policy is off,
+/// `git monochromatic-git-policy-cli check --all --policy mono/catalog-specifiers` exits 2 and names the key while the policy is off,
 ///  exits 0 with the finding at `warn`,
 /// and exits 1 at `error`.
 #[test]
 fn a_direct_check_of_the_policy_follows_its_severity() {
     let fixture: Fixture = fixture("catalog-direct");
     let repo: PathBuf = configured(&fixture, None, LITERAL);
-    let arguments: [&str; 5] = ["cli-git", "check", "--all", "--policy", "mono/catalog-specifiers"];
+    let arguments: [&str; 5] = ["monochromatic-git-policy-cli", "check", "--all", "--policy", "mono/catalog-specifiers"];
     let off: Observed = run_wrapped(&fixture, repo.as_path(), &arguments);
     let stdout: String = String::from_utf8_lossy(off.stdout.as_slice()).into_owned();
     assert_eq!((off.code, stderr_of(&off)), (Some(2), String::new()));
     assert!(stdout.contains("\"code\":\"config-invalid\""), "{stdout}");
     assert!(stdout.contains("Policy mono/catalog-specifiers is off, so --policy mono/catalog-specifiers would check nothing"), "{stdout}");
-    assert!(stdout.contains("\\\"policies\\\": { \\\"mono/catalog-specifiers\\\": \\\"error\\\" } in cli-git.config.jsonc"), "{stdout}");
+    assert!(stdout.contains("\\\"policies\\\": { \\\"mono/catalog-specifiers\\\": \\\"error\\\" } in monochromatic-git-policy-cli.config.jsonc"), "{stdout}");
     for (severity, code) in [("warn", 0), ("error", 1)] {
         std::fs::write(
-            repo.join("cli-git.config.jsonc"),
+            repo.join("monochromatic-git-policy-cli.config.jsonc"),
             format!("{{ \"policies\": {{ \"mono/catalog-specifiers\": \"{severity}\" }} }}\n"),
         )
         .expect("configuration");
@@ -168,15 +168,15 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
     let fix: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["cli-git", "fix", "--all", "--policy", "mono/catalog-specifiers"],
+        &["monochromatic-git-policy-cli", "fix", "--all", "--policy", "mono/catalog-specifiers"],
     );
     let refusal: String = String::from_utf8_lossy(fix.stdout.as_slice()).into_owned();
     assert_eq!((fix.code, stderr_of(&fix)), (Some(2), String::new()), "{refusal}");
-    assert!(refusal.contains("does not run for cli-git fix"), "{refusal}");
+    assert!(refusal.contains("does not run for monochromatic-git-policy-cli fix"), "{refusal}");
     remove_settled(&fixture);
 }
 
-/// This repository's own `cli-git.config.jsonc`,
+/// This repository's own `monochromatic-git-policy-cli.config.jsonc`,
 /// read by the built executable:
 /// it loads,
 /// the older optional
@@ -189,8 +189,8 @@ fn a_direct_check_of_the_policy_follows_its_severity() {
 fn the_repository_configuration_loads_and_the_catalog_policy_follows_it() {
     let fixture: Fixture = fixture("catalog-real-configuration");
     let repo: PathBuf = configured(&fixture, None, LITERAL);
-    let shipped: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../cli-git.config.jsonc");
-    std::fs::copy(&shipped, repo.join("cli-git.config.jsonc")).expect("the repository's own configuration");
+    let shipped: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../monochromatic-git-policy-cli.config.jsonc");
+    std::fs::copy(&shipped, repo.join("monochromatic-git-policy-cli.config.jsonc")).expect("the repository's own configuration");
     let shipped_text: String = std::fs::read_to_string(&shipped).expect("the repository's own configuration text");
     // On means listed with a value other than "off"; a line's `//` comment is not configuration.
     let lists_catalog: bool = shipped_text.lines().any(|line| {
@@ -200,14 +200,14 @@ fn the_repository_configuration_loads_and_the_catalog_policy_follows_it() {
     let listed: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["cli-git", "check", "--all", "--policy", "mono/forbidden-root-context"],
+        &["monochromatic-git-policy-cli", "check", "--all", "--policy", "mono/forbidden-root-context"],
     );
     assert_eq!((listed.code, stderr_of(&listed)), (Some(0), String::new()));
     assert!(listed.stdout.is_empty(), "{}", String::from_utf8_lossy(listed.stdout.as_slice()));
     let selected: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
-        &["cli-git", "check", "--all", "--policy", "mono/catalog-specifiers"],
+        &["monochromatic-git-policy-cli", "check", "--all", "--policy", "mono/catalog-specifiers"],
     );
     let stdout: String = String::from_utf8_lossy(selected.stdout.as_slice()).into_owned();
     if lists_catalog {

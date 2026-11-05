@@ -147,7 +147,7 @@ pub fn short_name(context: &GitContext, cwd: &Path, _object_directory: &Path, _c
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// rebuiltNote(['1a2b3c4'], '5d6e7f8') // 'cli-git: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.'
+/// rebuiltNote(['1a2b3c4'], '5d6e7f8') // 'monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; 1a2b3c4 did not land, 5d6e7f8 did.'
 /// ```
 pub fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
     let names: String = match unlanded.split_last() {
@@ -155,7 +155,7 @@ pub fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
         Some((only, [])) => only.clone(),
         Some((last, front)) => format!("{} and {last}", front.join(", ")),
     };
-    return format!("cli-git: the branch moved during the commit, so it was built again; {names} did not land, {landed} did.");
+    return format!("monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; {names} did not land, {landed} did.");
 }
 
 /// Summary controls stay out of the release executable.

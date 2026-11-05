@@ -3,7 +3,7 @@
 //! Why:
 //!  The wrapper supports no external hook program at all.
 //!  Git never starts the wrapper for a hook, the wrapper starts no hook program, and the one behavior this repository
-//!  used a hook for is a native action declared in `cli-git.config.jsonc`.
+//!  used a hook for is a native action declared in `monochromatic-git-policy-cli.config.jsonc`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -55,7 +55,7 @@ fn configured_hooks_for_the_commit_events_never_run_and_are_reported() {
     assert_eq!(log, "second");
     let stderr: String = stderr_of(&outcome);
     assert!(stderr.contains("external-hooks-unsupported"), "{stderr}");
-    for expected in ["hook.on-pre-commit", "hook.on-commit-msg", "hook.on-post-commit", "runs no program named by any configuration", "git cli-git doctor"] {
+    for expected in ["hook.on-pre-commit", "hook.on-commit-msg", "hook.on-post-commit", "runs no program named by any configuration", "git monochromatic-git-policy-cli doctor"] {
         assert!(stderr.contains(expected), "{expected} in {stderr}");
     }
     remove_settled(&fixture);
@@ -112,21 +112,21 @@ fn a_forwarded_command_runs_no_configured_hook() {
 fn the_retired_hooks_key_still_loads_in_a_commit() {
     let fixture: Fixture = fixture("external-retired-key");
     let repo: PathBuf = edited_repository(&fixture, "repo");
-    std::fs::write(repo.join("cli-git.config.jsonc"), "{ \"hooks\": { \"concurrentCommits\": true } }\n").expect("config");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), "{ \"hooks\": { \"concurrentCommits\": true } }\n").expect("config");
     let outcome = run_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
     assert_eq!(outcome.code, Some(0), "{}", stderr_of(&outcome));
     remove_settled(&fixture);
 }
 
-/// `git cli-git doctor` lists the configured hooks, exits 1, and names the ways forward; the retired key is noted.
+/// `git monochromatic-git-policy-cli doctor` lists the configured hooks, exits 1, and names the ways forward; the retired key is noted.
 #[test]
 fn doctor_lists_configured_hooks_and_notes_the_retired_key() {
     let fixture: Fixture = fixture("external-doctor");
     let repo: PathBuf = edited_repository(&fixture, "repo");
     let marker: PathBuf = fixture.root.join("marker");
     configure_marker_hook(&fixture, repo.as_path(), "review", "post-commit", marker.as_path());
-    std::fs::write(repo.join("cli-git.config.jsonc"), "{ \"hooks\": { \"concurrentCommits\": false } }\n").expect("config");
-    let outcome = run_commit(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), "{ \"hooks\": { \"concurrentCommits\": false } }\n").expect("config");
+    let outcome = run_commit(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "doctor"]);
     assert_eq!(outcome.code, Some(1), "{}", stderr_of(&outcome));
     assert!(String::from_utf8_lossy(&outcome.stdout).contains("hook.review (events: post-commit)"), "{:?}", outcome.stdout);
     let stderr: String = stderr_of(&outcome);
@@ -135,17 +135,17 @@ fn doctor_lists_configured_hooks_and_notes_the_retired_key() {
     remove_settled(&fixture);
 }
 
-/// `git cli-git doctor` names the inert `indexLock` and `landing` keys and the remedy, and still exits 0 for them alone.
+/// `git monochromatic-git-policy-cli doctor` names the inert `indexLock` and `landing` keys and the remedy, and still exits 0 for them alone.
 #[test]
 fn doctor_names_the_inert_index_lock_and_landing_keys() {
     let fixture: Fixture = fixture("external-doctor-inert");
     let repo: PathBuf = edited_repository(&fixture, "repo");
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         "{ \"indexLock\": { \"unprovenOwnerTimeoutMs\": 5000 }, \"landing\": { \"reserveAfterLostRaces\": 2 } }\n",
     )
     .expect("config");
-    let outcome = run_commit(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    let outcome = run_commit(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "doctor"]);
     assert_eq!(outcome.code, Some(0), "{}", stderr_of(&outcome));
     let stderr: String = stderr_of(&outcome);
     assert!(stderr.contains("`indexLock.unprovenOwnerTimeoutMs`") && stderr.contains("`landing.reserveAfterLostRaces`"), "{stderr}");
@@ -193,7 +193,7 @@ fn a_post_commit_key_is_a_configuration_error() {
     let repo: PathBuf = edited_repository(&fixture, "repo");
     let marker: PathBuf = fixture.root.join("action.ran");
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         format!("{{ \"postCommit\": {{ \"actions\": [{{ \"name\": \"x\", \"argv\": [\"touch\", \"{}\"] }}] }} }}\n", marker.display()),
     )
     .expect("config");

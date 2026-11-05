@@ -1,4 +1,4 @@
-//! Controls for the fsmonitor section of `git cli-git doctor`: parsing the listing, the wording for each state, and
+//! Controls for the fsmonitor section of `git monochromatic-git-policy-cli doctor`: parsing the listing, the wording for each state, and
 //! the doctor's output for real repositories. No control starts a fsmonitor daemon: the doctor only lists the
 //! configuration, and every home and global file is a fixture.
 
@@ -34,14 +34,14 @@ fn context_with_global(file: &Path) -> GitContext {
 /// The line doctor prints when the setting is off.
 fn off_line(state: &str) -> String {
     return format!(
-        "git cli-git doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} ({state}). {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}.\n"
+        "git monochromatic-git-policy-cli doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} ({state}). {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}.\n"
     );
 }
 
 /// The finding doctor prints when a scope turns the setting on.
 fn on_finding(setting: &str, remedy: &str) -> String {
     return format!(
-        "git cli-git doctor: Git's fsmonitor is on, against the owner's decision of {DECISION_DATE} to keep it off: {setting}. {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}. {remedy}\n"
+        "git monochromatic-git-policy-cli doctor: Git's fsmonitor is on, against the owner's decision of {DECISION_DATE} to keep it off: {setting}. {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}. {remedy}\n"
     );
 }
 
@@ -229,14 +229,14 @@ fn a_listing_that_cannot_be_read_is_said_plainly() {
     missing.real_git = root.join("no-such-git");
     let not_started: String = fsmonitor_report(&missing, repo.as_path());
     assert!(
-        not_started.starts_with("git cli-git doctor: could not read Git's fsmonitor setting: git config --list could not start: ")
+        not_started.starts_with("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list could not start: ")
             && not_started.ends_with('\n'),
         "{not_started}"
     );
     std::fs::write(repo.join(".git/config"), "[core\n").expect("a broken configuration");
     let refused: String = fsmonitor_report(&git_context(), repo.as_path());
     assert!(
-        refused.starts_with("git cli-git doctor: could not read Git's fsmonitor setting: git config --list failed: "),
+        refused.starts_with("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list failed: "),
         "{refused}"
     );
     remove(root.as_path());

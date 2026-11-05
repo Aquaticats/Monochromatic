@@ -92,8 +92,8 @@ fn the_help_section_is_short_and_exact() {
         section,
         "\nmonochromatic-git-policy-cli 1.2.3 sits in front of this git\n\
          It adds repository policies on commit, push and worktree commands,\n\
-         the `git cli-git` management command (`git cli-git --help`),\n\
-         and `git cli-git doctor`, which lists the traditional hooks a repository holds.\n\
+         the `git monochromatic-git-policy-cli` management command (`git monochromatic-git-policy-cli --help`),\n\
+         and `git monochromatic-git-policy-cli doctor`, which lists the traditional hooks a repository holds.\n\
          real git: /usr/bin/git\n"
     );
     assert!(section.lines().count() < 8, "{section}");

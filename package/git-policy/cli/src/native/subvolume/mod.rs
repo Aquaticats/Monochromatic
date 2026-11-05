@@ -124,10 +124,10 @@ pub mod subvolume_migrate;
 #[cfg(target_os = "linux")]
 pub mod subvolume_rollback;
 
-/// The grammar of `git cli-git migrate-to-subvolume`.
+/// The grammar of `git monochromatic-git-policy-cli migrate-to-subvolume`.
 pub mod subvolume_arguments;
 
-/// `git cli-git migrate-to-subvolume`: root discovery, modes and exit statuses.
+/// `git monochromatic-git-policy-cli migrate-to-subvolume`: root discovery, modes and exit statuses.
 #[cfg(target_os = "linux")]
 pub mod subvolume_command;
 

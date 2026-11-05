@@ -19,7 +19,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // process.on('uncaughtException', () => process.stderr.write('cli-git: internal error ...\n'));
+//! // process.on('uncaughtException', () => process.stderr.write('monochromatic-git-policy-cli: internal error ...\n'));
 //! ```
 
 /// What:
@@ -66,7 +66,7 @@ pub fn panic_notice(location: Option<&Location<'_>>) -> String {
     match location {
         Some(found) => {
             return format!(
-                "cli-git: internal error at {}:{}:{}; its message is not shown because it may \
+                "monochromatic-git-policy-cli: internal error at {}:{}:{}; its message is not shown because it may \
                  contain repository content. Hint: if you were running a Git command, run it again; your files are \
                  not changed by this notice, so `git status` shows where things stand. If it repeats, report this \
                  location.\n",
@@ -77,7 +77,7 @@ pub fn panic_notice(location: Option<&Location<'_>>) -> String {
         }
         None => {
             return String::from(
-                "cli-git: internal error; its message is not shown because it may contain \
+                "monochromatic-git-policy-cli: internal error; its message is not shown because it may contain \
                  repository content. Hint: if you were running a Git command, run it again; `git status` shows where \
                  things stand. If it repeats, report the command you ran.\n",
             );

@@ -47,7 +47,7 @@ fn landed_file(name: &str, file: &str, landed_bytes: &str) -> (PathBuf, String) 
     let root = fixture(name);
     git(&root, &["init", "--quiet", "--initial-branch=main"]);
     git(&root, &["config", "user.email", "cli-git@example.invalid"]);
-    git(&root, &["config", "user.name", "cli-git fixture"]);
+    git(&root, &["config", "user.name", "monochromatic-git-policy-cli fixture"]);
     std::fs::write(root.join("stable.txt"), "stable content\n").expect("stable file");
     git(&root, &["add", "stable.txt"]);
     git(&root, &["commit", "--quiet", "-m", "baseline"]);

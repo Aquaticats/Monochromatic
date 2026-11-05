@@ -1,6 +1,6 @@
 //! What:
 //!  Decide whether one PATH candidate is real Git,
-//!  a cli-git wrapper,
+//!  a monochromatic-git-policy-cli wrapper,
 //!  or unusable.
 //! Why:
 //!  The wrapper shadows `git` on PATH and must never select itself,
@@ -77,7 +77,7 @@ const NATIVE_EXECUTABLE_PREFIXES: &[&[u8]] = &[
 ];
 
 /// What:
-///  Text that identifies a script delegating to the TypeScript cli-git wrapper:
+///  Text that identifies a script delegating to the TypeScript monochromatic-git-policy-cli wrapper:
 ///       its package name and bundled entry path,
 ///  in POSIX and Windows spellings.
 /// Why:
@@ -110,7 +110,7 @@ const WRAPPER_SCRIPT_MARKERS: &[&[u8]] = &[
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CandidateKind {
-    /// An executable regular file that is not a cli-git wrapper.
+    /// An executable regular file that is not a monochromatic-git-policy-cli wrapper.
     RealGit,
     /// This executable,
     ///  a byte-identical copy of it,

@@ -427,7 +427,7 @@ fn warnings_let_git_run_and_commit_only_rejects() {
     let fixture: Fixture = fixture("builtin-warn");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         r#"{ "policies": { "branch-worktree-only": "warn" } }"#,
     )
     .expect("configuration");
@@ -436,7 +436,7 @@ fn warnings_let_git_run_and_commit_only_rejects() {
     assert_eq!(warned.stdout, Vec::<u8>::new());
     assert_eq!(
         stderr_of(&warned),
-        "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"pre-forward\",\"policyId\":\"branch-worktree-only\",\"severity\":\"warn\",\"code\":\"branch-worktree-only/branch-creation-requires-worktree\",\"message\":\"cli-git: git branch branch creation is rejected in the current worktree. Use `git worktree add -b <branch> <path> [<start-point>]` so new branch work starts in its own checkout, or pass --no-enforce-worktree-branch to bypass for this invocation.\",\"fix\":\"none\"}\n"
+        "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"pre-forward\",\"policyId\":\"branch-worktree-only\",\"severity\":\"warn\",\"code\":\"branch-worktree-only/branch-creation-requires-worktree\",\"message\":\"monochromatic-git-policy-cli: git branch branch creation is rejected in the current worktree. Use `git worktree add -b <branch> <path> [<start-point>]` so new branch work starts in its own checkout, or pass --no-enforce-worktree-branch to bypass for this invocation.\",\"fix\":\"none\"}\n"
     );
     assert_eq!(branches(&fixture, repo.as_path()), "created\nmain\n");
     // The commit-only transform rejects `-a` and a pathless commit, here on a dry run.

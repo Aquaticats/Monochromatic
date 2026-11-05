@@ -11,6 +11,7 @@
 //! await appendFile(join(commonDir, 'cli-git-audit.jsonl'), JSON.stringify(entry) + '\n');
 //! ```
 
+use crate::wrapper_names_old_and_new::DISCARD_AUDIT_LOG;
 use crate::diagnostic_log::debug;
 use generations::{Retention, install_generation, retention_of, trim_generations};
 use crate::iso_time::format_iso_milliseconds;
@@ -23,7 +24,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// The file inside the common Git directory that collects the lines of every worktree of the repository.
-pub const AUDIT_FILE: &str = "cli-git-audit.jsonl";
+pub const AUDIT_FILE: &str = DISCARD_AUDIT_LOG.current;
 
 /// The size at which a log file moves aside.
 ///

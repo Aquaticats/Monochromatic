@@ -21,8 +21,8 @@ use std::path::{Path, PathBuf};
 
 /// Real common-directory entries the shadow never links:
 ///  its ref store, index, config, object store, message file, copied conclusion state,
-///  and cli-git's own state, which contains the shadow itself.
-pub const PRIVATE_SHADOW_ENTRIES: [&str; 13] = [
+///  and the program's own state under its current name and under the name an earlier release gave it, which contains the shadow itself.
+pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
     "HEAD",
     "refs",
     "packed-refs",
@@ -33,6 +33,7 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 13] = [
     "config.worktree",
     "objects",
     "COMMIT_EDITMSG",
+    "monochromatic-git-policy-cli",
     "cli-git",
     "cli-git-transactions",
     "cli-git-transaction",

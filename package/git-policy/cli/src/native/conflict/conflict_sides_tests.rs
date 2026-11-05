@@ -154,7 +154,7 @@ fn a_copy_keeps_content_mode_and_link_target() {
     let paths: Vec<Vec<u8>> = vec![b"a.rs".to_vec(), b"sub/b.rs".to_vec(), b"link".to_vec(), b"gone.rs".to_vec()];
     let milliseconds: i64 = 1_793_628_067_000;
     let copies: Vec<SavedCopy> = save_copies(root.as_path(), common.as_path(), paths.as_slice(), milliseconds).expect("saved");
-    let directory: PathBuf = common.join("cli-git/discarded").join(stamp(milliseconds));
+    let directory: PathBuf = common.join("monochromatic-git-policy-cli/discarded").join(stamp(milliseconds));
     assert_eq!(stamp(milliseconds), "2026-11-02T14-01-07");
     assert_eq!(copies[0].saved_to, Some(directory.join("a.rs")));
     assert_eq!(std::fs::read(directory.join("a.rs")).expect("copy"), b"half \xff resolved\n");
@@ -191,12 +191,12 @@ fn a_second_save_in_the_same_second_keeps_the_first() {
 fn a_copy_that_cannot_be_written_is_a_failure() {
     let (base, root, common) = tree("sides-failure");
     std::fs::write(root.join("a.rs"), b"mine\n").expect("a");
-    // `cli-git` is a file, so no directory can be made below it.
-    std::fs::write(common.join("cli-git"), b"in the way").expect("blocker");
+    // `monochromatic-git-policy-cli` is a file, so no directory can be made below it.
+    std::fs::write(common.join("monochromatic-git-policy-cli"), b"in the way").expect("blocker");
     let failure: SaveFailure = save_copies(root.as_path(), common.as_path(), &[b"a.rs".to_vec()], 0).expect_err("no place");
     assert!(failure.subject.contains("discarded"), "{failure:?}");
     assert!(!failure.reason.is_empty(), "{failure:?}");
-    std::fs::remove_file(common.join("cli-git")).expect("remove blocker");
+    std::fs::remove_file(common.join("monochromatic-git-policy-cli")).expect("remove blocker");
     // A directory where the conflicted file is expected cannot be copied as a file.
     std::fs::create_dir(root.join("dir.rs")).expect("directory");
     let directory_failure: SaveFailure = save_copies(root.as_path(), common.as_path(), &[b"dir.rs".to_vec()], 0).expect_err("a directory");

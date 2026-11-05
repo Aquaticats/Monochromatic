@@ -31,15 +31,15 @@ fn age(path: &Path, back: Duration) {
 fn the_state_directory_follows_the_xdg_rules() {
     assert_eq!(
         state_directory(&environment(&[("XDG_STATE_HOME", Path::new("/state")), ("HOME", Path::new("/home/u"))])),
-        Some(PathBuf::from("/state/cli-git"))
+        Some(PathBuf::from("/state/monochromatic-git-policy-cli"))
     );
     assert_eq!(
         state_directory(&environment(&[("XDG_STATE_HOME", Path::new("relative")), ("HOME", Path::new("/home/u"))])),
-        Some(PathBuf::from("/home/u/.local/state/cli-git"))
+        Some(PathBuf::from("/home/u/.local/state/monochromatic-git-policy-cli"))
     );
     assert_eq!(
         state_directory(&environment(&[("HOME", Path::new("/home/u"))])),
-        Some(PathBuf::from("/home/u/.local/state/cli-git"))
+        Some(PathBuf::from("/home/u/.local/state/monochromatic-git-policy-cli"))
     );
 }
 
@@ -63,8 +63,8 @@ fn the_user_scratch_directory_is_created_private_with_its_parents() {
     std::fs::create_dir(&home).expect("home");
     let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
     let scratch: PathBuf = prepare_user_scratch(env.as_slice()).expect("first preparation");
-    assert_eq!(scratch, home.join(".local/state/cli-git/scratch"));
-    for directory in [".local", ".local/state", ".local/state/cli-git", ".local/state/cli-git/scratch"] {
+    assert_eq!(scratch, home.join(".local/state/monochromatic-git-policy-cli/scratch"));
+    for directory in [".local", ".local/state", ".local/state/monochromatic-git-policy-cli", ".local/state/monochromatic-git-policy-cli/scratch"] {
         assert_eq!(mode_of(home.join(directory).as_path()), 0o700, "{directory}");
     }
     assert_eq!(prepare_user_scratch(env.as_slice()).expect("second preparation"), scratch);
@@ -77,9 +77,9 @@ fn a_linked_scratch_directory_is_refused() {
     let root: PathBuf = fixture("scratch-user-link");
     let home: PathBuf = root.join("home");
     let elsewhere: PathBuf = root.join("elsewhere");
-    std::fs::create_dir_all(home.join(".local/state/cli-git")).expect("state");
+    std::fs::create_dir_all(home.join(".local/state/monochromatic-git-policy-cli")).expect("state");
     std::fs::create_dir(&elsewhere).expect("elsewhere");
-    std::os::unix::fs::symlink(&elsewhere, home.join(".local/state/cli-git/scratch")).expect("plant link");
+    std::os::unix::fs::symlink(&elsewhere, home.join(".local/state/monochromatic-git-policy-cli/scratch")).expect("plant link");
     let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
     let reason: String = prepare_user_scratch(env.as_slice()).expect_err("a link is refused");
     assert!(reason.contains("not a directory"), "{reason}");
@@ -96,7 +96,7 @@ fn a_linked_scratch_directory_is_refused() {
 fn a_loose_scratch_directory_of_this_user_is_tightened() {
     let root: PathBuf = fixture("scratch-user-loose");
     let home: PathBuf = root.join("home");
-    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    let scratch: PathBuf = home.join(".local/state/monochromatic-git-policy-cli/scratch");
     std::fs::create_dir_all(&scratch).expect("scratch");
     std::fs::set_permissions(&scratch, std::fs::Permissions::from_mode(0o755)).expect("loosen");
     let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
@@ -172,7 +172,7 @@ fn sweeping_a_missing_directory_removes_nothing() {
 fn preparing_a_directory_collects_what_a_killed_process_left() {
     let root: PathBuf = fixture("scratch-prepare-sweep");
     let home: PathBuf = root.join("home");
-    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    let scratch: PathBuf = home.join(".local/state/monochromatic-git-policy-cli/scratch");
     std::fs::create_dir_all(&scratch).expect("scratch");
     std::fs::write(scratch.join("cli-git-markdown-stale.jsonc"), b"[]").expect("stale");
     age(scratch.join("cli-git-markdown-stale.jsonc").as_path(), SCRATCH_STALE_AFTER * 2);
@@ -205,7 +205,7 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     let mut read: Vec<u8> = Vec::new();
     file.read_to_end(&mut read).expect("read");
     assert_eq!(read, b"bytes");
-    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    let scratch: PathBuf = home.join(".local/state/monochromatic-git-policy-cli/scratch");
     assert_eq!(std::fs::read_dir(&scratch).expect("scratch directory").count(), 0, "the file has no name");
     let error: std::io::Error = scratch_file(&[]).expect_err("no home");
     assert!(error.to_string().contains("never in the system temporary directory"), "{error}");

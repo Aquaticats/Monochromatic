@@ -46,7 +46,7 @@ pub use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_p
 /// Where the copies live,
 /// below the common Git directory,
 /// beside `cli-git-audit.jsonl`.
-pub const SAVED_DIRECTORY: &str = "cli-git/discarded";
+pub const SAVED_DIRECTORY: &str = "monochromatic-git-policy-cli/discarded";
 
 /// One saved file.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -158,7 +158,7 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
                 return Err(SaveFailure::io(each.display().to_string(), error.to_string()));
             }
         }
-        let parent: PathBuf = common_dir.join("cli-git");
+        let parent: PathBuf = common_dir.join("monochromatic-git-policy-cli");
         for each in [saved_root.as_path(), parent.as_path()] {
             if let Err(error) = sync_directory(each) {
                 return Err(SaveFailure::io(each.display().to_string(), error.to_string()));

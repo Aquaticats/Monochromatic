@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git migrate-to-subvolume`: find the repository's main checkout from the working directory, run the
+//!  `git monochromatic-git-policy-cli migrate-to-subvolume`: find the repository's main checkout from the working directory, run the
 //!  requested mode (migrate, rollback, remove the old tree) and turn the result into an exit status and text.
 //! Why:
 //!  The command runs for minutes (the real checkout took about sixteen minutes of passes), so progress lines go to
@@ -98,7 +98,7 @@ fn say_on_standard_error(text: &str) {
 /// Write the refusals in plain words.
 fn say_refusals(say: &mut dyn FnMut(&str), refusals: &[Refusal]) {
     for refusal in refusals {
-        say(format!("git cli-git migrate-to-subvolume: refused: {}", refusal.cause).as_str());
+        say(format!("git monochromatic-git-policy-cli migrate-to-subvolume: refused: {}", refusal.cause).as_str());
         say(format!("  What to do: {}", refusal.remedy).as_str());
     }
     say("Nothing was changed.");
@@ -123,7 +123,7 @@ pub fn execute(platform: &dyn Platform, arguments: &MigrateArguments, root: &Pat
                 Some(layout) => layout.journal_path.display().to_string(),
                 None => String::new(),
             };
-            say(format!("git cli-git migrate-to-subvolume: failed: {error}").as_str());
+            say(format!("git monochromatic-git-policy-cli migrate-to-subvolume: failed: {error}").as_str());
             say(format!("The journal {journal} records the steps that finished. Run the command again to resume from there, or add --rollback to restore the original directory.").as_str());
             return ENGINE_FAILURE_EXIT_CODE;
         }
@@ -176,7 +176,7 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
 }
 
 /// What:
-///  The action of `git cli-git migrate-to-subvolume`: help, or the run from the working directory's repository.
+///  The action of `git monochromatic-git-policy-cli migrate-to-subvolume`: help, or the run from the working directory's repository.
 /// Why:
 ///   Progress goes to standard error live; the action carries only the exit status.
 ///
@@ -194,7 +194,7 @@ pub fn migrate_action(arguments: &MigrateArguments, cwd: &Path) -> Action {
             return Action::Exit {
                 code: REFUSED_EXIT_CODE,
                 stdout: String::new(),
-                stderr: format!("git cli-git migrate-to-subvolume: refused: {message}\n  What to do: run the command inside the repository whose main checkout you want to convert.\nNothing was changed.\n"),
+                stderr: format!("git monochromatic-git-policy-cli migrate-to-subvolume: refused: {message}\n  What to do: run the command inside the repository whose main checkout you want to convert.\nNothing was changed.\n"),
             };
         }
     };

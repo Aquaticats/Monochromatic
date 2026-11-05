@@ -1,5 +1,5 @@
 //! What:
-//!  The direct commands of the `cli-git` namespace that run in this process (`git cli-git <command> ...`):
+//!  The direct commands of the `monochromatic-git-policy-cli` namespace that run in this process (`git monochromatic-git-policy-cli <command> ...`):
 //!  their refusals, the configuration failure text, and the plan that runs one.
 //! Why:
 //!  `management.rs` plans every management command; the direct ones are a large part of it and depend on nothing in it,
@@ -89,11 +89,11 @@ fn direct_name(fix: bool) -> &'static str {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function directCommand(fix: boolean): string { return `cli-git ${directName(fix)}`; }
+/// function directCommand(fix: boolean): string { return `monochromatic-git-policy-cli ${directName(fix)}`; }
 /// ```
 fn direct_command(fix: bool) -> String {
     // `format!` builds owned text; `{}` interpolates the command word.
-    return format!("cli-git {}", direct_name(fix));
+    return format!("monochromatic-git-policy-cli {}", direct_name(fix));
 }
 
 /// What:
@@ -112,11 +112,11 @@ pub(crate) fn refusal(reason: ManagementRefusal) -> Action {
     let stderr: String = match reason {
         ManagementRefusal::Usage => String::from(MANAGEMENT_USAGE),
         ManagementRefusal::PathspecsBeforeSeparator { fix } => format!(
-            "git cli-git {} pathspecs must follow --.\n",
+            "git monochromatic-git-policy-cli {} pathspecs must follow --.\n",
             direct_name(fix)
         ),
         ManagementRefusal::ScopeRequired { fix } => format!(
-            "git cli-git {} requires exactly one scope: --all or non-empty pathspecs after --.\n",
+            "git monochromatic-git-policy-cli {} requires exactly one scope: --all or non-empty pathspecs after --.\n",
             direct_name(fix)
         ),
     };
@@ -251,7 +251,7 @@ fn run_direct_command(
 }
 
 /// What:
-///  Plan a direct command (`git cli-git check` and its kin) once the real Git is known.
+///  Plan a direct command (`git monochromatic-git-policy-cli check` and its kin) once the real Git is known.
 /// Why:
 ///   `plan_management_with_section` adds the notice of a recorded fallback to whatever action this returns,
 ///  so the many early stops of the planning carry it without repeating it.

@@ -100,7 +100,7 @@ pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str
 
 /// Starts the service of every worktree in `git_dirs` and adds it to `running`, waiting until each listens.
 fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[PathBuf], release: Option<&str>) {
-    std::fs::create_dir_all(runtime.join("cli-git")).expect("socket directory");
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("socket directory");
     let journal: PathBuf = root.join("journal");
     let mut sockets: Vec<PathBuf> = Vec::new();
     for git_dir in git_dirs {

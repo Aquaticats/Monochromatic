@@ -1,5 +1,5 @@
 //! What:
-//!  The fsmonitor section of `git cli-git doctor`: whether Git's own file-system monitor (`core.fsmonitor`) is off, and
+//!  The fsmonitor section of `git monochromatic-git-policy-cli doctor`: whether Git's own file-system monitor (`core.fsmonitor`) is off, and
 //!  where it is on, the file and scope that turn it on and the command that turns it off.
 //! Why:
 //!  The owner decided on 2026-11-03: "If git's fsmonitor is fundamentally broken and cannot be easily or meaningfully
@@ -155,7 +155,7 @@ GIT_CONFIG_PARAMETERS environment variable that passes it.",
 pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
     let Some(deciding) = entries.last() else {
         return format!(
-            "git cli-git doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is not set). \
+            "git monochromatic-git-policy-cli doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is not set). \
 {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}.\n"
         );
     };
@@ -172,7 +172,7 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
             format!("{written} (Git reads it as false)")
         };
         return format!(
-            "git cli-git doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is {value} in \
+            "git monochromatic-git-policy-cli doctor: Git's fsmonitor is off by the owner's decision of {DECISION_DATE} (core.fsmonitor is {value} in \
 {place}). {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}.\n"
         );
     }
@@ -184,7 +184,7 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
         (None, None) => unreachable!("a key without a value always reads as true"),
     };
     return format!(
-        "git cli-git doctor: Git's fsmonitor is on, against the owner's decision of {DECISION_DATE} to keep it off: {setting}. \
+        "git monochromatic-git-policy-cli doctor: Git's fsmonitor is on, against the owner's decision of {DECISION_DATE} to keep it off: {setting}. \
 {FSMONITOR_REASON} See {FSMONITOR_DOCUMENT}. {}\n",
         remedy(deciding)
     );
@@ -206,16 +206,16 @@ pub fn fsmonitor_report(context: &GitContext, cwd: &Path) -> String {
         Ok(finished) => finished,
         Err(error) => {
             debug("fsmonitorReport", format!("git config --list could not start: {error}").as_str());
-            return format!("git cli-git doctor: could not read Git's fsmonitor setting: git config --list could not start: {error}\n");
+            return format!("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list could not start: {error}\n");
         }
     };
     if !output.succeeded() {
         debug("fsmonitorReport", format!("git config --list failed: {}", output.error_text()).as_str());
-        return format!("git cli-git doctor: could not read Git's fsmonitor setting: git config --list failed: {}\n", output.error_text());
+        return format!("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list failed: {}\n", output.error_text());
     }
     let Some(entries) = parse_fsmonitor_entries(output.stdout.as_slice()) else {
         debug("fsmonitorReport", "the configuration listing has an unexpected shape");
-        return String::from("git cli-git doctor: could not read Git's fsmonitor setting: git config --list printed an unexpected shape\n");
+        return String::from("git monochromatic-git-policy-cli doctor: could not read Git's fsmonitor setting: git config --list printed an unexpected shape\n");
     };
     return render_fsmonitor(entries.as_slice());
 }

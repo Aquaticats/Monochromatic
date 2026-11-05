@@ -121,7 +121,7 @@ fn a_long_wait_prints_notices_naming_the_file() {
     let text: String = sink.text();
     assert!(text.lines().count() >= 3, "{text}");
     for line in text.lines() {
-        assert!(line.starts_with(format!("cli-git: still waiting for {waiting_for} after ").as_str()), "{text}");
+        assert!(line.starts_with(format!("monochromatic-git-policy-cli: still waiting for {waiting_for} after ").as_str()), "{text}");
         assert!(
             line.contains(format!("giving up on it only after {} seconds with no sign of work", LONG_WINDOW.as_secs()).as_str()),
             "{text}"

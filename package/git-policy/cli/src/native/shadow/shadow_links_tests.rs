@@ -73,7 +73,7 @@ fn linked_worktree_copies_its_per_worktree_entries() {
 /// The private-entry list names every conclusion entry, the sequencer, and lock files.
 #[test]
 fn private_names_cover_conclusion_state_and_locks() {
-    for name in ["HEAD", "refs", "index", "MERGE_HEAD", "sequencer", "cli-git", "ORIG_HEAD.lock"] {
+    for name in ["HEAD", "refs", "index", "MERGE_HEAD", "sequencer", "monochromatic-git-policy-cli", "cli-git", "ORIG_HEAD.lock"] {
         assert!(is_private_shadow_entry(name), "{name}");
     }
     for name in ["hooks", "info", "rr-cache", "description", "logs-not"] {

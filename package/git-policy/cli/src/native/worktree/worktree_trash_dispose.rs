@@ -99,7 +99,7 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
     };
     debug(TAG, format!("the trash {} could not be handed to the service ({why}); emptying it here", manifest.name).as_str());
     // The person waits for this, so they are told what is being done and why, once.
-    let _told = writeln!(notices, "cli-git: emptying the directories left out of the new worktree {} now, because the commit service could not take them over ({why}); this can take a while.", destination.display());
+    let _told = writeln!(notices, "monochromatic-git-policy-cli: emptying the directories left out of the new worktree {} now, because the commit service could not take them over ({why}); this can take a while.", destination.display());
     if let Err(reason) = delete_trash(destination, git_dir, manifest) {
         let stays: String = match record {
             Some(path) => format!("the work item {} stays, so the commit service empties it when it next runs for this worktree", path.display()),

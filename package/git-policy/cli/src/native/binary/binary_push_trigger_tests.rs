@@ -68,7 +68,7 @@ fn tip(world: &World, repository: &Path, name: &str) -> String {
 
 /// How many push records of any state the service holds for the repository.
 fn push_records(world: &World) -> usize {
-    let work: PathBuf = world.repo.join(".git/cli-git/work");
+    let work: PathBuf = world.repo.join(".git/monochromatic-git-policy-cli/work");
     return ["pending", "claimed", "recovering", "done", "failed"]
         .iter()
         .map(|state| {

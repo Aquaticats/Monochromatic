@@ -70,7 +70,7 @@ fn lfs_repository(fixture: &Fixture, setting: &str) -> PathBuf {
     .expect("attributes");
     std::fs::write(repo.join("pkg/asset/shot.png"), b"image bytes").expect("image");
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         // The image is text without a final newline, so the built-in policy is turned off.
         format!(
             "{{ \"policies\": {{ \"final-newline\": \"off\", \"markdown/autofix\": {setting} }} }}\n"
@@ -145,7 +145,7 @@ fn the_linked_linter_rewrites_through_add_check_and_fix() {
         &["add", "--", "package/ssg/a.md", "pkg/done.md"],
     );
     assert_eq!((quiet.code, quiet.stderr), (Some(0), Vec::new()));
-    let checked: Observed = run_with(&fixture, &path, &repo, &["cli-git", "check", "--all"]);
+    let checked: Observed = run_with(&fixture, &path, &repo, &["monochromatic-git-policy-cli", "check", "--all"]);
     assert_eq!(
         (
             checked.code,
@@ -157,7 +157,7 @@ fn the_linked_linter_rewrites_through_add_check_and_fix() {
         )
     );
     let index_before: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("index");
-    let fixed: Observed = run_with(&fixture, &path, &repo, &["cli-git", "fix", "--all"]);
+    let fixed: Observed = run_with(&fixture, &path, &repo, &["monochromatic-git-policy-cli", "fix", "--all"]);
     assert_eq!(
         (
             fixed.code,
@@ -182,7 +182,7 @@ fn the_linked_linter_rewrites_through_add_check_and_fix() {
     assert_eq!(staged(&fixture, repo.as_path(), "pkg/README.md"), RELATIVE);
     // At `error` an add of a file the linter would rewrite stops before Git runs.
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         "{ \"policies\": { \"final-newline\": \"off\", \"markdown/autofix\": \"error\" } }\n",
     )
     .expect("configuration");
@@ -243,7 +243,7 @@ fn an_exclude_that_does_not_compile_stops_only_markdown_work() {
         ),
         (Some(2), unchecked_without_path("pre-forward", reason.as_str()))
     );
-    let checked: Observed = run_with(&fixture, &path, &repo, &["cli-git", "check", "--", "a.md"]);
+    let checked: Observed = run_with(&fixture, &path, &repo, &["monochromatic-git-policy-cli", "check", "--", "a.md"]);
     assert_eq!(checked.code, Some(2));
     assert_eq!(
         String::from_utf8_lossy(&checked.stdout).into_owned(),

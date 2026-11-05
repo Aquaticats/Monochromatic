@@ -44,11 +44,11 @@ run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-g
 
 [tasks."native:build"]
 description = "Build the native wrapper executable on the host, for differential runs that start it by path"
-run = "cargo build --locked --offline --bin cli-git-native"
+run = "cargo build --locked --offline --bin monochromatic-git-policy-cli"
 
 [tasks."native:build:release"]
-description = "Build the optimised native wrapper executable on the host, for timing runs that start it by path (`target/release/cli-git-native`); nothing is installed"
-run = "cargo build --locked --offline --release --bin cli-git-native"
+description = "Build the optimised native wrapper executable on the host, for timing runs that start it by path (`target/release/monochromatic-git-policy-cli`); nothing is installed"
+run = "cargo build --locked --offline --release --bin monochromatic-git-policy-cli"
 
 [tasks."native:check"]
 description = "Type-check the native wrapper library, executable and test targets without running them"
@@ -81,13 +81,13 @@ description = "Lint the native wrapper with Clippy, warnings denied; matches the
 run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
 [tasks.build]
-description = "Build the native wrapper executable `cli-git-native` in release mode, the artifact the cargo-installed `git` runs"
+description = "Build the native wrapper executable `monochromatic-git-policy-cli` in release mode, the artifact the cargo-installed `git` runs"
 run = "cargo build --release --locked --offline --bins"
 
 [tasks."native:perf"]
 description = "Measure the latency the release wrapper adds to forwarded Git commands (added p95 under 2,000 ms) and commits (every paired delta under 5,000 ms) against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"
 depends = ["build"]
-run = "node bin/native-perf.ts --binary target/release/cli-git-native --samples 30"
+run = "node bin/native-perf.ts --binary target/release/monochromatic-git-policy-cli --samples 30"
 
 [tasks.lint]
 extends = "lint"

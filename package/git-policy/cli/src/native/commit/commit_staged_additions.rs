@@ -302,7 +302,7 @@ pub fn explain_ignored_refusal(failure: GitFailure) -> GitFailure {
         return failure;
     }
     return GitFailure(format!(
-        "{} cli-git: git commit with explicit paths selects worktree content, and a path an ignore rule matches is not \
+        "{} monochromatic-git-policy-cli: git commit with explicit paths selects worktree content, and a path an ignore rule matches is not \
 tracked until it is staged, so the force-add hint above applies to git add, not to git commit. To commit the path, \
 stage it first with git add --force -- <path> and run the same commit again; staged additions are committed from the \
 worktree content, as native Git does.",

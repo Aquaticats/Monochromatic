@@ -138,7 +138,7 @@ pub fn land_batch_timed(
         && let Some(step) = take_ceiling_step()
         && let Some(first) = requests.first()
     {
-        announce.announce(Announce::Waiting(format!("cli-git: {step}, so this commit was not made.\n")));
+        announce.announce(Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
         let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
         let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
         if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {

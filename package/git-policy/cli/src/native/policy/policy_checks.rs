@@ -133,13 +133,13 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// The command's arguments without wrapper controls;
     ///  for a direct command,
     ///  the Git
-    /// global options written before `cli-git`.
+    /// global options written before `monochromatic-git-policy-cli`.
     pub arguments: Vec<OsString>,
     /// What the lifecycle offers content policies.
     pub candidates: LifecycleContent,
     /// Tool-cache directories exempt from linked-worktree enforcement.
     pub allowed_worktree_dirs: Vec<PathBuf>,
-    /// The limits of the folder of saved copies of conflicted files, from `discardedCopies` in `cli-git.config.jsonc`.
+    /// The limits of the folder of saved copies of conflicted files, from `discardedCopies` in `monochromatic-git-policy-cli.config.jsonc`.
     pub discarded_limits: Limits,
     /// The candidates once a content policy prepared them,
     ///  shared by every later one.

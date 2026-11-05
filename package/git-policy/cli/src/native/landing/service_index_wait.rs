@@ -151,7 +151,7 @@ pub fn foreign_holds(real_index: &Path) -> bool {
 /// The line for the person while the wait lasts.
 fn waiting_line(command: &str, waited: Duration) -> String {
     return format!(
-        "cli-git: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this waits for as long as the service holds the index.\n",
+        "monochromatic-git-policy-cli: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this waits for as long as the service holds the index.\n",
         waited.as_secs()
     );
 }
@@ -171,7 +171,7 @@ fn age_of(lock: &Path) -> Duration {
 /// The line for the person when the hold is a leftover.
 fn stale_line(command: &str, age: Duration) -> String {
     return format!(
-        "cli-git: the commit service's hold on this repository's index is {} seconds old and nothing shows the service still runs, so git {command} does not wait for it.\n",
+        "monochromatic-git-policy-cli: the commit service's hold on this repository's index is {} seconds old and nothing shows the service still runs, so git {command} does not wait for it.\n",
         age.as_secs()
     );
 }
@@ -179,14 +179,14 @@ fn stale_line(command: &str, age: Duration) -> String {
 /// The line for the person when the hold names a service process that is gone.
 fn gone_line(command: &str) -> String {
     return format!(
-        "cli-git: the commit service that held this repository's index no longer runs, so git {command} does not wait for it. The next commit made through the service removes the lock it left.\n"
+        "monochromatic-git-policy-cli: the commit service that held this repository's index no longer runs, so git {command} does not wait for it. The next commit made through the service removes the lock it left.\n"
     );
 }
 
 /// The line for the person when the wait ran out.
 fn gave_up_line(command: &str, waited: Duration) -> String {
     return format!(
-        "cli-git: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
+        "monochromatic-git-policy-cli: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
         waited.as_secs()
     );
 }

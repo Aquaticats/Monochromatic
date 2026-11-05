@@ -235,7 +235,7 @@ pub fn install_added_worktree_files(
                 warn(
                     "installAddedWorktreeFiles",
                     format!(
-                        "Worktree copy of {path} changed or disappeared while cli-git completed the commit; \
+                        "Worktree copy of {path} changed or disappeared while monochromatic-git-policy-cli completed the commit; \
                          the committed bytes remain in HEAD and your worktree state was kept. \
                          Compare it with HEAD (git diff HEAD -- {path}).",
                         path = shown

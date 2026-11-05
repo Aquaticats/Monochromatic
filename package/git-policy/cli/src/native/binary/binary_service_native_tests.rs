@@ -310,7 +310,7 @@ fn summary_name(line: &str) -> String {
 /// The note the wrapper adds, on standard error, after a commit Git built was built again because the branch moved: it names the
 ///  builds that did not land and the one that did, by the names Git's own summary lines carry.
 fn rebuilt_note(unlanded: &[String], landed: &str) -> String {
-    return format!("cli-git: the branch moved during the commit, so it was built again; {} did not land, {landed} did.", unlanded.join(" and "));
+    return format!("monochromatic-git-policy-cli: the branch moved during the commit, so it was built again; {} did not land, {landed} did.", unlanded.join(" and "));
 }
 
 /// A commit Git builds again because the branch moved prints Git's summary for each build, as Git prints them (the owner's

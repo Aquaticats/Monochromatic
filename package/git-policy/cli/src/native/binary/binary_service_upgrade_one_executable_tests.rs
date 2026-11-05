@@ -14,7 +14,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! writeUnit(oldText); const old = start(oldService, inheritedSocket); await commit();
-//! expect(unit).toContain(wrapperPath + ' cli-git service run'); expect(await exit(old)).toBe(0); expect(await subject()).toBe('subject');
+//! expect(unit).toContain(wrapperPath + ' monochromatic-git-policy-cli service run'); expect(await exit(old)).toBe(0); expect(await subject()).toBe('subject');
 //! ```
 
 use super::commit::wrapped_commit;
@@ -43,8 +43,8 @@ After=cli-git@%i.socket
 # The wrapper replaces the program and Git words below, each written between two at-signs, with absolute paths. The socket
 # comes from the socket unit, so the program is never started by the wrapper and is started again by the first
 # connection after an exit or a crash. The instance refuses every message about another worktree.
-ExecStart=@SERVICE_BINARY@ --journal %S/cli-git/service/%i --git @GIT@ --instance %i
-StateDirectory=cli-git/service/%i
+ExecStart=@SERVICE_BINARY@ --journal %S/monochromatic-git-policy-cli/service/%i --git @GIT@ --instance %i
+StateDirectory=monochromatic-git-policy-cli/service/%i
 Restart=on-failure
 ";
 
@@ -60,14 +60,14 @@ const OLD_SERVICE_VARIABLE: &str = "CLI_GIT_OLD_SERVICE_0_5_34";
 const STAND_IN_RELEASE: &str = "0.5.34-before-one-executable";
 
 /// The words of an `ExecStart=` line after the equals sign, with the specifiers the control can know filled in, as the manager
-///  would fill them: `%S/cli-git/service/%i` is the journal directory, and `%i` the instance.
+///  would fill them: `%S/monochromatic-git-policy-cli/service/%i` is the journal directory, and `%i` the instance.
 fn exec_words(unit: &str, journal: &Path, instance: &str) -> Vec<String> {
     let line: &str = unit.lines().find(|line| { return line.starts_with("ExecStart="); }).expect("an ExecStart line");
     return line
         .trim_start_matches("ExecStart=")
         .split_whitespace()
         .map(|word| {
-            if word == "%S/cli-git/service/%i" {
+            if word == "%S/monochromatic-git-policy-cli/service/%i" {
                 return journal.display().to_string();
             }
             return word.replace("%i", instance);
@@ -203,9 +203,9 @@ fn upgrade_with(name: &str, old_words: impl FnOnce(&Fixture, &Path, &str) -> Vec
     // The unit was rewritten before the manager was asked to start the socket, and names the wrapper's own executable.
     let at_start_text: String = checked.lock().expect("lock").clone().expect("the socket was started");
     assert!(!at_start_text.contains(REMOVED_PROGRAM) && !at_start_text.contains("cli-git-service "), "{at_start_text}");
-    assert!(at_start_text.contains("cli-git service run --journal"), "{at_start_text}");
-    assert_eq!(words[0], fixture.root.join("wrapper/cli-git-native").display().to_string(), "the unit starts the wrapper's own executable");
-    assert_eq!(&words[1..4], &["cli-git", "service", "run"], "in service mode");
+    assert!(at_start_text.contains("monochromatic-git-policy-cli service run --journal"), "{at_start_text}");
+    assert_eq!(words[0], fixture.root.join("wrapper/monochromatic-git-policy-cli").display().to_string(), "the unit starts the wrapper's own executable");
+    assert_eq!(&words[1..4], &["monochromatic-git-policy-cli", "service", "run"], "in service mode");
     assert!(calls.iter().flatten().any(|call| { return call == "Reload"; }), "the manager was asked to reload: {calls:?}");
     assert!(calls.iter().flatten().any(|call| { return call == "StartUnit"; }), "{calls:?}");
     // Both commits landed, none was lost, and the service that landed them is the one started from the rewritten unit.

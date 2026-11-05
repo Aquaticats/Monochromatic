@@ -96,7 +96,7 @@ pub fn assert_private_path(path: &Path, role: Role) -> Result<(), WorktreeCopyEr
     {
         return Err(failure_with_cause(
             format!(
-                "cli-git: worktree-copy {} is unsafe: {}.",
+                "monochromatic-git-policy-cli: worktree-copy {} is unsafe: {}.",
                 role.name(),
                 quote(path.to_string_lossy().as_ref())
             )
@@ -247,7 +247,7 @@ fn write_atomic_flushing(path: &Path, bytes: &[u8], subject: &str, flush: Flush)
         Err(error) => {
             return Err(failure_with_cause(
                 format!(
-                    "cli-git: could not persist worktree-copy {subject} {}.",
+                    "monochromatic-git-policy-cli: could not persist worktree-copy {subject} {}.",
                     quote(path.to_string_lossy().as_ref())
                 )
                 .as_str(),
@@ -269,7 +269,7 @@ fn write_atomic_flushing(path: &Path, bytes: &[u8], subject: &str, flush: Flush)
         let _ignored_removal: std::io::Result<()> = std::fs::remove_file(temporary.as_path());
         return Err(failure_with_cause(
             format!(
-                "cli-git: could not persist worktree-copy {subject} {}.",
+                "monochromatic-git-policy-cli: could not persist worktree-copy {subject} {}.",
                 quote(path.to_string_lossy().as_ref())
             )
             .as_str(),
@@ -457,7 +457,7 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
         Ok(found) => found,
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not inspect worktree-copy journals under {}.",
+                "monochromatic-git-policy-cli: could not inspect worktree-copy journals under {}.",
                 quote(root.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -494,7 +494,7 @@ fn read_journal_text(path: &Path) -> Result<String, WorktreeCopyError> {
         Ok(read) => read,
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not read worktree-copy journal {}.",
+                "monochromatic-git-policy-cli: could not read worktree-copy journal {}.",
                 quote(path.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));

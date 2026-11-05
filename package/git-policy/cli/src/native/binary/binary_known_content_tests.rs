@@ -19,7 +19,7 @@ fn a_rename_of_known_content_lands_and_a_rename_with_a_changed_byte_does_not() {
     std::fs::create_dir(repo.join("rules")).expect("rules directory");
     std::fs::write(repo.join("rules/private.txt"), format!("{needle}\n")).expect("rules");
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         "{ \"policies\": { \"security/forbidden-strings\": [\"error\", { \"builtinRules\": false, \"rulesFile\": \"rules/private.txt\" }] } }\n",
     )
     .expect("configuration");

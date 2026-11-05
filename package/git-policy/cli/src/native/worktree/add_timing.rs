@@ -17,6 +17,7 @@
 //! finish(exitCode); // appends JSON.stringify(record) + '\n' to join(commonDir, 'cli-git-worktree-add-timing.jsonl')
 //! ```
 
+use crate::wrapper_names_old_and_new::WORKTREE_ADD_TIMING_LOG;
 use crate::diagnostic_log::debug;
 use crate::discard_audit::append_line;
 use crate::iso_time::now_iso;
@@ -30,7 +31,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// The file inside the common Git directory that collects the add timing records of every worktree of the repository.
-pub const ADD_TIMING_FILE: &str = "cli-git-worktree-add-timing.jsonl";
+pub const ADD_TIMING_FILE: &str = WORKTREE_ADD_TIMING_LOG.current;
 
 /// The version of the record's fields; it changes only when a field's meaning changes, never when a field is added.
 pub const ADD_TIMING_SCHEMA_VERSION: u32 = 1;

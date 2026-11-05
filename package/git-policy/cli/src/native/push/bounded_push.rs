@@ -44,7 +44,7 @@ use std::time::{Duration, Instant};
 pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH_DEADLINE_VARIABLE, Patience, positive_seconds, push_deadline, push_patience, strip_one_line_break};
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What a person is told when a push is ended for showing no progress: the owner's answer of 2026-11-03, "Bound it, keep retrying
 ///  (Recommended)", is that the service's retry plan keeps the push and tries it again, and the line says so.
@@ -409,11 +409,11 @@ pub fn command_label(command: &Command) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: ${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
+/// `monochromatic-git-policy-cli: ${label} ${WAIT_NOTE_PHRASE}: the connection to the remote is open (silent ${silent} seconds)`
 /// ```
 fn wait_line(label: &str, report: &WaitReport) -> String {
     return format!(
-        "cli-git: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
+        "monochromatic-git-policy-cli: {label} {WAIT_NOTE_PHRASE}: the connection to the remote is open, and nothing has moved for {} seconds \
          (elapsed_seconds={}); the remote may be checking the push or preparing its answer. It is waited for until it answers or \
          the connection closes; no time limit applies while the connection is open.",
         report.silent.as_secs(),
@@ -495,7 +495,7 @@ pub fn run_bounded_push_once(
         Err(cause) => {
             let reason: String = match cause {
                 StopCause::Deadline => format!(
-                    "cli-git: git push did not finish within {} seconds and was stopped (limit=deadline); \
+                    "monochromatic-git-policy-cli: git push did not finish within {} seconds and was stopped (limit=deadline); \
                      {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     match patience {
@@ -505,7 +505,7 @@ pub fn run_bounded_push_once(
                     extend_clause()
                 ),
                 StopCause::Stalled(report) => format!(
-                    "cli-git: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
+                    "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
                      elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     report.limit.as_secs(),
@@ -514,7 +514,7 @@ pub fn run_bounded_push_once(
                     extend_clause()
                 ),
                 StopCause::Flood => format!(
-                    "cli-git: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output and was stopped. Hint: if a hook or the \
+                    "monochromatic-git-policy-cli: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output and was stopped. Hint: if a hook or the \
                      remote prints this much, run `git ls-remote` to see whether your commits arrived, and read the \
                      hook's own output by running it directly before pushing again."
                 ),

@@ -41,7 +41,7 @@ fn latin_finding(sequence: u64, trigger: &str, fix: &str) -> String {
 }
 
 /// `git add`,
-///  `git cli-git check` and `git cli-git fix` name a Latin-1 file by its
+///  `git monochromatic-git-policy-cli check` and `git monochromatic-git-policy-cli fix` name a Latin-1 file by its
 /// readable text and its exact bytes;
 ///  a UTF-8 file beside it keeps the old shape,
 ///  and the
@@ -73,7 +73,7 @@ fn events_carry_the_exact_bytes_of_a_name_that_is_not_utf8() {
     let checked: Observed = observe(
         wrapped(&fixture)
             .current_dir(&repo)
-            .args(["cli-git", "check", "--all"]),
+            .args(["monochromatic-git-policy-cli", "check", "--all"]),
         b"",
     );
     // Candidates come in Git's byte order: `b.txt` sorts before 0x63 `c`.
@@ -93,7 +93,7 @@ fn events_carry_the_exact_bytes_of_a_name_that_is_not_utf8() {
     let fixed: Observed = observe(
         wrapped(&fixture)
             .current_dir(&repo)
-            .args(["cli-git", "fix", "--all"]),
+            .args(["monochromatic-git-policy-cli", "fix", "--all"]),
         b"",
     );
     // The summary lists paths in the same byte order.

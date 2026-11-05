@@ -1,7 +1,7 @@
 //! What:
 //!  Render wrapper diagnostics as the JSONL events callers already parse.
 //! Why:
-//!  Agents and hooks read cli-git's event stream line by line;
+//!  Agents and hooks read monochromatic-git-policy-cli's event stream line by line;
 //!  every wrapper-made
 //!      event must be one compact JSON object per line with stable field order.
 //!

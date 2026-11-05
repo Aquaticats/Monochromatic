@@ -56,7 +56,7 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
 }
 
 /// How every wait notice of the wrapper begins (`wait_progress.rs`, `service_index_lock.rs`).
-pub const WAIT_NOTICE_PREFIX: &[u8] = b"cli-git: still waiting for ";
+pub const WAIT_NOTICE_PREFIX: &[u8] = b"monochromatic-git-policy-cli: still waiting for ";
 
 /// What:
 ///  The bytes without the lines that are wait notices.
@@ -131,7 +131,7 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
         .iter()
         .take_while(|token| { return *token != "--"; })
         .any(|token| { return token == "--help"; });
-    if word != b"cli-git" && asks_for_help && !has_manual_stub {
+    if word != b"monochromatic-git-policy-cli" && asks_for_help && !has_manual_stub {
         return Some(SharedBoundMisuse::ManualPage);
     }
     return None;

@@ -58,7 +58,7 @@ mod unix {
     use crate::repo_read_refs::{Lookup, RefValue, Refs, is_plain_ref_name};
 
     /// The tag of the decision lines.
-    const TAG: &str = "cli-git lfs-object-plan";
+    const TAG: &str = "monochromatic-git-policy-cli lfs-object-plan";
 
     /// How many tag objects are followed to a commit.
     const PEEL_LIMIT: usize = 5;

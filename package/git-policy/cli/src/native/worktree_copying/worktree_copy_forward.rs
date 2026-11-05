@@ -148,7 +148,7 @@ fn run_plain(
         Ok(outcome) => return ForwardedRun::Ran(child_exit_code(outcome)),
         Err(error) => {
             return ForwardedRun::Failed {
-                stderr: format!("cli-git: cannot start {}: {error}\n", real_git.display()),
+                stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()),
                 code: crate::action::ENGINE_FAILURE_EXIT_CODE,
             };
         }
@@ -329,7 +329,7 @@ fn run_settled(
                 GitStep::WithoutCheckout(at) => {
                     // The index was read from the same arguments, so the word before it is `add`.
                     if *at == 0 || *at > child_arguments.len() || child_arguments[*at - 1] != "add" {
-                        return Err(WorktreeCopyError(String::from("cli-git: the worktree plan does not match the arguments.")));
+                        return Err(WorktreeCopyError(String::from("monochromatic-git-policy-cli: the worktree plan does not match the arguments.")));
                     }
                     child_arguments.insert(*at, OsString::from("--no-checkout"));
                 }
@@ -347,7 +347,7 @@ fn run_settled(
                 Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
                 Err(error) => {
                     return Err(WorktreeCopyError(format!(
-                        "cli-git: cannot start {}: {error}",
+                        "monochromatic-git-policy-cli: cannot start {}: {error}",
                         self.real_git.display()
                     )));
                 }

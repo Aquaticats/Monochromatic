@@ -20,6 +20,7 @@
 //! const later = await settleRemovals(commonDir); // on the next command
 //! ```
 
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::diagnostic_log::{debug, warn};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
@@ -32,7 +33,7 @@ use std::path::{Path, PathBuf};
 const TAG: &str = "worktreeRemovalRescue";
 
 /// Directory under the common Git directory that holds the snapshots.
-pub const SNAPSHOT_DIRECTORY: &str = "cli-git/removal-snapshots";
+pub const SNAPSHOT_DIRECTORY: &str = "monochromatic-git-policy-cli/removal-snapshots";
 
 /// File in a snapshot that names the Git directory it was taken from; written last, so a snapshot that has it is whole.
 const GIT_DIR_FILE: &str = "gitdir";
@@ -269,7 +270,7 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
             continue;
         }
         let notices: Vec<PathBuf> = files_of(notice_directory(git_dir.as_path()).as_path());
-        let work_directory: PathBuf = git_dir.join(WORK_DIRECTORY);
+        let work_directory: PathBuf = path_for_reading(git_dir.as_path(), WORK_DIRECTORY);
         let pushes: Vec<String> = push_record_names(work_directory.as_path());
         if notices.is_empty() && pushes.is_empty() {
             continue;

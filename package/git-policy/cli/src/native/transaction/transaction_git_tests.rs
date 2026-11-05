@@ -420,7 +420,7 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
     let text: String = sink.text();
     assert!(text.lines().count() >= 3, "{text}");
     assert!(
-        text.starts_with(format!("cli-git: still waiting for git add -- a.md, {} (process ", class_of(request.arguments.as_slice()).label()).as_str()),
+        text.starts_with(format!("monochromatic-git-policy-cli: still waiting for git add -- a.md, {} (process ", class_of(request.arguments.as_slice()).label()).as_str()),
         "{text}"
     );
     remove(root.as_path());

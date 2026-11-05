@@ -26,7 +26,7 @@ use std::process::Command;
 use std::time::Duration;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// What Git prints when another process holds the lock of a reference it updates, also from a push that exits 0.
 const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";

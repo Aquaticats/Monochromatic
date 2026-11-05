@@ -1,5 +1,5 @@
 //! What:
-//!  The work of the installed cli-git that this executable does not do yet,
+//!  The work of the installed monochromatic-git-policy-cli that this executable does not do yet,
 //!  as one
 //!       typed list,
 //!  and the notice printed when a command needs any of it.
@@ -157,8 +157,8 @@ fn unported_subject(what: &Unported) -> String {
 /// ```
 pub fn unported_notice(what: &Unported, command: &str) -> String {
     return format!(
-        "cli-git: {} is not implemented in this native development executable, so git \
-         {command} was not run. Run it with the installed cli-git.\n",
+        "monochromatic-git-policy-cli: {} is not implemented in this native development executable, so git \
+         {command} was not run. Run it with the installed monochromatic-git-policy-cli.\n",
         unported_subject(what)
     );
 }

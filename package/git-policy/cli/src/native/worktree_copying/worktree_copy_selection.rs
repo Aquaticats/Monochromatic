@@ -102,7 +102,7 @@ pub fn assert_safe_repository_path(repository_path: &str) -> Result<(), Worktree
         || repository_path.split('/').any(is_unsafe_component);
     if unsafe_path {
         return Err(WorktreeCopyError(format!(
-            "cli-git: Git returned unsafe ignored path {}.",
+            "monochromatic-git-policy-cli: Git returned unsafe ignored path {}.",
             quote(repository_path)
         )));
     }

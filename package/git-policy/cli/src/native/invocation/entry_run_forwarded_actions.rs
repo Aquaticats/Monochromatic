@@ -77,7 +77,7 @@ pub(crate) fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
             );
             write_stream(
                 &mut std::io::stderr(),
-                format!("cli-git: cannot start {}: {error}\n", forward.real_git.display()).as_str(),
+                format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", forward.real_git.display()).as_str(),
             );
             ENGINE_FAILURE_EXIT_CODE
         }

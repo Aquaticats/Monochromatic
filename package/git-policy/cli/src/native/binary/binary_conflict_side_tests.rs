@@ -102,14 +102,14 @@ fn saved_places(stderr: &str) -> Vec<PathBuf> {
     return lines
         .iter()
         .enumerate()
-        .filter(|(_, line)| { return line.starts_with("cli-git: saved your copy of "); })
+        .filter(|(_, line)| { return line.starts_with("monochromatic-git-policy-cli: saved your copy of "); })
         .filter_map(|(at, _)| { return lines.get(at + 1).map(|place| { return PathBuf::from(place.trim()); }); })
         .collect();
 }
 
 /// The directory of the copies below the common Git directory of `repo`.
 fn saved_root(repo: &Path) -> PathBuf {
-    return repo.join(".git/cli-git/discarded");
+    return repo.join(".git/monochromatic-git-policy-cli/discarded");
 }
 
 /// Every audit line of the repository.
@@ -297,8 +297,8 @@ fn without_an_operation_in_progress_the_rejection_stays() {
 fn a_copy_that_cannot_be_written_rejects_the_command() {
     let fixture: Fixture = fixture("side-copy-fails");
     let repo: PathBuf = conflicted(&fixture, Stop::Merge);
-    // `cli-git` is a file, so no directory for the copies can be made below it.
-    std::fs::write(repo.join(".git/cli-git"), b"in the way").expect("blocker");
+    // `monochromatic-git-policy-cli` is a file, so no directory for the copies can be made below it.
+    std::fs::write(repo.join(".git/monochromatic-git-policy-cli"), b"in the way").expect("blocker");
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
     let said: String = stderr_of(&observed);
     assert!(rejected_by_policy(&observed), "{said}");
@@ -307,7 +307,7 @@ fn a_copy_that_cannot_be_written_rejects_the_command() {
     assert_eq!(std::fs::read(repo.join("a.rs")).expect("a.rs"), HAND_EDITED, "the file was not replaced");
     assert!(audit_lines(repo.as_path()).iter().all(|line| { return !line.contains("saved-conflict"); }));
     // Once the place is free the same command goes through.
-    std::fs::remove_file(repo.join(".git/cli-git")).expect("remove blocker");
+    std::fs::remove_file(repo.join(".git/monochromatic-git-policy-cli")).expect("remove blocker");
     let again: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
     assert_eq!(again.code, Some(0), "{}", stderr_of(&again));
     remove(&fixture);
@@ -403,7 +403,7 @@ fn a_linked_worktree_saves_beside_the_common_audit_log() {
     let said: String = stderr_of(&observed);
     assert_eq!(observed.code, Some(0), "{said}");
     let place: PathBuf = saved_places(said.as_str()).remove(0);
-    assert!(place.starts_with(std::fs::canonicalize(repo.join(".git")).expect("common directory").join("cli-git/discarded")), "{place:?}");
+    assert!(place.starts_with(std::fs::canonicalize(repo.join(".git")).expect("common directory").join("monochromatic-git-policy-cli/discarded")), "{place:?}");
     assert_eq!(std::fs::read(place).expect("copy"), HAND_EDITED);
     remove(&fixture);
 }
@@ -448,7 +448,7 @@ fn a_new_save_removes_the_saves_past_the_age_limit_and_audits_them() {
     remove(&fixture);
 }
 
-/// The `discardedCopies` settings of `cli-git.config.jsonc` change the limits:
+/// The `discardedCopies` settings of `monochromatic-git-policy-cli.config.jsonc` change the limits:
 /// a longer age keeps the old save,
 /// and a small size
 /// removes an older save but never one younger than a day.
@@ -456,7 +456,7 @@ fn a_new_save_removes_the_saves_past_the_age_limit_and_audits_them() {
 fn the_configuration_file_changes_the_limits_and_a_young_save_stays() {
     let fixture: Fixture = fixture("side-prune-config");
     let repo: PathBuf = conflicted(&fixture, Stop::Merge);
-    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 100, "maxSize": "1k" } }"#).expect("configuration");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 100, "maxSize": "1k" } }"#).expect("configuration");
     let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 4096);
     let older_than_a_day: PathBuf = plant_save(repo.as_path(), 3 * A_DAY, 4096);
     let young: PathBuf = plant_save(repo.as_path(), A_DAY / 4, 4096);
@@ -475,7 +475,7 @@ fn the_configuration_file_changes_the_limits_and_a_young_save_stays() {
 fn a_longer_age_setting_keeps_the_old_save() {
     let fixture: Fixture = fixture("side-prune-keeps");
     let repo: PathBuf = conflicted(&fixture, Stop::Merge);
-    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 400 } }"#).expect("configuration");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 400 } }"#).expect("configuration");
     let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 100);
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
     assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
@@ -484,7 +484,7 @@ fn a_longer_age_setting_keeps_the_old_save() {
     remove(&fixture);
 }
 
-/// `git cli-git doctor` states the folder's size,
+/// `git monochromatic-git-policy-cli doctor` states the folder's size,
 /// copy count and oldest save.
 #[test]
 fn the_doctor_reports_the_folder_of_saved_copies() {
@@ -495,9 +495,9 @@ fn the_doctor_reports_the_folder_of_saved_copies() {
     let directory: PathBuf = saved_root(repo.as_path()).join(oldest.as_str());
     std::fs::create_dir_all(&directory).expect("older save");
     std::fs::write(directory.join("older.txt"), vec![b'o'; 200]).expect("older copy");
-    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "doctor"]);
     let said: String = stderr_of(&observed);
-    assert!(said.contains("git cli-git doctor: discarded copies:") && said.contains("500 bytes in 2 copies from 2 saves"), "{said}");
+    assert!(said.contains("git monochromatic-git-policy-cli doctor: discarded copies:") && said.contains("500 bytes in 2 copies from 2 saves"), "{said}");
     assert!(said.contains(format!("the oldest save is {oldest}").as_str()), "{said}");
     remove(&fixture);
 }
@@ -532,7 +532,7 @@ fn a_linked_folder_of_copies_is_not_pruned_and_the_notice_says_so() {
 fn a_zero_limit_is_a_configuration_failure_and_removes_nothing() {
     let fixture: Fixture = fixture("side-prune-zero");
     let repo: PathBuf = conflicted(&fixture, Stop::Merge);
-    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 0 } }"#).expect("configuration");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 0 } }"#).expect("configuration");
     let old: PathBuf = plant_save(repo.as_path(), 45 * A_DAY, 100);
     let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--theirs", "--", "a.rs"]);
     let said: String = stderr_of(&observed);
@@ -547,9 +547,9 @@ fn a_zero_limit_is_a_configuration_failure_and_removes_nothing() {
 fn the_doctor_names_the_limits_the_configuration_sets() {
     let fixture: Fixture = fixture("side-prune-doctor-limits");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join("cli-git.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 90, "maxSize": "2k" } }"#).expect("configuration");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), r#"{ "discardedCopies": { "maxAgeDays": 90, "maxSize": "2k" } }"#).expect("configuration");
     plant_save(repo.as_path(), 9 * A_DAY, 300);
-    let said: String = stderr_of(&run_wrapped(&fixture, repo.as_path(), &["cli-git", "doctor"]));
+    let said: String = stderr_of(&run_wrapped(&fixture, repo.as_path(), &["monochromatic-git-policy-cli", "doctor"]));
     assert!(said.contains("older than 90 days") && said.contains("past 2048 bytes"), "{said}");
     remove(&fixture);
 }

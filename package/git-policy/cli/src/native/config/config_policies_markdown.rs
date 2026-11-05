@@ -74,7 +74,7 @@ fn markdown_rules(value: &JsoncValue, path: &str) -> Result<Vec<MarkdownRule>, C
 /// What:
 ///  Validate the options object of `markdown/autofix`.
 /// Why:
-///   cli-git starts its own coordinated linter;
+///   monochromatic-git-policy-cli starts its own coordinated linter;
 ///  a `command` array would let
 ///       repository data choose a program and its arguments.
 ///
@@ -101,7 +101,7 @@ pub fn markdown_autofix_options(
         } else if key == "command" {
             return Err(ConfigError::new(
                 format!(
-                    "Configuration key {key_path} is retired: cli-git runs its own coordinated \
+                    "Configuration key {key_path} is retired: monochromatic-git-policy-cli runs its own coordinated \
                      Markdown linter and configuration cannot select a command. Remove the key."
                 )
                 .as_str(),

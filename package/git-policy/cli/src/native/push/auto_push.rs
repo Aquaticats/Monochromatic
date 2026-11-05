@@ -30,14 +30,14 @@ use std::ffi::OsString;
 use std::io::Write;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// Prefix of the GitHub server-side lines a clean push surfaces.
 const REMOTE_LINE_PREFIX: &str = "remote: ";
 
 /// Note printed after every failed push: the commit stays local.
 pub const PUSH_FAILED_NOTE: &str =
-    "cli-git: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
+    "monochromatic-git-policy-cli: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
 
 /// What Git prints when another process holds the lock of a reference the push updates.
 const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";

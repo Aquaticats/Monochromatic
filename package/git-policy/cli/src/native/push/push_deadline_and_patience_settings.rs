@@ -15,7 +15,7 @@ use std::ffi::{OsStr, OsString};
 use std::time::Duration;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// Environment variable that sets the push deadline in whole seconds.
 pub const PUSH_DEADLINE_VARIABLE: &str = "CLI_GIT_PUSH_DEADLINE_SECONDS";

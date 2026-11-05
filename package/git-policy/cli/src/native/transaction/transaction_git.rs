@@ -75,8 +75,8 @@ use std::time::Duration;
 fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::fs::File> {
     let Some(common) = common_dir else {
         return Err(std::io::Error::other(
-            "cli-git has no repository scratch directory for the input of this Git command: the command was started \
-             before the repository was known, which is a defect in cli-git",
+            "monochromatic-git-policy-cli has no repository scratch directory for the input of this Git command: the command was started \
+             before the repository was known, which is a defect in monochromatic-git-policy-cli",
         ));
     };
     let directory: PathBuf = prepare_repository_scratch(common)?;
@@ -320,7 +320,7 @@ fn run_git_once_with(
             // Terminal output error: a notice is advisory; a failed write must not stop the commit.
             let _written = writeln!(
                 std::io::stderr(),
-                "cli-git: {} showed no sign of work and was ended; running it again",
+                "monochromatic-git-policy-cli: {} showed no sign of work and was ended; running it again",
                 step_subject(request)
             );
             run_git_watched(context, request, terms.terms())

@@ -4,10 +4,10 @@
 //! Why:
 //!  The wrapper supports no external hook program at all: every real-Git start of the wrapper switches every hook
 //!  event off (`hooks_off.rs`), and the behaviors a hook used to provide are declared natively in
-//!  `cli-git.config.jsonc`.
+//!  `monochromatic-git-policy-cli.config.jsonc`.
 //!  A configured hook that silently never ran would look like a broken check, so a commit prints one
 //!  `configuration-warning` event naming the keys and the events, decided from the snapshot the commit already holds
-//!  (no process start), and `git cli-git doctor` lists the same hooks.
+//!  (no process start), and `git monochromatic-git-policy-cli doctor` lists the same hooks.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -147,7 +147,7 @@ pub fn describe_hook(hook: &ConfiguredHook) -> String {
 /// What:
 ///  The sentence that explains what to do about configured hooks.
 /// Why:
-///   The explanation is shared by the commit warning and `git cli-git doctor`, so both say the same ways forward.
+///   The explanation is shared by the commit warning and `git monochromatic-git-policy-cli doctor`, so both say the same ways forward.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,12 +156,12 @@ pub fn describe_hook(hook: &ConfiguredHook) -> String {
 pub fn explain_external_hooks(hooks: &[ConfiguredHook]) -> String {
     let listed: Vec<String> = hooks.iter().map(describe_hook).collect();
     return format!(
-        "This repository configures external hooks: {}. cli-git supports no external hook program, so every Git it \
+        "This repository configures external hooks: {}. monochromatic-git-policy-cli supports no external hook program, so every Git it \
          starts has every hook event switched off and these never run. Ways forward: remove them with \
          `git config --unset-all hook.<name>.event` and `git config --unset-all hook.<name>.command` for each name \
          (the keys may live in a global or system file; `git config --show-origin --get-regexp '^hook[.]'` shows \
-         where), or express what the hook checked as a cli-git policy under policies in cli-git.config.jsonc. cli-git \
-         runs no program named by any configuration, so no setting can bring a hook back. `git cli-git doctor` lists \
+         where), or express what the hook checked as a monochromatic-git-policy-cli policy under policies in monochromatic-git-policy-cli.config.jsonc. monochromatic-git-policy-cli \
+         runs no program named by any configuration, so no setting can bring a hook back. `git monochromatic-git-policy-cli doctor` lists \
          these hooks.",
         listed.join("; ")
     );

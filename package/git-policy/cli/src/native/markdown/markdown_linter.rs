@@ -158,7 +158,7 @@ pub fn embedded_linter_with(fix: FixFunction, window: Duration) -> EmbeddedLinte
 /// ```ts
 /// const ABANDONED_REASON = 'an earlier Markdown check did not finish ...';
 /// ```
-const ABANDONED_REASON: &str = "an earlier Markdown check in this command did not finish and cli-git stopped waiting \
+const ABANDONED_REASON: &str = "an earlier Markdown check in this command did not finish and monochromatic-git-policy-cli stopped waiting \
      for it, so monochromatic-lint is not run again in this command; run the command again, or set the policy \
      markdown/autofix to off to skip the check";
 
@@ -174,7 +174,7 @@ const ABANDONED_REASON: &str = "an earlier Markdown check in this command did no
 fn guard_failure_reason(failure: &GuardFailure) -> String {
     match failure {
         GuardFailure::Start(reason) => {
-            return format!("cli-git could not start the thread that runs monochromatic-lint: {reason}");
+            return format!("monochromatic-git-policy-cli could not start the thread that runs monochromatic-lint: {reason}");
         }
         GuardFailure::Panicked(reason) => {
             return format!(
@@ -186,7 +186,7 @@ fn guard_failure_reason(failure: &GuardFailure) -> String {
         }
         GuardFailure::Quiet(window) => {
             return format!(
-                "monochromatic-lint showed no sign of work for {} milliseconds and cli-git stopped waiting for it \
+                "monochromatic-lint showed no sign of work for {} milliseconds and monochromatic-git-policy-cli stopped waiting for it \
                  (its thread stays in this process until the command ends); run the command again, run \
                  monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
                  to off to skip the check",
@@ -195,7 +195,7 @@ fn guard_failure_reason(failure: &GuardFailure) -> String {
         }
         GuardFailure::Ceiling(ceiling) => {
             return format!(
-                "monochromatic-lint ran for {} seconds, the longest cli-git lets one Markdown check run, and cli-git stopped waiting \
+                "monochromatic-lint ran for {} seconds, the longest monochromatic-git-policy-cli lets one Markdown check run, and monochromatic-git-policy-cli stopped waiting \
                  for it (its thread stays in this process until the command ends); run the command again, run \
                  monochromatic-lint by hand on the file, or set the policy markdown/autofix to off to skip the check",
                 ceiling.as_secs()
@@ -203,7 +203,7 @@ fn guard_failure_reason(failure: &GuardFailure) -> String {
         }
         GuardFailure::Vanished => {
             return String::from(
-                "the thread that runs monochromatic-lint ended without a result; this is a defect in cli-git.",
+                "the thread that runs monochromatic-lint ended without a result; this is a defect in monochromatic-git-policy-cli.",
             );
         }
     }
@@ -238,7 +238,7 @@ impl MarkdownLinter for EmbeddedLinter {
         }
         let Some(name) = path_from_git_bytes(request.path) else {
             return Err(String::from(
-                "cli-git cannot spell this candidate's pathname for monochromatic-lint on this platform",
+                "monochromatic-git-policy-cli cannot spell this candidate's pathname for monochromatic-lint on this platform",
             ));
         };
         let waiting_for: String = format!("monochromatic-lint to check {}", name.display());

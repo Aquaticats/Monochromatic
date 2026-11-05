@@ -43,7 +43,7 @@ fn the_name_is_short_and_plain_for_any_directory() {
 fn the_socket_is_the_instances_own() {
     let runtime = Path::new("/run/user/1000");
     let socket = socket_for(runtime, Path::new("/work/repo/.git"));
-    assert!(socket.starts_with("/run/user/1000/cli-git"));
+    assert!(socket.starts_with("/run/user/1000/monochromatic-git-policy-cli"));
     assert_ne!(socket, runtime.join(LEGACY_SOCKET_RELATIVE));
     assert_eq!(socket, socket_path(runtime, instance_of(Path::new("/work/repo/.git")).as_str()));
 }

@@ -119,7 +119,7 @@ pub fn preflight_destination(
                 }
                 if !entry_matches(stage_root, destination_root, entry)? {
                     let message: String = format!(
-                        "cli-git: ignored-state copy would overwrite differing destination entry {} in {}.",
+                        "monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry {} in {}.",
                         quote(entry.relative_path.as_str()),
                         quote(destination_root.to_string_lossy().as_ref())
                     );
@@ -272,7 +272,7 @@ fn install_leaves(
     for joined in run_all_side_by_side(slices, install_slice) {
         results.push(match joined {
             Ok(done) => done,
-            Err(_panic) => (Vec::new(), Some(failure_with_cause("cli-git: an install worker panicked.", None))),
+            Err(_panic) => (Vec::new(), Some(failure_with_cause("monochromatic-git-policy-cli: an install worker panicked.", None))),
         });
     }
     let mut failure: Option<WorktreeCopyError> = None;
@@ -323,7 +323,7 @@ pub fn install_snapshot(
                 format!(" Rollback retained: {}.", names.join(", "))
             };
             let message: String = format!(
-                "cli-git: ignored-state installation failed for {}.{suffix}",
+                "monochromatic-git-policy-cli: ignored-state installation failed for {}.{suffix}",
                 quote(destination_root.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error.0)));

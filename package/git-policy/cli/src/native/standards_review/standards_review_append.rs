@@ -3,7 +3,7 @@
 //!  appends to at the same time: one whole-entry write on an append-mode descriptor, once per commit, creating the
 //!  directory and the file when missing.
 //! Why:
-//!  The live log is an untracked file in the common repository directory (`cli-git/standards-review-shadow.md`), and no
+//!  The live log is an untracked file in the common repository directory (`monochromatic-git-policy-cli/standards-review-shadow.md`), and no
 //!  lock may be taken. One write of the whole entry on an `O_APPEND` descriptor lands at the end of the file in one step,
 //!  so two instances (threads or processes, each with its own descriptor) cannot interleave their entries. Nothing else
 //!  edits this file, so the protection a tracked, session-edited log needed is gone: the per-worktree spool of delivered

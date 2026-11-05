@@ -484,7 +484,7 @@ pub fn common_source(context: &GitContext, identity: &WorktreeIdentity) -> Resul
 /// `the worktree ${path} inside the source is an ordinary directory; ...`
 /// ```
 fn ordinary_worktree_reason(path: PathBuf) -> String {
-    return format!("the worktree {} inside the source is an ordinary directory; `git cli-git migrate-to-subvolume` makes it a subvolume", path.display());
+    return format!("the worktree {} inside the source is an ordinary directory; `git monochromatic-git-policy-cli migrate-to-subvolume` makes it a subvolume", path.display());
 }
 
 /// What:

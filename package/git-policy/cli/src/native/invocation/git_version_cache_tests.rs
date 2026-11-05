@@ -25,7 +25,7 @@ fn copy_git(root: &Path, name: &str) -> PathBuf {
 /// The cache directory of a fixture,
 ///  two levels below the root so its parent does not exist yet.
 fn cache_in(root: &Path) -> PathBuf {
-    return root.join("xdg").join("cli-git");
+    return root.join("xdg").join("monochromatic-git-policy-cli");
 }
 
 /// The text of the host Git's answer, as the version check parses it.
@@ -294,13 +294,13 @@ fn the_location_follows_the_environment() {
     let pair = |name: &str, value: &str| { return (OsString::from(name), OsString::from(value)); };
     assert_eq!(
         cache_directory(&[pair("XDG_CACHE_HOME", "/xdg"), pair("HOME", "/home/a")]),
-        Some(PathBuf::from("/xdg/cli-git"))
+        Some(PathBuf::from("/xdg/monochromatic-git-policy-cli"))
     );
     assert_eq!(
         cache_directory(&[pair("XDG_CACHE_HOME", "relative"), pair("HOME", "/home/a")]),
-        Some(PathBuf::from("/home/a/.cache/cli-git"))
+        Some(PathBuf::from("/home/a/.cache/monochromatic-git-policy-cli"))
     );
-    assert_eq!(cache_directory(&[pair("HOME", "/home/a")]), Some(PathBuf::from("/home/a/.cache/cli-git")));
+    assert_eq!(cache_directory(&[pair("HOME", "/home/a")]), Some(PathBuf::from("/home/a/.cache/monochromatic-git-policy-cli")));
     assert_eq!(cache_directory(&[pair("HOME", "")]), None);
     assert_eq!(cache_directory(&[]), None);
 }

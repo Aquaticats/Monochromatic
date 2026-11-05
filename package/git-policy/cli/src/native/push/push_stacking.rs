@@ -43,7 +43,7 @@ use std::ffi::OsString;
 use std::io::Write;
 
 /// Tag used for diagnostics from this module.
-const TAG: &str = "cli-git";
+const TAG: &str = "monochromatic-git-policy-cli";
 
 /// The environment variable the stacked push carries so that it is never stacked again.
 pub const STACKED_PUSH_MARKER: &str = "CLI_GIT_STACKED_PUSH";

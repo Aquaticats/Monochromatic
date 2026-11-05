@@ -42,7 +42,7 @@ const WRAPPER_STOP_CODE: i32 = 2;
 
 /// The words every notice of this fallback starts with;
 ///  a person and a log search read them.
-const NOTICE_LEAD: &str = "cli-git: no real Git follows this wrapper on PATH";
+const NOTICE_LEAD: &str = "monochromatic-git-policy-cli: no real Git follows this wrapper on PATH";
 
 /// The version line the stand-in Git prints.
 const STAND_IN_VERSION: &str = "git version 2.56.0";
@@ -104,7 +104,7 @@ fn write_record(runtime: &Path, git: &Path) {
         runtime_dir: runtime.to_path_buf(),
         user_unit_dir: None,
         bus: PathBuf::from("/nonexistent/bus"),
-        service_binary: PathBuf::from("/nonexistent/cli-git-native"),
+        service_binary: PathBuf::from("/nonexistent/monochromatic-git-policy-cli"),
         git: git.to_path_buf(),
         instance: String::from("fixture"),
         retirement_wait: std::time::Duration::ZERO,
@@ -261,7 +261,7 @@ fn the_recorded_real_git_answers_a_command_that_reads_the_repository_and_the_not
     assert_eq!(observed.code, Some(0), "{text}");
     assert_eq!(observed.stdout, expected.stdout);
     assert!(text.starts_with(NOTICE_LEAD), "{text}");
-    assert!(!output(&observed).contains("cli-git:"), "standard output carries Git's answer only");
+    assert!(!output(&observed).contains("monochromatic-git-policy-cli:"), "standard output carries Git's answer only");
     remove(&fixture);
 }
 
@@ -409,7 +409,7 @@ fn a_record_naming_a_launcher_of_the_wrapper_is_refused_without_a_start_and_keep
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let counter: PathBuf = fixture.root.join("starts");
     let launchers: PathBuf = directory(&fixture, "launchers");
-    let launcher: PathBuf = launchers.join("cli-git-native");
+    let launcher: PathBuf = launchers.join("monochromatic-git-policy-cli");
     counting_git(launcher.as_path(), counter.as_path());
     write_launch_record(launcher.as_path(), fixture.wrapper.as_path());
     let runtime: PathBuf = directory(&fixture, "run");

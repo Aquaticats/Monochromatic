@@ -251,7 +251,7 @@ fn rules_files(value: &JsoncValue, path: &str) -> Result<Vec<RulesFileEntry>, Co
 /// What:
 ///  Validate the options object of `security/forbidden-strings`.
 /// Why:
-///   The scanner is linked into cli-git;
+///   The scanner is linked into monochromatic-git-policy-cli;
 ///  an `executable` path would let repository
 ///       data choose a program to run,
 ///  which this configuration format forbids.
@@ -289,7 +289,7 @@ fn forbidden_strings_options(
         } else if key == "executable" {
             return Err(ConfigError::new(
                 format!(
-                    "Configuration key {key_path} is retired: cli-git runs its bundled \
+                    "Configuration key {key_path} is retired: monochromatic-git-policy-cli runs its bundled \
                      forbidden-strings scanner and configuration cannot select an executable. \
                      Remove the key."
                 )

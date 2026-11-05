@@ -74,7 +74,7 @@ fn configured(fixture: &Fixture, configuration: Option<&str>) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     keep_maintenance_in_the_foreground(fixture, repo.as_path());
     if let Some(text) = configuration {
-        std::fs::write(repo.join("cli-git.config.jsonc"), text).expect("repository configuration");
+        std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), text).expect("repository configuration");
     }
     return repo;
 }
@@ -283,7 +283,7 @@ fn forbidden_configuration(repo: &Path, needle: &str) {
     std::fs::create_dir(repo.join("rules")).expect("rules directory");
     std::fs::write(repo.join("rules/private.txt"), format!("{needle}\n")).expect("rules");
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         "{ \"policies\": { \"final-newline\": \"off\", \"security/forbidden-strings\": [\"error\", { \"builtinRules\": false, \"rulesFile\": \"rules/private.txt\" }] } }\n",
     )
     .expect("configuration");
@@ -308,7 +308,7 @@ fn the_forbidden_strings_finding_for_a_name_that_is_not_utf8_has_no_exact_bytes(
         .to_string();
     let added: Observed = run_os(&fixture, repo.as_path(), &[OsString::from("add"), OsString::from("--"), bad_name()]);
     assert_eq!((added.code, stderr_of(&added)), (Some(1), expected.clone()));
-    git(&fixture, repo.as_path(), &["add", "--", "cli-git.config.jsonc", "rules/private.txt"]);
+    git(&fixture, repo.as_path(), &["add", "--", "monochromatic-git-policy-cli.config.jsonc", "rules/private.txt"]);
     git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=configuration"]);
     let committed: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--include", "--message=bad"], bad_name().as_os_str()));
     assert_eq!((committed.code, stderr_of(&committed)), (Some(1), expected));

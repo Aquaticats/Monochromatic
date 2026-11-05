@@ -239,8 +239,8 @@ fn the_first_commit_provisions_and_the_second_does_not() {
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "the marker names the writer");
         assert!(!text.contains("@SERVICE_BINARY@") && !text.contains("@GIT@"), "no placeholder is left");
     }
-    assert!(socket_unit.contains("ListenStream=%t/cli-git/%i.sock"), "one socket per worktree instance");
-    assert!(service_unit.contains(&fixture.root.join("wrapper/cli-git-native").display().to_string()), "{service_unit}");
+    assert!(socket_unit.contains("ListenStream=%t/monochromatic-git-policy-cli/%i.sock"), "one socket per worktree instance");
+    assert!(service_unit.contains(&fixture.root.join("wrapper/monochromatic-git-policy-cli").display().to_string()), "{service_unit}");
     std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
     let second: Output = commit(&fixture, &repo, runtime.as_path(), true);
     assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
@@ -259,7 +259,7 @@ const REMOVED_PROGRAM: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bi
 fn point_unit_at_removed_program(runtime: &Path, fixture: &Fixture) {
     let unit: PathBuf = runtime.join("systemd/user").join(SERVICE_UNIT_NAME);
     let text: String = std::fs::read_to_string(&unit).expect("service unit");
-    let program: String = fixture.root.join("wrapper/cli-git-native").display().to_string();
+    let program: String = fixture.root.join("wrapper/monochromatic-git-policy-cli").display().to_string();
     assert!(text.contains(program.as_str()), "{text}");
     std::fs::write(&unit, text.replace(program.as_str(), REMOVED_PROGRAM)).expect("older unit");
 }
@@ -281,7 +281,7 @@ fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
     assert_eq!(finished_batches(&fixture), 2, "both commits landed through the service");
     let unit: String = std::fs::read_to_string(runtime.join("systemd/user").join(SERVICE_UNIT_NAME)).expect("service unit");
     assert!(!unit.contains(REMOVED_PROGRAM), "the unit names the program that exists: {unit}");
-    assert!(unit.contains(&fixture.root.join("wrapper/cli-git-native").display().to_string()), "{unit}");
+    assert!(unit.contains(&fixture.root.join("wrapper/monochromatic-git-policy-cli").display().to_string()), "{unit}");
     assert_eq!(
         bus.join().expect("bus"),
         vec![
@@ -498,7 +498,7 @@ fn a_failed_push_is_reported_by_the_next_commit() {
 #[test]
 fn an_idle_service_exits_with_success() {
     let (fixture, _repo, runtime) = prepared("service-idle");
-    let socket: PathBuf = runtime.join("cli-git/idle.sock");
+    let socket: PathBuf = runtime.join("monochromatic-git-policy-cli/idle.sock");
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let idle: Duration = Duration::from_secs(2);
     let mut child = super::support::service_command()

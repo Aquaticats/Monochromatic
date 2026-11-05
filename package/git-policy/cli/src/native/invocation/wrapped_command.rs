@@ -265,7 +265,7 @@ fn prepare_guarded_command<F: RepositoryFacts>(
             return Err(WrappedOutcome::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
                 // `format!` builds the owned, line-terminated text.
-                stderr: format!("cli-git: {message}\n"),
+                stderr: format!("monochromatic-git-policy-cli: {message}\n"),
             });
         }
     };

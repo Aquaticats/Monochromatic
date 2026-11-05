@@ -162,7 +162,7 @@ fn locks_left(repo: &Path) -> Vec<String> {
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.path(); })
-        .filter(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("cli-git"); }); })
+        .filter(|path| { return path.file_name().is_some_and(|name| { let text = name.to_string_lossy(); return text.starts_with("monochromatic-git-policy-cli") || text.starts_with("cli-git"); }); })
         .collect();
     while let Some(path) = pending.pop() {
         if path.file_name().is_some_and(|name| { return name.to_string_lossy().contains(".lock"); }) {

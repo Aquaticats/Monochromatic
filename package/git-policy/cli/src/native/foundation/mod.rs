@@ -70,3 +70,7 @@ pub mod rename_that_never_replaces;
 /// Where a kept file or folder is,
 ///  moved in place from its earlier name on the first need.
 pub mod earlier_name_moved_to_current_in_place;
+
+/// Every kept name in a repository's Git directories settled to its current spelling,
+///  and the finder for a reader that moves nothing.
+pub mod kept_names_in_the_git_directories;

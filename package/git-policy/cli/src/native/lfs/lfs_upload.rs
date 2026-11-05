@@ -162,7 +162,7 @@ fn run_with_captured_stderr(
 /// The refusal printed when the standard error of the upload cannot be captured.
 fn capture_failed_message(why: &str) -> String {
     return format!(
-        "cli-git: this push was stopped before it sent anything. The wrapper reads the output of `git-lfs push` through \
+        "monochromatic-git-policy-cli: this push was stopped before it sent anything. The wrapper reads the output of `git-lfs push` through \
          a private temporary file, to hide the credentials in the URLs it names, and that file could not be made ({why}). Ways forward: fix the cause named in the parentheses (the \
          wrapper needs a writable `XDG_STATE_HOME`, or a `HOME`, for its private scratch directory) and push again; or \
          skip the upload for this push with `GIT_LFS_SKIP_PUSH=1` or `git push --no-verify`, which publishes pointer \
@@ -251,11 +251,11 @@ pub fn run_upload_interactive(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// 'cli-git: this push also pushes submodules, ...'
+/// 'monochromatic-git-policy-cli: this push also pushes submodules, ...'
 /// ```
 pub fn submodule_notice() -> String {
     return String::from(
-        "cli-git: this push also pushes submodules (`--recurse-submodules`), and the wrapper uploads Git LFS objects only \\
+        "monochromatic-git-policy-cli: this push also pushes submodules (`--recurse-submodules`), and the wrapper uploads Git LFS objects only \\
          for this repository's own refs. If a submodule uses Git LFS, upload its objects first by running \\
          `git lfs push --all <remote>` inside it, or push the submodule on its own; otherwise its pointer files are \\
          published without their objects.\\n",

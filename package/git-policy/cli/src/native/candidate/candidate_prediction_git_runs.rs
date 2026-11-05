@@ -42,7 +42,7 @@ fn command_failure(purpose: &str, operation: &str, output: &MetadataOutput) -> C
     return CandidateError::new(
         CandidateFailure::GitFailed,
         format!(
-            "cli-git could not {purpose}: git {operation} failed: {}",
+            "monochromatic-git-policy-cli could not {purpose}: git {operation} failed: {}",
             String::from_utf8_lossy(output.stderr.as_slice()).trim()
         )
         .as_str(),
@@ -62,7 +62,7 @@ fn command_failure(purpose: &str, operation: &str, output: &MetadataOutput) -> C
 fn not_started(purpose: &str, operation: &str, error: &std::io::Error) -> CandidateError {
     return CandidateError::new(
         CandidateFailure::GitNotStarted,
-        format!("cli-git could not {purpose}: git {operation} could not be started: {error}.")
+        format!("monochromatic-git-policy-cli could not {purpose}: git {operation} could not be started: {error}.")
             .as_str(),
     );
 }
@@ -149,7 +149,7 @@ pub fn real_index_path(
             return Err(CandidateError::new(
                 CandidateFailure::ListingMalformed,
                 format!(
-                    "cli-git could not {purpose}: git rev-parse --git-path index printed no path."
+                    "monochromatic-git-policy-cli could not {purpose}: git rev-parse --git-path index printed no path."
                 )
                 .as_str(),
             ));

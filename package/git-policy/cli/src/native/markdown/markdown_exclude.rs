@@ -76,7 +76,7 @@ pub fn compile_exclude(patterns: &[String]) -> Result<ExcludeMatcher, String> {
         // The first argument names a source file for diagnostics; these patterns have none.
         if let Err(error) = builder.add_line(None, pattern.as_str()) {
             return Err(format!(
-                "cli-git could not compile the markdown/autofix exclude pattern {pattern:?}: {error}"
+                "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern {pattern:?}: {error}"
             ));
         }
     }
@@ -84,7 +84,7 @@ pub fn compile_exclude(patterns: &[String]) -> Result<ExcludeMatcher, String> {
         Ok(matcher) => return Ok(ExcludeMatcher { matcher }),
         Err(error) => {
             return Err(format!(
-                "cli-git could not compile the markdown/autofix exclude patterns: {error}"
+                "monochromatic-git-policy-cli could not compile the markdown/autofix exclude patterns: {error}"
             ));
         }
     }

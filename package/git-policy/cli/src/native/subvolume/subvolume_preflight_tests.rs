@@ -265,7 +265,7 @@ fn the_migrations_own_lock_is_accepted_only_when_it_holds_its_token() {
     for lock in [layout.root.join(".git/index.lock"), admin.join("index.lock")] {
         std::fs::write(lock.as_path(), b"").expect("an empty lock");
         assert_eq!(migrate_refusals(&platform, &layout, &journal).len(), 1, "an empty lock is someone else's");
-        std::fs::write(lock.as_path(), b"cli-git migrate-to-subvolume another start time\n").expect("another migration's lock");
+        std::fs::write(lock.as_path(), b"monochromatic-git-policy-cli migrate-to-subvolume another start time\n").expect("another migration's lock");
         assert_eq!(migrate_refusals(&platform, &layout, &journal).len(), 1, "another migration's lock is someone else's");
         std::fs::write(lock.as_path(), token.as_bytes()).expect("our lock");
         assert_eq!(migrate_refusals(&platform, &layout, &journal), Vec::<Refusal>::new(), "{}", lock.display());
@@ -284,7 +284,7 @@ fn unfinished_service_work_is_refused_in_both_queues() {
     std::fs::create_dir_all(admin.as_path()).expect("admin directory");
     for directory in [layout.root.join(".git"), admin] {
         for queue in ["pending", "claimed"] {
-            let path: PathBuf = directory.join("cli-git/work").join(queue);
+            let path: PathBuf = directory.join("monochromatic-git-policy-cli/work").join(queue);
             std::fs::create_dir_all(path.as_path()).expect("queue");
             assert_eq!(migrate_refusals(&platform, &layout, &empty_journal(&layout)), Vec::<Refusal>::new(), "an empty {queue}");
             std::fs::write(path.join("work-1"), b"x").expect("work record");

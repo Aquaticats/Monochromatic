@@ -73,7 +73,7 @@ pub fn settle_marker(record: &Path, marker: std::io::Result<bool>) -> Option<Set
         Ok(true) => Some(Settlement { notice: None, keep: false }),
         Ok(false) => None,
         Err(error) => Some(Settlement {
-            notice: Some(format!("cli-git: whether the `git worktree add` of {shown_record} completed cannot be checked ({error}); nothing was changed and the record stays.")),
+            notice: Some(format!("monochromatic-git-policy-cli: whether the `git worktree add` of {shown_record} completed cannot be checked ({error}); nothing was changed and the record stays.")),
             keep: true,
         }),
     };
@@ -95,20 +95,20 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Settlement { notice: None, keep: false },
         Err(error) => {
             return Settlement {
-                notice: Some(format!("cli-git: the record {shown_record} of an interrupted `git worktree add` cannot be read ({error}); nothing was changed and the record stays.")),
+                notice: Some(format!("monochromatic-git-policy-cli: the record {shown_record} of an interrupted `git worktree add` cannot be read ({error}); nothing was changed and the record stays.")),
                 keep: true,
             };
         }
     };
     return match decode_record(text.as_str()) {
         None => Settlement {
-            notice: Some(format!("cli-git: the record {shown_record} of an interrupted `git worktree add` is unreadable; nothing was changed.")),
+            notice: Some(format!("monochromatic-git-policy-cli: the record {shown_record} of an interrupted `git worktree add` is unreadable; nothing was changed.")),
             keep: false,
         },
         Some(Recorded::Planned(destination)) => {
             let shown: String = quote(destination.to_string_lossy().as_ref());
             let notice: Option<String> = if destination.join(".git").exists() {
-                Some(format!("cli-git: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it."))
+                Some(format!("monochromatic-git-policy-cli: an interrupted `git worktree add` may have left {shown}; nothing proves it is the add's, so it was not changed. `git worktree list` shows whether it is registered, and `git worktree remove --force {shown}` removes it."))
             } else {
                 None
             };
@@ -117,7 +117,7 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         Some(Recorded::Registered(binding)) => {
             let shown: String = quote(binding.destination.to_string_lossy().as_ref());
             Settlement {
-                notice: Some(format!("cli-git: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. `git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.")),
+                notice: Some(format!("monochromatic-git-policy-cli: an interrupted `git worktree add` left {shown} registered and possibly incomplete; it was not changed. `git -C {shown} reset --hard` completes its checkout, and `git worktree remove --force {shown}` removes it.")),
                 keep: false,
             }
         }
@@ -125,7 +125,7 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
 }
 
 /// What:
-///  One claim file as read: the stage container it names, refused unless it is a cli-git stage container name, and the owner
+///  One claim file as read: the stage container it names, refused unless it is a monochromatic-git-policy-cli stage container name, and the owner
 ///  token on its second line.
 /// Why:
 ///   The container is deleted recursively, so a claim that names anything else is never acted on; the owner decides whether
@@ -149,7 +149,7 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => {
             let message: String = format!(
-                "cli-git: could not read worktree-copy stage claim {}.",
+                "monochromatic-git-policy-cli: could not read worktree-copy stage claim {}.",
                 quote(claim.to_string_lossy().as_ref())
             );
             return Err(failure_with_cause(message.as_str(), Some(&error)));
@@ -172,7 +172,7 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
     if !named {
         return Err(failure_with_cause(
             format!(
-                "cli-git: worktree-copy stage claim {} does not name a stage container; remove the file after checking it.",
+                "monochromatic-git-policy-cli: worktree-copy stage claim {} does not name a stage container; remove the file after checking it.",
                 quote(claim.to_string_lossy().as_ref())
             )
             .as_str(),
@@ -335,14 +335,14 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
             let of_an_add: bool = !matches!(std::fs::symlink_metadata(record.as_path()), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound);
             if present && !journaled.contains(&container) && of_an_add {
                 notices.push(format!(
-                    "cli-git: the stage {} was left by an interrupted `git worktree add` and was not changed; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
+                    "monochromatic-git-policy-cli: the stage {} was left by an interrupted `git worktree add` and was not changed; remove it yourself once nothing needs it (`btrfs subvolume delete` for a snapshot, `rm -r` otherwise).",
                     quote(container.to_string_lossy().as_ref())
                 ));
             } else if present && !journaled.contains(&container) {
                 assert_private_path(container.as_path(), Role::PrivateStage)?;
                 remove_stage(container.as_path())?;
                 notices.push(format!(
-                    "cli-git: removed the stage {} that an interrupted ignored-state copy left behind.",
+                    "monochromatic-git-policy-cli: removed the stage {} that an interrupted ignored-state copy left behind.",
                     quote(container.to_string_lossy().as_ref())
                 ));
             }

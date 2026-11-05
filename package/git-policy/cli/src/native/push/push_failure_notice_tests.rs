@@ -38,7 +38,7 @@ fn the_text_names_the_branch_the_commit_the_reason_and_the_remedy() {
 #[test]
 fn a_skipped_push_is_worded_as_not_made_and_cleared_by_a_later_push() {
     let directory: PathBuf = fixture("notice-skipped");
-    let reason: &str = "cli-git: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
+    let reason: &str = "monochromatic-git-policy-cli: the branch refs/heads/main tracks no remote branch that can be named; skipping auto-push.";
     record_push_skip(directory.as_path(), BRANCH, COMMIT, reason).expect("recorded");
     record_push_skip(directory.as_path(), "refs/heads/other", OTHER_COMMIT, reason).expect("recorded");
     clear_push_failures(directory.as_path(), BRANCH);

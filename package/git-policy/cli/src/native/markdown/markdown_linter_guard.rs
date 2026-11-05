@@ -122,7 +122,7 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const noticeLine = (waitingFor, waitedMs, windowMs) => `cli-git: still waiting for ${waitingFor} after ...`;
+/// const noticeLine = (waitingFor, waitedMs, windowMs) => `monochromatic-git-policy-cli: still waiting for ${waitingFor} after ...`;
 /// ```
 fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bool) -> String {
     let hint: &str = if repeat {
@@ -131,7 +131,7 @@ fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bo
         " Hint: it is still working; if it looks stuck, wait for the window or set the policy markdown/autofix to off for this command."
     };
     return format!(
-        "cli-git: still waiting for {waiting_for} after {} seconds; giving up on it only after {} seconds with no sign of work.{hint}",
+        "monochromatic-git-policy-cli: still waiting for {waiting_for} after {} seconds; giving up on it only after {} seconds with no sign of work.{hint}",
         waited.as_secs(),
         window.as_secs()
     );

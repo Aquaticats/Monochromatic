@@ -21,7 +21,7 @@ use std::ffi::OsString;
 use crate::auto_push_refspec_judging::{Judged, judge, parse_refspec};
 
 /// Start of every note this module words, so the terminal filter keeps it and a person sees which tool spoke.
-const NOTE_PREFIX: &str = "cli-git: auto-push: ";
+const NOTE_PREFIX: &str = "monochromatic-git-policy-cli: auto-push: ";
 
 /// Where the plain push goes: the branch's push remote and the ref it updates there.
 ///
@@ -179,7 +179,7 @@ fn read_push_settings(git: &PushGit, branch_ref: &str) -> Result<Option<PushSett
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: auto-push: ${branch} was not pushed: ${reason} Nothing was pushed or changed.`
+/// `monochromatic-git-policy-cli: auto-push: ${branch} was not pushed: ${reason} Nothing was pushed or changed.`
 /// ```
 fn note(branch: &str, reason: &str) -> String {
     return format!("{NOTE_PREFIX}{branch} was not pushed: {reason} Nothing was pushed or changed; the commit is saved locally.");

@@ -74,5 +74,5 @@ fn an_entry_can_carry_the_services_identifier() {
     assert_eq!(parsed(&buffer[..length]).get("SYSLOG_IDENTIFIER").map(String::as_str), Some("cli-git-service"));
     assert!(send_entry(&target, Priority::Warning, "from the wrapper", &[]));
     let second: usize = socket.recv(buffer.as_mut_slice()).expect("an entry");
-    assert_eq!(parsed(&buffer[..second]).get("SYSLOG_IDENTIFIER").map(String::as_str), Some("cli-git"));
+    assert_eq!(parsed(&buffer[..second]).get("SYSLOG_IDENTIFIER").map(String::as_str), Some("monochromatic-git-policy-cli"));
 }

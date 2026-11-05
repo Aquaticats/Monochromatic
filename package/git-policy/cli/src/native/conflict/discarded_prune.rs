@@ -1,11 +1,11 @@
 //! What:
-//!  The bound on `<common git dir>/cli-git/discarded/`: copies older than a number of days are removed, and the folder is
+//!  The bound on `<common git dir>/monochromatic-git-policy-cli/discarded/`: copies older than a number of days are removed, and the folder is
 //!  kept under a size by removing the oldest copies first, never one younger than a day and never the copy just written.
-//!  Each removed copy leaves one line in the audit file, and `git cli-git doctor` reports the folder.
+//!  Each removed copy leaves one line in the audit file, and `git monochromatic-git-policy-cli doctor` reports the folder.
 //! Why:
 //!  The copies of conflicted files were never removed, so the folder grew for as long as the repository lived. They are the
 //!  only remaining content of a file a command replaced, so the bound errs toward keeping: both limits are settings of
-//!  `cli-git.config.jsonc` (`discardedCopies.maxAgeDays`, `discardedCopies.maxSize`, read by `config_discarded.rs`), a copy
+//!  `monochromatic-git-policy-cli.config.jsonc` (`discardedCopies.maxAgeDays`, `discardedCopies.maxSize`, read by `config_discarded.rs`), a copy
 //!  younger than a day is out of reach of both, and the pass runs only after a new copy is complete and durable (so a kill while copying costs the older copies
 //!  nothing), and touches only directories named like the wrapper's own (`2026-11-02T14-01-07`, with an optional
 //!  `-<number>`). The folder is opened once without following a link and everything is read and removed through that
@@ -68,7 +68,7 @@ pub fn list_stamped(common_dir: &Path) -> Listing {
 /// The problem that says why the folder cannot be used.
 fn unusable(saved_root: &Path, failure: &OpenFailure) -> Problem {
     let detail: String = match failure {
-        OpenFailure::Link => String::from("a symbolic link, or something that is not a directory, stands at it or at its parent `cli-git`, and a removal never follows one"),
+        OpenFailure::Link => String::from("a symbolic link, or something that is not a directory, stands at it or at its parent `monochromatic-git-policy-cli`, and a removal never follows one"),
         OpenFailure::Refused(error) => format!("it cannot be opened: {error}"),
     };
     return Problem { path: saved_root.to_path_buf(), kind: ProblemKind::StoreUnusable, detail };
@@ -357,7 +357,7 @@ pub fn directory_name_of(saved_root: &Path, copy: &Path) -> Option<String> {
     return Some(first.as_os_str().to_string_lossy().into_owned());
 }
 
-/// What the folder holds, for `git cli-git doctor`.
+/// What the folder holds, for `git monochromatic-git-policy-cli doctor`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Report {
     /// Bytes of every copy.
@@ -404,9 +404,9 @@ pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
     let mut text: String = String::new();
     if found.saves > 0 {
         text = format!(
-            "git cli-git doctor: discarded copies: {} holds {} bytes in {} copies from {} saves; the oldest save is {}. Copies older than {} days \
+            "git monochromatic-git-policy-cli doctor: discarded copies: {} holds {} bytes in {} copies from {} saves; the oldest save is {}. Copies older than {} days \
              are removed, and the oldest are removed past {} bytes, never one younger than a day (`discardedCopies.maxAgeDays` and \
-             `discardedCopies.maxSize` in cli-git.config.jsonc change the limits).\n",
+             `discardedCopies.maxSize` in monochromatic-git-policy-cli.config.jsonc change the limits).\n",
             common_dir.join(SAVED_DIRECTORY).display(),
             found.bytes,
             found.copies,
@@ -417,7 +417,7 @@ pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
         );
     }
     for problem in &found.problems {
-        text.push_str(problem.message().replacen("cli-git: ", "git cli-git doctor: discarded copies: ", 1).as_str());
+        text.push_str(problem.message().replacen("monochromatic-git-policy-cli: ", "git monochromatic-git-policy-cli doctor: discarded copies: ", 1).as_str());
     }
     return text;
 }

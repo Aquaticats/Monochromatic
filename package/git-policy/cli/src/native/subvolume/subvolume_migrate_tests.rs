@@ -311,7 +311,7 @@ fn the_new_checkout_holds_the_index_locks_until_the_indexes_are_rewritten() {
         let layout = layout_of(root.as_path()).expect("layout");
         for lock in [main, linked] {
             let content: Vec<u8> = std::fs::read(root.join(lock)).unwrap_or_default();
-            assert!(content.starts_with(b"cli-git migrate-to-subvolume"), "{point}: {lock} is held by the migration in the new checkout");
+            assert!(content.starts_with(b"monochromatic-git-policy-cli migrate-to-subvolume"), "{point}: {lock} is held by the migration in the new checkout");
         }
         if point != "after-exchange" {
             assert!(!layout.old_path.join(main).exists() && !layout.old_path.join(linked).exists(), "{point}: the old tree's locks are dropped");

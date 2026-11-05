@@ -38,7 +38,7 @@ pub mod conflict_side_guard;
 /// The append-only record of every command form that can discard uncommitted state.
 pub mod discard_audit;
 
-/// The `discardedCopies` section of `cli-git.config.jsonc`.
+/// The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
 pub mod config_discarded;
 
 /// The bound on the folder of saved copies of conflicted files: age, size, audit and doctor report.

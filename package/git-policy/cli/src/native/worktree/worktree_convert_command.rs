@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git convert-worktree-to-subvolume`: parse the options, find the worktrees to convert, run the conversion on each,
+//!  `git monochromatic-git-policy-cli convert-worktree-to-subvolume`: parse the options, find the worktrees to convert, run the conversion on each,
 //!  and turn the results into lines and an exit status.
 //! Why:
 //!  A conversion takes seconds to minutes per worktree and is bound by the filesystem's metadata work, not by any one
@@ -242,7 +242,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     let list: Vec<PathBuf> = match targets(arguments, cwd) {
         Ok(found) => found,
         Err(reason) => {
-            say(format!("git cli-git convert-worktree-to-subvolume: refused: {reason}").as_str());
+            say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}").as_str());
             say("Nothing was changed.");
             return REFUSED_EXIT_CODE;
         }

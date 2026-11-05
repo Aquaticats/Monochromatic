@@ -241,6 +241,6 @@ pub fn failure(message: &str) -> Action {
         // `String::new()` is empty owned text: nothing goes to standard output.
         stdout: String::new(),
         // `format!` builds the owned, line-terminated text.
-        stderr: format!("cli-git: {message}\n"),
+        stderr: format!("monochromatic-git-policy-cli: {message}\n"),
     };
 }

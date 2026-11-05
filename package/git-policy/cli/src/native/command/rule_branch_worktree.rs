@@ -203,7 +203,7 @@ pub fn branch_creation_message(command: BranchCreationCommand, target: Option<&O
         target_clause = format!(" for {}", name.to_string_lossy());
     }
     return format!(
-        "cli-git: git {}{target_clause} branch creation is rejected in the current worktree. \
+        "monochromatic-git-policy-cli: git {}{target_clause} branch creation is rejected in the current worktree. \
          Use `git worktree add -b <branch> <path> [<start-point>]` so new branch work starts \
          in its own checkout, or pass {BRANCH_WORKTREE_ESCAPE_HATCH} to bypass for this \
          invocation.",

@@ -8,7 +8,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(unportedNotice({ kind: 'commit-transaction' }, 'commit')).toBe('cli-git: the commit transaction ...\n');
+//! // expect(unportedNotice({ kind: 'commit-transaction' }, 'commit')).toBe('monochromatic-git-policy-cli: the commit transaction ...\n');
 //! ```
 
 /// The refusal list,
@@ -22,7 +22,7 @@ use std::path::PathBuf;
 /// The sentence around every subject.
 fn notice(subject: &str, command: &str) -> String {
     return format!(
-        "cli-git: {subject} is not implemented in this native development executable, so git {command} was not run. Run it with the installed cli-git.\n"
+        "monochromatic-git-policy-cli: {subject} is not implemented in this native development executable, so git {command} was not run. Run it with the installed monochromatic-git-policy-cli.\n"
     );
 }
 
@@ -59,7 +59,7 @@ fn every_reason_names_what_is_missing() {
                 policy: PolicyId::ForbiddenStrings,
                 needs: "reading the selected files",
             },
-            "cli-git check",
+            "monochromatic-git-policy-cli check",
             "reading the selected files, which the policy security/forbidden-strings needs,",
         ),
     ] {

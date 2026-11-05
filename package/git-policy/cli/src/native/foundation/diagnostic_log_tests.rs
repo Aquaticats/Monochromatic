@@ -13,11 +13,11 @@ fn a_diagnostic_is_one_line() {
             "recovery",
             "owner 7 alive"
         ),
-        "[debug] [2026-10-06T21:40:39.524Z] [cli-git] [recovery] owner 7 alive\n"
+        "[debug] [2026-10-06T21:40:39.524Z] [monochromatic-git-policy-cli] [recovery] owner 7 alive\n"
     );
     assert_eq!(
         diagnostic_line("warn", "t", "capture", "a\nb\r\nc\u{1b}[31m"),
-        "[warn] [t] [cli-git] [capture] a b  c [31m\n"
+        "[warn] [t] [monochromatic-git-policy-cli] [capture] a b  c [31m\n"
     );
 }
 

@@ -45,13 +45,13 @@ fn a_bulk_add_carries_an_intent_hint() {
 fn an_invalid_configuration_carries_an_intent_hint() {
     let fixture: Fixture = fixture("hint-config");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
-    std::fs::write(repo.join("cli-git.config.jsonc"), b"{ \"notAKey\": true }\n").expect("config");
-    let observed: Observed = observe_raw(wrapped(&fixture).current_dir(repo.as_path()).args(["cli-git", "check", "--all"]), b"");
+    std::fs::write(repo.join("monochromatic-git-policy-cli.config.jsonc"), b"{ \"notAKey\": true }\n").expect("config");
+    let observed: Observed = observe_raw(wrapped(&fixture).current_dir(repo.as_path()).args(["monochromatic-git-policy-cli", "check", "--all"]), b"");
     let text: String = streams(&observed);
     assert_eq!(observed.code, Some(2), "{text}");
     assert!(text.contains("\"code\":\"config-invalid\""), "{text}");
     assert!(
-        text.contains("\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names"),
+        text.contains("\"hint\":\"Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names"),
         "{text}"
     );
     remove(&fixture);
@@ -63,13 +63,13 @@ fn a_root_context_file_carries_an_intent_hint() {
     let fixture: Fixture = fixture("hint-root-context");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(
-        repo.join("cli-git.config.jsonc"),
+        repo.join("monochromatic-git-policy-cli.config.jsonc"),
         b"{ \"policies\": { \"final-newline\": \"off\", \"mono/forbidden-root-context\": \"error\" } }\n",
     )
     .expect("config");
     std::fs::write(repo.join("CONTEXT.md"), b"context\n").expect("context");
     let observed: Observed = observe_raw(
-        wrapped(&fixture).current_dir(repo.as_path()).args(["cli-git", "check", "--all"]),
+        wrapped(&fixture).current_dir(repo.as_path()).args(["monochromatic-git-policy-cli", "check", "--all"]),
         b"",
     );
     let text: String = streams(&observed);

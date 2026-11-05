@@ -225,14 +225,14 @@ pub fn interpret_embedded_run(
     };
     if run.fixed.len() > MAX_FIXED_BYTES {
         return Err(format!(
-            "monochromatic-lint produced a fixed source of {} bytes, over the {MAX_FIXED_BYTES} bytes cli-git accepts",
+            "monochromatic-lint produced a fixed source of {} bytes, over the {MAX_FIXED_BYTES} bytes monochromatic-git-policy-cli accepts",
             run.fixed.len()
         ));
     }
     let findings_bytes: usize = run.findings.iter().fold(0, add_finding_bytes);
     if findings_bytes > MAX_FINDINGS_BYTES {
         return Err(format!(
-            "monochromatic-lint produced findings of {findings_bytes} bytes, over the {MAX_FINDINGS_BYTES} bytes cli-git accepts"
+            "monochromatic-lint produced findings of {findings_bytes} bytes, over the {MAX_FINDINGS_BYTES} bytes monochromatic-git-policy-cli accepts"
         ));
     }
     if run.fixed.is_empty() && !input.is_empty() {
@@ -246,7 +246,7 @@ pub fn interpret_embedded_run(
             Ok(found) => remaining.push(found),
             Err(reason) => {
                 return Err(format!(
-                    "monochromatic-lint returned finding {} that cli-git cannot use: {reason}",
+                    "monochromatic-lint returned finding {} that monochromatic-git-policy-cli cannot use: {reason}",
                     index + 1
                 ));
             }

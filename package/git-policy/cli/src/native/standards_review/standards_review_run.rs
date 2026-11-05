@@ -104,7 +104,7 @@ pub trait LandedCommitReader {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/cli-git/standards-review-shadow.md`;
+/// const logPath = process.env.SHADOW_REVIEW_LOG ?? `${commonDir}/monochromatic-git-policy-cli/standards-review-shadow.md`;
 /// ```
 pub fn options_from_environment(common_dir: &Path, variable: &dyn EnvironmentVariables) -> ReviewOptions {
     let log_path: PathBuf = match variable.variable(LOG_VARIABLE) {

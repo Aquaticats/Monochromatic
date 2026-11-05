@@ -5,7 +5,7 @@
 //!  A service that is stopped (a release, a restart of the unit, a crash) must not forget the pushes it keeps trying: the defect
 //!  the retry mends is a stopped push that is never tried again, and a restart that forgot the plan would bring it back. The
 //!  person's failure record cannot carry the plan: the person's next command shows it and removes it. The journal is the
-//!  instance's own and survives a restart (`%S/cli-git/service/%i`), and one instance is the only writer of its plan, so no lock
+//!  instance's own and survives a restart (`%S/monochromatic-git-policy-cli/service/%i`), and one instance is the only writer of its plan, so no lock
 //!  is taken. A plan is replaced by publishing the new file whole before the old one is removed, so a kill leaves one of them,
 //!  never none; when a kill leaves both, the newer one is the plan.
 //!

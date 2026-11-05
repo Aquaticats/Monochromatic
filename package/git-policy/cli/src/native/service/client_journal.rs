@@ -4,12 +4,12 @@
 //! Why:
 //!  The wrapper is no service: its standard error is the person's terminal or an agent's capture, which is gone when the
 //!  command ends. A decision the person was told about once (an add that took the slow way and why) is then recoverable
-//!  afterwards only from the journal (`journalctl --identifier=cli-git`). The socket is unconnected and non-blocking, so a
+//!  afterwards only from the journal (`journalctl --identifier=monochromatic-git-policy-cli`). The socket is unconnected and non-blocking, so a
 //!  journal that is absent, restarting or full costs the command nothing; the entry is then only in the debug log.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! try { socket.send(`PRIORITY=4\nSYSLOG_IDENTIFIER=cli-git\nMESSAGE=${message}\n`) } catch { /* nothing waits for the journal */ }
+//! try { socket.send(`PRIORITY=4\nSYSLOG_IDENTIFIER=monochromatic-git-policy-cli\nMESSAGE=${message}\n`) } catch { /* nothing waits for the journal */ }
 //! ```
 
 use crate::diagnostic_log::debug;

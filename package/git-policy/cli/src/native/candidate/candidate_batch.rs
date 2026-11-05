@@ -132,7 +132,7 @@ fn reply_failure(failure: CandidateFailure, detail: &str) -> CandidateError {
     return CandidateError::new(
         failure,
         format!(
-            "cli-git could not read a Git object: git cat-file --batch {detail}. \
+            "monochromatic-git-policy-cli could not read a Git object: git cat-file --batch {detail}. \
              No candidate content was accepted from this reply."
         )
         .as_str(),

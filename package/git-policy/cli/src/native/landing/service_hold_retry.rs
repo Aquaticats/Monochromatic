@@ -88,7 +88,7 @@ fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsStr
 fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
     return match run_real_git(real_git, arguments, overlay) {
         Ok(outcome) => ForwardedRun::Ran(exit_code(outcome)),
-        Err(error) => ForwardedRun::Failed { stderr: format!("cli-git: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE },
+        Err(error) => ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE },
     };
 }
 
@@ -134,7 +134,7 @@ pub fn run_again_within(
         let code: i32 = match run_once(real_git, arguments, overlay, for_child) {
             Ok(code) => code,
             Err(error) => {
-                return ForwardedRun::Failed { stderr: format!("cli-git: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
+                return ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
             }
         };
         let mut said: Vec<u8> = Vec::new();

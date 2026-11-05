@@ -13,17 +13,18 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const socket = join(runtimeDir, 'cli-git', `${instanceOf(gitDir)}.sock`);
+//! const socket = join(runtimeDir, 'monochromatic-git-policy-cli', `${instanceOf(gitDir)}.sock`);
 //! ```
 
+use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 
 /// Directory of the sockets under the user's runtime directory.
-pub const SOCKET_DIRECTORY: &str = "cli-git";
+pub const SOCKET_DIRECTORY: &str = SERVICE_UNIT.current;
 
 /// The socket of the one service every worktree of an account shared until the release that gave each worktree its own. A
 ///  service still listening here is asked to retire and its units are removed.
-pub const LEGACY_SOCKET_RELATIVE: &str = "cli-git/service.sock";
+pub const LEGACY_SOCKET_RELATIVE: &str = "monochromatic-git-policy-cli/service.sock";
 
 /// The number of hexadecimal digits of an instance name.
 pub const INSTANCE_LENGTH: usize = 32;
@@ -71,12 +72,12 @@ pub fn socket_for(runtime_dir: &Path, git_dir: &Path) -> PathBuf {
 
 /// The name of the socket unit instance of a worktree.
 pub fn socket_unit_instance(instance: &str) -> String {
-    return format!("cli-git@{instance}.socket");
+    return format!("{}@{instance}.socket", SERVICE_UNIT.current);
 }
 
 /// The name of the service unit instance of a worktree.
 pub fn service_unit_instance(instance: &str) -> String {
-    return format!("cli-git@{instance}.service");
+    return format!("{}@{instance}.service", SERVICE_UNIT.current);
 }
 
 /// Instance controls stay out of the release executable.

@@ -160,8 +160,8 @@ fn each_rule_fires_on_its_own_forbidden_text() {
         ("own-executable", "let exe = std::env::current_exe()?;"),
         ("argv0-dispatch", "let name = std::env::args_os().next();"),
         ("shell-text", "let script = \"#!/bin/sh\\nexit 0\\n\";"),
-        ("hook-command", "format!(\"hook.x.command={exe} cli-git sub\")"),
-        ("management-word", "Command::new(program).arg(\"cli-git\").arg(\"x\")"),
+        ("hook-command", "format!(\"hook.x.command={exe} monochromatic-git-policy-cli sub\")"),
+        ("management-word", "Command::new(program).arg(\"monochromatic-git-policy-cli\").arg(\"x\")"),
         ("spawn-own-executable", "Command::new(request.own_executable)"),
     ];
     for (id, sample) in samples {

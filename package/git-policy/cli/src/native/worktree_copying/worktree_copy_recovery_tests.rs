@@ -101,7 +101,7 @@ fn unregistered_destination_is_discarded_with_notice() {
     assert_eq!(
         report.notices,
         vec![format!(
-            "cli-git: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
+            "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
             quote(topic.to_string_lossy().as_ref())
         )]
     );
@@ -128,7 +128,7 @@ fn missing_stage_is_discarded_with_notice() {
     assert_eq!(
         report.notices,
         vec![format!(
-            "cli-git: discarded an interrupted ignored-state copy into {} because its private stage is missing; ignored files there may be incomplete.",
+            "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy into {} because its private stage is missing; ignored files there may be incomplete.",
             quote(topic.to_string_lossy().as_ref())
         )]
     );
@@ -337,14 +337,14 @@ fn report_writes_notices_then_summary() {
     report_recovered(
         &RecoveryReport {
             recovered: 1,
-            notices: vec![String::from("cli-git: notice.")],
+            notices: vec![String::from("monochromatic-git-policy-cli: notice.")],
         },
         &mut out,
     )
     .expect("written");
     assert_eq!(
         String::from_utf8(out).expect("utf8"),
-        "cli-git: notice.\ncli-git: recovered ignored-state copies for 1 worktree transaction.\n"
+        "monochromatic-git-policy-cli: notice.\nmonochromatic-git-policy-cli: recovered ignored-state copies for 1 worktree transaction.\n"
     );
     let mut plural: Vec<u8> = Vec::new();
     report_recovered(
@@ -357,7 +357,7 @@ fn report_writes_notices_then_summary() {
     .expect("written");
     assert_eq!(
         String::from_utf8(plural).expect("utf8"),
-        "cli-git: recovered ignored-state copies for 2 worktree transactions.\n"
+        "monochromatic-git-policy-cli: recovered ignored-state copies for 2 worktree transactions.\n"
     );
 }
 
@@ -404,7 +404,7 @@ fn incumbent_written_journal_is_recovered_natively() {
     assert_eq!(
         report.notices,
         vec![format!(
-            "cli-git: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
+            "monochromatic-git-policy-cli: discarded an interrupted ignored-state copy for {}, which is no longer a registered worktree.",
             quote(format!("{base}/topic").as_str())
         )]
     );

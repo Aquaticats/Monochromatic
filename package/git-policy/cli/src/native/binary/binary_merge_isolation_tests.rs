@@ -113,7 +113,7 @@ fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
         "{}git commit-tree (process 7) after 10 seconds; it is ended only after 300 seconds with no sign of work.\n",
         String::from_utf8_lossy(WAIT_NOTICE_PREFIX)
     );
-    let other: &str = "cli-git: copied 1 ignored filesystem entry\nHint: still waiting for nothing\n";
+    let other: &str = "monochromatic-git-policy-cli: copied 1 ignored filesystem entry\nHint: still waiting for nothing\n";
     let mixed: String = format!("{notice}{other}{notice}");
     assert_eq!(without_wait_notices(mixed.as_bytes()), other.as_bytes());
     assert_eq!(without_wait_notices(other.as_bytes()), other.as_bytes());
@@ -635,7 +635,7 @@ fn a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out() {
     );
     assert_eq!(raw.code, Some(0), "{}", text(&raw.stderr));
     assert!(
-        text(&raw.stderr).contains("cli-git: still waiting for git commit-tree"),
+        text(&raw.stderr).contains("monochromatic-git-policy-cli: still waiting for git commit-tree"),
         "the slow step announces itself: {}",
         text(&raw.stderr)
     );

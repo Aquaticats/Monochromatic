@@ -1,5 +1,5 @@
 //! What:
-//!  Controls for `git cli-git check|fix --policy <id>` when the selected policy is off,
+//!  Controls for `git monochromatic-git-policy-cli check|fix --policy <id>` when the selected policy is off,
 //! warns or blocks.
 //! Why:
 //!  A direct run limited to a policy that does not run used to exit 0 with no output,
@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 /// for the sentence `message` (already JSON text).
 fn refusal_event(message: &str) -> String {
     return format!(
-        "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"{message}\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
+        "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"{message}\",\"hint\":\"Hint: if you just edited monochromatic-git-policy-cli.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
     );
 }
 
@@ -35,7 +35,7 @@ fn refusal_event(message: &str) -> String {
 /// `on` is the severity that turns it on.
 fn unlisted_sentence(name: &str, on: &str) -> String {
     return format!(
-        "Policy {name} is off, so --policy {name} would check nothing and exit clean: cli-git.config.jsonc does not list \\\"{name}\\\", and an unlisted policy of this kind is off. To turn it on, set \\\"policies\\\": {{ \\\"{name}\\\": \\\"{on}\\\" }} in cli-git.config.jsonc and run the command again."
+        "Policy {name} is off, so --policy {name} would check nothing and exit clean: monochromatic-git-policy-cli.config.jsonc does not list \\\"{name}\\\", and an unlisted policy of this kind is off. To turn it on, set \\\"policies\\\": {{ \\\"{name}\\\": \\\"{on}\\\" }} in monochromatic-git-policy-cli.config.jsonc and run the command again."
     );
 }
 
@@ -151,7 +151,7 @@ fn a_selected_policy_that_does_not_run_for_the_command_is_refused() {
     let root: PathBuf = fixture("off-policy-not-run");
     let repo: PathBuf = violating_repository(root.as_path(), Some(r#"{ "policies": { "mono/catalog-specifiers": "error" } }"#));
     let inputs: ResolutionInputs = with_git(root.as_path());
-    let sentence: &str = "Policy mono/catalog-specifiers does not run for cli-git fix, so --policy mono/catalog-specifiers would check nothing and exit clean. It runs for cli-git check.";
+    let sentence: &str = "Policy mono/catalog-specifiers does not run for monochromatic-git-policy-cli fix, so --policy mono/catalog-specifiers would check nothing and exit clean. It runs for monochromatic-git-policy-cli check.";
     assert_eq!(
         plan(&["fix", "--all", "--policy", "mono/catalog-specifiers"], repo.as_path(), &inputs),
         exit(2, refusal_event(sentence).as_str(), "")

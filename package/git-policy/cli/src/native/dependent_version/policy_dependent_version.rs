@@ -150,7 +150,7 @@ fn plan_failure(error: &PlanError) -> PolicyOutcome {
 /// Why:
 ///   The person sees the dependent,
 ///  the versions,
-///  and that `git cli-git fix` applies it.
+///  and that `git monochromatic-git-policy-cli fix` applies it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -340,7 +340,7 @@ pub fn check_dependent_version<F: RepositoryFacts>(
         return failed(
             EngineFailureCode::ContentUnavailable,
             String::from(
-                "mono/dependent-version-bump found no prepared candidates; this is a defect in cli-git.",
+                "mono/dependent-version-bump found no prepared candidates; this is a defect in monochromatic-git-policy-cli.",
             ),
         );
     };

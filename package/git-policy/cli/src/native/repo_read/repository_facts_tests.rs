@@ -383,7 +383,7 @@ fn an_unstartable_git_fails_every_fact() {
     let root: PathBuf = fixture("facts-missing");
     let missing: PathBuf = root.join("no-git");
     let mut facts: GitFacts = git_facts(missing.as_path(), &[], &[]);
-    let prefix: String = format!("cli-git could not start {} to read ", missing.display());
+    let prefix: String = format!("monochromatic-git-policy-cli could not start {} to read ", missing.display());
     // `.err()` keeps only the failure text of each answer.
     let failures: [(Option<String>, &str); 4] = [
         (facts.location().err(), "the repository location"),
@@ -423,7 +423,7 @@ fn uninterpretable_answers_are_failures() {
         ))
     );
     let location: String = facts.location().expect_err("garbled location");
-    assert!(location.starts_with("cli-git could not "), "{location}");
+    assert!(location.starts_with("monochromatic-git-policy-cli could not "), "{location}");
     // An exit status of 0 from the index query means "equal", whatever was printed.
     assert_eq!(facts.index_vs_head(), Ok(IndexVsHead::Matches));
     assert_eq!(

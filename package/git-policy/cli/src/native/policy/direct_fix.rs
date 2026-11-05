@@ -1,5 +1,5 @@
 //! What:
-//!  `git cli-git fix`:
+//!  `git monochromatic-git-policy-cli fix`:
 //!  run policy passes over the selected files,
 //!  apply the
 //!       corrections they propose in memory until a pass proposes none,
@@ -66,7 +66,7 @@ pub const DIRECT_FIX_CYCLE_MESSAGE: &str =
 
 /// The message of a fix that has no worktree to install into.
 pub const NO_WORKTREE_MESSAGE: &str =
-    "cli-git fix could not install its corrections: the repository has no worktree.";
+    "monochromatic-git-policy-cli fix could not install its corrections: the repository has no worktree.";
 
 /// What:
 ///  The passes of one direct fix,

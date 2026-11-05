@@ -63,9 +63,9 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
 /// Only a reported conflict needs the person; a stall and a refused connection do not.
 #[test]
 fn only_a_conflict_needs_the_person() {
-    assert!(needs_the_person("cli-git: auto-push: not published: merging origin/main into main conflicts in: a.txt, b.txt. Nothing was pushed"));
+    assert!(needs_the_person("monochromatic-git-policy-cli: auto-push: not published: merging origin/main into main conflicts in: a.txt, b.txt. Nothing was pushed"));
     for output in [
-        "cli-git: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
+        "monochromatic-git-policy-cli: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
         "fatal: unable to access 'https://example.invalid/': Could not resolve host: example.invalid",
         "",
     ] {
@@ -129,7 +129,7 @@ fn an_offline_failure_is_still_tried_again() {
     for output in [
         CONNECTION_REFUSED,
         UNRESOLVED,
-        "cli-git: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
+        "monochromatic-git-policy-cli: git push made no progress for 30 seconds and was stopped (limit=stall, bytes_moved=0, elapsed_seconds=30)",
     ] {
         assert_eq!(final_failure(output), None, "{output}");
     }

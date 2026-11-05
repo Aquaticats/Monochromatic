@@ -65,7 +65,7 @@ pub fn with_second_pass_report(done: IsolatedMerge, merged: &[Merged]) -> Isolat
     match done {
         IsolatedMerge::Finished { code: 0, stdout, stderr } if !merged.is_empty() => {
             let mut report: String = String::new();
-            for line in announce("cli-git: ", (CLIENT_IDENTIFIER, "merge"), merged) {
+            for line in announce("monochromatic-git-policy-cli: ", (CLIENT_IDENTIFIER, "merge"), merged) {
                 report.push_str(line.as_str());
                 report.push('\n');
             }
@@ -240,7 +240,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
                 code: 0,
                 stdout: String::new(),
                 stderr: format!(
-                    "cli-git: git merge {reference}: Git reported an error ({detail}) after it had started, \
+                    "monochromatic-git-policy-cli: git merge {reference}: Git reported an error ({detail}) after it had started, \
                      and the wrapper completed the merge.\n"
                 ),
             }),
@@ -288,6 +288,6 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
 pub fn reach_phase(phase: Phase) -> Result<(), Bail> {
     return match reach_transaction_phase(phase, None) {
         Ok(()) => Ok(()),
-        Err(error) => Err(refused(2, format!("cli-git: {error}\n"))),
+        Err(error) => Err(refused(2, format!("monochromatic-git-policy-cli: {error}\n"))),
     };
 }

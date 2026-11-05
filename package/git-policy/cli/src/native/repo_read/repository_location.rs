@@ -141,7 +141,7 @@ pub fn parse_location_output(success: bool, stdout: &[u8]) -> std::io::Result<Re
     let Some(last_break) = body.iter().rposition(is_line_feed) else {
         // `Err(...)` is the failure variant; `std::io::Error::other` wraps a message.
         return Err(std::io::Error::other(
-            "cli-git could not locate the command inside the Git worktree: git rev-parse \
+            "monochromatic-git-policy-cli could not locate the command inside the Git worktree: git rev-parse \
              printed no line for the path below the top level.",
         ));
     };

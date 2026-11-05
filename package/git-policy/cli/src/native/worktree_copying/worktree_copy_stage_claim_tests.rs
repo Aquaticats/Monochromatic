@@ -128,7 +128,7 @@ fn an_abandoned_stage_is_removed_with_a_notice() {
     assert_eq!(
         notices,
         vec![format!(
-            "cli-git: removed the stage {} that an interrupted ignored-state copy left behind.",
+            "monochromatic-git-policy-cli: removed the stage {} that an interrupted ignored-state copy left behind.",
             quote(container.to_string_lossy().as_ref())
         )]
     );
@@ -214,7 +214,7 @@ fn a_claim_naming_a_relative_path_is_refused() {
     remove(root.as_path());
 }
 
-/// A claim that names a stage others can read is refused: the directory is not provably cli-git's own.
+/// A claim that names a stage others can read is refused: the directory is not provably monochromatic-git-policy-cli's own.
 #[test]
 fn a_shared_stage_is_refused_and_kept() {
     let (root, common, destination) = scene("claim-shared");

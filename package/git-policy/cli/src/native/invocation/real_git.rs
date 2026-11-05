@@ -3,7 +3,7 @@
 //! Why:
 //!  The wrapper is installed as `git` ahead of real Git;
 //!  forwarding needs the
-//!      first usable candidate that is not a cli-git wrapper.
+//!      first usable candidate that is not a monochromatic-git-policy-cli wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -112,7 +112,7 @@ pub struct ResolutionInputs {
 ///  One PATH candidate the search examined and what it found.
 ///       `CandidateKind` is the verdict (real Git, wrapper, unusable).
 /// Why:
-///   The failure message lists every candidate with its verdict, so the person can see which entries led back to cli-git
+///   The failure message lists every candidate with its verdict, so the person can see which entries led back to monochromatic-git-policy-cli
 ///  and which were not executable files at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -145,7 +145,7 @@ pub struct SearchedCandidate {
 pub struct RealGitNotFound {
     /// PATH-derived candidates examined before failure.
     pub candidate_count: usize,
-    /// Candidates rejected because they are cli-git wrappers.
+    /// Candidates rejected because they are monochromatic-git-policy-cli wrappers.
     pub skipped_wrapper_count: usize,
     /// Every candidate examined, in the order the search took them, with its verdict.
     pub searched: Vec<SearchedCandidate>,
@@ -164,12 +164,12 @@ pub struct RealGitNotFound {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const reason = { wrapper: 'leads back to cli-git ...', unusable: 'is not an executable file ...' }[kind];
+/// const reason = { wrapper: 'leads back to monochromatic-git-policy-cli ...', unusable: 'is not an executable file ...' }[kind];
 /// ```
 fn verdict_words(kind: CandidateKind) -> &'static str {
     match kind {
         CandidateKind::Wrapper => {
-            return "skipped, it leads back to cli-git (this executable, a link or copy of it, its toolchain launcher, or a script that starts it)";
+            return "skipped, it leads back to monochromatic-git-policy-cli (this executable, a link or copy of it, its toolchain launcher, or a script that starts it)";
         }
         CandidateKind::Unusable => return "skipped, it is missing, not an executable file, or unreadable",
         CandidateKind::RealGit => return "usable",
@@ -195,7 +195,7 @@ impl std::fmt::Display for RealGitNotFound {
         write!(
             formatter,
             "Could not find a real Git executable after examining {} PATH candidates and \
-             skipping {} cli-git wrappers, so no Git command was run. PATH is {}.",
+             skipping {} monochromatic-git-policy-cli wrappers, so no Git command was run. PATH is {}.",
             self.candidate_count,
             self.skipped_wrapper_count,
             if self.path.is_empty() { String::from("empty or unset") } else { self.path.to_string_lossy().into_owned() }
@@ -217,7 +217,7 @@ impl std::fmt::Display for RealGitNotFound {
         // The last write is the function's result.
         return write!(
             formatter,
-            "\ncli-git never starts itself as Git, so a candidate that leads back to cli-git is passed over on purpose. \
+            "\nmonochromatic-git-policy-cli never starts itself as Git, so a candidate that leads back to monochromatic-git-policy-cli is passed over on purpose. \
              To fix it, install Git; or add the directory that holds the real Git executable (for example /usr/bin) to \
              the PATH of the program that ran this command; or, when an entry of that PATH should not be used, remove it."
         );

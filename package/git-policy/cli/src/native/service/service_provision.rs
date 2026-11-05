@@ -35,16 +35,16 @@ use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
 /// The socket template's text, with the marker on its first line.
-pub const SOCKET_UNIT: &str = include_str!("service_units/cli-git@.socket");
+pub const SOCKET_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.socket");
 
 /// The service template's text, with `@SERVICE_BINARY@` and `@GIT@` still to fill in.
-pub const SERVICE_UNIT: &str = include_str!("service_units/cli-git@.service");
+pub const SERVICE_UNIT: &str = include_str!("service_units/monochromatic-git-policy-cli@.service");
 
 /// File name of the socket template.
-pub const SOCKET_UNIT_NAME: &str = "cli-git@.socket";
+pub const SOCKET_UNIT_NAME: &str = "monochromatic-git-policy-cli@.socket";
 
 /// File name of the service template.
-pub const SERVICE_UNIT_NAME: &str = "cli-git@.service";
+pub const SERVICE_UNIT_NAME: &str = "monochromatic-git-policy-cli@.service";
 
 /// File name of the socket unit of the single service every worktree shared until one service per worktree.
 pub const LEGACY_SOCKET_UNIT_NAME: &str = "cli-git.socket";

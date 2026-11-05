@@ -60,7 +60,7 @@ impl Problem {
     ///  The sentence that tells a person what was kept or not done, which input it concerns and what to do about it.
     /// Why:
     ///   The copies are what a person may need back, so every case where the limits could not be applied, or an audit line
-    ///  is missing, is said where the person sees it (the notice of the command, and `git cli-git doctor`).
+    ///  is missing, is said where the person sees it (the notice of the command, and `git monochromatic-git-policy-cli doctor`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -71,27 +71,27 @@ impl Problem {
         let detail: &str = self.detail.as_str();
         return match self.kind {
             ProblemKind::StoreUnusable => format!(
-                "cli-git: the saved copies of replaced files in {path} were not pruned, and the age and size limits did not apply: {detail}. \
+                "monochromatic-git-policy-cli: the saved copies of replaced files in {path} were not pruned, and the age and size limits did not apply: {detail}. \
                  Make it a real directory (move the copies there and remove the link) and the next save prunes it again.\n"
             ),
             ProblemKind::EntryUnreadable => format!(
-                "cli-git: {path} was kept and not counted: it cannot be read ({detail}). Fix its permissions or remove it yourself; \
+                "monochromatic-git-policy-cli: {path} was kept and not counted: it cannot be read ({detail}). Fix its permissions or remove it yourself; \
                  until then the size limit sees the folder as smaller than it is.\n"
             ),
             ProblemKind::EntryChanged => format!(
-                "cli-git: {path} was kept: it was replaced or changed while the pass ran ({detail}), so it is not the directory the pass judged.\n"
+                "monochromatic-git-policy-cli: {path} was kept: it was replaced or changed while the pass ran ({detail}), so it is not the directory the pass judged.\n"
             ),
             ProblemKind::PartiallyRemoved => format!(
-                "cli-git: {path} was only partly removed ({detail}). The audit file lists the copies that went and the rest are still there; \
+                "monochromatic-git-policy-cli: {path} was only partly removed ({detail}). The audit file lists the copies that went and the rest are still there; \
                  fix the cause and the next pass finishes the removal.\n"
             ),
-            ProblemKind::NotRemoved => format!("cli-git: {path} could not be removed and was left whole ({detail}). The next pass tries again.\n"),
+            ProblemKind::NotRemoved => format!("monochromatic-git-policy-cli: {path} could not be removed and was left whole ({detail}). The next pass tries again.\n"),
             ProblemKind::AuditUnwritable => format!(
-                "cli-git: no saved copy was removed because the audit file {path} cannot be appended to ({detail}); every removal needs its \
+                "monochromatic-git-policy-cli: no saved copy was removed because the audit file {path} cannot be appended to ({detail}); every removal needs its \
                  line there. Fix the file or its permissions and the next pass removes what the limits allow.\n"
             ),
             ProblemKind::RemovedWithoutAudit => format!(
-                "cli-git: {path} was removed but its line in the audit file could not be written ({detail}). Its copies were older or \
+                "monochromatic-git-policy-cli: {path} was removed but its line in the audit file could not be written ({detail}). Its copies were older or \
                  larger than the limits allow.\n"
             ),
         };

@@ -37,7 +37,7 @@ pub const STREAM_VARIABLE: &str = "JOURNAL_STREAM";
 pub const IDENTIFIER: &str = "cli-git-service";
 
 /// The `SYSLOG_IDENTIFIER` of an entry the wrapper itself sends, as the command a person ran, beside the service's own.
-pub const CLIENT_IDENTIFIER: &str = "cli-git";
+pub const CLIENT_IDENTIFIER: &str = "monochromatic-git-policy-cli";
 
 /// The most characters of a message an entry carries; longer text is cut. The limits count characters, not encoded bytes,
 /// and bound no total, so an entry made of very many or very wide fields can still exceed what a socket takes; the send then

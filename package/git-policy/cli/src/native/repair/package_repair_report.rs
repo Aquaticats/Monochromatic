@@ -180,11 +180,11 @@ pub fn render(destination: &Path, findings: &[Finding], quiet: bool) -> String {
     }
     if !worked.is_empty() && !quiet {
         let scope: &str = if partial { "part of the package-manager state" } else { "the package-manager state" };
-        text.push_str(format!("cli-git: made {scope} of {shown} work at its new location: {}.\n", worked.join("; ")).as_str());
+        text.push_str(format!("monochromatic-git-policy-cli: made {scope} of {shown} work at its new location: {}.\n", worked.join("; ")).as_str());
     }
     for finding in findings {
         if let Outcome::Failed { reason, run_instead } = &finding.outcome {
-            text.push_str(format!("cli-git: the worktree {shown} still needs one step ({}); run {}.\n", single_line(reason), single_line(run_instead)).as_str());
+            text.push_str(format!("monochromatic-git-policy-cli: the worktree {shown} still needs one step ({}); run {}.\n", single_line(reason), single_line(run_instead)).as_str());
         }
     }
     return text;

@@ -18,6 +18,7 @@
 //! await recordPushFailure(gitDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(gitDir));
 //! ```
 
+use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::auto_push::PUSH_FAILED_NOTE;
 use crate::auto_push_branch_key::encode_branch_key;
 use crate::lfs_output_mask::mask_userinfo_text;
@@ -27,14 +28,14 @@ use crate::service_messages::RESTART_COMMAND;
 use std::path::{Path, PathBuf};
 
 /// Directory under the worktree's own Git directory that holds the records for the person.
-pub const NOTICE_DIRECTORY: &str = "cli-git/notices";
+pub const NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/notices";
 
 /// Directory under the repository's common Git directory that holds the records of removed worktrees, which any worktree's
 ///  command shows because the worktree they were made for is gone.
-pub const ORPHAN_NOTICE_DIRECTORY: &str = "cli-git/orphaned-notices";
+pub const ORPHAN_NOTICE_DIRECTORY: &str = "monochromatic-git-policy-cli/orphaned-notices";
 
 /// First line of a record of a push that was lost with its worktree; its fields are those of a failure record, without words.
-const LOST_MAGIC: &str = "cli-git push lost 1";
+const LOST_MAGIC: &str = "monochromatic-git-policy-cli push lost 1";
 
 /// Separates the parts of a record's name; it is not a character a branch key can contain.
 const NAME_SEPARATOR: char = '+';
@@ -53,11 +54,11 @@ const LONGEST_KEY: usize = 100;
 const LONGEST_REASON: usize = 4000;
 
 /// First line of a record that holds its parts as fields; a file without it is the finished text an earlier release wrote.
-const RECORD_MAGIC: &str = "cli-git push notice 1";
+const RECORD_MAGIC: &str = "monochromatic-git-policy-cli push notice 1";
 
 /// First line of a record of a push the service did not make because the branch has no destination it can name; its fields are
 ///  those of a failure record, and its reason is the service's own words.
-const SKIPPED_MAGIC: &str = "cli-git push skipped 1";
+const SKIPPED_MAGIC: &str = "monochromatic-git-policy-cli push skipped 1";
 
 /// The field names of a record's header lines.
 const BRANCH_FIELD: &str = "branch: ";
@@ -68,7 +69,7 @@ const NO_REASON: &str = "Git gave no reason.";
 
 /// The directory that holds the records of a repository.
 pub fn notice_directory(git_dir: &Path) -> PathBuf {
-    return git_dir.join(NOTICE_DIRECTORY);
+    return path_for_reading(git_dir, NOTICE_DIRECTORY);
 }
 
 /// A 64-bit FNV-1a hash of the text, in hexadecimal.

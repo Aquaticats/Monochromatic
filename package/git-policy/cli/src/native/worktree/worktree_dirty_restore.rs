@@ -34,11 +34,11 @@ const TAG: &str = "worktreeDirtyRestore";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: the uncommitted changes of the main checkout (${count} paths) were left out of the new worktree.\n`
+/// `monochromatic-git-policy-cli: the uncommitted changes of the main checkout (${count} paths) were left out of the new worktree.\n`
 /// ```
 pub fn left_out_note(changed: &ChangedPaths) -> String {
     let paths: &str = if changed.count == 1 { "path" } else { "paths" };
-    return format!("cli-git: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n", changed.count);
+    return format!("monochromatic-git-policy-cli: the uncommitted changes of the main checkout ({} {paths}) were left out of the new worktree, which holds what Git's own checkout holds.\n", changed.count);
 }
 
 /// What:

@@ -40,7 +40,7 @@ pub const VERSION_KIND: &str = "git-version";
 /// The first line of every cache file of `kind`;
 ///  a file in another layout, or of another kind, is ignored.
 fn file_tag(kind: &str) -> String {
-    return format!("cli-git {kind} cache 1\n");
+    return format!("monochromatic-git-policy-cli {kind} cache 1\n");
 }
 
 /// The most `git version` bytes the cache keeps;
@@ -135,7 +135,7 @@ pub fn binary_identity(real_git: &Path) -> Option<BinaryIdentity> {
 
 /// What:
 ///  The directory that holds the cache files:
-///  `cli-git` under `XDG_CACHE_HOME`,
+///  `monochromatic-git-policy-cli` under `XDG_CACHE_HOME`,
 ///  or under `.cache` in the home directory.
 /// Why:
 ///   The injected environment decides the location,
@@ -149,14 +149,14 @@ pub fn cache_directory(environment: &[(OsString, OsString)]) -> Option<PathBuf> 
     if let Some(cache_home) = environment_value(environment, "XDG_CACHE_HOME") {
         let cache_path: PathBuf = PathBuf::from(cache_home);
         if cache_path.is_absolute() {
-            return Some(cache_path.join("cli-git"));
+            return Some(cache_path.join("monochromatic-git-policy-cli"));
         }
     }
     let home: OsString = environment_value(environment, "HOME")?;
     if home.is_empty() {
         return None;
     }
-    return Some(PathBuf::from(home).join(".cache").join("cli-git"));
+    return Some(PathBuf::from(home).join(".cache").join("monochromatic-git-policy-cli"));
 }
 
 /// What:

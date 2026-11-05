@@ -38,7 +38,7 @@ fn the_notice_names_only_the_location() {
     assert!(
         with_location.starts_with(
             format!(
-                "cli-git: internal error at {}:{}:{}; its message is not shown because it may contain repository content.",
+                "monochromatic-git-policy-cli: internal error at {}:{}:{}; its message is not shown because it may contain repository content.",
                 location.file(),
                 location.line(),
                 location.column()
@@ -52,7 +52,7 @@ fn the_notice_names_only_the_location() {
     let without_location: String = panic_notice(None);
     assert!(
         without_location.starts_with(
-            "cli-git: internal error; its message is not shown because it may contain repository content."
+            "monochromatic-git-policy-cli: internal error; its message is not shown because it may contain repository content."
         ),
         "{without_location}"
     );
@@ -106,7 +106,7 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
     }
     // With the hook: the notice and its location, never the payload.
     assert!(
-        stderr_by_mode[0].contains("cli-git: internal error at ")
+        stderr_by_mode[0].contains("monochromatic-git-policy-cli: internal error at ")
             && stderr_by_mode[0].contains("panic_notice_tests.rs"),
         "{}",
         stderr_by_mode[0]
@@ -122,7 +122,7 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
         "{}",
         stderr_by_mode[1]
     );
-    assert!(!stderr_by_mode[1].contains("cli-git: internal error"));
+    assert!(!stderr_by_mode[1].contains("monochromatic-git-policy-cli: internal error"));
 }
 
 /// What:
