@@ -541,6 +541,23 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   name every folder and file plainly with its `uses/` list,
   rescan after the lint branches land,
   and put the whole tree before the owner before anything moves.
+  The fuzz crate `package/git-policy/cli.fuzz` does not compile on main:
+  `src/owners.rs` imports `git_policy_cli::owner_lock_record`, deleted in `ee30d244f6`
+  ("worktree add takes no settlement lock", 2026-11-03T02:36:31-05:00); no gate compiles that crate, so nothing
+  noticed. The crate split changes every `git_policy_cli::` import it uses, so it is fixed as part of the split:
+  each move keeps it compiling, and its compile joins the container gate at the first move.
+- Program rename (task #165; plan `doc/planning/git-policy-cli-program-rename.md`):
+  step 1 built on `feat/git-policy-cli-program-rename` (worktree `.claude/worktrees/git-policy-cli-program-rename`,
+  tip `9dbcb5ce92` with 22 commits on `a7e32e118e`; host lib 4305 and binary 690 passed, clippy clean,
+  planted checker 48/0; container gate not yet run).
+  Two follow-ups sent back to its agent at 2026-11-05T03:58:47Z:
+  (A) the root settings file keeps the name `cli-git.config.jsonc` until step 3, because the installed old program
+  reads only that name (the branch's `f781971973` renamed it, and four later commits on the branch ran with no
+  policies);
+  (B) an open batch an old helper left in the old service state folder must still land after the switch.
+  Then: container gate on A's tip in a separate worktree, merge to main; B must land before the release.
+  Release and lock (steps 2 and 3) wait for the owner's release-timing answer.
+  Step 3 also renames the root settings file and the link folder (to `.cache/monochromatic-git-policy-cli-bin`).
 - crates.io footprint (owner 2026-11-05: "Can we avoid polluting crates.io too much?"):
   measured and ranked in `doc/planning/crates-io-footprint.md` (`dd61b20559`), owner answers recorded there.
   Decided by the owner: "One release each. And we publish less to crates.io".
