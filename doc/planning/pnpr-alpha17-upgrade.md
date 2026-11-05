@@ -165,6 +165,150 @@ links,
 code spans,
 and lists were inspected.
 
+## Offline migration source review at 2026-11-04T19:28:02-05:00
+
+Migration must inventory the stored packages,
+including historical names and versions,
+rather than use the current publishing workflow's package list.
+The proposed migration keeps production publishing trust unchanged:
+an isolated temporary alpha.17 server accepts the replay,
+then the production server starts with its normal configuration.
+This section records source analysis;
+the main upgrade work owns the disposable runtime checks and implementation.
+
+### The alpha.16 exporter reads the source store
+
+The [old binary's command dispatch][old-main]
+sends maintenance commands directly to `run_maintenance`,
+which loads configuration and calls `run_command`.
+The export branch calls `export_storage`.
+It does not start the server or run server startup recovery.
+
+The [export implementation][old-export] constructs `Storage`
+and calls `check_hosted_layout`.
+The [local store constructor][old-store] only constructs paths and in-memory locks.
+The filesystem export path enumerates package directories,
+reads documents,
+opens referenced archive files,
+and writes its output under `--out`.
+It does not call `ensure_hosted_layout`,
+`check_readiness`,
+`AuthState::load`,
+or `recover_publish_journal`.
+A read-only mount for the existing filesystem store is therefore supported by the inspected call path.
+The actual old-image invocation still needs the read-only-mount check.
+
+The exporter enumerates every stored npm package in each configured hosted namespace,
+without using package publish rules or OIDC package lists as an inventory filter.
+For the current flat registry,
+the namespace is the default namespace.
+Its output is `<out>/<package-name>/package.json`,
+where `package.json` contains the complete stored packument.
+A scoped name becomes nested directories such as `<out>/@scope/name/`.
+Referenced tarball files and declared Sigstore bundles sit beside that JSON file.
+
+The exporter takes an archive filename from the final slash-separated component of `dist.tarball`,
+after stripping a query or fragment.
+It does not URL-decode that filename.
+The replay must validate these names and resolve them within the exported package directory.
+
+The [blob export path][old-export-blobs] silently skips a missing source blob
+and skips a destination blob that already exists.
+An exit status of zero and its package count therefore do not prove a complete export.
+Use fresh export scratch on a new attempt,
+then compare every declared version and archive against the inventory and declared integrity.
+Do not reuse an unchecked partial export.
+
+### A stopped source is necessary for a coherent export
+
+Export does not lock out another registry process,
+drain requests,
+or replay a pending journal.
+A read-only source mount in the migration container does not prevent an older container
+from writing through another mount.
+The deployment must establish that the old server has finished its writes before export starts.
+The new server's dependency on successful migration does not by itself establish that earlier shutdown.
+
+An uncleanly stopped old server can leave a journal that export does not replay.
+Its recovery has to be resolved with the old binary before the source is treated as a complete snapshot.
+The migration must not silently write to the retained source to perform that recovery.
+
+### Replay and resumption
+
+Node built-ins cover the required operations:
+filesystem enumeration and reads,
+JSON parsing,
+base64 encoding,
+hashing,
+subprocess management,
+and HTTP requests to the local server.
+The migration does not require package installation or rebuilding historical packages.
+An implementation still has to validate those operations against exported fixtures.
+
+The temporary server and replay client must share one network namespace
+if the server binds only to loopback.
+The proposed one-shot container has no external network,
+mounts the old volume read-only,
+and writes only export scratch and the new store.
+Its temporary anonymous publishing rules must not become production configuration.
+
+Alpha.17's [publish check][resume-check]
+rejects an attachment for a version already present,
+even when its archive bytes are identical.
+It also rejects a new version without a matching tarball attachment.
+Consequently,
+blindly replaying the same request is not a successful resume strategy.
+For each existing target version,
+compare the served bytes and declared integrity with the source;
+skip only a verified match and stop on disagreement.
+Submit only missing version attachments.
+
+The publish path retains resolution fields from the first stored version.
+Complete all input checks before the first publish,
+then verify the result through the temporary registry's reads.
+Transfer the original distribution tags and supplied publication times as well as the version manifests.
+Avoid inventing a new `latest` tag from traversal order.
+
+Replay preserves archive bytes but not every administrative metadata field.
+[Anonymous publishing removes `_npmUser`][resume-check],
+and [manifest merging changes `time.modified`][replay-time].
+Original creation and version times can be supplied and retained.
+These changes must be distinguished from archive or dependency changes in verification.
+
+### Authentication files and shutdown
+
+The old export's `--include-auth` option copies configured existing files to
+`<out>/htpasswd` and `<out>/tokens.db`.
+It does not export SQLite journal sidecars.
+The [configuration builder][old-auth-paths] defaults the token database to a sibling of the htpasswd file.
+Explicit auth paths are not relocated by the `--storage` override;
+the export configuration must point at the source mount.
+
+The [auth writer][old-auth-mode] creates a new Unix destination with mode `0600`.
+Its owner is the exporting process,
+not an ownership copy of the source file.
+The migration output and final auth paths must be writable by the final pnpr process.
+The old and new images both declare the `pnpr` user,
+but numeric UID and mount ownership must be checked from the actual images and fixture mounts.
+
+The [local auth schema remains version `2`][auth-schema].
+The source comparison has no changes to `token_store.rs`,
+`token_store/sqlite.rs`,
+or `htpasswd.rs` between the pinned alpha.16 fork and alpha.17.
+This supports copying those auth files after the temporary replay server exits,
+then loading them when the production configuration starts.
+Do not load the production auth files into the anonymous replay server.
+Account and token preservation still need a fixture check.
+
+Alpha.17 [handles SIGINT and Unix SIGTERM][shutdown]
+and passes that shutdown signal into Axum's graceful shutdown path.
+The Node parent must await child-process termination before copying auth files
+or writing a migration-complete marker.
+Only a completed replay,
+verification,
+auth copy,
+and child cleanup should allow production startup.
+
 [oidc-fields]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/auth/src/oidc/provider_metadata.rs#L28-L42
 [oidc-discovery]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/auth/src/oidc/provider_metadata.rs#L77-L102
 [oidc-claims]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/config/src/oidc.rs#L62-L76
@@ -178,3 +322,13 @@ and lists were inspected.
 [npm-routes]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/pnpr/src/server/routing.rs#L265-L295
 [metrics]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/pnpr/src/server/routing.rs#L123-L151
 [cargo-auth]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/pnpr/src/server/oidc.rs#L268-L323
+[old-main]: https://github.com/Aquaticat/pnpm/blob/01dc1384276b91f2b5a3664b6bf8532617e4e6f9/pnpr/crates/pnpr/src/main.rs#L50-L102
+[old-export]: https://github.com/Aquaticat/pnpm/blob/01dc1384276b91f2b5a3664b6bf8532617e4e6f9/pnpr/crates/pnpr/src/export.rs#L18-L78
+[old-store]: https://github.com/Aquaticat/pnpm/blob/01dc1384276b91f2b5a3664b6bf8532617e4e6f9/pnpr/crates/storage/src/local_store.rs#L28-L45
+[old-export-blobs]: https://github.com/Aquaticat/pnpm/blob/01dc1384276b91f2b5a3664b6bf8532617e4e6f9/pnpr/crates/pnpr/src/export.rs#L146-L182
+[resume-check]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/pnpr/src/server/publishing/manifest.rs#L18-L118
+[replay-time]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/storage/src/publish.rs#L384-L403
+[old-auth-paths]: https://github.com/Aquaticat/pnpm/blob/01dc1384276b91f2b5a3664b6bf8532617e4e6f9/pnpr/crates/config/src/backend_config.rs#L268-L281
+[old-auth-mode]: https://github.com/Aquaticat/pnpm/blob/01dc1384276b91f2b5a3664b6bf8532617e4e6f9/pnpr/crates/auth/src/htpasswd.rs#L113-L147
+[auth-schema]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/auth/src/schema.rs#L1-L74
+[shutdown]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/pnpr/src/server/health.rs#L9-L39
