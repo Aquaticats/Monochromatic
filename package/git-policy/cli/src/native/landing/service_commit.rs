@@ -45,7 +45,7 @@ use crate::service_pruned::{content_was_removed, prepared_content_missing, reach
 use crate::transaction_phase::Phase;
 use crate::transaction_git::run_git_checked;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 /// What the service path returns: the transaction result for the lifecycle, and the handoff when the commit landed.
@@ -75,7 +75,7 @@ fn branch_moved(ready: &Ready) -> TransactionStop {
 /// ```ts
 /// const displayText = (file: string) => file;
 /// ```
-fn display_text(file: &PathBuf) -> String {
+fn display_text(file: &Path) -> String {
     return file.display().to_string();
 }
 
@@ -190,7 +190,7 @@ pub fn service_commit<F: RepositoryFacts>(
             let failure: ClientFailure = ClientFailure::BranchSwitched {
                 branch: switched_branch_name(first_branch.as_str()),
                 now: switched_branch_name(ready.reference.as_str()),
-                file: fixed_message.as_ref().map(display_text),
+                file: fixed_message.as_deref().map(display_text),
             };
             return Err(TransactionStop::Message(render(&failure)));
         }
@@ -227,12 +227,12 @@ pub fn service_commit<F: RepositoryFacts>(
                     Some(native_inputs.capture.layout.object_directory.as_path()),
                 ),
             )?;
-            let made: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
+            let written_tree: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
             let against: &str = source.parent_tree.as_deref().unwrap_or(native_inputs.capture.layout.empty_tree_oid.as_str());
-            if source.parents.len() < 2 && !invocation.region.allow_empty && made == against {
+            if source.parents.len() < 2 && !invocation.region.allow_empty && written_tree == against {
                 embedded = None;
             } else {
-                tree = Some(made);
+                tree = Some(written_tree);
             }
         }
         let native: bool = ready.needs_native || embedded.is_none();

@@ -115,6 +115,13 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
     };
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`take_push_failures_for` and `take_orphaned_failures` take `&dyn Fn(&str) -> String` (push/push_failure_notice.rs, outside this folder), and the callback must carry the context, the directory and the object directory it asks Git with"
+        )
+    )]
     let abbreviate = |commit: &str| -> String { return short_name(&context, cwd.as_path(), objects.as_path(), None, commit); };
     let mut texts: Vec<String> = take_push_failures_for(git_dir.as_path(), None, &abbreviate);
     texts.extend(take_orphaned_failures(common_dir.as_path(), &abbreviate));

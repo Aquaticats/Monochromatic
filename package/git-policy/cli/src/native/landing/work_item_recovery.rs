@@ -73,6 +73,13 @@ pub struct Recovered {
 }
 
 /// `requeue_expired` that also gives the items it moved to `failed` for want of tries.
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`requeue_with` takes its expiry test as `&dyn Fn(&ClaimTime) -> bool`, which its tests also give their own callables, and this test must carry the reading and the lease"
+    )
+)]
 pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> Recovered {
     return requeue_with(work_dir, now, max_tries, &|stamp| { return now.is_past_the_boot_of(stamp) || now.elapsed_since(stamp) > lease; });
 }

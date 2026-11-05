@@ -164,6 +164,13 @@ pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mu
     for (request, _, _) in &fresh {
         requests.push((**request).clone());
     }
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`land_batch_timed` takes `&dyn Fn(Announce)` to tell the clients of the batch what the landing waits for, and it must carry the streams of the batch"
+        )
+    )]
     let announce = |note: Announce| {
         for (_, stream, _) in &fresh {
             match &note {

@@ -147,6 +147,13 @@ fn build_command(context: &GitContext, request: &GitRequest) -> Command {
 /// ```ts
 /// await runTransactionGit({ ..., allowFailure: true })
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`add_timing::step` (outside this folder) runs a callable under a timing label, and the callable must carry the context and the request"
+    )
+)]
 pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
     if let Some(answered) = try_request(context, request) {
@@ -183,6 +190,13 @@ pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
 /// ```ts
 /// await retryWhile(() => runGitOnce(request), (output) => refusedBySystem(output) && mayBeRerun(request));
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`retry_refused_start_with` (start_retry.rs, outside this folder) takes `&mut dyn FnMut() -> io::Result<_>`, and the attempt must carry the context, the request and the refused output it keeps"
+    )
+)]
 fn run_git_pausing(
     context: &GitContext,
     request: &GitRequest,
@@ -222,6 +236,13 @@ fn run_git_pausing(
 /// ```ts
 /// await runTransactionGitOnce({ gitPath, cwd, args })
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`run_git_once_with` takes its terms as `&dyn Fn() -> WatchTerms`, which its tests also give their own callables, and this one must carry the request"
+    )
+)]
 fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
     return run_git_once_with(context, request, &|| { return terms_for_request(request); });
 }

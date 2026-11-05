@@ -418,11 +418,11 @@ fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stam
             let opened: std::io::Result<std::fs::File> = std::fs::File::open(staged.as_path());
             let restored: std::io::Result<()> = match opened {
                 Ok(file) => file.set_modified(queued),
-                Err(error) => Err(error),
+                Err(open_error) => Err(open_error),
             };
             let requeued: std::io::Result<()> = match restored {
                 Ok(()) => std::fs::rename(staged.as_path(), pending_path.as_path()),
-                Err(error) => Err(error),
+                Err(restore_error) => Err(restore_error),
             };
             if let Err(requeue_error) = requeued {
                 log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {requeue_error}").as_str());

@@ -133,6 +133,9 @@ pub mod service_captures;
 /// The retry of a commit the service sent back: the captured change merged onto the branch, never prepared again from the worktree.
 pub mod service_replay;
 
+/// Small text steps of the replay of captured changes.
+pub mod service_replay_path_and_line_text;
+
 /// Which way a commit goes: through the service, set up first, or the earlier path.
 pub mod service_route;
 

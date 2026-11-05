@@ -107,6 +107,13 @@ impl<R> Cursor<R> {
 }
 
 /// What a worker does: take lanes until none is left, run the items of each lane in order, and send every line and result.
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "the callback is the callee's parameter of type `&mut dyn FnMut(&str)`, and it must carry the sender and the item index its lines are sent with"
+    )
+)]
 fn work_lanes<T, R>(run: (&[T], &[Vec<usize>], &AtomicUsize, &(dyn Fn(usize, &T, &mut dyn FnMut(&str)) -> R + Sync)), sender: &Sender<Message<R>>) {
     let (items, lanes, next_lane, work) = run;
     loop {
@@ -136,6 +143,13 @@ fn work_lanes<T, R>(run: (&[T], &[Vec<usize>], &AtomicUsize, &(dyn Fn(usize, &T,
 ///
 /// # Panics
 /// When a lane names an index that is not an item, or the lanes do not cover every item exactly once.
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`std::thread::scope` and `start_or_run` accept only a callable, and the callables must carry the items, lanes, work and sender that the scoped workers share"
+    )
+)]
 pub fn run_ordered<T: Sync, R: Send>(run: OrderedRun<'_, T, R>) {
     let OrderedRun { items, lanes, workers, work, on_event } = run;
     let mut covered: Vec<bool> = vec![false; items.len()];

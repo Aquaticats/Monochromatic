@@ -16,6 +16,7 @@
 //! const merged = await mergeOntoBranch(captured, currentTip);   // { tree } | { conflict }
 //! ```
 
+use crate::service_replay_path_and_line_text::{byte_of_character, is_not_empty_line, latin1_of_path};
 use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{TransactionResult, TransactionStop, failed};
 use crate::path_bytes::{os_from_path_bytes, path_message_text};
@@ -29,7 +30,7 @@ use crate::replay_merge::{ReplayMerge, merge_replay_tree};
 use crate::replay_shared_paths::{SharedPath, list_shared_paths};
 use crate::replay_subsumption::{SubsumptionBase, subsume_landed_changes};
 use crate::service_messages::NOTHING_CHANGED;
-use crate::service_prepare::Ready;
+use crate::service_prepare_ready_shapes::Ready;
 use crate::service_protocol::LandedCapture;
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use std::collections::BTreeMap;
@@ -170,9 +171,33 @@ pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, obje
     return Ok(String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string());
 }
 
-/// The path as the Latin-1 text the shared-path listing names it by, so every byte survives the comparison.
-fn latin1(bytes: &[u8]) -> String {
-    return bytes.iter().map(|byte| { return char::from(*byte); }).collect();
+/// What:
+///  A path as the person reads it in quotes.
+/// Why:
+///  `paths_text` lists the paths in conflict.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quotedPath = (path: Uint8Array) => `\`${pathMessageText(path)}\``;
+/// ```
+fn quoted_path(path: &Vec<u8>) -> String {
+    return format!("`{}`", path_message_text(path.as_slice()));
+}
+
+/// What:
+///  Merges the captured change onto `tip` with `base` as the merge base.
+/// Why:
+///  `merge_captured` merges twice at most: with the base of the preparation and with the base the compared commits settled.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mergeAt = (site, captured, tip, base) => mergeReplayTree(site, base, tip, captured.tree)
+/// ```
+fn merge_at(site: &MergeSite<'_>, captured: &Captured, tip: &str, base: &str) -> Result<ReplayMerge, TransactionStop> {
+    return match merge_replay_tree(site.context, site.common_dir, site.cwd, base, tip, captured.tree.as_str()) {
+        Ok(merged) => Ok(merged),
+        Err(error) => Err(failed(format!("merging the commit onto the branch failed: {error:?}"))),
+    };
 }
 
 /// What:
@@ -187,26 +212,28 @@ fn latin1(bytes: &[u8]) -> String {
 /// await mergeCaptured(site, captured, tip) // { tree } | { conflict: paths }
 /// ```
 pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, attempt: u64) -> Result<Merged, TransactionStop> {
-    let merge = |base: &str| -> Result<ReplayMerge, TransactionStop> {
-        return merge_replay_tree(site.context, site.common_dir, site.cwd, base, tip, captured.tree.as_str())
-            .map_err(|error| { return failed(format!("merging the commit onto the branch failed: {error:?}")); });
-    };
-    let (conflicting, first_tree, first_conflicts) = match merge(captured.base.as_str())? {
+    let (conflicting, first_tree, first_conflicts) = match merge_at(site, captured, tip, captured.base.as_str())? {
         ReplayMerge::Merged { tree_oid } => return Ok(Merged::Tree(tree_oid)),
         ReplayMerge::Conflict { paths, tree_oid, conflicts } => (paths, tree_oid, conflicts),
     };
-    let names: Vec<String> = conflicting.iter().map(|path| { return latin1(path.as_slice()); }).collect();
-    let shared: Vec<SharedPath> = list_shared_paths(site.context, site.common_dir, site.cwd, captured.base.as_str(), tip, captured.tree.as_str())
-        .map_err(|error| { return failed(format!("listing the paths the branch changed failed: {error:?}")); })?
-        .into_iter()
-        .filter(|entry| { return names.contains(&entry.path); })
-        .collect();
+    let names: Vec<String> = conflicting.iter().map(latin1_of_path).collect();
+    let listed: Vec<SharedPath> = match list_shared_paths(site.context, site.common_dir, site.cwd, captured.base.as_str(), tip, captured.tree.as_str()) {
+        Ok(found) => found,
+        Err(error) => return Err(failed(format!("listing the paths the branch changed failed: {error:?}"))),
+    };
+    // Only the paths still in conflict are compared with what landed.
+    let mut shared: Vec<SharedPath> = Vec::new();
+    for entry in listed {
+        if names.contains(&entry.path) {
+            shared.push(entry);
+        }
+    }
     let mut order: BTreeMap<String, CaptureOrderDecision> = BTreeMap::new();
     for entry in &shared {
         let decision: CaptureOrderDecision = capture_order(site, captured, tip, entry.path.as_str())?;
         order.insert(entry.path.clone(), decision);
     }
-    let settled: SubsumptionBase = subsume_landed_changes(
+    let compared = subsume_landed_changes(
         site.context,
         site.common_dir,
         site.object_directory,
@@ -216,12 +243,15 @@ pub fn merge_captured(site: &MergeSite<'_>, captured: &Captured, tip: &str, atte
         captured.base.as_str(),
         shared.as_slice(),
         &order,
-    )
-    .map_err(|error| { return failed(format!("comparing the commit with what landed failed: {error:?}")); })?;
+    );
+    let settled: SubsumptionBase = match compared {
+        Ok(base) => base,
+        Err(error) => return Err(failed(format!("comparing the commit with what landed failed: {error:?}"))),
+    };
     if settled.subsumed_paths.is_empty() && settled.kept_landed_paths.is_empty() {
         return Ok(word_pass(site, tip, (first_tree.as_str(), first_conflicts.as_slice()), conflicting));
     }
-    return match merge(settled.merge_base.as_str())? {
+    return match merge_at(site, captured, tip, settled.merge_base.as_str())? {
         ReplayMerge::Merged { tree_oid } => Ok(Merged::Tree(tree_oid)),
         ReplayMerge::Conflict { paths, tree_oid, conflicts } => Ok(word_pass(site, tip, (tree_oid.as_str(), conflicts.as_slice()), paths)),
     };
@@ -297,7 +327,7 @@ fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &st
     if captured.captured == 0 {
         return Ok(CaptureOrderDecision::Unordered);
     }
-    let bytes: Vec<u8> = path.chars().filter_map(|character| { return u8::try_from(u32::from(character)).ok(); }).collect();
+    let bytes: Vec<u8> = path.chars().filter_map(byte_of_character).collect();
     let exclusion: String = format!("^{}", captured.base);
     let mut request: GitRequest = GitRequest::new(site.cwd, &["log", "--format=%H", "--no-color", tip, exclusion.as_str(), "--"]);
     let mut pathspec: Vec<u8> = b":(top,literal)".to_vec();
@@ -306,19 +336,40 @@ fn capture_order(site: &MergeSite<'_>, captured: &Captured, tip: &str, path: &st
     request.environment = vec![(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("0"))];
     let listed = run_git_checked(site.context, &request)?;
     let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
-    let stamps: Vec<Option<u64>> = text
-        .lines()
-        .filter(|line| { return !line.is_empty(); })
-        .map(|commit| { return captured.landed.iter().find(|known| { return known.commit == commit; }).map(|known| { return known.captured; }); })
-        .collect();
+    // The capture stamp of each commit that changed the path, nothing for a commit this service did not land.
+    let mut stamps: Vec<Option<u64>> = Vec::new();
+    for commit in text.lines() {
+        if commit.is_empty() {
+            continue;
+        }
+        let mut stamp: Option<u64> = None;
+        for known in captured.landed.iter() {
+            if known.commit == commit {
+                stamp = Some(known.captured);
+                break;
+            }
+        }
+        stamps.push(stamp);
+    }
     if stamps.is_empty() || stamps.iter().any(Option::is_none) {
         return Ok(CaptureOrderDecision::Unordered);
     }
     let known: Vec<u64> = stamps.into_iter().flatten().collect();
-    if known.iter().all(|stamp| { return *stamp < captured.captured; }) {
+    // Every commit was captured before this one, or every commit after it; any mix is unordered.
+    let mut all_before: bool = true;
+    let mut all_after: bool = true;
+    for stamp in &known {
+        if *stamp >= captured.captured {
+            all_before = false;
+        }
+        if *stamp <= captured.captured {
+            all_after = false;
+        }
+    }
+    if all_before {
         return Ok(CaptureOrderDecision::Prepared);
     }
-    if known.iter().all(|stamp| { return *stamp > captured.captured; }) {
+    if all_after {
         return Ok(CaptureOrderDecision::Landed);
     }
     return Ok(CaptureOrderDecision::Unordered);
@@ -347,14 +398,14 @@ pub fn first_landed(context: &GitContext, cwd: &Path, base: &str, tip: &str, pat
     request.environment = vec![(OsString::from("GIT_LITERAL_PATHSPECS"), OsString::from("0"))];
     let listed = run_git_checked(context, &request)?;
     let text: String = String::from_utf8_lossy(listed.stdout.as_slice()).into_owned();
-    let Some(first) = text.lines().find(|line| { return !line.is_empty(); }) else { return Ok(None) };
+    let Some(first) = text.lines().find(is_not_empty_line) else { return Ok(None) };
     let (short, subject) = first.split_once('\0').unwrap_or((first, ""));
     return Ok(Some(LandedFirst { short: short.to_string(), subject: subject.to_string() }));
 }
 
 /// The paths as the person reads them: one in quotes, several as a list.
 fn paths_text(paths: &[Vec<u8>]) -> String {
-    let quoted: Vec<String> = paths.iter().map(|path| { return format!("`{}`", path_message_text(path.as_slice())); }).collect();
+    let quoted: Vec<String> = paths.iter().map(quoted_path).collect();
     return match quoted.as_slice() {
         [only] => format!("the file {only}"),
         many => format!("these files: {}", many.join(", ")),

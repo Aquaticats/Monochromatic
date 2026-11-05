@@ -124,6 +124,13 @@ fn lane_key(directory: &Path) -> PathBuf {
 /// ```ts
 /// const answer = await drainDirectories({ directories, handlers, now, host });
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`run_ordered` takes its work and its event sink as the `&dyn Fn` and `&mut dyn FnMut` fields of `OrderedRun`, and both must carry the handlers, the time and the answer"
+    )
+)]
 pub fn drain_directories<H: WorkHandlers + Sync>(request: &RoundDrain<'_, H>) -> RoundAnswer {
     let RoundDrain { directories, handlers, now, host } = *request;
     let mut lanes: Vec<Vec<usize>> = Vec::new();

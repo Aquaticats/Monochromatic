@@ -90,6 +90,13 @@ fn take_closure<F>(slot: &Mutex<Option<F>>) -> Option<F> {
 /// ```ts
 /// const started = startOrRun(scope, () => work());
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`Builder::spawn_scoped` accepts only a callable, and it must carry the slot that holds the closure the caller handed over"
+    )
+)]
 pub fn start_or_run<'scope, 'env, T, F>(scope: &'scope Scope<'scope, 'env>, work: F) -> Started<'scope, T>
 where
     F: FnOnce() -> T + Send + 'scope,

@@ -65,6 +65,13 @@ pub enum Reclaimed {
 /// ```
 pub fn remove_stale(index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`reclaim_if` takes `&dyn Fn(&Marked) -> bool` as its test of a stale mark, and the test for one batch must carry the batch number"
+        )
+    )]
     let for_this_batch = |marked: &Marked| -> bool { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); };
     let _outcome: Reclaimed = reclaim_if(&SYSTEM, lock.as_path(), &for_this_batch);
 }

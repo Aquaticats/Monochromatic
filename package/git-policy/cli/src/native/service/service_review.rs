@@ -106,6 +106,13 @@ fn expose_as_text(held: &ReviewKey) -> String {
 /// ```ts
 /// (name) => keyNames.includes(name) ? fromMessage(name) : process.env[name]
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "the lookup is returned as `impl Fn(&str) -> Option<String>` for a `&dyn Fn` parameter of `key_from_environment`, and it must carry the exposed key"
+    )
+)]
 pub fn review_variables(key: Option<&ReviewKey>) -> impl Fn(&str) -> Option<String> {
     let exposed: Option<String> = key.map(expose_as_text);
     return move |name: &str| {
@@ -130,6 +137,13 @@ fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, no
         Ok(message) => commit_subject(message.as_str()),
         Err(message) => return ReviewOutcome::Unread(message),
     };
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`review_landed` takes `&dyn Fn(&[String]) -> ...` to read the landed commit, and the reader must carry the context, the directory, the commit and the subject"
+        )
+    )]
     let read = |files: &[String]| { return read_landed_commit(context, cwd.as_path(), item.oid.as_str(), subject.as_str(), files); };
     return review_landed(names.as_slice(), item.oid.as_str(), subject.as_str(), &read, options, now_millis);
 }

@@ -74,6 +74,13 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
             return false;
         }
     }
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`release_flushed_with_record` takes `&dyn Fn() -> std::io::Result<()>` to run before the lock is given up, and the step must carry the journal and the intent"
+        )
+    )]
     let recorded = || -> std::io::Result<()> { return mark_indexed(journal, intent.seq, intent.new.as_str()); };
     return lock.release_flushed_with_record(built.path(), built.is_flushed(), &recorded).is_ok() && cleaned;
 }

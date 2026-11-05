@@ -93,9 +93,9 @@ pub fn start(index: &Path, seq: u64) {
 pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
     // Look at the slot without changing it: take it out, compare, and put it back.
-    let held: Option<Slot> = SLOT.take();
-    let same: bool = matches!(&held, Some(slot) if slot.lock == lock && slot.seq == seq);
-    SLOT.set(held);
+    let looked_at: Option<Slot> = SLOT.take();
+    let same: bool = matches!(&looked_at, Some(slot) if slot.lock == lock && slot.seq == seq);
+    SLOT.set(looked_at);
     if same {
         return;
     }

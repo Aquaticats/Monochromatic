@@ -61,6 +61,13 @@ pub(crate) fn wait_for_close(stream: &UnixStream) {
 /// ```ts
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "the note source is returned as `impl FnMut() -> Option<ServiceMessage>` for `write_until_answered_noting`, and it must carry the board, the request identity and the last key said"
+    )
+)]
 pub(crate) fn stuck_notice<'a>(board: &'a LandingBoard, request: Option<&'a str>) -> impl FnMut() -> Option<ServiceMessage> + 'a {
     let mut last: Option<String> = None;
     return move || {
