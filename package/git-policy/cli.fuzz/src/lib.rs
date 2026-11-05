@@ -1,5 +1,5 @@
 //! What:
-//!  Generators and invariants for the native cli-git wrapper's pure boundaries.
+//!  Generators and invariants for the native monochromatic-git-policy-cli wrapper's pure boundaries.
 //! Why:
 //!  Fuzz targets and their generator controls call the same checks,
 //!  so a property

@@ -68,6 +68,8 @@
 "rev-parse\x00"
 "cli-git"
 "cli-git\x00"
+"monochromatic-git-policy-cli"
+"monochromatic-git-policy-cli\x00"
 "--list"
 "--list\x00"
 "-l"

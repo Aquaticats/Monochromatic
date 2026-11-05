@@ -257,7 +257,7 @@ pub fn check_batch_reply(request: &[u8], stream: &[u8]) {
             assert!(
                 error
                     .message
-                    .starts_with("cli-git could not read a Git object: git cat-file --batch "),
+                    .starts_with("monochromatic-git-policy-cli could not read a Git object: git cat-file --batch "),
                 "{error}"
             );
         }
