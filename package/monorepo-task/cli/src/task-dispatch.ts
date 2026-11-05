@@ -39,6 +39,7 @@ const ROOT_FANOUT_TASKS: Readonly<Record<string, string>> = {
  A requested task does not exist or does not accept the supplied invocation.
  */
 export class TaskSelectionError extends Error {
+  /** Names the missing task or unsupported invocation. */
   constructor(message: string,) {
     super(message,);
     this.name = 'TaskSelectionError';
@@ -61,8 +62,10 @@ async function fanoutPackages(
     readonly runTask: RunTask;
   },
 ): Promise<void> {
+  /** Selected package identities preserve discovery order for bounded dispatch. */
   const names: string[] = [];
   for (const file of await findPackageTaskFiles(root,)) {
+    /** Task definitions determine whether this package participates in the requested group. */
     const tasks = await loadPackageTasks(file,);
     if (Object.hasOwn(
       tasks,
@@ -73,6 +76,7 @@ async function fanoutPackages(
   }
   if (names.length === 0)
     throw new TaskSelectionError(`task-cli: no package tasks matched ${suffix}`,);
+  /** The existing root fanout policy bounds workers by available parallelism and selected tasks. */
   const limit = suffix.startsWith('watch') ? names.length : Math.max(
     1,
     Math.min(
@@ -80,8 +84,11 @@ async function fanoutPackages(
       names.length,
     ),
   );
+  /** All worker failures are retained until every active worker settles. */
   const failures: unknown[] = [];
+  /** Workers claim task identities synchronously from one shared iterator. */
   const remaining = names.values();
+  /** Consumes selected tasks while preserving errors from independent package builds. */
   async function worker(): Promise<void> {
     for (const name of remaining) {
       try {
@@ -108,6 +115,11 @@ async function fanoutPackages(
 
 /**
  Resolves a named task and executes it using the caller's shared dispatcher.
+
+ @example
+ ```ts
+ await dispatchTask({ root, environment, request, runTask });
+ ```
  */
 export async function dispatchTask(
   {
@@ -122,38 +134,47 @@ export async function dispatchTask(
     readonly runTask: RunTask;
   },
 ): Promise<void> {
+  /** Task identity and argument words come from the normalized invocation request. */
   const {
     name,
     argv,
   } = request;
+  /** Option words and literal passthrough are interpreted separately. */
   const {
     options: optionArgs,
     rest,
   } = splitPassthrough(argv,);
   if (name.startsWith('//')) {
+    /** The first colon after the package prefix separates its task suffix. */
     const separator = name.indexOf(
       ':',
       2,
     );
+    /** Package location excludes the task suffix. */
     const packagePath = name.slice(
       2,
       separator === (-1) ? undefined : separator,
     );
+    /** An omitted task suffix stays empty and receives the normal missing-task diagnostic. */
     const taskName = separator === (-1) ? '' : name.slice(separator + 1,);
+    /** Package manifests establish the working directory before loading its task definitions. */
     const cwd = await packageDirectory({
       root,
       packagePath,
     },);
+    /** Task definitions determine whether this package participates in the requested group. */
     const tasks = await loadPackageTasks(join(
       cwd,
       'task.ts',
     ),);
+    /** Own-property checks exclude prototype names from the task namespace. */
     const raw = Object.hasOwn(
       tasks,
       taskName,
     ) ? tasks[taskName] : undefined;
     if (raw === undefined)
       throw new TaskSelectionError(`task-cli: no task ${taskName} in ${packagePath}`,);
+    /** Template defaults are resolved before the task enters its execution body. */
     const definition = await resolveDefinition({
       definition: raw,
       root,
@@ -170,6 +191,7 @@ export async function dispatchTask(
     },);
     return;
   }
+  /** Only declared root fanout names receive package-wide dispatch. */
   const suffix = Object.hasOwn(
     ROOT_FANOUT_TASKS,
     name,
@@ -185,13 +207,16 @@ export async function dispatchTask(
     },);
     return;
   }
+  /** Ordinary root tasks resolve from the same repository as package templates. */
   const rootTasks = await loadRootTasks(root,);
+  /** Own-property checks exclude prototype names from the task namespace. */
   const raw = Object.hasOwn(
     rootTasks.tasks,
     name,
   ) ? rootTasks.tasks[name] : undefined;
   if (raw === undefined)
     throw new TaskSelectionError(`task-cli: unknown task: ${name}`,);
+  /** Template defaults are resolved before the task enters its execution body. */
   const definition = await resolveDefinition({
     definition: raw,
     root,

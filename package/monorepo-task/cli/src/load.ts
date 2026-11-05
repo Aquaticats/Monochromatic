@@ -37,6 +37,12 @@ const rootTaskFiles = new Map<string, RootTaskFile>();
  Returns the monorepo root this loader resolves task files against.
 
  @returns Absolute monorepo root path.
+
+ @example
+ ```ts
+ /** Templates come from the same repository as the requested task. */
+ const root = repoRoot();
+ ```
  */
 export function repoRoot(): string {
   return REPO_ROOT;
@@ -45,19 +51,29 @@ export function repoRoot(): string {
 /**
  Loads and returns the root `task.ts`.
 
+ @param root - Repository whose templates must be loaded.
+
+ @example
+ ```ts
+ const tasks = await loadRootTasks(root);
+ ```
+
  @returns Root templates and tasks.
  
  @throws When the root task file is missing or malformed.
  */
 export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTaskFile> {
+  /** Root templates are loaded once per repository in this process. */
   const cached = rootTaskFiles.get(root,);
   if (cached !== undefined) { return cached; }
+  /** The task file belongs to the caller-selected repository root. */
   const path = join(
     root,
     'task.ts'
   );
   if (await stat(path, { throwIfNoEntry: false }) === undefined)
     throw new Error(`task-cli: missing root task.ts`);
+  /** Repository-owned task modules supply their declared default export. */
   const module_ = await import(pathToFileURL(path)
     .href) as { default: RootTaskFile; };
   rootTaskFiles.set(
@@ -70,6 +86,11 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
 /**
  Loads one package `task.ts` file.
 
+ @example
+ ```ts
+ const tasks = await loadPackageTasks(path);
+ ```
+
  @param path - Absolute path of the package task file.
  
  @returns Task definitions from the file.
@@ -79,6 +100,7 @@ export async function loadRootTasks(root: string = REPO_ROOT,): Promise<RootTask
 export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
   if (await stat(path, { throwIfNoEntry: false }) === undefined)
     throw new Error(`task-cli: missing task file: ${path}`);
+  /** Repository-owned task modules supply their declared default export. */
   const module_ = await import(pathToFileURL(path)
     .href) as { default: PackageTaskFile; };
   return module_.default;
@@ -86,6 +108,11 @@ export async function loadPackageTasks(path: string): Promise<PackageTaskFile> {
 
 /**
  Resolves a task definition through `extends` onto a root template.
+
+ @example
+ ```ts
+ const effective = await resolveDefinition({ definition, root });
+ ```
 
  @param definition - Task definition possibly carrying `extends`.
  
@@ -103,7 +130,9 @@ export async function resolveDefinition(
   },
 ): Promise<TaskDefinition> {
   if (definition.extends === undefined) { return definition; }
+  /** Templates come from the same repository as the requested task. */
   const root = await loadRootTasks(repositoryRoot,);
+  /** Missing template names receive a task-specific diagnostic before execution. */
   const template = root.templates[definition.extends];
   if (template === undefined)
     throw new Error(`task-cli: unknown task template: ${definition.extends}`);
@@ -119,6 +148,11 @@ export async function resolveDefinition(
 
 /**
  Runs this repository's task CLI for task bodies that call other tasks.
+
+ @example
+ ```ts
+ await runTaskCli({ name: '//package/config/oxlint:build:js:node' });
+ ```
 
  @param name - Task name like `//package/config/oxlint:build:js:node`.
  
