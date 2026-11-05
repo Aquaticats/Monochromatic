@@ -124,16 +124,66 @@ twice on a retry.
   where the unit puts it, it runs the existing recovery over the earlier journal of that instance and the first releases' shared
   journal above it, in place (nothing is moved or copied; a finished batch is marked done where it was), before it accepts a
   connection.
-- One owner: it does so only when no other process on the machine has the command line of a service of that instance
+- One owner: it does so only when no process of the same user has the start arguments of a service of that instance
   (`/proc`), so a running helper finishes its own batches and two services never settle one batch.
   A look that cannot be made counts as "may be running"; the adoption is tried again at the next start of the service
-  (it exits when idle and the socket starts it again); nothing waits, nothing takes a lock.
+  (it exits when idle and the socket starts it again), so a false "may be running" defers it until then;
+  nothing waits for it, nothing takes a lock.
+  The start arguments are recognised in every shape an earlier release wrote, see "Changes after the second pass".
 - The service of this release also counts the identities in the earlier journals as landed, so a retried request is answered
   as already landed.
-- Not covered: a helper of another PID namespace (a container) is not seen by the look; the earlier helper restarted by its
-  own unit (`Restart=on-failure`) while the adoption runs could settle the same batch, which the recovery's checks of the
-  branch and the index make a repeat of the same step, not a second landing.
+- Not covered: a helper of another PID namespace (a container) is not seen by the look, and neither is a helper of another
+  user; the earlier helper restarted by its own unit (`Restart=on-failure`) while the adoption runs could settle the same
+  batch, which the recovery's checks of the branch and the index make a repeat of the same step, not a second landing.
 - The audit log split across two files in a mixed-install window loses nothing; it is documentation only.
+
+#### Changes after the second pass
+
+Recorded 2026-11-05T00:54:16-05:00, after a same-vendor second pass (a cross-vendor review of the same change had not returned).
+
+- The look recognises a service by its journal as well as by its mode words: `--journal` followed by the earlier per-instance
+  folder or the shared folder.
+  Units written before `9b360150c0` started the helper as `<program> --journal <state>/cli-git/service/<instance> --git <git>
+  --instance <instance>` and the first releases' shared service had no instance at all; a running process keeps the arguments it
+  was started with, and the idle exit is three hours, so both can be alive.
+  The mode words with `--instance` stay as the second accepted shape.
+- The adoption never drops an intent.
+  A live landing writes its intent, waits for the index lock and only then moves the branch, so "the branch has not moved" can mean
+  "about to move"; removing the intent then left a landed commit with no record.
+  The adoption finishes what landed (a finish never moves the branch, its index replay needs the lock and the records, and two
+  finishes end in one `.done`) and leaves an intent that looks unlanded on disk with its records, reported as left, for the earlier
+  helper's own start-up recovery.
+  If the earlier units are removed, such an intent is never settled; it costs a file and one log line at each start.
+- A Git question about the branch that gets no answer keeps the batch open for the service's own recovery as well as the adoption:
+  a Git that cannot be started, any exit but "no such reference" (`rev-parse --verify --quiet` exit status 1 with nothing on the
+  standard error), and an ancestry question that fails other than with "not below".
+  Before, the failure was read as "the branch has not moved" and the intent of a landed batch was dropped.
+- The look counts only processes of the same user (the owner of the `/proc/<pid>` folder), as this plan always said.
+  A listing, open or read error other than the process being gone (`ENOENT`, `ESRCH`) counts as "may be running".
+- The look has a ceiling (`PROCESS_LOOK_CEILING`).
+  Reading `/proc/<pid>/cmdline` of another process takes that process's address-space lock with `mmap_read_lock_killable`
+  (Linux `mm/memory.c`, `__access_remote_vm`, reached from `fs/proc/base.c`, `get_mm_cmdline`; read from `torvalds/linux`
+  `05441d697f7f` on 2026-11-05), so a process stuck in the kernel can hold the read for good, and only a fatal signal to the reader
+  ends it.
+  The scan runs on its own thread, and no answer in time counts as "may be running"; the stuck thread is left behind.
+- The earlier journals are read without removing anything: the listing that tidies old `.tmp` and `.claim` files is not used on
+  them, because they may belong to a live helper.
+  The adoption does not prune finished batches there either.
+- The adoption logs each batch (finished, left open, intent left on disk) and the skip of the whole adoption, naming the folder.
+
+Still uncovered:
+
+- The earlier journals' finished batches are read in full at each start and never pruned (a cost of time, not of data).
+- The uid filter and the ceiling have tests that need the new look signature, so they could not be red on the old code;
+  each was shown to fail by removing its guard once (2026-11-05) and restoring it.
+- The Windows build of the new look module was not compiled: the Windows target is not installed here, and the module's
+  Unix-only parts are behind `cfg(unix)`.
+- The look sees only this PID namespace and this user; a helper run by another user for the same worktree is not waited for.
+- The retried-request path (`earlier_commits_landed`) matters little while the earlier units still exist: a client uses a fresh
+  request identity for each invocation, an old-release client retries against the old socket, and `Restart=on-failure` restarts a
+  killed old helper within a fraction of a second, so the old helper settles its own batches before the new service reads anything.
+  The adoption matters mainly when the earlier units are disabled or removed; the second pass's risks (all addressed above)
+  weigh against that.
 
 ### Where the plan was wrong or incomplete
 
