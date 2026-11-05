@@ -34,6 +34,11 @@ on:
         description: 'Verify this digest-pinned pnpr image in an isolated registry instead of publishing to production'
         required: false
         default: ''
+      rebuild_check:
+        description: 'Build and pack every configured package against an empty disposable registry without publishing'
+        type: boolean
+        required: false
+        default: false
 
 permissions: {}
 
@@ -75,9 +80,51 @@ jobs:
           printf '%s\n' "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Publish missing versions to pnpr
+        if: ${{ !inputs.rebuild_check }}
         env:
           PNPR_PUBLISH_ONLY: ${{ inputs.only }}
         run: task-run //package/config/pnpr:publish
+
+      - name: Start empty registry for the rebuild check
+        if: inputs.rebuild_check
+        shell: node {0}
+        run: |
+          import { execFileSync } from 'node:child_process';
+          import { readFile } from 'node:fs/promises';
+          import { resolve } from 'node:path';
+          import { setTimeout as wait } from 'node:timers/promises';
+          const containerfile = await readFile('package/config/pnpr/Containerfile', 'utf8');
+          const image = containerfile.match(/^FROM (\S+@sha256:[a-f0-9]{64})$/m)?.[1];
+          if (!image) throw new Error('The pnpr Containerfile must pin its base image by digest');
+          execFileSync('docker', ['run', '--detach', '--rm', '--init', '--name', 'pnpr-rebuild-check',
+            '--cpus=2', '--memory=2g', '--pids-limit=256', '--blkio-weight=10',
+            '--publish', '127.0.0.1:17677:7677',
+            '--volume', `${resolve('package/config/pnpr/config.yaml')}:/pnpr/config.yaml:ro`,
+            '--env', 'PNPR_SECRET=ci-disposable-registry-secret-not-for-production',
+            '--env', 'PNPR_PUBLIC_URL=http://127.0.0.1:17677', image,
+            '--config', '/pnpr/config.yaml', '--listen', '0.0.0.0:7677', '--disable-resolver'],
+            { stdio: 'inherit' });
+          const deadline = Date.now() + 60_000;
+          while (true) {
+            try {
+              if ((await fetch('http://127.0.0.1:17677/-/ready')).ok) break;
+            } catch (error) {
+              console.log(`Waiting for the empty registry: ${error.message}`);
+            }
+            if (Date.now() >= deadline) throw new Error('The empty registry did not become ready');
+            await wait(1000);
+          }
+
+      - name: Build and pack every configured package
+        if: inputs.rebuild_check
+        env:
+          PNPR_REGISTRY_ORIGIN: http://127.0.0.1:17677
+          PNPR_PUBLISH_ONLY: ${{ inputs.only }}
+        run: task-run //package/config/pnpr:publish:dry-run
+
+      - name: Stop empty registry
+        if: ${{ always() && inputs.rebuild_check }}
+        run: docker rm --force --volumes pnpr-rebuild-check
 
   verify-image:
     if: ${{ inputs.verify_image != '' }}
