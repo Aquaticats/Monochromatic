@@ -54,7 +54,8 @@ Its action documents a JWT exchange for a temporary access token;
 an alternate registry must support the selected exchange or its own workload-token verification.
 Source:
 [crates.io authentication action](https://github.com/rust-lang/crates-io-auth-action#usage).
-The pnpr Cargo authentication path is being checked separately against the deployed fork revision.
+The [pnpr Cargo registry proposal](self-hosted-cargo-registry.md)
+records the pnpr-specific authentication boundary against the alpha.17 source revision.
 
 ## Package archives carry the dependency graph
 
