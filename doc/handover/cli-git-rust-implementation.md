@@ -507,17 +507,21 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   Layout next: an agent drafts the whole target tree on main `977e697ad5` (rescan, crate split, every folder and
   file old to new with `uses/` lists, every change the moves need, move order, cross-vendor review) into
   `doc/planning/cli-git-source-layout-target-tree.md`; nothing moves until the owner has seen it.
-  Then one follow-up pass, decided by the coordinator (LN1 and LN2: restructure rather than suppress):
-  give the callees guard or trait forms so most `expect`s go
-  (`worktree/add_timing.rs` already has `begin_step`/`end_step` and `begin_work`/`end_work` for the
-  `repair/package_repair_cargo.rs` wrappers; `process/thread_quiet.rs` `measured_quiet`;
-  `push/wait_progress.rs` `poll`; the `dyn Fn` seams in subvolume, push and `start_retry`),
-  keep only the ones `std::thread::scope` and `catch_unwind` need,
-  and merge the three suppression docs into one package doc beside the code
-  (today: `src/native/worktree/worktree_closure_lint_suppressions.md`,
+  Suppression pass done on `refactor/git-policy-cli-fewer-closure-suppressions` (`cbaa95e9b9`, main merged in at
+  `9829d05863`): `expect(avoidable_closure)` sites 56 to 3, the three in `src/native/foundation/`
+  (`side_by_side_threads.rs` for `std::thread::scope`, `scoped_start.rs` for `spawn_scoped`,
+  `call_catching_panics.rs` for `catch_unwind`); callees take traits on named structs, guards, or an enum instead;
+  blanket closure impls only in test sidecars; lib 4259 and binary 678 passed on the host; 8 new tests, none renamed.
+  The four suppression notes become one, `package/git-policy/cli/doc/closure-lint-suppressions.md`
+  (moved 2026-11-05 from `src/native/worktree/worktree_closure_lint_suppressions.md`,
   `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`,
-  and `doc/planning/cli-git-closure-lint-suppressions.md`, which is in the wrong family),
-  updating every `reason` that cites them.
+  `doc/closure-lint-suppressions-service-landing-and-runner-folders.md`
+  and `doc/planning/cli-git-closure-lint-suppressions.md`, which are deleted on that branch).
+  Planted controls: of the 46 in `bin/native-planted-controls-{commit,entry,landing}.ts`, 3 had a `from` line
+  that matched nothing before the lint merge (checked at `7663284896`) and 7 after it, on main and on the branch
+  (checker `~/temp/agent/issue-6261/planted-from-lines.ts`); an agent repoints the seven on the suppression branch,
+  proving each fails its test when planted. Then: container gate on that branch, `native:mutation:planted` over
+  its image, merge to main.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
