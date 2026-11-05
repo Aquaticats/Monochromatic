@@ -42,7 +42,7 @@ const randomSuffixMarkers: readonly string[] = [
   'verification/mutation-',
   'verification/coverage-',
   'verification/processors-mutation-',
-  'cli-git-native-mutation-',
+  'monochromatic-git-policy-cli-mutation-',
   'forbidden-regex-mutation-',
   'forbidden-regex-test-',
   'monochromatic-lint-mutation-',
