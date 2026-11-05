@@ -74,7 +74,7 @@ this proposal preserves workload publishing rather than introducing one implicit
   and dependency-first publishing with the existing manifest and release owners.
   Inspect normalized archive manifests to prove internal dependencies resolve from the intended registry
   and public dependencies retain their crates.io identities.
-  Crates.io releases cannot depend on a private-registry-only crate.
+  Crates.io releases cannot depend on a crate available only from this registry.
   The published set is not decided by this proposal.
 - [ ] Decide Cargo archive retention before deploying storage.
   The npm no-backup decision does not automatically cover Cargo:
@@ -107,6 +107,10 @@ and the reproduced cargo-shadow boundary.
 
 The pnpr alpha.17 code and documentation selections were fetched at the stated commit
 and matched in the browser-rendered pages.
+Scoped Markdown lint and Pandoc GFM rendering passed;
+the proposed URL,
+internal links,
+and task checkboxes were inspected in renderer output.
 The npm upgrade has its own verification work.
 This proposal does not claim a successful Cargo workload publish,
 a deployed Cargo endpoint,
