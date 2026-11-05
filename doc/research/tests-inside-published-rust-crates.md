@@ -87,7 +87,8 @@ for a crate with dev-dependencies it runs no build-time test
 It writes an autopkgtest for every feature combination whose command is `cargo-auto-test`
 ([`debcargo.toml.example`][debcargo-example],
 [`dh-cargo/cargo-auto-test`][dh-cargo-auto-test]),
-with the generator's expected output `cargo-auto-test crate 1.0 --all-targets` ([`control/tests.rs`][debcargo-control-tests]).
+with the generator's expected output `cargo-auto-test crate 1.0 --all-targets`
+([`control/tests.rs`][debcargo-control-tests]).
 `cargo-auto-test` changes into `/usr/share/cargo/registry/<crate>-<version>` and runs `cargo test`.
 The book's own limit:
 "`cargo-auto-test` only tests packaged library crates" ([packaging tools][debian-tools]).
@@ -221,7 +222,8 @@ the packager omits `check()`.
 What it does with the tests.
 `buildRustPackage` has `doCheck = args.doCheck or true`
 ([`pkgs/build-support/rust/build-rust-package/default.nix`][nix-build]),
-and the manual says "the `checkPhase` is enabled by default and runs `cargo test`" ([manual, running package tests][nix-manual]).
+and the manual says "the `checkPhase` is enabled by default and runs `cargo test`"
+([manual, running package tests][nix-manual]).
 `fetchCrate` downloads from `https://static.crates.io/crates` ([`fetchcrate.nix`][nix-fetchcrate]),
 and the manual's own `buildRustPackage` example uses it for `broot`.
 GitHub code search for `buildRustPackage` under `pkgs/by-name` in `NixOS/nixpkgs` returned 2844 files,
@@ -252,7 +254,8 @@ and the packager sets `doCheck = false`.
 - Pre-1.0 crates marked unstable:
   no document read forbids or requires them.
   The only version rule found is Debian's request to avoid dependencies on alpha or pre-release versions
-  "unless your crate is currently itself released with an alpha/../pre-release version" ([upstream guidelines][debian-upstream]),
+  "unless your crate is currently itself released with an alpha/../pre-release version"
+([upstream guidelines][debian-upstream]),
   which concerns pre-release version strings such as `1.0.0-alpha`,
   not `0.x`.
   Whether any distribution has refused a crate for a "do not use" README line was not found.
@@ -329,7 +332,8 @@ docs.rs builds documentation,
 not tests.
 Its build passes `-Zrustdoc-scrape-examples` to Cargo ([`build.rs`][docsrs-build]),
 and Cargo's documentation says that by default only example targets are scraped and
-"enabling `doc-scrape-examples` on test targets will not currently have any effect" ([Cargo unstable book][cargo-scrape]).
+"enabling `doc-scrape-examples` on test targets will not currently have any effect"
+([Cargo unstable book][cargo-scrape]).
 
 Cost of leaving the tests out.
 None found;
@@ -546,7 +550,8 @@ as measured in the section "Measured on a scratch crate".
 ### Measured on a scratch crate
 
 A scratch crate (not one of ours;
-`${HOME}/temp/agent/tests-research-2026-11-05/scratch-crate`) with
+`${HOME}/temp/agent/tests-research-2026-11-05/scratch-crate`,
+deleted after the run as the brief required) with
 `include = ["src/**/*.rs", "!src/**/*_tests.rs", "/Cargo.toml"]`,
 one `[[test]]` at `src/it_tests.rs`,
 and `#[cfg(test)] mod x_tests;` in `src/lib.rs`,
@@ -558,13 +563,13 @@ run with the repository toolchain `cargo 1.101.0-nightly (31d3246e0 2026-10-27)`
   `src/lib.rs`:
   the negated pattern removed both test files,
   and the listing printed no warning about the dropped target.
-- `cargo package` printed `warning: ignoring test `it` as `src/it_tests.rs` is not included in the published package`,
+- `cargo package` printed ``warning: ignoring test `it` as `src/it_tests.rs` is not included in the published package``,
   packaged the crate,
   and its verify step (a build) succeeded.
 - The published `Cargo.toml` had no `[[test]]` entry and gained `autotests = false`.
 - `cargo test` in the unpacked crate failed:
-  `error[E0583]: file not found for module `x_tests``,
-  `could not compile `scratch-crate` (lib test)`.
+  `` error[E0583]: file not found for module `x_tests` ``,
+  `` could not compile `scratch-crate` (lib test) ``.
 - `cargo check --all-targets` in the unpacked crate failed with the same error.
 - Adding `test = false` under `[lib]` of the unpacked manifest made `cargo test` pass with zero tests,
   but `cargo check --all-targets` still failed with `E0583`.
@@ -584,7 +589,10 @@ each at its newest stable version;
 the `.crate` from `static.crates.io` listed with `tar --list` and the original `Cargo.toml.orig` read;
 one request per second,
 user agent `monochromatic-research`.
-The scripts are `measure-crates.ts` and `measure-named-crates.ts` in the scratch directory.
+The scripts were `measure-crates.ts` and `measure-named-crates.ts` in the scratch directory,
+deleted after the run
+as the brief required;
+the method is the text above.
 This is a sample of popular crates,
 not a random sample.
 
@@ -830,6 +838,10 @@ Link confirmation (2026-11-05):
   the four Fedora links and the two Arch links,
   because both sites answer the browser with an Anubis access-denied page (not worked around).
   The quoted text on those pages was read with `curl` and the user agent `monochromatic-research` instead.
+- Salsa links use GitLab's `#Lstart-end` anchor form.
+  The page loads and keeps the hash in `agent-browser`,
+  but the line highlight itself was not confirmed.
+  GitHub and Codeberg anchors (`#Lstart-Lend`) were not checked for highlight either.
 - The openSUSE fragment was confirmed as text on the page,
   not as a highlighted fragment match.
   No fragment link was confirmed as a highlight,
@@ -839,12 +851,12 @@ Link confirmation (2026-11-05):
 [debian-tips]: https://rust-team.pages.debian.net/book/tips.html#:~:text=some%20upstreams%20exclude%20them%20when%20publishing%20to%20crates.io
 [debian-fix]: https://rust-team.pages.debian.net/book/fix-problems.html#:~:text=missing%20test%20data%2Ffixtures
 [debian-tools]: https://rust-team.pages.debian.net/book/packaging-tools.html#:~:text=cargo-auto-test%20only%20tests%20packaged%20library%20crates
-[debian-policy]: https://salsa.debian.org/rust-team/book/-/blob/aa5e573ff9636e2d19745a5ba78b76e8f148c30c/src/policy.md#L38-L39
-[debcargo-rules]: https://salsa.debian.org/rust-team/debcargo/-/blob/20ed85c0329b75207ac3af7a2c9dba9414314a33/src/debian/mod.rs#L507-L556
-[debcargo-example]: https://salsa.debian.org/rust-team/debcargo/-/blob/20ed85c0329b75207ac3af7a2c9dba9414314a33/debcargo.toml.example#L256-L293
-[debcargo-remove]: https://salsa.debian.org/rust-team/debcargo/-/blob/20ed85c0329b75207ac3af7a2c9dba9414314a33/debcargo.toml.example#L63-L69
+[debian-policy]: https://salsa.debian.org/rust-team/book/-/blob/aa5e573ff9636e2d19745a5ba78b76e8f148c30c/src/policy.md#L38-39
+[debcargo-rules]: https://salsa.debian.org/rust-team/debcargo/-/blob/20ed85c0329b75207ac3af7a2c9dba9414314a33/src/debian/mod.rs#L507-556
+[debcargo-example]: https://salsa.debian.org/rust-team/debcargo/-/blob/20ed85c0329b75207ac3af7a2c9dba9414314a33/debcargo.toml.example#L256-293
+[debcargo-remove]: https://salsa.debian.org/rust-team/debcargo/-/blob/20ed85c0329b75207ac3af7a2c9dba9414314a33/debcargo.toml.example#L63-69
 [debcargo-control-tests]: https://salsa.debian.org/rust-team/debcargo/-/blob/20ed85c0329b75207ac3af7a2c9dba9414314a33/src/debian/control/tests.rs#L405
-[dh-cargo-auto-test]: https://salsa.debian.org/rust-team/dh-cargo/-/blob/2581f5679f6d81fcaed997924582aeb30cd6c0d2/cargo-auto-test#L21-L26
+[dh-cargo-auto-test]: https://salsa.debian.org/rust-team/dh-cargo/-/blob/2581f5679f6d81fcaed997924582aeb30cd6c0d2/cargo-auto-test#L21-26
 [fedora-sources]: https://docs.fedoraproject.org/en-US/packaging-guidelines/Rust/#:~:text=Projects%20from%20crates.io%20MUST%20be%20packaged%20from%20the%20sources
 [fedora-scope]: https://docs.fedoraproject.org/en-US/packaging-guidelines/Rust/#:~:text=primarily%20libraries%2C%20but%20also
 [fedora-tests]: https://docs.fedoraproject.org/en-US/packaging-guidelines/Rust/#:~:text=not%20included%20in%20published%20sources
