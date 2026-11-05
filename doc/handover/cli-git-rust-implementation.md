@@ -522,6 +522,16 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   (checker `~/temp/agent/issue-6261/planted-from-lines.ts`); an agent repoints the seven on the suppression branch,
   proving each fails its test when planted. Then: container gate on that branch, `native:mutation:planted` over
   its image, merge to main.
+  Correction: two of the seven were checker artifacts (it could not read a `from` written as an array `.join` or
+  `String.raw`); the real breaks were one before the lint merge and four through it, and two controls named
+  binary tests with a wrong folder prefix (from `9533c30e80`) so they could never count as noticed.
+  All fixed at `a7e32e118e` (48 controls, 0 problems; each planted and seen failing on the host).
+  Container gate running on `a7e32e118e` as unit `git-policy-cli-fewer-closure-suppressions-gate`.
+  Target tree drafted and reviewed cross-vendor (`doc/planning/cli-git-source-layout-target-tree.md` and
+  `-files.md`, last `0912bd4661`); its owner questions are in `doc/handover/questions-for-the-owner.md`.
+  The layout rule's file-list marker is being made to read across a line break (branch
+  `fix/monochromatic-lint-file-list-marker-may-wrap`), because `markdown/semantic-line-breaks` demands a break
+  after its comma.
   Next for the layout:
   break the file loops with named changes,
   split the large groups into folders,
