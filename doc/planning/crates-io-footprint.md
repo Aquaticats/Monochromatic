@@ -8,6 +8,22 @@ nothing on crates.io, in the toolchain lock or in the publish workflow has been 
 
 2026-11-05, verbatim: "Can we avoid polluting crates.io too much?"
 
+## The owner's answers (2026-11-05, verbatim, to the three questions in "Options")
+
+- Where our tools install from:
+  "Not enough research. The best solution is obviously a workspace: protocol or something.
+  The second best solution is floating git. The third best solution is GitHub package registry.
+  Figure out which ones are workable first."
+  So the option list in "Where our own tools install from" was incomplete;
+  the owner's ranking is a `workspace:`-like protocol, then floating git, then GitHub's package registry,
+  and the next step is research into which of them can work here.
+- What happens to what is already there:
+  "One release each. And we publish less to crates.io . That fact is given."
+  Decided: one release of each crate (carrying the README notice), and fewer crates.io publishes from now on.
+- Test files in the packed crate:
+  "\"some Linux distro packagers do that\" - that's not enough research."
+  Open: who runs the tests of a published crate needs evidence before the choice.
+
 ## What crates.io holds now
 
 Read from the public API at about 2026-11-05T00:10Z
