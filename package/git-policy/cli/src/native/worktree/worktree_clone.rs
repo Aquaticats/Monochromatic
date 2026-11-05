@@ -372,6 +372,7 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
         clone_entry(&source_dir, &destination_dir, &work, (&mut *created, &mut stats), seams)?;
     }
     (seams.before_index)();
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "install_index_in takes its stat lookup as a dyn FnMut owned by subvolume/subvolume_index_files.rs, and the lookup must capture the caller's table (worktree_closure_lint_suppressions.md, group install_index_in)"))]
     let report: String = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut |path: &[u8]| { return stats.get(path).copied(); }, source.clean.hash_length)?;
     debug_report(report.as_str());
     return Ok(());

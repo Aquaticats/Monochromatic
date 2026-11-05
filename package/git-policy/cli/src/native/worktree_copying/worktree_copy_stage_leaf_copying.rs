@@ -292,6 +292,7 @@ pub fn copy_manifest_entries(
         return Ok(stamps);
     }
     let slice_length: usize = entries.len().div_ceil(workers);
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
     let outcomes: Vec<Result<(), WorktreeCopyError>> = std::thread::scope(|scope| {
         let mut handles: Vec<_> = Vec::new();
         for (slice, slots) in entries.chunks(slice_length).zip(stamps.chunks_mut(slice_length)) {

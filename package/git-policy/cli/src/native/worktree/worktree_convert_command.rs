@@ -179,6 +179,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
     //  filesystem. Lines and results come back to this thread, which says them in input order.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "OrderedRun takes its work and event callbacks as dyn Fn and dyn FnMut owned by foundation/parallel_runner.rs, and both must capture the caller's state (worktree_closure_lint_suppressions.md, group run_ordered)"))]
     run_ordered(OrderedRun {
         items: list.as_slice(),
         lanes: lanes.as_slice(),

@@ -21,10 +21,10 @@ use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_lock::is_ours;
 use crate::subvolume_platform::Platform;
-pub use crate::worktree_convert_inspection::*;
+pub use crate::worktree_convert_inspection::{CONVERTING_SUFFIX, Candidate, Owned, Refusal, RefusalKind, converting_path, inspect, refusals};
 use crate::worktree_convert_journal::{CLAIM_PREFIX, Journal, legacy_lock_is_held};
 pub use crate::worktree_convert_journal::{JOURNAL_NAME, Phase};
-pub use crate::worktree_convert_phases::*;
+use crate::worktree_convert_phases::{Job, Where, copy_phase, finish, hold_index_lock, index_phase, old_tree_is_at, removal_phase, stage_free_identity, stage_identity_of, swap_phase, verify_swap};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 

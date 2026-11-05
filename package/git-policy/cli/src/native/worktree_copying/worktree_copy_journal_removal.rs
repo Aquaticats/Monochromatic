@@ -153,6 +153,7 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
     }
     let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
     let cursor: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
     let outcomes: Vec<std::io::Result<()>> = std::thread::scope(|scope| {
         let mut handles: Vec<_> = Vec::new();
         for _worker in 0..workers {

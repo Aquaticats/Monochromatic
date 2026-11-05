@@ -74,6 +74,7 @@ pub fn remove_entries(request: &EntryRemoval<'_>) -> Vec<String> {
     }
     let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host });
     let mut left: Vec<String> = Vec::new();
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "OrderedRun takes its work and event callbacks as dyn Fn and dyn FnMut owned by foundation/parallel_runner.rs, and both must capture the caller's state (worktree_closure_lint_suppressions.md, group run_ordered)"))]
     run_ordered(OrderedRun {
         items: indices.as_slice(),
         lanes: lanes.as_slice(),

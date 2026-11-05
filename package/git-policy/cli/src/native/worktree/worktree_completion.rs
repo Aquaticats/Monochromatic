@@ -20,7 +20,7 @@
 //! ```
 
 /// The blob batch.
-pub use crate::worktree_completion_file_inspection::*;
+pub use crate::worktree_completion_file_inspection::{InstallResult, WorktreeFileIdentity, WorktreeFileState, inspect_worktree_file, is_conflict_error};
 use crate::blob_batch::load_blob_batch;
 /// Diagnostics.
 use crate::diagnostic_log::{debug, warn};

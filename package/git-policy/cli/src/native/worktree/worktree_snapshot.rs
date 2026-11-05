@@ -270,6 +270,7 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
     // An entry the walk did not cover (a source with changes has no walk) is looked at through a cursor that keeps its directory.
     let mut cursor: StatCursor<'_> = StatCursor::new(&root);
     let install_index_file_entered: bool = begin_step("installIndexFile");
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "install_index_in takes its stat lookup as a dyn FnMut owned by subvolume/subvolume_index_files.rs, and the lookup must capture the caller's table (worktree_closure_lint_suppressions.md, group install_index_in)"))]
     let install_index_file_outcome = install_index_in(admin, bytes, &mut |path: &[u8]| { return match known.get(path) {
         Some(fields) => Some(*fields),
         None => cursor.fields(path),

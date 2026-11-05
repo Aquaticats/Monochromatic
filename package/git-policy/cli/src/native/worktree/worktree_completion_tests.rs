@@ -1,6 +1,7 @@
 //! Controls for added-path worktree completion on disposable worktrees.
 
 use super::*;
+use crate::worktree_completion_file_inspection::{identity_of, open_nonblocking};
 use crate::test_support::{fixture, git_context, git_text, remove, repository};
 
 /// A record for `path` moving from `original` to `intended` content.

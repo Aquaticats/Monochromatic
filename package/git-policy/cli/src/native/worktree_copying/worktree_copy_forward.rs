@@ -293,6 +293,7 @@ fn run_settled(
     // Whether the checkout may get parallel workers, decided at the first checkout step from what the person set, and not again.
     let mut parallel: Option<bool> = None;
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "GitRunner is a dyn FnMut that the ladder calls once per Git step, and this runner carries the invocation, the real Git and the parallel-checkout decision (worktree_closure_lint_suppressions.md, group git runner)"))]
     let mut run_git = |step: &GitStep<'_>| -> Result<GitStatus, WorktreeCopyError> {
         let mut child_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
         let mut child_arguments: Vec<OsString> = arguments.to_vec();

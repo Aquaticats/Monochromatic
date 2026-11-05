@@ -249,6 +249,7 @@ pub fn assert_final_source_equivalence_pruned(
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
     let (source_walked, stage_walked) = std::thread::scope(|scope| {
         let source_walk = start_or_run(scope, || {
             let mut unreadable: Vec<String> = Vec::new();

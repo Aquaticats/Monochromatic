@@ -484,6 +484,7 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
     // The configuration, the cleanliness of the files and (for a main checkout) the ignore rule for the place left-out directories
     //  are set aside read different things and write nothing, so they run side by side; the verdicts are read in the order the
     //  checks have always had.
+    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
     let (read_config, checked, trash_ignored): (Option<ConfigSnapshot>, Result<CleanSource, CleanRefusal>, bool) = std::thread::scope(|scope| {
         let config = start_or_run(scope, || {
             let began: std::time::Instant = begin_work();
