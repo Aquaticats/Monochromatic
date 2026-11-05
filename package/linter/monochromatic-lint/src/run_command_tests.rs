@@ -14,6 +14,7 @@
 //! ```
 
 /// Import the shared invocation fixtures.
+use crate::configuration_rules::RULE_IDS;
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_output::RunOutput;
 use crate::run_test_support::{ALL_RULES, CONFIG, codes, read, records, run, write};
@@ -296,7 +297,8 @@ fn rules_init_and_print_config_run_without_linting() {
     write(&fixture.path, "a.md", "# Title.\n");
     let rules: RunOutput = run(&fixture.path, &["--rules"], "");
     assert_eq!(rules.exit_code, 0);
-    assert_eq!(records(rules.stdout.as_str()).len(), 27);
+    // One record per registered rule, however many the registry holds.
+    assert_eq!(records(rules.stdout.as_str()).len(), RULE_IDS.len());
     assert_eq!(rules.stderr, "");
     let init: RunOutput = run(&fixture.path, &["--init"], "");
     assert_eq!(init.exit_code, 0);
