@@ -1,6 +1,7 @@
 //! Controls for the record of a failed backup push: its text, its masking, its names, and which commands show it.
 
 use super::*;
+use std::ffi::OsString;
 
 /// A function-like value with the right shape is a namer in these controls: the shipped caller writes a small struct that holds the state.
 impl<Name: Fn(&str) -> String> CommitNamer for Name {

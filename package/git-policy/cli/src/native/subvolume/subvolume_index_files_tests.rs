@@ -2,6 +2,7 @@
 //!  declined, locked, unreadable, rewritten), and the walk over the checkout's indexes.
 
 use super::*;
+use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use std::ffi::OsStr;
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_sync::{SyncOptions, sync_tree};

@@ -15,12 +15,14 @@
 //! ```
 
 /// The probe's Git runner, its bounded queries and its environment.
-use crate::auto_push_single_flight::{PushGit, SingleFlightError, run_query};
+use crate::auto_push_single_flight::{PushGit, run_query};
 /// The destination Git would pick for a bare push, and the porcelain report's parser.
 use crate::lfs_upload_plan::{GitQuery, resolve_push_remote};
 /// Removes userinfo from text that may name a remote, and the cause a failure carries.
 use crate::lfs_output_mask::mask_userinfo_text;
 use crate::manual_push_cause::ManualPushCause;
+pub use crate::manual_push_probe_error::{GitRefusal, ManualPushProbeError};
+use crate::manual_push_probe_error::{cause_of_query, probe_error};
 use crate::manual_push_porcelain::{PorcelainBlock, PorcelainUpdate, RemoteBefore, parse_porcelain};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::line_sink::LineSink;
@@ -31,83 +33,6 @@ use crate::command_push::{PUSH_TABLE, push_shape};
 /// Owned OS strings for the probe's Git arguments.
 use std::ffi::OsString;
 pub use crate::manual_push_update_and_query_limits::{LOCAL_QUERY_GAIN_STOPS_AT, MEASURED_WHOLE_HISTORY_QUERY, MOST_CONCURRENT_LOCAL_QUERIES, MOST_CONCURRENT_REMOTE_QUERIES, PushUpdate};
-
-/// What:
-///  Git's own refusal of a push: the exit status and the standard error it ended with.
-/// Why:
-///   When the dry run exits with a failure before it reports any destination, Git has refused the push itself (a ref to
-///  delete that the remote lacks, a refspec naming nothing, a remote that does not exist, an option it does not know).
-///  Nothing could be published, so Git's words and status are the answer, and the wrapper adds none of its own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type GitRefusal = { code: number; stderr: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GitRefusal {
-    /// The exit status Git ended with; never zero.
-    pub code: i32,
-    /// What Git wrote to standard error, as Git wrote it.
-    pub stderr: String,
-}
-
-/// What:
-///  Why the probe could not establish the updates Git would push.
-/// Why:
-///   Every variant stops the policy lifecycle; none guesses an update. A failure of the wrapper's own reading is a
-///  content-unavailable engine failure, and a refusal by Git carries Git's own report instead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class ManualPushProbeError extends Error { refusal?: GitRefusal }
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ManualPushProbeError {
-    /// Diagnostic naming what could not be established.
-    pub message: String,
-    /// Git's refusal when Git itself ended the dry run before it reported any destination; `None` for a failure of the
-    ///  wrapper's own reading.
-    pub refusal: Option<GitRefusal>,
-    /// What the person can do about it, which the hint is chosen by.
-    pub cause: ManualPushCause,
-}
-
-impl std::fmt::Display for ManualPushProbeError {
-    /// Writes the diagnostic text.
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return formatter.write_str(&self.message);
-    }
-}
-
-impl std::error::Error for ManualPushProbeError {}
-
-/// Build a probe error from text.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// new ManualPushProbeError(cause, message)
-/// ```
-fn probe_error(cause: ManualPushCause, message: String) -> ManualPushProbeError {
-    return ManualPushProbeError { message, refusal: None, cause };
-}
-
-/// What:
-///  The cause of a Git query that could not produce an exit status.
-/// Why:
-///   A query that never started means the Git the wrapper runs is missing; one stopped at its deadline already says in its
-///  message which setting changes the deadline; anything else Git did not explain.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// error instanceof StartError ? 'git-not-started' : error instanceof TimedOut ? 'self-explained' : 'git-silent'
-/// ```
-fn cause_of_query(error: &SingleFlightError) -> ManualPushCause {
-    return match error {
-        SingleFlightError::Start(_) => ManualPushCause::GitNotStarted,
-        SingleFlightError::TimedOut { .. } => ManualPushCause::SelfExplained,
-        SingleFlightError::Git { .. } | SingleFlightError::Io(_) => ManualPushCause::GitSilent,
-    };
-}
 
 /// The bytes one query holds at its peak: `MEASURED_WHOLE_HISTORY_QUERY` rounded up to a power of two. The coordinator's pick
 ///  under the owner's delegation, open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`, "Parallelism caps

@@ -54,6 +54,10 @@ pub mod subvolume_index_install_into_new_worktree;
 #[cfg(target_os = "linux")]
 pub mod subvolume_index_files;
 
+/// The index rewrite of a checkout and of every linked worktree inside it, side by side within the host's budget.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_refresh_of_every_worktree;
+
 /// Write-and-flush and directory-flush steps that the migration's writers share.
 #[cfg(target_os = "linux")]
 pub mod subvolume_file_write_steps;

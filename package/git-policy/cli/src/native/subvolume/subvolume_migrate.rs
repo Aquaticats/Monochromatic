@@ -16,7 +16,8 @@
 
 use crate::process_use::{UseTarget, processes_using};
 use crate::subvolume_error::{Interrupt, MigrateError};
-use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside, refresh_all_indexes};
+use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside};
+use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{acquire, lock_paths, release_all, token_of};
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::{Layout, Refusal, layout_of, migrate_refusals};

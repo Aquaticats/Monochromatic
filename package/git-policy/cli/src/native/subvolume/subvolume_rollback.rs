@@ -15,7 +15,8 @@
 //! ```
 
 use crate::subvolume_error::MigrateError;
-use crate::subvolume_index_files::{IndexLock, refresh_all_indexes};
+use crate::subvolume_index_files::IndexLock;
+use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{Refusal, remove_old_refusals, rollback_refusals};
 use crate::subvolume_remove::remove_tree;
