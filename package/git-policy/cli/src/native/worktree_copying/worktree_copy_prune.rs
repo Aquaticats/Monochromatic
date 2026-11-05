@@ -91,6 +91,24 @@ pub enum Prune {
     },
 }
 
+/// What:
+///  Whether any child name is the marker of a checkout.
+/// Why:
+///   A directory holding the marker is another checkout and is left out whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// childNames.includes(CHECKOUT_MARKER)
+/// ```
+fn names_checkout_marker(child_names: &[String]) -> bool {
+    for name in child_names {
+        if name == CHECKOUT_MARKER {
+            return true;
+        }
+    }
+    return false;
+}
+
 impl Prune {
     /// What:
     ///  The rule the main checkout uses, with the run-record setting the crate ships.
@@ -120,7 +138,10 @@ impl Prune {
         };
         let components: Vec<&str> = relative_path.split('/').collect();
         for (index, component) in components.iter().enumerate() {
-            let parent: Option<&str> = index.checked_sub(1).map(|before| return components[before]);
+            let parent: Option<&str> = match index.checked_sub(1) {
+                Some(before) => Some(components[before]),
+                None => None,
+            };
             let below_target: bool = components[..index].contains(&"target");
             // The repository root's own `.cache` is where the repository keeps tools and generated inputs that tasks read.
             let nested_cache: bool = *component == ".cache" && index > 0;
@@ -151,7 +172,7 @@ impl Prune {
     pub fn skips_checkout(self, child_names: &[String]) -> bool {
         return match self {
             Prune::Never => false,
-            Prune::MainCheckout { .. } => child_names.iter().any(|name| return name == CHECKOUT_MARKER),
+            Prune::MainCheckout { .. } => names_checkout_marker(child_names),
         };
     }
 }

@@ -51,11 +51,12 @@ pub struct TransactionState {
 impl InstallRecorder for TransactionState {
     /// Records the claims that no earlier record holds, then remembers them.
     fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
-        let unclaimed: Vec<String> = relative_paths
-            .iter()
-            .filter(|relative_path| return !self.intended.contains(relative_path.as_str()))
-            .cloned()
-            .collect();
+        let mut unclaimed: Vec<String> = Vec::new();
+        for relative_path in relative_paths {
+            if !self.intended.contains(relative_path.as_str()) {
+                unclaimed.push(relative_path.clone());
+            }
+        }
         self.log.append_intents(unclaimed.as_slice())?;
         self.intended.extend(unclaimed);
         return Ok(());
@@ -63,17 +64,16 @@ impl InstallRecorder for TransactionState {
 
     /// Records the creations no earlier record holds, then remembers them.
     fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError> {
-        let unrecorded: Vec<InstalledPath> = entries
-            .iter()
-            .filter(|entry| return !self.created_paths.contains(entry.relative_path.as_str()))
-            .cloned()
-            .collect();
+        let mut unrecorded: Vec<InstalledPath> = Vec::new();
+        for entry in entries {
+            if !self.created_paths.contains(entry.relative_path.as_str()) {
+                unrecorded.push(entry.clone());
+            }
+        }
         self.log.append_creations(unrecorded.as_slice())?;
-        self.created_paths.extend(
-            unrecorded
-                .into_iter()
-                .map(|entry| return entry.relative_path),
-        );
+        for entry in unrecorded {
+            self.created_paths.insert(entry.relative_path);
+        }
         return Ok(());
     }
 }
@@ -101,6 +101,33 @@ pub fn begin_installing(state: &mut TransactionState) -> Result<(), WorktreeCopy
 }
 
 /// What:
+///  Read the stage's manifest and check that it holds every path the journal says was claimed.
+/// Why:
+///   A claim the stage lacks means the stage is not the one the journal describes, and nothing may be installed from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entries = collectEntryManifest(stageRoot, selectedRoots); for (const claim of intended) if (!has(entries, claim)) throw ...; return entries;
+/// ```
+fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, intended: &BTreeSet<String>) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage_root, pending.journal.selected_roots.as_slice(), &[])?;
+    let mut present: BTreeSet<&str> = BTreeSet::new();
+    for entry in &entries {
+        present.insert(entry.relative_path.as_str());
+    }
+    for claim in intended {
+        if !present.contains(claim.as_str()) {
+            let message: String = format!(
+                "cli-git: worktree-copy journal intent is absent from private stage {}.",
+                quote(pending.journal.stage_root.as_str())
+            );
+            return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), None));
+        }
+    }
+    return Ok(entries);
+}
+
+/// What:
 ///  The validated staged payload a journal describes, rebuilt from its stage.
 /// Why:
 ///   Recovery installs from the stage that exists now, and refuses a stage that lost a claimed path.
@@ -114,30 +141,7 @@ pub fn snapshot_from_journal(
     intended: &BTreeSet<String>,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
     let stage_root: PathBuf = PathBuf::from(pending.journal.stage_root.as_str());
-    let outcome: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = (|| {
-        let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(
-            stage_root.as_path(),
-            pending.journal.selected_roots.as_slice(),
-            &[],
-        )?;
-        let present: BTreeSet<&str> = entries
-            .iter()
-            .map(|entry| return entry.relative_path.as_str())
-            .collect();
-        for claim in intended {
-            if !present.contains(claim.as_str()) {
-                let message: String = format!(
-                    "cli-git: worktree-copy journal intent is absent from private stage {}.",
-                    quote(pending.journal.stage_root.as_str())
-                );
-                return Err(crate::worktree_copy_error::failure_with_cause(
-                    message.as_str(),
-                    None,
-                ));
-            }
-        }
-        return Ok(entries);
-    })();
+    let outcome: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = stage_entries_holding_intents(pending, stage_root.as_path(), intended);
     // Every failure here reads as a failed recovery, with its own cause after it.
     let entries: Vec<WorktreeCopyEntry> = match outcome {
         Ok(entries) => entries,
@@ -196,19 +200,13 @@ fn install_recorded(
     let opened = open_install_log(stage.as_path())?;
     let mut intended: BTreeSet<String> = pending.journal.intended_entries.iter().cloned().collect();
     intended.extend(opened.recorded.intended.iter().cloned());
-    let mut created_paths: BTreeSet<String> = pending
-        .journal
-        .created_entries
-        .iter()
-        .map(|entry| return entry.relative_path.clone())
-        .collect();
-    created_paths.extend(
-        opened
-            .recorded
-            .created
-            .iter()
-            .map(|entry| return entry.relative_path.clone()),
-    );
+    let mut created_paths: BTreeSet<String> = BTreeSet::new();
+    for entry in &pending.journal.created_entries {
+        created_paths.insert(entry.relative_path.clone());
+    }
+    for entry in &opened.recorded.created {
+        created_paths.insert(entry.relative_path.clone());
+    }
     let mut prior: Vec<InstalledPath> = pending.journal.created_entries.clone();
     prior.extend(opened.recorded.created.iter().cloned());
     let staged: StagedSnapshot = snapshot(&intended)?;

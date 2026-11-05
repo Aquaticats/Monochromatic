@@ -180,9 +180,10 @@ pub fn ensure_parents_remembering(
 /// function isLinkUnsupported(error: unknown): boolean;
 /// ```
 fn is_link_unsupported(error: &std::io::Error) -> bool {
-    return error
-        .raw_os_error()
-        .is_some_and(|code| return LINK_UNSUPPORTED_CODES.contains(&code));
+    return match error.raw_os_error() {
+        Some(code) => LINK_UNSUPPORTED_CODES.contains(&code),
+        None => false,
+    };
 }
 
 /// What:

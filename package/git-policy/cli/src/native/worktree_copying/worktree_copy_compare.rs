@@ -86,9 +86,10 @@ fn regular_file_bytes_equal(
     let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
     let mut remaining: u64 = left_size;
     while remaining > 0 {
-        let length: usize = usize::try_from(remaining).map_or(COMPARE_BUFFER_BYTES, |size| {
-            return size.min(COMPARE_BUFFER_BYTES);
-        });
+        let length: usize = match usize::try_from(remaining) {
+            Ok(size) => size.min(COMPARE_BUFFER_BYTES),
+            Err(_too_large) => COMPARE_BUFFER_BYTES,
+        };
         let left_chunk: &mut [u8] = &mut left_buffer[..length];
         let right_chunk: &mut [u8] = &mut right_buffer[..length];
         // `read_exact` reports a file that ended early as `UnexpectedEof`, which is a difference, not a failure.
@@ -260,9 +261,10 @@ pub fn assert_final_source_equivalence_pruned(
             );
         });
         let stage_walk = collect_entry_manifest(stage_root, selected_roots, &[]);
-        let source_result = source_walk
-            .join()
-            .unwrap_or_else(|_panic| return Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))));
+        let source_result = match source_walk.join() {
+            Ok(walked) => walked,
+            Err(_panic) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
+        };
         return (source_result, stage_walk);
     });
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;

@@ -188,6 +188,19 @@ pub fn destination_is_registered(common_dir: &Path, destination: &Path) -> bool 
 }
 
 /// What:
+///  Whether a byte is NUL, the end of each field of Git's `-z` output.
+/// Why:
+///   Git's worktree listing is split on it, and a path may hold any other byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0
+/// ```
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
 ///  The canonical root of a Git-reported worktree path,
 ///  or `None` when Git still lists a root that no longer exists.
 /// Why:
@@ -241,12 +254,13 @@ fn read_registered_roots(
     }
     let mut roots: Vec<PathBuf> = Vec::new();
     // `filter_map` keeps only fields of the `worktree <path>` form.
-    for path in output
-        .stdout
-        .split(|byte| return *byte == 0)
-        .filter_map(|field| return field.strip_prefix(b"worktree "))
-        .filter_map(path_from_git_bytes)
-    {
+    for field in output.stdout.split(is_nul_byte) {
+        let Some(named) = field.strip_prefix(b"worktree ") else {
+            continue;
+        };
+        let Some(path) = path_from_git_bytes(named) else {
+            continue;
+        };
         if let Some(canonical) = canonical_registered_root(path.as_path())? {
             roots.push(canonical);
         }

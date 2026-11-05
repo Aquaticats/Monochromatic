@@ -94,9 +94,10 @@ fn unescape_field(text: &str) -> Option<String> {
 /// # Errors
 ///  When the platform cannot report the running process's birth identity.
 pub fn current_copy_owner() -> Result<CopyOwner, WorktreeCopyError> {
-    let birth: String = current_birth_identity().map_err(|error| {
-        return failure_with_cause("cli-git: the identity of this process is unavailable, so a copy cannot name its owner.", Some(&error));
-    })?;
+    let birth: String = match current_birth_identity() {
+        Ok(found) => found,
+        Err(error) => return Err(failure_with_cause("cli-git: the identity of this process is unavailable, so a copy cannot name its owner.", Some(&error))),
+    };
     return Ok(CopyOwner {
         pid: i64::from(std::process::id()),
         birth_identity: birth,
@@ -115,8 +116,14 @@ impl CopyOwner {
     /// The owner a token names, or nothing when the text is no token (a name an older release wrote, or a stranger's).
     pub fn from_token(token: &str) -> Option<CopyOwner> {
         let mut fields = token.split(FIELD_SEPARATOR);
-        let pid: i64 = fields.next()?.parse::<i64>().ok().filter(|found| { return *found >= 1; })?;
-        let birth: String = unescape_field(fields.next()?).filter(|found| { return !found.is_empty(); })?;
+        let pid: i64 = fields.next()?.parse::<i64>().ok()?;
+        if pid < 1 {
+            return None;
+        }
+        let birth: String = unescape_field(fields.next()?)?;
+        if birth.is_empty() {
+            return None;
+        }
         let namespace: String = unescape_field(fields.next()?)?;
         if fields.next().is_some() {
             return None;

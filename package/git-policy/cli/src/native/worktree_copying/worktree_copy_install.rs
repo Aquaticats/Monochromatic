@@ -149,11 +149,12 @@ fn install_batch(
     recorder: &mut dyn InstallRecorder,
     known: &mut std::collections::HashSet<String>,
 ) -> Result<(), WorktreeCopyError> {
-    let claims: Vec<String> = batch
-        .iter()
-        .map(|entry| return entry.relative_path.clone())
-        .filter(|relative_path| return absent.contains(relative_path))
-        .collect();
+    let mut claims: Vec<String> = Vec::new();
+    for entry in batch {
+        if absent.contains(&entry.relative_path) {
+            claims.push(entry.relative_path.clone());
+        }
+    }
     recorder.record_intents(claims.as_slice())?;
     let batch_start: usize = created.len();
     // Directories and the scaffolding above every entry first, in manifest order, so each leaf finds its parent.
@@ -199,6 +200,24 @@ fn install_batch(
 const PARALLEL_INSTALL_MIN_LEAVES: usize = crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES;
 
 /// What:
+///  Install one staged entry unless something is already at its destination.
+/// Why:
+///   A path that appeared since the preflight is never created over; the next settle step decides what it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (exists(destination)) return undefined; createSelectedEntry(...); return captureInstalledPath(destination);
+/// ```
+fn install_one(stage_root: &Path, destination_root: &Path, entry: &WorktreeCopyEntry) -> Result<Option<InstalledPath>, WorktreeCopyError> {
+    let destination_path: PathBuf = filesystem_path(destination_root, entry.relative_path.as_str())?;
+    if lstat_or_absent(destination_path.as_path())?.is_some() {
+        return Ok(None);
+    }
+    create_selected_entry(stage_root, destination_root, entry)?;
+    return capture_installed_path(destination_path.as_path(), entry.relative_path.as_str(), true).map(Some);
+}
+
+/// What:
 ///  Creates one slice of files and links, stopping at the first failure, and returns what it created with that failure.
 /// Why:
 ///   Rollback must know every path that exists, including those created before a failure, so the slice never discards
@@ -215,16 +234,7 @@ fn install_slice(
 ) -> (Vec<InstalledPath>, Option<WorktreeCopyError>) {
     let mut made: Vec<InstalledPath> = Vec::new();
     for entry in slice {
-        let outcome: Result<Option<InstalledPath>, WorktreeCopyError> = (|| {
-            let destination_path: PathBuf =
-                filesystem_path(destination_root, entry.relative_path.as_str())?;
-            // A path that appeared since preflight is never created over; the next settle step decides what it is.
-            if lstat_or_absent(destination_path.as_path())?.is_some() {
-                return Ok(None);
-            }
-            create_selected_entry(stage_root, destination_root, entry)?;
-            return capture_installed_path(destination_path.as_path(), entry.relative_path.as_str(), true).map(Some);
-        })();
+        let outcome: Result<Option<InstalledPath>, WorktreeCopyError> = install_one(stage_root, destination_root, entry);
         match outcome {
             Ok(Some(installed)) => made.push(installed),
             Ok(None) => {}
@@ -257,18 +267,18 @@ fn install_leaves(
     };
     let slice_length: usize = leaves.len().div_ceil(workers).max(1);
     let results: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = std::thread::scope(|scope| {
-        let handles: Vec<_> = leaves
-            .chunks(slice_length)
-            .map(|slice| return start_or_run(scope, move || return install_slice(stage_root, destination_root, slice)))
-            .collect();
-        return handles
-            .into_iter()
-            .map(|handle| {
-                return handle.join().unwrap_or_else(|_panic| {
-                    return (Vec::new(), Some(failure_with_cause("cli-git: an install worker panicked.", None)));
-                });
-            })
-            .collect();
+        let mut handles: Vec<_> = Vec::new();
+        for slice in leaves.chunks(slice_length) {
+            handles.push(start_or_run(scope, move || return install_slice(stage_root, destination_root, slice)));
+        }
+        let mut joined: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = Vec::new();
+        for handle in handles {
+            joined.push(match handle.join() {
+                Ok(done) => done,
+                Err(_panic) => (Vec::new(), Some(failure_with_cause("cli-git: an install worker panicked.", None))),
+            });
+        }
+        return joined;
     });
     let mut failure: Option<WorktreeCopyError> = None;
     for (made, stopped) in results {
@@ -314,10 +324,7 @@ pub fn install_snapshot(
             let suffix: String = if retained.is_empty() {
                 String::new()
             } else {
-                let names: Vec<String> = retained
-                    .iter()
-                    .map(|path| return quote(path.as_str()))
-                    .collect();
+                let names: Vec<String> = retained.iter().map(String::as_str).map(quote).collect();
                 format!(" Rollback retained: {}.", names.join(", "))
             };
             let message: String = format!(
@@ -375,10 +382,12 @@ fn install_all(
         )
         .as_str(),
     );
-    let selected: usize = created
-        .iter()
-        .filter(|installed| return installed.selected)
-        .count();
+    let mut selected: usize = 0;
+    for installed in created.iter() {
+        if installed.selected {
+            selected += 1;
+        }
+    }
     return Ok(selected);
 }
 

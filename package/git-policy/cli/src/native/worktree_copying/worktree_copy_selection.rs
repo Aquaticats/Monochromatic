@@ -56,6 +56,37 @@ pub fn repository_path_within(candidate: &str, parent: &str) -> bool {
 }
 
 /// What:
+///  Whether a repository path component is empty, `.` or `..`.
+/// Why:
+///   Such a component could leave the repository, so a path with one is unsafe.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// component === '' || component === '.' || component === '..'
+/// ```
+fn is_unsafe_component(component: &str) -> bool {
+    return component.is_empty() || component == "." || component == "..";
+}
+
+/// What:
+///  Whether a repository path is at or below any of the root paths.
+/// Why:
+///   A root already selected covers everything below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// roots.some((root) => repositoryPathWithin(candidate, root))
+/// ```
+fn within_any_root(candidate: &str, roots: &[String]) -> bool {
+    for root in roots {
+        if repository_path_within(candidate, root.as_str()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  Validates one slash-separated path that Git reported before it is joined to a filesystem root.
 /// Why:
 ///   An empty, absolute, `.` or `..` component could select a path outside the worktree.
@@ -68,9 +99,7 @@ pub fn assert_safe_repository_path(repository_path: &str) -> Result<(), Worktree
     let unsafe_path: bool = repository_path.is_empty()
         || repository_path.starts_with('/')
         || Path::new(repository_path).is_absolute()
-        || repository_path
-            .split('/')
-            .any(|component| return component.is_empty() || component == "." || component == "..");
+        || repository_path.split('/').any(is_unsafe_component);
     if unsafe_path {
         return Err(WorktreeCopyError(format!(
             "cli-git: Git returned unsafe ignored path {}.",
@@ -136,13 +165,11 @@ pub fn by_js_order<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ord
 /// ```
 fn collapse_ignored_roots(paths: &[String]) -> Vec<String> {
     let mut candidates: Vec<String> = paths.to_vec();
-    candidates.sort_by(|left, right| return js_order(left, right));
+    candidates.sort_by(by_js_order);
     candidates.dedup();
     let mut roots: Vec<String> = Vec::new();
     for candidate in candidates {
-        let owned: bool = roots
-            .iter()
-            .any(|root| return repository_path_within(candidate.as_str(), root.as_str()));
+        let owned: bool = within_any_root(candidate.as_str(), roots.as_slice());
         if !owned {
             roots.push(candidate);
         }
@@ -199,9 +226,12 @@ fn is_ignored_special_path(
 /// isFilesystemPathWithin({ candidate, parent })
 /// ```
 fn is_excluded(candidate: &Path, excluded_roots: &[PathBuf]) -> bool {
-    return excluded_roots
-        .iter()
-        .any(|root| return candidate.starts_with(root.as_path()));
+    for root in excluded_roots {
+        if candidate.starts_with(root.as_path()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -244,9 +274,7 @@ fn special_entries(
             if is_excluded(source_path.as_path(), excluded_roots) {
                 continue;
             }
-            let selected_ancestor: bool = selected_roots
-                .iter()
-                .any(|root| return repository_path_within(repository_path.as_str(), root.as_str()));
+            let selected_ancestor: bool = within_any_root(repository_path.as_str(), selected_roots);
             if selected_ancestor {
                 continue;
             }
