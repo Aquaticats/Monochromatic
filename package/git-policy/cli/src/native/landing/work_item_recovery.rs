@@ -73,6 +73,13 @@ pub struct Recovered {
 }
 
 /// `requeue_expired` that also gives the items it moved to `failed` for want of tries.
+#[cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "`requeue_with` takes its expiry test as `&dyn Fn(&ClaimTime) -> bool`, which its tests also give their own callables, and this test must carry the reading and the lease"
+    )
+)]
 pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Duration, max_tries: u32) -> Recovered {
     return requeue_with(work_dir, now, max_tries, &|stamp| { return now.is_past_the_boot_of(stamp) || now.elapsed_since(stamp) > lease; });
 }
@@ -92,12 +99,21 @@ pub fn requeue_expired_reporting(work_dir: &Path, now: &ClaimTime, lease: Durati
 /// Math.min(...claimed.map((c) => lease - now.elapsedSince(c.stamp)))
 /// ```
 pub fn next_claim_expiry(work_dir: &Path, now: &ClaimTime, lease: Duration) -> Option<Duration> {
-    return [CLAIMED, RECOVERING]
-        .into_iter()
-        .flat_map(|state| { return entries_oldest_first(work_dir, state); })
-        .filter(|(name, _)| { return !name.ends_with(TEMPORARY_SUFFIX); })
-        .map(|(name, modified)| { return lease_left(now, &stamp_of_entry(name.as_str(), modified), lease); })
-        .min();
+    // The least of what every held claim has left; the temporary files of a recovery are not claims.
+    let mut least: Option<Duration> = None;
+    for state in [CLAIMED, RECOVERING] {
+        for (name, modified) in entries_oldest_first(work_dir, state) {
+            if name.ends_with(TEMPORARY_SUFFIX) {
+                continue;
+            }
+            let left: Duration = lease_left(now, &stamp_of_entry(name.as_str(), modified), lease);
+            least = Some(match least {
+                Some(known) => known.min(left),
+                None => left,
+            });
+        }
+    }
+    return least;
 }
 
 /// How much of `lease` a claim stamped `stamp` has left at `now`:
@@ -113,7 +129,10 @@ fn lease_left(now: &ClaimTime, stamp: &ClaimTime, lease: Duration) -> Duration {
 /// The reading in a claim's file name,
 /// or for a claim by an earlier release the wall-clock time of its last stamp.
 fn stamp_of_entry(name: &str, modified: SystemTime) -> ClaimTime {
-    return parse_claim_name(name).map_or_else(|| { return ClaimTime::from_wall(modified); }, |(_, stamp)| { return stamp; });
+    return match parse_claim_name(name) {
+        Some((_token, stamp)) => stamp,
+        None => ClaimTime::from_wall(modified),
+    };
 }
 
 /// What:

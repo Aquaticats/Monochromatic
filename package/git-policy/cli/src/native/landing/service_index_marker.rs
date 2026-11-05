@@ -119,7 +119,7 @@ pub fn marker_of(path: &Path) -> Option<Marked> {
 /// Whether the lock at `lock` is the service's and its holder is gone,
 /// so it may be removed.
 pub fn is_reclaimable(lock: &Path) -> bool {
-    return marker_of(lock).is_some_and(|marked| { return holder_is_gone(marked.holder.as_ref()); });
+    return matches!(marker_of(lock), Some(marked) if holder_is_gone(marked.holder.as_ref()));
 }
 
 /// The marker of the already open `file`, read from its start, when it holds one.

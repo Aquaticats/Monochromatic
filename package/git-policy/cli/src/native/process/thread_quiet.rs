@@ -149,9 +149,14 @@ impl ThreadSigns {
         if !self.measured {
             return false;
         }
-        let now: (u64, u64) = (bytes.unwrap_or(0), activity.map_or(0, |(ticks, _)| { return ticks; }));
-        let working: bool = activity.is_some_and(|(_, at_work)| { return at_work; });
-        let changed: bool = self.before.is_none_or(|(old_bytes, old_ticks)| { return now.0 > old_bytes || now.1 > old_ticks; });
+        // No activity reading means no processor ticks and not at work.
+        let (ticks, working): (u64, bool) = activity.unwrap_or_default();
+        let now: (u64, u64) = (bytes.unwrap_or(0), ticks);
+        // The first look has nothing to compare with, so it counts as a change.
+        let changed: bool = match self.before {
+            Some((old_bytes, old_ticks)) => now.0 > old_bytes || now.1 > old_ticks,
+            None => true,
+        };
         self.before = Some(now);
         let carried: bool = self.count_sockets && self.socket_bytes_moved() > 0;
         return changed || working || carried;

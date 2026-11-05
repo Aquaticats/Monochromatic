@@ -14,9 +14,9 @@
 
 use crate::claim_time::ClaimTime;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::random_id::random_uuid;
 use crate::service_timing::log;
-pub use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
+pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
+pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -26,17 +26,6 @@ pub const VERSION: u64 = 1;
 
 /// Directory under the worktree's own Git directory (`WorkItem::git_dir`) that holds the state directories.
 pub const WORK_DIRECTORY: &str = "cli-git/work";
-
-/// The state directories, in the order an item moves through them.
-pub const PENDING: &str = "pending";
-/// Held by one consumer, with a lease.
-pub const CLAIMED: &str = "claimed";
-/// Held by one instance that is returning an expired claim to `pending`; see `requeue_with`.
-pub const RECOVERING: &str = "recovering";
-/// Finished.
-pub const DONE: &str = "done";
-/// Given up after too many tries.
-pub const FAILED: &str = "failed";
 
 /// What:
 ///  The kind of work an item asks for.
@@ -73,7 +62,12 @@ impl WorkKind {
 
     /// The kind a name spells.
     pub fn from_name(name: &str) -> Option<WorkKind> {
-        return [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash].into_iter().find(|kind| return kind.name() == name);
+        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash] {
+            if kind.name() == name {
+                return Some(kind);
+            }
+        }
+        return None;
     }
 }
 
@@ -138,26 +132,35 @@ impl WorkItem {
     /// Read a record; any other version, an unknown kind, a missing field or an id that is not derived from the kind and
     /// object is refused with a message.
     pub fn decode(text: &str) -> Result<WorkItem, String> {
-        let value: Value = serde_json::from_str(text).map_err(|error| return format!("the record is not JSON: {error}"))?;
-        let field = |name: &str| -> Result<String, String> {
-            return value.get(name).and_then(Value::as_str).map(String::from).ok_or_else(|| return format!("the record has no text field {name}"));
+        let value: Value = match serde_json::from_str(text) {
+            Ok(parsed) => parsed,
+            Err(error) => return Err(format!("the record is not JSON: {error}")),
         };
         if value.get("v").and_then(Value::as_u64) != Some(VERSION) {
             return Err(String::from("the record has an unsupported version"));
         }
-        let kind: WorkKind = WorkKind::from_name(field("kind")?.as_str()).ok_or_else(|| return String::from("the record has an unknown kind"))?;
-        let tries: u32 = value.get("tries").and_then(Value::as_u64).and_then(|count| return u32::try_from(count).ok()).ok_or_else(|| return String::from("the record has no tries"))?;
+        let kind: WorkKind = match WorkKind::from_name(text_field(&value, "kind")?.as_str()) {
+            Some(known) => known,
+            None => return Err(String::from("the record has an unknown kind")),
+        };
+        // A count that is missing, or too large for a count of tries, is no count.
+        let Some(count) = value.get("tries").and_then(Value::as_u64) else {
+            return Err(String::from("the record has no tries"));
+        };
+        let Ok(tries) = u32::try_from(count) else {
+            return Err(String::from("the record has no tries"));
+        };
         let item: WorkItem = WorkItem {
             kind,
-            repository: field("repository")?,
-            git_dir: field("gitDir")?,
-            branch_ref: field("ref")?,
-            oid: field("oid")?,
-            parent: field("parent")?,
-            created: field("created")?,
+            repository: text_field(&value, "repository")?,
+            git_dir: text_field(&value, "gitDir")?,
+            branch_ref: text_field(&value, "ref")?,
+            oid: text_field(&value, "oid")?,
+            parent: text_field(&value, "parent")?,
+            created: text_field(&value, "created")?,
             tries,
         };
-        if field("id")? != item.id() {
+        if text_field(&value, "id")? != item.id() {
             return Err(String::from("the record's id is not derived from its kind and object"));
         }
         return Ok(item);
@@ -181,9 +184,40 @@ pub enum Enqueued {
     Known,
 }
 
-/// The directory of one state.
-pub fn state_directory(work_dir: &Path, state: &str) -> PathBuf {
-    return work_dir.join(state);
+/// What:
+///  A named field of a work record as text.
+/// Why:
+///  `WorkItem::decode` reads every text field of the record, and a field that is missing or not text refuses the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const textField = (value: object, name: string): string => { if (typeof value[name] !== 'string') throw new Error(`the record has no text field ${name}`); return value[name]; };
+/// ```
+fn text_field(value: &Value, name: &str) -> Result<String, String> {
+    return match value.get(name).and_then(Value::as_str) {
+        Some(text) => Ok(String::from(text)),
+        None => Err(format!("the record has no text field {name}")),
+    };
+}
+
+/// What:
+///  Whether an item of this identity has a claim file in `claimed` or `recovering`.
+/// Why:
+///  `enqueue` treats an item that is being worked on as already known.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// [CLAIMED, RECOVERING].some((state) => entriesOldestFirst(workDir, state).some(([name]) => idOfEntry(name) === id))
+/// ```
+fn is_claimed_or_recovering(work_dir: &Path, id: &str) -> bool {
+    for state in [CLAIMED, RECOVERING] {
+        for (name, _modified) in entries_oldest_first(work_dir, state) {
+            if id_of_entry(name.as_str()) == id {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -198,13 +232,15 @@ pub fn state_directory(work_dir: &Path, state: &str) -> PathBuf {
 /// ```
 pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
     for state in [PENDING, CLAIMED, DONE, FAILED] {
-        create_private_directory_all(state_directory(work_dir, state).as_path()).map_err(|error| return format!("creating the {state} directory failed: {error}"))?;
+        if let Err(error) = create_private_directory_all(state_directory(work_dir, state).as_path()) {
+            return Err(format!("creating the {state} directory failed: {error}"));
+        }
     }
     let id: String = item.id();
     // The states are looked at in the order an item moves through them, so an item that moves on while they are looked at is
     //  found in the next one: looking at `done` first could miss an item that settled after that look and left `claimed`
     //  before the look at it.
-    if [CLAIMED, RECOVERING].iter().any(|state| { return entries_oldest_first(work_dir, state).iter().any(|(name, _)| { return id_of_entry(name.as_str()) == id; }); }) {
+    if is_claimed_or_recovering(work_dir, id.as_str()) {
         return Ok(Enqueued::Known);
     }
     if state_directory(work_dir, DONE).join(id.as_str()).exists() || state_directory(work_dir, FAILED).join(id.as_str()).exists() {
@@ -237,9 +273,6 @@ pub struct Claimed {
     pub item: WorkItem,
 }
 
-/// Separates the parts of a claim's file name; an id is a kind and a hexadecimal object name and holds none.
-const NAME_SEPARATOR: char = '~';
-
 /// The most characters an object name has: 64 hexadecimal digits of a SHA-256 name. With the longest kind, a generation, a reading that
 /// fills every field and the suffix of a recovery's temporary file, such an id still makes a name of at most 223 bytes, under
 /// the 255 a file name may have; a longer id could make a claim's name fit and the name of its temporary file not.
@@ -248,7 +281,7 @@ pub(crate) const MAX_OBJECT_NAME_LENGTH: usize = 64;
 /// Whether `object_name` is what follows the kind in an id: 1 to `MAX_OBJECT_NAME_LENGTH` ASCII letters and digits, so it
 /// holds no separator of a claim's name and no character a file name treats specially.
 fn is_object_name(object_name: &str) -> bool {
-    return !object_name.is_empty() && object_name.len() <= MAX_OBJECT_NAME_LENGTH && object_name.bytes().all(|byte| { return byte.is_ascii_alphanumeric(); });
+    return !object_name.is_empty() && object_name.len() <= MAX_OBJECT_NAME_LENGTH && object_name.as_bytes().iter().all(u8::is_ascii_alphanumeric);
 }
 
 /// What:
@@ -276,76 +309,27 @@ type Stamp<'a> = &'a dyn Fn(&Path) -> std::io::Result<()>;
 /// Whether `id` is a kind and an object name,
 /// which makes every name built from it fit in a file name.
 pub(crate) fn is_valid_id(id: &str) -> bool {
-    return [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash]
-        .iter()
-        .any(|kind| { return id.strip_prefix(format!("{}-", kind.name()).as_str()).is_some_and(is_object_name); });
-}
-
-/// What:
-///  The id an entry of `claimed` or `recovering` is the claim of: the part of its name before the generation.
-/// Why:
-///   A claim by an earlier release is named by the id alone, so a name with no separator is its own id.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// name.split('~')[0]
-/// ```
-pub fn id_of_entry(name: &str) -> &str {
-    return name.split_once(NAME_SEPARATOR).map_or(name, |(id, _)| { return id; });
-}
-
-/// What:
-///  The name of the file that holds the claim of `id` of the generation `token` as of the reading `stamp`.
-/// Why:
-///   The generation is unique to one acquisition and the reading says when the holder last proved it was alive, so the name
-///  alone tells every other instance whose claim this is and whether it ran out, and a rename of exactly that name is the only
-///  way to take it: a holder that renews changes the name, so a take made from an older look finds nothing to take.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${id}~${token}~${stamp.encode()}`
-/// ```
-pub fn claim_file_name(id: &str, token: &str, stamp: &ClaimTime) -> String {
-    return format!("{id}{NAME_SEPARATOR}{token}{NAME_SEPARATOR}{}", stamp.encode());
-}
-
-/// The generation and the reading in a claim's file name, or nothing for a name by an earlier release.
-pub(crate) fn parse_claim_name(name: &str) -> Option<(&str, ClaimTime)> {
-    let (_, rest) = name.split_once(NAME_SEPARATOR)?;
-    let (token, stamp) = rest.split_once(NAME_SEPARATOR)?;
-    if token.is_empty() || !token.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }) {
-        return None;
-    }
-    return Some((token, ClaimTime::decode(stamp)?));
-}
-
-/// A fresh generation: 32 random hexadecimal digits.
-pub(crate) fn new_generation() -> Result<String, String> {
-    return random_uuid()
-        .map(|uuid| { return uuid.replace('-', ""); })
-        .map_err(|error| { return format!("making the generation of a claim failed: {}", error.0); });
-}
-
-/// The names in a state directory with their modification times, oldest first.
-pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime)> {
-    let mut found: Vec<(String, SystemTime)> = Vec::new();
-    if let Ok(listing) = std::fs::read_dir(state_directory(work_dir, state)) {
-        for entry in listing.flatten() {
-            let modified: SystemTime = entry.metadata().and_then(|meta| return meta.modified()).unwrap_or(SystemTime::UNIX_EPOCH);
-            found.push((entry.file_name().to_string_lossy().into_owned(), modified));
+    for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash] {
+        if let Some(rest) = id.strip_prefix(format!("{}-", kind.name()).as_str())
+            && is_object_name(rest)
+        {
+            return true;
         }
     }
-    found.sort_by(|left, right| return left.1.cmp(&right.1).then_with(|| return left.0.cmp(&right.0)));
-    return found;
+    return false;
 }
 
 /// The path of the file that holds the claim of `id` now, or nothing when it is not claimed or being recovered.
 pub fn find_claim(work_dir: &Path, id: &str) -> Option<PathBuf> {
-    return [CLAIMED, RECOVERING]
-        .into_iter()
-        .flat_map(|state| { return entries_oldest_first(work_dir, state).into_iter().map(move |(name, _)| { return (state, name); }); })
-        .find(|(_, name)| { return id_of_entry(name.as_str()) == id; })
-        .map(|(state, name)| { return state_directory(work_dir, state).join(name); });
+    // `claimed` first, then `recovering`, each oldest first; the first entry that is the claim of `id`.
+    for state in [CLAIMED, RECOVERING] {
+        for (name, _modified) in entries_oldest_first(work_dir, state) {
+            if id_of_entry(name.as_str()) == id {
+                return Some(state_directory(work_dir, state).join(name));
+            }
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -399,7 +383,14 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 /// ```
 fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
     for (id, queued) in entries_oldest_first(work_dir, PENDING) {
-        let Some(kind) = kinds.iter().find(|kind| return id.starts_with(format!("{}-", kind.name()).as_str())) else {
+        let mut found_kind: Option<&WorkKind> = None;
+        for candidate in kinds {
+            if id.starts_with(format!("{}-", candidate.name()).as_str()) {
+                found_kind = Some(candidate);
+                break;
+            }
+        }
+        let Some(kind) = found_kind else {
             continue;
         };
         // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
@@ -414,19 +405,34 @@ fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stam
         if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err() || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err() {
             continue;
         }
-        let published: std::io::Result<()> = stamp(staged.as_path()).and_then(|()| return std::fs::rename(staged.as_path(), claimed_path.as_path()));
+        let stamped: std::io::Result<()> = stamp(staged.as_path());
+        let published: std::io::Result<()> = match stamped {
+            Ok(()) => std::fs::rename(staged.as_path(), claimed_path.as_path()),
+            Err(error) => Err(error),
+        };
         if let Err(error) = published {
             log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
             // The staged file is this instance's alone:
             // the age it had is put back before it is queued again,
             // whatever the stamp did.
-            let restored: std::io::Result<()> = std::fs::File::open(staged.as_path()).and_then(|file| return file.set_modified(queued));
-            if let Err(requeue_error) = restored.and_then(|()| return std::fs::rename(staged.as_path(), pending_path.as_path())) {
+            let opened: std::io::Result<std::fs::File> = std::fs::File::open(staged.as_path());
+            let restored: std::io::Result<()> = match opened {
+                Ok(file) => file.set_modified(queued),
+                Err(open_error) => Err(open_error),
+            };
+            let requeued: std::io::Result<()> = match restored {
+                Ok(()) => std::fs::rename(staged.as_path(), pending_path.as_path()),
+                Err(restore_error) => Err(restore_error),
+            };
+            if let Err(requeue_error) = requeued {
                 log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {requeue_error}").as_str());
             }
             continue;
         }
-        let text: String = std::fs::read_to_string(claimed_path.as_path()).map_err(|error| return format!("reading the claim of {id} failed: {error}"))?;
+        let text: String = match std::fs::read_to_string(claimed_path.as_path()) {
+            Ok(read) => read,
+            Err(error) => return Err(format!("reading the claim of {id} failed: {error}")),
+        };
         match WorkItem::decode(text.as_str()) {
             // The record is the work the file name says;
             // a record of other work would be settled as done under this id.
@@ -465,8 +471,10 @@ pub fn settle(work_dir: &Path, claimed: &Claimed, state: &str) -> Result<(), Str
 /// `settle` for the claim file `name`, whose id is the part of the name before the generation.
 pub fn settle_named(work_dir: &Path, name: &str, state: &str) -> Result<(), String> {
     let id: &str = id_of_entry(name);
-    return std::fs::rename(state_directory(work_dir, CLAIMED).join(name), state_directory(work_dir, state).join(id))
-        .map_err(|error| return format!("moving {id} to {state} failed: {error}"));
+    return match std::fs::rename(state_directory(work_dir, CLAIMED).join(name), state_directory(work_dir, state).join(id)) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(format!("moving {id} to {state} failed: {error}")),
+    };
 }
 
 /// What:
@@ -504,7 +512,10 @@ fn renew_claim_stamped(work_dir: &Path, name: &str, now: &ClaimTime, stamp: Stam
         log(format!("the claim {name} could not be renewed: {error}").as_str());
         return None;
     }
-    return std::fs::rename(directory.join(name), directory.join(renewed.as_str())).ok().map(|()| { return renewed; });
+    return match std::fs::rename(directory.join(name), directory.join(renewed.as_str())) {
+        Ok(()) => Some(renewed),
+        Err(_refused) => None,
+    };
 }
 
 /// What:
@@ -518,7 +529,9 @@ fn renew_claim_stamped(work_dir: &Path, name: &str, now: &ClaimTime, stamp: Stam
 /// now - oldestPending.mtime
 /// ```
 pub fn oldest_pending_age(work_dir: &Path, now: SystemTime) -> Option<Duration> {
-    return entries_oldest_first(work_dir, PENDING).first().map(|(_, created)| return now.duration_since(*created).unwrap_or(Duration::ZERO));
+    let pending: Vec<(String, SystemTime)> = entries_oldest_first(work_dir, PENDING);
+    let (_name, created) = pending.first()?;
+    return Some(now.duration_since(*created).unwrap_or(Duration::ZERO));
 }
 
 /// Controls stay out of the release executable.

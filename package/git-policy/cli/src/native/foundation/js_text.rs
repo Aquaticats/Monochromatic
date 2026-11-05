@@ -104,7 +104,7 @@ pub fn trim_javascript_end(text: &str) -> &str {
 /// /^[0-9]+$/.test(text) && Number.isSafeInteger(Number(text)) && Number(text) > 0 ? Number(text) : undefined
 /// ```
 pub fn decimal_attempt(text: &str) -> Option<i64> {
-    if text.is_empty() || !text.bytes().all(|byte| { return byte.is_ascii_digit(); }) {
+    if text.is_empty() || !text.as_bytes().iter().all(u8::is_ascii_digit) {
         return None;
     }
     let value: i64 = text.parse::<i64>().ok()?;

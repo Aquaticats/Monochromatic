@@ -65,6 +65,13 @@ pub enum Reclaimed {
 /// ```
 pub fn remove_stale(index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`reclaim_if` takes `&dyn Fn(&Marked) -> bool` as its test of a stale mark, and the test for one batch must carry the batch number"
+        )
+    )]
     let for_this_batch = |marked: &Marked| -> bool { return marked.seq == seq && holder_is_gone(marked.holder.as_ref()); };
     let _outcome: Reclaimed = reclaim_if(&SYSTEM, lock.as_path(), &for_this_batch);
 }
@@ -247,9 +254,9 @@ pub fn foreign_words(file: &Path, marked: &Marked) -> String {
 /// `The claim ${file} (made by batch ${seq}, process ${pid}) cannot be judged ... remove it yourself: rm -- ${quote(file)}`
 /// ```
 pub fn unjudged_words(file: &Path, marked: Option<&Marked>) -> String {
-    let who: String = match marked.and_then(|found| { return found.holder.as_ref().map(|(pid, _)| { return (found.seq, *pid); }); }) {
-        Some((seq, pid)) => format!("made by cli-git-service batch {seq} (process {pid}) "),
-        None => String::new(),
+    let who: String = match marked {
+        Some(Marked { seq, holder: Some((pid, _birth)), .. }) => format!("made by cli-git-service batch {seq} (process {pid}) "),
+        _ => String::new(),
     };
     return format!(
         "The claim file {} {who}cannot be judged here (its maker is in another PID namespace, or the file cannot be read), so it is neither removed nor passed over, and it keeps the stale index lock from being reclaimed. \

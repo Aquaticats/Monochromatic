@@ -165,7 +165,10 @@ fn staging_path(path: &Path) -> std::io::Result<PathBuf> {
             format!("{} names no file", path.display()),
         ));
     };
-    let unique: String = random_uuid().map_err(|error| { return std::io::Error::other(error.0); })?;
+    let unique: String = match random_uuid() {
+        Ok(found) => found,
+        Err(error) => return Err(std::io::Error::other(error.0)),
+    };
     let mut staged: OsString = OsString::from(".");
     staged.push(name);
     staged.push(".");
@@ -203,6 +206,44 @@ fn publish_exclusive(staged: &Path, path: &Path) -> std::io::Result<()> {
 }
 
 /// What:
+///  Flushes the staging file to disk when the write is durable, and does nothing otherwise.
+/// Why:
+///  `write_then_publish` runs it only after the bytes were written; a record that tolerates a torn write skips the sync.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (durable) { await handle.sync(); }
+/// ```
+fn sync_when_durable(file: &File, path: &Path, durable: bool) -> std::io::Result<()> {
+    if !durable {
+        return Ok(());
+    }
+    // The path is read only by the test-only record; a release build leaves it unused.
+    #[cfg(not(test))]
+    let _path_for_tests: &Path = path;
+    #[cfg(test)]
+    record_file_sync(path);
+    // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
+    return file.sync_all();
+}
+
+/// What:
+///  Sets the permission bits of the staging file when a mode was asked for, and does nothing otherwise.
+/// Why:
+///  `write_then_publish` applies the mode before the file appears at its final name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (mode !== undefined) { await chmod(staged, mode); }
+/// ```
+fn protect_when_asked(staged: &Path, mode: Option<u32>) -> std::io::Result<()> {
+    return match mode {
+        Some(bits) => protect_path(staged, bits),
+        None => Ok(()),
+    };
+}
+
+/// What:
 ///  Write `bytes` to a staging file beside `path`, sync it when `durable`, and publish it at `path`; any failure
 ///  removes the staging file, so `path` holds all the bytes or does not exist.
 ///  `mode` is applied to the file before it is published, when given.
@@ -219,24 +260,21 @@ fn publish_exclusive(staged: &Path, path: &Path) -> std::io::Result<()> {
 fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: bool) -> std::io::Result<()> {
     let staged: PathBuf = staging_path(path)?;
     let mut file: File = exclusive_options().open(staged.as_path())?;
-    let filled: std::io::Result<()> = file.write_all(bytes).and_then(|()| {
-        if !durable {
-            return Ok(());
-        }
-        #[cfg(test)]
-        record_file_sync(path);
-        // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
-        return file.sync_all();
-    });
+    // Each step runs only when the one before it succeeded, and the first failure is the result.
+    let written: std::io::Result<()> = file.write_all(bytes);
+    let filled: std::io::Result<()> = match written {
+        Ok(()) => sync_when_durable(&file, path, durable),
+        Err(error) => Err(error),
+    };
     drop(file);
-    let published: std::io::Result<()> = filled
-        .and_then(|()| {
-            return match mode {
-                Some(bits) => protect_path(staged.as_path(), bits),
-                None => Ok(()),
-            };
-        })
-        .and_then(|()| { return publish_exclusive(staged.as_path(), path); });
+    let protected: std::io::Result<()> = match filled {
+        Ok(()) => protect_when_asked(staged.as_path(), mode),
+        Err(error) => Err(error),
+    };
+    let published: std::io::Result<()> = match protected {
+        Ok(()) => publish_exclusive(staged.as_path(), path),
+        Err(error) => Err(error),
+    };
     if let Some(message) = staging_removal_report(staged.as_path(), std::fs::remove_file(staged.as_path())) {
         debug("writeThenPublish", message.as_str());
     }

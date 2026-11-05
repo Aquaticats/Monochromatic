@@ -128,12 +128,31 @@ pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
     );
 }
 
+/// What:
+///  Whether a held claim is still unsettled.
+/// Why:
+///  The renewal drops the claims the drain settled, and `Vec::retain` hands each entry to a function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isUnsettled = ([claim]: [Claim, string]) => !claim.settled;
+/// ```
+fn is_unsettled(entry: &(Arc<Claim>, String)) -> bool {
+    return !entry.0.settled.load(Ordering::SeqCst);
+}
+
 /// Whether `name` is the file of the claim `claim` (the id and the generation match).
 fn names_claim(name: &str, claim: &Claim) -> bool {
     if id_of_entry(name) != claim.id {
         return false;
     }
-    return claim.token.is_empty() || parse_claim_name(name).is_some_and(|(token, _)| { return token == claim.token; });
+    if claim.token.is_empty() {
+        return true;
+    }
+    return match parse_claim_name(name) {
+        Some((token, _stamp)) => token == claim.token,
+        None => false,
+    };
 }
 
 /// What:
@@ -148,11 +167,15 @@ fn names_claim(name: &str, claim: &Claim) -> bool {
 /// ```
 fn current_name(work_dir: &Path, claim: &Claim) -> Option<String> {
     for _ in 0..LOOKS {
-        let found: Option<String> = std::fs::read_dir(state_directory(work_dir, CLAIMED))
-            .ok()
-            .and_then(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).find(|name| { return names_claim(name.as_str(), claim); }); });
-        if found.is_some() {
-            return found;
+        // A directory that cannot be listed finds nothing on this look; the next look tries again.
+        let Ok(listing) = std::fs::read_dir(state_directory(work_dir, CLAIMED)) else {
+            continue;
+        };
+        for entry in listing.flatten() {
+            let name: String = entry.file_name().to_string_lossy().into_owned();
+            if names_claim(name.as_str(), claim) {
+                return Some(name);
+            }
         }
     }
     return None;
@@ -162,7 +185,11 @@ fn current_name(work_dir: &Path, claim: &Claim) -> Option<String> {
 impl HeldClaims {
     /// Add a claim the drain took, and tell the renewal thread to keep it fresh.
     pub fn hold(&self, claimed: &Claimed) {
-        let token: String = parse_claim_name(claimed.name.as_str()).map(|(token, _)| { return token.to_owned(); }).unwrap_or_default();
+        // A claim by an earlier release has no generation, so its token is empty.
+        let token: String = match parse_claim_name(claimed.name.as_str()) {
+            Some((found, _stamp)) => found.to_owned(),
+            None => String::new(),
+        };
         let claim: Arc<Claim> = Arc::new(Claim { id: claimed.id.clone(), token, lost: AtomicBool::new(false), settled: AtomicBool::new(false) });
         self.claims.borrow_mut().push(Arc::clone(&claim));
         // A renewal thread that is gone (no thread could be made, or it ended) renews nothing: the claim then expires with its lease.
@@ -171,22 +198,36 @@ impl HeldClaims {
 
     /// Forget a claim the drain gave up, so it is no longer renewed.
     pub fn release(&self, id: &str) {
-        self.claims.borrow_mut().retain(|claim| {
+        // The claims of other ids are kept in order; the ones of this id are marked settled and dropped.
+        let mut claims = self.claims.borrow_mut();
+        let mut kept: Vec<Arc<Claim>> = Vec::with_capacity(claims.len());
+        for claim in claims.drain(..) {
             if claim.id == id {
                 claim.settled.store(true, Ordering::SeqCst);
+            } else {
+                kept.push(claim);
             }
-            return claim.id != id;
-        });
+        }
+        *claims = kept;
     }
 
     /// The ids held at this moment, including claims found taken over.
     pub fn snapshot(&self) -> Vec<String> {
-        return self.claims.borrow().iter().map(|claim| { return claim.id.clone(); }).collect();
+        let mut ids: Vec<String> = Vec::new();
+        for claim in self.claims.borrow().iter() {
+            ids.push(claim.id.clone());
+        }
+        return ids;
     }
 
     /// Whether the claim of `id` is held and was not found taken over.
     pub fn is_held(&self, id: &str) -> bool {
-        return self.claims.borrow().iter().any(|claim| { return claim.id == id && !claim.lost.load(Ordering::SeqCst); });
+        for claim in self.claims.borrow().iter() {
+            if claim.id == id && !claim.lost.load(Ordering::SeqCst) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// What:
@@ -207,7 +248,14 @@ impl HeldClaims {
     /// ```
     pub fn is_held_on_disk(&self, work_dir: &Path, id: &str) -> bool {
         let claims = self.claims.borrow();
-        let Some(claim) = claims.iter().find(|candidate| { return candidate.id == id; }) else { return false };
+        let mut found: Option<&Arc<Claim>> = None;
+        for candidate in claims.iter() {
+            if candidate.id == id {
+                found = Some(candidate);
+                break;
+            }
+        }
+        let Some(claim) = found else { return false };
         if claim.lost.load(Ordering::SeqCst) {
             return false;
         }
@@ -227,7 +275,14 @@ impl HeldClaims {
     pub fn settle(&self, work_dir: &Path, id: &str, state: &str) -> Result<(), String> {
         let claim: Arc<Claim> = {
             let mut claims = self.claims.borrow_mut();
-            let Some(position) = claims.iter().position(|candidate| { return candidate.id == id; }) else {
+            let mut found_at: Option<usize> = None;
+            for (at, candidate) in claims.iter().enumerate() {
+                if candidate.id == id {
+                    found_at = Some(at);
+                    break;
+                }
+            }
+            let Some(position) = found_at else {
                 return Err(format!("{id} is not held by this instance"));
             };
             claims.remove(position)
@@ -262,7 +317,7 @@ impl Renewer {
     /// claim the drain settled is dropped.
     pub fn renew(&mut self, now: &ClaimTime) {
         self.take_in();
-        self.names.retain(|(claim, _)| { return !claim.settled.load(Ordering::SeqCst); });
+        self.names.retain(is_unsettled);
         for (claim, name) in &mut self.names {
             if claim.lost.load(Ordering::SeqCst) {
                 continue;
@@ -277,7 +332,11 @@ impl Renewer {
     /// The file names of the claims being kept fresh, as this renewer last wrote them.
     pub fn names(&mut self) -> Vec<String> {
         self.take_in();
-        return self.names.iter().map(|(_, name)| { return name.clone(); }).collect();
+        let mut names: Vec<String> = Vec::new();
+        for (_claim, name) in &self.names {
+            names.push(name.clone());
+        }
+        return names;
     }
 }
 
@@ -364,7 +423,7 @@ impl ClaimRenewal {
     pub fn start(mut renewer: Renewer, every: Duration) -> ClaimRenewal {
         let (control, requests) = channel::<Control>();
         // A host with no thread to spare renews nothing: the claims then expire with their lease, as for a service that died.
-        let worker: Option<JoinHandle<()>> = std::thread::Builder::new()
+        let spawned: std::io::Result<JoinHandle<()>> = std::thread::Builder::new()
             .spawn(move || {
                 let mut due: Instant = Instant::now() + every;
                 loop {
@@ -382,9 +441,14 @@ impl ClaimRenewal {
                         }
                     }
                 }
-            })
-            .map_err(|error| { crate::service_error!("no thread to renew claims: {error}"); })
-            .ok();
+            });
+        let worker: Option<JoinHandle<()>> = match spawned {
+            Ok(handle) => Some(handle),
+            Err(error) => {
+                crate::service_error!("no thread to renew claims: {error}");
+                None
+            }
+        };
         return ClaimRenewal { control, worker };
     }
 
@@ -392,16 +456,21 @@ impl ClaimRenewal {
     pub fn driven(mut renewer: Renewer, driver: &DrivenRenewal) -> ClaimRenewal {
         let (control, requests) = channel::<Control>();
         driver.attach(control.clone());
-        let worker: Option<JoinHandle<()>> = std::thread::Builder::new()
+        let spawned: std::io::Result<JoinHandle<()>> = std::thread::Builder::new()
             .spawn(move || {
                 while let Ok(request) = requests.recv() {
                     if !obey(&mut renewer, request) {
                         return;
                     }
                 }
-            })
-            .map_err(|error| { crate::service_error!("no thread to renew claims: {error}"); })
-            .ok();
+            });
+        let worker: Option<JoinHandle<()>> = match spawned {
+            Ok(handle) => Some(handle),
+            Err(error) => {
+                crate::service_error!("no thread to renew claims: {error}");
+                None
+            }
+        };
         return ClaimRenewal { control, worker };
     }
 }

@@ -73,6 +73,32 @@ fn exit_status(code: Option<i32>) -> i32 {
 }
 
 /// What:
+///  The failure of a `git config` that could not start.
+/// Why:
+///  `map_err` hands over the error of the start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const configStartFailure = (error: Error) => startFailure('git config', error);
+/// ```
+fn config_start_failure(error: std::io::Error) -> MaintenanceError {
+    return start_failure("git config", error);
+}
+
+/// What:
+///  The failure of a `git maintenance run` that could not start.
+/// Why:
+///  `map_err` hands over the error of the start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const maintenanceStartFailure = (error: Error) => startFailure('git maintenance run', error);
+/// ```
+fn maintenance_start_failure(error: std::io::Error) -> MaintenanceError {
+    return start_failure("git maintenance run", error);
+}
+
+/// What:
 ///  Map a start failure to a maintenance error that names the command.
 /// Why:
 ///   The caller logs one line that says which Git start could not run.
@@ -125,7 +151,7 @@ fn read_maintenance_config(context: &GitContext, cwd: &Path) -> Result<Maintenan
             ],
         ),
     )
-    .map_err(|error| return start_failure("git config", error))?;
+    .map_err(config_start_failure)?;
     let lookup_code: i32 = exit_status(lookup.code);
     if lookup_code != 0 && lookup_code != CONFIG_UNSET_EXIT_CODE {
         diagnostic_log::warn(
@@ -182,9 +208,11 @@ pub fn run_auto_maintenance_with(
     cwd: &Path,
     snapshot: Option<&ConfigSnapshot>,
 ) -> Result<AutoMaintenanceOutcome, MaintenanceError> {
-    let from_snapshot: Option<BTreeMap<String, String>> = snapshot
-        .filter(|candidate| { return candidate.without_global_options(); })
-                .and_then(ConfigSnapshot::maintenance_records);
+    // A snapshot that was read with global options in front answers nothing: its records may not be the repository's own.
+    let from_snapshot: Option<BTreeMap<String, String>> = match snapshot {
+        Some(candidate) if candidate.without_global_options() => candidate.maintenance_records(),
+        _ => None,
+    };
     let config: BTreeMap<String, String> = match from_snapshot {
         Some(records) => records,
         None => match read_maintenance_config(context, cwd)? {
@@ -209,7 +237,7 @@ pub fn run_auto_maintenance_with(
         context,
         &GitRequest::new(cwd, arguments.as_slice()),
     )
-    .map_err(|error| return start_failure("git maintenance run", error))?;
+    .map_err(maintenance_start_failure)?;
     let result_code: i32 = exit_status(result.code);
     // What the run said (the foreground tasks before it detaches; a detached part writes to `/dev/null`, Git 2.56.0 `setup.c`
     //  `daemonize`) is kept in the journal; a refused `--detach` of Git before 2.47 is logged below instead.
@@ -236,7 +264,7 @@ pub fn run_auto_maintenance_with(
         context,
         &GitRequest::new(cwd, fallback_arguments),
     )
-    .map_err(|error| return start_failure("git maintenance run", error))?;
+    .map_err(maintenance_start_failure)?;
     let fallback_code: i32 = exit_status(fallback.code);
     record_words(fallback_arguments, &fallback);
     diagnostic_log::debug(

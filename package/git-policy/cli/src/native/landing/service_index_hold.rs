@@ -48,6 +48,19 @@ pub struct IndexLock {
     armed: bool,
 }
 
+/// What:
+///  A record step that records nothing.
+/// Why:
+///  `release_with` is `release_with_record` for a caller that has nothing to record before the lock is given up.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nothingToRecord = async () => {};
+/// ```
+fn nothing_to_record() -> std::io::Result<()> {
+    return Ok(());
+}
+
 impl IndexLock {
     /// A hold on `lock`,
     /// which was made from the file `held` and carries `marker`.
@@ -145,7 +158,7 @@ impl IndexLock {
     /// the lock stays,
     /// and the service ends after its batch so that the restart reclaims it.
     pub fn release_with(self, built: &Path) -> Result<(), std::io::Error> {
-        return self.release_with_record(built, &|| { return Ok(()); });
+        return self.release_with_record(built, &nothing_to_record);
     }
 
     /// What:
@@ -216,7 +229,10 @@ impl IndexLock {
                 let synced: std::io::Result<()> = if crate::service_fault::fails("sync-built-index") {
                     Err(std::io::Error::other("the flush of the new index was made to fail by a control"))
                 } else {
-                    std::fs::File::open(built).and_then(|file| { return crate::service_durable::flush_index(&file, "built-index"); })
+                    match std::fs::File::open(built) {
+                        Ok(file) => crate::service_durable::flush_index(&file, "built-index"),
+                        Err(error) => Err(error),
+                    }
                 };
                 if let Err(error) = synced {
                     crate::service_error!("the new index {} could not be flushed to the disk ({error}), so the index was not replaced", built.display());
@@ -228,8 +244,15 @@ impl IndexLock {
         // From the installation on, the lock is given up only by this function's own removal: a failure or an unwinding panic
         //  in what follows leaves it for the restart, because an installed index must never be left unlocked and replayable.
         self.armed = false;
-        let durable: std::io::Result<()> = self.index.parent().map_or(Ok(()), |directory| { return crate::service_durable::flush_directory(directory, "index-dir"); });
-        let recorded: std::io::Result<()> = durable.and_then(|()| { return record(); });
+        let durable: std::io::Result<()> = match self.index.parent() {
+            Some(directory) => crate::service_durable::flush_directory(directory, "index-dir"),
+            None => Ok(()),
+        };
+        // The record is made only when the directory was made durable.
+        let recorded: std::io::Result<()> = match durable {
+            Ok(()) => record(),
+            Err(error) => Err(error),
+        };
         if let Err(error) = recorded {
             crate::service_error!(
                 "the index lock {} stays: the installed index could not be made durable and recorded as complete ({error}), and the service ends after this batch so that the restart reclaims the lock",

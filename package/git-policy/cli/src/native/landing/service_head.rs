@@ -45,11 +45,11 @@ fn interpret(text: &str) -> HeadFile {
 ///  directory itself, or a linked worktree's, whose `commondir` file points back to it.
 fn belongs_to(directory: &Path, common_dir: &Path) -> bool {
     let Ok(expected) = std::fs::canonicalize(common_dir) else { return false };
-    if std::fs::canonicalize(directory).is_ok_and(|found| { return found == expected; }) {
+    if matches!(std::fs::canonicalize(directory), Ok(found) if found == expected) {
         return true;
     }
     let Ok(pointer) = std::fs::read_to_string(directory.join("commondir")) else { return false };
-    return std::fs::canonicalize(directory.join(pointer.trim_end())).is_ok_and(|found| { return found == expected; });
+    return matches!(std::fs::canonicalize(directory.join(pointer.trim_end())), Ok(found) if found == expected);
 }
 
 /// What:
@@ -61,7 +61,10 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
     if !belongs_to(git_dir, common_dir) {
         return HeadFile::Unreadable;
     }
-    return std::fs::read_to_string(git_dir.join("HEAD")).ok().map_or(HeadFile::Unreadable, |text| { return interpret(text.as_str()); });
+    return match std::fs::read_to_string(git_dir.join("HEAD")) {
+        Ok(text) => interpret(text.as_str()),
+        Err(_unreadable) => HeadFile::Unreadable,
+    };
 }
 
 /// What:
@@ -80,7 +83,10 @@ fn head_file(git_dir: &Path, common_dir: &Path) -> HeadFile {
 ///
 /// `Unavailable` when Git cannot be started or ends with a status other than 0 and 1.
 fn symbolic_head(git: &GitContext, repository: &Path) -> Result<Option<String>, FailureCode> {
-    let output = run_git(git, &GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"])).map_err(|_| { return FailureCode::Unavailable; })?;
+    let output = match run_git(git, &GitRequest::new(repository, &["symbolic-ref", "--quiet", "HEAD"])) {
+        Ok(finished) => finished,
+        Err(_unstartable) => return Err(FailureCode::Unavailable),
+    };
     return match output.code {
         Some(0) => Ok(Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string())),
         Some(1) => Ok(None),
@@ -111,7 +117,10 @@ pub fn follows_move(git: &GitContext, repository: &Path, git_dir: &Path, common_
     if let HeadFile::Detached(value) = head_file(git_dir, common_dir) {
         return Ok(value == new);
     }
-    let output = run_git(git, &GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"])).map_err(|_| { return FailureCode::Unavailable; })?;
+    let output = match run_git(git, &GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"])) {
+        Ok(finished) => finished,
+        Err(_unstartable) => return Err(FailureCode::Unavailable),
+    };
     return match output.code {
         Some(0) => Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim() == new),
         Some(1) => Ok(false),

@@ -67,7 +67,20 @@ fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
 /// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (!write(m ?? heartbeat)) return; }
 /// ```
 pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMessage>, every: Duration) {
-    write_until_answered_noting(stream, messages, every, &mut || { return None; });
+    write_until_answered_noting(stream, messages, every, &mut nothing_to_say);
+}
+
+/// What:
+///  A note source that never has a note.
+/// Why:
+///  `write_until_answered` is `write_until_answered_noting` with nothing to add before each beat.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const nothingToSay = (): ServiceMessage | undefined => undefined;
+/// ```
+fn nothing_to_say() -> Option<ServiceMessage> {
+    return None;
 }
 
 /// What:

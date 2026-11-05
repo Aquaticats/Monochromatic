@@ -62,8 +62,10 @@ impl std::fmt::Debug for ReviewKey {
 /// process.env.SHADOW_REVIEW_LLMGATEWAY_API_KEY ?? process.env.STOP_REMINDER_LLMGATEWAY_API_KEY ?? ''
 /// ```
 pub fn key_from_environment(variable: &dyn Fn(&str) -> Option<String>) -> Option<ReviewKey> {
-    let chosen: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| { return variable(KEY_VARIABLES[1]); });
-    return chosen.and_then(|text| { return ReviewKey::new(text.as_str()); });
+    // The first variable wins; the second is asked only when the first is not set.
+    let chosen: Option<String> = if let Some(first) = variable(KEY_VARIABLES[0]) { Some(first) } else { variable(KEY_VARIABLES[1]) };
+    let text: String = chosen?;
+    return ReviewKey::new(text.as_str());
 }
 
 /// Key controls stay out of the release executable.

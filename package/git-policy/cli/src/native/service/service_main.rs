@@ -49,20 +49,62 @@ pub const EXIT_NOT_LISTENING: i32 = 3;
 /// ```
 pub fn is_service_start(arguments: &[OsString]) -> bool {
     return arguments.len() >= SERVICE_WORDS.len()
-        && arguments.iter().zip(SERVICE_WORDS).all(|(argument, word)| { return argument == word; });
+        && starts_with_service_words(arguments);
 }
 
 /// The words of the arguments after the service mode words, as text; a word that is not text is refused.
 pub fn service_options(arguments: &[OsString]) -> Result<Vec<String>, OsString> {
-    return arguments
-        .iter()
-        .skip(SERVICE_WORDS.len())
-        .map(|argument| { return argument.to_str().map(str::to_string).ok_or_else(|| { return argument.clone(); }); })
-        .collect();
+    // The first word that is not text is the refusal.
+    let mut options: Vec<String> = Vec::new();
+    for argument in arguments.iter().skip(SERVICE_WORDS.len()) {
+        match argument.to_str() {
+            Some(text) => options.push(text.to_string()),
+            None => return Err(argument.clone()),
+        }
+    }
+    return Ok(options);
+}
+
+/// What:
+///  Whether the arguments start with the words that select the service mode.
+/// Why:
+///  `is_service_start` needs at least that many arguments and each of them equal to its word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// SERVICE_WORDS.every((word, at) => arguments[at] === word)
+/// ```
+fn starts_with_service_words(arguments: &[OsString]) -> bool {
+    for (argument, word) in arguments.iter().zip(SERVICE_WORDS) {
+        if argument != word {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+///  The value of a numeric option, nothing when the option is absent or its value is not a number.
+/// Why:
+///  The ceiling and idle options are read this way; a value that does not parse leaves the default.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const n = Number(option(args, name)); return Number.isInteger(n) && n >= 0 ? n : undefined;
+/// ```
+fn number_option(arguments: &[String], name: &str) -> Option<u64> {
+    let text: String = option(arguments, name)?;
+    return text.parse::<u64>().ok();
 }
 
 fn option(arguments: &[String], name: &str) -> Option<String> {
-    return arguments.iter().position(|argument| { return argument == name; }).and_then(|at| { return arguments.get(at + 1).cloned(); });
+    // The word after the first occurrence of the option name.
+    for (at, argument) in arguments.iter().enumerate() {
+        if argument == name {
+            return arguments.get(at + 1).cloned();
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -121,7 +163,10 @@ pub fn run(arguments: &[String]) -> i32 {
         crate::service_error!("--journal <directory> is required");
         return EXIT_REFUSED;
     };
-    let git: PathBuf = option(arguments, "--git").map_or_else(|| { return PathBuf::from("/usr/bin/git"); }, PathBuf::from);
+    let git: PathBuf = match option(arguments, "--git") {
+        Some(named) => PathBuf::from(named),
+        None => PathBuf::from("/usr/bin/git"),
+    };
     if git_is_wrapper(git.as_path()) {
         crate::service_error!(
             "--git {} is the cli-git executable itself, a copy of it or a toolchain launcher of it, so every Git the service started would start cli-git again; pass the real Git executable (for example /usr/bin/git), or remove the unit that names this path and let the next cli-git command write it again",
@@ -145,11 +190,9 @@ pub fn run(arguments: &[String]) -> i32 {
         journal,
         on_objects_written: None,
         // A control gives a short ceiling with `--lock-ceiling-millis`; a service the manager starts never passes it.
-        lock_ceiling: option(arguments, "--lock-ceiling-millis").and_then(|text| { return text.parse::<u64>().ok(); }).map_or(crate::wait_ceilings::LOCK_CEILING, Duration::from_millis),
+        lock_ceiling: number_option(arguments, "--lock-ceiling-millis").map_or(crate::wait_ceilings::LOCK_CEILING, Duration::from_millis),
     };
-    let idle: Duration = option(arguments, "--idle-seconds")
-        .and_then(|text| { return text.parse::<u64>().ok(); })
-        .map_or(IDLE_EXIT, Duration::from_secs);
+    let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);
     if let Some(release) = option(arguments, "--release") {
         settings.release = release;

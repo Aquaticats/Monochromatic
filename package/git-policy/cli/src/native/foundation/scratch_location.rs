@@ -69,7 +69,11 @@ pub const SCRATCH_REFRESH_EVERY: Duration = Duration::from_secs(SCRATCH_STALE_AF
 /// await utimes(path, new Date(), new Date())
 /// ```
 pub fn renew(path: &Path) {
-    let renewed: std::io::Result<()> = std::fs::File::open(path).and_then(|opened| { return opened.set_modified(SystemTime::now()); });
+    // The modification time is set only when the file opened; an open failure is the result as it was.
+    let renewed: std::io::Result<()> = match std::fs::File::open(path) {
+        Ok(opened) => opened.set_modified(SystemTime::now()),
+        Err(error) => Err(error),
+    };
     if let Err(error) = renewed {
         debug(TAG, format!("could not renew {}: {error}", path.display()).as_str());
     }
@@ -142,7 +146,11 @@ pub fn user_scratch_path(environment: &[(OsString, OsString)]) -> Result<PathBuf
 pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<PathBuf, String> {
     let given: PathBuf = user_scratch_path(environment)?;
     // A relative home would name another place once a child changes directory.
-    let directory: PathBuf = std::path::absolute(&given).unwrap_or_else(|_| { return given.clone(); });
+    // A path that cannot be made absolute stays as given.
+    let directory: PathBuf = match std::path::absolute(&given) {
+        Ok(absolute) => absolute,
+        Err(_refused) => given.clone(),
+    };
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!(
             "cli-git could not create its private scratch directory {}: {error}",
@@ -296,11 +304,16 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration) -> usiz
                 continue;
             }
         };
-        let age: Option<Duration> = metadata
-            .modified()
-            .ok()
-            .and_then(|modified| { return now.duration_since(modified).ok(); });
-        if !age.is_some_and(|found| { return found > max_age; }) {
+        // An entry whose age cannot be told is never old enough to remove.
+        let age: Option<Duration> = match metadata.modified() {
+            Ok(modified) => now.duration_since(modified).ok(),
+            Err(_unsupported) => None,
+        };
+        let old_enough: bool = match age {
+            Some(found) => found > max_age,
+            None => false,
+        };
+        if !old_enough {
             continue;
         }
         let outcome: std::io::Result<()> = if metadata.is_dir() {

@@ -59,7 +59,10 @@ fn hold(directory: &Path) -> Option<std::fs::File> {
 fn is_ours(entry: &std::fs::DirEntry) -> bool {
     use std::os::unix::fs::MetadataExt as _;
     let name = entry.file_name();
-    let Some(tail) = name.to_str().and_then(|text| { return text.strip_prefix(COPY_PREFIX); }) else {
+    let Some(text) = name.to_str() else {
+        return false;
+    };
+    let Some(tail) = text.strip_prefix(COPY_PREFIX) else {
         return false;
     };
     let Ok(metadata) = entry.path().symlink_metadata() else {
@@ -165,15 +168,15 @@ impl PrivateCopy {
         let (directory, held) = Self::make_directory(parent)?;
         let copy: PrivateCopy = PrivateCopy { path: directory.join(COPY_FILE), directory, _hold: held, flushed: std::cell::Cell::new(false) };
         let marker_text: String = format!("{MARKER_HEAD}\npid={}\nbatch={seq}\n", std::process::id());
-        write_new(copy.directory.join(MARKER_FILE).as_path(), marker_text.as_bytes()).map_err(|error| { return storage_failure(&error); })?;
+        write_new(copy.directory.join(MARKER_FILE).as_path(), marker_text.as_bytes()).map_err(storage_failure_of)?;
         match std::fs::File::open(live) {
             Ok(mut source) => {
-                let live_permissions: std::fs::Permissions = source.metadata().map_err(|error| { return storage_failure(&error); })?.permissions();
-                let mut made: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(copy.path.as_path()).map_err(|error| { return storage_failure(&error); })?;
-                std::io::copy(&mut source, &mut made).map_err(|error| { return storage_failure(&error); })?;
+                let live_permissions: std::fs::Permissions = source.metadata().map_err(storage_failure_of)?.permissions();
+                let mut made: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(copy.path.as_path()).map_err(storage_failure_of)?;
+                std::io::copy(&mut source, &mut made).map_err(storage_failure_of)?;
                 // No flush here: every writer of the copy replaces it by rename, and the copy that is installed is flushed by the
                 //  release of the lock, after its last writer (`service_index_hold.rs`).
-                std::fs::set_permissions(copy.path.as_path(), live_permissions).map_err(|error| { return storage_failure(&error); })?;
+                std::fs::set_permissions(copy.path.as_path(), live_permissions).map_err(storage_failure_of)?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(storage_failure(&error)),
@@ -185,7 +188,7 @@ impl PrivateCopy {
     ///  A directory that a sweep holds or has already removed is given up for another name.
     fn make_directory(parent: &Path) -> Result<(PathBuf, Option<std::fs::File>), FailureCode> {
         for _ in 0..DIRECTORY_TRIES {
-            let identifier: String = random_uuid().map_err(|_| { return FailureCode::Unavailable; })?;
+            let identifier: String = random_uuid().map_err(unavailable)?;
             let directory: PathBuf = parent.join(format!("{COPY_PREFIX}{identifier}"));
             match std::fs::DirBuilder::new().mode(0o700).create(&directory) {
                 Ok(()) => {}
@@ -215,6 +218,32 @@ impl PrivateCopy {
         }
         return Err(FailureCode::Unavailable);
     }
+}
+
+/// What:
+///  A failed storage step as the failure code the service answers with.
+/// Why:
+///  `map_err` hands over the error itself, and `storage_failure` borrows it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const storageFailureOf = (error: Error) => storageFailure(error);
+/// ```
+fn storage_failure_of(error: std::io::Error) -> FailureCode {
+    return storage_failure(&error);
+}
+
+/// What:
+///  Any failure of the system's random source as the failure code for an unavailable service.
+/// Why:
+///  A directory name cannot be made without it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unavailable = () => FailureCode.Unavailable;
+/// ```
+fn unavailable<E>(_error: E) -> FailureCode {
+    return FailureCode::Unavailable;
 }
 
 /// Writes a new file nobody else can open, failing when the name exists.

@@ -1,10 +1,11 @@
 //! Controls for the renewal of claim leases: what a renewal changes, what it leaves alone, what a settlement reaches, and that
 //! the thread stops.
 
+use crate::work_item_recovery::requeue_expired;
 use super::*;
 use crate::service_work::MAX_TRIES;
 use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, requeue_expired, state_directory};
+use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, state_directory};
 use std::path::Path;
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";

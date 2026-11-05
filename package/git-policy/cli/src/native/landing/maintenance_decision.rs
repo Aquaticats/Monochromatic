@@ -102,7 +102,10 @@ pub enum MaintenanceDecision {
 /// ```
 pub fn parse_config_records(output: &[u8]) -> Result<BTreeMap<String, String>, MaintenanceError> {
     // Git's config output is decoded strictly, as the incumbent's `TextDecoder` with `fatal`.
-    let text: &str = std::str::from_utf8(output).map_err(|_| return MaintenanceError::ConfigNotUtf8)?;
+    let text: &str = match std::str::from_utf8(output) {
+        Ok(decoded) => decoded,
+        Err(_not_utf8) => return Err(MaintenanceError::ConfigNotUtf8),
+    };
     // `mut` lets each record overwrite an earlier value of the same key.
     let mut parsed: BTreeMap<String, String> = BTreeMap::new();
     for record in text.split('\0') {
@@ -190,9 +193,8 @@ pub fn auto_maintenance_arguments(config: &BTreeMap<String, String>) -> Maintena
         return MaintenanceDecision::Disabled;
     }
     // The first configured detach setting; unset means detach.
-    let detach_setting: Option<&String> = config
-        .get("maintenance.autodetach")
-        .or_else(|| return config.get("gc.autodetach"));
+    // `maintenance.autodetach` wins; `gc.autodetach` is looked at only when it is not set.
+    let detach_setting: Option<&String> = if let Some(setting) = config.get("maintenance.autodetach") { Some(setting) } else { config.get("gc.autodetach") };
     let detach: bool = match detach_setting {
         None => true,
         Some(value) => bool_or_int_true(value.as_str()),

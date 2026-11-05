@@ -97,6 +97,48 @@ impl Drop for ClaimHold {
 }
 
 /// What:
+///  A byte as two lowercase hexadecimal digits.
+/// Why:
+///  `claim_path` names a claim by the first bytes of a digest.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hexOfByte = (byte: number) => byte.toString(16).padStart(2, '0');
+/// ```
+fn hex_of_byte(byte: &u8) -> String {
+    return format!("{byte:02x}");
+}
+
+/// What:
+///  A byte of a process identity as it is written in a claim's name: the bytes a file name cannot hold and the escape itself as
+///  `%` and two hexadecimal digits, every other byte as the character it is.
+/// Why:
+///  Two different identities never share a name, and the name stays short.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const escapedByte = (byte: number) => [0x2f, 0, 0x25].includes(byte) ? '%' + byte.toString(16).padStart(2, '0') : String.fromCharCode(byte);
+/// ```
+fn escaped_byte(byte: u8) -> String {
+    return if matches!(byte, b'/' | 0 | b'%') { format!("%{byte:02x}") } else { String::from(char::from(byte)) };
+}
+
+/// What:
+///  Remembers a claim file that may have been made, for the next attempt of this thread to remove.
+/// Why:
+///  A claim whose placement is not known would block every reclaimer if it stayed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// abandoned.push([path, text]);
+/// ```
+fn remember_abandoned(path: PathBuf, text: String) {
+    let mut list: Vec<(PathBuf, String)> = ABANDONED.take();
+    list.push((path, text));
+    ABANDONED.set(list);
+}
+
+/// What:
 ///  The name of the claim at `slot` for the stale lock with the identity `key`, in the lock's directory.
 /// Why:
 ///   A claim name of the lock's own name with the whole identity appended would pass the limit of a file name (255 bytes) beside
@@ -110,11 +152,14 @@ impl Drop for ClaimHold {
 /// ```
 pub fn claim_path(lock: &Path, key: &str, slot: usize) -> PathBuf {
     use std::os::unix::ffi::OsStrExt;
-    let mut input: Vec<u8> = lock.file_name().map_or_else(Vec::new, |name| { return name.as_bytes().to_vec(); });
+    let mut input: Vec<u8> = match lock.file_name() {
+        Some(name) => name.as_bytes().to_vec(),
+        None => Vec::new(),
+    };
     input.push(0);
     input.extend_from_slice(key.as_bytes());
     let digest: [u8; 32] = crate::subvolume_sha::sha256(input.as_slice());
-    let hex: String = digest.iter().take(CLAIM_DIGEST_BYTES).map(|byte| { return format!("{byte:02x}"); }).collect();
+    let hex: String = digest.iter().take(CLAIM_DIGEST_BYTES).map(hex_of_byte).collect();
     return lock.with_file_name(format!("{CLAIM_INFIX}{hex}-{slot}"));
 }
 
@@ -139,7 +184,7 @@ pub fn claim_key(marked: &Marked) -> String {
         Some((pid, birth)) => {
             // Only the bytes a file name cannot hold (`/`, NUL) and the escape itself are written as `%` and two hexadecimal digits, so two
             //  different identities never share a name and the name stays short.
-            let escaped: String = birth.bytes().map(|byte| { return if matches!(byte, b'/' | 0 | b'%') { format!("%{byte:02x}") } else { String::from(char::from(byte)) }; }).collect();
+            let escaped: String = birth.bytes().map(escaped_byte).collect();
             format!("{:x}-{pid:x}-{escaped}", marked.seq)
         }
         // A marker that names no process is an earlier release's; its key comes from the marker alone too, because the device number
@@ -216,26 +261,34 @@ thread_local! {
 ///  and goes; one that holds other text, or is gone, was never the thread's claim or is no more, and is forgotten; one that still
 ///  cannot be read stays on the list for the next attempt.
 fn resolve_abandoned() {
-    let pending: Vec<(PathBuf, String)> = ABANDONED.with(|list| { return std::mem::take(&mut *list.borrow_mut()); });
+    let pending: Vec<(PathBuf, String)> = ABANDONED.take();
     for (path, text) in pending {
         match text_of(path.as_path()) {
             Ok(Some(found)) if found == text => remove_claim(path.as_path()),
             Ok(_) => {}
-            Err(_) => ABANDONED.with(|list| { list.borrow_mut().push((path, text)); }),
+            Err(_) => remember_abandoned(path, text),
         }
     }
 }
 
 /// A number no other attempt has: 64 bits of the system's random source.
 fn attempt_token() -> std::io::Result<u64> {
-    let uuid: String = crate::random_id::random_uuid().map_err(|error| { return std::io::Error::other(error.0); })?;
+    let uuid: String = match crate::random_id::random_uuid() {
+        Ok(found) => found,
+        Err(error) => return Err(std::io::Error::other(error.0)),
+    };
     let digits: String = uuid.chars().filter(char::is_ascii_hexdigit).take(16).collect();
     return u64::from_str_radix(digits.as_str(), 16).map_err(std::io::Error::other);
 }
 
 /// Whether every slot below `slot` still holds a gone maker's claim.
 fn all_below_are_dead(lock: &Path, key: &str, slot: usize) -> bool {
-    return (0..slot).all(|below| { return look_at(claim_path(lock, key, below).as_path()) == Slot::Dead; });
+    for below in 0..slot {
+        if look_at(claim_path(lock, key, below).as_path()) != Slot::Dead {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
@@ -293,13 +346,13 @@ pub fn take_claim(platform: &Platform, lock: &Path, marked: &Marked) -> Claim {
                 // A control reaches here to make the claim unreadable at this moment.
                 crate::service_fault::reach("reclaim-claim-unread");
                 match text_of(path.as_path()) {
-                    Ok(found) => found.is_some_and(|text| { return text == marker; }),
+                    Ok(found) => matches!(found, Some(text) if text == marker),
                     Err(error) => {
                         // Whether the placement took effect is not known: the attempt remembers the claim it may have made, and
                         //  the next attempt of this thread removes it if it is there, so a claim of a running process is not
                         //  left to block every reclaimer.
                         crate::service_error!("the claim file {} of a reclaim cannot be read back ({error}); the next attempt resolves it", path.display());
-                        ABANDONED.with(|list| { list.borrow_mut().push((path.clone(), marker.clone())); });
+                        remember_abandoned(path.clone(), marker.clone());
                         break Claim::Busy;
                     }
                 }

@@ -31,8 +31,13 @@ pub struct Built {
 ///  nothing when Git cannot make one (a date it does not read), so native `git commit` gives its own message.
 pub fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> Result<Option<String>, TransactionStop> {
     let mut request: GitRequest = GitRequest::new(cwd, &["var", variable]);
-    request.environment = overrides.iter().map(|(name, value)| { return (OsString::from(name), OsString::from(value)); }).collect();
-    let output = run_git(context, &request).map_err(|error| { return failed(format!("reading the commit identity failed: {error:?}")); })?;
+    for (name, value) in overrides {
+        request.environment.push((OsString::from(name), OsString::from(value)));
+    }
+    let output = match run_git(context, &request) {
+        Ok(finished) => finished,
+        Err(error) => return Err(failed(format!("reading the commit identity failed: {error:?}"))),
+    };
     if output.code != Some(0) {
         return Ok(None);
     }
@@ -55,7 +60,10 @@ pub fn author_overrides(parsed: &ServiceCommitArgs) -> Vec<(&'static str, String
 
 /// The text of a Git query that must succeed for the line to be covered.
 fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<Vec<u8>>, TransactionStop> {
-    let output = run_git(context, &GitRequest::new(cwd, arguments)).map_err(|error| { return failed(format!("reading the repository failed: {error:?}")); })?;
+    let output = match run_git(context, &GitRequest::new(cwd, arguments)) {
+        Ok(finished) => finished,
+        Err(error) => return Err(failed(format!("reading the repository failed: {error:?}"))),
+    };
     return Ok(if output.code == Some(0) { Some(output.stdout) } else { None });
 }
 
@@ -69,10 +77,10 @@ fn reused_commit(context: &GitContext, cwd: &Path, revision: &str) -> Result<Opt
     let Ok(text) = String::from_utf8(raw) else { return Ok(None) };
     let Some((header, message)) = text.split_once("\n\n") else { return Ok(None) };
     // A commit in another encoding, or with extra headers that change the message's meaning, is Git's to reuse.
-    if header.lines().any(|line| { return line.starts_with("encoding "); }) {
+    if header.lines().any(is_encoding_header) {
         return Ok(None);
     }
-    let Some(author) = header.lines().find_map(|line| { return line.strip_prefix("author "); }) else { return Ok(None) };
+    let Some(author) = header.lines().find_map(author_of_header_line) else { return Ok(None) };
     return Ok(Some((author.to_string(), message.to_string())));
 }
 
@@ -82,12 +90,77 @@ fn subject_of(context: &GitContext, cwd: &Path, revision: &str) -> Result<Option
         return Ok(None);
     }
     let Some(bytes) = query(context, cwd, &["log", "-1", "--format=%s", revision, "--"])? else { return Ok(None) };
-    return Ok(String::from_utf8(bytes).ok().map(|text| { return text.trim_end_matches('\n').to_string(); }));
+    return Ok(String::from_utf8(bytes).ok().map(without_final_line_breaks));
+}
+
+/// What:
+///  Whether a header line of a raw commit names an encoding.
+/// Why:
+///  A commit in another encoding is Git's to reuse, so `reused_commit` gives it up.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isEncodingHeader = (line: string) => line.startsWith('encoding ');
+/// ```
+fn is_encoding_header(line: &str) -> bool {
+    return line.starts_with("encoding ");
+}
+
+/// What:
+///  The author line a raw commit header line carries, nothing for any other line.
+/// Why:
+///  `reused_commit` takes the first such line as the author.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const authorOfHeaderLine = (line: string) => line.startsWith('author ') ? line.slice(7) : undefined;
+/// ```
+fn author_of_header_line(line: &str) -> Option<&str> {
+    return line.strip_prefix("author ");
+}
+
+/// What:
+///  A text without the line breaks at its end.
+/// Why:
+///  The subject Git prints after `fixup! ` ends in a newline that is not part of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withoutFinalLineBreaks = (text: string) => text.replace(/\n+$/, '');
+/// ```
+fn without_final_line_breaks(text: String) -> String {
+    return text.trim_end_matches('\n').to_string();
+}
+
+/// What:
+///  Whether a line is not a comment: it does not start with `#`.
+/// Why:
+///  `strip_comment_lines` keeps these lines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNotCommentLine = (line: string) => !line.startsWith('#');
+/// ```
+fn is_not_comment_line(line: &&str) -> bool {
+    return !line.starts_with('#');
+}
+
+/// What:
+///  A text with a line break at its end, added when it has none.
+/// Why:
+///  A verbatim message keeps every text as given, each ending in a line break.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withFinalLineBreak = (text: string) => text.endsWith('\n') ? text : text + '\n';
+/// ```
+fn with_final_line_break(text: &String) -> String {
+    return if text.ends_with('\n') { text.clone() } else { format!("{text}\n") };
 }
 
 /// The lines of a message without those that start with the comment character, as `--cleanup=strip` drops them.
 pub fn strip_comment_lines(text: &str) -> String {
-    return text.split('\n').filter(|line| { return !line.starts_with('#'); }).collect::<Vec<&str>>().join("\n");
+    return text.split('\n').filter(is_not_comment_line).collect::<Vec<&str>>().join("\n");
 }
 
 /// What:
@@ -112,10 +185,10 @@ pub fn build_message(
     let cwd: &Path = invocation.cwd;
     let mut reused_author: Option<String> = None;
     let sources: Vec<String> = if let Some(file) = parsed.file.as_ref() {
-        match std::fs::read(cwd.join(file)).ok().and_then(|bytes| { return String::from_utf8(bytes).ok(); }) {
-            Some(text) => vec![text],
-            None => return Ok(None),
-        }
+        // A file that cannot be read, or is not text, gives no message.
+        let Ok(bytes) = std::fs::read(cwd.join(file)) else { return Ok(None) };
+        let Ok(text) = String::from_utf8(bytes) else { return Ok(None) };
+        vec![text]
     } else if let Some(revision) = parsed.reuse.as_deref() {
         let Some((author, message)) = reused_commit(context, cwd, revision)? else { return Ok(None) };
         reused_author = Some(author);
@@ -126,15 +199,15 @@ pub fn build_message(
             FixupKind::Fixup => "fixup!",
         };
         vec![format!("{prefix} {subject}")]
-    } else if parsed.messages.is_empty() && let Some(previous) = previous_message.filter(|_| { return parsed.amend; }) {
+    } else if parsed.messages.is_empty() && parsed.amend && let Some(previous) = previous_message {
         // An amend with no message option keeps the message of the commit it replaces.
         vec![previous.to_string()]
     } else {
         parsed.messages.clone()
     };
-    let texts: Vec<String> = if parsed.strip { sources.iter().map(|text| { return strip_comment_lines(text.as_str()); }).collect() } else { sources };
+    let texts: Vec<String> = if parsed.strip { sources.iter().map(String::as_str).map(strip_comment_lines).collect() } else { sources };
     let cleaned: Option<String> = if parsed.verbatim {
-        Some(texts.iter().map(|text| { return if text.ends_with('\n') { text.clone() } else { format!("{text}\n") }; }).collect::<Vec<String>>().join("\n"))
+        Some(texts.iter().map(with_final_line_break).collect::<Vec<String>>().join("\n"))
     } else {
         cleanup_message(texts.as_slice())
     };
@@ -145,7 +218,11 @@ pub fn build_message(
     };
     let mut trailers: Vec<String> = Vec::new();
     if parsed.signoff {
-        let who: &str = committer.split_once('>').map_or(committer, |(name_and_email, _)| { return &committer[..name_and_email.len() + 1]; });
+        // The name and email up to and including the `>`; the whole text when there is none.
+        let who: &str = match committer.split_once('>') {
+            Some((name_and_email, _time)) => &committer[..name_and_email.len() + 1],
+            None => committer,
+        };
         trailers.push(format!("Signed-off-by: {who}"));
     }
     trailers.extend(parsed.trailers.iter().cloned());
@@ -159,9 +236,15 @@ pub fn build_message(
     }
     let mut request: GitRequest = GitRequest::new(cwd, arguments.as_slice());
     request.input = Some(message.into_bytes());
-    let output = run_git(context, &request).map_err(|error| { return failed(format!("preparing the commit message failed: {error:?}")); })?;
+    let output = match run_git(context, &request) {
+        Ok(finished) => finished,
+        Err(error) => return Err(failed(format!("preparing the commit message failed: {error:?}"))),
+    };
     if output.code != Some(0) {
         return Ok(None);
     }
-    return Ok(String::from_utf8(output.stdout).ok().map(|trailed| { return Built { message: trailed, reused_author }; }));
+    return Ok(match String::from_utf8(output.stdout) {
+        Ok(trailed) => Some(Built { message: trailed, reused_author }),
+        Err(_not_text) => None,
+    });
 }

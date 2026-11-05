@@ -65,28 +65,85 @@ pub struct ClaimTime {
 
 /// Whether `text` is 32 hexadecimal digits, which is what a boot ID without dashes and a machine ID are.
 fn is_compact_hex_id(text: &str) -> bool {
-    return text.len() == BOOT_ID_LENGTH && text.bytes().all(|byte| { return byte.is_ascii_hexdigit(); });
+    return text.len() == BOOT_ID_LENGTH && text.as_bytes().iter().all(u8::is_ascii_hexdigit);
+}
+
+/// What:
+///  Whether a byte is a lowercase hexadecimal digit: `0` to `9` or `a` to `f`.
+/// Why:
+///  A machine ID is written in lowercase, so an uppercase text is no evidence of a machine.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLowercaseHexDigit = (byte: number) => /[0-9a-f]/.test(String.fromCharCode(byte));
+/// ```
+fn is_lowercase_hex_digit(byte: &u8) -> bool {
+    return byte.is_ascii_digit() || (b'a'..=b'f').contains(byte);
+}
+
+/// What:
+///  The boot ID of the current boot as the kernel states it, without dashes; empty when it cannot be read or is not 32 hexadecimal digits.
+/// Why:
+///  `current_boot_id` reads it once and keeps it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readBootId = () => { try { return readFileSync(BOOT_ID_PATH, 'utf8').trim().replaceAll('-', ''); } catch { return ''; } }
+/// ```
+fn read_boot_id() -> String {
+    let Ok(text) = std::fs::read_to_string("/proc/sys/kernel/random/boot_id") else {
+        return String::new();
+    };
+    let compact: String = text.trim().replace('-', "");
+    return if is_compact_hex_id(compact.as_str()) { compact } else { String::new() };
+}
+
+/// What:
+///  The machine ID of this host from the first of the usual files that holds one; empty when none does.
+/// Why:
+///  `current_machine_id` reads it once and keeps it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readMachineId = () => machineIdFrom(MACHINE_ID_PATHS);
+/// ```
+fn read_machine_id() -> String {
+    let mut paths: Vec<&Path> = Vec::new();
+    for path in MACHINE_ID_PATHS {
+        paths.push(Path::new(path));
+    }
+    return machine_id_from(paths.as_slice());
+}
+
+/// What:
+///  Whole seconds since the Unix epoch of a wall-clock time, zero when the time is before it.
+/// Why:
+///  A claim's reading carries wall-clock seconds, and a clock that reads before the epoch counts as the epoch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const secondsSinceEpoch = (time: Date) => Math.max(0, Math.floor(time.getTime() / 1000));
+/// ```
+fn seconds_since_epoch(time: SystemTime) -> u64 {
+    return match time.duration_since(UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_secs(),
+        Err(_before_the_epoch) => 0,
+    };
 }
 
 /// Whether `text` is a machine ID: 32 lowercase hexadecimal digits that are not all zero. An uppercase text, an all-zero one and
 ///  a fresh image's `uninitialized` are no evidence of a machine, and reading one as an ID would make hosts look like one machine.
 pub(crate) fn is_machine_id(text: &str) -> bool {
     return text.len() == BOOT_ID_LENGTH
-        && text.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); })
-        && text.bytes().any(|byte| { return byte != b'0'; });
+        && text.as_bytes().iter().all(is_lowercase_hex_digit)
+        && !text.trim_start_matches('0').is_empty();
 }
 
 /// The boot ID of this host's current boot, without dashes, or nothing when it cannot be read.
 pub(crate) fn current_boot_id() -> &'static str {
     static BOOT_ID: OnceLock<String> = OnceLock::new();
     return BOOT_ID
-        .get_or_init(|| {
-            let Ok(text) = std::fs::read_to_string("/proc/sys/kernel/random/boot_id") else {
-                return String::new();
-            };
-            let compact: String = text.trim().chars().filter(|character| { return *character != '-'; }).collect();
-            return if is_compact_hex_id(compact.as_str()) { compact } else { String::new() };
-        })
+        .get_or_init(read_boot_id)
         .as_str();
 }
 
@@ -116,10 +173,7 @@ pub(crate) fn current_machine_id() -> &'static str {
     }
     static MACHINE_ID: OnceLock<String> = OnceLock::new();
     return MACHINE_ID
-        .get_or_init(|| {
-            let paths: Vec<&Path> = MACHINE_ID_PATHS.iter().map(|path| { return Path::new(*path); }).collect();
-            return machine_id_from(paths.as_slice());
-        })
+        .get_or_init(read_machine_id)
         .as_str();
 }
 
@@ -135,7 +189,7 @@ impl ClaimTime {
         let monotonic_millis: u64 = capture_stamp() / 1_000_000;
         // Without a monotonic clock the boot ID would pair with a meaningless number, so the reading has none.
         let boot_id: String = if monotonic_millis == 0 { String::new() } else { String::from(current_boot_id()) };
-        let wall_seconds: u64 = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_secs(); });
+        let wall_seconds: u64 = seconds_since_epoch(SystemTime::now());
         return ClaimTime { machine_id: String::from(current_machine_id()), boot_id, monotonic_millis, wall_seconds };
     }
 
@@ -196,7 +250,7 @@ impl ClaimTime {
             machine_id: String::new(),
             boot_id: String::new(),
             monotonic_millis: 0,
-            wall_seconds: wall.duration_since(UNIX_EPOCH).map_or(0, |elapsed| { return elapsed.as_secs(); }),
+            wall_seconds: seconds_since_epoch(wall),
         };
     }
 

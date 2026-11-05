@@ -179,9 +179,10 @@ pub fn parse_transaction_owner(bytes: &[u8]) -> Option<TransactionOwner> {
         owner_identity: String::from(owner_identity),
         created_at: String::from(created_at),
         // A present field must be non-empty text; anything else leaves the PID to decide, as before the field.
-        owner_pid_namespace: string_field(&map, "ownerPidNamespace")
-            .filter(|namespace| { return !namespace.is_empty(); })
-            .map(String::from),
+        owner_pid_namespace: match string_field(&map, "ownerPidNamespace") {
+            Some(namespace) if !namespace.is_empty() => Some(String::from(namespace)),
+            _ => None,
+        },
     });
 }
 

@@ -1,0 +1,74 @@
+//! What:
+//!  Takes the index lock for a batch that is ready to land, notes the wait in the timing and the log, and cleans up when the lock is refused.
+//! Why:
+//!  It is a self-contained step of a landing, and a file of its own keeps `land_batch_body` short.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const held = await takeIndexLock(...)
+//! ```
+
+use std::time::Duration;
+use crate::service_land_git_steps_and_import_stream::{keep_unlanded, run};
+use crate::journald_native::Priority;
+use crate::service_journal::OPEN_EXTENSION;
+use crate::service_index_lock::{Announce, IndexLock, WaitNotes, acquire_noting_wait_within};
+use crate::service_timing::{LandTiming, wait_line};
+use crate::service_protocol::{CommitRequest, FailureCode};
+use crate::transaction_git::{GitContext, NO_REFLOG_SETTING};
+use std::path::Path;
+use std::time::Instant;
+
+/// What:
+///  Takes the index lock for a batch, noting how long it waited and who held it; when the lock is refused the intent is forgotten,
+///  the built commit is kept on a side ref and the scratch branch is deleted.
+/// Why:
+///  The lock is asked for after the objects and the intent are made, so it is held for the branch move and the index build only;
+///  a refusal leaves nothing that a restart of the service could land.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = await takeIndexLock(git, journal, lockCeiling, first, seq, announce, timing, newTip, scratch) // throws a failure code
+/// ```
+pub(crate) fn take_index_lock(
+    git: &GitContext,
+    journal: &Path,
+    lock_ceiling: Duration,
+    first: &CommitRequest,
+    seq: u64,
+    announce: &dyn Fn(Announce),
+    timing: &mut LandTiming,
+    new: &str,
+    scratch: &str,
+) -> Result<IndexLock, FailureCode> {
+    let repository: &Path = first.repository.as_path();
+    let waiting_since: Instant = Instant::now();
+    let mut notes: WaitNotes = WaitNotes::default();
+    let taken = acquire_noting_wait_within(first.index.as_path(), seq, lock_ceiling, announce, &mut notes);
+    let waited: std::time::Duration = waiting_since.elapsed();
+    timing.lock_wait += waited;
+    // A pass over the batch that found the lock free has nothing to add to what an earlier pass found held.
+    if notes.looks > 0 || timing.attempts == 1 {
+        timing.lock_holder.clone_from(&notes.holder);
+        timing.lock_notes = notes.clone();
+    }
+    // The wait is written down when it ends, not with the answer, so a landing that fails later still leaves it.
+    if let Some(line) = wait_line(seq, waited, &notes, taken.is_ok()) {
+        // A lock that was refused fails the commit, so the line stands out from a wait that ended in the lock.
+        let priority: Priority = if taken.is_ok() { Priority::Info } else { Priority::Error };
+        crate::service_timing::log_entry(priority, line.as_str(), &[("CLI_GIT_BATCH", seq.to_string())]);
+    }
+    match taken {
+        Ok(lock) => return Ok(lock),
+        Err(failure) => {
+            // Nothing moved: forget the intent, so a restart of the service cannot land the batch later (owner, 2026-11-03: "No,
+            //  keep it for a retry"), keep the built commit on a side ref the message names, and forget the scratch branch.
+            let _intent_removed = std::fs::remove_file(crate::service_journal::batch_path(journal, seq, OPEN_EXTENSION));
+            if failure.code == FailureCode::IndexInUse {
+                announce(Announce::Waiting(keep_unlanded(git, repository, seq, new)));
+            }
+            let _deleted = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch], None);
+            return Err(failure.code);
+        }
+    }
+}
