@@ -65,7 +65,9 @@ export function estimateAdvisorInputTokens(
 ): number {
   return Math.ceil(
     (options.systemPrompt
-      .length + ADVISOR_CONTEXT_SEPARATOR.length + options.contextText
+      .length
+      + ADVISOR_CONTEXT_SEPARATOR.length
+      + options.contextText
         .length)
       / TOKEN_ESTIMATE_CHARS_PER_TOKEN,
   );
