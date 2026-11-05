@@ -117,6 +117,15 @@ Recorded 2026-11-04T22:36:12-05:00 on the branch `feat/git-policy-cli-program-re
 - After the settings file is renamed in the repository (the last commit of the branch), a worktree still on the old lock runs
   the old wrapper, which reads only `cli-git.config.jsonc`: it sees no configuration and runs no policy until the lock moves.
   The `catalog-specifiers` workflow copes by choosing the program, word and settings name of the pinned release.
+- While worktrees on the old lock and worktrees on the new lock share one repository (the common Git directory), the new
+  wrapper renames the shared data folder and logs and the old wrapper then makes them again on its next save:
+  both names exist, every new-wrapper process says so once, and the audit log is split in two files until the last old install
+  is gone.
+  No data is lost; the plan's "Older installs" section did not say it.
+- Tests: a crash between the look and the rename is tested as a split of the two steps (`look`, then a fresh run), not with
+  an `strace` injected fault, because nothing is written before the rename, so no half state exists to inject into.
+  The units under their new names are exercised with the fixture service and the fake service manager only; a real `systemd`
+  start of them is not tested.
 - The link folder `.cache/cli-git-bin` is hard-coded in `package/mpm-shadow/cli/src/toolchain/scope.rs` and in
   `.config/mise/conf.d/20-env.toml`, so its rename belongs to step 3 with the lock.
 
