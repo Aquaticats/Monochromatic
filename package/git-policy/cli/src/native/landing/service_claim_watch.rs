@@ -74,15 +74,75 @@ pub struct ClaimWatch {
     failures: u32,
 }
 
+/// What:
+///  The value of one hexadecimal digit, nothing for a character that is not one.
+/// Why:
+///  `decode` turns the digits of a note into numbers before it pairs them into bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hexDigitValue = (digit: string) => /[0-9a-f]/i.test(digit) ? parseInt(digit, 16) : undefined;
+/// ```
+fn hex_digit_value(digit: char) -> Option<u32> {
+    return digit.to_digit(16);
+}
+
+/// What:
+///  The byte two hexadecimal digit values make, nothing when they do not fit one byte.
+/// Why:
+///  `decode` pairs the digits of a note, high digit first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byteOfDigitPair = ([high, low]: number[]) => high * 16 + low;
+/// ```
+fn byte_of_digit_pair(pair: &[u32]) -> Option<u8> {
+    return u8::try_from(pair[0] * 16 + pair[1]).ok();
+}
+
+/// What:
+///  A byte as two lowercase hexadecimal digits.
+/// Why:
+///  `encode` writes the bytes of a Git directory's path in hexadecimal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hexOfByte = (byte: number) => byte.toString(16).padStart(2, '0');
+/// ```
+fn hex_of_byte(byte: &u8) -> String {
+    return format!("{byte:02x}");
+}
+
+/// What:
+///  Reads a whole file.
+/// Why:
+///  `restored` and `retry` hand it to the versions that take the reading as a parameter, so a control can make a read fail.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readFile = (path: string) => fs.readFileSync(path);
+/// ```
+fn read_file(path: &Path) -> std::io::Result<Vec<u8>> {
+    return std::fs::read(path);
+}
+
 /// What a file holds, or why it holds nothing.
 fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
-    let text: &str = std::str::from_utf8(bytes).map_err(|_| { return String::from("the file is not text"); })?;
-    let hex: &str = text.strip_prefix(FORMAT_PREFIX).and_then(|rest| { return rest.strip_suffix('\n'); }).ok_or_else(|| { return String::from("the file does not start with the format words or lacks its last newline"); })?;
-    if hex.len() % 2 != 0 || !hex.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }) {
+    let text: &str = match std::str::from_utf8(bytes) {
+        Ok(found) => found,
+        Err(_not_text) => return Err(String::from("the file is not text")),
+    };
+    let Some(after_prefix) = text.strip_prefix(FORMAT_PREFIX) else {
+        return Err(String::from("the file does not start with the format words or lacks its last newline"));
+    };
+    let Some(hex) = after_prefix.strip_suffix('\n') else {
+        return Err(String::from("the file does not start with the format words or lacks its last newline"));
+    };
+    if hex.len() % 2 != 0 || !hex.as_bytes().iter().all(u8::is_ascii_hexdigit) {
         return Err(String::from("the path is not written in hexadecimal"));
     }
-    let digits: Vec<u32> = hex.chars().filter_map(|digit| { return digit.to_digit(16); }).collect();
-    let raw: Vec<u8> = digits.chunks(2).filter_map(|pair| { return u8::try_from(pair[0] * 16 + pair[1]).ok(); }).collect();
+    let digits: Vec<u32> = hex.chars().filter_map(hex_digit_value).collect();
+    let raw: Vec<u8> = digits.chunks(2).filter_map(byte_of_digit_pair).collect();
     let path: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(raw));
     if !path.is_absolute() || path.as_os_str().as_bytes().contains(&0) {
         return Err(String::from("the path is not absolute"));
@@ -92,7 +152,7 @@ fn decode(bytes: &[u8]) -> Result<PathBuf, String> {
 
 /// The text of the file of `git_dir`: the format words and the bytes of the path in hexadecimal, so that any path is kept as it is.
 fn encode(git_dir: &Path) -> String {
-    let hex: String = git_dir.as_os_str().as_bytes().iter().map(|byte| { return format!("{byte:02x}"); }).collect();
+    let hex: String = git_dir.as_os_str().as_bytes().iter().map(hex_of_byte).collect();
     return format!("{FORMAT_PREFIX}{hex}\n");
 }
 
@@ -119,7 +179,7 @@ impl ClaimWatch {
     /// new ClaimWatch(dir, instance).scan()
     /// ```
     pub fn restored(directory: &Path, instance: Option<&str>) -> Self {
-        return Self::restored_reading(directory, instance, &|path: &Path| { return std::fs::read(path); });
+        return Self::restored_reading(directory, instance, &read_file);
     }
 
     /// `restored` with the reading of the files given, so that a control can make one fail.
@@ -152,14 +212,19 @@ impl ClaimWatch {
 
     /// Whether `git_dir` is a directory of another instance, which this journal does not hold.
     fn is_foreign(&self, git_dir: &Path) -> bool {
-        return self.instance.as_deref().is_some_and(|mine| { return instance_of(git_dir) != mine; });
+        return match self.instance.as_deref() {
+            Some(mine) => instance_of(git_dir) != mine,
+            None => false,
+        };
     }
 
     /// Writes `git_dir` down unless this process has done so. A write that fails is said and kept for `retry`; the caller goes on
     /// with the work either way, because a failed note must not stop a backup.
     pub fn remember(&mut self, git_dir: &Path) {
-        if self.known.iter().chain(self.unwritten.iter()).any(|known| { return known == git_dir; }) {
-            return;
+        for known in self.known.iter().chain(self.unwritten.iter()) {
+            if known == git_dir {
+                return;
+            }
         }
         if self.is_foreign(git_dir) {
             crate::service_warn!("{} belongs to another instance and is not kept for a restart", git_dir.display());
@@ -182,7 +247,7 @@ impl ClaimWatch {
     /// Tries again what failed: the files that could not be written, and the reading of the store. Gives the directories this made
     /// known, which the caller looks at.
     pub fn retry(&mut self) -> Vec<PathBuf> {
-        return self.retry_reading(&|path: &Path| { return std::fs::read(path); });
+        return self.retry_reading(&read_file);
     }
 
     /// `retry` with the reading of the files given.
@@ -231,7 +296,7 @@ impl ClaimWatch {
                     continue;
                 }
             };
-            if path.extension().and_then(|extension| { return extension.to_str(); }) != Some(WATCH_EXTENSION) {
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some(WATCH_EXTENSION) {
                 continue;
             }
             let git_dir: PathBuf = match read(path.as_path()) {
@@ -283,7 +348,9 @@ impl ClaimWatch {
 /// Writes the file of `git_dir` under the first name that is free or already holds this directory. A file that holds no whole path is
 /// replaced; one that holds another directory's path is left, and the next name is tried.
 fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
-    create_private_directory_all(directory).map_err(|error| { return format!("creating the note directory failed: {error}"); })?;
+    if let Err(error) = create_private_directory_all(directory) {
+        return Err(format!("creating the note directory failed: {error}"));
+    }
     let text: String = encode(git_dir);
     let mut attempt: u32 = 0;
     loop {
@@ -293,7 +360,11 @@ fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match std::fs::read(path.as_path()) {
                 Ok(held) if held == text.as_bytes() => return Ok(()),
                 Ok(held) if decode(held.as_slice()).is_ok() => attempt = attempt.saturating_add(1),
-                Ok(_) => std::fs::remove_file(path.as_path()).map_err(|removal| { return format!("removing the damaged note {} failed: {removal}", path.display()); })?,
+                Ok(_) => {
+                    if let Err(removal) = std::fs::remove_file(path.as_path()) {
+                        return Err(format!("removing the damaged note {} failed: {removal}", path.display()));
+                    }
+                }
                 Err(read_error) => return Err(format!("reading the note {} failed: {read_error}", path.display())),
             },
             Err(error) => return Err(format!("writing the note failed: {error}")),
