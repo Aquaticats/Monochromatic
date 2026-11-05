@@ -111,20 +111,25 @@ pub mod fix_loop;
 ///  its library root and executable roots.
 mod layout_crate_roots;
 /// The file rule:
-///  no loops between the files of a folder, and a top doc that lists them in dependency order.
+///  no loops between the files of a folder,
+///  and a top doc that lists them in dependency order.
 mod layout_file_order;
 /// The shape of a finding of a layout rule.
 mod layout_finding;
 /// The folder rule:
-///  `uses` links that match the folders the code uses, and no loop between folders.
+///  `uses` links that match the folders the code uses,
+///  and no loop between folders.
 mod layout_folder_links;
-/// The `uses` folder of one source folder, entry by entry.
+/// The `uses` folder of one source folder,
+///  entry by entry.
 mod layout_link_entries;
 /// Loops in a directed graph.
 mod layout_loops;
-/// The module tree of a package, built by following `mod` lines.
+/// The module tree of a package,
+///  built by following `mod` lines.
 mod layout_module_tree;
-/// Uses of one module by another, with a proving reference.
+/// Uses of one module by another,
+///  with a proving reference.
 mod layout_module_uses;
 /// Module paths resolved through the module tree.
 mod layout_path_resolution;

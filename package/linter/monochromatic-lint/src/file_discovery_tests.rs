@@ -132,11 +132,12 @@ fn discovery_errors_are_not_empty_successes() {
     assert!(!supported_source(Path::new("config/other.yml")));
 }
 
-/// The `uses` links of the layout rules point to source folders, and a link to a folder that holds a link back
-/// makes the tree infinite when followed.
+/// The `uses` links of the layout rules point to source folders,
+/// and a link to a folder that holds a link back makes the tree infinite when followed.
 /// Discovery must list each real file once and enter no link,
 /// whether a link names a folder or a single file,
-/// so a package with many `uses` links is linted once, not once per link.
+/// so a package with many `uses` links is linted once,
+/// not once per link.
 #[cfg(unix)]
 #[test]
 fn layout_uses_links_are_never_entered_by_the_walk() {

@@ -60,10 +60,12 @@ pub struct RustRuleSettings {
     pub tests_in_sidecars: Option<Severity>,
     /// Type-aware closure check that runs the Dylint library once per owning Cargo package.
     pub avoidable_closure: Option<ClosureLint>,
-    /// Require every source folder to link, in its `uses/` folder, to exactly the folders its code uses.
+    /// Require every source folder to link,
+    ///  in its `uses/` folder,
+    ///  to exactly the folders its code uses.
     pub folder_uses_links: Option<Severity>,
-    /// Require the files of one folder to use each other in no loop and to be listed in the folder's top doc
-    ///  in an order where each file uses only files listed before it.
+    /// Require the files of one folder to use each other in no loop,
+    ///  and to be listed in the folder's top doc in an order where each file uses only files listed before it.
     pub file_order_in_folder: Option<Severity>,
 }
 
