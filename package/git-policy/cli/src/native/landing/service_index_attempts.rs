@@ -217,12 +217,18 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             if let Some(text) = looked.ending {
                 announce(Announce::Waiting(text));
             }
-            announce(Announce::Holder(looked.who.unwrap_or_else(|| { return String::from("Another program"); })));
+            announce(Announce::Holder(match looked.who {
+                Some(who) => who,
+                None => String::from("Another program"),
+            }));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
         if at_ceiling && proof != Proved::Gone {
             announce(Announce::Waiting(ceiling_line(lock, looked.blocker.as_str(), waited.as_secs(), COMMIT_NOT_MADE)));
-            announce(Announce::Holder(looked.who.unwrap_or_else(|| { return String::from("Another program"); })));
+            announce(Announce::Holder(match looked.who {
+                Some(who) => who,
+                None => String::from("Another program"),
+            }));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
         match watch.as_ref() {

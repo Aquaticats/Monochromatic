@@ -1,5 +1,8 @@
 //! Controls for the service's after-commit work consumer, with handlers that record what they are asked.
 
+use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
+use crate::push_retry::PushRetries;
+use crate::service_work_run_round::run_round;
 use super::*;
 use crate::push_failure_notice::{push_failure_text, take_push_failures};
 use crate::push_retry::FIRST_PAUSE;

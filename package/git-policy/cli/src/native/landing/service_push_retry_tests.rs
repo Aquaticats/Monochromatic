@@ -11,6 +11,11 @@
 //! ```
 #![cfg(unix)]
 
+use std::time::Instant;
+use crate::work_item::WorkKind;
+use crate::push_retry::PushRetries;
+use crate::parallel_budget::HostResources;
+use crate::service_work_run_round::run_planned_round;
 use super::*;
 use crate::push_failure_notice::notice_directory;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};

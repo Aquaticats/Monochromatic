@@ -124,6 +124,15 @@ pub mod service_claim_renewal;
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
+/// The kinds, handlers, acceptance rules, settling and replanning of the service's work.
+pub mod service_work_handlers_replanning_and_acceptance;
+
+/// Drains the pending items of one work directory.
+pub mod service_work_drain_pending_claims;
+
+/// Runs one round of the service's work over several directories.
+pub mod service_work_run_round;
+
 /// The drain of several repositories of one round, side by side and without a lock.
 pub mod service_round;
 

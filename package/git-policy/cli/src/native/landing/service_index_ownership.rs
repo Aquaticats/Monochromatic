@@ -87,7 +87,7 @@ thread_local! {
 /// Records that a lock this thread held could not be settled,
 /// and stays where it is.
 pub fn note_unsettled() {
-    UNSETTLED.with(|count| { count.set(count.get() + 1); });
+    UNSETTLED.set(UNSETTLED.get() + 1);
 }
 
 /// How many locks the holders of this thread could not settle.
