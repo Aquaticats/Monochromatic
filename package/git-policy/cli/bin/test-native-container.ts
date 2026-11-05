@@ -27,6 +27,7 @@ import {
 import { ensureTestBase, } from './native-test-base.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
+import { repositorySettingsFileName, } from './native-test-settings-file.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
 import {
   NativeVerificationError,
@@ -129,6 +130,7 @@ await writeFile(
   testContainerfile({
     base,
     jobs: parallelJobs(containerLimits),
+    settingsFile: await repositorySettingsFileName(),
   }),
 );
 await runCommand({

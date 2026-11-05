@@ -45,10 +45,23 @@ const namesSource = readFileSync(
  @throws Error when the declaration is not found
  */
 function currentCommandWord(source: string): string {
-  const match = (/pub const COMMAND_WORD: RenamedName = RenamedName \{\s*current: "([^"]+)"/u).exec(source,);
-  if (match?.[1] === undefined)
+  const declaration = 'pub const COMMAND_WORD: RenamedName = RenamedName {';
+  const declared = source.indexOf(declaration,);
+  const keyword = 'current: "';
+  const keywordAt = source.indexOf(
+    keyword,
+    declared,
+  );
+  if ((declared === (-1)) || (keywordAt === (-1)))
     throw new Error('wrapper_names_old_and_new.rs no longer declares COMMAND_WORD with a current spelling');
-  return match[1];
+  const wordStart = keywordAt + keyword.length;
+  return source.slice(
+    wordStart,
+    source.indexOf(
+      '"',
+      wordStart,
+    ),
+  );
 }
 
 /**

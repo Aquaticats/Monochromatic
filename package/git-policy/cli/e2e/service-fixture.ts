@@ -68,10 +68,19 @@ const POLL_MILLISECONDS = 10;
  ```
  */
 export function scenarioRuntimeDirectory(root: string,): string {
+  /**
+   Digest of the scenario root, which names its runtime directory.
+   */
+  const hash = createHash('sha256',);
+  hash.update(root,);
+  /**
+   Hexadecimal text of the digest.
+   */
+  const digest = hash.digest('hex',);
   return join(
     dirname(root,),
     'r',
-    createHash('sha256',).update(root,).digest('hex',).slice(
+    digest.slice(
       0,
       RUNTIME_NAME_HEXADECIMAL_DIGITS,
     ),

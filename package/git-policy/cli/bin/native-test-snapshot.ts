@@ -23,6 +23,10 @@ import { copyWrapperSnapshot, } from './native-wrapper-snapshot.ts';
 export async function copySourceSnapshot({ context, }: {
   readonly context: string;
 },): Promise<void> {
+  /**
+   The repository's settings file name: the current name, or the earlier one this repository keeps until the lock step.
+   */
+  const settingsFile = await repositorySettingsFileName();
   await copyWrapperSnapshot({
     context,
     additionalEntries: [
@@ -35,10 +39,13 @@ export async function copySourceSnapshot({ context, }: {
       },
       // The configuration control in `src/native/config/config_repository_tests.rs` reads the repository's own file.
       {
-        from: resolve('../../../', repositorySettingsFileName(),),
+        from: resolve(
+          '../../../',
+          settingsFile,
+        ),
         to: join(
           context,
-          repositorySettingsFileName(),
+          settingsFile,
         ),
       },
     ],

@@ -148,7 +148,7 @@ function disagreements({
   ] as const) {
     const sorted = [...listed ?? [],].toSorted();
     const lockPinsEarlierRelease = (listed === installed) && (JSON.stringify(sorted) === JSON.stringify(earlierExecutables));
-    if ((JSON.stringify(sorted) !== JSON.stringify(declared)) && !lockPinsEarlierRelease)
+    if ((JSON.stringify(sorted) !== JSON.stringify(declared,)) && (!lockPinsEarlierRelease))
       found.push(`${label} ${JSON.stringify(sorted)}, but Cargo.toml declares ${JSON.stringify(declared)}`);
   }
   return found;
