@@ -157,6 +157,14 @@ The linked source selections were opened in `agent-browser`
 and matched against their rendered source text.
 The browser was closed after those checks.
 
+Scoped Markdown lint passed with
+`mise run lint:monochromatic-lint -- doc/planning/pnpr-alpha17-upgrade.md`.
+Pandoc rendered the GFM document to HTML with `--fail-if-warnings` and exited successfully.
+The rendered headings,
+links,
+code spans,
+and lists were inspected.
+
 [oidc-fields]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/auth/src/oidc/provider_metadata.rs#L28-L42
 [oidc-discovery]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/auth/src/oidc/provider_metadata.rs#L77-L102
 [oidc-claims]: https://github.com/pnpm/pnpm/blob/6b5b8ac53a6120a644c3693ecac8aaed8af88174/pnpr/crates/config/src/oidc.rs#L62-L76
