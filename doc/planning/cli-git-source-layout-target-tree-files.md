@@ -1,36 +1,24 @@
 # Target tree of the Git wrapper, file by file
 
 Companion to [`cli-git-source-layout-target-tree.md`](cli-git-source-layout-target-tree.md);
-read that file first.
-Generated from the table in [`cli-git-source-layout-groups.json`](cli-git-source-layout-groups.json)
-(key `target`),
-the file-to-file references of `main` at `f44d921e24` (2026-11-04T20:45:14-05:00) with the named changes
-applied,
-and the one line each file's own top doc gives.
+read that file first. Generated from the table in [`cli-git-source-layout-groups.json`](cli-git-source-layout-groups.json)
+(key `target`), the file-to-file references of `main` at `f44d921e24` (2026-11-04T20:45:14-05:00) with the named changes
+applied, and the one line each file's own top doc gives.
 
-How to read one entry:
-the new file name,
-then `<-` and the old path under `package/git-policy/cli/`,
-then the
-explanation (the first sentence of the old top doc,
-cut at about a hundred characters;
-the new top doc will say more).
+How to read one entry: the new file name, then `<-` and the old path under `package/git-policy/cli/`, then the
+explanation (the first sentence of the old top doc, cut at about a hundred characters; the new top doc will say more).
 Within a folder (or within `src/` for a crate with one folder) files are in the dependency order the top doc must list:
-every file uses only files above it.
-Files marked `NEW` are created by the changes of the main document.
+every file uses only files above it. Files marked `NEW` are created by the changes of the main document.
 A `uses/` line lists the folders of the same crate that the folder uses.
 
 ## The crates, bottom first
 
 ### git-environment-variables
 
-Package `package/git-policy/git-environment-variables`,
-crate `monochromatic-git-policy-git-environment-variables`.
-Says which environment variables the wrapper adds when it starts the real Git,
-and reads them back.
+Package `package/git-policy/git-environment-variables`, crate `monochromatic-git-policy-git-environment-variables`.
+Says which environment variables the wrapper adds when it starts the real Git, and reads them back.
 
-Depends on crates:
-none.
+Depends on crates: none.
 
 ```text
 package/git-policy/git-environment-variables/src/
@@ -41,13 +29,10 @@ package/git-policy/git-environment-variables/src/
 
 ### git-index-file
 
-Package `package/git-policy/git-index-file`,
-crate `monochromatic-git-policy-git-index-file`.
-Reads and writes the index file that Git keeps in the hidden `.git` folder (the list of files in the next commit),
-with its extensions.
+Package `package/git-policy/git-index-file`, crate `monochromatic-git-policy-git-index-file`.
+Reads and writes the index file that Git keeps in the hidden `.git` folder (the list of files in the next commit), with its extensions.
 
-Depends on crates:
-none.
+Depends on crates: none.
 
 ```text
 package/git-policy/git-index-file/src/
@@ -78,14 +63,10 @@ package/git-policy/git-index-file/src/
 
 ### text-time-and-log-line-formats
 
-Package `package/git-policy/text-time-and-log-line-formats`,
-crate `monochromatic-git-policy-text-time-and-log-line-formats`.
-Writes text,
-time stamps,
-JSON records and warning lines the way JavaScript and the old TypeScript tools write them.
+Package `package/git-policy/text-time-and-log-line-formats`, crate `monochromatic-git-policy-text-time-and-log-line-formats`.
+Writes text, time stamps, JSON records and warning lines the way JavaScript and the old TypeScript tools write them.
 
-Depends on crates:
-none.
+Depends on crates: none.
 
 ```text
 package/git-policy/text-time-and-log-line-formats/src/
@@ -113,15 +94,10 @@ package/git-policy/text-time-and-log-line-formats/src/
 
 ### safe-file-saving
 
-Package `package/git-policy/safe-file-saving`,
-crate `monochromatic-git-policy-safe-file-saving`.
-Saves a file so a crash never leaves half of it,
-makes private scratch places,
-and cleans up paths.
+Package `package/git-policy/safe-file-saving`, crate `monochromatic-git-policy-safe-file-saving`.
+Saves a file so a crash never leaves half of it, makes private scratch places, and cleans up paths.
 
-Depends on crates:
-`git-environment-variables`,
-`text-time-and-log-line-formats`.
+Depends on crates: `git-environment-variables`, `text-time-and-log-line-formats`.
 
 ```text
 package/git-policy/safe-file-saving/src/
@@ -146,15 +122,10 @@ package/git-policy/safe-file-saving/src/
 
 ### read-git-files-without-git
 
-Package `package/git-policy/read-git-files-without-git`,
-crate `monochromatic-git-policy-read-git-files-without-git`.
-Answers questions about a repository by reading the files in `.git` directly,
-which is faster than starting Git.
+Package `package/git-policy/read-git-files-without-git`, crate `monochromatic-git-policy-read-git-files-without-git`.
+Answers questions about a repository by reading the files in `.git` directly, which is faster than starting Git.
 
-Depends on crates:
-`git-environment-variables`,
-`git-index-file`,
-`safe-file-saving`.
+Depends on crates: `git-environment-variables`, `git-index-file`, `safe-file-saving`.
 
 ```text
 package/git-policy/read-git-files-without-git/src/
@@ -229,14 +200,10 @@ package/git-policy/read-git-files-without-git/src/
 
 ### starting-and-watching-programs
 
-Package `package/git-policy/starting-and-watching-programs`,
-crate `monochromatic-git-policy-starting-and-watching-programs`.
-Starts another program,
-tells which programs are running,
-and ends one that stops making progress.
+Package `package/git-policy/starting-and-watching-programs`, crate `monochromatic-git-policy-starting-and-watching-programs`.
+Starts another program, tells which programs are running, and ends one that stops making progress.
 
-Depends on crates:
-`text-time-and-log-line-formats`.
+Depends on crates: `text-time-and-log-line-formats`.
 
 ```text
 package/git-policy/starting-and-watching-programs/src/
@@ -306,14 +273,10 @@ package/git-policy/starting-and-watching-programs/src/
 
 ### typed-command-reader
 
-Package `package/git-policy/typed-command-reader`,
-crate `monochromatic-git-policy-typed-command-reader`.
-Reads the words typed after `git` the way Git reads them,
-plus the words meant for this wrapper.
+Package `package/git-policy/typed-command-reader`, crate `monochromatic-git-policy-typed-command-reader`.
+Reads the words typed after `git` the way Git reads them, plus the words meant for this wrapper.
 
-Depends on crates:
-`git-environment-variables`,
-`starting-and-watching-programs`.
+Depends on crates: `git-environment-variables`, `starting-and-watching-programs`.
 
 ```text
 package/git-policy/typed-command-reader/src/
@@ -396,20 +359,10 @@ package/git-policy/typed-command-reader/src/
 
 ### start-the-real-git
 
-Package `package/git-policy/start-the-real-git`,
-crate `monochromatic-git-policy-start-the-real-git`.
-Finds the real `git` program on the computer,
-starts it,
-and answers some of its questions without starting it.
+Package `package/git-policy/start-the-real-git`, crate `monochromatic-git-policy-start-the-real-git`.
+Finds the real `git` program on the computer, starts it, and answers some of its questions without starting it.
 
-Depends on crates:
-`git-environment-variables`,
-`git-index-file`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`.
+Depends on crates: `git-environment-variables`, `git-index-file`, `read-git-files-without-git`, `safe-file-saving`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `typed-command-reader`.
 
 ```text
 package/git-policy/start-the-real-git/src/
@@ -486,17 +439,10 @@ package/git-policy/start-the-real-git/src/
 
 ### wrapper-settings
 
-Package `package/git-policy/wrapper-settings`,
-crate `monochromatic-git-policy-wrapper-settings`.
-Reads `cli-git.config.jsonc`,
-Git's own settings,
-and the hooks a repository configures.
+Package `package/git-policy/wrapper-settings`, crate `monochromatic-git-policy-wrapper-settings`.
+Reads `cli-git.config.jsonc`, Git's own settings, and the hooks a repository configures.
 
-Depends on crates:
-`safe-file-saving`,
-`start-the-real-git`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`.
+Depends on crates: `safe-file-saving`, `start-the-real-git`, `text-time-and-log-line-formats`, `typed-command-reader`.
 
 ```text
 package/git-policy/wrapper-settings/src/
@@ -542,16 +488,10 @@ package/git-policy/wrapper-settings/src/
 
 ### commit-candidate-content
 
-Package `package/git-policy/commit-candidate-content`,
-crate `monochromatic-git-policy-commit-candidate-content`.
+Package `package/git-policy/commit-candidate-content`, crate `monochromatic-git-policy-commit-candidate-content`.
 Loads the exact bytes a commit would save and scans them for forbidden strings.
 
-Depends on crates:
-`read-git-files-without-git`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`wrapper-settings`.
+Depends on crates: `read-git-files-without-git`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `wrapper-settings`.
 
 ```text
 package/git-policy/commit-candidate-content/src/
@@ -610,23 +550,199 @@ package/git-policy/commit-candidate-content/src/
       Which engine failure code each failure of the candidate and scanner layers carries.
 ```
 
+### commit-service-messages
+
+Package `package/git-policy/commit-service-messages`, crate `monochromatic-git-policy-commit-service-messages`.
+Defines the messages the wrapper and the background commit service send each other, one JSON object per line, and names a worktree's service.
+
+Depends on crates: none.
+
+```text
+package/git-policy/commit-service-messages/src/
+  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
+  messages_between_the_wrapper_and_the_commit_service/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    review_gateway_credential.rs  <- src/native/service/service_review_key.rs
+      The gateway credential of the standards review as it travels from the wrapper to the service: a value that prints as
+    service_protocol_messages_and_name_checks.rs  <- src/native/service/service_protocol_messages_and_name_checks.rs
+      The messages between the wrapper and the resident commit service as typed values, and the checks on the names they ...
+    service_protocol_decode_lines_to_messages.rs  <- src/native/service/service_protocol_decode_lines_to_messages.rs
+      Reads one line of the protocol as a client message or a service message, checking every field.
+    service_protocol_encode_messages_to_lines.rs  <- src/native/service/service_protocol_encode_messages_to_lines.rs
+      Writes a client message or a service message as one JSON object on one line.
+    service_protocol.rs  <- src/native/service/service_protocol.rs
+      The messages between the wrapper and the resident commit service, one JSON object per line.
+  naming_the_service_of_one_worktree/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    service_instance.rs  <- src/native/service/service_instance.rs
+      Which commit service instance belongs to a worktree: a name made from the worktree's own Git directory, and the
+```
+
+### system-journal-entries
+
+Package `package/git-policy/system-journal-entries`, crate `monochromatic-git-policy-system-journal-entries`.
+Sends log entries to the systemd journal over its native socket.
+
+Depends on crates: `text-time-and-log-line-formats`.
+
+```text
+package/git-policy/system-journal-entries/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  where_journal_entries_are_sent.rs  <- src/native/service/journald_native_socket_target.rs
+    The address the native journal entries are sent to: the journal's own socket, or a path or abstract name set by a ...
+  writing_to_the_system_journal.rs  <- src/native/service/journald_native.rs
+    The service's way into the journal: the native journal protocol over a datagram socket when the service's standard
+  journal_entry_from_the_wrapper.rs  <- src/native/service/client_journal.rs
+    One entry from the wrapper a person ran to the journal, as a datagram on the native socket, sent without waiting and
+```
+
+### commit-service-log-lines
+
+Package `package/git-policy/commit-service-log-lines`, crate `monochromatic-git-policy-commit-service-log-lines`.
+Writes the lines that say where time went in a commit and which Git runs the service started.
+
+Depends on crates: `commit-service-messages`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`, `text-time-and-log-line-formats`.
+
+```text
+package/git-policy/commit-service-log-lines/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  commit_timing.rs  <- src/native/commit/commit_timing.rs
+    The record of where one wrapped `git commit` spent its time
+  service_timing.rs  <- src/native/service/service_timing.rs
+    The lines the resident commit service writes to its log (standard error
+  inner_git_words.rs  <- src/native/worktree/inner_git_words.rs
+    Where the words of a Git run the wrapper or the service started on its own go, now that none of those runs carries
+```
+
+### crash-points-for-tests
+
+Package `package/git-policy/crash-points-for-tests`, crate `monochromatic-git-policy-crash-points-for-tests`.
+Lets a test stop the program at a named step by setting an environment variable.
+
+Depends on crates: `starting-and-watching-programs`, `text-time-and-log-line-formats`.
+
+```text
+package/git-policy/crash-points-for-tests/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  fault_points_the_service_can_be_told_to_hit.rs  <- src/native/service/service_fault.rs
+    Test-only fault points of the resident service: `CLI_GIT_TEST_ONLY_SERVICE_FAULT=<point>` ends the service with
+  phase_markers_for_crash_tests.rs  <- src/native/transaction/transaction_phase.rs
+    Test-only phase markers of the isolated merge and of a commit headed for the service, for crash and interleaving ...
+```
+
+### durable-work-items
+
+Package `package/git-policy/durable-work-items`, crate `monochromatic-git-policy-durable-work-items`.
+Keeps small files that say "this landed commit still needs a push" so a crash loses nothing.
+
+Depends on crates: `commit-service-log-lines`, `safe-file-saving`.
+
+```text
+package/git-policy/durable-work-items/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  claim_time.rs  <- src/native/landing/claim_time.rs
+    A reading of the clocks a claim's lease is judged by: the machine and the boot the host is in, the host's monotonic ...
+  work_item_state_directories_and_claim_names.rs  <- src/native/landing/work_item_state_directories_and_claim_names.rs
+    The folders an item moves through (`pending`, `claimed`, `recovering`, `done`, `failed`), the names of the claim files
+  work_item.rs  <- src/native/landing/work_item.rs
+    The durable work-item record: a small file in the Git directory that says "this landed object needs this
+  work_item_recovery.rs  <- src/native/landing/work_item_recovery.rs
+    The recovery half of the work-item record
+```
+
+### rules-about-git-command-lines
+
+Package `package/git-policy/rules-about-git-command-lines`, crate `monochromatic-git-policy-rules-about-git-command-lines`.
+Decides, from the words typed, whether a command may run here and what words to add.
+
+Depends on crates: `start-the-real-git`, `typed-command-reader`.
+
+```text
+package/git-policy/rules-about-git-command-lines/src/
+  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
+  rules_that_add_flags_to_a_command/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    rule_add_names_explicitly.rs  <- src/native/command/rule_add_explicit.rs
+      Pure decision of the add-explicit policy
+    adding_words_to_a_command_line.rs  <- src/native/command/rule_argument_rewrite.rs
+      The shared result and builder of fixed transforms that add tokens to a command line.
+    rule_push_all_or_nothing.rs  <- src/native/command/rule_atomic_push.rs
+      The pure decision of the atomic-push transform
+    rule_status_hints.rs  <- src/native/command/rule_status_hints.rs
+      The pure decision of the status-hints transform
+  rules_about_what_a_commit_may_contain/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    uses/ -> rules_that_add_flags_to_a_command
+    why_a_push_scope_is_unknown.rs  <- src/native/push/manual_push_cause.rs
+      Why a manual push's scope could not be established, as a cause the hint is chosen by.
+    is_the_index_the_same_as_head.rs  <- src/native/commit/rule_commit_index.rs
+      The pure core of the index-against-`HEAD` check used by the commit-only transform.
+    messages_of_the_commit_only_rule.rs  <- src/native/commit/rule_commit_only_message.rs
+      The user-facing diagnostics of the commit-only transform.
+    rule_commit_only_what_was_named.rs  <- src/native/commit/rule_commit_only.rs
+      The pure decision of the commit-only transform
+    is_a_merge_or_rebase_in_progress.rs  <- src/native/commit/rule_commit_sequencer.rs
+      The pure core of the "is a merge
+  rules_about_where_a_command_may_run/
+    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+    rule_branch_worktree_only.rs  <- src/native/command/rule_branch_worktree.rs
+      Pure decision of the branch-worktree-only policy
+    rejection_texts_of_the_linked_worktree_rule.rs  <- src/native/command/rule_linked_worktree_messages.rs
+      The rejection texts of the linked-worktree policy: outside any worktree, in the main worktree, and in a
+    does_this_worktree_hold_uncommitted_state.rs  <- src/native/command/rule_worktree_dirty.rs
+      The question "does this worktree hold uncommitted state?" as one Git query and its reading.
+    rule_linked_worktree_only.rs  <- src/native/command/rule_linked_worktree.rs
+      Pure decision of the linked-worktree-only policy
+    rule_require_root.rs  <- src/native/command/rule_require_root.rs
+      Pure decision of the require-root policy
+```
+
+### policy-engine
+
+Package `package/git-policy/policy-engine`, crate `monochromatic-git-policy-policy-engine`.
+Runs the configured policies in order for one point in a commit or push, and settles their corrections.
+
+Depends on crates: `commit-candidate-content`, `read-git-files-without-git`, `rules-about-git-command-lines`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `typed-command-reader`, `wrapper-settings`.
+
+```text
+package/git-policy/policy-engine/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  messages_as_json_lines.rs  <- src/native/policy/diagnostics.rs
+    Render wrapper diagnostics as the JSONL events callers already parse.
+  hints_after_a_finding.rs  <- src/native/policy/event_hints.rs
+    The hint that follows a finding, an engine failure or a warn-unsafe notice: a guess at what the person was
+  repository_path_in_an_event.rs  <- src/native/policy/event_path.rs
+    A repository path as an event reports it
+  may_a_fix_change_an_unselected_file.rs  <- src/native/dependent_version/policy_added_path.rs
+    Whether a direct fix may change a tracked file it did not select, and the `patch-conflict` message when it may not.
+  points_at_which_policies_run.rs  <- src/native/policy/policy_trigger.rs
+    The lifecycle points at which policies run
+  events_of_a_policy_pass.rs  <- src/native/policy/policy_events.rs
+    The events one policy pass produces
+  running_policies_in_order.rs  <- src/native/policy/policy_engine.rs
+    Run shipped policies in registry order for one lifecycle point and settle the
+  repository_facts_policies_need.rs  <- src/native/repo_read/repository_facts.rs
+    The repository facts policies and fixed transforms need
+  content_offered_to_policies.rs  <- src/native/policy/policy_content.rs
+    What one lifecycle offers the content policies
+  repeating_a_pass_until_it_settles.rs  <- src/native/policy/policy_convergence.rs
+    The bounded loop that repeats a whole policy pass after corrections changed the
+  fixed_changes_to_a_command.rs  <- src/native/policy/policy_transforms.rs
+    The fixed argument transforms of a forwarded command
+  work_not_ported_yet.rs  <- src/native/policy/unported.rs
+    The work of the installed cli-git that this executable does not do yet
+```
+
 ### standards-review-log
 
-Package `package/git-policy/standards-review-log`,
-crate `monochromatic-git-policy-standards-review-log`.
+Package `package/git-policy/standards-review-log`, crate `monochromatic-git-policy-standards-review-log`.
 Reviews landed commits against the written standards with one HTTPS call and keeps the log of the answers.
 
-Depends on crates:
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
+Depends on crates: `commit-service-messages`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`.
 
 ```text
 package/git-policy/standards-review-log/src/
   lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  review_gateway_credential.rs  <- src/native/service/service_review_key.rs
-    The gateway credential of the standards review as it travels from the wrapper to the service: a value that prints as
   changed_line_spans_of_a_file.rs  <- src/native/standards_review/standards_review_patch.rs
     Reading one file's changed new-side line spans out of a `git show --patch` text, so the review needs no
   text_rules_of_the_review_log.rs  <- src/native/standards_review/standards_review_text.rs
@@ -647,69 +763,84 @@ package/git-policy/standards-review-log/src/
     The Git reads of the standards-review shadow run, in as few real-Git starts as the data allows: one `git show`
 ```
 
-### commit-service-messages
+### systemd-user-manager-client
 
-Package `package/git-policy/commit-service-messages`,
-crate `monochromatic-git-policy-commit-service-messages`.
-Defines the messages the wrapper and the background commit service send each other,
-one JSON object per line,
-and names a worktree's service.
+Package `package/git-policy/systemd-user-manager-client`, crate `monochromatic-git-policy-systemd-user-manager-client`.
+Talks to the systemd user manager over D-Bus to start and look up units.
 
-Depends on crates:
-`standards-review-log`.
+Depends on crates: none.
 
 ```text
-package/git-policy/commit-service-messages/src/
-  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
-  messages_between_the_wrapper_and_the_commit_service/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    service_protocol_messages_and_name_checks.rs  <- src/native/service/service_protocol_messages_and_name_checks.rs
-      The messages between the wrapper and the resident commit service as typed values, and the checks on the names they ...
-    service_protocol_decode_lines_to_messages.rs  <- src/native/service/service_protocol_decode_lines_to_messages.rs
-      Reads one line of the protocol as a client message or a service message, checking every field.
-    service_protocol_encode_messages_to_lines.rs  <- src/native/service/service_protocol_encode_messages_to_lines.rs
-      Writes a client message or a service message as one JSON object on one line.
-    service_protocol.rs  <- src/native/service/service_protocol.rs
-      The messages between the wrapper and the resident commit service, one JSON object per line.
-  naming_the_service_of_one_worktree/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    service_instance.rs  <- src/native/service/service_instance.rs
-      Which commit service instance belongs to a worktree: a name made from the worktree's own Git directory, and the
+package/git-policy/systemd-user-manager-client/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  systemd_dbus_wire_format.rs  <- src/native/service/systemd_dbus_wire_format.rs
+    The D-Bus wire format the client speaks to the user manager: how a method call is written (header fields, strings
+  systemd_dbus.rs  <- src/native/service/systemd_dbus.rs
+    A minimal D-Bus client for the user session bus: authenticate as the current user, say `Hello`, and call methods of
 ```
 
-### crash-points-for-tests
+### commit-service-client
 
-Package `package/git-policy/crash-points-for-tests`,
-crate `monochromatic-git-policy-crash-points-for-tests`.
-Lets a test stop the program at a named step by setting an environment variable.
+Package `package/git-policy/commit-service-client`, crate `monochromatic-git-policy-commit-service-client`.
+Asks the background commit service to save a commit, starting it first when nothing answers.
 
-Depends on crates:
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
+Depends on crates: `commit-candidate-content`, `commit-service-log-lines`, `commit-service-messages`, `crash-points-for-tests`, `durable-work-items`, `policy-engine`, `read-git-files-without-git`, `safe-file-saving`, `standards-review-log`, `start-the-real-git`, `starting-and-watching-programs`, `systemd-user-manager-client`, `text-time-and-log-line-formats`, `wrapper-settings`.
 
 ```text
-package/git-policy/crash-points-for-tests/src/
+package/git-policy/commit-service-client/src/
   lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  fault_points_the_service_can_be_told_to_hit.rs  <- src/native/service/service_fault.rs
-    Test-only fault points of the resident service: `CLI_GIT_TEST_ONLY_SERVICE_FAULT=<point>` ends the service with
-  phase_markers_for_crash_tests.rs  <- src/native/transaction/transaction_phase.rs
-    Test-only phase markers of the isolated merge and of a commit headed for the service, for crash and interleaving ...
+  landed_summary.rs  <- src/native/landing/landed_summary.rs
+    The one summary line a landed commit prints, the way `git commit` prints it: `[<branch> <name>] <subject>`, with
+  service_client_listen_and_ask_to_retire.rs  <- src/native/service/service_client_listen_and_ask_to_retire.rs
+    The lowest steps of the client of the commit service: connecting to the service's address, reading one line as a ...
+  service_messages.rs  <- src/native/landing/service_messages.rs
+    Everything the wrapper tells the user when it cannot get a commit landed by the resident service, and the notices
+  service_provision_unit_file_ownership_and_writes.rs  <- src/native/service/service_provision_unit_file_ownership_and_writes.rs
+    The checks and writes on the unit files of the commit service: which files carry the wrapper's marker, whether any
+  service_provision.rs  <- src/native/service/service_provision.rs
+    The wrapper makes socket activation for a worktree's commit service exist the first time a commit needs it: it writes
+  service_client_settings_and_watches.rs  <- src/native/service/service_client_settings_and_watches.rs
+    The settings of one client run (how it reaches the service, how long it waits, what it keeps fresh) and the watch it ...
+  service_client_reach_service.rs  <- src/native/service/service_client_reach_service.rs
+    Reaches the commit service: connects to its address, starts it through its unit when nothing answers, and waits for a
+  service_client.rs  <- src/native/service/service_client.rs
+    The wrapper's side of a commit through the resident service: connect, wait honestly while the operating system
+  service_handoff.rs  <- src/native/landing/service_handoff.rs
+    The wrapper's side of after-commit work: leave the push and upkeep records for a commit the service landed and wake
+  service_pruned.rs  <- src/native/landing/service_pruned.rs
+    How a commit headed for the service notices that the content it prepared was removed from the repository before it
+  service_route.rs  <- src/native/landing/service_route.rs
+    How a commit reaches the resident service: already listening, or set up first by the wrapper.
+```
+
+### isolated-merge-recovery
+
+Package `package/git-policy/isolated-merge-recovery`, crate `monochromatic-git-policy-isolated-merge-recovery`.
+Records an isolated merge and finishes or discards it if the process died.
+
+Depends on crates: `commit-service-log-lines`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`.
+
+```text
+package/git-policy/isolated-merge-recovery/src/
+  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
+  merge_isolation_changes.rs  <- src/native/merge/merge_isolation_changes.rs
+    The raw tree differences between the two commits of an isolated merge, and the state of a worktree path
+  merge_isolation_journal.rs  <- src/native/merge/merge_isolation_journal.rs
+    The durable intent record of an isolated merge: the commit it created, the branch value it expects, and the
+  merge_isolation_recovery_steps.rs  <- src/native/merge/merge_isolation_recovery_steps.rs
+    The steps both the recovery of an interrupted merge and the settling of a merge whose branch moved take: where
+  merge_isolation_moved.rs  <- src/native/merge/merge_isolation_moved.rs
+    The settling of an isolated merge whose branch moved while the merge was prepared or applied: what the merge had begun
+  merge_isolation_recovery.rs  <- src/native/merge/merge_isolation_recovery.rs
+    Recovery of an isolated merge whose process died: discard it when it never touched the worktree or the index
 ```
 
 ### linux-filesystem-primitives
 
-Package `package/git-policy/linux-filesystem-primitives`,
-crate `monochromatic-git-policy-linux-filesystem-primitives`.
-Calls the Linux disk functions the wrapper needs:
-mount tables,
-disk kind,
-btrfs folder copies,
-file cloning,
-swapping two paths,
-and file operations that never follow a link.
+Package `package/git-policy/linux-filesystem-primitives`, crate `monochromatic-git-policy-linux-filesystem-primitives`.
+Calls the Linux disk functions the wrapper needs: mount tables, disk kind, btrfs folder copies, file cloning, swapping two paths, and file operations that never follow a link.
 
-Depends on crates:
-none.
+Depends on crates: none.
 
 ```text
 package/git-policy/linux-filesystem-primitives/src/
@@ -737,17 +868,10 @@ package/git-policy/linux-filesystem-primitives/src/
 
 ### git-lock-files
 
-Package `package/git-policy/git-lock-files`,
-crate `monochromatic-git-policy-git-lock-files`.
+Package `package/git-policy/git-lock-files`, crate `monochromatic-git-policy-git-lock-files`.
 Finds who holds a lock file and clears the reference locks that a crashed Git left behind.
 
-Depends on crates:
-`git-environment-variables`,
-`linux-filesystem-primitives`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
+Depends on crates: `git-environment-variables`, `linux-filesystem-primitives`, `read-git-files-without-git`, `safe-file-saving`, `starting-and-watching-programs`, `text-time-and-log-line-formats`.
 
 ```text
 package/git-policy/git-lock-files/src/
@@ -790,12 +914,10 @@ package/git-policy/git-lock-files/src/
 
 ### parallel-work-within-a-budget
 
-Package `package/git-policy/parallel-work-within-a-budget`,
-crate `monochromatic-git-policy-parallel-work-within-a-budget`.
+Package `package/git-policy/parallel-work-within-a-budget`, crate `monochromatic-git-policy-parallel-work-within-a-budget`.
 Runs independent jobs side by side on as many threads as the computer can spare.
 
-Depends on crates:
-none.
+Depends on crates: none.
 
 ```text
 package/git-policy/parallel-work-within-a-budget/src/
@@ -810,13 +932,10 @@ package/git-policy/parallel-work-within-a-budget/src/
 
 ### sha-digests
 
-Package `package/git-policy/sha-1-and-sha-256-digests`,
-crate `monochromatic-git-policy-sha-1-and-sha-256-digests`.
-Computes SHA-1 and SHA-256 of bytes,
-written out in full.
+Package `package/git-policy/sha-1-and-sha-256-digests`, crate `monochromatic-git-policy-sha-1-and-sha-256-digests`.
+Computes SHA-1 and SHA-256 of bytes, written out in full.
 
-Depends on crates:
-none.
+Depends on crates: none.
 
 ```text
 package/git-policy/sha-1-and-sha-256-digests/src/
@@ -827,22 +946,10 @@ package/git-policy/sha-1-and-sha-256-digests/src/
 
 ### commit-service-index-lock
 
-Package `package/git-policy/commit-service-index-lock`,
-crate `monochromatic-git-policy-commit-service-index-lock`.
-Takes and holds Git's `index.lock` for the background commit service,
-and waits for any program's hold on it.
+Package `package/git-policy/commit-service-index-lock`, crate `monochromatic-git-policy-commit-service-index-lock`.
+Takes and holds Git's `index.lock` for the background commit service, and waits for any program's hold on it.
 
-Depends on crates:
-`commit-service-messages`,
-`crash-points-for-tests`,
-`git-lock-files`,
-`linux-filesystem-primitives`,
-`parallel-work-within-a-budget`,
-`safe-file-saving`,
-`sha-digests`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`typed-command-reader`.
+Depends on crates: `commit-service-log-lines`, `commit-service-messages`, `crash-points-for-tests`, `git-lock-files`, `linux-filesystem-primitives`, `parallel-work-within-a-budget`, `safe-file-saving`, `sha-digests`, `start-the-real-git`, `starting-and-watching-programs`, `typed-command-reader`.
 
 ```text
 package/git-policy/commit-service-index-lock/src/
@@ -895,278 +1002,12 @@ package/git-policy/commit-service-index-lock/src/
       Whether a resolved forwarded command writes the real index.
 ```
 
-### system-journal-entries
-
-Package `package/git-policy/system-journal-entries`,
-crate `monochromatic-git-policy-system-journal-entries`.
-Sends log entries to the systemd journal over its native socket.
-
-Depends on crates:
-`text-time-and-log-line-formats`.
-
-```text
-package/git-policy/system-journal-entries/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  where_journal_entries_are_sent.rs  <- src/native/service/journald_native_socket_target.rs
-    The address the native journal entries are sent to: the journal's own socket, or a path or abstract name set by a ...
-  writing_to_the_system_journal.rs  <- src/native/service/journald_native.rs
-    The service's way into the journal: the native journal protocol over a datagram socket when the service's standard
-  journal_entry_from_the_wrapper.rs  <- src/native/service/client_journal.rs
-    One entry from the wrapper a person ran to the journal, as a datagram on the native socket, sent without waiting and
-```
-
-### commit-service-log-lines
-
-Package `package/git-policy/commit-service-log-lines`,
-crate `monochromatic-git-policy-commit-service-log-lines`.
-Writes the lines that say where time went in a commit and which Git runs the service started.
-
-Depends on crates:
-`commit-service-index-lock`,
-`commit-service-messages`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`.
-
-```text
-package/git-policy/commit-service-log-lines/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  commit_timing.rs  <- src/native/commit/commit_timing.rs
-    The record of where one wrapped `git commit` spent its time
-  service_timing.rs  <- src/native/service/service_timing.rs
-    The lines the resident commit service writes to its log (standard error
-  inner_git_words.rs  <- src/native/worktree/inner_git_words.rs
-    Where the words of a Git run the wrapper or the service started on its own go, now that none of those runs carries
-```
-
-### durable-work-items
-
-Package `package/git-policy/durable-work-items`,
-crate `monochromatic-git-policy-durable-work-items`.
-Keeps small files that say "this landed commit still needs a push" so a crash loses nothing.
-
-Depends on crates:
-`commit-service-log-lines`,
-`safe-file-saving`.
-
-```text
-package/git-policy/durable-work-items/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  claim_time.rs  <- src/native/landing/claim_time.rs
-    A reading of the clocks a claim's lease is judged by: the machine and the boot the host is in, the host's monotonic ...
-  work_item_state_directories_and_claim_names.rs  <- src/native/landing/work_item_state_directories_and_claim_names.rs
-    The folders an item moves through (`pending`, `claimed`, `recovering`, `done`, `failed`), the names of the claim files
-  work_item.rs  <- src/native/landing/work_item.rs
-    The durable work-item record: a small file in the Git directory that says "this landed object needs this
-  work_item_recovery.rs  <- src/native/landing/work_item_recovery.rs
-    The recovery half of the work-item record
-```
-
-### rules-about-git-command-lines
-
-Package `package/git-policy/rules-about-git-command-lines`,
-crate `monochromatic-git-policy-rules-about-git-command-lines`.
-Decides,
-from the words typed,
-whether a command may run here and what words to add.
-
-Depends on crates:
-`start-the-real-git`,
-`typed-command-reader`.
-
-```text
-package/git-policy/rules-about-git-command-lines/src/
-  lib.rs  (index: one `mod` line per folder, no code, no re-exports)
-  rules_that_add_flags_to_a_command/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    rule_add_names_explicitly.rs  <- src/native/command/rule_add_explicit.rs
-      Pure decision of the add-explicit policy
-    adding_words_to_a_command_line.rs  <- src/native/command/rule_argument_rewrite.rs
-      The shared result and builder of fixed transforms that add tokens to a command line.
-    rule_push_all_or_nothing.rs  <- src/native/command/rule_atomic_push.rs
-      The pure decision of the atomic-push transform
-    rule_status_hints.rs  <- src/native/command/rule_status_hints.rs
-      The pure decision of the status-hints transform
-  rules_about_what_a_commit_may_contain/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    uses/ -> rules_that_add_flags_to_a_command
-    why_a_push_scope_is_unknown.rs  <- src/native/push/manual_push_cause.rs
-      Why a manual push's scope could not be established, as a cause the hint is chosen by.
-    is_the_index_the_same_as_head.rs  <- src/native/commit/rule_commit_index.rs
-      The pure core of the index-against-`HEAD` check used by the commit-only transform.
-    messages_of_the_commit_only_rule.rs  <- src/native/commit/rule_commit_only_message.rs
-      The user-facing diagnostics of the commit-only transform.
-    rule_commit_only_what_was_named.rs  <- src/native/commit/rule_commit_only.rs
-      The pure decision of the commit-only transform
-    is_a_merge_or_rebase_in_progress.rs  <- src/native/commit/rule_commit_sequencer.rs
-      The pure core of the "is a merge
-  rules_about_where_a_command_may_run/
-    mod.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-    rule_branch_worktree_only.rs  <- src/native/command/rule_branch_worktree.rs
-      Pure decision of the branch-worktree-only policy
-    rejection_texts_of_the_linked_worktree_rule.rs  <- src/native/command/rule_linked_worktree_messages.rs
-      The rejection texts of the linked-worktree policy: outside any worktree, in the main worktree, and in a
-    does_this_worktree_hold_uncommitted_state.rs  <- src/native/command/rule_worktree_dirty.rs
-      The question "does this worktree hold uncommitted state?" as one Git query and its reading.
-    rule_linked_worktree_only.rs  <- src/native/command/rule_linked_worktree.rs
-      Pure decision of the linked-worktree-only policy
-    rule_require_root.rs  <- src/native/command/rule_require_root.rs
-      Pure decision of the require-root policy
-```
-
-### policy-engine
-
-Package `package/git-policy/policy-engine`,
-crate `monochromatic-git-policy-policy-engine`.
-Runs the configured policies in order for one point in a commit or push,
-and settles their corrections.
-
-Depends on crates:
-`commit-candidate-content`,
-`read-git-files-without-git`,
-`rules-about-git-command-lines`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`wrapper-settings`.
-
-```text
-package/git-policy/policy-engine/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  messages_as_json_lines.rs  <- src/native/policy/diagnostics.rs
-    Render wrapper diagnostics as the JSONL events callers already parse.
-  hints_after_a_finding.rs  <- src/native/policy/event_hints.rs
-    The hint that follows a finding, an engine failure or a warn-unsafe notice: a guess at what the person was
-  repository_path_in_an_event.rs  <- src/native/policy/event_path.rs
-    A repository path as an event reports it
-  may_a_fix_change_an_unselected_file.rs  <- src/native/dependent_version/policy_added_path.rs
-    Whether a direct fix may change a tracked file it did not select, and the `patch-conflict` message when it may not.
-  points_at_which_policies_run.rs  <- src/native/policy/policy_trigger.rs
-    The lifecycle points at which policies run
-  events_of_a_policy_pass.rs  <- src/native/policy/policy_events.rs
-    The events one policy pass produces
-  running_policies_in_order.rs  <- src/native/policy/policy_engine.rs
-    Run shipped policies in registry order for one lifecycle point and settle the
-  repository_facts_policies_need.rs  <- src/native/repo_read/repository_facts.rs
-    The repository facts policies and fixed transforms need
-  content_offered_to_policies.rs  <- src/native/policy/policy_content.rs
-    What one lifecycle offers the content policies
-  repeating_a_pass_until_it_settles.rs  <- src/native/policy/policy_convergence.rs
-    The bounded loop that repeats a whole policy pass after corrections changed the
-  fixed_changes_to_a_command.rs  <- src/native/policy/policy_transforms.rs
-    The fixed argument transforms of a forwarded command
-  work_not_ported_yet.rs  <- src/native/policy/unported.rs
-    The work of the installed cli-git that this executable does not do yet
-```
-
-### systemd-user-manager-client
-
-Package `package/git-policy/systemd-user-manager-client`,
-crate `monochromatic-git-policy-systemd-user-manager-client`.
-Talks to the systemd user manager over D-Bus to start and look up units.
-
-Depends on crates:
-none.
-
-```text
-package/git-policy/systemd-user-manager-client/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  systemd_dbus_wire_format.rs  <- src/native/service/systemd_dbus_wire_format.rs
-    The D-Bus wire format the client speaks to the user manager: how a method call is written (header fields, strings
-  systemd_dbus.rs  <- src/native/service/systemd_dbus.rs
-    A minimal D-Bus client for the user session bus: authenticate as the current user, say `Hello`, and call methods of
-```
-
-### commit-service-client
-
-Package `package/git-policy/commit-service-client`,
-crate `monochromatic-git-policy-commit-service-client`.
-Asks the background commit service to save a commit,
-starting it first when nothing answers.
-
-Depends on crates:
-`commit-candidate-content`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`crash-points-for-tests`,
-`durable-work-items`,
-`policy-engine`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`standards-review-log`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`systemd-user-manager-client`,
-`text-time-and-log-line-formats`,
-`wrapper-settings`.
-
-```text
-package/git-policy/commit-service-client/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  landed_summary.rs  <- src/native/landing/landed_summary.rs
-    The one summary line a landed commit prints, the way `git commit` prints it: `[<branch> <name>] <subject>`, with
-  service_client_listen_and_ask_to_retire.rs  <- src/native/service/service_client_listen_and_ask_to_retire.rs
-    The lowest steps of the client of the commit service: connecting to the service's address, reading one line as a ...
-  service_messages.rs  <- src/native/landing/service_messages.rs
-    Everything the wrapper tells the user when it cannot get a commit landed by the resident service, and the notices
-  service_provision_unit_file_ownership_and_writes.rs  <- src/native/service/service_provision_unit_file_ownership_and_writes.rs
-    The checks and writes on the unit files of the commit service: which files carry the wrapper's marker, whether any
-  service_provision.rs  <- src/native/service/service_provision.rs
-    The wrapper makes socket activation for a worktree's commit service exist the first time a commit needs it: it writes
-  service_client_settings_and_watches.rs  <- src/native/service/service_client_settings_and_watches.rs
-    The settings of one client run (how it reaches the service, how long it waits, what it keeps fresh) and the watch it ...
-  service_client_reach_service.rs  <- src/native/service/service_client_reach_service.rs
-    Reaches the commit service: connects to its address, starts it through its unit when nothing answers, and waits for a
-  service_client.rs  <- src/native/service/service_client.rs
-    The wrapper's side of a commit through the resident service: connect, wait honestly while the operating system
-  service_handoff.rs  <- src/native/landing/service_handoff.rs
-    The wrapper's side of after-commit work: leave the push and upkeep records for a commit the service landed and wake
-  service_pruned.rs  <- src/native/landing/service_pruned.rs
-    How a commit headed for the service notices that the content it prepared was removed from the repository before it
-  service_route.rs  <- src/native/landing/service_route.rs
-    How a commit reaches the resident service: already listening, or set up first by the wrapper.
-```
-
-### isolated-merge-recovery
-
-Package `package/git-policy/isolated-merge-recovery`,
-crate `monochromatic-git-policy-isolated-merge-recovery`.
-Records an isolated merge and finishes or discards it if the process died.
-
-Depends on crates:
-`commit-service-log-lines`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
-
-```text
-package/git-policy/isolated-merge-recovery/src/
-  lib.rs  (index: top doc lists the files below in this order, then one `mod` line each)
-  merge_isolation_changes.rs  <- src/native/merge/merge_isolation_changes.rs
-    The raw tree differences between the two commits of an isolated merge, and the state of a worktree path
-  merge_isolation_journal.rs  <- src/native/merge/merge_isolation_journal.rs
-    The durable intent record of an isolated merge: the commit it created, the branch value it expects, and the
-  merge_isolation_recovery_steps.rs  <- src/native/merge/merge_isolation_recovery_steps.rs
-    The steps both the recovery of an interrupted merge and the settling of a merge whose branch moved take: where
-  merge_isolation_moved.rs  <- src/native/merge/merge_isolation_moved.rs
-    The settling of an isolated merge whose branch moved while the merge was prepared or applied: what the merge had begun
-  merge_isolation_recovery.rs  <- src/native/merge/merge_isolation_recovery.rs
-    Recovery of an isolated merge whose process died: discard it when it never touched the worktree or the index
-```
-
 ### three-way-text-merge
 
-Package `package/git-policy/three-way-text-merge`,
-crate `monochromatic-git-policy-three-way-text-merge`.
-Merges text three ways by line and,
-where both sides changed a line,
-word by word.
+Package `package/git-policy/three-way-text-merge`, crate `monochromatic-git-policy-three-way-text-merge`.
+Merges text three ways by line and, where both sides changed a line, word by word.
 
-Depends on crates:
-none.
+Depends on crates: none.
 
 ```text
 package/git-policy/three-way-text-merge/src/
@@ -1177,19 +1018,10 @@ package/git-policy/three-way-text-merge/src/
 
 ### merge-conflicts-word-by-word
 
-Package `package/git-policy/merge-conflicts-word-by-word`,
-crate `monochromatic-git-policy-merge-conflicts-word-by-word`.
+Package `package/git-policy/merge-conflicts-word-by-word`, crate `monochromatic-git-policy-merge-conflicts-word-by-word`.
 Tries again word by word on the files a Git merge left conflicted.
 
-Depends on crates:
-`commit-service-index-lock`,
-`git-environment-variables`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`start-the-real-git`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`,
-`three-way-text-merge`.
+Depends on crates: `commit-service-index-lock`, `git-environment-variables`, `read-git-files-without-git`, `safe-file-saving`, `start-the-real-git`, `system-journal-entries`, `text-time-and-log-line-formats`, `three-way-text-merge`.
 
 ```text
 package/git-policy/merge-conflicts-word-by-word/src/
@@ -1212,19 +1044,10 @@ package/git-policy/merge-conflicts-word-by-word/src/
 
 ### push-with-a-deadline
 
-Package `package/git-policy/push-with-a-deadline`,
-crate `monochromatic-git-policy-push-with-a-deadline`.
-Runs `git push` with its own deadline,
-stops it when it shows no sign of work,
-and runs one push at a time.
+Package `package/git-policy/push-with-a-deadline`, crate `monochromatic-git-policy-push-with-a-deadline`.
+Runs `git push` with its own deadline, stops it when it shows no sign of work, and runs one push at a time.
 
-Depends on crates:
-`git-lock-files`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
+Depends on crates: `git-lock-files`, `read-git-files-without-git`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`.
 
 ```text
 package/git-policy/push-with-a-deadline/src/
@@ -1247,20 +1070,10 @@ package/git-policy/push-with-a-deadline/src/
 
 ### upload-large-files-before-a-push
 
-Package `package/git-policy/upload-large-files-before-a-push`,
-crate `monochromatic-git-policy-upload-large-files-before-a-push`.
+Package `package/git-policy/upload-large-files-before-a-push`, crate `monochromatic-git-policy-upload-large-files-before-a-push`.
 Uploads Git LFS files (large pictures and videos) before a push.
 
-Depends on crates:
-`git-environment-variables`,
-`push-with-a-deadline`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`wrapper-settings`.
+Depends on crates: `git-environment-variables`, `push-with-a-deadline`, `read-git-files-without-git`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `typed-command-reader`, `wrapper-settings`.
 
 ```text
 package/git-policy/upload-large-files-before-a-push/src/
@@ -1289,29 +1102,10 @@ package/git-policy/upload-large-files-before-a-push/src/
 
 ### background-push-after-commit
 
-Package `package/git-policy/background-push-after-commit`,
-crate `monochromatic-git-policy-background-push-after-commit`.
-Pushes a landed commit in the background,
-retries,
-and merges when someone else pushed first.
+Package `package/git-policy/background-push-after-commit`, crate `monochromatic-git-policy-background-push-after-commit`.
+Pushes a landed commit in the background, retries, and merges when someone else pushed first.
 
-Depends on crates:
-`commit-service-client`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`durable-work-items`,
-`isolated-merge-recovery`,
-`merge-conflicts-word-by-word`,
-`parallel-work-within-a-budget`,
-`push-with-a-deadline`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`,
-`upload-large-files-before-a-push`,
-`wrapper-settings`.
+Depends on crates: `commit-service-client`, `commit-service-log-lines`, `commit-service-messages`, `durable-work-items`, `isolated-merge-recovery`, `merge-conflicts-word-by-word`, `parallel-work-within-a-budget`, `push-with-a-deadline`, `read-git-files-without-git`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`, `text-time-and-log-line-formats`, `upload-large-files-before-a-push`, `wrapper-settings`.
 
 ```text
 package/git-policy/background-push-after-commit/src/
@@ -1348,22 +1142,10 @@ package/git-policy/background-push-after-commit/src/
 
 ### hidden-git-copy-for-preparing-commits
 
-Package `package/git-policy/hidden-git-copy-for-preparing-commits`,
-crate `monochromatic-git-policy-hidden-git-copy-for-preparing-commits`.
-Makes a hidden second Git folder that shares the saved commits,
-so a commit can be prepared without touching your work.
+Package `package/git-policy/hidden-git-copy-for-preparing-commits`, crate `monochromatic-git-policy-hidden-git-copy-for-preparing-commits`.
+Makes a hidden second Git folder that shares the saved commits, so a commit can be prepared without touching your work.
 
-Depends on crates:
-`commit-candidate-content`,
-`commit-service-log-lines`,
-`git-environment-variables`,
-`merge-conflicts-word-by-word`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`start-the-real-git`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`,
-`wrapper-settings`.
+Depends on crates: `commit-candidate-content`, `commit-service-log-lines`, `git-environment-variables`, `merge-conflicts-word-by-word`, `read-git-files-without-git`, `safe-file-saving`, `start-the-real-git`, `system-journal-entries`, `text-time-and-log-line-formats`, `wrapper-settings`.
 
 ```text
 package/git-policy/hidden-git-copy-for-preparing-commits/src/
@@ -1415,24 +1197,10 @@ package/git-policy/hidden-git-copy-for-preparing-commits/src/
 
 ### keep-copies-of-discarded-work
 
-Package `package/git-policy/keep-copies-of-discarded-work`,
-crate `monochromatic-git-policy-keep-copies-of-discarded-work`.
-Saves a copy of work that a command would throw away,
-records it,
-and removes old copies.
+Package `package/git-policy/keep-copies-of-discarded-work`, crate `monochromatic-git-policy-keep-copies-of-discarded-work`.
+Saves a copy of work that a command would throw away, records it, and removes old copies.
 
-Depends on crates:
-`commit-service-messages`,
-`hidden-git-copy-for-preparing-commits`,
-`linux-filesystem-primitives`,
-`read-git-files-without-git`,
-`rules-about-git-command-lines`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`wrapper-settings`.
+Depends on crates: `commit-service-messages`, `hidden-git-copy-for-preparing-commits`, `linux-filesystem-primitives`, `read-git-files-without-git`, `rules-about-git-command-lines`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `typed-command-reader`, `wrapper-settings`.
 
 ```text
 package/git-policy/keep-copies-of-discarded-work/src/
@@ -1479,28 +1247,10 @@ package/git-policy/keep-copies-of-discarded-work/src/
 
 ### land-prepared-commits
 
-Package `package/git-policy/land-prepared-commits`,
-crate `monochromatic-git-policy-land-prepared-commits`.
+Package `package/git-policy/land-prepared-commits`, crate `monochromatic-git-policy-land-prepared-commits`.
 Lands a batch of prepared commits on a branch and updates the index without starting Git.
 
-Depends on crates:
-`commit-service-client`,
-`commit-service-index-lock`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`crash-points-for-tests`,
-`git-index-file`,
-`hidden-git-copy-for-preparing-commits`,
-`keep-copies-of-discarded-work`,
-`push-with-a-deadline`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`sha-digests`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`,
-`wrapper-settings`.
+Depends on crates: `commit-service-client`, `commit-service-index-lock`, `commit-service-log-lines`, `commit-service-messages`, `crash-points-for-tests`, `git-index-file`, `hidden-git-copy-for-preparing-commits`, `keep-copies-of-discarded-work`, `push-with-a-deadline`, `read-git-files-without-git`, `safe-file-saving`, `sha-digests`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`, `text-time-and-log-line-formats`, `wrapper-settings`.
 
 ```text
 package/git-policy/land-prepared-commits/src/
@@ -1555,17 +1305,10 @@ package/git-policy/land-prepared-commits/src/
 
 ### markdown-autofix-check
 
-Package `package/git-policy/markdown-autofix-check`,
-crate `monochromatic-git-policy-markdown-autofix-check`.
-Fixes Markdown files in the same process,
-with a guard against a stuck linter.
+Package `package/git-policy/markdown-autofix-check`, crate `monochromatic-git-policy-markdown-autofix-check`.
+Fixes Markdown files in the same process, with a guard against a stuck linter.
 
-Depends on crates:
-`commit-candidate-content`,
-`policy-engine`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`wrapper-settings`.
+Depends on crates: `commit-candidate-content`, `policy-engine`, `start-the-real-git`, `starting-and-watching-programs`, `wrapper-settings`.
 
 ```text
 package/git-policy/markdown-autofix-check/src/
@@ -1586,21 +1329,10 @@ package/git-policy/markdown-autofix-check/src/
 
 ### convert-a-checkout-to-a-btrfs-subvolume
 
-Package `package/git-policy/convert-a-checkout-to-a-btrfs-subvolume`,
-crate `monochromatic-git-policy-convert-a-checkout-to-a-btrfs-subvolume`.
-Turns a project folder into a btrfs subvolume,
-which can be copied instantly,
-and can undo it.
+Package `package/git-policy/convert-a-checkout-to-a-btrfs-subvolume`, crate `monochromatic-git-policy-convert-a-checkout-to-a-btrfs-subvolume`.
+Turns a project folder into a btrfs subvolume, which can be copied instantly, and can undo it.
 
-Depends on crates:
-`linux-filesystem-primitives`,
-`parallel-work-within-a-budget`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`sha-digests`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
+Depends on crates: `linux-filesystem-primitives`, `parallel-work-within-a-budget`, `read-git-files-without-git`, `safe-file-saving`, `sha-digests`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`.
 
 ```text
 package/git-policy/convert-a-checkout-to-a-btrfs-subvolume/src/
@@ -1655,18 +1387,10 @@ package/git-policy/convert-a-checkout-to-a-btrfs-subvolume/src/
 
 ### fix-packages-after-copying-a-folder
 
-Package `package/git-policy/fix-packages-after-copying-a-folder`,
-crate `monochromatic-git-policy-fix-packages-after-copying-a-folder`.
-Repairs installed packages (`node_modules`,
-Cargo build state,
-toolchain launchers) after a project folder is copied.
+Package `package/git-policy/fix-packages-after-copying-a-folder`, crate `monochromatic-git-policy-fix-packages-after-copying-a-folder`.
+Repairs installed packages (`node_modules`, Cargo build state, toolchain launchers) after a project folder is copied.
 
-Depends on crates:
-`parallel-work-within-a-budget`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`.
+Depends on crates: `parallel-work-within-a-budget`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`.
 
 ```text
 package/git-policy/fix-packages-after-copying-a-folder/src/
@@ -1697,33 +1421,10 @@ package/git-policy/fix-packages-after-copying-a-folder/src/
 
 ### new-worktrees-quickly
 
-Package `package/git-policy/new-worktrees-quickly`,
-crate `monochromatic-git-policy-new-worktrees-quickly`.
-Makes `git worktree add` fast by copying,
-cloning or snapshotting,
-copies the ignored files,
-and removes or converts worktrees.
+Package `package/git-policy/new-worktrees-quickly`, crate `monochromatic-git-policy-new-worktrees-quickly`.
+Makes `git worktree add` fast by copying, cloning or snapshotting, copies the ignored files, and removes or converts worktrees.
 
-Depends on crates:
-`background-push-after-commit`,
-`commit-candidate-content`,
-`commit-service-client`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`convert-a-checkout-to-a-btrfs-subvolume`,
-`durable-work-items`,
-`fix-packages-after-copying-a-folder`,
-`linux-filesystem-primitives`,
-`parallel-work-within-a-budget`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`sha-digests`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`wrapper-settings`.
+Depends on crates: `background-push-after-commit`, `commit-candidate-content`, `commit-service-client`, `commit-service-log-lines`, `commit-service-messages`, `convert-a-checkout-to-a-btrfs-subvolume`, `durable-work-items`, `fix-packages-after-copying-a-folder`, `linux-filesystem-primitives`, `parallel-work-within-a-budget`, `read-git-files-without-git`, `safe-file-saving`, `sha-digests`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`, `text-time-and-log-line-formats`, `typed-command-reader`, `wrapper-settings`.
 
 ```text
 package/git-policy/new-worktrees-quickly/src/
@@ -1871,15 +1572,10 @@ package/git-policy/new-worktrees-quickly/src/
 
 ### dependent-version-bump-check
 
-Package `package/git-policy/dependent-version-bump-check`,
-crate `monochromatic-git-policy-dependent-version-bump-check`.
+Package `package/git-policy/dependent-version-bump-check`, crate `monochromatic-git-policy-dependent-version-bump-check`.
 Plans a version bump for every package that depends on a package whose version was raised.
 
-Depends on crates:
-`commit-candidate-content`,
-`policy-engine`,
-`start-the-real-git`,
-`wrapper-settings`.
+Depends on crates: `commit-candidate-content`, `policy-engine`, `start-the-real-git`, `wrapper-settings`.
 
 ```text
 package/git-policy/dependent-version-bump-check/src/
@@ -1916,22 +1612,10 @@ package/git-policy/dependent-version-bump-check/src/
 
 ### shipped-policies
 
-Package `package/git-policy/shipped-policies`,
-crate `monochromatic-git-policy-shipped-policies`.
+Package `package/git-policy/shipped-policies`, crate `monochromatic-git-policy-shipped-policies`.
 Holds the policies the wrapper ships and the one pass that runs them all.
 
-Depends on crates:
-`commit-candidate-content`,
-`dependent-version-bump-check`,
-`keep-copies-of-discarded-work`,
-`markdown-autofix-check`,
-`policy-engine`,
-`rules-about-git-command-lines`,
-`safe-file-saving`,
-`start-the-real-git`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`wrapper-settings`.
+Depends on crates: `commit-candidate-content`, `dependent-version-bump-check`, `keep-copies-of-discarded-work`, `markdown-autofix-check`, `policy-engine`, `rules-about-git-command-lines`, `safe-file-saving`, `start-the-real-git`, `text-time-and-log-line-formats`, `typed-command-reader`, `wrapper-settings`.
 
 ```text
 package/git-policy/shipped-policies/src/
@@ -1959,40 +1643,10 @@ package/git-policy/shipped-policies/src/
 
 ### commit-command
 
-Package `package/git-policy/commit-command`,
-crate `monochromatic-git-policy-commit-command`.
-The `git commit` command:
-prepares the commit aside,
-asks the service to land it,
-and reports.
+Package `package/git-policy/commit-command`, crate `monochromatic-git-policy-commit-command`.
+The `git commit` command: prepares the commit aside, asks the service to land it, and reports.
 
-Depends on crates:
-`commit-candidate-content`,
-`commit-service-client`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`crash-points-for-tests`,
-`durable-work-items`,
-`git-environment-variables`,
-`git-index-file`,
-`hidden-git-copy-for-preparing-commits`,
-`keep-copies-of-discarded-work`,
-`land-prepared-commits`,
-`markdown-autofix-check`,
-`merge-conflicts-word-by-word`,
-`new-worktrees-quickly`,
-`policy-engine`,
-`read-git-files-without-git`,
-`rules-about-git-command-lines`,
-`safe-file-saving`,
-`shipped-policies`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`upload-large-files-before-a-push`,
-`wrapper-settings`.
+Depends on crates: `commit-candidate-content`, `commit-service-client`, `commit-service-log-lines`, `commit-service-messages`, `crash-points-for-tests`, `durable-work-items`, `git-environment-variables`, `git-index-file`, `hidden-git-copy-for-preparing-commits`, `keep-copies-of-discarded-work`, `land-prepared-commits`, `markdown-autofix-check`, `merge-conflicts-word-by-word`, `new-worktrees-quickly`, `policy-engine`, `read-git-files-without-git`, `rules-about-git-command-lines`, `safe-file-saving`, `shipped-policies`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`, `text-time-and-log-line-formats`, `typed-command-reader`, `upload-large-files-before-a-push`, `wrapper-settings`.
 
 ```text
 package/git-policy/commit-command/src/
@@ -2059,20 +1713,10 @@ package/git-policy/commit-command/src/
 
 ### doctor-report
 
-Package `package/git-policy/doctor-report`,
-crate `monochromatic-git-policy-doctor-report`.
-Prints the `git cli-git doctor` report on hooks,
-settings,
-the disk and file watching.
+Package `package/git-policy/doctor-report`, crate `monochromatic-git-policy-doctor-report`.
+Prints the `git cli-git doctor` report on hooks, settings, the disk and file watching.
 
-Depends on crates:
-`keep-copies-of-discarded-work`,
-`linux-filesystem-primitives`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`wrapper-settings`.
+Depends on crates: `keep-copies-of-discarded-work`, `linux-filesystem-primitives`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `wrapper-settings`.
 
 ```text
 package/git-policy/doctor-report/src/
@@ -2089,26 +1733,10 @@ package/git-policy/doctor-report/src/
 
 ### merge-in-isolation
 
-Package `package/git-policy/merge-in-isolation`,
-crate `monochromatic-git-policy-merge-in-isolation`.
+Package `package/git-policy/merge-in-isolation`, crate `monochromatic-git-policy-merge-in-isolation`.
 Completes `git merge` and `git pull` without touching staged work.
 
-Depends on crates:
-`background-push-after-commit`,
-`commit-service-index-lock`,
-`commit-service-log-lines`,
-`crash-points-for-tests`,
-`git-environment-variables`,
-`isolated-merge-recovery`,
-`merge-conflicts-word-by-word`,
-`policy-engine`,
-`safe-file-saving`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`wrapper-settings`.
+Depends on crates: `background-push-after-commit`, `commit-service-index-lock`, `commit-service-log-lines`, `crash-points-for-tests`, `git-environment-variables`, `isolated-merge-recovery`, `merge-conflicts-word-by-word`, `policy-engine`, `safe-file-saving`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`, `text-time-and-log-line-formats`, `typed-command-reader`, `wrapper-settings`.
 
 ```text
 package/git-policy/merge-in-isolation/src/
@@ -2133,31 +1761,10 @@ package/git-policy/merge-in-isolation/src/
 
 ### service-after-commit-work
 
-Package `package/git-policy/service-after-commit-work`,
-crate `monochromatic-git-policy-service-after-commit-work`.
-Does the work left after a landing:
-push,
-tidy-up and review.
+Package `package/git-policy/service-after-commit-work`, crate `monochromatic-git-policy-service-after-commit-work`.
+Does the work left after a landing: push, tidy-up and review.
 
-Depends on crates:
-`background-push-after-commit`,
-`commit-service-index-lock`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`durable-work-items`,
-`git-environment-variables`,
-`land-prepared-commits`,
-`new-worktrees-quickly`,
-`parallel-work-within-a-budget`,
-`push-with-a-deadline`,
-`read-git-files-without-git`,
-`safe-file-saving`,
-`standards-review-log`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`,
-`upload-large-files-before-a-push`,
-`wrapper-settings`.
+Depends on crates: `background-push-after-commit`, `commit-service-index-lock`, `commit-service-log-lines`, `commit-service-messages`, `durable-work-items`, `git-environment-variables`, `land-prepared-commits`, `new-worktrees-quickly`, `parallel-work-within-a-budget`, `push-with-a-deadline`, `read-git-files-without-git`, `safe-file-saving`, `standards-review-log`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`, `upload-large-files-before-a-push`, `wrapper-settings`.
 
 ```text
 package/git-policy/service-after-commit-work/src/
@@ -2186,22 +1793,10 @@ package/git-policy/service-after-commit-work/src/
 
 ### typed-push-planning
 
-Package `package/git-policy/typed-push-planning`,
-crate `monochromatic-git-policy-typed-push-planning`.
+Package `package/git-policy/typed-push-planning`, crate `monochromatic-git-policy-typed-push-planning`.
 Works out what a typed `git push` would send and merges in a race that was lost.
 
-Depends on crates:
-`background-push-after-commit`,
-`commit-candidate-content`,
-`git-environment-variables`,
-`parallel-work-within-a-budget`,
-`push-with-a-deadline`,
-`rules-about-git-command-lines`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`upload-large-files-before-a-push`.
+Depends on crates: `background-push-after-commit`, `commit-candidate-content`, `git-environment-variables`, `parallel-work-within-a-budget`, `push-with-a-deadline`, `rules-about-git-command-lines`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `typed-command-reader`, `upload-large-files-before-a-push`.
 
 ```text
 package/git-policy/typed-push-planning/src/
@@ -2224,41 +1819,10 @@ package/git-policy/typed-push-planning/src/
 
 ### cli
 
-Package `package/git-policy/cli`,
-crate `monochromatic-git-policy-cli`.
-The command-line program `cli-git-native`:
-decides what each command does and runs it.
+Package `package/git-policy/cli`, crate `monochromatic-git-policy-cli`.
+The command-line program `cli-git-native`: decides what each command does and runs it.
 
-Depends on crates:
-`background-push-after-commit`,
-`commit-candidate-content`,
-`commit-command`,
-`commit-service-client`,
-`commit-service-index-lock`,
-`convert-a-checkout-to-a-btrfs-subvolume`,
-`doctor-report`,
-`fix-packages-after-copying-a-folder`,
-`git-environment-variables`,
-`git-lock-files`,
-`isolated-merge-recovery`,
-`keep-copies-of-discarded-work`,
-`merge-conflicts-word-by-word`,
-`merge-in-isolation`,
-`new-worktrees-quickly`,
-`policy-engine`,
-`push-with-a-deadline`,
-`read-git-files-without-git`,
-`rules-about-git-command-lines`,
-`safe-file-saving`,
-`service-after-commit-work`,
-`shipped-policies`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`text-time-and-log-line-formats`,
-`typed-command-reader`,
-`typed-push-planning`,
-`upload-large-files-before-a-push`,
-`wrapper-settings`.
+Depends on crates: `background-push-after-commit`, `commit-candidate-content`, `commit-command`, `commit-service-client`, `commit-service-index-lock`, `convert-a-checkout-to-a-btrfs-subvolume`, `doctor-report`, `fix-packages-after-copying-a-folder`, `git-environment-variables`, `git-lock-files`, `isolated-merge-recovery`, `keep-copies-of-discarded-work`, `merge-conflicts-word-by-word`, `merge-in-isolation`, `new-worktrees-quickly`, `policy-engine`, `push-with-a-deadline`, `read-git-files-without-git`, `rules-about-git-command-lines`, `safe-file-saving`, `service-after-commit-work`, `shipped-policies`, `start-the-real-git`, `starting-and-watching-programs`, `text-time-and-log-line-formats`, `typed-command-reader`, `typed-push-planning`, `upload-large-files-before-a-push`, `wrapper-settings`.
 
 ```text
 package/git-policy/cli/src/
@@ -2299,27 +1863,10 @@ package/git-policy/cli/src/
 
 ### commit-service-program
 
-Package `package/git-policy/commit-service-program`,
-crate `monochromatic-git-policy-commit-service-program`.
-The background commit service itself:
-accepts requests,
-lands them in batches and answers.
+Package `package/git-policy/commit-service-program`, crate `monochromatic-git-policy-commit-service-program`.
+The background commit service itself: accepts requests, lands them in batches and answers.
 
-Depends on crates:
-`background-push-after-commit`,
-`commit-service-index-lock`,
-`commit-service-log-lines`,
-`commit-service-messages`,
-`crash-points-for-tests`,
-`durable-work-items`,
-`git-environment-variables`,
-`land-prepared-commits`,
-`push-with-a-deadline`,
-`safe-file-saving`,
-`service-after-commit-work`,
-`start-the-real-git`,
-`starting-and-watching-programs`,
-`system-journal-entries`.
+Depends on crates: `background-push-after-commit`, `commit-service-index-lock`, `commit-service-log-lines`, `commit-service-messages`, `crash-points-for-tests`, `durable-work-items`, `git-environment-variables`, `land-prepared-commits`, `push-with-a-deadline`, `safe-file-saving`, `service-after-commit-work`, `start-the-real-git`, `starting-and-watching-programs`, `system-journal-entries`.
 
 ```text
 package/git-policy/commit-service-program/src/

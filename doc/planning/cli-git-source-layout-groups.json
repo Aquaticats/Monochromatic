@@ -291,7 +291,8 @@
     "worktree_add_plan::AddPlan": "worktree_command_facts",
     "worktree_remove_plan::RemovePlan": "worktree_command_facts",
     "event_hints::engine_failure_hint": "invocation_config",
-    "event_hints::push_hint_field": "invocation_config"
+    "event_hints::push_hint_field": "invocation_config",
+    "service_index_found::WaitNotes": "service_timing"
   },
   "order": [
     "basic_tools",
@@ -2477,8 +2478,8 @@
       "service_review"
     ],
     "service_review_key": [
-      "standards-review-log",
-      "reviewing_landed_commits_against_standards",
+      "commit-service-messages",
+      "messages_between_the_wrapper_and_the_commit_service",
       "review_gateway_credential"
     ],
     "service_round": [

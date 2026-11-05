@@ -28,8 +28,8 @@ the machine-readable map is [`cli-git-source-layout-groups.json`](cli-git-source
 - Respond by:
   accepting or vetoing each open point;
   a veto on a crate or a name can be answered in one line,
-  because the tree is generated from one table,
-  kept in `cli-git-source-layout-groups.json` under `target`.
+  because the tree is generated from a table (`spec/spec3.txt` and `spec/renames.txt` in the scratch folder,
+  summarised by `cli-git-source-layout-groups.json`).
 
 ## The owner's words and the rules that bind this
 
@@ -135,10 +135,14 @@ folder and file graph,
   5456 item-level references.
   The test side:
   604 `*_tests.rs` sidecars and 29 test-only modules.
-- Every file the lint split added sat in its folder's default group,
-  and 35 references pointed upward between groups.
-  Placing 25 of them by the name of the file they were split from left 11;
-  four decisions took away the rest:
+- Every file the lint split added was placed by the name of the file it was split from
+  (25 files),
+  except four placed by what they hold.
+  Before that,
+  35 references pointed upward between groups;
+  after it,
+  zero.
+  Four decisions came out of it:
   - `push_deadline_and_patience_settings` is a basic tool (child watching needs it),
     not a push file;
   - `conflict_side_state` moves down to the readers of Git's files (the merge code needs `conflicted_paths`);
@@ -211,9 +215,8 @@ and reports loops between crates,
 between folders of one crate,
 and between any files (global).
 With the changes applied it reports zero at all three levels.
-Without this proposal's named changes (same placement,
-only the planning doc's item moves) it reports one crate loop,
-two folder loops and 16 global file loops,
+Without them (same placement,
+no named change) it reports one crate loop and 16 global file loops,
 so the changes are what makes the cut valid,
 not the cut alone.
 Two checks were added after an early version looked clean for the wrong reasons:
@@ -286,20 +289,56 @@ then a plausible outside consumer.
   Loads the exact bytes a commit would save and scans them for forbidden strings.
   Another program that could depend on it:
   any pre-commit checker.
-- `standards-review-log`:
-  Reviews landed commits against the written standards with one HTTPS call and keeps the log of the answers.
-  Another program that could depend on it:
-  a review runner.
 - `commit-service-messages`:
   Defines the messages the wrapper and the background commit service send each other,
   one JSON object per line,
   and names a worktree's service.
   Another program that could depend on it:
   another front end for the commit service.
+- `system-journal-entries`:
+  Sends log entries to the systemd journal over its native socket.
+  Another program that could depend on it:
+  any Linux service that logs to the journal.
+- `commit-service-log-lines`:
+  Writes the lines that say where time went in a commit and which Git runs the service started.
+  Another program that could depend on it:
+  a log reader.
 - `crash-points-for-tests`:
   Lets a test stop the program at a named step by setting an environment variable.
   Another program that could depend on it:
   any crash-safety test suite.
+- `durable-work-items`:
+  Keeps small files that say "this landed commit still needs a push" so a crash loses nothing.
+  Another program that could depend on it:
+  a job queue on files.
+- `rules-about-git-command-lines`:
+  Decides,
+  from the words typed,
+  whether a command may run here and what words to add.
+  Another program that could depend on it:
+  any command-line guard.
+- `policy-engine`:
+  Runs the configured policies in order for one point in a commit or push,
+  and settles their corrections.
+  Another program that could depend on it:
+  a policy runner.
+- `standards-review-log`:
+  Reviews landed commits against the written standards with one HTTPS call and keeps the log of the answers.
+  Another program that could depend on it:
+  a review runner.
+- `systemd-user-manager-client`:
+  Talks to the systemd user manager over D-Bus to start and look up units.
+  Another program that could depend on it:
+  any program that starts user units without libsystemd.
+- `commit-service-client`:
+  Asks the background commit service to save a commit,
+  starting it first when nothing answers.
+  Another program that could depend on it:
+  another Git front end.
+- `isolated-merge-recovery`:
+  Records an isolated merge and finishes or discards it if the process died.
+  Another program that could depend on it:
+  a merge tool.
 - `linux-filesystem-primitives`:
   Calls the Linux disk functions the wrapper needs:
   mount tables,
@@ -328,42 +367,6 @@ then a plausible outside consumer.
   and waits for any program's hold on it.
   Another program that could depend on it:
   another writer that must share the index with Git.
-- `system-journal-entries`:
-  Sends log entries to the systemd journal over its native socket.
-  Another program that could depend on it:
-  any Linux service that logs to the journal.
-- `commit-service-log-lines`:
-  Writes the lines that say where time went in a commit and which Git runs the service started.
-  Another program that could depend on it:
-  a log reader.
-- `durable-work-items`:
-  Keeps small files that say "this landed commit still needs a push" so a crash loses nothing.
-  Another program that could depend on it:
-  a job queue on files.
-- `rules-about-git-command-lines`:
-  Decides,
-  from the words typed,
-  whether a command may run here and what words to add.
-  Another program that could depend on it:
-  any command-line guard.
-- `policy-engine`:
-  Runs the configured policies in order for one point in a commit or push,
-  and settles their corrections.
-  Another program that could depend on it:
-  a policy runner.
-- `systemd-user-manager-client`:
-  Talks to the systemd user manager over D-Bus to start and look up units.
-  Another program that could depend on it:
-  any program that starts user units without libsystemd.
-- `commit-service-client`:
-  Asks the background commit service to save a commit,
-  starting it first when nothing answers.
-  Another program that could depend on it:
-  another Git front end.
-- `isolated-merge-recovery`:
-  Records an isolated merge and finishes or discards it if the process died.
-  Another program that could depend on it:
-  a merge tool.
 - `three-way-text-merge`:
   Merges text three ways by line and,
   where both sides changed a line,
@@ -511,12 +514,28 @@ wrapper-settings
     uses crates: safe-file-saving, start-the-real-git, text-time-and-log-line-formats, typed-command-reader
 commit-candidate-content
     uses crates: read-git-files-without-git, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, wrapper-settings
-standards-review-log
-    uses crates: safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
 commit-service-messages
-    uses crates: standards-review-log
+    uses crates: none
+system-journal-entries
+    uses crates: text-time-and-log-line-formats
+commit-service-log-lines
+    uses crates: commit-service-messages, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats
 crash-points-for-tests
     uses crates: starting-and-watching-programs, text-time-and-log-line-formats
+durable-work-items
+    uses crates: commit-service-log-lines, safe-file-saving
+rules-about-git-command-lines
+    uses crates: start-the-real-git, typed-command-reader
+policy-engine
+    uses crates: commit-candidate-content, read-git-files-without-git, rules-about-git-command-lines, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
+standards-review-log
+    uses crates: commit-service-messages, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
+systemd-user-manager-client
+    uses crates: none
+commit-service-client
+    uses crates: commit-candidate-content, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, policy-engine, read-git-files-without-git, safe-file-saving, standards-review-log, start-the-real-git, starting-and-watching-programs, systemd-user-manager-client, text-time-and-log-line-formats, wrapper-settings
+isolated-merge-recovery
+    uses crates: commit-service-log-lines, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
 linux-filesystem-primitives
     uses crates: none
 git-lock-files
@@ -526,23 +545,7 @@ parallel-work-within-a-budget
 sha-1-and-sha-256-digests
     uses crates: none
 commit-service-index-lock
-    uses crates: commit-service-messages, crash-points-for-tests, git-lock-files, linux-filesystem-primitives, parallel-work-within-a-budget, safe-file-saving, sha-1-and-sha-256-digests, start-the-real-git, starting-and-watching-programs, typed-command-reader
-system-journal-entries
-    uses crates: text-time-and-log-line-formats
-commit-service-log-lines
-    uses crates: commit-service-index-lock, commit-service-messages, start-the-real-git, starting-and-watching-programs, system-journal-entries, text-time-and-log-line-formats
-durable-work-items
-    uses crates: commit-service-log-lines, safe-file-saving
-rules-about-git-command-lines
-    uses crates: start-the-real-git, typed-command-reader
-policy-engine
-    uses crates: commit-candidate-content, read-git-files-without-git, rules-about-git-command-lines, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats, typed-command-reader, wrapper-settings
-systemd-user-manager-client
-    uses crates: none
-commit-service-client
-    uses crates: commit-candidate-content, commit-service-log-lines, commit-service-messages, crash-points-for-tests, durable-work-items, policy-engine, read-git-files-without-git, safe-file-saving, standards-review-log, start-the-real-git, starting-and-watching-programs, systemd-user-manager-client, text-time-and-log-line-formats, wrapper-settings
-isolated-merge-recovery
-    uses crates: commit-service-log-lines, safe-file-saving, start-the-real-git, starting-and-watching-programs, text-time-and-log-line-formats
+    uses crates: commit-service-log-lines, commit-service-messages, crash-points-for-tests, git-lock-files, linux-filesystem-primitives, parallel-work-within-a-budget, safe-file-saving, sha-1-and-sha-256-digests, start-the-real-git, starting-and-watching-programs, typed-command-reader
 three-way-text-merge
     uses crates: none
 merge-conflicts-word-by-word
@@ -640,14 +643,20 @@ disposable-test-fixtures
   one is the list,
   the other runs it.
 - `commit-service-log-lines` merged into `commit-service-messages`:
-  tried and rejected by measurement.
-  The log lines read `service_index_found` from the index-lock crate,
-  and the index-lock crate reads the protocol's
-  failure code,
-  so the merge makes a crate loop.
+  tried twice and rejected.
+  First by measurement:
+  the log lines read `WaitNotes` from the index-lock crate,
+  and the index-lock crate reads the
+  protocol's failure code,
+  so the merge made a crate loop.
+  Then `WaitNotes` (plain data) moved down into the log-lines
+  crate and the loop went;
+  but the merged crate would give the protocol crate,
+  which now has no crate dependency at all,
+  a dependency on `start-the-real-git`,
+  the journal and the watcher.
   It stays a crate of its own and is the weakest entry:
-  its outside
-  consumer is only a log reader.
+  its outside consumer is only a log reader.
 - Weakest entries that stay,
   for the owner to veto:
   `crash-points-for-tests`,
@@ -664,12 +673,8 @@ disposable-test-fixtures
   the quick routes,
   the clean check,
   removal and conversion reach each other,
-  and an early cut into three crates (clean check,
-  copying,
-  quick routes) made a crate loop (measured):
-  the copy entry needs the add plan and the ladder,
-  the ladder needs the copy stage,
-  and the clean check needs one path-message file of the worktree code.
+  and cutting it into crates made a folder loop (measured) that needs more
+  code changes than the owner approved.
   It can be cut later along `is_the_worktree_clean` and `converting_a_linked_worktree`.
 - `git-environment-variables`,
   `sha-1-and-sha-256-digests` and `three-way-text-merge` are one-file crates.
@@ -880,6 +885,19 @@ arrive without a new entry.
     The name of the service instance that belongs to a worktree.
     `uses/` links:
     none.
+- `rules-about-git-command-lines`
+  - `rules_that_add_flags_to_a_command/`:
+    Rules that add words to a command line before it runs.
+    `uses/` links:
+    none.
+  - `rules_about_what_a_commit_may_contain/`:
+    Rules about what a commit may contain and why a push scope is unknown.
+    `uses/` links:
+    `rules_that_add_flags_to_a_command`.
+  - `rules_about_where_a_command_may_run/`:
+    Rules that say a command may run only in a certain kind of worktree.
+    `uses/` links:
+    none.
 - `linux-filesystem-primitives`
   - `which_disk_a_folder_is_on/`:
     Mount tables,
@@ -919,19 +937,6 @@ arrive without a new entry.
     Waits for any program's hold on the lock before a command changes the checkout.
     `uses/` links:
     `holding_the_index_lock_for_the_commit_service`.
-- `rules-about-git-command-lines`
-  - `rules_that_add_flags_to_a_command/`:
-    Rules that add words to a command line before it runs.
-    `uses/` links:
-    none.
-  - `rules_about_what_a_commit_may_contain/`:
-    Rules about what a commit may contain and why a push scope is unknown.
-    `uses/` links:
-    `rules_that_add_flags_to_a_command`.
-  - `rules_about_where_a_command_may_run/`:
-    Rules that say a command may run only in a certain kind of worktree.
-    `uses/` links:
-    none.
 - `hidden-git-copy-for-preparing-commits`
   - `the_hidden_second_git_folder/`:
     Creates the hidden second Git folder and copies merge state into it.
@@ -994,7 +999,7 @@ arrive without a new entry.
   276 of the 580 existing files get a new name (the `target` table of the group map),
   the rest keep theirs because
   the name already says what the file does.
-  Nine files are new (section "Changes the tree needs before files can move").
+  Eight files are new (section "Changes the tree needs before files can move").
   The old folder `mod.rs` files and the old `lib.rs` are replaced by the new index files.
 - Sidecar tests follow their subject:
   `<subject>_tests.rs` becomes `<new subject name>_tests.rs`,
@@ -1016,10 +1021,7 @@ The loop checks above hold only with all of these applied.
 
 ### Loops between files, as they stand
 
-Measured on `main` at `f44d921e24` with the target groups.
-Each edge names the file and line of the first use;
-a line marked `?` is reached through a planned item move,
-so no `crate::` path in that file names it today:
+Measured on `main` at `f44d921e24` with the target groups (the first number of each edge is the line of the first use):
 
 - loop of 3:
   `child_watch`,
@@ -1423,6 +1425,15 @@ so no `crate::` path in that file names it today:
   `Verdict` moves from `stale_ref_lock_judge` to `stale_ref_lock_found`.
 - Holder scan:
   `Holder` moves from `index_lock_holders` to `index_lock_holder_parsers`.
+- Log lines and the index-lock crate:
+  `WaitNotes` (plain data) moves from `service_index_found` to `service_timing`,
+  so `commit-service-log-lines` does not depend on `commit-service-index-lock`.
+- Review key:
+  `service_review_key` (75 lines,
+  uses nothing) moves from `standards-review-log` to
+  `commit-service-messages`,
+  so the protocol crate has no crate dependency and the index-lock crate does not pull the
+  HTTPS client and `start-the-real-git` in through the protocol.
 - Push runner (four files):
   new file `push_attempt_and_failure` receives `PushAttempt` and `SingleFlightError`;
   new file `bounded_push_waiting` receives `MAX_PUSH_OUTPUT`,
@@ -1478,15 +1489,16 @@ Drift in signatures from that branch is expected and harmless to the layout.
     the nesting counter
     `NESTED_FINISHES` moves to the loop.
   - Consumer:
-    the top-level loop in the program crate (`entry_run_forwarded_actions`) runs the command through the same planning
-    `run_process` does today,
+    the top-level loop in the program crate (`entry_run_forwarded_actions`) runs the command with
+    `entry::run_process`'s planning,
     feeds the status back to the step function,
     and repeats until `Done`.
     A depth guard replaces the counter.
 - Current step record:
   `transaction_git` stops calling `service_busy::enter_step` and `on_landing_thread`.
   A thread-local record (step file path and detail) moves to the crate `starting-and-watching-programs`
-  (a new file `current_step_record`);
+  (the file `kinds_of_git_step` neighbour,
+  new name `current_step_record`);
   the runner writes it,
   the landing code
   registers its file path there,
@@ -1755,6 +1767,8 @@ and its new file:
   from `hints_after_a_finding` in `policy-engine` (old file `event_hints`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
 - `push_hint_field`:
   from `hints_after_a_finding` in `policy-engine` (old file `event_hints`) to `settings_of_the_worktree_a_command_runs_in` in `wrapper-settings`
+- `WaitNotes`:
+  from `what_waiting_for_the_lock_found` in `commit-service-index-lock` (old file `service_index_found`) to `service_timing` in `commit-service-log-lines`
 
 The scan does not follow what a moved item itself uses.
 This proposal's check cut every moved item out of its source
@@ -1772,6 +1786,7 @@ The compiler still has the last word.
 - `service_durable` and `service_fault` move down to the lock-hold crate and the crash-points crate (see rejected crates).
 - `conflict_side_state`,
   `editor_would_open` and `stdin_and_stdout_are_one_terminal` as in the rescan.
+- `service_review_key` moves to `commit-service-messages` (above).
 
 ### Removal of the flat re-exports
 
@@ -1790,16 +1805,15 @@ Of the 1029 items one crate uses from another,
 declarations;
 so 15 items widen to `pub`.
 In addition,
-90 lines in non-index files re-export a name with `pub use crate::...`;
-each goes,
-and its consumers name
-the defining file,
+126 non-index `pub use` lines re-export a name by name;
+each is
+replaced by the consumers naming the defining file,
 because each is a hidden use the tree cannot show.
 
 ### Tests that name a higher crate
 
 `engine.ts` plus `testrefs.ts` list the test files whose references reach a crate the subject's crate does not use.
-31 crate pairs,
+Thirty crate pairs,
 49 test references.
 For each,
 the sidecar either gets a local stand-in,
@@ -1824,6 +1838,8 @@ Nothing in production changes for them.
   service_index_prestage->claim_time
 - `commit-service-index-lock` tests name `land-prepared-commits`:
   service_index_hold->service_land_start
+- `commit-service-log-lines` tests name `git-lock-files`:
+  commit_timing->index_lock_evidence
 - `commit-service-log-lines` tests name `keep-copies-of-discarded-work`:
   commit_timing->discard_audit
 - `convert-a-checkout-to-a-btrfs-subvolume` tests name `new-worktrees-quickly`:
@@ -1910,7 +1926,9 @@ Nothing in production changes for them.
   `no_threads_child_test_support`,
   `parallel_test_support`,
   `fixture_executable` and `test_alive` go to the fixtures crate.
-- The other test-only modules go to the crate of their subject (`target_test_only_modules` in the group map).
+- The other test-only modules go to the crate of their subject (`spec/tests.txt`,
+  also in the group map under
+  `target_test_only_modules`).
 - The sixteen `binary/*` files,
   `binary_tests.rs` and the controls that start the built program go to the program crate's
   `tests/` folder;
@@ -2153,8 +2171,8 @@ they go into the owner's question file.
   the index-lock
   crate reports with it,
   so `commit-service-index-lock` depends on `commit-service-messages`,
-  and that depends on
-  `standards-review-log` for the review key.
+  which depends on no crate
+  (the review key moved into it).
   Recommendation:
   accept;
   the alternative is a tiny crate for the code list.
