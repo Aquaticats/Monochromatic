@@ -182,6 +182,182 @@ The browser error check was empty.
 This verifies import and activation;
 no model inference request was made.
 
+## Advisor import coupling and removal at 2026-11-05T13:24:07-05:00
+
+The import was avoidable coupling in our Advisor implementation.
+DSH did not require Advisor to load the Pi coding SDK.
+The original missing-package error also reproduced in plain Node,
+as recorded in the symptom section.
+
+### Why Advisor reached the lockfile package
+
+`package/dsh-plugin/advisor/src/transcript.ts:91` supplies the shared estimator to its transcript port:
+
+```ts
+// package/dsh-plugin/advisor/src/transcript.ts:91
+estimateInputTokens: estimateAdvisorInputTokens,
+```
+
+Before commit `54cb3ef443`,
+`package/agent-harness-shared/model-selection/src/pi-coding-agent.ts:7` imported the SDK's root entry:
+the file moved to `src/token-estimate.ts` in that package on 2026-11-05.
+
+```ts
+// Former package/agent-harness-shared/model-selection/src/pi-coding-agent.ts:7
+import { estimateTokens, } from '@earendil-works/pi-coding-agent';
+```
+
+The built Advisor retained this external import.
+An instrumented Node import recorded that edge,
+then `proper-lockfile` imports from Pi's settings,
+authentication,
+trust,
+and package-manager modules.
+No Advisor model request or lock operation was needed to reach module resolution.
+
+Pi `1.5.0`,
+at source commit `f9a26365568127461c47a07a37dcb42c140a3ac5`,
+exports both the estimator and settings management from
+[`packages/coding-agent/src/index.ts:39` and `:321`][pi-entry-source].
+The settings export includes:
+
+```ts
+// Pi packages/coding-agent/src/index.ts:321
+SettingsManager,
+type SettingsManagerCreateOptions,
+type TuiMode,
+} from "./core/settings-manager.ts";
+```
+
+That module imports the lockfile package at
+[`packages/coding-agent/src/core/settings-manager.ts:7`][pi-settings-source]:
+
+```ts
+// Pi packages/coding-agent/src/core/settings-manager.ts:7
+import lockfile from "proper-lockfile";
+```
+
+The source was cloned at the release tag,
+and both linked selections were confirmed in `agent-browser`.
+The pnpm link defect made this unnecessary dependency fail to resolve.
+Repairing pnpm's link did not remove our coupling.
+
+[pi-entry-source]: https://raw.githubusercontent.com/earendil-works/pi/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/coding-agent/src/index.ts#:~:text=SettingsManager
+[pi-settings-source]: https://raw.githubusercontent.com/earendil-works/pi/f9a26365568127461c47a07a37dcb42c140a3ac5/packages/coding-agent/src/core/settings-manager.ts#:~:text=import%20lockfile
+
+### Why the other plugins differed
+
+Fresh Node processes installed a resolver hook rejecting `proper-lockfile` before importing each built entry.
+The unchanged Advisor and model-selection entries failed at Pi's `settings-manager.js`.
+NeuralWatt and Cost Dismissal imported successfully,
+exported `apply` functions,
+and requested neither the Pi coding SDK nor `proper-lockfile`.
+These are import-boundary probes;
+they do not claim to exercise every later plugin operation.
+
+Search and Fetch has a different boundary.
+`package/search-fetch/dsh-plugin/cordis.patch.yml:25` mounts the host's MCP client:
+
+```yaml
+# package/search-fetch/dsh-plugin/cordis.patch.yml:25
+name: '@deepseek-ai/dsh-mcp-client'
+```
+
+The configuration-only bundle does not import the Advisor estimator.
+Its separate MCP process was not an arm of the standalone import comparison.
+A direct Node import of the installed Rewind plugin instead failed to resolve the host peer `@deepseek-ai/dsh-llm`.
+That is the already recorded [standalone fixture-scope limitation](dsh-rc5-profile-startup.md),
+not evidence about the original `proper-lockfile` failure.
+
+### Owned repair and remaining dependency boundary
+
+`package/agent-harness-shared/model-selection/src/token-estimate.ts:63`
+now implements the text estimate directly.
+It reads string lengths,
+includes the `\n\n` separator,
+and rounds up once using the exported character-per-token policy.
+The measured cases preserve the old wrapper's behavior for empty input,
+rounding boundaries,
+surrogate pairs,
+non-Latin text,
+and embedded line breaks.
+This is a budgeting heuristic,
+not a model-specific tokenizer.
+
+Model selection no longer declares Pi runtime,
+peer,
+or development dependencies.
+DSH Advisor no longer declares `@earendil-works/pi-coding-agent`.
+The package-manager-generated lockfile diff removes only the corresponding dependency rows.
+
+`package/agent-harness-shared/advisor/src/advisor-client.ts:17`
+retains narrower supported Pi AI imports for the existing provider protocol:
+
+```ts
+// package/agent-harness-shared/advisor/src/advisor-client.ts:17
+import { getSupportedThinkingLevels, } from '@earendil-works/pi-ai/models';
+import { normalizeContext, } from '@earendil-works/pi-ai/utils/transcript';
+```
+
+Pi AI types also remain in that provider boundary.
+The Pi adapter retains its own host transcript and rendering integrations.
+This change does not grant Pi a high-trust clearance.
+The owner's instruction to minimize Pi dependencies,
+including in Pi and DSH integrations,
+is recorded in 35 related package READMEs.
+The inventory covers integration categories,
+direct dependency declarations,
+and Pi/DSH-specific source and documentation;
+the generic dependency updater's sample Pi diagnostic is excluded.
+All added guidance was checked in rendered CommonMark output.
+
+### Verification and fixture repairs
+
+The committed model-selection import regression was run before the repair and failed with:
+
+```text
+Model selection attempted to load Pi dependency: @earendil-works/pi-coding-agent
+```
+
+After rebuilding,
+both import regressions passed with their exact test names visible in verbose output:
+
+```sh
+# Repository root; each task rebuilds before checking the built entry.
+MONOCHROMATIC_VERBOSE=true mise run //package/agent-harness-shared/model-selection:buildAndTest -- src/runtime-dependencies.unit.test.ts
+MONOCHROMATIC_VERBOSE=true mise run //package/dsh-plugin/advisor:buildAndTest -- src/runtime-dependencies.unit.test.ts
+```
+
+The final direct import probe also loaded Advisor with `proper-lockfile` blocked,
+observed `apply: function`,
+and recorded no Pi coding-agent or lockfile import requests.
+The model-selection,
+shared Advisor,
+DSH Advisor,
+and Pi Advisor unit suites passed.
+All affected packages passed TypeScript checks.
+
+The real Pi host verifier passed `serial-credit`,
+`explicit-credit`,
+`collect`,
+`straggler`,
+`slash`,
+and `slash-error`.
+It needed an explicit disposable log directory:
+the initial fixture emitted the logger warning
+`No ancestor node_modules directory was found`
+and failed its empty-stderr assertion.
+The verifier now supplies `MONOCHROMATIC_LOG_DIRECTORY` under its fixture root,
+with the assertion retained.
+The extension verifier also needed `truncated: false`
+in its empty `ExecResult` fixture to satisfy Pi `1.5.0`'s current type.
+Its registration and lifecycle checks then passed.
+
+The pnpm store-path workaround remains necessary for other consumers of the workspace shim.
+This repository repair does not install the upstream pnpm prototype.
+There is no new upstream filing for the removed Advisor coupling;
+it belonged to this repository.
+
 ## Permanent fix status
 
 Automatic canonicalization is a workaround,
