@@ -13,7 +13,7 @@
 //! ```
 
 /// Import the tree and the resolver.
-use crate::{layout_module_tree::ModuleTree, layout_path_resolution::resolve_path};
+use crate::{layout_module_tree::ModuleTree, layout_path_resolution::resolve_use_path};
 /// Import the native path type.
 use std::path::{Path, PathBuf};
 
@@ -45,7 +45,8 @@ pub struct ModuleUse {
 /// What:
 ///  Every use of a module by a different module.
 /// Why:
-///  A path that names the module it is in is not a dependency.
+///  A path that names the module it is in is not a dependency,
+///  and a path that reaches an item through a re-export is a use of the module that defines the item.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +56,7 @@ pub fn collect_uses(tree: &ModuleTree) -> Vec<ModuleUse> {
     let mut uses: Vec<ModuleUse> = Vec::<ModuleUse>::new();
     for (index, module) in tree.modules.iter().enumerate() {
         for reference in &module.references {
-            let Some(target) = resolve_path(tree, index, reference.raw.segments.as_slice(), true)
+            let Some(target) = resolve_use_path(tree, index, reference.raw.segments.as_slice())
             else {
                 continue;
             };

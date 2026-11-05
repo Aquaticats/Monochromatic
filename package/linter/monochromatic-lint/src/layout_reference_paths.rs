@@ -118,7 +118,8 @@ pub struct RawReference {
     /// True when the path sits inside a `pub use` (any visibility),
     ///  which makes the names it brings in visible to other modules.
     pub reexport: bool,
-    /// The new name after `as` in a re-export (`pub use a::B as C;` gives `C`, `_` included);
+    /// The new name after `as` in a re-export (`pub use a::B as C;` gives `C`,
+    ///  `_` included);
     ///  nothing for a path without a rename and for every path that is not a re-export.
     pub alias: Option<String>,
     /// Byte offset of the first token of the whole path.
@@ -193,7 +194,8 @@ fn alias_at(tokens: &[Token], index: usize) -> Option<String> {
     if kind_at(tokens, index) != TokenKind::As {
         return None;
     }
-    return tokens.get(index + 1).map(|name| return name.text.clone());
+    let name: &Token = tokens.get(index + 1)?;
+    return Some(name.text.clone());
 }
 
 /// What:

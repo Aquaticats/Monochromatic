@@ -11,17 +11,22 @@
 //!  `crate::module` reaches a module that a folder defines.
 //!  The path of a glob itself is read through direct children only;
 //!  that keeps the answer finite when globs refer to each other.
+//!  An item that a module re-exports by name (`pub use sibling::Name;`,
+//!  also under a new name with `as`) is followed to the module that defines it,
+//!  through any chain of such re-exports;
+//!  a use that reaches the item through the index then counts as a use of the defining file or folder.
 //!  Known limit:
-//!  an item (not a module) re-exported from another folder resolves to the module that re-exports it.
+//!  an item (not a module) that a glob re-export supplies resolves to the module that re-exports it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function resolvePath(tree: ModuleTree, from: number, segments: string[], throughGlobs: boolean): number | undefined;
+//! function resolveUsePath(tree: ModuleTree, from: number, segments: string[]): number | undefined;
 //! function linkGlobTargets(tree: ModuleTree): void;
 //! ```
 
-/// Import the tree the paths are resolved in.
-use crate::layout_module_tree::ModuleTree;
+/// Import the tree the paths are resolved in and the reference a re-export is read from.
+use crate::{layout_module_tree::ModuleTree, layout_reference_paths::RawReference};
 /// Import an ordered set for the visited modules.
 use std::collections::BTreeSet;
 
@@ -76,24 +81,26 @@ fn find_child(tree: &ModuleTree, module: usize, name: &str, through_globs: bool)
 }
 
 /// What:
-///  The deepest module a path names,
-///  or nothing when the path names no module of this package.
+///  Walk a path through the tree:
+///  the deepest module it names and the index of the first segment that is not a module.
 /// Why:
 ///  `crate` starts at the root,
 ///  `super` and `self` at the module around or at the code,
 ///  and a plain name only when it is a module declared next to the code
 ///  (so `std::mem::swap` and an external crate's path name nothing).
+///  The first segment that is not a module is the name of an item of the deepest module,
+///  and a re-export may send that item to another file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolvePath(tree: ModuleTree, from: number, segments: string[], throughGlobs: boolean): number | undefined;
+/// function walkPath(tree: ModuleTree, from: number, segments: string[], throughGlobs: boolean): { module: number; next: number } | undefined;
 /// ```
-pub fn resolve_path(
+fn walk_path(
     tree: &ModuleTree,
     from: usize,
     segments: &[String],
     through_globs: bool,
-) -> Option<usize> {
+) -> Option<(usize, usize)> {
     let first: &String = segments.first()?;
     let mut current: usize = from;
     let mut index: usize = 0;
@@ -118,7 +125,95 @@ pub fn resolve_path(
         }
         index += 1;
     }
-    return Some(current);
+    return Some((current, index));
+}
+
+/// What:
+///  The deepest module a path names,
+///  or nothing when the path names no module of this package.
+/// Why:
+///  The names after the deepest module are items that live in it,
+///  and this answer does not look at what the module re-exports.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolvePath(tree: ModuleTree, from: number, segments: string[], throughGlobs: boolean): number | undefined;
+/// ```
+pub fn resolve_path(
+    tree: &ModuleTree,
+    from: usize,
+    segments: &[String],
+    through_globs: bool,
+) -> Option<usize> {
+    let (module, _): (usize, usize) = walk_path(tree, from, segments, through_globs)?;
+    return Some(module);
+}
+
+/// What:
+///  The name under which a re-export makes something visible:
+///  its rename after `as`,
+///  or else the last name of its path.
+/// Why:
+///  `pub use two::Thing as Y;` is reached as `Y`,
+///  and `pub use two::Y;` as `Y`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exportedName(reference: RawReference): string | undefined;
+/// ```
+fn exported_name(reference: &RawReference) -> Option<&String> {
+    if reference.alias.is_some() {
+        return reference.alias.as_ref();
+    }
+    return reference.segments.last();
+}
+
+/// What:
+///  The module that defines what a path names,
+///  following every named re-export on the way.
+/// Why:
+///  `super::Name` from a file names an item of the folder's index,
+///  but when the index only holds `pub use sibling::Name;` the file that is really used is `sibling`.
+///  Each hop looks for a `pub use` that is not a glob and that exports the name,
+///  and resolves that re-export's own path from the module that holds it.
+///  A glob re-export,
+///  a private `use` and a path outside the package end the walk where it stands.
+///  A name is followed in each module once,
+///  so a ring of re-exports ends and the use stays on the module where the walk met itself again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveUsePath(tree: ModuleTree, from: number, segments: string[]): number | undefined;
+/// ```
+pub fn resolve_use_path(tree: &ModuleTree, from: usize, segments: &[String]) -> Option<usize> {
+    let (mut module, mut next): (usize, usize) = walk_path(tree, from, segments, true)?;
+    let mut path: &[String] = segments;
+    let mut followed: BTreeSet<(usize, &String)> = BTreeSet::<(usize, &String)>::new();
+    while let Some(name) = path.get(next) {
+        if !followed.insert((module, name)) {
+            return Some(module);
+        }
+        let mut reexport: Option<&RawReference> = None;
+        for reference in &tree.modules[module].references {
+            if reference.raw.reexport
+                && !reference.raw.glob
+                && exported_name(&reference.raw) == Some(name)
+            {
+                reexport = Some(&reference.raw);
+                break;
+            }
+        }
+        let Some(found) = reexport else {
+            return Some(module);
+        };
+        let Some((target, after)) = walk_path(tree, module, found.segments.as_slice(), true) else {
+            return Some(module);
+        };
+        path = found.segments.as_slice();
+        module = target;
+        next = after;
+    }
+    return Some(module);
 }
 
 /// What:
