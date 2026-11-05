@@ -376,7 +376,10 @@ the scan reruns on the merged result before the owner sees the tree.
 
 ## Next
 
-Break the file loops with named changes,
-then split the large groups (`checks` holds 66 files, `worktree` 41) into folders,
-name every folder and file for someone who knows only `git commit` and `git push`,
-and show the owner the whole tree before any file moves.
+The target tree, crate split, named changes, move order and open points are drafted for the owner in
+[`cli-git-source-layout-target-tree.md`](cli-git-source-layout-target-tree.md)
+(file by file in [`cli-git-source-layout-target-tree-files.md`](cli-git-source-layout-target-tree-files.md)).
+Nothing moves until the owner answers its open points.
+Then the file loops are broken with the named changes,
+the large groups are split into folders,
+and every folder and file is named for someone who knows only `git commit` and `git push`.
