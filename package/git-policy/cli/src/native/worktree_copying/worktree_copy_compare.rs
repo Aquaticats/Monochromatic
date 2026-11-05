@@ -11,7 +11,7 @@
 //! await assertFinalSourceEquivalence({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries });
 //! ```
 
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_beside_caller;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
@@ -188,6 +188,35 @@ pub fn entry_matches_stamped(
 }
 
 /// What:
+///  The manifest of the source under the leave-out rule, as the final check walks it on a thread beside the stage's walk.
+/// Why:
+///   Entries the walk cannot read are not reported here: the final check compares the whole manifest and fails on any difference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
+/// ```
+fn walk_source_pruned(
+    (source_root, selected_roots, excluded_source_roots, prune): (&Path, &[String], &[PathBuf], Prune),
+) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    let mut unreadable: Vec<String> = Vec::new();
+    return collect_pruned_manifest(source_root, selected_roots, excluded_source_roots, prune, &mut unreadable);
+}
+
+/// What:
+///  The manifest of the stage, with no leave-out rule, as the final check walks it on the calling thread.
+/// Why:
+///   The stage holds exactly the selected roots, so nothing is excluded or pruned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// walkStage([stageRoot, selectedRoots]) // collectEntryManifest(stageRoot, selectedRoots, [])
+/// ```
+fn walk_stage((stage_root, selected_roots): (&Path, &[String])) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+    return collect_entry_manifest(stage_root, selected_roots, &[]);
+}
+
+/// What:
 ///  Checks that the source still matches the initial manifest after staging,
 ///  and that the stage holds exactly that manifest.
 /// Why:
@@ -249,25 +278,15 @@ pub fn assert_final_source_equivalence_pruned(
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
-    let (source_walked, stage_walked) = std::thread::scope(|scope| {
-        let source_walk = start_or_run(scope, || {
-            let mut unreadable: Vec<String> = Vec::new();
-            return collect_pruned_manifest(
-                source_root,
-                selected_roots,
-                excluded_source_roots,
-                check.prune,
-                &mut unreadable,
-            );
-        });
-        let stage_walk = collect_entry_manifest(stage_root, selected_roots, &[]);
-        let source_result = match source_walk.join() {
-            Ok(walked) => walked,
-            Err(_panic) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
-        };
-        return (source_result, stage_walk);
-    });
+    let (source_joined, stage_walked): (std::thread::Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
+        run_beside_caller(
+            ((source_root, selected_roots, excluded_source_roots, check.prune), walk_source_pruned),
+            ((stage_root, selected_roots), walk_stage),
+        );
+    let source_walked: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = match source_joined {
+        Ok(walked) => walked,
+        Err(_panic) => Err(raw_failure(&std::io::Error::other("a manifest walk panicked"))),
+    };
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
     if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {

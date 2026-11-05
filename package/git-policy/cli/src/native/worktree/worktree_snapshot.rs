@@ -22,7 +22,7 @@ use crate::subvolume_index_files::install_index_in;
 use crate::subvolume_remove::remove_tree;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_path_failure_message::subject_failure;
-use crate::subvolume_index::StatFields;
+use crate::subvolume_index::{StatFields, StatLookup};
 use crate::worktree_clean::{StatCursor, StatEntry, stored_stats, tree_fields_beneath};
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
@@ -270,15 +270,37 @@ fn install_index(source: &SnapshotSource, stage: &Path, admin: &File, own_index:
     // An entry the walk did not cover (a source with changes has no walk) is looked at through a cursor that keeps its directory.
     let mut cursor: StatCursor<'_> = StatCursor::new(&root);
     let install_index_file_entered: bool = begin_step("installIndexFile");
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "install_index_in takes its stat lookup as a dyn FnMut owned by subvolume/subvolume_index_files.rs, and the lookup must capture the caller's table (worktree_closure_lint_suppressions.md, group install_index_in)"))]
-    let install_index_file_outcome = install_index_in(admin, bytes, &mut |path: &[u8]| { return match known.get(path) {
-        Some(fields) => Some(*fields),
-        None => cursor.fields(path),
-    }; }, source.clean.hash_length);
+    let install_index_file_outcome = install_index_in(admin, bytes, &mut WalkedThenCursor { known: &known, cursor: &mut cursor }, source.clean.hash_length);
     end_step(install_index_file_entered);
     let report: String = install_index_file_outcome?;
     crate::diagnostic_log::debug("takeSnapshot", report.as_str());
     return Ok(());
+}
+
+/// What:
+///  The stat fields of the snapshot's files: the ones the walk returned, and a cursor for an entry the walk did not cover.
+/// Why:
+///   One walk of the snapshot gave the fields of the files it covered; a source with changes has no walk, so its entries are looked
+///  at through a cursor that keeps its directory open.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class WalkedThenCursor implements StatLookup { statNow(path) { return this.known.get(path) ?? this.cursor.fields(path); } }
+/// ```
+struct WalkedThenCursor<'a, 'root> {
+    /// The fields the walk returned, by path.
+    known: &'a std::collections::HashMap<&'a [u8], StatFields>,
+    /// The cursor for an entry the walk did not cover.
+    cursor: &'a mut StatCursor<'root>,
+}
+
+impl StatLookup for WalkedThenCursor<'_, '_> {
+    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+        return match self.known.get(path) {
+            Some(fields) => Some(*fields),
+            None => self.cursor.fields(path),
+        };
+    }
 }
 
 /// What:

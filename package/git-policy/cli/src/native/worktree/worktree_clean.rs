@@ -16,7 +16,7 @@
 //! ```
 
 use crate::add_timing::{begin_step, begin_work, end_step, end_work};
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_beside_caller;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_odb::ObjectDatabase;
@@ -408,6 +408,27 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
     return None;
 }
 
+/// What:
+///  The untracked scan of `check_clean`, timed as the work `untrackedScan` because it runs on a thread of its own.
+/// Why:
+///   The scan is one Git run over the directory tree; the add timing record sums the work of threads by name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork(); const scanned = untrackedFile(context, root); endWork('untrackedScan', began);
+/// ```
+fn scan_for_untracked_file((context, root): (&GitContext, &Path)) -> Result<Option<String>, CleanRefusal> {
+    let began: std::time::Instant = begin_work();
+    let scanned: Result<Option<String>, CleanRefusal> = untracked_file(context, root);
+    end_work("untrackedScan", began);
+    return scanned;
+}
+
+/// The tracked-file proof of `check_clean`, which runs on the calling thread beside the untracked scan.
+fn check_tracked_files((root, git_dir, common_dir): (&Path, &Path, &Path)) -> Result<CleanSource, CleanRefusal> {
+    return check_tracked(root, git_dir, common_dir, None, false);
+}
+
 /// Cleanliness controls stay out of the release executable.
 /// What:
 ///  Check that the worktree at `root`, whose Git directory is `git_dir` and whose shared directory is `common_dir`, is
@@ -422,21 +443,12 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
 pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
     // The tracked files (the index, the tree of `HEAD`, a stat of every file) and the untracked scan (one Git run over the
     //  directory tree) read different things and write nothing, so they run side by side; the tracked refusal still comes first.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
-    let (tracked, untracked): (Result<CleanSource, CleanRefusal>, Result<Option<String>, CleanRefusal>) = std::thread::scope(|scope| {
-        let scan = start_or_run(scope, || {
-            let began: std::time::Instant = begin_work();
-            let scanned: Result<Option<String>, CleanRefusal> = untracked_file(context, root);
-            end_work("untrackedScan", began);
-            return scanned;
-        });
-        let tracked = check_tracked(root, git_dir, common_dir, None, false);
-        let scanned = match scan.join() {
-            Ok(found) => found,
-            Err(_panic) => Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")),
-        };
-        return (tracked, scanned);
-    });
+    let (scan_joined, tracked): (std::thread::Result<Result<Option<String>, CleanRefusal>>, Result<CleanSource, CleanRefusal>) =
+        run_beside_caller(((context, root), scan_for_untracked_file), ((root, git_dir, common_dir), check_tracked_files));
+    let untracked: Result<Option<String>, CleanRefusal> = match scan_joined {
+        Ok(found) => found,
+        Err(_panic) => Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")),
+    };
     let clean: CleanSource = tracked?;
     if let Some(name) = untracked? {
         return Err(CleanRefusal::new(CleanRefusalKind::Untracked, format!("{name} is untracked and not ignored")));

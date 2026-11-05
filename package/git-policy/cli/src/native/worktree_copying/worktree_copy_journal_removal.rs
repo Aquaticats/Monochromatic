@@ -11,7 +11,7 @@
 
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::private_storage::sync_directory;
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_all_side_by_side;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_journal::write_journal;
 use crate::worktree_copy_journal_encoding_and_validation::{Journal, PendingJournal, Phase, TEMPORARY_SUFFIX};
@@ -119,6 +119,25 @@ pub fn remove_pending_journal(pending: &PendingJournal) -> Result<(), WorktreeCo
 const REMOVAL_SPLIT_DEPTH: usize = 3;
 
 /// What:
+///  One removal worker: take the next subtree from the shared cursor and remove it, until none is left or a removal fails.
+/// Why:
+///   Workers share only the cursor, so each subtree has exactly one owner and no lock is taken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let i = cursor.next(); subtrees[i] !== undefined; i = cursor.next()) await rm(subtrees[i], { recursive: true });
+/// ```
+fn remove_subtrees_until_none_is_left((cursor, subtrees): (&std::sync::atomic::AtomicUsize, &[PathBuf])) -> std::io::Result<()> {
+    loop {
+        let index: usize = cursor.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let Some(subtree) = subtrees.get(index) else {
+            return Ok(());
+        };
+        std::fs::remove_dir_all(subtree.as_path())?;
+    }
+}
+
+/// What:
 ///  Removes a directory tree, sharing the subtrees below a split depth among a bounded set of threads.
 /// Why:
 ///   Unlinking a staged copy entry by entry took longer than staging it on a tree of hundreds of thousands of entries;
@@ -153,29 +172,17 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
     }
     let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
     let cursor: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
-    let outcomes: Vec<std::io::Result<()>> = std::thread::scope(|scope| {
-        let mut handles: Vec<_> = Vec::new();
-        for _worker in 0..workers {
-            handles.push(start_or_run(scope, || -> std::io::Result<()> {
-                loop {
-                    let index: usize = cursor.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let Some(subtree) = subtrees.get(index) else {
-                        return Ok(());
-                    };
-                    std::fs::remove_dir_all(subtree.as_path())?;
-                }
-            }));
-        }
-        let mut results: Vec<std::io::Result<()>> = Vec::new();
-        for handle in handles {
-            results.push(match handle.join() {
-                Ok(outcome) => outcome,
-                Err(_panic) => Err(std::io::Error::other("a removal worker panicked")),
-            });
-        }
-        return results;
-    });
+    let mut worker_states: Vec<(&std::sync::atomic::AtomicUsize, &[PathBuf])> = Vec::new();
+    for _worker in 0..workers {
+        worker_states.push((&cursor, subtrees.as_slice()));
+    }
+    let mut outcomes: Vec<std::io::Result<()>> = Vec::new();
+    for joined in run_all_side_by_side(worker_states, remove_subtrees_until_none_is_left) {
+        outcomes.push(match joined {
+            Ok(outcome) => outcome,
+            Err(_panic) => Err(std::io::Error::other("a removal worker panicked")),
+        });
+    }
     for outcome in outcomes {
         outcome?;
     }

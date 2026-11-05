@@ -12,7 +12,8 @@
 //! ```
 
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::line_sink::LineSink;
+use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 use crate::worktree_trash_manifest::{TrashManifest, entry_name};
 use crate::worktree_trash_remove::Removal;
 use std::fs::File;
@@ -55,6 +56,54 @@ pub struct EntryRemoval<'a> {
 }
 
 /// What:
+///  The removal of one trash entry, run by a worker of the ordered runner.
+/// Why:
+///   The trash handle, the manifest and the removal are what the removal reads; the runner shares them among its worker threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RemoveEachEntry implements OrderedWork<number, Result<Removal>> { run(slot, index) { return remove(inside, trash, entryName(index), manifest.entries[index]); } }
+/// ```
+struct RemoveEachEntry<'a> {
+    /// The path of the trash directory, for messages.
+    inside: &'a Path,
+    /// The trash directory, held open; every entry is opened by name below it.
+    trash: &'a File,
+    /// What the leave-out recorded.
+    manifest: &'a TrashManifest,
+    /// The removal of one entry.
+    remove: &'a RemoveOne<'a>,
+}
+
+impl OrderedWork<usize, Result<Removal, String>> for RemoveEachEntry<'_> {
+    fn run(&self, _slot: usize, index: &usize, _say: &mut dyn LineSink) -> Result<Removal, String> {
+        return (self.remove)(self.inside, self.trash, std::ffi::OsStr::new(entry_name(*index).as_str()), Some(self.manifest.entries[*index]));
+    }
+}
+
+/// What:
+///  Keeps the reason of each entry that stays, in entry order.
+/// Why:
+///   The runner reports on the calling thread only and in input order, so the list needs no lock and keeps entry order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class KeepReasonsOfEntriesThatStay implements OrderedEvents<Result<Removal>> { left: string[] }
+/// ```
+struct KeepReasonsOfEntriesThatStay<'a> {
+    /// The reasons so far.
+    left: &'a mut Vec<String>,
+}
+
+impl OrderedEvents<Result<Removal, String>> for KeepReasonsOfEntriesThatStay<'_> {
+    fn on_event(&mut self, event: Event<'_, Result<Removal, String>>) {
+        if let Event::End(_slot, Err(reason)) = event {
+            self.left.push(reason);
+        }
+    }
+}
+
+/// What:
 ///  Remove every entry the manifest records, side by side, and return the reason each entry that stays gives, in entry order.
 /// Why:
 ///   The entries are separate directories moved into the trash, each removed only when it is the recorded object, and share no
@@ -74,17 +123,12 @@ pub fn remove_entries(request: &EntryRemoval<'_>) -> Vec<String> {
     }
     let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host });
     let mut left: Vec<String> = Vec::new();
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "OrderedRun takes its work and event callbacks as dyn Fn and dyn FnMut owned by foundation/parallel_runner.rs, and both must capture the caller's state (worktree_closure_lint_suppressions.md, group run_ordered)"))]
     run_ordered(OrderedRun {
         items: indices.as_slice(),
         lanes: lanes.as_slice(),
         workers,
-        work: &|_slot: usize, index: &usize, _say: &mut dyn FnMut(&str)| { return remove(inside, trash, std::ffi::OsStr::new(entry_name(*index).as_str()), Some(manifest.entries[*index])); },
-        on_event: &mut |event: Event<'_, Result<Removal, String>>| {
-            if let Event::End(_slot, Err(reason)) = event {
-                left.push(reason);
-            }
-        },
+        work: &RemoveEachEntry { inside, trash, manifest, remove },
+        on_event: &mut KeepReasonsOfEntriesThatStay { left: &mut left },
     });
     return left;
 }

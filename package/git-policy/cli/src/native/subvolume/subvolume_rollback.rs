@@ -199,10 +199,8 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     // The carried-back index describes the new tree's inodes; this runs after a stop at any step above, once.
     if run.journal.state("exchange") == Some("rolled-back") && !run.journal.is_done("rollback-indexes") {
         let mut lines: Vec<String> = Vec::new();
-        // The refresh reports each index through a callback that carries the list the lines are collected in.
-        #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the refresh's say parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-        let mut collect_line = |text: &str| { lines.push(text.to_string()); };
-        refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut collect_line);
+        // The refresh reports each index into the list the lines are collected in.
+        refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut lines);
         for text in &lines {
             run.line(text.as_str());
         }

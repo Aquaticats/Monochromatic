@@ -21,7 +21,7 @@
 
 use crate::fs_beneath::{create_file_at, entry_metadata_at, make_directory_at, open_directory_at, open_file_at, open_root, plain_components, read_link_at, set_times_at, symlink_at};
 use crate::fs_clone_exchange::clone_file;
-use crate::subvolume_index::StatFields;
+use crate::subvolume_index::{StatFields, StatLookup};
 use crate::subvolume_index_files::{fields_of, install_index_in};
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean::{StatEntry, metadata_differs_from_entry, stored_stats};
@@ -354,6 +354,26 @@ fn clone_all(source: &SnapshotSource, directories: &mut Directories, admin: &Fil
     return clone_with(source, directories, admin, created, &mut seams);
 }
 
+/// What:
+///  The stat fields the clones recorded, looked up by path for the index the new worktree takes.
+/// Why:
+///   Each clone recorded the fields of the file it made, and the index install asks for them by the entry's path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class StatsMadeByTheClones implements StatLookup { statNow(path) { return this.stats.get(path); } }
+/// ```
+struct StatsMadeByTheClones<'a> {
+    /// The fields by path.
+    stats: &'a HashMap<Vec<u8>, StatFields>,
+}
+
+impl StatLookup for StatsMadeByTheClones<'_> {
+    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+        return self.stats.get(path).copied();
+    }
+}
+
 /// `clone_all` with the moments at which a control may move the tree.
 fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &File, created: &mut Vec<Created>, seams: &mut Seams<'_>) -> Result<(), String> {
     let Some(entries) = stored_stats(source.clean.index_bytes.as_slice(), source.clean.hash_length) else {
@@ -372,8 +392,7 @@ fn clone_with(source: &SnapshotSource, directories: &mut Directories, admin: &Fi
         clone_entry(&source_dir, &destination_dir, &work, (&mut *created, &mut stats), seams)?;
     }
     (seams.before_index)();
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "install_index_in takes its stat lookup as a dyn FnMut owned by subvolume/subvolume_index_files.rs, and the lookup must capture the caller's table (worktree_closure_lint_suppressions.md, group install_index_in)"))]
-    let report: String = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut |path: &[u8]| { return stats.get(path).copied(); }, source.clean.hash_length)?;
+    let report: String = install_index_in(admin, source.clean.index_bytes.as_slice(), &mut StatsMadeByTheClones { stats: &stats }, source.clean.hash_length)?;
     debug_report(report.as_str());
     return Ok(());
 }

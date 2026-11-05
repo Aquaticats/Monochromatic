@@ -16,6 +16,7 @@
 //! const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 //! ```
 
+use crate::line_sink::LineSink;
 use crate::fs_beneath::ObjectId;
 use crate::single_owner_claim::{ClaimOutcome, OwnerClaim, take_claim};
 use crate::subvolume_error::{Interrupt, MigrateError};
@@ -85,10 +86,10 @@ fn new_token() -> String {
 /// Undo an unfinished conversion that has not reached its swap: destroy the subvolume this command created (the one whose
 ///  identity the journal recorded; anything else at the name is left where it is), release the lock and drop the journal.
 ///  Past the swap there is nothing to undo, and the command says to run it again.
-fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say: &mut dyn FnMut(&str)) -> Result<Verdict, MigrateError> {
+fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
     let converting: PathBuf = converting_path(candidate.path.as_path());
     if journal.phase >= Phase::Exchanged {
-        say("  the swap already happened; run the command again to finish it (there is nothing to undo)");
+        say.say("  the swap already happened; run the command again to finish it (there is nothing to undo)");
         return Ok(Verdict::Skipped(vec![String::from("past the swap")]));
     }
     if let Some(found) = stage_identity_of(candidate.path.as_path())? {
@@ -98,7 +99,7 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
             }
             platform.destroy_subvolume(converting.as_path())?;
         } else {
-            say(format!("  {} is not recorded as made by this conversion, so it was left alone", converting.display()).as_str());
+            say.say(format!("  {} is not recorded as made by this conversion, so it was left alone", converting.display()).as_str());
         }
     }
     let job: Job<'_> = Job { candidate, converting, journal };
@@ -117,7 +118,7 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
 /// ```ts
 /// const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 /// ```
-pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> Result<Verdict, MigrateError> {
+pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
     let candidate: Candidate = match inspect(path) {
         Ok(found) => found,
         Err(reason) => return Ok(Verdict::Skipped(vec![reason])),

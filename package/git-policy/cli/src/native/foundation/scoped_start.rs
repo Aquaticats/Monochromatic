@@ -1,18 +1,20 @@
 //! What:
-//!  Start a closure on a scoped thread, and run it on the calling thread when the system cannot start one.
+//!  Start a job (a function and the state it reads) on a scoped thread, and run it on the calling thread when the system cannot start one.
 //! Why:
 //!  `std::thread::Scope::spawn` panics with "failed to spawn thread" when the thread cannot start (the process limit, the address
 //!  space, no memory), and a panic on the service's landing thread takes the service down: the commit cannot land. The owner's rule
 //!  is "Commits should never fail.", and a thread is only a way to do the work sooner, so the work is done in turn where a thread
-//!  cannot start. The closure is handed to the thread through a slot that either side can empty, because
-//!  `Builder::spawn_scoped` consumes the closure even when it fails.
+//!  cannot start. The job is handed to the thread through a slot that either side can empty, because
+//!  `Builder::spawn_scoped` consumes its callable even when it fails.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const started = startOrRun(() => work()); // a worker thread, or the work done here
+//! const started = startOrRunWith(scope, state, work); // a worker thread, or work(state) done here
 //! const result = started.join();
 //! ```
 
+/// The panic-catching call that runs the job here when no thread starts.
+use crate::call_catching_panics::call_catching_panics;
 use std::sync::{Arc, Mutex};
 use std::thread::{Scope, ScopedJoinHandle};
 
@@ -42,16 +44,16 @@ impl Drop for RefusedStarts {
     }
 }
 
-/// A closure that runs on a thread of its own, or that already ran on the thread that started it.
+/// A job that runs on a thread of its own, or that already ran on the thread that started it.
 pub enum Started<'scope, T> {
     /// The thread that runs it.
     Thread(ScopedJoinHandle<'scope, T>),
-    /// What it returned (or the payload of its panic) on the calling thread, because no thread could start.
+    /// What the job returned (or the payload of its panic) on the calling thread, because no thread could start.
     Inline(std::thread::Result<T>),
 }
 
 impl<T> Started<'_, T> {
-    /// Waits for the closure and returns what it returned, or the payload of its panic.
+    /// Waits for the job and returns what it returned, or the payload of its panic.
     pub fn join(self) -> std::thread::Result<T> {
         return match self {
             Started::Thread(handle) => handle.join(),
@@ -59,22 +61,22 @@ impl<T> Started<'_, T> {
         };
     }
 
-    /// Whether the closure ran on the calling thread because no thread could start.
+    /// Whether the job ran on the calling thread because no thread could start.
     pub fn ran_inline(&self) -> bool {
         return matches!(self, Started::Inline(_));
     }
 }
 
 /// What:
-///  Takes the closure out of its shared slot, whether or not a panic poisoned the slot's lock.
+///  Takes the job out of its shared slot, whether or not a panic poisoned the slot's lock.
 /// Why:
-///  Whichever of the new thread and the starting thread gets here first runs the closure; the other finds `None`.
+///  Whichever of the new thread and the starting thread gets here first runs the job; the other finds `None`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function takeClosure<F>(slot: { value: F | undefined }): F | undefined { const taken = slot.value; slot.value = undefined; return taken; }
+/// function takeJob<J>(slot: { value: J | undefined }): J | undefined { const taken = slot.value; slot.value = undefined; return taken; }
 /// ```
-fn take_closure<F>(slot: &Mutex<Option<F>>) -> Option<F> {
+fn take_job<J>(slot: &Mutex<Option<J>>) -> Option<J> {
     return match slot.lock() {
         Ok(mut guard) => guard.take(),
         Err(poisoned) => poisoned.into_inner().take(),
@@ -82,34 +84,41 @@ fn take_closure<F>(slot: &Mutex<Option<F>>) -> Option<F> {
 }
 
 /// What:
-///  Run `work` on a new thread of `scope`, or here when the thread cannot start.
+///  Run `work(state)` on a new thread of `scope`, or here when the thread cannot start.
 /// Why:
-///   See the module comment. A panic of the closure run here is caught and handed to `join`, as a panic on a thread would be.
+///   See the module comment. The job is a function and the state it reads, never a closure, so the caller's borrows are named in
+///  the state's type. A panic of the job run here is caught and handed to `join`, as a panic on a thread would be.
+///  `Builder::spawn_scoped` accepts only a callable, so this is the one place that makes the callable; it carries the slot
+///  that holds the job.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const started = startOrRun(scope, () => work());
+/// const started = startOrRunWith(scope, state, work); // a worker thread, or work(state) done here
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "`Builder::spawn_scoped` accepts only a callable, and it must carry the slot that holds the closure the caller handed over"
-    )
-)]
-pub fn start_or_run<'scope, 'env, T, F>(scope: &'scope Scope<'scope, 'env>, work: F) -> Started<'scope, T>
+pub fn start_or_run_with<'scope, 'env, S, T>(
+    scope: &'scope Scope<'scope, 'env>,
+    state: S,
+    work: fn(S) -> T,
+) -> Started<'scope, T>
 where
-    F: FnOnce() -> T + Send + 'scope,
+    S: Send + 'scope,
     T: Send + 'scope,
 {
-    let slot: Arc<Mutex<Option<F>>> = Arc::new(Mutex::new(Some(work)));
-    let theirs: Arc<Mutex<Option<F>>> = Arc::clone(&slot);
+    let slot: Arc<Mutex<Option<(S, fn(S) -> T)>>> = Arc::new(Mutex::new(Some((state, work))));
+    let theirs: Arc<Mutex<Option<(S, fn(S) -> T)>>> = Arc::clone(&slot);
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`Builder::spawn_scoped` accepts only a callable bounded by the scope, and it must carry the slot that holds the job; see package/git-policy/cli/doc/closure-lint-suppressions.md"
+        )
+    )]
     let outcome: std::io::Result<ScopedJoinHandle<'scope, T>> = match starts() {
         Ok(()) => std::thread::Builder::new().spawn_scoped(scope, move || {
-            let taken: Option<F> = take_closure(&theirs);
+            let taken: Option<(S, fn(S) -> T)> = take_job(&theirs);
             return match taken {
-                Some(closure) => closure(),
-                None => panic!("the closure of a started thread was taken by the thread that started it"),
+                Some((their_state, their_work)) => their_work(their_state),
+                None => panic!("the job of a started thread was taken by the thread that started it"),
             };
         }),
         Err(error) => Err(error),
@@ -117,10 +126,10 @@ where
     return match outcome {
         Ok(handle) => Started::Thread(handle),
         Err(_refused) => {
-            let taken: Option<F> = take_closure(&slot);
+            let taken: Option<(S, fn(S) -> T)> = take_job(&slot);
             match taken {
-                Some(closure) => Started::Inline(std::panic::catch_unwind(std::panic::AssertUnwindSafe(closure))),
-                None => Started::Inline(Err(Box::new("the closure of a thread that did not start was already taken"))),
+                Some((our_state, our_work)) => Started::Inline(call_catching_panics(our_state, our_work)),
+                None => Started::Inline(Err(Box::new("the job of a thread that did not start was already taken"))),
             }
         }
     };

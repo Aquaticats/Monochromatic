@@ -14,7 +14,7 @@
 //! repairWorktree({ git, source, destination, switch: { quiet, noCheckout }, environment }, process.stderr);
 //! ```
 
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_beside_caller;
 use crate::add_timing::{begin_work, end_work};
 use crate::diagnostic_log::debug;
 use crate::package_repair_cargo::repair_cargo;
@@ -52,40 +52,49 @@ fn settled(joined: std::thread::Result<Option<Finding>>, tool: &str) -> Option<F
 /// What:
 ///  Run the pnpm, toolchain and Cargo repairs side by side inside one thread scope and return their findings.
 /// Why:
-///   The tools are independent, and each borrows the request for the length of the scope, which a named function
-///  cannot express. A thread that cannot start runs its tool in turn (`start_or_run`); the Cargo repair runs on the
-///  calling thread.
+///   The tools are independent, and each borrows the request for the length of the scope. A thread that cannot start runs
+///  its tool in turn (`start_or_run_with`); the Cargo repair runs on the calling thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const [pnpm, cargo, toolchain] = await Promise.all([repairPnpm(request), repairCargo(request), repairToolchain(request)]);
 /// ```
-#[cfg_attr(
-    dylint_lib = "monochromatic_lint_closure",
-    expect(
-        avoidable_closure,
-        reason = "std::thread::scope and start_or_run take closures that borrow the request for the scope only, not 'static; see doc/planning/cli-git-closure-lint-suppressions.md"
-    )
-)]
 fn repair_side_by_side(request: &RepairRequest<'_>) -> (Option<Finding>, Vec<Finding>, Option<Finding>) {
-    return std::thread::scope(|scope| {
-        let pnpm = start_or_run(scope, || {
-            let began: std::time::Instant = begin_work();
-            let found: Option<Finding> = repair_pnpm(request.destination, request.environment);
-            end_work("repairPnpm", began);
-            return found;
-        });
-        let toolchain = start_or_run(scope, || {
-            let began: std::time::Instant = begin_work();
-            let found: Option<Finding> = repair_toolchain(request.destination, request.environment);
-            end_work("repairToolchain", began);
-            return found;
-        });
-        let began: std::time::Instant = begin_work();
-        let cargo: Vec<Finding> = repair_cargo(request);
-        end_work("repairCargo", began);
-        return (settled(pnpm.join(), "pnpm"), cargo, settled(toolchain.join(), "toolchain"));
-    });
+    let (pnpm, (toolchain, cargo)): (std::thread::Result<Option<Finding>>, ToolchainAndCargo) =
+        run_beside_caller((request, repair_pnpm_timed), (request, repair_toolchain_beside_cargo));
+    return (settled(pnpm, "pnpm"), cargo, settled(toolchain, "toolchain"));
+}
+
+/// What the toolchain repair on its thread and the Cargo repair on the calling thread found.
+type ToolchainAndCargo = (std::thread::Result<Option<Finding>>, Vec<Finding>);
+
+/// The pnpm repair, timed as the work `repairPnpm` because it runs on a thread of its own.
+fn repair_pnpm_timed(request: &RepairRequest<'_>) -> Option<Finding> {
+    let began: std::time::Instant = begin_work();
+    let found: Option<Finding> = repair_pnpm(request.destination, request.environment);
+    end_work("repairPnpm", began);
+    return found;
+}
+
+/// The toolchain repair, timed as the work `repairToolchain` because it runs on a thread of its own.
+fn repair_toolchain_timed(request: &RepairRequest<'_>) -> Option<Finding> {
+    let began: std::time::Instant = begin_work();
+    let found: Option<Finding> = repair_toolchain(request.destination, request.environment);
+    end_work("repairToolchain", began);
+    return found;
+}
+
+/// The Cargo repair, timed as the work `repairCargo`; it runs on the calling thread.
+fn repair_cargo_timed(request: &RepairRequest<'_>) -> Vec<Finding> {
+    let began: std::time::Instant = begin_work();
+    let cargo: Vec<Finding> = repair_cargo(request);
+    end_work("repairCargo", began);
+    return cargo;
+}
+
+/// Run the toolchain repair on a thread and the Cargo repair here, side by side.
+fn repair_toolchain_beside_cargo(request: &RepairRequest<'_>) -> ToolchainAndCargo {
+    return run_beside_caller((request, repair_toolchain_timed), (request, repair_cargo_timed));
 }
 
 /// What:

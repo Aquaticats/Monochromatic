@@ -10,7 +10,7 @@
 //! ```
 
 use crate::parallel_budget::{HostResources, sliced_workers};
-use crate::scoped_start::start_or_run;
+use crate::side_by_side_threads::run_all_side_by_side;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
 use crate::worktree_copy_manifest::{EntryKind, FileStamp, WorktreeCopyEntry, stamp_of};
 use crate::worktree_copy_selection::filesystem_path;
@@ -292,32 +292,41 @@ pub fn copy_manifest_entries(
         return Ok(stamps);
     }
     let slice_length: usize = entries.len().div_ceil(workers);
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the scoped thread body and its workers must borrow the caller's state and the callee bounds them by the scope, not by 'static (worktree_closure_lint_suppressions.md, group scope)"))]
-    let outcomes: Vec<Result<(), WorktreeCopyError>> = std::thread::scope(|scope| {
-        let mut handles: Vec<_> = Vec::new();
-        for (slice, slots) in entries.chunks(slice_length).zip(stamps.chunks_mut(slice_length)) {
-            let failed_ref: &AtomicBool = &failed;
-            handles.push(start_or_run(scope, move || {
-                let outcome = copy_leaves(source_root, stage_root, slice, slots, failed_ref);
-                if outcome.is_err() {
-                    failed_ref.store(true, Ordering::Relaxed);
-                }
-                return outcome;
-            }));
-        }
-        let mut results: Vec<Result<(), WorktreeCopyError>> = Vec::new();
-        for handle in handles {
-            results.push(match handle.join() {
-                Ok(outcome) => outcome,
-                Err(_panic) => Err(raw_failure(&std::io::Error::other("a copy worker panicked"))),
-            });
-        }
-        return results;
-    });
+    let mut slices: Vec<(&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool)> = Vec::new();
+    for (slice, slots) in entries.chunks(slice_length).zip(stamps.chunks_mut(slice_length)) {
+        slices.push((source_root, stage_root, slice, slots, &failed));
+    }
+    let mut outcomes: Vec<Result<(), WorktreeCopyError>> = Vec::new();
+    for joined in run_all_side_by_side(slices, copy_slice_and_flag_failure) {
+        outcomes.push(match joined {
+            Ok(outcome) => outcome,
+            Err(_panic) => Err(raw_failure(&std::io::Error::other("a copy worker panicked"))),
+        });
+    }
     for outcome in outcomes {
         outcome?;
     }
     return Ok(stamps);
+}
+
+/// What:
+///  Copy one slice of leaf entries on a worker, and tell the other workers to stop when it failed.
+/// Why:
+///   The workers share the flag only to end early; the first failure is each worker's own result, and the caller reports the
+///  first in slice order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copySliceAndFlagFailure([sourceRoot, stageRoot, slice, slots, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
+/// ```
+fn copy_slice_and_flag_failure(
+    (source_root, stage_root, slice, slots, failed): (&Path, &Path, &[WorktreeCopyEntry], &mut [Option<FileStamp>], &AtomicBool),
+) -> Result<(), WorktreeCopyError> {
+    let outcome: Result<(), WorktreeCopyError> = copy_leaves(source_root, stage_root, slice, slots, failed);
+    if outcome.is_err() {
+        failed.store(true, Ordering::Relaxed);
+    }
+    return outcome;
 }
 
 /// What:

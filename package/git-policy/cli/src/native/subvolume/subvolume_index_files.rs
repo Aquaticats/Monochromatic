@@ -22,9 +22,10 @@
 //! ```
 
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::parallel_runner::{Event, OrderedRun, run_ordered};
+use crate::line_sink::LineSink;
+use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, install_index_in, install_index_in_with};
-use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StoredStat, rewrite_index_stat_with};
+use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StatLookup, StatTrust, StoredStat, rewrite_index_stat_with};
 use crate::subvolume_lock::is_ours;
 use std::ffi::OsStr;
 use std::io::Write;
@@ -278,18 +279,52 @@ fn rewrite_under_lock(index_path: &Path, tree: &Path, options: &RefreshOptions<'
     return rewrite_and_install(bytes.as_slice(), index_mtime, [index_path, tree, lock_path], options, lock_file);
 }
 
+/// What:
+///  The stat fields of a path as the tree being rewritten reports them now.
+/// Why:
+///   The rewrite asks for each entry's path; the tree it describes is the only state the answer needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class StatOfTree implements StatLookup { constructor(readonly tree: string) {} statNow(path) { return statFields(this.tree, path); } }
+/// ```
+struct StatOfTree<'a> {
+    /// The tree the index describes.
+    tree: &'a Path,
+}
+
+impl StatLookup for StatOfTree<'_> {
+    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields> {
+        return stat_fields(self.tree, path);
+    }
+}
+
+/// What:
+///  Whether an entry still agrees with the trees the checkout was copied from.
+/// Why:
+///   The rewrite trusts an entry's stored fields only for a file that is still the one the copy was made from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class AgreeWithReferences implements StatTrust { isTrusted(path, stored) { return agreesWithAReference(this.references, path, stored); } }
+/// ```
+struct AgreeWithReferences<'a> {
+    /// The trees the checkout was copied from, one per reference.
+    references: &'a [PathBuf],
+}
+
+impl StatTrust for AgreeWithReferences<'_> {
+    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool {
+        return agrees_with_a_reference(self.references, path, stored);
+    }
+}
+
 /// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`, with `paths` naming the index, the tree it
 ///  describes and the lock file.
 fn rewrite_and_install(bytes: &[u8], index_mtime: Option<(u32, u32)>, paths: [&Path; 3], options: &RefreshOptions<'_>, lock_file: Option<&mut std::fs::File>) -> (String, RefreshStatus) {
     let [index_path, tree, lock_path]: [&Path; 3] = paths;
     let context: RewriteContext = RewriteContext { hash_length: options.hash_length, index_mtime };
-    // The stat lookup keeps `tree` for the rewrite, which takes a callback that carries state (`&mut dyn FnMut`).
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut lookup = |path: &[u8]| { return stat_fields(tree, path); };
-    // The check keeps `options` for the rewrite, in the same kind of callback parameter.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the rewrite's callback parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut agrees = |path: &[u8], stored: &StoredStat| { return agrees_with_a_reference(options.references, path, stored); };
-    let outcome: IndexOutcome = rewrite_index_stat_with(bytes, &context, &mut lookup, &mut agrees);
+    let outcome: IndexOutcome = rewrite_index_stat_with(bytes, &context, &mut StatOfTree { tree }, &mut AgreeWithReferences { references: options.references });
     let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
         IndexOutcome::Rewritten { bytes: new_bytes, updated, total } => (new_bytes, updated, total),
         IndexOutcome::Skipped(reason) => return (format!("skipped ({reason})"), RefreshStatus::Skipped),
@@ -470,7 +505,7 @@ pub struct AllIndexes<'a> {
 
 /// What:
 ///  Rewrite the index of the checkout and of every linked worktree inside it, reporting each through `say`.
-///  `&mut dyn FnMut(&str)` is a borrowed callback that receives one report line at a time.
+///  `&mut dyn LineSink` is a borrowed sink that receives one report line at a time.
 ///  `references` are the trees the checkout was copied from (empty trusts every entry); each linked worktree is looked up
 ///  under the same relative path in them.
 /// Why:
@@ -480,8 +515,56 @@ pub struct AllIndexes<'a> {
 /// ```ts
 /// function refreshAllIndexes(root: string, lock: IndexLock, references: string[], say: (line: string) => void): void;
 /// ```
-pub fn refresh_all_indexes(root: &Path, lock: IndexLock<'_>, references: &[PathBuf], say: &mut dyn FnMut(&str)) -> usize {
+pub fn refresh_all_indexes(root: &Path, lock: IndexLock<'_>, references: &[PathBuf], say: &mut dyn LineSink) -> usize {
     return refresh_all_indexes_with(&AllIndexes { root, lock, references, host: &HostResources::read(), rewrite: &refresh_index_file_with }, say);
+}
+
+/// What:
+///  The rewrite of one index, run by a worker of the ordered runner.
+/// Why:
+///   The lock, the rewrite and the hash length are what each rewrite reads; the runner shares them among its worker threads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RewriteEachIndex implements OrderedWork<IndexTarget, string> { run(i, target) { return rewrite(target.index, target.tree, { lock, references: target.references, hashLength }); } }
+/// ```
+struct RewriteEachIndex<'a> {
+    /// The rewrite of one index file.
+    rewrite: &'a RewriteOne<'a>,
+    /// How each index is protected while it is rewritten.
+    lock: IndexLock<'a>,
+    /// The length of the repository's object hashes, when it could be read.
+    hash_length: Option<usize>,
+}
+
+impl OrderedWork<IndexTarget, String> for RewriteEachIndex<'_> {
+    fn run(&self, _index: usize, target: &IndexTarget, _say: &mut dyn LineSink) -> String {
+        return (self.rewrite)(target.index.as_path(), target.tree.as_path(), &RefreshOptions { lock: self.lock, references: target.references.as_slice(), hash_length: self.hash_length });
+    }
+}
+
+/// What:
+///  Says one line per index as each index ends, in index order.
+/// Why:
+///   The runner reports on the calling thread only and in input order, so the sink and the target list need no lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class SayEachIndex implements OrderedEvents<string> { onEvent(event) { if (event.end) say(`index ${targets[event.index].index}: ${event.line}`); } }
+/// ```
+struct SayEachIndex<'a> {
+    /// Where the report lines go.
+    say: &'a mut dyn LineSink,
+    /// The indexes, in the order they are reported.
+    targets: &'a [IndexTarget],
+}
+
+impl OrderedEvents<String> for SayEachIndex<'_> {
+    fn on_event(&mut self, event: Event<'_, String>) {
+        if let Event::End(index, line) = event {
+            self.say.say(format!("index {}: {line}", self.targets[index].index.display()).as_str());
+        }
+    }
 }
 
 /// What:
@@ -494,7 +577,7 @@ pub fn refresh_all_indexes(root: &Path, lock: IndexLock<'_>, references: &[PathB
 /// ```ts
 /// const count = await refreshAllIndexesWith({ root, lock, references, host, rewrite }, say);
 /// ```
-pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn FnMut(&str)) -> usize {
+pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn LineSink) -> usize {
     let AllIndexes { root, lock, references, host, rewrite } = *request;
     let hash_length: Option<usize> = repository_hash_length(root.join(".git").as_path());
     let mut targets: Vec<IndexTarget> = vec![IndexTarget { index: root.join(".git").join("index"), tree: root.to_path_buf(), references: references.to_vec() }];
@@ -519,19 +602,13 @@ pub fn refresh_all_indexes_with(request: &AllIndexes<'_>, say: &mut dyn FnMut(&s
     for index in 0..targets.len() {
         lanes.push(vec![index]);
     }
-    // The pool calls this on a worker thread for each index; it carries the lock, the rewrite and the hash length.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's work parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let work = |_index: usize, target: &IndexTarget, _worker_say: &mut dyn FnMut(&str)| {
-        return rewrite(target.index.as_path(), target.tree.as_path(), &RefreshOptions { lock, references: target.references.as_slice(), hash_length });
-    };
-    // The pool calls this as each index ends, in index order; it carries `say` and the target list.
-    #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the worker pool's event parameter is a state-carrying callback; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-    let mut on_event = |event: Event<'_, String>| {
-        if let Event::End(index, line) = event {
-            say(format!("index {}: {line}", targets[index].index.display()).as_str());
-        }
-    };
-    run_ordered(OrderedRun { items: targets.as_slice(), lanes: lanes.as_slice(), workers, work: &work, on_event: &mut on_event });
+    run_ordered(OrderedRun {
+        items: targets.as_slice(),
+        lanes: lanes.as_slice(),
+        workers,
+        work: &RewriteEachIndex { rewrite, lock, hash_length },
+        on_event: &mut SayEachIndex { say, targets: targets.as_slice() },
+    });
     return targets.len();
 }
 

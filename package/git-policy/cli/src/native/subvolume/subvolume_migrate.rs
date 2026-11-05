@@ -234,10 +234,8 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     if options.refresh_indexes && !run.journal.is_done("indexes") {
         let started: Instant = Instant::now();
         let mut lines: Vec<String> = Vec::new();
-        // The refresh reports each index through a callback that carries the list the lines are collected in.
-        #[cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "the refresh's say parameter is a state-carrying dyn FnMut that tests and other folders also fill; see package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md"))]
-        let mut collect_line = |text: &str| { lines.push(text.to_string()); };
-        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut collect_line);
+        // The refresh reports each index into the list the lines are collected in.
+        let count: usize = refresh_all_indexes(root.as_path(), IndexLock::Held(token.as_str()), std::slice::from_ref(&old_path), &mut lines);
         for text in &lines {
             run.line(text.as_str());
         }

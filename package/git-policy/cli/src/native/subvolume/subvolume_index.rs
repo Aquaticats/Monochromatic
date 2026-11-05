@@ -277,7 +277,7 @@ fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), St
 /// What:
 ///  Rewrite the stat fields of an index file; see the module description for the rules.
 ///  `lookup` is called with an entry's path and returns what `lstat` reports now, or nothing for a missing file.
-///  `&mut dyn FnMut(&[u8]) -> Option<StatFields>` is a borrowed callback that may keep state (sibling `Fn` cannot).
+///  `&mut dyn StatLookup` is a borrowed lookup that may keep state (a table, a cursor over a directory).
 /// Why:
 ///   Keeping the file system out of this function makes every branch testable with built bytes.
 ///
@@ -285,13 +285,47 @@ fn checksum_kind(bytes: &[u8], known: Option<usize>) -> Result<(usize, bool), St
 /// ```ts
 /// function rewriteIndexStat(bytes: Uint8Array, lookup: (path: Uint8Array) => StatFields | undefined): IndexOutcome;
 /// ```
-pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn FnMut(&[u8]) -> Option<StatFields>) -> IndexOutcome {
-    return rewrite_index_stat_with(bytes, &RewriteContext::default(), lookup, &mut accept_every_stat);
+pub fn rewrite_index_stat(bytes: &[u8], lookup: &mut dyn StatLookup) -> IndexOutcome {
+    return rewrite_index_stat_with(bytes, &RewriteContext::default(), lookup, &mut AcceptEveryStat);
+}
+
+/// What:
+///  Where the rewrite of an index asks what `lstat` reports now for an entry's path.
+///  A `trait` is a named set of methods that different types can each supply, like a TypeScript `interface`.
+/// Why:
+///   The lookup may keep state (a table the clone filled, a cursor that keeps its directory open), and the rewrite stays free of the
+///  file system; a type that holds the state implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface StatLookup { statNow(path: Uint8Array): StatFields | undefined }
+/// ```
+pub trait StatLookup {
+    /// What `lstat` reports now for `path`, or nothing for a file that is missing.
+    fn stat_now(&mut self, path: &[u8]) -> Option<StatFields>;
+}
+
+/// What:
+///  Where the rewrite of an index asks whether the file an entry was recorded for is still the one the copy was made from.
+/// Why:
+///   The check keeps the reference trees it compares with; a type that holds them implements this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface StatTrust { isTrusted(path: Uint8Array, stored: StoredStat): boolean }
+/// ```
+pub trait StatTrust {
+    /// Whether the entry for `path`, with the fields it stored, is still trusted.
+    fn is_trusted(&mut self, path: &[u8], stored: &StoredStat) -> bool;
 }
 
 /// The check that accepts every entry: no reference index needs to agree.
-pub fn accept_every_stat(_path: &[u8], _stored: &StoredStat) -> bool {
-    return true;
+pub struct AcceptEveryStat;
+
+impl StatTrust for AcceptEveryStat {
+    fn is_trusted(&mut self, _path: &[u8], _stored: &StoredStat) -> bool {
+        return true;
+    }
 }
 
 /// What:
@@ -360,8 +394,8 @@ pub struct StoredStat {
 pub fn rewrite_index_stat_with(
     bytes: &[u8],
     context: &RewriteContext,
-    lookup: &mut dyn FnMut(&[u8]) -> Option<StatFields>,
-    trusted: &mut dyn FnMut(&[u8], &StoredStat) -> bool,
+    lookup: &mut dyn StatLookup,
+    trusted: &mut dyn StatTrust,
 ) -> IndexOutcome {
     if bytes.len() < HEADER || &bytes[..4] != b"DIRC" {
         return IndexOutcome::Skipped(String::from("the file is not an index (no DIRC signature)"));
@@ -415,7 +449,7 @@ pub fn rewrite_index_stat_with(
         {
             continue;
         }
-        let Some(now) = lookup(entry.path.as_slice()) else { continue };
+        let Some(now) = lookup.stat_now(entry.path.as_slice()) else { continue };
         // An index written by a Git built without nanosecond support stores 0 there.
         let same_time: bool = now.mtime_seconds == stored_seconds && (stored_nanos == 0 || stored_nanos == now.mtime_nanos);
         if now.size != stored_size || !same_time {
@@ -431,7 +465,7 @@ pub fn rewrite_index_stat_with(
             gid: be32(bytes, entry.start + 32).unwrap_or(0),
             size: stored_size,
         };
-        if !trusted(entry.path.as_slice(), &recorded) {
+        if !trusted.is_trusted(entry.path.as_slice(), &recorded) {
             continue;
         }
         let fields: [(usize, u32); 6] = [(0, now.ctime_seconds), (4, now.ctime_nanos), (16, now.dev), (20, now.ino), (28, now.uid), (32, now.gid)];
