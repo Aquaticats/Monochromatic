@@ -17,6 +17,10 @@
 //! if (!(await serviceMayRun(instance))) await recoverInstance(earlierJournal, instance);
 //! ```
 
+/// Whether a service of the worktree may be running.
+use crate::earlier_service_process_look::{ServiceLook, effective_user, service_of_instance_may_run};
+/// How long that look may take.
+use crate::wait_ceilings::PROCESS_LOOK_CEILING;
 /// The context a recovery runs in,
 ///  and the recovery itself.
 use crate::service_land::{LandContext, RecoveryReport, recover_instance_without_drops};
@@ -29,16 +33,6 @@ use std::path::{Path, PathBuf};
 
 /// The name of the folder below the state folder that holds the service journals.
 const SERVICE_FOLDER: &str = "service";
-
-/// The words that start the service mode after the program name, and the option that names the worktree's instance.
-const SERVICE_MODE_WORDS: [&str; 2] = ["service", "run"];
-
-/// The option that names the instance a service is for.
-const INSTANCE_OPTION: &str = "--instance";
-
-/// Most bytes of one process's command line that are read;
-///  the options of the service are in the first few hundred bytes.
-const COMMAND_LINE_BYTES: u64 = 65_536;
 
 /// The two folders an earlier release kept journals in for one worktree.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -76,70 +70,6 @@ pub fn earlier_journals_of(journal: &Path, instance: &str) -> Option<EarlierJour
     let state: &Path = data_folder.parent()?;
     let shared: PathBuf = state.join(DATA_FOLDER.earlier).join(SERVICE_FOLDER);
     return Some(EarlierJournals { per_instance: shared.join(instance), shared });
-}
-
-/// Whether two neighbouring command line words are the service mode words.
-fn is_mode_pair(pair: &[&[u8]]) -> bool {
-    return pair[0] == SERVICE_MODE_WORDS[0].as_bytes() && pair[1] == SERVICE_MODE_WORDS[1].as_bytes();
-}
-
-/// Whether a byte ends a command line word.
-fn is_word_end(byte: &u8) -> bool {
-    return *byte == 0;
-}
-
-/// Whether one command line (words split at NUL bytes) is a service of the instance:
-///  it has the service mode words in a row and the instance option followed by the instance.
-fn is_service_of(words: &[&[u8]], instance: &str) -> bool {
-    let mode_in_a_row: bool = words.windows(SERVICE_MODE_WORDS.len()).any(is_mode_pair);
-    let mut instance_named: bool = false;
-    for pair in words.windows(2) {
-        if pair[0] == INSTANCE_OPTION.as_bytes() && pair[1] == instance.as_bytes() {
-            instance_named = true;
-        }
-    }
-    return mode_in_a_row && instance_named;
-}
-
-/// What:
-///  Whether a service of the instance may be running:
-///  a process other than this one has the command line of one,
-///  or the processes cannot be listed.
-/// Why:
-///   Adoption needs the earlier service gone.
-///  A process that ends while it is looked at is gone;
-///  a process whose command line cannot be read is not one of ours (the same user's are readable) and is skipped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function serviceMayRun(instance: string, ownPid: number, procRoot: string): Promise<boolean>;
-/// ```
-pub fn service_of_instance_may_run(instance: &str, own_pid: u32, proc_root: &Path) -> bool {
-    use std::io::Read;
-    let Ok(listing) = std::fs::read_dir(proc_root) else {
-        return true;
-    };
-    for entry in listing.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Ok(pid) = name.parse::<u32>() else {
-            continue;
-        };
-        if pid == own_pid {
-            continue;
-        }
-        let Ok(file) = std::fs::File::open(entry.path().join("cmdline")) else {
-            continue;
-        };
-        let mut bytes: Vec<u8> = Vec::new();
-        if file.take(COMMAND_LINE_BYTES).read_to_end(&mut bytes).is_err() {
-            continue;
-        }
-        let words: Vec<&[u8]> = bytes.split(is_word_end).collect();
-        if is_service_of(words.as_slice(), instance) {
-            return true;
-        }
-    }
-    return false;
 }
 
 /// What:
@@ -188,8 +118,15 @@ pub fn adopt_open_batches(context: &LandContext, instance: &str, proc_root: &Pat
     if !earlier.per_instance.is_dir() && !earlier.shared.is_dir() {
         return reports;
     }
-    if service_of_instance_may_run(instance, std::process::id(), proc_root) {
-        crate::service_log!("the earlier service's journal {} is left for now: a service of this worktree may be running", earlier.shared.display());
+    let look: ServiceLook = ServiceLook {
+        instance: instance.to_string(),
+        journals: vec![earlier.per_instance.clone(), earlier.shared.clone()],
+        own_pid: std::process::id(),
+        own_user: effective_user(),
+        ceiling: PROCESS_LOOK_CEILING,
+    };
+    if service_of_instance_may_run(look, proc_root) {
+        crate::service_log!("the earlier service's journal {} is left for now: a service of this worktree may be running", earlier.per_instance.display());
         return reports;
     }
     for journal in [earlier.per_instance, earlier.shared] {

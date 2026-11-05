@@ -5,7 +5,9 @@
 use super::tests::{World, land_with_failed_index, request, world};
 use super::*;
 use crate::service_land::Handled;
-use crate::earlier_service_journal_adopted::{EarlierJournals, adopt_open_batches, earlier_commits_landed, earlier_journals_of, service_of_instance_may_run};
+use std::time::Duration;
+use crate::earlier_service_journal_adopted::{EarlierJournals, adopt_open_batches, earlier_commits_landed, earlier_journals_of};
+use crate::earlier_service_process_look::{ServiceLook, effective_user, service_of_instance_may_run};
 use crate::service_instance::instance_of;
 use crate::service_index_lock::try_acquire;
 use crate::service_journal::{DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, batch_path, list_intents, mark_indexed, parse_intent, write_intent};
@@ -75,26 +77,81 @@ fn the_earlier_journals_follow_the_place_of_the_new_journal() {
     }
 }
 
-/// A process with the service words and the instance option of the worktree means a service may be running;
-///  another instance, this process itself, an unrelated command line and a process that vanished do not;
-///  a proc root that cannot be listed means it may.
+/// The look of the instance `abc` whose earlier journals are `/s/abc` and `/s`, run by `own`.
+fn look_for(own_pid: u32) -> ServiceLook {
+    return ServiceLook {
+        instance: String::from("abc"),
+        journals: vec![PathBuf::from("/s/abc"), PathBuf::from("/s")],
+        own_pid,
+        own_user: effective_user(),
+        ceiling: Duration::from_secs(30),
+    };
+}
+
+/// A process with the service words and the instance option of the worktree, or the journal of the worktree's earlier service
+///  as its journal, means a service may be running; another instance or journal, this process itself, an unrelated command
+///  line and a process that vanished do not; a proc root that cannot be listed means it may.
 #[test]
 fn a_service_of_the_worktree_is_found_among_the_processes_and_nothing_else_is() {
     let world: World = world("adopt-proc");
     let proc_root: PathBuf = empty_proc(&world);
     let own: u32 = 4242;
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "no process");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "no process");
     fake_process(proc_root.as_path(), 10, &["/bin/sh", "-c", "service run --instance abc"]);
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "one word, not separate words");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "one word, not separate words");
     fake_process(proc_root.as_path(), 11, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "other"]);
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "another worktree's service");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service");
+    fake_process(proc_root.as_path(), 14, &["/p/cli-git-native", "--journal", "/s/other", "--git", "/usr/bin/git", "--instance", "other"]);
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "another worktree's service of the earlier unit shape");
+    fake_process(proc_root.as_path(), 15, &["/p/cli-git-native", "/s/abc", "--journal"]);
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "the journal is the word after the option");
     std::fs::create_dir_all(proc_root.join("12")).expect("a process that vanished");
     std::fs::create_dir_all(proc_root.join("self")).expect("not a number");
     fake_process(proc_root.as_path(), own, &["/p/monochromatic-git-policy-cli", "monochromatic-git-policy-cli", "service", "run", "--instance", "abc"]);
-    assert!(!service_of_instance_may_run("abc", own, proc_root.as_path()), "this process is not another");
+    assert!(!service_of_instance_may_run(look_for(own), proc_root.as_path()), "this process is not another");
     fake_process(proc_root.as_path(), 13, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "abc"]);
-    assert!(service_of_instance_may_run("abc", own, proc_root.as_path()), "an earlier release's service of the worktree");
-    assert!(service_of_instance_may_run("abc", own, world.root.join("no-such-proc").as_path()), "an unlistable root is unproven");
+    assert!(service_of_instance_may_run(look_for(own), proc_root.as_path()), "an earlier release's service of the worktree");
+    std::fs::remove_dir_all(proc_root.join("13")).expect("ended");
+    fake_process(proc_root.as_path(), 16, &["/p/cli-git-native", "--journal", "/s/abc", "--git", "/usr/bin/git", "--instance", "abc"]);
+    assert!(service_of_instance_may_run(look_for(own), proc_root.as_path()), "the unit shape before the service mode");
+    std::fs::remove_dir_all(proc_root.join("16")).expect("ended");
+    fake_process(proc_root.as_path(), 17, &["/p/cli-git-native", "--journal", "/s", "--git", "/usr/bin/git"]);
+    assert!(service_of_instance_may_run(look_for(own), proc_root.as_path()), "the shared service of the first releases");
+    assert!(service_of_instance_may_run(look_for(own), world.root.join("no-such-proc").as_path()), "an unlistable root is unproven");
+    remove(world.root.as_path());
+}
+
+/// Only the processes of the user count: a service another user runs for the same worktree is not this user's to wait for.
+#[test]
+fn a_service_of_another_user_does_not_hold_the_adoption() {
+    let world: World = world("adopt-proc-user");
+    let proc_root: PathBuf = empty_proc(&world);
+    fake_process(proc_root.as_path(), 41, &["/p/cli-git-native", "cli-git", "service", "run", "--journal", "/j", "--instance", "abc"]);
+    let theirs: ServiceLook = ServiceLook { own_user: effective_user() + 1, ..look_for(4242) };
+    assert!(!service_of_instance_may_run(theirs, proc_root.as_path()), "the folder of the process belongs to someone else");
+    assert!(service_of_instance_may_run(look_for(4242), proc_root.as_path()), "control: the same table, the user's own");
+    remove(world.root.as_path());
+}
+
+/// Reading a command line can wait for the process for ever; the look ends at its ceiling and answers "may be running".
+///  A named pipe in place of the file stands for it: opening succeeds, reading waits.
+#[test]
+fn a_command_line_that_cannot_be_read_in_time_counts_as_may_be_running() {
+    use std::os::unix::ffi::OsStrExt;
+    let world: World = world("adopt-proc-stuck");
+    let proc_root: PathBuf = empty_proc(&world);
+    let process: PathBuf = proc_root.join("51");
+    std::fs::create_dir_all(process.as_path()).expect("process directory");
+    let pipe: std::ffi::CString = std::ffi::CString::new(process.join("cmdline").as_os_str().as_bytes()).expect("path");
+    // SAFETY: `pipe` is a NUL-terminated path that lives through the call.
+    assert_eq!(unsafe { libc::mkfifo(pipe.as_ptr(), 0o600) }, 0, "make the pipe");
+    // Holding the pipe open for reading and writing lets the look open it without a writer and then wait for bytes.
+    let holder = std::fs::OpenOptions::new().read(true).write(true).open(process.join("cmdline")).expect("hold the pipe");
+    let short: ServiceLook = ServiceLook { ceiling: Duration::from_millis(300), ..look_for(4242) };
+    let began: std::time::Instant = std::time::Instant::now();
+    assert!(service_of_instance_may_run(short, proc_root.as_path()));
+    assert!(began.elapsed() < Duration::from_secs(20), "it came back at its ceiling, not when the read ended");
+    drop(holder);
     remove(world.root.as_path());
 }
 
@@ -226,4 +283,74 @@ fn a_landing_that_holds_the_index_lock_is_not_finished_by_the_adoption() {
     assert_eq!(adopt_open_batches(&context, instance.as_str(), empty_proc(&world).as_path()).len(), 1);
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "");
     remove(world.root.as_path());
+}
+
+/// Sets up an open batch in the earlier per-instance journal and a fake process table that `with_processes` fills, then says
+///  whether the adoption took the batch. The batch is taken once the table is emptied.
+fn adoption_takes_the_batch(name: &str, with_processes: impl FnOnce(&Path, &World, &str)) -> bool {
+    let (world, state) = world_with_earlier_journal(name, "state");
+    let landed: CommitRequest = request(&world, name, "taken.txt", "taken\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let context: LandContext = new_context(&world, state.as_path());
+    let instance: String = instance_for(&world);
+    let proc_root: PathBuf = empty_proc(&world);
+    with_processes(proc_root.as_path(), &world, instance.as_str());
+    let taken: bool = !adopt_open_batches(&context, instance.as_str(), proc_root.as_path()).is_empty();
+    remove(world.root.as_path());
+    return taken;
+}
+
+/// The unit written before commit 9b360150c0 (2026-11-04T16:09:19-05:00) started the helper as
+///  `<binary> --journal %S/cli-git/service/%i --git <git> --instance %i`: no `service run` words. A helper started that way
+///  is still alive after the unit was rewritten (a process keeps its start arguments; the idle exit is three hours).
+#[test]
+fn a_helper_started_by_the_unit_before_the_service_mode_is_found_by_its_journal() {
+    let taken: bool = adoption_takes_the_batch("adopt-unit-before-mode", |proc_root, world, instance| {
+        let journal: String = world.context.journal.to_string_lossy().into_owned();
+        fake_process(proc_root, 21, &["/p/cli-git-native", "--journal", journal.as_str(), "--git", "/usr/bin/git", "--instance", instance]);
+    });
+    assert!(!taken, "a running helper of the earlier unit shape finishes its own batches");
+}
+
+/// The first releases ran one service for every worktree: `<binary> --journal <state>/cli-git/service --git <git>`, with no
+///  instance. It serves this worktree's batches too.
+#[test]
+fn the_single_service_of_the_first_releases_is_found_by_the_shared_journal() {
+    let taken: bool = adoption_takes_the_batch("adopt-shared-service", |proc_root, world, _instance| {
+        let shared: String = world.context.journal.parent().expect("shared journal").to_string_lossy().into_owned();
+        fake_process(proc_root, 22, &["/p/cli-git-native", "--journal", shared.as_str(), "--git", "/usr/bin/git"]);
+    });
+    assert!(!taken, "a running shared service finishes the batches of every worktree");
+}
+
+/// Control: a process with a journal that is neither of the earlier ones, and another instance, is no reason to wait.
+#[test]
+fn a_process_with_another_journal_and_another_instance_does_not_hold_the_adoption() {
+    let taken: bool = adoption_takes_the_batch("adopt-other-journal", |proc_root, world, _instance| {
+        let other: String = world.root.join("elsewhere").to_string_lossy().into_owned();
+        fake_process(proc_root, 23, &["/p/cli-git-native", "--journal", other.as_str(), "--git", "/usr/bin/git", "--instance", "other"]);
+    });
+    assert!(taken);
+}
+
+/// A process whose command line cannot be read says nothing, so it may be the service: a failure other than "the process is
+///  gone" counts as "may be running".
+#[test]
+fn a_command_line_that_cannot_be_read_counts_as_may_be_running() {
+    let unreadable_by_kind: [(&str, fn(&Path)); 2] = [
+        ("adopt-cmdline-is-directory", |process| { std::fs::create_dir_all(process.join("cmdline")).expect("a directory read fails with EISDIR"); }),
+        ("adopt-cmdline-no-access", |process| {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::write(process.join("cmdline"), b"x").expect("file");
+            std::fs::set_permissions(process.join("cmdline"), std::fs::Permissions::from_mode(0)).expect("no access");
+        }),
+    ];
+    for (name, make) in unreadable_by_kind {
+        let taken: bool = adoption_takes_the_batch(name, |proc_root, _world, _instance| {
+            let process: PathBuf = proc_root.join("31");
+            std::fs::create_dir_all(process.as_path()).expect("process directory");
+            make(process.as_path());
+        });
+        assert!(!taken, "{name}");
+    }
 }

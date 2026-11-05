@@ -48,6 +48,9 @@ pub mod service_land;
 /// The batches the commit service of an earlier release left open, finished by the service of this release when none runs.
 pub mod earlier_service_journal_adopted;
 
+/// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
+pub mod earlier_service_process_look;
+
 /// What the commit service needs to land a batch.
 pub mod service_land_context;
 
