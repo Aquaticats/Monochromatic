@@ -21,8 +21,10 @@ or in the repository other than this file was changed for it.
   it does not decide where a tool installs from or whether a publish needs
   crates.io,
   because `cargo package` still requires every `path` plus `version` dependency to exist in the target registry.
-  What makes tools independent of crates.io is a new `mpm-shadow` origin that reads the version from the checkout's
-  `Cargo.toml` and takes the prebuilt archive and SHA-256 from the matching immutable GitHub release.
+  Tools become independent of crates.io through the `archive` route that `mpm-shadow` already installs itself with:
+  the prebuilt archive and its SHA-256 come from the immutable GitHub release.
+  A new `mpm-shadow` origin that reads the version from the checkout's `Cargo.toml` is only needed
+  if the owner wants the lock to follow the checkout rather than the newest release.
 - Floating git is workable for use (c) and for the version-field part of use (d),
   and not for uses (a) and (b).
   The dependency catalog refuses `branch`,
@@ -282,7 +284,8 @@ Other owner words quoted in the repository that bear on this:
   packaging needs the dependency in the target registry.
 - (b) Installing our tool prebuilt,
   pinned in `toolchain.lock.json`:
-  workable with new `mpm-shadow` code only.
+  workable today through the existing `archive` route;
+  new `mpm-shadow` code is needed only for a checkout-version origin.
   What exists (`package/mpm-shadow/cli`):
   the `archive` route;
   the `github:<owner>/<repo>` origin with `options.tagPrefix`,
@@ -301,7 +304,8 @@ Other owner words quoted in the repository that bear on this:
   Measured on the GitHub API:
   release `monochromatic-git-policy-cli-v0.5.34` is `immutable: true` and its assets carry
   `digest: sha256:...`.
-  What would be new:
+  What would be new,
+  and only if the lock should follow the checkout instead of the newest release:
   an origin such as `workspace:package/git-policy/cli` whose resolver reads `package.name` and
   `package.version` from that checkout's `Cargo.toml` and then does what `resolve_github` does for the tag
   `<name>-v<version>`.
@@ -1042,7 +1046,7 @@ It tests that the text is on the page,
 not that Chrome highlights the `#:~:text=` fragment.
 For the commit-pinned source links the line ranges were checked against local clones at those commits instead
 (a page-wide text match does not prove the range).
-The scratch driver was `~/temp/agent/linkcheck-2026-11-05.ts`.
+The driver was a scratch script that was deleted after the run.
 
 [pnpm-ws-resolve]: https://pnpm.io/workspaces#:~:text=pnpm%20will%20refuse%20to%20resolve%20to%20anything%20other%20than%20a%20local%20workspace%20package
 [pnpm-ws-publish]: https://pnpm.io/workspaces#:~:text=we%20dynamically%20replace%20any%20workspace
